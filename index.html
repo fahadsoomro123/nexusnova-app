@@ -205,3 +205,351 @@
     </script>
 </body>
 </html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NexusNova - Sign Up</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #0f172a;
+            color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .card {
+            background-color: #1e293b;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            text-align: center;
+            width: 350px;
+        }
+        h1 { margin-bottom: 10px; }
+        p { color: #94a3b8; margin-bottom: 30px; }
+        
+        .input-group {
+            text-align: left;
+            margin-bottom: 15px;
+        }
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #e2e8f0;
+            font-size: 14px;
+        }
+        .input-group input {
+            width: 100%;
+            padding: 12px;
+            background-color: #334155;
+            border: 1px solid #475569;
+            border-radius: 6px;
+            color: #ffffff;
+            font-size: 16px;
+            box-sizing: border-box; /* Zaroori padding ke liye */
+        }
+        .input-group input:focus {
+            outline: none;
+            border-color: #22c55e;
+        }
+
+        .signup-btn {
+            background-color: #22c55e;
+            color: #ffffff;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 20px;
+            transition: 0.3s;
+        }
+        .signup-btn:hover {
+            background-color: #16a34a;
+        }
+
+        .divider {
+            margin: 20px 0;
+            display: flex;
+            align-items: center;
+            color: #64748b;
+        }
+        .divider::before, .divider::after {
+            content: "";
+            flex: 1;
+            border-bottom: 1px solid #475569;
+        }
+        .divider span {
+            padding: 0 10px;
+            font-size: 14px;
+        }
+
+        .google-btn {
+            background-color: #ffffff;
+            color: #333333;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            width: 100%;
+            transition: 0.3s;
+            box-sizing: border-box;
+        }
+        .google-btn:hover {
+            background-color: #f1f5f9;
+        }
+        #message {
+            margin-top: 15px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h1>Welcome to NexusNova</h1>
+        <p>Sign up to start mining and access your dashboard</p>
+
+        <!-- Email aur Password ki Fields -->
+        <div class="input-group">
+            <label for="email">Email address</label>
+            <input type="email" id="email" placeholder="name@company.com" required>
+        </div>
+        <div class="input-group">
+            <label for="password">Password</label>
+            <input type="password" id="password" placeholder="••••••••" required>
+        </div>
+
+        <!-- Signup Button -->
+        <button id="signupBtn" class="signup-btn">Sign up with Email</button>
+
+        <div id="message"></div>
+
+        <div class="divider"><span>OR</span></div>
+
+        <!-- Google Signin Button (Asal wala) -->
+        <button id="googleLoginBtn" class="google-btn">
+            <svg width="18" height="18" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.46-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+            Sign up with Google
+        </button>
+    </div>
+
+    <!-- Firebase Scripts aur Logic -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getAuth, createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+
+        // Aapki Firebase Configuration (Original)
+        const firebaseConfig = {
+            apiKey: "AIzaSyBU5WYp5ioaMD1LrNcDyAvROFW2wTiT0",
+            authDomain: "nexusnova-6ade2.firebaseapp.com",
+            projectId: "nexusnova-6ade2",
+            storageBucket: "nexusnova-6ade2.appspot.com",
+            messagingSenderId: "49791194817",
+            appId: "1:49791194817:web:07f28326e0f15979536640",
+            measurementId: "G-YLPFKWSS12"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const googleProvider = new GoogleAuthProvider();
+
+        // **Logik: Email/Password Signup**
+        document.getElementById('signupBtn').addEventListener('click', () => {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const messageDiv = document.getElementById('message');
+
+            if (!email || !password) {
+                messageDiv.innerHTML = "<span style='color: red;'>Please enter both email and password.</span>";
+                return;
+            }
+
+            createUserWithEmailAndPassword(auth, email, password)
+                .then((userCredential) => {
+                    // Signup successful
+                    const user = userCredential.user;
+                    messageDiv.innerHTML = "<span style='color: #22c55e;'>Account created successfully! Welcome.</span>";
+                    // Aap yahan user ko page2.html par redirect kar sakte hain
+                    // window.location.href = "page2.html"; 
+                })
+                .catch((error) => {
+                    // Signup error
+                    console.error("Signup Error:", error);
+                    messageDiv.innerHTML = "<span style='color: red;'>Error: " + error.message + "</span>";
+                });
+        });
+
+        // **Logik: Google Signup (Pehle wali logic)**
+        document.getElementById('googleLoginBtn').addEventListener('click', () => {
+            signInWithPopup(auth, googleProvider)
+                .then((result) => {
+                    const user = result.user;
+                    console.log("Google user:", user);
+                    alert("Welcome, " + user.displayName);
+                    // window.location.href = "page2.html";
+                })
+                .catch((error) => {
+                    console.error("Google Error:", error);
+                    alert("Error: " + error.message);
+                });
+        });
+    </script>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NexusNova - Secure Login</title>
+  <style>
+    :root {
+      --bg-color: #0d0f17;
+      --card-bg: #161b26;
+      --accent-color: #00ffcc;
+      --text-main: #ffffff;
+      --text-sub: #8a99ad;
+      --secondary: #1f293d;
+      --danger: #ff4757;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: Arial, sans-serif; }
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+    .login-card {
+      background: var(--card-bg);
+      border-radius: 16px;
+      padding: 30px;
+      width: 100%;
+      max-width: 400px;
+      border: 1px solid #222c3d;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    }
+    h2 { text-align: center; margin-bottom: 25px; color: var(--accent-color); }
+    .input-group { margin-bottom: 15px; }
+    label { display: block; font-size: 0.85rem; color: var(--text-sub); margin-bottom: 5px; }
+    input {
+      width: 100%;
+      padding: 12px;
+      background: #111520;
+      border: 1px solid var(--secondary);
+      border-radius: 8px;
+      color: #fff;
+      font-size: 0.95rem;
+      outline: none;
+    }
+    input:focus { border-color: var(--accent-color); }
+    .captcha-box {
+      background: #111520;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid var(--secondary);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+    .captcha-text { font-weight: bold; color: var(--accent-color); font-size: 1.1rem; letter-spacing: 2px; }
+    .login-btn {
+      width: 100%;
+      padding: 12px;
+      background: var(--accent-color);
+      color: #000;
+      border: none;
+      border-radius: 8px;
+      font-weight: bold;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    .login-btn:hover { opacity: 0.9; }
+    .error-msg { color: var(--danger); font-size: 0.8rem; margin-top: 5px; text-align: center; display: none; }
+  </style>
+</head>
+<body>
+
+  <div class="login-card">
+    <h2>Secure Login</h2>
+    <form id="loginForm" onsubmit="handleSecureLogin(event)">
+      <div class="input-group">
+        <label>Email address</label>
+        <input type="email" id="email" required placeholder="name@company.com">
+      </div>
+      <div class="input-group">
+        <label>Password</label>
+        <input type="password" id="password" required placeholder="••••••••">
+      </div>
+      
+      <!-- CAPTCHA SECTION -->
+      <div class="input-group">
+        <label>Security Verification (CAPTCHA)</label>
+        <div class="captcha-box">
+          <span id="captchaQuestion" class="captcha-text"></span>
+          <button type="button" onclick="generateCaptcha()" style="background:none; border:none; color:var(--text-sub); cursor:pointer; font-size:0.8rem;">🔄 Refresh</button>
+        </div>
+        <input type="number" id="captchaInput" required placeholder="Enter the answer">
+        <div id="errorMsg" class="error-msg">Galat CAPTCHA! Dobara koshish karein.</div>
+      </div>
+
+      <button type="submit" class="login-btn">Login Securely</button>
+    </form>
+  </div>
+
+  <script>
+    let currentAnswer = 0;
+
+    function generateCaptcha() {
+      const num1 = Math.floor(Math.random() * 10) + 1;
+      const num2 = Math.floor(Math.random() * 10) + 1;
+      currentAnswer = num1 + num2;
+      document.getElementById('captchaQuestion').innerText = num1 + " + " + num2 + " = ?";
+    }
+
+    // Page load hote hi captcha generate hoga
+    window.onload = generateCaptcha;
+
+    function handleSecureLogin(e) {
+      e.preventDefault();
+      const userCaptcha = parseInt(document.getElementById('captchaInput').value);
+      const errorMsg = document.getElementById('errorMsg');
+
+      if (userCaptcha !== currentAnswer) {
+        errorMsg.style.display = 'block';
+        generateCaptcha(); // Naya sawal dega
+        document.getElementById('captchaInput').value = '';
+        return;
+      }
+
+      errorMsg.style.display = 'none';
+      const email = document.getElementById('email').value;
+
+      // Data save karke dashboard par bhej dega
+      localStorage.setItem('nvx_logged', 'true');
+      localStorage.setItem('nvx_user_email', email);
+
+      window.location.href = "page2.html";
+    }
+  </script>
+
+</body>
