@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NexusNova Mining Protocol</title>
+  <style>
+    :root {
+      --bg-color: #0d0f17;
+      --card-bg: #161b26;
+      --accent-color: #00ffcc;
+      --text-main: #ffffff;
+      --text-sub: #8a99ad;
+      --danger: #ff4757;
+      --secondary: #1f293d;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: Arial, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      overflow-x: hidden;
+      padding-bottom: 90px;
+    }
+
+    .ticker-wrap {
+      width: 100%;
+      background: #090b10;
+      overflow: hidden;
+      white-space: nowrap;
+      border-bottom: 1px solid var(--secondary);
+      padding: 10px 0;
+    }
+
+    .ticker-content {
+      display: inline-block;
+      animation: ticker 30s linear infinite;
+    }
+
+    .ticker-item {
+      display: inline-block;
+      padding: 0 15px;
+      font-size: 0.85rem;
+    }
+
+    .price-up { color: var(--accent-color); }
+    .price-down { color: var(--danger); }
+
+    @keyframes ticker {
+      0% { transform: translate3d(0, 0, 0); }
+      100% { transform: translate3d(-50%, 0, 0); }
+    }
+
+    .container {
+      max-width: 500px;
+      margin: 0 auto;
+      width: 100%;
+      padding: 15px;
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 15px;
+      border: 1px solid #222c3d;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    }
+
+    .balance-title {
+      font-size: 0.9rem;
+      color: var(--text-sub);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .balance-amount {
+      font-size: 2.2rem;
+      font-weight: bold;
+      color: var(--accent-color);
+      margin: 8px 0;
+    }
+
+    .balance-usd {
+      color: var(--text-sub);
+      font-size: 0.95rem;
+    }
+
+    .mine-btn {
+      width: 100%;
+      padding: 20px;
+      border-radius: 16px;
+      border: 2px solid var(--accent-color);
+      background: rgba(0, 255, 204, 0.05);
+      color: var(--accent-color);
+      font-size: 1.2rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-align: center;
+      margin: 15px 0;
+    }
+
+    .mine-btn.active {
+      background: var(--accent-color);
+      color: #000;
+      box-shadow: 0 0 20px rgba(0, 255, 204, 0.4);
+    }
+
+    .sub-text {
+      display: block;
+      font-size: 0.75rem;
+      opacity: 0.8;
+      margin-top: 4px;
+    }
+
+    .timer-display {
+      text-align: center;
+      font-size: 0.85rem;
+      color: var(--text-sub);
+      margin-bottom: 10px;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .stat-card {
+      background: #111520;
+      padding: 12px;
+      border-radius: 12px;
+      text-align: center;
+    }
+
+    .stat-label { font-size: 0.75rem; color: var(--text-sub); }
+    .stat-value { font-size: 1rem; font-weight: bold; margin-top: 4px; }
+
+    .btn-group {
+      display: flex;
+      gap: 10px;
+      margin-top: 15px;
+    }
+
+    .action-btn {
+      flex: 1;
+      padding: 12px;
+      background: var(--secondary);
+      border: none;
+      color: #fff;
+      border-radius: 8px;
+      font-weight: bold;
+      cursor: pointer;
+      text-align: center;
+    }
+
+    .action-btn.primary {
+      background: var(--accent-color);
+      color: #000;
+    }
+
+    .action-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Search Input Styling */
+    .search-input {
+      width: 100%;
+      padding: 12px 15px;
+      background: #111520;
+      border: 1px solid var(--secondary);
+      border-radius: 10px;
+      color: #fff;
+      font-size: 0.9rem;
+      margin-bottom: 15px;
+      outline: none;
+      transition: border-color 0.3s;
+    }
+    .search-input:focus {
+      border-color: var(--accent-color);
+    }
+
+    .history-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--secondary);
+      font-size: 0.9rem;
+    }
+
+    .crypto-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--secondary);
+    }
+
+    .crypto-info { display: flex; align-items: center; gap: 10px; }
+    .crypto-symbol { font-weight: bold; }
+    .crypto-name { font-size: 0.8rem; color: var(--text-sub); }
+    .crypto-price-block { text-align: right; }
+    .crypto-price { font-weight: bold; }
+    .crypto-change { font-size: 0.8rem; }
+
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid #1a2233;
+      font-size: 0.9rem;
+    }
+    .info-row span:first-child { color: var(--text-sub); }
+
+    .bottom-dock {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      background: #090b10;
+      border-top: 1px solid var(--secondary);
+      display: flex;
+      justify-content: space-around;
+      padding: 10px 0;
+      z-index: 100;
+    }
+
+    .dock-item {
+      color: var(--text-sub);
+      background: none;
+      border: none;
+      font-size: 0.7rem;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+    }
+
+    .dock-item.active {
+      color: var(--accent-color);
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="ticker-wrap">
+    <div class="ticker-content" id="tickerContent">
+      <div class="ticker-item">NexusNova Network Active - Top 10 Crypto Prices Loaded</div>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- TAB 1: MINING -->
+    <div id="tab-home" class="tab-content active">
+      <div class="card">
+        <div class="balance-title">NVX Token Balance</div>
+        <div class="balance-amount" id="balance">0.0000</div>
+        <div class="balance-usd" id="usdValue">$ 0.00 USD</div>
+      </div>
+
+      <button id="mineBtn" class="mine-btn">
+        <span id="btnText">START MINING</span>
+        <span id="btnSub" class="sub-text">24H SESSION</span>
+      </button>
+
+      <div class="timer-display" id="timer">MINER OFFLINE</div>
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">HALVING STAGE</div>
+          <div class="stat-value" id="halvingStage">STAGE 1</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">MINING RATE</div>
+          <div class="stat-value" id="miningRate">1.0000 NVX/h</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: WALLET -->
+    <div id="tab-wallet" class="tab-content">
+      <div class="card">
+        <div class="balance-title">Wallet Balance</div>
+        <div class="balance-amount" id="walletBalance">0.0000 NVX</div>
+        <div class="balance-usd" id="walletUsd">$ 0.00 USD</div>
+        
+        <div class="btn-group">
+          <button class="action-btn primary" onclick="handleDeposit()">Deposit</button>
+          <button class="action-btn" onclick="handleWithdraw()">Withdraw</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Recent Transactions</h3>
+        <div id="txHistory" style="margin-top: 10px;">
+          <div class="history-item">
+            <span>Mining Reward</span>
+            <span style="color: var(--accent-color);">+0.0000 NVX</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: PROFILE -->
+    <div id="tab-profile" class="tab-content">
+      <div class="card" style="text-align: center;">
+        <div style="width: 70px; height: 70px; background: var(--secondary); border-radius: 50%; margin: 0 auto 10px auto; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; color: var(--accent-color);">👤</div>
+        <h3 id="profileName">Miner User</h3>
+        <p style="font-size: 0.8rem; color: var(--text-sub); margin-top: 4px;">Verified NexusNova Community Member</p>
+      </div>
+
+      <div class="card">
+        <h3>Account Stats</h3>
+        <div style="margin-top: 10px;">
+          <div class="info-row"><span>User ID</span><span style="color: var(--accent-color);" id="profileId">NVX-8821</span></div>
+          <div class="info-row"><span>Total Mined</span><span id="profileTotalMined">0 NVX</span></div>
+          <div class="info-row"><span>Tasks Completed</span><span id="profileTasksDone">0</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Referral Code</h3>
+        <p style="font-size: 0.85rem; color: var(--text-sub); margin-top: 6px;">Share your code and get extra mining bonus!</p>
+        <div style="margin: 15px 0; background: #111520; padding: 12px; border-radius: 8px; font-family: monospace; font-size: 1.1rem; color: var(--accent-color); text-align: center;" id="refCodeDisplay">---</div>
+        <button class="action-btn primary" style="width: 100%;" onclick="copyReferral()">COPY REFERRAL LINK</button>
+      </div>
+    </div>
+
+    <!-- TAB 4: TASKS -->
+    <div id="tab-tasks" class="tab-content">
+      <div class="card">
+        <h3>Daily Rewards</h3>
+        <p style="font-size: 0.85rem; color: var(--text-sub); margin-top: 4px;">Claim free NVX coins every 24 hours.</p>
+        <button id="dailyBtn" class="action-btn primary" style="width: 100%; margin-top: 10px;" onclick="claimDailyReward()">CLAIM DAILY BONUS (+5 NVX)</button>
+      </div>
+
+      <div class="card">
+        <h3>Community Tasks</h3>
+        <div style="margin-top: 10px;">
+          <p style="font-size: 0.9rem;">Join Official Telegram Channel</p>
+          <button id="task1Btn" class="action-btn" style="width: 100%; margin-top: 6px;" onclick="completeTask('task1', 10)">CLAIM +10 NVX</button>
+        </div>
+        <div style="margin-top: 15px;">
+          <p style="font-size: 0.9rem;">Watch Ad Bonus</p>
+          <button id="task2Btn" class="action-btn" style="width: 100%; margin-top: 6px;" onclick="watchAdReward()">WATCH AD (+2.5 NVX)</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 5: MARKET (TOP 500 TOKENS + SEARCH) -->
+    <div id="tab-market" class="tab-content">
+      <div class="card">
+        <h3>Top 500 Crypto Live Prices</h3>
+        <p style="font-size: 0.8rem; color: var(--text-sub); margin-bottom: 12px;">Real-time market tracking</p>
+        
+        <!-- Search Input Bar -->
+        <input type="text" id="cryptoSearch" class="search-input" placeholder="🔍 Search coin name or symbol (e.g. btc, sol)..." onkeyup="filterCryptoMarket()">
+        
+        <div id="marketList" style="margin-top: 10px;">
+          <p style="color: var(--text-sub); font-size: 0.85rem;">Loading Top 500 Tokens...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 6: SETTINGS & ABOUT -->
+    <div id="tab-about" class="tab-content">
+      <div class="card">
+        <h3>System Status</h3>
+        <div style="margin-top: 10px;">
+          <div class="info-row"><span>App Version</span><span style="color: var(--accent-color);">v2.6.6-Beta</span></div>
+          <div class="info-row"><span>Network</span><span>NexusNova Mainnet-Test</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Social Channels</h3>
+        <button class="action-btn" style="width:100%; margin-top: 10px;" onclick="openLink('https://twitter.com/nexusnova')">✖ Official X (Twitter)</button>
+        <button class="action-btn" style="width:100%; margin-top: 10px;" onclick="openLink('https://discord.gg/nexusnova')">🎮 Official Discord</button>
+        <button class="action-btn" style="width:100%; margin-top: 10px;" onclick="openLink('https://t.me/nexusnova')">💬 Telegram Support</button>
+      </div>
+
+      <div class="card">
+        <h3>Support & Contact</h3>
+        <button class="action-btn primary" style="width:100%; margin-top: 10px;" onclick="openLink('mailto:support@nexusnova.com')">📧 Email Support</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="bottom-dock">
+    <button class="dock-item active" onclick="switchTab('home', this)">⛏️ Mining</button>
+    <button class="dock-item" onclick="switchTab('wallet', this)">👛 Wallet</button>
+    <button class="dock-item" onclick="switchTab('profile', this)">👤 Profile</button>
+    <button class="dock-item" onclick="switchTab('tasks', this)">🎯 Tasks</button>
+    <button class="dock-item" onclick="switchTab('market', this)">📈 Market</button>
+    <button class="dock-item" onclick="switchTab('about', this)">⚙️ Settings</button>
+  </div>
+
+  <script>
+  document.addEventListener('DOMContentLoaded', function() {
+    let coins = parseFloat(localStorage.getItem('nvx_coins')) || 0.0;
+    let isMining = localStorage.getItem('nvx_isMining') === 'true';
+    let endTime = parseInt(localStorage.getItem('nvx_endTime')) || 0;
+    let lastTickTime = parseInt(localStorage.getItem('nvx_lastTick')) || Date.now();
+    let lastDailyClaim = parseInt(localStorage.getItem('nvx_lastDaily')) || 0;
+    let refCode = localStorage.getItem('nvx_refCode') || 'NVX-' + Math.floor(1000 + Math.random() * 9000);
+    localStorage.setItem('nvx_refCode', refCode);
+
+    let baseRate = 1.0;
+    let globalMarketData = [];
+
+    const mineBtn = document.getElementById('mineBtn');
+    if (mineBtn) {
+      mineBtn.addEventListener('click', function() {
+        if (!isMining) {
+          isMining = true;
+          endTime = Date.now() + (24 * 60 * 60 * 1000);
+          lastTickTime = Date.now();
+          localStorage.setItem('nvx_isMining', 'true');
+          localStorage.setItem('nvx_endTime', endTime);
+          localStorage.setItem('nvx_lastTick', lastTickTime);
+          updateUI();
+        }
+      });
+    }
+
+    function calculateHalving() {
+      let phase = 1;
+      let tempCoins = coins;
+      let threshold = 100;
+      
+      while (tempCoins >= threshold) {
+        phase++;
+        tempCoins -= threshold;
+        threshold *= 2;
+      }
+
+      baseRate = 1.0 / Math.pow(2, phase - 1);
+      
+      const hStage = document.getElementById('halvingStage');
+      const mRate = document.getElementById('miningRate');
+      if (hStage) hStage.innerText = 'STAGE ' + phase;
+      if (mRate) mRate.innerText = baseRate.toFixed(4) + ' NVX/h';
+    }
+
+    function processOfflineMining() {
+      if (isMining) {
+        const now = Date.now();
+        const effectiveEndTime = Math.min(now, endTime);
+        if (lastTickTime < effectiveEndTime) {
+          const elapsedSeconds = (effectiveEndTime - lastTickTime) / 1000;
+          coins += (baseRate / 3600) * elapsedSeconds;
+          localStorage.setItem('nvx_coins', coins);
+        }
+        lastTickTime = now;
+        localStorage.setItem('nvx_lastTick', lastTickTime);
+
+        if (now >= endTime) {
+          isMining = false;
+          localStorage.setItem('nvx_isMining', 'false');
+        }
+      }
+    }
+
+    function updateUI() {
+      processOfflineMining();
+
+      const balanceEl = document.getElementById('balance');
+      const usdEl = document.getElementById('usdValue');
+      const walletBalanceEl = document.getElementById('walletBalance');
+      const walletUsdEl = document.getElementById('walletUsd');
+      const refEl = document.getElementById('refCodeDisplay');
+      
+      const pId = document.getElementById('profileId');
+      const pTotal = document.getElementById('profileTotalMined');
+      const pTasks = document.getElementById('profileTasksDone');
+
+      const formattedCoins = coins.toFixed(4);
+      const formattedUsd = '$ ' + (coins * 0.15).toFixed(2) + ' USD';
+
+      if (balanceEl) balanceEl.innerText = formattedCoins;
+      if (usdEl) usdEl.innerText = formattedUsd;
+      if (walletBalanceEl) walletBalanceEl.innerText = formattedCoins + ' NVX';
+      if (walletUsdEl) walletUsdEl.innerText = formattedUsd;
+      if (refEl) refEl.innerText = refCode;
+
+      if (pId) pId.innerText = refCode;
+      if (pTotal) pTotal.innerText = formattedCoins + ' NVX';
+      
+      let tasksCount = 0;
+      if (localStorage.getItem('nvx_task_task1')) tasksCount++;
+      if (localStorage.getItem('nvx_task_task2')) tasksCount++;
+      if (pTasks) pTasks.innerText = tasksCount;
+
+      calculateHalving();
+
+      const btnText = document.getElementById('btnText');
+      const btnSub = document.getElementById('btnSub');
+      const timerText = document.getElementById('timer');
+
+      if (isMining) {
+        const remaining = endTime - Date.now();
+
+        if (remaining > 0) {
+          if (mineBtn) mineBtn.classList.add('active');
+          if (btnText) btnText.innerText = "MINING ACTIVE";
+          if (btnSub) btnSub.innerText = "HASHING...";
+
+          let hours = Math.floor((remaining / (1000 * 60 * 60)) % 24);
+          let minutes = Math.floor((remaining / (1000 * 60)) % 60);
+          let seconds = Math.floor((remaining / 1000) % 60);
+
+          if (timerText) timerText.innerText = "SESSION ENDS: " + hours + "H " + minutes + "M " + seconds + "S";
+        } else {
+          isMining = false;
+          localStorage.setItem('nvx_isMining', 'false');
+          if (mineBtn) mineBtn.classList.remove('active');
+          if (btnText) btnText.innerText = "START MINING";
+          if (btnSub) btnSub.innerText = "24H SESSION";
+          if (timerText) timerText.innerText = "SESSION COMPLETED - RESTART";
+        }
+      } else {
+        if (mineBtn) mineBtn.classList.remove('active');
+        if (btnText) btnText.innerText = "START MINING";
+        if (btnSub) btnSub.innerText = "24H SESSION";
+        if (timerText) timerText.innerText = "MINER OFFLINE";
+      }
+
+      const dailyBtn = document.getElementById('dailyBtn');
+      if (dailyBtn) {
+        if (Date.now() - lastDailyClaim < 86400000) {
+          dailyBtn.disabled = true;
+          dailyBtn.innerText = "CLAIMED TODAY";
+        } else {
+          dailyBtn.disabled = false;
+          dailyBtn.innerText = "CLAIM DAILY BONUS (+5 NVX)";
+        }
+      }
+
+      const t1Btn = document.getElementById('task1Btn');
+      const t2Btn = document.getElementById('task2Btn');
+      if (t1Btn && localStorage.getItem('nvx_task_task1')) {
+        t1Btn.disabled = true;
+        t1Btn.innerText = "COMPLETED";
+      }
+      if (t2Btn && localStorage.getItem('nvx_task_task2')) {
+        t2Btn.disabled = true;
+        t2Btn.innerText = "COMPLETED";
+      }
+    }
+
+    window.renderMarketData = function(data) {
+      let tickerHTML = '';
+      let marketHTML = '';
+
+      data.forEach(function(coin, index) {
+        const changeClass = coin.price_change_percentage_24h >= 0 ? 'price-up' : 'price-down';
+        const changeSign = coin.price_change_percentage_24h >= 0 ? '+' : '';
+
+        if (index < 10) {
+          tickerHTML += '<div class="ticker-item"><span>#' + (index + 1) + ' ' + coin.symbol.toUpperCase() + '</span> <span class="' + changeClass + '">$' + coin.current_price.toLocaleString() + ' (' + changeSign + (coin.price_change_percentage_24h ? coin.price_change_percentage_24h.toFixed(2) : '0.00') + '%)</span></div>';
+        }
+
+        marketHTML += '<div class="crypto-item"><div class="crypto-info"><div style="font-size:0.75rem; color:var(--text-sub); width:35px;">#' + (index + 1) + '</div><div><div class="crypto-symbol">' + coin.symbol.toUpperCase() + '</div><div class="crypto-name">' + coin.name + '</div></div></div><div class="crypto-price-block"><div class="crypto-price">$' + coin.current_price.toLocaleString() + '</div><div class="crypto-change ' + changeClass + '">' + changeSign + (coin.price_change_percentage_24h ? coin.price_change_percentage_24h.toFixed(2) : '0.00') + '%</div></div></div>';
+      });
+
+      const tContent = document.getElementById('tickerContent');
+      const mList = document.getElementById('marketList');
+      if (tContent) tContent.innerHTML = tickerHTML + tickerHTML;
+      if (mList) mList.innerHTML = marketHTML;
+    };
+
+    window.filterCryptoMarket = function() {
+      const input = document.getElementById('cryptoSearch').value.toLowerCase();
+      const filtered = globalMarketData.filter(function(coin) {
+        return coin.name.toLowerCase().includes(input) || coin.symbol.toLowerCase().includes(input);
+      });
+
+      let marketHTML = '';
+      if(filtered.length === 0) {
+        marketHTML = '<p style="color: var(--text-sub); font-size: 0.85rem; text-align: center; padding: 20px;">No coins found!</p>';
+      } else {
+        filtered.forEach(function(coin) {
+          const originalIndex = globalMarketData.indexOf(coin) + 1;
+          const changeClass = coin.price_change_percentage_24h >= 0 ? 'price-up' : 'price-down';
+          const changeSign = coin.price_change_percentage_24h >= 0 ? '+' : '';
+
+          marketHTML += '<div class="crypto-item"><div class="crypto-info"><div style="font-size:0.75rem; color:var(--text-sub); width:35px;">#' + originalIndex + '</div><div><div class="crypto-symbol">' + coin.symbol.toUpperCase() + '</div><div class="crypto-name">' + coin.name + '</div></div></div><div class="crypto-price-block"><div class="crypto-price">$' + coin.current_price.toLocaleString() + '</div><div class="crypto-change ' + changeClass + '">' + changeSign + (coin.price_change_percentage_24h ? coin.price_change_percentage_24h.toFixed(2) : '0.00') + '%</div></div></div>';
+        });
+      }
+      document.getElementById('marketList').innerHTML = marketHTML;
+    };
+
+    async function fetchCryptoMarket() {
+      try {
+        const response1 = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=1&sparkline=false');
+        const response2 = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=2&sparkline=false');
+        
+        if (!response1.ok || !response2.ok) throw new Error("API Limit");
+        const data1 = await response1.json();
+        const data2 = await response2.json();
+        globalMarketData = [...data1, ...data2];
+
+        if(globalMarketData && globalMarketData.length > 0) {
+          renderMarketData(globalMarketData);
+        }
+      } catch (error) {
+        globalMarketData = [
+          { symbol: 'btc', name: 'Bitcoin', current_price: 64250, price_change_percentage_24h: 1.82 },
+          { symbol: 'eth', name: 'Ethereum', current_price: 3480, price_change_percentage_24h: -0.45 },
+          { symbol: 'usdt', name: 'Tether', current_price: 1.00, price_change_percentage_24h: 0.01 },
+          { symbol: 'bnb', name: 'BNB', current_price: 575, price_change_percentage_24h: 0.92 },
+          { symbol: 'sol', name: 'Solana', current_price: 142, price_change_percentage_24h: 3.15 },
+          { symbol: 'usdc', name: 'USDC', current_price: 1.00, price_change_percentage_24h: 0.00 },
+          { symbol: 'xrp', name: 'XRP', current_price: 0.58, price_change_percentage_24h: -1.20 },
+          { symbol: 'doge', name: 'Dogecoin', current_price: 0.12, price_change_percentage_24h: 4.50 },
+          { symbol: 'ada', name: 'Cardano', current_price: 0.40, price_change_percentage_24h: 0.55 },
+          { symbol: 'trx', name: 'TRON', current_price: 0.13, price_change_percentage_24h: 0.30 }
+        ];
+        renderMarketData(globalMarketData);
+      }
+    }
+
+    window.switchTab = function(tabId, element) {
+      const tabs = document.querySelectorAll('.tab-content');
+      const buttons = document.querySelectorAll('.dock-item');
+      
+      tabs.forEach(function(t) { t.classList.remove('active'); });
+      buttons.forEach(function(b) { b.classList.remove('active'); });
+
+      const selectedTab = document.getElementById('tab-' + tabId);
+      if (selectedTab) selectedTab.classList.add('active');
+      if (element) element.classList.add('active');
+    };
+
+    window.claimDailyReward = function() {
+      if (Date.now() - lastDailyClaim >= 86400000) {
+        coins += 5.0;
+        lastDailyClaim = Date.now();
+        localStorage.setItem('nvx_coins', coins);
+        localStorage.setItem('nvx_lastDaily', lastDailyClaim);
+        alert("🎉 Daily Reward Claimed: +5 NVX!");
+        updateUI();
+      }
+    };
+
+    window.completeTask = function(taskId, reward) {
+      if (!localStorage.getItem('nvx_task_' + taskId)) {
+        coins += reward;
+        localStorage.setItem('nvx_coins', coins);
+        localStorage.setItem('nvx_task_' + taskId, 'true');
+        alert("✅ Task Completed: +" + reward + " NVX added!");
+        updateUI();
+      }
+    };
+
+    window.watchAdReward = function() {
+      alert("📺 Simulating Ad... Bonus Added!");
+      coins += 2.5;
+      localStorage.setItem('nvx_coins', coins);
+      updateUI();
+    };
+
+    window.copyReferral = function() {
+      const link = "https://nexusnova-mining.app/?ref=" + refCode;
+      navigator.clipboard.writeText(link);
+      alert("📋 Referral Link Copied!\n" + link);
+    };
+
+    window.handleDeposit = function() {
+      alert("💳 Deposit feature Mainnet launch par enable hoga.");
+    };
+
+    window.handleWithdraw = function() {
+      alert("🔒 Withdrawals Phase 2 me start honge. Target Minimum: 100 NVX.");
+    };
+
+    window.openLink = function(url) {
+      window.open(url, '_blank');
+    };
+
+    setInterval(updateUI, 1000);
+    updateUI();
+    fetchCryptoMarket();
+  });
+  </script>
+</body>
+</html>
