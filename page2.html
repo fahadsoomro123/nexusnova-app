@@ -1,0 +1,4353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>NexusNova Dashboard</title>
+
+<style>
+
+:root {
+    --bg-color: #080b11;
+    --card-bg: #0f141f;
+    --secondary: #263247;
+    --accent-color: #00ffcc;
+    --danger: #ff4d6d;
+    --warning: #fbbf24;
+    --text-main: #ffffff;
+    --text-sub: #8b98aa;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: Arial, sans-serif;
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    background: var(--bg-color);
+    color: var(--text-main);
+    min-height: 100vh;
+    overflow-x: hidden;
+    padding-bottom: 90px;
+}
+
+button,
+input,
+select {
+    font-family: Arial, sans-serif;
+}
+
+button {
+    -webkit-tap-highlight-color: transparent;
+}
+
+.ticker-wrap {
+    width: 100%;
+    background: #090b10;
+    overflow: hidden;
+    white-space: nowrap;
+    border-bottom: 1px solid var(--secondary);
+    padding: 10px 0;
+}
+
+.ticker-content {
+    display: inline-block;
+    animation: ticker 45s linear infinite;
+}
+
+.ticker-item {
+    display: inline-block;
+    padding: 0 15px;
+    font-size: .82rem;
+}
+
+.price-up {
+    color: var(--accent-color);
+}
+
+.price-down {
+    color: var(--danger);
+}
+
+@keyframes ticker {
+    0% {
+        transform: translate3d(0,0,0);
+    }
+
+    100% {
+        transform: translate3d(-50%,0,0);
+    }
+}
+
+.container {
+    max-width: 650px;
+    width: 100%;
+    margin: auto;
+    padding: 15px;
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+.card {
+    background: var(--card-bg);
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 15px;
+    border: 1px solid #222c3d;
+    box-shadow: 0 8px 24px rgba(0,0,0,.3);
+}
+
+.card h3 {
+    font-size: 1rem;
+}
+
+.balance-title {
+    font-size: .9rem;
+    color: var(--text-sub);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.balance-amount {
+    font-size: 2.2rem;
+    font-weight: bold;
+    color: var(--accent-color);
+    margin: 8px 0;
+    word-break: break-word;
+}
+
+.balance-usd {
+    color: var(--text-sub);
+    font-size: .95rem;
+}
+
+.mine-btn {
+    width: 100%;
+    padding: 20px;
+    border-radius: 16px;
+    border: 2px solid var(--accent-color);
+    background: rgba(0,255,204,.05);
+    color: var(--accent-color);
+    font-size: 1.2rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: .3s;
+    text-align: center;
+    margin: 15px 0;
+}
+
+.mine-btn.active {
+    background: var(--accent-color);
+    color: #000;
+    box-shadow: 0 0 20px rgba(0,255,204,.4);
+}
+
+.sub-text {
+    display: block;
+    font-size: .75rem;
+    opacity: .8;
+    margin-top: 4px;
+}
+
+.timer-display {
+    text-align: center;
+    font-size: .85rem;
+    color: var(--text-sub);
+    margin-bottom: 10px;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.stat-card {
+    background: #111520;
+    padding: 12px;
+    border-radius: 12px;
+    text-align: center;
+}
+
+.stat-label {
+    font-size: .75rem;
+    color: var(--text-sub);
+}
+
+.stat-value {
+    font-size: 1rem;
+    font-weight: bold;
+    margin-top: 4px;
+}
+
+.btn-group {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.action-btn {
+    flex: 1;
+    padding: 12px;
+    background: var(--secondary);
+    border: none;
+    color: #fff;
+    border-radius: 8px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: .2s;
+}
+
+.action-btn:hover {
+    opacity: .9;
+}
+
+.action-btn.primary {
+    background: var(--accent-color);
+    color: #000;
+}
+
+.action-btn.danger {
+    background: var(--danger);
+    color: #fff;
+}
+
+.action-btn:disabled {
+    opacity: .5;
+    cursor: not-allowed;
+}
+
+.search-input {
+    width: 100%;
+    padding: 12px 15px;
+    background: #111520;
+    border: 1px solid var(--secondary);
+    border-radius: 10px;
+    color: #fff;
+    font-size: .9rem;
+    margin-bottom: 12px;
+    outline: none;
+}
+
+.search-input:focus {
+    border-color: var(--accent-color);
+}
+
+.select-input {
+    width: 100%;
+    padding: 12px;
+    background: #111520;
+    border: 1px solid var(--secondary);
+    border-radius: 10px;
+    color: #fff;
+    outline: none;
+}
+
+.history-item {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--secondary);
+    font-size: .9rem;
+}
+
+.crypto-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--secondary);
+}
+
+.crypto-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.crypto-rank {
+    width: 28px;
+    color: var(--text-sub);
+    font-size: .72rem;
+    text-align: center;
+}
+
+.crypto-info img {
+    flex-shrink: 0;
+}
+
+.crypto-symbol {
+    font-weight: bold;
+}
+
+.crypto-name {
+    font-size: .75rem;
+    color: var(--text-sub);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 190px;
+}
+
+.crypto-price-block {
+    text-align: right;
+    flex-shrink: 0;
+}
+
+.crypto-price {
+    font-weight: bold;
+    font-size: .9rem;
+}
+
+.crypto-change {
+    font-size: .76rem;
+    margin-top: 3px;
+}
+
+.crypto-marketcap {
+    color: var(--text-sub);
+    font-size: .68rem;
+    margin-top: 3px;
+}
+
+.info-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid #1a2233;
+    font-size: .9rem;
+}
+
+.info-row span:first-child {
+    color: var(--text-sub);
+}
+
+.bottom-dock {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background: #090b10;
+    border-top: 1px solid var(--secondary);
+    display: flex;
+    justify-content: center;
+    padding: 8px 4px;
+    z-index: 100;
+    overflow-x: auto;
+}
+
+.dock-item {
+    color: var(--text-sub);
+    background: none;
+    border: none;
+    font-size: .67rem;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    min-width: 70px;
+    flex: 0 0 70px;
+    padding: 3px 4px;
+}
+
+.dock-item.active {
+    color: var(--accent-color);
+    font-weight: bold;
+}
+
+.status {
+    text-align: center;
+    color: var(--text-sub);
+    font-size: .8rem;
+    padding: 18px 10px;
+    line-height: 1.5;
+}
+
+.section-title {
+    font-size: .8rem;
+    color: var(--text-sub);
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    letter-spacing: .7px;
+}
+
+.market-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.market-count {
+    color: var(--text-sub);
+    font-size: .72rem;
+}
+
+.refresh-btn {
+    background: var(--secondary);
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: .75rem;
+}
+
+.gold-box {
+    background: linear-gradient(
+        135deg,
+        rgba(251,191,36,.12),
+        rgba(15,20,31,1)
+    );
+    border: 1px solid rgba(251,191,36,.25);
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 12px;
+}
+
+.gold-icon {
+    font-size: 1.7rem;
+    margin-bottom: 6px;
+}
+
+.gold-price {
+    color: var(--warning);
+    font-size: 1.7rem;
+    font-weight: bold;
+}
+
+.gold-sub {
+    color: var(--text-sub);
+    font-size: .75rem;
+    margin-top: 4px;
+}
+
+.converter-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+}
+
+.converter-row {
+    display: grid;
+    grid-template-columns: 1fr 100px;
+    gap: 8px;
+}
+
+.converter-row input {
+    width: 100%;
+    padding: 12px;
+    background: #111520;
+    border: 1px solid var(--secondary);
+    border-radius: 9px;
+    color: #fff;
+    outline: none;
+}
+
+.converter-result {
+    margin-top: 15px;
+    padding: 15px;
+    border-radius: 12px;
+    background: #111520;
+    text-align: center;
+}
+
+.converter-result-value {
+    color: var(--accent-color);
+    font-size: 1.4rem;
+    font-weight: bold;
+}
+
+.converter-note {
+    color: var(--text-sub);
+    font-size: .7rem;
+    margin-top: 5px;
+}
+
+.news-card {
+    background: #111520;
+    border: 1px solid #222c3d;
+    border-radius: 14px;
+    overflow: hidden;
+    margin-bottom: 15px;
+}
+
+.news-image {
+    width: 100%;
+    height: 190px;
+    object-fit: cover;
+    display: block;
+}
+
+.news-content {
+    padding: 15px;
+}
+
+.news-source {
+    color: var(--accent-color);
+    font-size: .7rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    margin-bottom: 7px;
+}
+
+.news-content h3 {
+    font-size: .96rem;
+    line-height: 1.4;
+    margin-bottom: 8px;
+}
+
+.news-content p {
+    color: var(--text-sub);
+    font-size: .8rem;
+    line-height: 1.5;
+}
+
+.news-bottom {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.news-bottom span {
+    color: var(--text-sub);
+    font-size: .65rem;
+}
+
+.news-read-btn {
+    background: var(--accent-color);
+    color: #000;
+    border: none;
+    padding: 7px 12px;
+    border-radius: 7px;
+    font-size: .7rem;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.profile-avatar {
+    width: 70px;
+    height: 70px;
+    background: var(--secondary);
+    border-radius: 50%;
+    margin: 0 auto 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.8rem;
+    color: var(--accent-color);
+}
+
+@media(max-width:500px) {
+
+    .container {
+        padding: 12px;
+    }
+
+    .card {
+        padding: 16px;
+    }
+
+    .crypto-name {
+        max-width: 110px;
+    }
+
+    .crypto-price {
+        font-size: .78rem;
+    }
+
+    .crypto-marketcap {
+        display: none;
+    }
+
+    .news-image {
+        height: 160px;
+    }
+
+    .bottom-dock {
+        justify-content: flex-start;
+    }
+}
+
+@media(max-width:360px) {
+
+    .balance-amount {
+        font-size: 1.8rem;
+    }
+
+    .dock-item {
+        min-width: 62px;
+        flex-basis: 62px;
+        font-size: .6rem;
+    }
+
+    .crypto-rank {
+        width: 20px;
+    }
+
+    .crypto-info {
+        gap: 6px;
+    }
+
+    .crypto-info img {
+        width: 27px !important;
+        height: 27px !important;
+    }
+
+}
+
+</style>
+</head>
+
+<body>
+
+
+<!-- ============================= -->
+<!-- MARKET TICKER -->
+<!-- ============================= -->
+
+<div class="ticker-wrap">
+
+    <div class="ticker-content" id="ticker">
+
+        <span class="ticker-item">
+            Loading market...
+        </span>
+
+        <span class="ticker-item">
+            Loading market...
+        </span>
+
+    </div>
+
+</div>
+
+
+<div class="container">
+
+
+<!-- ============================= -->
+<!-- HOME / MINING -->
+<!-- ============================= -->
+
+<div id="tab-home" class="tab-content active">
+
+    <div class="card">
+
+        <div class="balance-title">
+            NVX Token Balance
+        </div>
+
+        <div class="balance-amount" id="balance">
+            0.0000
+        </div>
+
+        <div class="balance-usd" id="usdValue">
+            $ 0.00 USD
+        </div>
+
+    </div>
+
+
+    <button id="mineBtn" class="mine-btn">
+
+        <span id="btnText">
+            START MINING
+        </span>
+
+        <span id="btnSub" class="sub-text">
+            24H SESSION
+        </span>
+
+    </button>
+
+
+    <div class="timer-display" id="timer">
+        MINER OFFLINE
+    </div>
+
+
+    <div class="stats-grid">
+
+        <div class="stat-card">
+
+            <div class="stat-label">
+                HALVING STAGE
+            </div>
+
+            <div class="stat-value" id="halvingStage">
+                STAGE 1
+            </div>
+
+        </div>
+
+
+        <div class="stat-card">
+
+            <div class="stat-label">
+                MINING RATE
+            </div>
+
+            <div class="stat-value" id="miningRate">
+                1.0000 NVX/h
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- ============================= -->
+<!-- WALLET -->
+<!-- ============================= -->
+
+<div id="tab-wallet" class="tab-content">
+
+    <div class="card">
+
+        <div class="balance-title">
+            Wallet Balance
+        </div>
+
+        <div class="balance-amount" id="walletBalance">
+            0.0000 NVX
+        </div>
+
+        <div class="balance-usd" id="walletUsd">
+            $ 0.00 USD
+        </div>
+
+
+        <div class="btn-group">
+
+            <button
+                class="action-btn primary"
+                onclick="handleDeposit()">
+                Deposit
+            </button>
+
+            <button
+                class="action-btn"
+                onclick="handleWithdraw()">
+                Withdraw
+            </button>
+
+        </div>
+
+    </div>
+
+
+    <div class="card">
+
+        <h3>
+            Recent Transactions
+        </h3>
+
+        <div
+            id="txHistory"
+            style="margin-top:10px;">
+
+            <div class="status">
+                Loading...
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- ============================= -->
+<!-- TASKS -->
+<!-- ============================= -->
+
+<div id="tab-tasks" class="tab-content">
+
+    <div class="card">
+
+        <h3>
+            Daily Rewards
+        </h3>
+
+        <p style="
+            font-size:.85rem;
+            color:var(--text-sub);
+            margin-top:4px;
+        ">
+            Claim free NVX coins every 24 hours.
+        </p>
+
+
+        <button
+            id="dailyBtn"
+            class="action-btn primary"
+            style="width:100%;margin-top:10px;"
+            onclick="claimDailyReward()">
+
+            CLAIM DAILY BONUS (+5 NVX)
+
+        </button>
+
+    </div>
+
+
+    <div class="card">
+
+        <h3>
+            Community Tasks
+        </h3>
+
+
+        <div style="margin-top:10px;">
+
+            <p style="font-size:.9rem;">
+                Join Official Telegram Channel
+            </p>
+
+            <button
+                id="task1Btn"
+                class="action-btn"
+                style="width:100%;margin-top:6px;"
+                onclick="completeTask('task1',10)">
+
+                CLAIM +10 NVX
+
+            </button>
+
+        </div>
+
+
+        <div style="margin-top:15px;">
+
+            <p style="font-size:.9rem;">
+                Watch Ad Bonus
+            </p>
+
+            <button
+                id="task2Btn"
+                class="action-btn"
+                style="width:100%;margin-top:6px;"
+                onclick="watchAdReward()">
+
+                WATCH AD (+2.5 NVX)
+
+            </button>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- ============================= -->
+<!-- MARKET -->
+<!-- ============================= -->
+
+<div id="tab-market" class="tab-content">
+
+    <div class="card">
+
+        <div class="market-header">
+
+            <div>
+
+                <h3>
+                    📈 Crypto Market
+                </h3>
+
+                <div
+                    class="market-count"
+                    id="marketCount">
+
+                    Loading top 1000 coins...
+
+                </div>
+
+            </div>
+
+
+            <button
+                class="refresh-btn"
+                onclick="loadMarket(true)">
+
+                ↻ Refresh
+
+            </button>
+
+        </div>
+
+
+        <input
+            type="text"
+            id="cryptoSearch"
+            class="search-input"
+            placeholder="🔍 Search coin by name or symbol..."
+            oninput="filterCryptoMarket()">
+
+
+        <div
+            id="marketList"
+            style="margin-top:5px;">
+
+            <div class="status">
+                Loading 1000 top coins...
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- ============================= -->
+<!-- GOLD + CURRENCY -->
+<!-- ============================= -->
+
+<div id="tab-finance" class="tab-content">
+
+
+    <div class="card">
+
+        <h3>
+            🪙 Gold Price
+        </h3>
+
+        <p style="
+            font-size:.78rem;
+            color:var(--text-sub);
+            margin:5px 0 12px;
+        ">
+            International gold spot price
+        </p>
+
+
+        <div class="gold-box">
+
+            <div class="gold-icon">
+                🥇
+            </div>
+
+            <div
+                class="gold-price"
+                id="goldUsd">
+
+                Loading...
+
+            </div>
+
+            <div
+                class="gold-sub"
+                id="goldUsdGram">
+
+                Loading gold price...
+
+            </div>
+
+            <div
+                class="gold-sub"
+                id="goldPkr">
+
+                Loading PKR price...
+
+            </div>
+
+        </div>
+
+
+        <button
+            class="refresh-btn"
+            style="width:100%;"
+            onclick="loadFinanceData()">
+
+            ↻ Refresh Prices
+
+        </button>
+
+    </div>
+
+
+    <div class="card">
+
+        <h3>
+            💱 Currency Converter
+        </h3>
+
+        <p style="
+            font-size:.78rem;
+            color:var(--text-sub);
+            margin:5px 0 15px;
+        ">
+            Convert currencies using latest available reference rates.
+        </p>
+
+
+        <div class="converter-grid">
+
+            <div class="converter-row">
+
+                <input
+                    type="number"
+                    id="convertAmount"
+                    value="1"
+                    min="0"
+                    step="any"
+                    oninput="convertCurrency()">
+
+
+                <select
+                    id="fromCurrency"
+                    class="select-input"
+                    onchange="convertCurrency()">
+
+                    <option value="USD">
+                        USD
+                    </option>
+
+                    <option value="PKR">
+                        PKR
+                    </option>
+
+                    <option value="EUR">
+                        EUR
+                    </option>
+
+                    <option value="GBP">
+                        GBP
+                    </option>
+
+                    <option value="AED">
+                        AED
+                    </option>
+
+                    <option value="SAR">
+                        SAR
+                    </option>
+
+                    <option value="INR">
+                        INR
+                    </option>
+
+                    <option value="JPY">
+                        JPY
+                    </option>
+
+                    <option value="CAD">
+                        CAD
+                    </option>
+
+                    <option value="AUD">
+                        AUD
+                    </option>
+
+                </select>
+
+            </div>
+
+
+            <div style="
+                text-align:center;
+                color:var(--text-sub);
+                font-size:1.2rem;
+            ">
+                ↓
+            </div>
+
+
+            <div class="converter-row">
+
+                <input
+                    type="text"
+                    id="convertResult"
+                    readonly
+                    value="1.00">
+
+
+                <select
+                    id="toCurrency"
+                    class="select-input"
+                    onchange="convertCurrency()">
+
+                    <option value="PKR">
+                        PKR
+                    </option>
+
+                    <option value="USD">
+                        USD
+                    </option>
+
+                    <option value="EUR">
+                        EUR
+                    </option>
+
+                    <option value="GBP">
+                        GBP
+                    </option>
+
+                    <option value="AED">
+                        AED
+                    </option>
+
+                    <option value="SAR">
+                        SAR
+                    </option>
+
+                    <option value="INR">
+                        INR
+                    </option>
+
+                    <option value="JPY">
+                        JPY
+                    </option>
+
+                    <option value="CAD">
+                        CAD
+                    </option>
+
+                    <option value="AUD">
+                        AUD
+                    </option>
+
+                </select>
+
+            </div>
+
+        </div>
+
+
+        <div class="converter-result">
+
+            <div
+                class="converter-result-value"
+                id="converterDisplay">
+
+                1 USD = -- PKR
+
+            </div>
+
+            <div class="converter-note">
+                Rates are updated from the currency data source.
+            </div>
+
+        </div>
+
+    </div>
+
+
+</div>
+
+
+<!-- ============================= -->
+<!-- WORLD NEWS -->
+<!-- ============================= -->
+
+<div id="tab-news" class="tab-content">
+
+    <div class="card">
+
+        <div class="market-header">
+
+            <div>
+
+                <h3>
+                    🌎 World Affairs
+                </h3>
+
+                <div
+                    class="market-count">
+
+                    Latest world news & current affairs
+
+                </div>
+
+            </div>
+
+
+            <button
+                class="refresh-btn"
+                onclick="loadNews(true)">
+
+                ↻ Refresh
+
+            </button>
+
+        </div>
+
+
+        <div id="newsList">
+
+            <div class="status">
+                Loading latest world news...
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- ============================= -->
+<!-- PROFILE -->
+<!-- ============================= -->
+
+<div id="tab-profile" class="tab-content">
+
+
+    <div
+        class="card"
+        style="text-align:center;">
+
+        <div class="profile-avatar">
+            👤
+        </div>
+
+
+        <h3 id="profileName">
+            Miner User
+        </h3>
+
+
+        <p
+            id="profileEmailDisplay"
+            style="
+                font-size:.8rem;
+                color:var(--text-sub);
+                margin-top:4px;
+            ">
+
+            Loading...
+
+        </p>
+
+    </div>
+
+
+    <div class="card">
+
+        <h3>
+            Account Stats
+        </h3>
+
+
+        <div style="margin-top:10px;">
+
+            <div class="info-row">
+
+                <span>
+                    User ID
+                </span>
+
+                <span
+                    id="profileId"
+                    style="color:var(--accent-color);">
+
+                    ---
+
+                </span>
+
+            </div>
+
+
+            <div class="info-row">
+
+                <span>
+                    Total Mined
+                </span>
+
+                <span id="profileTotalMined">
+                    0 NVX
+                </span>
+
+            </div>
+
+
+            <div class="info-row">
+
+                <span>
+                    Tasks Completed
+                </span>
+
+                <span id="profileTasksDone">
+                    0
+                </span>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <div class="card">
+
+        <h3>
+            Referral Code
+        </h3>
+
+
+        <p style="
+            font-size:.85rem;
+            color:var(--text-sub);
+            margin-top:6px;
+        ">
+
+            Share your code and get extra mining bonus!
+
+        </p>
+
+
+        <div
+            id="refCodeDisplay"
+            style="
+                margin:15px 0;
+                background:#111520;
+                padding:12px;
+                border-radius:8px;
+                font-family:monospace;
+                font-size:1.1rem;
+                color:var(--accent-color);
+                text-align:center;
+            ">
+
+            ---
+
+        </div>
+
+
+        <button
+            class="action-btn primary"
+            style="width:100%;"
+            onclick="copyReferral()">
+
+            COPY REFERRAL LINK
+
+        </button>
+
+    </div>
+
+
+    <div class="card">
+
+        <button
+            class="action-btn danger"
+            style="width:100%;"
+            onclick="handleLogout()">
+
+            LOGOUT
+
+        </button>
+
+    </div>
+
+</div>
+
+
+<!-- ============================= -->
+<!-- SETTINGS -->
+<!-- ============================= -->
+
+<div id="tab-about" class="tab-content">
+
+
+    <div class="card">
+
+        <h3>
+            System Status
+        </h3>
+
+
+        <div style="margin-top:10px;">
+
+            <div class="info-row">
+
+                <span>
+                    App Version
+                </span>
+
+                <span style="color:var(--accent-color);">
+                    v3.0.0
+                </span>
+
+            </div>
+
+
+            <div class="info-row">
+
+                <span>
+                    Network
+                </span>
+
+                <span>
+                    NexusNova Mainnet-Test
+                </span>
+
+            </div>
+
+
+            <div class="info-row">
+
+                <span>
+                    Market
+                </span>
+
+                <span id="marketStatus">
+                    Connecting...
+                </span>
+
+            </div>
+
+
+            <div class="info-row">
+
+                <span>
+                    News
+                </span>
+
+                <span id="newsStatus">
+                    Connecting...
+                </span>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <div class="card">
+
+        <h3>
+            Social Channels
+        </h3>
+
+
+        <button
+            class="action-btn"
+            style="width:100%;margin-top:10px;"
+            onclick="openLink('https://twitter.com/nexusnova')">
+
+            ✖ Official X
+
+        </button>
+
+
+        <button
+            class="action-btn"
+            style="width:100%;margin-top:10px;"
+            onclick="openLink('https://discord.gg/nexusnova')">
+
+            🎮 Official Discord
+
+        </button>
+
+
+        <button
+            class="action-btn"
+            style="width:100%;margin-top:10px;"
+            onclick="openLink('https://t.me/nexusnova')">
+
+            💬 Telegram Support
+
+        </button>
+
+    </div>
+
+
+    <div class="card">
+
+        <h3>
+            Support & Contact
+        </h3>
+
+
+        <button
+            class="action-btn primary"
+            style="width:100%;margin-top:10px;"
+            onclick="openLink('mailto:support@nexusnova.com')">
+
+            📧 Email Support
+
+        </button>
+
+    </div>
+
+</div>
+
+
+</div>
+
+
+<!-- ============================= -->
+<!-- BOTTOM NAVIGATION -->
+<!-- ============================= -->
+
+<div class="bottom-dock">
+
+
+    <button
+        class="dock-item active"
+        onclick="switchTab('home',this)">
+
+        ⛏️
+        <span>Mine</span>
+
+    </button>
+
+
+    <button
+        class="dock-item"
+        onclick="switchTab('wallet',this)">
+
+        💰
+        <span>Wallet</span>
+
+    </button>
+
+
+    <button
+        class="dock-item"
+        onclick="switchTab('tasks',this)">
+
+        🎁
+        <span>Tasks</span>
+
+    </button>
+
+
+    <button
+        class="dock-item"
+        onclick="switchTab('market',this)">
+
+        📈
+        <span>Market</span>
+
+    </button>
+
+
+    <button
+        class="dock-item"
+        onclick="switchTab('finance',this)">
+
+        🪙
+        <span>Gold/FX</span>
+
+    </button>
+
+
+    <button
+        class="dock-item"
+        onclick="switchTab('news',this)">
+
+        🌎
+        <span>News</span>
+
+    </button>
+
+
+    <button
+        class="dock-item"
+        onclick="switchTab('profile',this)">
+
+        👤
+        <span>Profile</span>
+
+    </button>
+
+
+    <button
+        class="dock-item"
+        onclick="switchTab('about',this)">
+
+        ⚙️
+        <span>Settings</span>
+
+    </button>
+
+
+</div>
+
+
+<script type="module">
+
+
+/* ========================================= */
+/* FIREBASE IMPORTS */
+/* ========================================= */
+
+import {
+    initializeApp
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+
+
+import {
+    getAuth,
+    onAuthStateChanged,
+    signOut
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+
+
+import {
+    getFirestore,
+    doc,
+    getDoc,
+    setDoc,
+    updateDoc,
+    collection,
+    addDoc,
+    query,
+    orderBy,
+    limit,
+    getDocs,
+    serverTimestamp
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+
+/* ========================================= */
+/* FIREBASE CONFIG */
+/* ========================================= */
+
+const firebaseConfig = {
+
+    apiKey:
+        "AIzaSyBU75WYp5ioaMD1LrNcDyAvROFW2wrTil0",
+
+    authDomain:
+        "nexusnova-6ade2.firebaseapp.com",
+
+    projectId:
+        "nexusnova-6ade2",
+
+    storageBucket:
+        "nexusnova-6ade2.firebasestorage.app",
+
+    messagingSenderId:
+        "49791194817",
+
+    appId:
+        "1:49791194817:web:07f28326e0f15979536640",
+
+    measurementId:
+        "G-YLPFKWSS12"
+
+};
+
+
+const app =
+    initializeApp(firebaseConfig);
+
+const auth =
+    getAuth(app);
+
+const db =
+    getFirestore(app);
+
+
+/* ========================================= */
+/* API KEYS */
+/* ========================================= */
+
+const COINGECKO_API_KEY =
+    "CG-FqhP7j3CvEjxgLtMc92o4ix6";
+
+
+const NEWS_API_KEY =
+    "4befb25ea1a944e2849087b10471c919";
+
+
+/* ========================================= */
+/* SETTINGS */
+/* ========================================= */
+
+const NVX_PRICE =
+    0.15;
+
+const MINING_RATE =
+    1;
+
+const SESSION_HOURS =
+    24;
+
+const MARKET_PAGE_SIZE =
+    250;
+
+const MARKET_TOTAL =
+    1000;
+
+
+let currentUser = null;
+let userData = null;
+
+let miningTimer = null;
+
+let marketCoins = [];
+
+let currencyRates = {};
+
+let goldPriceUsd = 0;
+
+let marketLoading = false;
+
+
+/* ========================================= */
+/* AUTH */
+/* ========================================= */
+
+onAuthStateChanged(
+    auth,
+    async (user) => {
+
+        if (!user) {
+
+            window.location.href =
+                "login.html";
+
+            return;
+        }
+
+
+        currentUser = user;
+
+
+        try {
+
+            await loadUserData();
+
+            await loadTransactions();
+
+            updateDashboard();
+
+            updateMiningUI();
+
+            loadMarket();
+
+            loadFinanceData();
+
+            loadNews();
+
+        } catch (error) {
+
+            console.error(
+                "Dashboard error:",
+                error
+            );
+
+        }
+
+    }
+);
+
+
+/* ========================================= */
+/* USER DATA */
+/* ========================================= */
+
+async function loadUserData() {
+
+    const ref =
+        doc(
+            db,
+            "users",
+            currentUser.uid
+        );
+
+
+    const snap =
+        await getDoc(ref);
+
+
+    if (!snap.exists()) {
+
+        userData = {
+
+            name:
+                currentUser.displayName ||
+                "Miner User",
+
+            email:
+                currentUser.email ||
+                "",
+
+            balance: 0,
+
+            totalMined: 0,
+
+            tasksCompleted: 0,
+
+            miningActive: false,
+
+            miningStartedAt: 0,
+
+            miningLastUpdate: 0,
+
+            sessionEarned: 0,
+
+            referralCode:
+                "NVX" +
+                currentUser.uid
+                    .substring(0,6)
+                    .toUpperCase(),
+
+            completedTasks: {},
+
+            lastDailyReward: 0
+
+        };
+
+
+        await setDoc(
+            ref,
+            userData
+        );
+
+
+        return;
+
+    }
+
+
+    userData =
+        snap.data();
+
+}
+
+
+/* ========================================= */
+/* DASHBOARD */
+/* ========================================= */
+
+function updateDashboard() {
+
+    if (!userData) return;
+
+
+    const balance =
+        Number(
+            userData.balance || 0
+        );
+
+
+    document.getElementById(
+        "balance"
+    ).textContent =
+        balance.toFixed(4);
+
+
+    document.getElementById(
+        "walletBalance"
+    ).textContent =
+        balance.toFixed(4) +
+        " NVX";
+
+
+    const usd =
+        balance *
+        NVX_PRICE;
+
+
+    document.getElementById(
+        "usdValue"
+    ).textContent =
+        "$ " +
+        usd.toFixed(2) +
+        " USD";
+
+
+    document.getElementById(
+        "walletUsd"
+    ).textContent =
+        "$ " +
+        usd.toFixed(2) +
+        " USD";
+
+
+    document.getElementById(
+        "profileName"
+    ).textContent =
+        userData.name ||
+        currentUser.displayName ||
+        "Miner User";
+
+
+    document.getElementById(
+        "profileEmailDisplay"
+    ).textContent =
+        currentUser.email ||
+        "Verified NexusNova Member";
+
+
+    document.getElementById(
+        "profileId"
+    ).textContent =
+        "NVX-" +
+        currentUser.uid
+            .substring(0,8)
+            .toUpperCase();
+
+
+    document.getElementById(
+        "profileTotalMined"
+    ).textContent =
+        Number(
+            userData.totalMined || 0
+        ).toFixed(2) +
+        " NVX";
+
+
+    document.getElementById(
+        "profileTasksDone"
+    ).textContent =
+        userData.tasksCompleted ||
+        0;
+
+
+    document.getElementById(
+        "refCodeDisplay"
+    ).textContent =
+        userData.referralCode ||
+        "---";
+
+
+    updateDailyButton();
+
+    updateTaskButtons();
+
+}
+
+
+/* ========================================= */
+/* MINING UI */
+/* ========================================= */
+
+function updateMiningUI() {
+
+    const btn =
+        document.getElementById(
+            "mineBtn"
+        );
+
+
+    if (!userData.miningActive) {
+
+        btn.classList.remove(
+            "active"
+        );
+
+
+        document.getElementById(
+            "btnText"
+        ).textContent =
+            "START MINING";
+
+
+        document.getElementById(
+            "btnSub"
+        ).textContent =
+            "24H SESSION";
+
+
+        document.getElementById(
+            "timer"
+        ).textContent =
+            "MINER OFFLINE";
+
+
+        clearInterval(
+            miningTimer
+        );
+
+
+        return;
+
+    }
+
+
+    btn.classList.add(
+        "active"
+    );
+
+
+    document.getElementById(
+        "btnText"
+    ).textContent =
+        "MINING ACTIVE";
+
+
+    document.getElementById(
+        "btnSub"
+    ).textContent =
+        "1.0000 NVX / HOUR";
+
+
+    runMiningTimer();
+
+}
+
+
+/* ========================================= */
+/* START MINING */
+/* ========================================= */
+
+document
+    .getElementById("mineBtn")
+    .addEventListener(
+        "click",
+        async () => {
+
+            if (
+                !currentUser ||
+                !userData
+            ) return;
+
+
+            if (
+                userData.miningActive
+            ) {
+
+                return;
+
+            }
+
+
+            const now =
+                Date.now();
+
+
+            await updateDoc(
+                doc(
+                    db,
+                    "users",
+                    currentUser.uid
+                ),
+                {
+
+                    miningActive:
+                        true,
+
+                    miningStartedAt:
+                        now,
+
+                    miningLastUpdate:
+                        now,
+
+                    sessionEarned:
+                        0
+
+                }
+            );
+
+
+            userData.miningActive =
+                true;
+
+            userData.miningStartedAt =
+                now;
+
+            userData.miningLastUpdate =
+                now;
+
+            userData.sessionEarned =
+                0;
+
+
+            updateMiningUI();
+
+        }
+    );
+
+
+/* ========================================= */
+/* MINING TIMER */
+/* ========================================= */
+
+function runMiningTimer() {
+
+    clearInterval(
+        miningTimer
+    );
+
+
+    miningTimer =
+        setInterval(
+            async () => {
+
+                if (
+                    !userData ||
+                    !userData.miningActive
+                ) {
+
+                    clearInterval(
+                        miningTimer
+                    );
+
+                    return;
+
+                }
+
+
+                const started =
+                    Number(
+                        userData.miningStartedAt ||
+                        Date.now()
+                    );
+
+
+                const elapsed =
+                    Date.now() -
+                    started;
+
+
+                const maxTime =
+                    SESSION_HOURS *
+                    60 *
+                    60 *
+                    1000;
+
+
+                if (
+                    elapsed >=
+                    maxTime
+                ) {
+
+                    userData.miningActive =
+                        false;
+
+
+                    await updateDoc(
+                        doc(
+                            db,
+                            "users",
+                            currentUser.uid
+                        ),
+                        {
+                            miningActive:
+                                false
+                        }
+                    );
+
+
+                    updateMiningUI();
+
+                    return;
+
+                }
+
+
+                const earned =
+                    Math.min(
+                        elapsed /
+                        3600000,
+                        SESSION_HOURS
+                    ) *
+                    MINING_RATE;
+
+
+                const previousMined =
+                    Number(
+                        userData.sessionEarned ||
+                        0
+                    );
+
+
+                const difference =
+                    Math.max(
+                        0,
+                        earned -
+                        previousMined
+                    );
+
+
+                if (
+                    difference > 0
+                ) {
+
+                    const newBalance =
+                        Number(
+                            userData.balance ||
+                            0
+                        ) +
+                        difference;
+
+
+                    const newTotal =
+                        Number(
+                            userData.totalMined ||
+                            0
+                        ) +
+                        difference;
+
+
+                    await updateDoc(
+                        doc(
+                            db,
+                            "users",
+                            currentUser.uid
+                        ),
+                        {
+
+                            balance:
+                                newBalance,
+
+                            totalMined:
+                                newTotal,
+
+                            sessionEarned:
+                                earned,
+
+                            miningLastUpdate:
+                                Date.now()
+
+                        }
+                    );
+
+
+                    userData.balance =
+                        newBalance;
+
+
+                    userData.totalMined =
+                        newTotal;
+
+
+                    userData.sessionEarned =
+                        earned;
+
+
+                    updateDashboard();
+
+                }
+
+
+                const remaining =
+                    maxTime -
+                    elapsed;
+
+
+                const hours =
+                    Math.floor(
+                        remaining /
+                        3600000
+                    );
+
+
+                const minutes =
+                    Math.floor(
+                        (
+                            remaining %
+                            3600000
+                        ) /
+                        60000
+                    );
+
+
+                const seconds =
+                    Math.floor(
+                        (
+                            remaining %
+                            60000
+                        ) /
+                        1000
+                    );
+
+
+                document.getElementById(
+                    "timer"
+                ).textContent =
+                    `MINING • ${hours}h ${minutes}m ${seconds}s remaining`;
+
+            },
+            1000
+        );
+
+}
+
+
+/* ========================================= */
+/* DAILY REWARD */
+/* ========================================= */
+
+function updateDailyButton() {
+
+    const btn =
+        document.getElementById(
+            "dailyBtn"
+        );
+
+
+    if (
+        !userData.lastDailyReward
+    ) {
+
+        btn.disabled =
+            false;
+
+        btn.textContent =
+            "CLAIM DAILY BONUS (+5 NVX)";
+
+        return;
+
+    }
+
+
+    const last =
+        Number(
+            userData.lastDailyReward
+        );
+
+
+    const day =
+        86400000;
+
+
+    if (
+        Date.now() -
+        last >=
+        day
+    ) {
+
+        btn.disabled =
+            false;
+
+        btn.textContent =
+            "CLAIM DAILY BONUS (+5 NVX)";
+
+    } else {
+
+        btn.disabled =
+            true;
+
+        btn.textContent =
+            "DAILY BONUS ALREADY CLAIMED";
+
+    }
+
+}
+
+
+/* ========================================= */
+/* DAILY REWARD ACTION */
+/* ========================================= */
+
+window.claimDailyReward =
+    async function() {
+
+        if (
+            !currentUser ||
+            !userData
+        ) return;
+
+
+        const last =
+            Number(
+                userData.lastDailyReward ||
+                0
+            );
+
+
+        if (
+            Date.now() -
+            last <
+            86400000
+        ) {
+
+            alert(
+                "Daily bonus is not available yet."
+            );
+
+            return;
+
+        }
+
+
+        const newBalance =
+            Number(
+                userData.balance ||
+                0
+            ) +
+            5;
+
+
+        const rewardTime =
+            Date.now();
+
+
+        await updateDoc(
+            doc(
+                db,
+                "users",
+                currentUser.uid
+            ),
+            {
+
+                balance:
+                    newBalance,
+
+                lastDailyReward:
+                    rewardTime
+
+            }
+        );
+
+
+        await addTransaction(
+            "Daily Bonus",
+            5
+        );
+
+
+        userData.balance =
+            newBalance;
+
+
+        userData.lastDailyReward =
+            rewardTime;
+
+
+        updateDashboard();
+
+        await loadTransactions();
+
+
+        alert(
+            "+5 NVX added!"
+        );
+
+    };
+
+
+/* ========================================= */
+/* TASKS */
+/* ========================================= */
+
+window.completeTask =
+    async function(
+        taskId,
+        reward
+    ) {
+
+        if (
+            !currentUser ||
+            !userData
+        ) return;
+
+
+        const completed =
+            userData.completedTasks ||
+            {};
+
+
+        if (
+            completed[taskId]
+        ) {
+
+            alert(
+                "This task has already been completed."
+            );
+
+            return;
+
+        }
+
+
+        const newBalance =
+            Number(
+                userData.balance ||
+                0
+            ) +
+            reward;
+
+
+        completed[taskId] =
+            true;
+
+
+        const newTasksCompleted =
+            Number(
+                userData.tasksCompleted ||
+                0
+            ) +
+            1;
+
+
+        await updateDoc(
+            doc(
+                db,
+                "users",
+                currentUser.uid
+            ),
+            {
+
+                balance:
+                    newBalance,
+
+                completedTasks:
+                    completed,
+
+                tasksCompleted:
+                    newTasksCompleted
+
+            }
+        );
+
+
+        await addTransaction(
+            "Task Reward",
+            reward
+        );
+
+
+        userData.balance =
+            newBalance;
+
+
+        userData.completedTasks =
+            completed;
+
+
+        userData.tasksCompleted =
+            newTasksCompleted;
+
+
+        updateDashboard();
+
+        await loadTransactions();
+
+
+        alert(
+            `+${reward} NVX added!`
+        );
+
+    };
+
+
+/* ========================================= */
+/* TASK BUTTONS */
+/* ========================================= */
+
+function updateTaskButtons() {
+
+    const completed =
+        userData?.completedTasks ||
+        {};
+
+
+    if (
+        completed.task1
+    ) {
+
+        const btn =
+            document.getElementById(
+                "task1Btn"
+            );
+
+        if (btn) {
+
+            btn.disabled =
+                true;
+
+            btn.textContent =
+                "COMPLETED";
+
+        }
+
+    }
+
+
+    if (
+        completed.task2
+    ) {
+
+        const btn =
+            document.getElementById(
+                "task2Btn"
+            );
+
+        if (btn) {
+
+            btn.disabled =
+                true;
+
+            btn.textContent =
+                "COMPLETED";
+
+        }
+
+    }
+
+}
+
+
+/* ========================================= */
+/* AD REWARD */
+/* ========================================= */
+
+window.watchAdReward =
+    async function() {
+
+        await completeTask(
+            "task2",
+            2.5
+        );
+
+    };
+
+
+/* ========================================= */
+/* DEPOSIT */
+/* ========================================= */
+
+window.handleDeposit =
+    function() {
+
+        alert(
+            "Deposit system is not connected yet.\n\n" +
+            "A real wallet/deposit system requires a secure backend."
+        );
+
+    };
+
+
+/* ========================================= */
+/* WITHDRAW */
+/* ========================================= */
+
+window.handleWithdraw =
+    function() {
+
+        alert(
+            "Withdrawal system is not connected yet.\n\n" +
+            "A secure withdrawal backend is required before real withdrawals."
+        );
+
+    };
+
+
+/* ========================================= */
+/* REFERRAL */
+/* ========================================= */
+
+window.copyReferral =
+    async function() {
+
+        const code =
+            userData?.referralCode ||
+            "";
+
+
+        const link =
+            window.location.origin +
+            "/login.html?ref=" +
+            encodeURIComponent(
+                code
+            );
+
+
+        try {
+
+            await navigator.clipboard
+                .writeText(link);
+
+
+            alert(
+                "Referral link copied!"
+            );
+
+        } catch {
+
+            alert(link);
+
+        }
+
+    };
+
+
+/* ========================================= */
+/* LOGOUT */
+/* ========================================= */
+
+window.handleLogout =
+    async function() {
+
+        try {
+
+            await signOut(
+                auth
+            );
+
+
+            window.location.href =
+                "login.html";
+
+        } catch (
+            error
+        ) {
+
+            alert(
+                error.message
+            );
+
+        }
+
+    };
+
+
+/* ========================================= */
+/* OPEN LINKS */
+/* ========================================= */
+
+window.openLink =
+    function(url) {
+
+        window.open(
+            url,
+            "_blank",
+            "noopener,noreferrer"
+        );
+
+    };
+
+
+/* ========================================= */
+/* TAB SWITCH */
+/* ========================================= */
+
+window.switchTab =
+    function(
+        tab,
+        button
+    ) {
+
+        document
+            .querySelectorAll(
+                ".tab-content"
+            )
+            .forEach(
+                el =>
+                    el.classList.remove(
+                        "active"
+                    )
+            );
+
+
+        const target =
+            document.getElementById(
+                "tab-" +
+                tab
+            );
+
+
+        if (target) {
+
+            target.classList.add(
+                "active"
+            );
+
+        }
+
+
+        document
+            .querySelectorAll(
+                ".dock-item"
+            )
+            .forEach(
+                el =>
+                    el.classList.remove(
+                        "active"
+                    )
+            );
+
+
+        button.classList.add(
+            "active"
+        );
+
+
+        if (
+            tab ===
+            "market"
+        ) {
+
+            if (
+                marketCoins.length === 0
+            ) {
+
+                loadMarket();
+
+            }
+
+        }
+
+
+        if (
+            tab ===
+            "finance"
+        ) {
+
+            loadFinanceData();
+
+        }
+
+
+        if (
+            tab ===
+            "news"
+        ) {
+
+            loadNews();
+
+        }
+
+    };
+
+
+/* ========================================= */
+/* COINGECKO - LOAD 1000 COINS */
+/* ========================================= */
+
+async function fetchCoinGeckoPage(
+    page
+) {
+
+    const url =
+        "https://api.coingecko.com/api/v3/coins/markets" +
+        "?vs_currency=usd" +
+        "&order=market_cap_desc" +
+        "&per_page=250" +
+        "&page=" +
+        page +
+        "&sparkline=false" +
+        "&price_change_percentage=24h";
+
+
+    const response =
+        await fetch(
+            url,
+            {
+                headers: {
+                    "x-cg-demo-api-key":
+                        COINGECKO_API_KEY
+                }
+            }
+        );
+
+
+    if (
+        !response.ok
+    ) {
+
+        throw new Error(
+            "CoinGecko request failed: " +
+            response.status
+        );
+
+    }
+
+
+    return await response.json();
+
+}
+
+
+/* ========================================= */
+/* LOAD MARKET */
+/* ========================================= */
+
+window.loadMarket =
+    async function(
+        force = false
+    ) {
+
+        if (
+            marketLoading
+        ) return;
+
+
+        if (
+            !force &&
+            marketCoins.length >=
+            MARKET_TOTAL
+        ) {
+
+            return;
+
+        }
+
+
+        marketLoading =
+            true;
+
+
+        const list =
+            document.getElementById(
+                "marketList"
+            );
+
+
+        const count =
+            document.getElementById(
+                "marketCount"
+            );
+
+
+        list.innerHTML =
+            `<div class="status">
+                Loading top 1000 coins...<br>
+                Please wait.
+             </div>`;
+
+
+        count.textContent =
+            "Loading...";
+
+
+        try {
+
+            const allCoins =
+                [];
+
+
+            for (
+                let page = 1;
+                page <= 4;
+                page++
+            ) {
+
+                const coins =
+                    await fetchCoinGeckoPage(
+                        page
+                    );
+
+
+                allCoins.push(
+                    ...coins
+                );
+
+
+                count.textContent =
+                    `Loading ${Math.min(
+                        allCoins.length,
+                        1000
+                    )} / 1000`;
+
+            }
+
+
+            marketCoins =
+                allCoins.slice(
+                    0,
+                    MARKET_TOTAL
+                );
+
+
+            renderMarket(
+                marketCoins
+            );
+
+
+            updateTicker(
+                marketCoins
+            );
+
+
+            document.getElementById(
+                "marketStatus"
+            ).textContent =
+                "Online";
+
+
+        } catch (
+            error
+        ) {
+
+            console.error(
+                "Market error:",
+                error
+            );
+
+
+            list.innerHTML =
+                `<div class="status">
+                    Crypto market temporarily unavailable.<br><br>
+                    ${escapeHtml(
+                        error.message
+                    )}
+                 </div>`;
+
+
+            document.getElementById(
+                "marketStatus"
+            ).textContent =
+                "Unavailable";
+
+        } finally {
+
+            marketLoading =
+                false;
+
+        }
+
+    };
+
+
+/* ========================================= */
+/* RENDER MARKET */
+/* ========================================= */
+
+function renderMarket(
+    coins
+) {
+
+    const list =
+        document.getElementById(
+            "marketList"
+        );
+
+
+    const count =
+        document.getElementById(
+            "marketCount"
+        );
+
+
+    count.textContent =
+        `${coins.length} coins`;
+
+
+    if (
+        !coins.length
+    ) {
+
+        list.innerHTML =
+            `<div class="status">
+                No coins found.
+             </div>`;
+
+        return;
+
+    }
+
+
+    list.innerHTML =
+        coins.map(
+            (
+                coin,
+                index
+            ) => {
+
+                const change =
+                    Number(
+                        coin.price_change_percentage_24h ||
+                        0
+                    );
+
+
+                const price =
+                    formatCryptoPrice(
+                        coin.current_price
+                    );
+
+
+                const marketCap =
+                    formatLargeNumber(
+                        coin.market_cap
+                    );
+
+
+                return `
+
+                <div class="crypto-item">
+
+                    <div class="crypto-info">
+
+                        <div class="crypto-rank">
+                            #${index + 1}
+                        </div>
+
+                        <img
+                            src="${escapeAttribute(
+                                coin.image || ""
+                            )}"
+                            width="32"
+                            height="32"
+                            style="border-radius:50%;"
+                            loading="lazy"
+                            onerror="this.style.display='none';"
+                        >
+
+                        <div>
+
+                            <div class="crypto-symbol">
+                                ${escapeHtml(
+                                    (
+                                        coin.symbol ||
+                                        ""
+                                    ).toUpperCase()
+                                )}
+                            </div>
+
+                            <div class="crypto-name">
+                                ${escapeHtml(
+                                    coin.name ||
+                                    ""
+                                )}
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="crypto-price-block">
+
+                        <div class="crypto-price">
+                            $${price}
+                        </div>
+
+                        <div class="crypto-change ${
+                            change >= 0
+                                ? "price-up"
+                                : "price-down"
+                        }">
+
+                            ${
+                                change >= 0
+                                    ? "+"
+                                    : ""
+                            }${change.toFixed(2)}%
+
+                        </div>
+
+                        <div class="crypto-marketcap">
+                            MC $${marketCap}
+                        </div>
+
+                    </div>
+
+                </div>
+
+                `;
+
+            }
+        ).join("");
+
+}
+
+
+/* ========================================= */
+/* MARKET SEARCH */
+/* ========================================= */
+
+window.filterCryptoMarket =
+    function() {
+
+        const query =
+            document
+                .getElementById(
+                    "cryptoSearch"
+                )
+                .value
+                .toLowerCase()
+                .trim();
+
+
+        const filtered =
+            marketCoins.filter(
+                coin =>
+
+                    (
+                        coin.name ||
+                        ""
+                    )
+                    .toLowerCase()
+                    .includes(
+                        query
+                    )
+
+                    ||
+
+                    (
+                        coin.symbol ||
+                        ""
+                    )
+                    .toLowerCase()
+                    .includes(
+                        query
+                    )
+
+            );
+
+
+        renderMarket(
+            filtered
+        );
+
+    };
+
+
+/* ========================================= */
+/* MARKET TICKER */
+/* ========================================= */
+
+function updateTicker(
+    coins
+) {
+
+    const ticker =
+        document.getElementById(
+            "ticker"
+        );
+
+
+    if (
+        !coins.length
+    ) return;
+
+
+    const html =
+        coins
+            .slice(0,15)
+            .map(
+                coin => {
+
+                    const change =
+                        Number(
+                            coin.price_change_percentage_24h ||
+                            0
+                        );
+
+
+                    return `
+
+                    <span class="ticker-item">
+
+                        ${escapeHtml(
+                            (
+                                coin.symbol ||
+                                ""
+                            ).toUpperCase()
+                        )}
+
+                        $${formatCryptoPrice(
+                            coin.current_price
+                        )}
+
+                        <span class="${
+                            change >= 0
+                                ? "price-up"
+                                : "price-down"
+                        }">
+
+                            ${
+                                change >= 0
+                                    ? "+"
+                                    : ""
+                            }${change.toFixed(2)}%
+
+                        </span>
+
+                    </span>
+
+                    `;
+
+                }
+            )
+            .join("");
+
+
+    ticker.innerHTML =
+        html +
+        html;
+
+}
+
+
+/* ========================================= */
+/* MARKET AUTO REFRESH */
+/* ========================================= */
+
+setInterval(
+    () => {
+
+        if (
+            document.visibilityState ===
+            "visible"
+        ) {
+
+            loadMarket(
+                true
+            );
+
+        }
+
+    },
+    60000
+);
+
+
+/* ========================================= */
+/* GOLD + CURRENCY */
+/* ========================================= */
+
+async function loadFinanceData() {
+
+    try {
+
+        const goldResponse =
+            await fetch(
+                "https://api.gold-api.com/price/XAU"
+            );
+
+
+        if (
+            !goldResponse.ok
+        ) {
+
+            throw new Error(
+                "Gold API unavailable"
+            );
+
+        }
+
+
+        const goldData =
+            await goldResponse.json();
+
+
+        goldPriceUsd =
+            Number(
+                goldData.price ||
+                goldData.value ||
+                0
+            );
+
+
+        const currencyResponse =
+            await fetch(
+                "https://open.er-api.com/v6/latest/USD"
+            );
+
+
+        if (
+            !currencyResponse.ok
+        ) {
+
+            throw new Error(
+                "Currency API unavailable"
+            );
+
+        }
+
+
+        const currencyData =
+            await currencyResponse.json();
+
+
+        currencyRates =
+            currencyData.rates ||
+            {};
+
+
+        currencyRates.USD =
+            1;
+
+
+        renderFinance();
+
+
+        document.getElementById(
+            "marketStatus"
+        ).textContent =
+            "Online";
+
+
+    } catch (
+        error
+    ) {
+
+        console.error(
+            "Finance error:",
+            error
+        );
+
+
+        document.getElementById(
+            "goldUsd"
+        ).textContent =
+            "Unavailable";
+
+
+        document.getElementById(
+            "goldUsdGram"
+        ).textContent =
+            "Gold price unavailable";
+
+
+        document.getElementById(
+            "goldPkr"
+        ).textContent =
+            "Please refresh";
+
+    }
+
+}
+
+
+/* ========================================= */
+/* RENDER FINANCE */
+/* ========================================= */
+
+function renderFinance() {
+
+    if (
+        !goldPriceUsd
+    ) return;
+
+
+    const usdPerGram =
+        goldPriceUsd /
+        31.1034768;
+
+
+    const usdToPkr =
+        Number(
+            currencyRates.PKR ||
+            0
+        );
+
+
+    const pkrPerGram =
+        usdPerGram *
+        usdToPkr;
+
+
+    document.getElementById(
+        "goldUsd"
+    ).textContent =
+        "$" +
+        goldPriceUsd.toLocaleString(
+            "en-US",
+            {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            }
+        ) +
+        " / oz";
+
+
+    document.getElementById(
+        "goldUsdGram"
+    ).textContent =
+        "$" +
+        usdPerGram.toFixed(2) +
+        " per gram";
+
+
+    document.getElementById(
+        "goldPkr"
+    ).textContent =
+        "≈ PKR " +
+        pkrPerGram.toFixed(2) +
+        " per gram";
+
+
+    convertCurrency();
+
+}
+
+
+/* ========================================= */
+/* CURRENCY CONVERTER */
+/* ========================================= */
+
+window.convertCurrency =
+    function() {
+
+        const amount =
+            Number(
+                document.getElementById(
+                    "convertAmount"
+                ).value ||
+                0
+            );
+
+
+        const from =
+            document.getElementById(
+                "fromCurrency"
+            ).value;
+
+
+        const to =
+            document.getElementById(
+                "toCurrency"
+            ).value;
+
+
+        if (
+            !currencyRates[from] ||
+            !currencyRates[to]
+        ) {
+
+            document.getElementById(
+                "converterDisplay"
+            ).textContent =
+                "Rates loading...";
+
+            return;
+
+        }
+
+
+        const usdValue =
+            amount /
+            Number(
+                currencyRates[from]
+            );
+
+
+        const result =
+            usdValue *
+            Number(
+                currencyRates[to]
+            );
+
+
+        document.getElementById(
+            "convertResult"
+        ).value =
+            result.toLocaleString(
+                "en-US",
+                {
+                    maximumFractionDigits:
+                        4
+                }
+            );
+
+
+        document.getElementById(
+            "converterDisplay"
+        ).textContent =
+            `${formatNumber(amount)} ${from} = ${formatNumber(result)} ${to}`;
+
+    };
+
+
+/* ========================================= */
+/* FINANCE AUTO REFRESH */
+/* ========================================= */
+
+setInterval(
+    () => {
+
+        if (
+            document.visibilityState ===
+            "visible"
+        ) {
+
+            loadFinanceData();
+
+        }
+
+    },
+    60000
+);
+
+
+/* ========================================= */
+/* NEWS */
+/* ========================================= */
+
+let newsLoading =
+    false;
+
+
+window.loadNews =
+    async function(
+        force = false
+    ) {
+
+        if (
+            newsLoading
+        ) return;
+
+
+        newsLoading =
+            true;
+
+
+        const list =
+            document.getElementById(
+                "newsList"
+            );
+
+
+        list.innerHTML =
+            `<div class="status">
+                Loading latest world affairs...
+             </div>`;
+
+
+        try {
+
+            /*
+             * NewsAPI:
+             * Search current world affairs.
+             */
+
+            const url =
+                "https://newsapi.org/v2/everything?" +
+                "q=" +
+                encodeURIComponent(
+                    "world affairs OR geopolitics OR international"
+                ) +
+                "&language=en" +
+                "&sortBy=publishedAt" +
+                "&pageSize=50" +
+                "&apiKey=" +
+                encodeURIComponent(
+                    NEWS_API_KEY
+                );
+
+
+            const response =
+                await fetch(
+                    url
+                );
+
+
+            const data =
+                await response.json();
+
+
+            console.log(
+                "NewsAPI response:",
+                data
+            );
+
+
+            if (
+                !response.ok ||
+                data.status !==
+                "ok"
+            ) {
+
+                throw new Error(
+                    data.message ||
+                    (
+                        "NewsAPI error " +
+                        response.status
+                    )
+                );
+
+            }
+
+
+            const articles =
+                (
+                    data.articles ||
+                    []
+                )
+                .filter(
+                    article =>
+                        article.title &&
+                        article.title !==
+                        "[Removed]"
+                );
+
+
+            if (
+                !articles.length
+            ) {
+
+                list.innerHTML =
+                    `<div class="status">
+                        No latest world news found.
+                     </div>`;
+
+                return;
+
+            }
+
+
+            list.innerHTML =
+                articles
+                    .map(
+                        article =>
+                            createNewsCard(
+                                article
+                            )
+                    )
+                    .join("");
+
+
+            document.getElementById(
+                "newsStatus"
+            ).textContent =
+                "Online";
+
+
+        } catch (
+            error
+        ) {
+
+            console.error(
+                "NEWS API ERROR:",
+                error
+            );
+
+
+            document.getElementById(
+                "newsStatus"
+            ).textContent =
+                "Unavailable";
+
+
+            list.innerHTML =
+                `
+
+                <div class="status">
+
+                    <strong>
+                        News temporarily unavailable.
+                    </strong>
+
+                    <br><br>
+
+                    ${escapeHtml(
+                        error.message
+                    )}
+
+                    <br><br>
+
+                    <button
+                        class="refresh-btn"
+                        onclick="loadNews(true)">
+
+                        TRY AGAIN
+
+                    </button>
+
+                </div>
+
+                `;
+
+        } finally {
+
+            newsLoading =
+                false;
+
+        }
+
+    };
+
+
+/* ========================================= */
+/* NEWS CARD */
+/* ========================================= */
+
+function createNewsCard(
+    article
+) {
+
+    const title =
+        article.title ||
+        "Untitled News";
+
+
+    const description =
+        article.description ||
+        "No description available.";
+
+
+    const source =
+        article.source?.name ||
+        "Unknown Source";
+
+
+    const image =
+        article.urlToImage ||
+        "https://via.placeholder.com/800x450?text=World+News";
+
+
+    const published =
+        article.publishedAt
+            ? new Date(
+                article.publishedAt
+            ).toLocaleString()
+            : "";
+
+
+    const url =
+        article.url ||
+        "#";
+
+
+    return `
+
+        <div class="news-card">
+
+            <img
+                src="${escapeAttribute(
+                    image
+                )}"
+                class="news-image"
+                loading="lazy"
+                onerror="
+                    this.src='https://via.placeholder.com/800x450?text=World+News';
+                "
+            >
+
+
+            <div class="news-content">
+
+                <div class="news-source">
+
+                    ${escapeHtml(
+                        source
+                    )}
+
+                </div>
+
+
+                <h3>
+
+                    ${escapeHtml(
+                        title
+                    )}
+
+                </h3>
+
+
+                <p>
+
+                    ${escapeHtml(
+                        description
+                    )}
+
+                </p>
+
+
+                <div class="news-bottom">
+
+                    <span>
+
+                        ${escapeHtml(
+                            published
+                        )}
+
+                    </span>
+
+
+                    <button
+                        class="news-read-btn"
+                        onclick="
+                            openNews(
+                                '${encodeURIComponent(
+                                    url
+                                )}'
+                            )
+                        ">
+
+                        READ
+
+                    </button>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    `;
+
+}
+
+
+/* ========================================= */
+/* OPEN NEWS */
+/* ========================================= */
+
+window.openNews =
+    function(
+        encodedUrl
+    ) {
+
+        const url =
+            decodeURIComponent(
+                encodedUrl
+            );
+
+
+        if (
+            !url ||
+            url === "#"
+        ) return;
+
+
+        window.open(
+            url,
+            "_blank",
+            "noopener,noreferrer"
+        );
+
+    };
+
+
+/* ========================================= */
+/* NEWS AUTO REFRESH */
+/* ========================================= */
+
+setInterval(
+    () => {
+
+        if (
+            document.visibilityState ===
+            "visible"
+        ) {
+
+            const newsTab =
+                document.getElementById(
+                    "tab-news"
+                );
+
+
+            if (
+                newsTab &&
+                newsTab.classList.contains(
+                    "active"
+                )
+            ) {
+
+                loadNews();
+
+            }
+
+        }
+
+    },
+    300000
+);
+
+
+/* ========================================= */
+/* TRANSACTIONS */
+/* ========================================= */
+
+async function addTransaction(
+    type,
+    amount
+) {
+
+    await addDoc(
+        collection(
+            db,
+            "users",
+            currentUser.uid,
+            "transactions"
+        ),
+        {
+
+            type:
+                type,
+
+            amount:
+                amount,
+
+            createdAt:
+                serverTimestamp()
+
+        }
+    );
+
+}
+
+
+/* ========================================= */
+/* LOAD TRANSACTIONS */
+/* ========================================= */
+
+async function loadTransactions() {
+
+    const container =
+        document.getElementById(
+            "txHistory"
+        );
+
+
+    try {
+
+        const ref =
+            collection(
+                db,
+                "users",
+                currentUser.uid,
+                "transactions"
+            );
+
+
+        const q =
+            query(
+                ref,
+                orderBy(
+                    "createdAt",
+                    "desc"
+                ),
+                limit(10)
+            );
+
+
+        const snap =
+            await getDocs(
+                q
+            );
+
+
+        if (
+            snap.empty
+        ) {
+
+            container.innerHTML =
+                `<div class="status">
+                    No transactions yet.
+                 </div>`;
+
+            return;
+
+        }
+
+
+        container.innerHTML =
+            "";
+
+
+        snap.forEach(
+            docSnap => {
+
+                const data =
+                    docSnap.data();
+
+
+                const amount =
+                    Number(
+                        data.amount ||
+                        0
+                    );
+
+
+                const type =
+                    data.type ||
+                    "Transaction";
+
+
+                container.innerHTML += `
+
+                    <div class="history-item">
+
+                        <span>
+                            ${escapeHtml(
+                                type
+                            )}
+                        </span>
+
+                        <span
+                            style="
+                                color:var(--accent-color);
+                            ">
+
+                            +${amount.toFixed(2)}
+                            NVX
+
+                        </span>
+
+                    </div>
+
+                `;
+
+            }
+        );
+
+
+    } catch (
+        error
+    ) {
+
+        console.error(
+            "Transaction error:",
+            error
+        );
+
+
+        container.innerHTML =
+            `<div class="status">
+                No transactions yet.
+             </div>`;
+
+    }
+
+}
+
+
+/* ========================================= */
+/* HELPERS */
+/* ========================================= */
+
+function escapeHtml(
+    text
+) {
+
+    const div =
+        document.createElement(
+            "div"
+        );
+
+
+    div.textContent =
+        text ||
+        "";
+
+
+    return div.innerHTML;
+
+}
+
+
+function escapeAttribute(
+    text
+) {
+
+    return String(
+        text ||
+        ""
+    )
+    .replace(
+        /&/g,
+        "&amp;"
+    )
+    .replace(
+        /"/g,
+        "&quot;"
+    )
+    .replace(
+        /'/g,
+        "&#039;"
+    )
+    .replace(
+        /</g,
+        "&lt;"
+    )
+    .replace(
+        />/g,
+        "&gt;"
+    );
+
+}
+
+
+function formatCryptoPrice(
+    value
+) {
+
+    const num =
+        Number(
+            value ||
+            0
+        );
+
+
+    if (
+        num >= 1000
+    ) {
+
+        return num.toLocaleString(
+            "en-US",
+            {
+                minimumFractionDigits:
+                    2,
+                maximumFractionDigits:
+                    2
+            }
+        );
+
+    }
+
+
+    if (
+        num >= 1
+    ) {
+
+        return num.toLocaleString(
+            "en-US",
+            {
+                minimumFractionDigits:
+                    2,
+                maximumFractionDigits:
+                    4
+            }
+        );
+
+    }
+
+
+    if (
+        num >= 0.01
+    ) {
+
+        return num.toFixed(
+            4
+        );
+
+    }
+
+
+    if (
+        num > 0
+    ) {
+
+        return num.toPrecision(
+            5
+        );
+
+    }
+
+
+    return "0.00";
+
+}
+
+
+function formatLargeNumber(
+    value
+) {
+
+    const num =
+        Number(
+            value ||
+            0
+        );
+
+
+    if (
+        num >= 1e12
+    ) {
+
+        return (
+            num /
+            1e12
+        ).toFixed(2) +
+        "T";
+
+    }
+
+
+    if (
+        num >= 1e9
+    ) {
+
+        return (
+            num /
+            1e9
+        ).toFixed(2) +
+        "B";
+
+    }
+
+
+    if (
+        num >= 1e6
+    ) {
+
+        return (
+            num /
+            1e6
+        ).toFixed(2) +
+        "M";
+
+    }
+
+
+    if (
+        num >= 1e3
+    ) {
+
+        return (
+            num /
+            1e3
+        ).toFixed(2) +
+        "K";
+
+    }
+
+
+    return num.toFixed(0);
+
+}
+
+
+function formatNumber(
+    value
+) {
+
+    return Number(
+        value ||
+        0
+    ).toLocaleString(
+        "en-US",
+        {
+            maximumFractionDigits:
+                6
+        }
+    );
+
+}
+
+
+/* ========================================= */
+/* INITIAL FINANCE LOAD */
+/* ========================================= */
+
+setTimeout(
+    () => {
+
+        if (
+            currentUser
+        ) {
+
+            loadFinanceData();
+
+        }
+
+    },
+    1500
+);
+
+
+</script>
+
+</body>
+</html>
