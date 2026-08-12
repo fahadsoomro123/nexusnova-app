@@ -6487,3 +6487,234 @@ window.addEventListener(
         setTimeout(() => window.loadNews(), 900);
     });
 })();
+
+/* =========================================================
+   NEXUSNOVA CURRENCY CONVERTER RELIABILITY PATCH V8
+   Scope: Currency Converter only.
+   - Does not modify wallet, market, More icons, gold UI, auth,
+     mining, tasks, news, or any other NexusNova feature.
+   - Uses the existing converter UI/logic and only keeps the
+     exchange-rate data source from getting stuck on "Loading...".
+========================================================= */
+(() => {
+    "use strict";
+
+    const CONVERTER_CACHE_KEY = "nexusnova_converter_rates_v8";
+    const CONVERTER_CACHE_MS = 6 * 60 * 60 * 1000;
+    const REQUIRED = [
+        "USD","PKR","EUR","GBP","AED","SAR","INR","JPY","CAD","AUD"
+    ];
+
+    let converterRatePromise = null;
+    const originalConvertCurrency = window.convertCurrency;
+
+    function converterDisplay(message){
+        const el = document.getElementById("converterDisplay");
+        if(el) el.textContent = message;
+    }
+
+    function converterResult(value){
+        const el = document.getElementById("convertResult");
+        if(el) el.value = value;
+    }
+
+    function ratesAreUsable(rates){
+        return !!rates && REQUIRED.every(code => {
+            const n = Number(rates[code]);
+            return Number.isFinite(n) && n > 0;
+        });
+    }
+
+    function readConverterCache(){
+        try{
+            const cached = JSON.parse(
+                localStorage.getItem(CONVERTER_CACHE_KEY) || "null"
+            );
+            if(!cached || !ratesAreUsable(cached.rates)) return null;
+            return cached;
+        }catch(_){
+            return null;
+        }
+    }
+
+    function saveConverterCache(rates){
+        try{
+            localStorage.setItem(
+                CONVERTER_CACHE_KEY,
+                JSON.stringify({ at: Date.now(), rates })
+            );
+        }catch(_){}
+    }
+
+    async function fetchJsonWithTimeout(url, timeoutMs = 8000){
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        try{
+            const response = await fetch(url, {
+                cache: "no-store",
+                signal: controller.signal
+            });
+            if(!response.ok){
+                throw new Error(`HTTP ${response.status}`);
+            }
+            return await response.json();
+        }finally{
+            clearTimeout(timer);
+        }
+    }
+
+    async function fetchOpenErRates(){
+        const data = await fetchJsonWithTimeout(
+            "https://open.er-api.com/v6/latest/USD"
+        );
+        const rates = Object.assign({ USD: 1 }, data?.rates || {});
+        if(!ratesAreUsable(rates)){
+            throw new Error("Open FX response missing required currencies");
+        }
+        return rates;
+    }
+
+    async function fetchFrankfurterRates(){
+        const data = await fetchJsonWithTimeout(
+            "https://api.frankfurter.dev/v2/rates?base=USD"
+        );
+
+        const rates = { USD: 1 };
+
+        if(Array.isArray(data)){
+            data.forEach(row => {
+                const code = String(row?.quote || "").toUpperCase();
+                const rate = Number(row?.rate);
+                if(code && Number.isFinite(rate) && rate > 0){
+                    rates[code] = rate;
+                }
+            });
+        }else if(data && typeof data === "object"){
+            const source = data.rates || data;
+            Object.entries(source).forEach(([code,value]) => {
+                const rate = Number(value?.rate ?? value);
+                if(Number.isFinite(rate) && rate > 0){
+                    rates[String(code).toUpperCase()] = rate;
+                }
+            });
+        }
+
+        if(!ratesAreUsable(rates)){
+            throw new Error("Frankfurter response missing required currencies");
+        }
+        return rates;
+    }
+
+    async function ensureConverterRates(force = false){
+        if(!force && ratesAreUsable(currencyRates)){
+            return currencyRates;
+        }
+
+        const cached = readConverterCache();
+        if(
+            !force &&
+            cached &&
+            Date.now() - Number(cached.at || 0) < CONVERTER_CACHE_MS
+        ){
+            currencyRates = cached.rates;
+            return currencyRates;
+        }
+
+        if(converterRatePromise) return converterRatePromise;
+
+        converterDisplay("Loading live rates...");
+
+        converterRatePromise = (async () => {
+            let rates = null;
+            let lastError = null;
+
+            for(const loader of [fetchOpenErRates, fetchFrankfurterRates]){
+                try{
+                    rates = await loader();
+                    if(ratesAreUsable(rates)) break;
+                }catch(error){
+                    lastError = error;
+                    console.warn("Currency rate source failed:", error);
+                }
+            }
+
+            if(!ratesAreUsable(rates)){
+                const fallback = readConverterCache();
+                if(fallback?.rates){
+                    rates = fallback.rates;
+                }
+            }
+
+            if(!ratesAreUsable(rates)){
+                throw lastError || new Error("Currency rates unavailable");
+            }
+
+            currencyRates = rates;
+            saveConverterCache(rates);
+
+            // Also refresh the existing finance cache's rate data without
+            // changing its stored gold value.
+            try{
+                const financeCache = readFinanceCache?.();
+                writeFinanceCache?.(
+                    rates,
+                    Number(financeCache?.goldUsdPerOunce || 0)
+                );
+            }catch(_){}
+
+            return rates;
+        })();
+
+        try{
+            return await converterRatePromise;
+        }finally{
+            converterRatePromise = null;
+        }
+    }
+
+    window.convertCurrency = function(){
+        if(ratesAreUsable(currencyRates)){
+            return originalConvertCurrency?.();
+        }
+
+        converterDisplay("Loading live rates...");
+
+        ensureConverterRates(false)
+            .then(() => {
+                if(typeof originalConvertCurrency === "function"){
+                    originalConvertCurrency();
+                }
+            })
+            .catch(error => {
+                console.warn("Currency converter unavailable:", error);
+                converterResult("--");
+                converterDisplay(
+                    "Live currency rates unavailable. Change amount or currency to retry."
+                );
+            });
+    };
+
+    function bootConverter(){
+        if(!document.getElementById("converterDisplay")) return;
+        window.convertCurrency();
+    }
+
+    window.addEventListener("load", () => {
+        setTimeout(bootConverter, 700);
+        setTimeout(bootConverter, 2500);
+    });
+
+    document.addEventListener("visibilitychange", () => {
+        if(!document.hidden) bootConverter();
+    });
+
+    // If the Finance screen is opened after initial load, retry immediately.
+    document.addEventListener("click", event => {
+        const target = event.target.closest(".more-item,.dock-item,button");
+        if(!target) return;
+        const label = String(target.textContent || "").toLowerCase();
+        if(label.includes("finance") || label.includes("gold") || label.includes("fx")){
+            setTimeout(bootConverter, 250);
+        }
+    }, true);
+})();
