@@ -1,0 +1,23 @@
+
+/* NexusNova Mega Merge — follows the existing Grok-modernized UI */
+.nxmega-tab .nxmega-hero{background:linear-gradient(145deg,#111827,#0c1420)}
+.nxmega-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:10px}
+.nxmega-grid.three{grid-template-columns:repeat(3,minmax(0,1fr))}
+.nxmega-grid.four{grid-template-columns:repeat(4,minmax(0,1fr))}
+.nxmega-inline{display:flex;gap:8px;align-items:center;margin:9px 0}
+.nxmega-inline .tool-input{flex:1}
+.nxmega-area{min-height:90px;resize:vertical;margin:8px 0}
+.nxmega-item,.nxmega-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #263449}
+.nxmega-item small,.nxmega-row small{display:block;color:var(--sub);margin-top:4px}
+.nxmega-result,.nxmega-tab .tool-result{margin-top:10px}
+.nxmega-search{display:flex;gap:8px;margin-top:12px}.nxmega-search .tool-input{flex:1}
+.nxmega-search-results{display:grid;gap:6px;margin-top:10px;max-height:420px;overflow:auto}
+.nxmega-search-row{display:flex;align-items:center;gap:10px;text-align:left;border:1px solid #263449;background:#0c1420;color:var(--text);padding:10px;border-radius:10px;cursor:pointer}
+.nxmega-search-row:hover{border-color:var(--accent)}
+.nxmega-muted{color:var(--sub);font-size:12px;padding:10px 0;line-height:1.5}
+.nxmega-progress{height:7px;border-radius:8px;background:#202c3d;overflow:hidden;margin-top:8px}.nxmega-progress i{display:block;height:100%;background:var(--accent)}
+.nxmega-goal{padding:11px 0;border-bottom:1px solid #263449}.nxmega-goal span{float:right;color:var(--sub);font-size:12px}.nxmega-goal small{display:block;color:var(--sub);margin-top:5px}
+.nxmega-news{padding:10px 0;border-bottom:1px solid #263449}.nxmega-news a{color:var(--text);text-decoration:none}.nxmega-news small{display:block;color:var(--sub);margin-top:4px}
+.nxmega-qr{display:flex;justify-content:center;margin-top:12px}.nxmega-qr img{border-radius:8px}
+.nxmega-toast{position:fixed;z-index:10000;left:50%;bottom:90px;transform:translate(-50%,20px);opacity:0;pointer-events:none;background:#111827;color:#fff;border:1px solid var(--accent);border-radius:10px;padding:10px 14px;transition:.2s}.nxmega-toast.show{opacity:1;transform:translate(-50%,0)}
+@media(max-width:650px){.nxmega-grid,.nxmega-grid.three,.nxmega-grid.four{grid-template-columns:1fr}.nxmega-inline,.nxmega-search{flex-wrap:wrap}}

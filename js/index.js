@@ -1,256 +1,3 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-    <title>NexusNova - Login</title>
-    <!--
-      DEVELOPMENT NOTE:
-      This file uses Google's official reCAPTCHA v2 TEST site key.
-      Replace data-sitekey with your production site key before deployment.
-    -->
-
-    
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
-    <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: "DM Sans", system-ui, sans-serif; }
-        body {
-            min-height: 100vh; display: flex; align-items: center; justify-content: center;
-            padding: 22px; color: #e9f5f2;
-            background:
-              radial-gradient(ellipse 70% 50% at 15% 0%, rgba(10,147,150,0.16), transparent 55%),
-              #001219;
-        }
-        .card {
-            width: 100%; max-width: 400px; padding: 28px 24px; border-radius: 22px;
-            background: #0f2a35;
-            border: 1px solid rgba(148, 210, 189, 0.14);
-            box-shadow: 0 20px 50px rgba(0,0,0,0.4);
-        }
-        .logo { text-align: center; margin-bottom: 26px; }
-        .logo h1 {
-            font-size: 1.6rem; font-weight: 800; letter-spacing: -0.03em;
-            color: #fff; margin-bottom: 8px;
-        }
-        .logo h1 span { color: #94d2bd; }
-        .logo p { color: #5f7a76; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; }
-        .input-group { margin-bottom: 14px; }
-        .input-group label {
-            display: block; margin-bottom: 6px; color: #8ba8a3;
-            font-size: 0.7rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
-        }
-        .input-group input {
-            width: 100%; padding: 14px 16px; border-radius: 12px;
-            border: 1px solid rgba(148,210,189,0.12); background: #0a1f29;
-            color: #fff; outline: none; font-size: 1rem; font-weight: 500;
-        }
-        .input-group input:focus {
-            border-color: #0a9396; box-shadow: 0 0 0 3px rgba(10,147,150,0.2);
-        }
-        .captcha-box {
-            background: #0a1f29; border: 1px solid rgba(148,210,189,0.1);
-            border-radius: 12px; padding: 12px; margin-bottom: 16px; overflow: hidden;
-        }
-        .captcha-help { color: #5f7a76; font-size: 0.74rem; margin-top: 6px; }
-        .btn-primary, #authBtn, .auth-btn {
-            width: 100%; margin-top: 6px; padding: 15px; border: 0; border-radius: 14px;
-            font-weight: 700; font-size: 0.95rem; color: #001219; cursor: pointer;
-            background: #94d2bd;
-            box-shadow: 0 4px 16px rgba(148,210,189,0.25);
-        }
-        .switch-auth { text-align: center; margin-top: 16px; color: #8ba8a3; font-size: 0.9rem; font-weight: 500; }
-        .switch-auth a, .switch-auth span.link, #toggleAuth { color: #94d2bd; font-weight: 700; cursor: pointer; }
-        .divider {
-            display: flex; align-items: center; gap: 12px; margin: 18px 0;
-            color: #5f7a76; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase;
-        }
-        .divider::before, .divider::after {
-            content: ""; flex: 1; height: 1px;
-            background: linear-gradient(90deg, transparent, rgba(148,210,189,0.2), transparent);
-        }
-        .btn-google {
-            width: 100%; padding: 13px; border-radius: 14px;
-            border: 1px solid rgba(148,210,189,0.12); background: #fff; color: #0f172a;
-            font-weight: 700; cursor: pointer;
-            display: flex; align-items: center; justify-content: center; gap: 10px;
-        }
-        .error-msg { color: #e76f51; text-align: center; margin-top: 10px; font-weight: 600; }
-        .success-msg { color: #52b788; text-align: center; margin-top: 10px; font-weight: 600; }
-    </style>
-
-    <!-- Google reCAPTCHA v2 ("I'm not a robot") -->
-    <script src="https://www.google.com/recaptcha/api.js" async defer></script>
-<link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./css/index.css">
-</head>
-
-<body>
-
-<div id="nxSplash" aria-hidden="false">
-  <div class="nx-splash-grid" aria-hidden="true"></div>
-  <div class="nx-orbit nx-orbit-a" aria-hidden="true"></div>
-  <div class="nx-orbit nx-orbit-b" aria-hidden="true"></div>
-  <div class="nx-logo-3d" aria-hidden="true">
-    <div class="nx-logo-halo"></div>
-    <div class="nx-logo-face"><span>N</span></div>
-  </div>
-  <div class="nx-splash-kicker">NEXUSNOVA OS</div>
-  <div class="nx-splash-name">Nexus<span>Nova</span></div>
-  <div class="nx-splash-slogan">One grid. Every tool. Your daily universe.</div>
-  <div class="nx-splash-status"><span class="nx-status-dot"></span><span>Initializing secure workspace</span></div>
-  <div class="nx-splash-bar"><i></i></div>
-  <div class="nx-splash-version">SUPER APP • SECURE • CONNECTED</div>
-</div>
-<script>
-(function(){
-  var minMs = 2800;
-  var start = Date.now();
-  function hide(){
-    var el = document.getElementById("nxSplash");
-    if(!el) return;
-    el.classList.add("hide");
-    setTimeout(function(){ try{el.remove();}catch(e){} }, 600);
-  }
-  function ready(){
-    var left = minMs - (Date.now() - start);
-    setTimeout(hide, Math.max(0, left));
-  }
-  if(document.readyState === "complete") ready();
-  else window.addEventListener("load", ready);
-})();
-</script>
-
-
-<div class="auth-shell">
-  <div class="auth-ambient auth-ambient-one" aria-hidden="true"></div>
-  <div class="auth-ambient auth-ambient-two" aria-hidden="true"></div>
-  <div class="card auth-card">
-
-    <div class="logo">
-      <div class="auth-logo-mark" aria-hidden="true"><span>N</span></div>
-      <div class="auth-eyebrow"><span class="auth-live-dot"></span> SECURE NEXUS ACCESS</div>
-      <h1 id="title">Nexus<span>Nova</span></h1>
-      <p id="subtitle">Sign up to start mining</p>
-      <div class="auth-trust-row" aria-hidden="true">
-        <span>256-bit feel</span><i></i><span>Fast access</span><i></i><span>Cloud sync</span>
-      </div>
-    </div>
-
-
-    <div class="input-group">
-
-        <label for="email">
-            Email address
-        </label>
-
-        <input
-            type="email"
-            id="email"
-            placeholder="name@example.com"
-            autocomplete="email"
-        >
-
-    </div>
-
-
-    <div class="input-group">
-
-        <label for="password">
-            Password
-        </label>
-
-        <input
-            type="password"
-            id="password"
-            placeholder="Minimum 6 characters"
-            autocomplete="current-password"
-        >
-
-    </div>
-
-    <div class="captcha-box" id="captchaBox">
-        <div
-            class="g-recaptcha"
-            data-sitekey="6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI"
-            data-theme="dark"
-            data-size="normal">
-        </div>
-        <div class="captcha-help">
-            Protected by Google reCAPTCHA
-        </div>
-    </div>
-
-<button
-        id="authBtn"
-        class="auth-btn"
-    >
-        Sign up with Email
-    </button>
-
-
-    <div id="message"></div>
-
-
-    <div class="toggle-text">
-
-        <span id="toggleBtn">
-            Already have an account? Log in
-        </span>
-
-    </div>
-
-
-    <div class="divider">
-        <span>OR</span>
-    </div>
-
-
-    <button
-        id="googleLoginBtn"
-        class="google-btn"
-    >
-
-        <svg
-            width="18"
-            height="18"
-            viewBox="0 0 48 48"
-            xmlns="http://www.w3.org/2000/svg"
-        >
-
-            <path
-                fill="#EA4335"
-                d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
-            />
-
-            <path
-                fill="#4285F4"
-                d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
-            />
-
-            <path
-                fill="#FBBC05"
-                d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 2.56 34.78l7.97-6.19z"
-            />
-
-            <path
-                fill="#34A853"
-                d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.46-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
-            />
-
-        </svg>
-
-        Continue with Google
-
-    </button>
-
-</div>
-</div>
-
-
-<script type="module">
-
 /* =========================================================
    FIREBASE
 ========================================================= */
@@ -332,8 +79,14 @@ const emailInput =
 const passwordInput =
     document.getElementById("password");
 
+const captchaInput =
+    document.getElementById("captchaInput");
+
 const captchaBox =
     document.getElementById("captchaBox");
+
+const captchaQuestion =
+    document.getElementById("captchaQuestion");
 
 const authBtn =
     document.getElementById("authBtn");
@@ -362,26 +115,32 @@ let loginMode = false;
 
 
 /* =========================================================
-   GOOGLE reCAPTCHA v2
+   CAPTCHA
 ========================================================= */
 
-function resetRecaptcha() {
-    if (typeof grecaptcha !== "undefined") {
-        try {
-            grecaptcha.reset();
-        } catch (e) {
-            console.warn("reCAPTCHA reset:", e);
-        }
-    }
+let correctAnswer = 0;
+
+
+function createCaptcha() {
+
+    const num1 =
+        Math.floor(Math.random() * 9) + 1;
+
+    const num2 =
+        Math.floor(Math.random() * 9) + 1;
+
+    correctAnswer =
+        num1 + num2;
+
+    captchaQuestion.textContent =
+        `Solve: ${num1} + ${num2} =`;
+
+    captchaInput.value = "";
 }
 
-function recaptchaPassed() {
-    return (
-        typeof grecaptcha !== "undefined" &&
-        typeof grecaptcha.getResponse === "function" &&
-        grecaptcha.getResponse().length > 0
-    );
-}
+
+createCaptcha();
+
 
 /* =========================================================
    MESSAGE
@@ -516,9 +275,8 @@ toggleBtn.addEventListener(
 
         emailInput.value = "";
         passwordInput.value = "";
+        captchaInput.value = "";
 
-
-        resetRecaptcha();
 
         if (loginMode) {
 
@@ -554,7 +312,7 @@ toggleBtn.addEventListener(
             toggleBtn.textContent =
                 "Already have an account? Log in";
 
-            resetRecaptcha();
+            createCaptcha();
 
         }
 
@@ -597,16 +355,29 @@ authBtn.addEventListener(
         }
 
 
-        /* GOOGLE reCAPTCHA ONLY FOR SIGNUP */
+        /* CAPTCHA ONLY FOR SIGNUP */
 
-        if (!loginMode && !recaptchaPassed()) {
+        if (!loginMode) {
 
-            showMessage(
-                "Please tick the \"I'm not a robot\" box first."
-            );
+            const answer =
+                Number(captchaInput.value);
 
-            return;
+            if (
+                !captchaInput.value ||
+                answer !== correctAnswer
+            ) {
+
+                showMessage(
+                    "Incorrect CAPTCHA. Please try again."
+                );
+
+                createCaptcha();
+
+                return;
+            }
+
         }
+
 
         authBtn.disabled = true;
 
@@ -765,11 +536,6 @@ authBtn.addEventListener(
             );
 
 
-            if (!loginMode) {
-                resetRecaptcha();
-            }
-
-
             authBtn.disabled =
                 false;
 
@@ -920,13 +686,3 @@ googleLoginBtn.addEventListener(
 
     }
 );
-
-</script>
-
-<script>
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(()=>{}));
-}
-</script>
-</body>
-</html>

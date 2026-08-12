@@ -1,0 +1,29 @@
+NexusNova full audit — 2026-08-12
+
+Confirmed:
+- Root page2.html has 20 JS modules and all referenced root JS files exist.
+- Root page2.html local CSS references exist.
+- All JS files pass Node syntax checking.
+- Inline onclick handlers referenced by page2.html have matching functions/window handlers.
+- Wallet visible balance renderer is single-source: renderWalletFoundation + on-chain cache.
+- ETH 0.000127 shown in the supplied screenshot is consistent with the connected EVM wallet.
+- $0.24 portfolio total is consistent with 0.000127 ETH at roughly $1,900/ETH.
+
+Fixed in this audit pass:
+- Android WebView was missing 15 locally referenced JS files from page2.html.
+- Android WebView was missing manifest.webmanifest.
+- Android WebView CSS/runtime asset set was incomplete; all root web JS/CSS modules are now mirrored.
+- Android WebView receives root styles.css, sw.js and manifest.
+
+Not a bug:
+- BTC/SOL/XRP/ADA/etc. show Not supported when the connected wallet is an EVM wallet on Ethereum.
+  They require their native wallet/provider networks. They must not be assigned fake balances.
+- Google and many sites block iframe embedding in the built-in browser via X-Frame-Options/CSP. The external-open fallback is correct.
+- 0.000127 ETH -> about $0.24 is mathematically consistent with the live ETH price shown.
+
+Remaining integration boundaries:
+- Native Android Caller ID permissions/role.
+- FCM closed-app push notifications.
+- Native camera/QR scanner.
+- Firebase Storage secure vault rules/backend.
+- Live travel/courier/payment providers.

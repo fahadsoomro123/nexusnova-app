@@ -1,0 +1,7 @@
+Wallet comprehensive fix:
+- Prevents non-EVM assets (BTC/SOL/XRP/ADA/DOGE/TRX/DOT/LTC/BCH/TON) from being stuck on Reading... in a MetaMask/Rabby EVM connection.
+- Distinguishes unsupported assets from supported assets that are still being read.
+- Tracks read errors instead of displaying an endless spinner state.
+- Re-renders the primary wallet UI after on-chain refresh completes.
+- Keeps one balance renderer and one USD value per asset.
+- Preserves real on-chain values; no fake balances are generated.

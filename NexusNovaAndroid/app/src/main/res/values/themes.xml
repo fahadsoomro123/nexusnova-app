@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.NexusNova" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">#00FFCC</item>
+        <item name="colorPrimaryVariant">#00CCAA</item>
+        <item name="colorOnPrimary">#0B0F17</item>
+        <item name="android:statusBarColor">#0B0F17</item>
+        <item name="android:navigationBarColor">#0B0F17</item>
+        <item name="android:windowBackground">#0B0F17</item>
+    </style>
+    <style name="Theme.NexusNova.Call" parent="Theme.NexusNova">
+        <item name="android:windowIsTranslucent">false</item>
+        <item name="android:windowFullscreen">true</item>
+    </style>
+</resources>

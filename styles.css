@@ -1,0 +1,417 @@
+/* =========================================================
+   NexusNova — NEO FINTECH (2026)
+   Deep midnight · Mint accents · Minimal · High clarity
+   Inspired by modern wallet / neobank patterns
+========================================================= */
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,400&display=swap");
+
+:root {
+  --bg: #001219;
+  --bg-elev: #0a1f29;
+  --surface: #0f2a35;
+  --surface2: #143441;
+  --line: rgba(148, 210, 189, 0.12);
+  --line-strong: rgba(148, 210, 189, 0.22);
+  --text: #e9f5f2;
+  --sub: #8ba8a3;
+  --muted: #5f7a76;
+  --mint: #94d2bd;
+  --teal: #0a9396;
+  --deep-teal: #005f73;
+  --amber: #ee9b00;
+  --ok: #52b788;
+  --bad: #e76f51;
+  --radius: 16px;
+  --radius-lg: 22px;
+  --font: "DM Sans", system-ui, -apple-system, sans-serif;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; font-family: var(--font); -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+}
+
+body {
+  overflow-x: hidden;
+  padding-bottom: 100px;
+  background:
+    radial-gradient(900px 500px at 0% 0%, rgba(10, 147, 150, 0.14), transparent 50%),
+    radial-gradient(700px 400px at 100% 0%, rgba(0, 95, 115, 0.2), transparent 45%),
+    var(--bg);
+  font-size: 15px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; border: none; background: none; }
+main, .main-wrap, .top-header, .ticker-wrap, .bottom-dock, .more-menu { position: relative; z-index: 1; }
+
+/* Header */
+.top-header {
+  position: sticky; top: 0; z-index: 100;
+  padding: 14px 18px;
+  background: rgba(0, 18, 25, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--line);
+}
+.header-inner {
+  max-width: 900px; margin: auto;
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+}
+.logo-title {
+  font-size: 1.15rem; font-weight: 800; letter-spacing: -0.03em;
+  color: #fff;
+}
+.logo-title span { color: var(--mint); }
+.logo-sub {
+  color: var(--muted); font-size: 0.65rem; margin-top: 2px;
+  letter-spacing: 0.12em; text-transform: uppercase; font-weight: 600;
+}
+.online-dot {
+  width: 7px; height: 7px; border-radius: 50%; display: inline-block;
+  background: var(--ok); margin-right: 6px;
+  box-shadow: 0 0 0 3px rgba(82, 183, 136, 0.2);
+}
+
+/* Ticker */
+.ticker-wrap {
+  overflow: hidden; padding: 8px 0;
+  background: var(--bg-elev);
+  border-bottom: 1px solid var(--line);
+}
+.ticker-content {
+  display: flex; gap: 24px; width: max-content; white-space: nowrap;
+  animation: ticker 40s linear infinite; padding-left: 100%;
+}
+.ticker-item { color: var(--sub); font-size: 0.78rem; font-weight: 500; }
+.ticker-item b { color: #fff; font-weight: 700; }
+.ticker-item .up { color: var(--ok); }
+.ticker-item .down { color: var(--bad); }
+@keyframes ticker { from{transform:translateX(0)} to{transform:translateX(-50%)} }
+
+main, .main-wrap { max-width: 900px; margin: 0 auto; padding: 16px 16px 28px; }
+.tab { display: none; }
+.tab.active { display: block; animation: in 0.22s ease; }
+@keyframes in { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
+
+/* Surfaces */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 18px;
+  margin-bottom: 12px;
+  box-shadow: var(--shadow);
+}
+.card h2, .card h3 {
+  font-weight: 700; color: #fff; letter-spacing: -0.02em;
+}
+.card h3 { font-size: 0.95rem; margin-bottom: 8px; }
+.settings-muted, .muted, .status { color: var(--sub); font-size: 0.88rem; }
+
+.balance-title {
+  color: var(--sub); font-size: 0.7rem; font-weight: 600;
+  letter-spacing: 0.1em; text-transform: uppercase;
+}
+.balance-amount {
+  font-size: 2.35rem; font-weight: 800; letter-spacing: -0.04em;
+  margin-top: 6px; color: #fff;
+}
+.balance-amount span, .balance-usd { color: var(--mint); }
+.balance-usd { font-size: 0.88rem; margin-top: 4px; font-weight: 500; display: block; }
+
+/* Primary CTA */
+.mine-btn, .tool-btn.primary, .btn-primary {
+  width: 100%; margin-top: 12px; padding: 15px 18px; border: 0;
+  border-radius: 14px; font-weight: 700; font-size: 0.92rem;
+  color: #001219;
+  background: var(--mint);
+  box-shadow: 0 4px 16px rgba(148, 210, 189, 0.25);
+  transition: transform 0.12s, filter 0.12s;
+}
+.mine-btn:active, .tool-btn.primary:active { transform: scale(0.98); }
+.mine-btn:hover, .tool-btn.primary:hover { filter: brightness(1.06); }
+.mine-btn.mining {
+  color: #fff;
+  background: var(--deep-teal);
+  box-shadow: 0 4px 16px rgba(0, 95, 115, 0.35);
+}
+
+.refresh-btn, .settings-btn, .tool-btn {
+  border-radius: 12px; padding: 11px 14px; font-weight: 600; font-size: 0.84rem;
+  color: var(--text);
+  background: var(--surface2);
+  border: 1px solid var(--line);
+  transition: 0.15s;
+}
+.refresh-btn:hover, .settings-btn:hover {
+  border-color: var(--line-strong);
+  color: var(--mint);
+}
+.tool-btn.ghost { background: transparent; color: var(--sub); border-color: transparent; }
+
+input, select, textarea, .tool-input {
+  width: 100%; padding: 13px 14px; margin: 6px 0; border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--bg-elev);
+  color: #fff; outline: none; font-weight: 500;
+}
+input:focus, select:focus, textarea:focus {
+  border-color: var(--teal);
+  box-shadow: 0 0 0 3px rgba(10, 147, 150, 0.2);
+}
+input::placeholder { color: var(--muted); }
+
+/* Lists */
+.coin-row, .wallet-asset-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px; margin-bottom: 8px; border-radius: 14px;
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+}
+.coin-name { font-weight: 700; font-size: 0.95rem; color: #fff; }
+.coin-symbol { font-size: 0.72rem; color: var(--sub); margin-top: 2px; font-weight: 500; }
+.coin-price, .wallet-live-price {
+  font-weight: 700; font-size: 0.92rem; color: var(--mint) !important;
+}
+.wallet-live-balance { font-size: 0.84rem !important; font-weight: 600 !important; color: #fff !important; margin-top: 2px; }
+.wallet-live-usd { font-size: 0.7rem !important; color: var(--muted) !important; }
+.up { color: var(--ok) !important; }
+.down { color: var(--bad) !important; }
+
+/* Icons — quiet circles */
+.mi-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  color: var(--mint);
+  background: rgba(148, 210, 189, 0.1);
+  border: 1px solid rgba(148, 210, 189, 0.15);
+}
+.mi-icon svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+.dock-item .mi-icon {
+  width: 26px; height: 26px;
+  background: transparent; border: 0;
+  color: var(--muted);
+}
+.dock-item .mi-icon svg { width: 22px; height: 22px; }
+.dock-item.active .mi-icon { color: #001219; background: transparent; }
+
+.more-item .mi-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  margin-bottom: 6px;
+  color: var(--mint);
+  background: rgba(148, 210, 189, 0.1);
+  border: 1px solid rgba(148, 210, 189, 0.18);
+}
+.more-item .mi-icon svg { width: 20px; height: 20px; }
+.more-item:active .mi-icon { transform: scale(0.94); }
+
+.h-ico { display: flex; align-items: center; gap: 10px; }
+.h-ico .mi-icon { flex-shrink: 0; width: 32px; height: 32px; }
+.h-ico .mi-icon svg { width: 16px; height: 16px; }
+
+button .mi-icon,
+.tool-btn .mi-icon,
+.settings-btn .mi-icon,
+.nexus-tool-chip .mi-icon {
+  width: 18px; height: 18px;
+  display: inline-flex; vertical-align: -3px; margin-right: 6px;
+  background: transparent; border: 0; color: currentColor;
+}
+button .mi-icon svg,
+.tool-btn .mi-icon svg,
+.settings-btn .mi-icon svg,
+.nexus-tool-chip .mi-icon svg {
+  width: 15px; height: 15px;
+}
+
+.nexus-tool-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.nexus-tool-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 8px 14px; border-radius: 999px; font-size: 0.75rem; font-weight: 600;
+  color: var(--sub);
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  cursor: pointer;
+}
+.nexus-tool-chip.active, .nexus-tool-chip:hover {
+  color: #001219;
+  background: var(--mint);
+  border-color: transparent;
+}
+
+.feature-tile .mi-icon {
+  width: 40px; height: 40px; margin-bottom: 8px;
+}
+
+/* Dock */
+.bottom-dock {
+  position: fixed; left: 14px; right: 14px; bottom: 14px; z-index: 200;
+  padding: 6px;
+  border-radius: 20px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+.dock-inner { max-width: 540px; margin: auto; display: flex; gap: 2px; }
+.dock-item {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 10px 4px 8px; border-radius: 16px;
+  color: var(--muted); font-weight: 600; transition: 0.15s;
+}
+.dock-item span {
+  font-size: 0.58rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+}
+.dock-item:hover { color: var(--text); background: rgba(148, 210, 189, 0.06); }
+.dock-item.active {
+  color: #001219;
+  background: var(--mint);
+  box-shadow: 0 4px 14px rgba(148, 210, 189, 0.3);
+}
+.dock-item.active span { color: #001219; font-weight: 700; }
+
+/* More menu */
+.more-menu {
+  position: fixed; left: 14px; right: 14px; bottom: 88px; z-index: 190;
+  display: none; padding: 14px; border-radius: 20px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.5);
+  max-height: min(62vh, 500px); overflow-y: auto;
+}
+.more-menu.show { display: block; animation: in 0.2s ease; }
+.more-inner {
+  max-width: 540px; margin: auto;
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+}
+.more-item {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 6px; min-height: 82px; padding: 12px 6px; border-radius: 16px;
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  color: #fff; font-weight: 600;
+  transition: 0.12s;
+}
+.more-item span {
+  font-size: 0.6rem; font-weight: 600; letter-spacing: 0.02em;
+  text-transform: uppercase; color: var(--sub); text-align: center;
+}
+.more-item:active { transform: scale(0.96); background: var(--surface2); }
+.more-item:hover span { color: var(--mint); }
+
+/* Misc */
+.timer-display, .pomo-display { text-align: center; font-weight: 700; color: var(--mint); }
+.timer-display { font-size: 1.75rem; margin: 12px 0; }
+.pomo-display { font-size: 2.8rem; margin: 12px 0; }
+
+.info-row, .settings-row {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 12px; padding: 13px 0; border-bottom: 1px solid var(--line);
+}
+.switch { position: relative; width: 46px; height: 28px; flex-shrink: 0; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.switch span {
+  position: absolute; inset: 0; border-radius: 999px;
+  background: var(--surface2); cursor: pointer;
+}
+.switch span:before {
+  content: ""; position: absolute; width: 22px; height: 22px; left: 3px; top: 3px;
+  border-radius: 50%; background: #fff; transition: 0.2s;
+}
+.switch input:checked + span { background: var(--teal); }
+.switch input:checked + span:before { transform: translateX(18px); }
+
+.calc-display {
+  background: var(--bg-elev); border: 1px solid var(--line); border-radius: 14px;
+  padding: 18px 16px; font-size: 1.75rem; text-align: right; color: var(--mint);
+  margin-bottom: 12px; font-weight: 700;
+}
+.calc-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.calc-key {
+  background: var(--surface2); border: 1px solid var(--line); color: #fff;
+  border-radius: 12px; padding: 16px 0; font-size: 1.1rem; font-weight: 600;
+}
+.calc-key.op { color: var(--mint); }
+.calc-key.eq { background: var(--mint); color: #001219; border: 0; font-weight: 800; }
+.calc-key.zero { grid-column: span 2; }
+
+.tool-item {
+  background: var(--bg-elev); border: 1px solid var(--line);
+  border-radius: 12px; padding: 12px; margin-bottom: 8px;
+}
+.tool-del { background: transparent; border: 0; color: var(--bad); cursor: pointer; }
+
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-thumb { background: rgba(148, 210, 189, 0.25); border-radius: 99px; }
+
+#walletFoundationNote, .wallet-note { color: var(--sub) !important; font-size: 0.86rem; }
+
+/* Splash */
+#nxSplash {
+  position: fixed; inset: 0; z-index: 99999;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background:
+    radial-gradient(ellipse 60% 40% at 50% 30%, rgba(10, 147, 150, 0.18), transparent 55%),
+    #001219;
+  transition: opacity 0.5s ease, visibility 0.5s ease;
+}
+#nxSplash.hide { opacity: 0; visibility: hidden; pointer-events: none; }
+.nx-logo-3d {
+  width: 88px; height: 88px;
+  animation: float 2.5s ease-in-out infinite;
+}
+@keyframes float {
+  0%,100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+.nx-logo-3d .nx-logo-face {
+  width: 100%; height: 100%; border-radius: 24px;
+  background: var(--mint);
+  color: #001219;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 2.2rem; letter-spacing: -0.04em;
+  box-shadow: 0 12px 32px rgba(148, 210, 189, 0.3);
+}
+.nx-splash-name {
+  margin-top: 22px; font-size: 1.4rem; font-weight: 800;
+  color: #fff; letter-spacing: -0.02em;
+}
+.nx-splash-slogan {
+  margin-top: 8px; color: var(--sub); font-size: 0.88rem; font-weight: 500;
+  text-align: center; max-width: 240px; line-height: 1.4;
+}
+.nx-splash-bar {
+  margin-top: 26px; width: 120px; height: 3px; border-radius: 99px;
+  background: rgba(148, 210, 189, 0.12); overflow: hidden;
+}
+.nx-splash-bar i {
+  display: block; height: 100%; width: 40%;
+  background: var(--mint); border-radius: 99px;
+  animation: load 1.2s ease-in-out infinite;
+}
+@keyframes load {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(350%); }
+}
+
+@media (min-width: 720px) {
+  .more-inner { grid-template-columns: repeat(5, 1fr); }
+  .balance-amount { font-size: 2.6rem; }
+}

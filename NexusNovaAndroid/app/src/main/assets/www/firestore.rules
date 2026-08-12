@@ -1,0 +1,35 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow create: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.data.balance == 0
+        && request.resource.data.totalMined == 0
+        && request.resource.data.miningActive == false
+        && request.resource.data.miningStartedAt == 0;
+      allow update: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.data.balance == resource.data.balance
+        && request.resource.data.totalMined == resource.data.totalMined
+        && request.resource.data.miningActive == resource.data.miningActive
+        && request.resource.data.miningStartedAt == resource.data.miningStartedAt
+        && request.resource.data.miningLastUpdate == resource.data.miningLastUpdate
+        && request.resource.data.lastDailyReward == resource.data.lastDailyReward
+        && request.resource.data.dailyRewardStreak == resource.data.dailyRewardStreak
+        && request.resource.data.completedTasks == resource.data.completedTasks
+        && request.resource.data.tasksCompleted == resource.data.tasksCompleted;
+      allow delete: if false;
+    }
+
+    match /withdrawalRequests/{id} {
+      allow read: if request.auth != null && resource.data.uid == request.auth.uid;
+      allow create, update, delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
