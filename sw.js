@@ -1,5 +1,6 @@
-/* NexusNova Service Worker - offline shell cache */
-const CACHE = "nexusnova-shell-v3-top100";
+/* NexusNova Service Worker - fresh-code first, offline fallback */
+const CACHE = "nexusnova-shell-v4-converter-fix";
+
 const ASSETS = [
   "./",
   "./index.html",
@@ -25,41 +26,69 @@ const ASSETS = [
   "./js/nexusnova-top100-live-fix-v3.js",
   "./css/style.css",
   "./css/page2.css",
-  "./css/index.css",];
+  "./css/index.css"
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE).then((cache) => cache.addAll(ASSETS).catch(() => {})).then(() => self.skipWaiting())
+    caches
+      .open(CACHE)
+      .then((cache) => cache.addAll(ASSETS).catch(() => undefined))
+      .then(() => self.skipWaiting())
   );
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
-    ).then(() => self.clients.claim())
+    caches
+      .keys()
+      .then((keys) =>
+        Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key)))
+      )
+      .then(() => self.clients.claim())
   );
 });
 
-self.addEventListener("fetch", (event) => {
-  const req = event.request;
-  if (req.method !== "GET") return;
-  // Network-first for APIs, cache-first for same-origin shell
-  const url = new URL(req.url);
-  if (url.origin === self.location.origin) {
-    event.respondWith(
-      caches.match(req).then((cached) => {
-        const fetched = fetch(req)
-          .then((res) => {
-            if (res && res.ok) {
-              const copy = res.clone();
-              caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
-            }
-            return res;
-          })
-          .catch(() => cached);
-        return cached || fetched;
-      })
-    );
+async function networkFirst(request) {
+  try {
+    const response = await fetch(request, { cache: "no-store" });
+    if (response && response.ok) {
+      const copy = response.clone();
+      caches.open(CACHE).then((cache) => cache.put(request, copy)).catch(() => {});
+    }
+    return response;
+  } catch (error) {
+    const cached = await caches.match(request);
+    if (cached) return cached;
+    throw error;
   }
+}
+
+async function cacheFirst(request) {
+  const cached = await caches.match(request);
+  if (cached) return cached;
+  const response = await fetch(request);
+  if (response && response.ok) {
+    const copy = response.clone();
+    caches.open(CACHE).then((cache) => cache.put(request, copy)).catch(() => {});
+  }
+  return response;
+}
+
+self.addEventListener("fetch", (event) => {
+  const request = event.request;
+  if (request.method !== "GET") return;
+
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return;
+
+  const destination = request.destination;
+  const isFreshCode =
+    request.mode === "navigate" ||
+    destination === "document" ||
+    destination === "script" ||
+    destination === "style" ||
+    /\.(?:html?|js|css)(?:\?|$)/i.test(url.pathname + url.search);
+
+  event.respondWith(isFreshCode ? networkFirst(request) : cacheFirst(request));
 });
