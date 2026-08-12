@@ -1,5 +1,5 @@
 /* NexusNova Service Worker - offline shell cache */
-const CACHE = "nexusnova-shell-v2";
+const CACHE = "nexusnova-shell-v3-top100";
 const ASSETS = [
   "./",
   "./index.html",
@@ -22,6 +22,7 @@ const ASSETS = [
   "./js/nexusnova-natural-voice-v1.js",
   "./js/nexusnova-allinone-hub-v1.js",
   "./js/wallet-actions-v2.js",
+  "./js/nexusnova-top100-live-fix-v3.js",
   "./css/style.css",
   "./css/page2.css",
   "./css/index.css",];
