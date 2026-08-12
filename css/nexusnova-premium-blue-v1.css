@@ -431,3 +431,27 @@ body.nexus-light .ticker-item, body.nexus-light .ticker-item b { color:#173454 !
     linear-gradient(180deg,rgba(11,19,31,.98),rgba(3,8,15,.98)) !important;
 }
 .more-item[data-nxmega]:hover .mi-icon{transform:translateY(-4px) scale(1.08) rotate(-1deg) !important;}
+
+
+/* Final alignment pass: keep every More-menu glyph perfectly centered. */
+.more-item .mi-icon,
+.more-item[data-nxmega] .mi-icon {
+  display:flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  position:relative !important;
+  padding:0 !important;
+  line-height:1 !important;
+}
+.more-item .mi-icon svg,
+.more-item[data-nxmega] .mi-icon svg {
+  display:block !important;
+  margin:0 !important;
+  position:relative !important;
+  left:auto !important;
+  right:auto !important;
+  top:auto !important;
+  bottom:auto !important;
+  transform:none !important;
+  flex:0 0 auto !important;
+}

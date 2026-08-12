@@ -1632,6 +1632,137 @@ let nexusWalletPrices = {};
 let nexusWalletBalances = {};
 let nexusWalletInitialized = false;
 
+// Wallet display is intentionally broader than the small set of assets that
+// have chain-specific balance readers.  The top-100 list comes from live
+// market data; supported connected-wallet balances still appear when available.
+let nexusWalletDisplayAssets = [...NEXUS_WALLET_ASSETS];
+let nexusTop100Cache = { time: 0, coins: [] };
+let nexusTop100Promise = null;
+
+const NEXUS_TOP100_CACHE_MS = 2 * 60 * 1000;
+
+function nexusKnownCoinName(symbol){
+    const names = {
+        BTC:"Bitcoin", ETH:"Ethereum", BNB:"BNB", SOL:"Solana", XRP:"XRP",
+        ADA:"Cardano", DOGE:"Dogecoin", TRX:"TRON", AVAX:"Avalanche",
+        LINK:"Chainlink", DOT:"Polkadot", LTC:"Litecoin", BCH:"Bitcoin Cash",
+        TON:"Toncoin", SHIB:"Shiba Inu", PEPE:"Pepe", SUI:"Sui",
+        NEAR:"NEAR Protocol", APT:"Aptos", ATOM:"Cosmos", UNI:"Uniswap",
+        AAVE:"Aave", ETC:"Ethereum Classic", FIL:"Filecoin", ALGO:"Algorand",
+        VET:"VeChain", HBAR:"Hedera", XLM:"Stellar", ICP:"Internet Computer",
+        POL:"Polygon", MATIC:"Polygon", ARB:"Arbitrum", OP:"Optimism",
+        INJ:"Injective", RENDER:"Render", TAO:"Bittensor", SEI:"Sei",
+        STX:"Stacks", IMX:"Immutable", MKR:"Maker", LDO:"Lido DAO",
+        GRT:"The Graph", RUNE:"THORChain", QNT:"Quant", FET:"Artificial Superintelligence Alliance"
+    };
+    return names[String(symbol || "").toUpperCase()] || String(symbol || "").toUpperCase();
+}
+
+async function fetchNexusTop100Coins(){
+    if(
+        nexusTop100Cache.coins.length >= 100 &&
+        Date.now() - nexusTop100Cache.time < NEXUS_TOP100_CACHE_MS
+    ){
+        return nexusTop100Cache.coins;
+    }
+
+    if(nexusTop100Promise){
+        return nexusTop100Promise;
+    }
+
+    nexusTop100Promise = (async () => {
+        // Primary source: true market-cap top 100.
+        try{
+            const response = await fetch(
+                "https://api.coingecko.com/api/v3/coins/markets"+
+                "?vs_currency=usd&order=market_cap_desc"+
+                "&per_page=100&page=1&sparkline=false"+
+                "&price_change_percentage=24h",
+                {cache:"no-store"}
+            );
+
+            if(!response.ok){
+                throw new Error("CoinGecko HTTP "+response.status);
+            }
+
+            const rows = await response.json();
+            if(Array.isArray(rows) && rows.length){
+                const coins = rows.slice(0,100).map((coin,index) => ({
+                    id:String(coin.id || coin.symbol || index),
+                    symbol:String(coin.symbol || "").toUpperCase(),
+                    name:String(coin.name || coin.symbol || "Coin"),
+                    current_price:Number(coin.current_price || 0),
+                    price_change_percentage_24h:Number(coin.price_change_percentage_24h || 0),
+                    market_cap_rank:Number(coin.market_cap_rank || index+1),
+                    image:String(coin.image || "")
+                }));
+                nexusTop100Cache = {time:Date.now(), coins};
+                return coins;
+            }
+        }catch(error){
+            console.warn("Top-100 CoinGecko source unavailable:", error);
+        }
+
+        // Fallback: 100 highest-volume Binance USDT pairs, still fully live.
+        try{
+            const response = await fetch(
+                "https://api.binance.com/api/v3/ticker/24hr",
+                {cache:"no-store"}
+            );
+
+            if(!response.ok){
+                throw new Error("Binance HTTP "+response.status);
+            }
+
+            const rows = await response.json();
+            const excluded = /^(USDT|USDC|FDUSD|TUSD|USDP|DAI|EUR|TRY|BRL|BIDR|IDRT)$/;
+            const coins = rows
+                .filter(row => {
+                    const pair = String(row.symbol || "").toUpperCase();
+                    if(!pair.endsWith("USDT")) return false;
+                    const base = pair.slice(0,-4);
+                    return base && !excluded.test(base);
+                })
+                .sort((a,b) => Number(b.quoteVolume || 0) - Number(a.quoteVolume || 0))
+                .slice(0,100)
+                .map((row,index) => {
+                    const pair = String(row.symbol || "").toUpperCase();
+                    const base = pair.slice(0,-4);
+                    return {
+                        id:base.toLowerCase(),
+                        symbol:base,
+                        name:nexusKnownCoinName(base),
+                        current_price:Number(row.lastPrice || 0),
+                        price_change_percentage_24h:Number(row.priceChangePercent || 0),
+                        market_cap_rank:index+1,
+                        image:""
+                    };
+                });
+
+            if(coins.length){
+                nexusTop100Cache = {time:Date.now(), coins};
+                return coins;
+            }
+        }catch(error){
+            console.warn("Top-100 Binance fallback unavailable:", error);
+        }
+
+        return nexusTop100Cache.coins.length
+            ? nexusTop100Cache.coins
+            : NEXUS_WALLET_ASSETS.map((asset,index) => ({
+                id:asset.id, symbol:asset.symbol, name:asset.name,
+                current_price:getWalletPrice(asset.symbol),
+                price_change_percentage_24h:0, market_cap_rank:index+1, image:""
+            }));
+    })();
+
+    try{
+        return await nexusTop100Promise;
+    }finally{
+        nexusTop100Promise = null;
+    }
+}
+
 function getWalletStorageKey(){
     return currentUser
         ? "nexusnova_wallet_preferences_"+currentUser.uid
@@ -1719,7 +1850,7 @@ function renderWalletFoundation(){
         getWalletPreferences();
 
     list.innerHTML =
-        NEXUS_WALLET_ASSETS.map(
+        nexusWalletDisplayAssets.map(
             asset => {
 
                 const externalConnected =
@@ -1823,9 +1954,13 @@ function renderWalletFoundation(){
                             justify-content:center;
                             font-weight:700;
                             color:#00f5d4;
+                            overflow:hidden;
+                            flex:0 0 34px;
                         "
                     >
-                        ${asset.icon}
+                        ${asset.image
+                            ? `<img src="${escapeHTML(asset.image)}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover">`
+                            : escapeHTML(asset.icon || asset.symbol.slice(0,1))}
                     </div>
 
                     <div
@@ -1838,8 +1973,9 @@ function renderWalletFoundation(){
 
                         <div class="coin-symbol">
                             ${escapeHTML(asset.symbol)}
-                            •
-                            ${escapeHTML(asset.networks[0])}
+                            ${asset.networks && asset.networks[0] && asset.networks[0] !== "Market asset"
+                                ? " • "+escapeHTML(asset.networks[0])
+                                : ""}
                         </div>
 
                     </div>
@@ -1868,7 +2004,7 @@ function renderWalletFoundation(){
 function updateWalletTotal(){
 
     const total =
-        NEXUS_WALLET_ASSETS.reduce(
+        nexusWalletDisplayAssets.reduce(
             (sum, asset) => {
                 const cache =
                     window.__nexusOnchainVisibleBalances || {};
@@ -1919,134 +2055,70 @@ async function refreshWalletFoundation(){
 
     if(list){
         list.innerHTML =
-            '<div class="status">Loading live crypto prices...</div>';
+            '<div class="status">Loading top 100 crypto assets...</div>';
     }
 
-    const symbols = [
-        "BTCUSDT","ETHUSDT","BNBUSDT","SOLUSDT",
-        "XRPUSDT","ADAUSDT","DOGEUSDT","TRXUSDT",
-        "AVAXUSDT","LINKUSDT","DOTUSDT","LTCUSDT",
-        "BCHUSDT","TONUSDT","USDTUSDT","USDCUSDT"
-    ];
-
-    const priceMap = {};
-
-    // Primary: Binance public ticker. No API key required.
     try{
-
-        const response = await fetch(
-            "https://api.binance.com/api/v3/ticker/price",
-            {cache:"no-store"}
+        const topCoins = await fetchNexusTop100Coins();
+        const coreBySymbol = new Map(
+            NEXUS_WALLET_ASSETS.map(asset => [asset.symbol, asset])
         );
 
-        if(response.ok){
-
-            const rows = await response.json();
-
-            rows.forEach(row => {
-
-                const symbol =
-                    String(row.symbol || "").toUpperCase();
-
-                if(symbols.includes(symbol)){
-                    const base =
-                        symbol.replace("USDT","");
-                    priceMap[base.toLowerCase()] =
-                        Number(row.price || 0);
-                }
-
+        const seen = new Set();
+        nexusWalletDisplayAssets = topCoins
+            .filter(coin => {
+                const symbol = String(coin.symbol || "").toUpperCase();
+                if(!symbol || seen.has(symbol)) return false;
+                seen.add(symbol);
+                return true;
+            })
+            .slice(0,100)
+            .map((coin,index) => {
+                const symbol = String(coin.symbol || "").toUpperCase();
+                const known = coreBySymbol.get(symbol);
+                return {
+                    id:String(coin.id || symbol.toLowerCase() || index),
+                    symbol,
+                    name:String(coin.name || known?.name || symbol),
+                    networks:known?.networks || ["Market asset"],
+                    icon:known?.icon || symbol.slice(0,1),
+                    decimals:known?.decimals || 8,
+                    image:String(coin.image || "")
+                };
             });
 
-        }
-
-    }catch(error){
-
-        console.warn(
-            "Binance wallet prices unavailable:",
-            error
-        );
-    }
-
-    // Stablecoins always have a USD reference around 1.
-    priceMap.usdt = priceMap.usdt || 1;
-    priceMap.usdc = priceMap.usdc || 1;
-
-    // Fallback for environments where Binance is blocked.
-    if(
-        !priceMap.btc &&
-        !priceMap.eth &&
-        !priceMap.bnb
-    ){
-
-        try{
-
-            const response = await fetch(
-                "https://api.coingecko.com/api/v3/simple/price"+
-                "?ids=bitcoin,ethereum,binancecoin,solana,ripple,"+
-                "cardano,dogecoin,tron,avalanche-2,chainlink,"+
-                "polkadot,litecoin,bitcoin-cash,the-open-network,"+
-                "tether,usd-coin"+
-                "&vs_currencies=usd",
-                {cache:"no-store"}
-            );
-
-            if(response.ok){
-
-                const data = await response.json();
-
-                Object.assign(
-                    priceMap,
-                    {
-                        btc:Number(data.bitcoin?.usd || 0),
-                        eth:Number(data.ethereum?.usd || 0),
-                        bnb:Number(data.binancecoin?.usd || 0),
-                        sol:Number(data.solana?.usd || 0),
-                        xrp:Number(data.ripple?.usd || 0),
-                        ada:Number(data.cardano?.usd || 0),
-                        doge:Number(data.dogecoin?.usd || 0),
-                        trx:Number(data.tron?.usd || 0),
-                        avax:Number(data["avalanche-2"]?.usd || 0),
-                        link:Number(data.chainlink?.usd || 0),
-                        dot:Number(data.polkadot?.usd || 0),
-                        ltc:Number(data.litecoin?.usd || 0),
-                        bch:Number(data["bitcoin-cash"]?.usd || 0),
-                        ton:Number(data["the-open-network"]?.usd || 0),
-                        usdt:Number(data.tether?.usd || 1),
-                        usdc:Number(data["usd-coin"]?.usd || 1)
-                    }
-                );
+        const priceMap = {};
+        topCoins.forEach(coin => {
+            const symbol = String(coin.symbol || "").toLowerCase();
+            const price = Number(coin.current_price || 0);
+            if(symbol && price > 0 && !priceMap[symbol]){
+                priceMap[symbol] = price;
             }
+        });
 
-        }catch(error){
+        // USD stablecoins should always retain a sensible reference value.
+        priceMap.usdt = priceMap.usdt || 1;
+        priceMap.usdc = priceMap.usdc || 1;
 
-            console.warn(
-                "CoinGecko wallet fallback unavailable:",
-                error
-            );
+        nexusWalletPrices = priceMap;
+        renderWalletFoundation();
+
+        const status = document.getElementById("walletActionStatus");
+        if(status){
+            status.textContent =
+                nexusWalletDisplayAssets.length >= 100
+                ? "Top 100 crypto assets loaded • Live prices"
+                : nexusWalletDisplayAssets.length+" crypto assets loaded";
         }
-    }
+    }catch(error){
+        console.error("Wallet top-100 refresh failed:", error);
+        nexusWalletDisplayAssets = [...NEXUS_WALLET_ASSETS];
+        renderWalletFoundation();
 
-    nexusWalletPrices = priceMap;
-
-    renderWalletFoundation();
-
-    const status =
-        document.getElementById(
-            "walletActionStatus"
-        );
-
-    if(status){
-
-        const live =
-            Object.keys(priceMap).filter(
-                key => Number(priceMap[key]) > 0
-            ).length;
-
-        status.textContent =
-            live > 0
-            ? "Live crypto prices connected • "+
-              live+" assets"
-            : "Live price services are temporarily unavailable.";
+        const status = document.getElementById("walletActionStatus");
+        if(status){
+            status.textContent = "Live crypto data is temporarily unavailable.";
+        }
     }
 }
 
@@ -2865,81 +2937,27 @@ window.initWalletFoundation =
 
 async function loadMarket(){
 
-    const marketList =
-        document.getElementById("marketList");
+    const marketList = document.getElementById("marketList");
+    const marketStatus = document.getElementById("marketStatus");
+    const count = document.getElementById("marketCount");
 
-    const marketStatus =
-        document.getElementById("marketStatus");
+    if(marketList){
+        marketList.innerHTML =
+            '<div class="status">Loading top 100 crypto market...</div>';
+    }
 
     try{
+        marketCoins = await fetchNexusTop100Coins();
 
-        const response = await fetch(
-            "https://api.binance.com/api/v3/ticker/24hr",
-            {cache:"no-store"}
-        );
-
-        if(!response.ok){
-            throw new Error(
-                "Binance market request failed: "+
-                response.status
-            );
+        if(!Array.isArray(marketCoins) || !marketCoins.length){
+            throw new Error("No live market rows returned");
         }
 
-        const rows = await response.json();
-
-        const wanted = new Set([
-            "BTCUSDT","ETHUSDT","BNBUSDT","SOLUSDT",
-            "XRPUSDT","ADAUSDT","DOGEUSDT","TRXUSDT",
-            "AVAXUSDT","LINKUSDT","DOTUSDT","LTCUSDT",
-            "BCHUSDT","TONUSDT","SHIBUSDT","PEPEUSDT",
-            "SUIUSDT","NEARUSDT","APTUSDT","ATOMUSDT",
-            "UNIUSDT","AAVEUSDT","ETCUSDT","FILUSDT",
-            "ALGOUSDT","VETUSDT","HBARUSDT","XLMUSDT"
-        ]);
-
-        const names = {
-            BTC:"Bitcoin",ETH:"Ethereum",BNB:"BNB",
-            SOL:"Solana",XRP:"XRP",ADA:"Cardano",
-            DOGE:"Dogecoin",TRX:"TRON",AVAX:"Avalanche",
-            LINK:"Chainlink",DOT:"Polkadot",LTC:"Litecoin",
-            BCH:"Bitcoin Cash",TON:"Toncoin",SHIB:"Shiba Inu",
-            PEPE:"Pepe",SUI:"Sui",NEAR:"NEAR Protocol",
-            APT:"Aptos",ATOM:"Cosmos",UNI:"Uniswap",
-            AAVE:"Aave",ETC:"Ethereum Classic",FIL:"Filecoin",
-            ALGO:"Algorand",VET:"VeChain",HBAR:"Hedera",
-            XLM:"Stellar"
-        };
-
-        marketCoins =
-            rows
-            .filter(row =>
-                wanted.has(
-                    String(row.symbol || "").toUpperCase()
-                )
-            )
-            .map((row,index) => {
-
-                const pair =
-                    String(row.symbol || "").toUpperCase();
-
-                const base =
-                    pair.replace("USDT","");
-
-                return {
-                    id:base.toLowerCase(),
-                    symbol:base,
-                    name:names[base] || base,
-                    current_price:Number(row.lastPrice || 0),
-                    price_change_percentage_24h:
-                        Number(row.priceChangePercent || 0),
-                    market_cap_rank:index+1
-                };
-
-            })
-            .sort(
-                (a,b) =>
-                    (a.market_cap_rank || 999) -
-                    (b.market_cap_rank || 999)
+        marketCoins = marketCoins
+            .slice(0,100)
+            .sort((a,b) =>
+                Number(a.market_cap_rank || 999) -
+                Number(b.market_cap_rank || 999)
             );
 
         renderMarket(marketCoins);
@@ -2948,91 +2966,30 @@ async function loadMarket(){
             refreshWalletFoundation();
         }
 
-        const count =
-            document.getElementById(
-                "marketCount"
-            );
-
         if(count){
             count.textContent =
-                marketCoins.length+
-                " live pairs";
+                marketCoins.length >= 100
+                ? "Top 100 coins • Live"
+                : marketCoins.length+" live coins";
         }
 
         if(marketStatus){
-            marketStatus.textContent =
-                "Connected • Live";
+            marketStatus.textContent = "Connected • Live";
         }
-
-        return;
-
     }catch(error){
-
-        console.warn(
-            "Binance market unavailable:",
-            error
-        );
-    }
-
-    // Secondary market source.
-    try{
-
-        const response = await fetch(
-            "https://api.coingecko.com/api/v3/coins/markets"+
-            "?vs_currency=usd&order=market_cap_desc"+
-            "&per_page=100&page=1&sparkline=false",
-            {cache:"no-store"}
-        );
-
-        if(!response.ok){
-            throw new Error(
-                "CoinGecko market request failed"
-            );
-        }
-
-        marketCoins =
-            await response.json();
-
-        renderMarket(
-            marketCoins
-        );
-
-        if(typeof refreshWalletFoundation === "function"){
-            refreshWalletFoundation();
-        }
-
-        const count =
-            document.getElementById(
-                "marketCount"
-            );
-
-        if(count){
-            count.textContent =
-                "Top "+
-                marketCoins.length+
-                " coins loaded";
-        }
-
-        if(marketStatus){
-            marketStatus.textContent =
-                "Connected";
-        }
-
-    }catch(error){
-
-        console.error(
-            "MARKET ERROR:",
-            error
-        );
+        console.error("MARKET ERROR:", error);
 
         if(marketList){
             marketList.innerHTML =
                 '<div class="status">Live market temporarily unavailable. Tap Refresh to retry.</div>';
         }
 
+        if(count){
+            count.textContent = "Unavailable";
+        }
+
         if(marketStatus){
-            marketStatus.textContent =
-                "Offline";
+            marketStatus.textContent = "Offline";
         }
     }
 }
@@ -3243,7 +3200,7 @@ async function loadFinanceData(){
             Number(goldUsdPerOunce || 0)
         );
 
-        convertCurrency();
+        window.convertCurrency();
 
         if(status){
             status.textContent =
@@ -3272,7 +3229,7 @@ async function loadFinanceData(){
                 Number(cached.goldUsdPerOunce || 0)
             );
 
-            convertCurrency();
+            window.convertCurrency();
 
             if(status){
                 status.textContent =
