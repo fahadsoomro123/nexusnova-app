@@ -338,3 +338,96 @@ body.nexus-light .ticker-item, body.nexus-light .ticker-item b { color:#173454 !
 
 @media(max-width:760px){.more-inner{grid-template-columns:repeat(4,minmax(0,1fr)) !important;gap:9px !important}.more-item{min-height:108px !important;border-radius:21px !important}.more-item .mi-icon{width:60px !important;height:60px !important;border-radius:20px !important}.more-item .mi-icon svg{width:31px !important;height:31px !important}.more-item > span:last-child{font-size:.64rem !important}}
 @media(max-width:390px){.more-inner{grid-template-columns:repeat(3,minmax(0,1fr)) !important}.more-item{min-height:106px !important}}
+
+
+/* =========================================================
+   NexusNova More Grid — COMPLETE premium color pass v4
+   Dynamic mega-menu items are created after page load, so
+   target them by data-nxmega instead of nth-child position.
+   ========================================================= */
+.more-item[data-nxmega] .mi-icon{
+  color:#fff !important;
+  border:1px solid rgba(255,255,255,.34) !important;
+  box-shadow:
+    inset 0 2px 0 rgba(255,255,255,.55),
+    inset 0 -11px 19px rgba(0,0,0,.25),
+    0 9px 20px rgba(0,0,0,.36),
+    0 0 22px var(--mi-glow,rgba(60,150,255,.28)) !important;
+}
+.more-item[data-nxmega] .mi-icon svg{stroke:#fff !important;filter:drop-shadow(0 3px 4px rgba(0,0,0,.34)) drop-shadow(0 0 5px rgba(255,255,255,.20)) !important;}
+.more-item[data-nxmega]::before{background:radial-gradient(160px 100px at 50% -8%,var(--mi-glow,rgba(60,150,255,.24)),transparent 70%) !important;}
+
+/* Each app gets its own premium material / identity. */
+.more-item[data-nxmega="mega-hub"]{--mi-glow:rgba(130,96,255,.38)}
+.more-item[data-nxmega="mega-hub"] .mi-icon{background:radial-gradient(circle at 28% 17%,#f5e9ff 0 8%,transparent 26%),linear-gradient(145deg,#bf7dff 0%,#6a43ff 48%,#3520aa 100%) !important;}
+
+.more-item[data-nxmega="mega-tools"]{--mi-glow:rgba(68,203,255,.34)}
+.more-item[data-nxmega="mega-tools"] .mi-icon{background:radial-gradient(circle at 28% 17%,#dffbff 0 8%,transparent 26%),linear-gradient(145deg,#62e9ff,#1596e8 52%,#0756a8) !important;}
+
+.more-item[data-nxmega="mega-calendar"]{--mi-glow:rgba(255,92,121,.36)}
+.more-item[data-nxmega="mega-calendar"] .mi-icon{background:radial-gradient(circle at 28% 17%,#ffe4eb 0 8%,transparent 26%),linear-gradient(145deg,#ff7e9a,#ec3f6a 52%,#9c1741) !important;}
+
+.more-item[data-nxmega="mega-reminders"]{--mi-glow:rgba(255,169,61,.34)}
+.more-item[data-nxmega="mega-reminders"] .mi-icon{background:radial-gradient(circle at 28% 17%,#fff1d8 0 8%,transparent 26%),linear-gradient(145deg,#ffc86a,#ff8e27 52%,#b74608) !important;}
+
+.more-item[data-nxmega="mega-finance"]{--mi-glow:rgba(66,221,118,.34)}
+.more-item[data-nxmega="mega-finance"] .mi-icon{background:radial-gradient(circle at 28% 17%,#ddffe6 0 8%,transparent 26%),linear-gradient(145deg,#69ec8d,#1ba958 52%,#08622f) !important;}
+
+.more-item[data-nxmega="mega-weather"]{--mi-glow:rgba(72,177,255,.38)}
+.more-item[data-nxmega="mega-weather"] .mi-icon{background:radial-gradient(circle at 28% 17%,#f4fdff 0 8%,transparent 26%),linear-gradient(145deg,#89dcff,#388fff 50%,#224bc8) !important;}
+
+.more-item[data-nxmega="mega-learning"]{--mi-glow:rgba(255,196,54,.34)}
+.more-item[data-nxmega="mega-learning"] .mi-icon{background:radial-gradient(circle at 28% 17%,#fff9d8 0 8%,transparent 26%),linear-gradient(145deg,#ffe27a,#f0af21 50%,#a66104) !important;}
+
+.more-item[data-nxmega="mega-pakistan"]{--mi-glow:rgba(24,209,133,.34)}
+.more-item[data-nxmega="mega-pakistan"] .mi-icon{background:radial-gradient(circle at 28% 17%,#dbfff0 0 8%,transparent 26%),linear-gradient(145deg,#3ce4a4,#0a9b66 50%,#055239) !important;}
+
+.more-item[data-nxmega="mega-islamic"]{--mi-glow:rgba(51,221,193,.34)}
+.more-item[data-nxmega="mega-islamic"] .mi-icon{background:radial-gradient(circle at 28% 17%,#dffff9 0 8%,transparent 26%),linear-gradient(145deg,#57ebd3,#12a993 50%,#056259) !important;}
+
+.more-item[data-nxmega="mega-habits"]{--mi-glow:rgba(255,104,71,.36)}
+.more-item[data-nxmega="mega-habits"] .mi-icon{background:radial-gradient(circle at 28% 17%,#ffe4da 0 8%,transparent 26%),linear-gradient(145deg,#ff916c,#f04d2e 50%,#a52011) !important;}
+
+.more-item[data-nxmega="mega-savings"]{--mi-glow:rgba(100,224,117,.34)}
+.more-item[data-nxmega="mega-savings"] .mi-icon{background:radial-gradient(circle at 28% 17%,#eaffdc 0 8%,transparent 26%),linear-gradient(145deg,#99ef76,#47b952 50%,#176727) !important;}
+
+.more-item[data-nxmega="mega-contacts"]{--mi-glow:rgba(79,164,255,.36)}
+.more-item[data-nxmega="mega-contacts"] .mi-icon{background:radial-gradient(circle at 28% 17%,#dfedff 0 8%,transparent 26%),linear-gradient(145deg,#6eb8ff,#3970ec 50%,#2639a6) !important;}
+
+.more-item[data-nxmega="mega-shopping"]{--mi-glow:rgba(255,87,178,.36)}
+.more-item[data-nxmega="mega-shopping"] .mi-icon{background:radial-gradient(circle at 28% 17%,#ffe0f3 0 8%,transparent 26%),linear-gradient(145deg,#ff86c8,#e23891 50%,#8f185d) !important;}
+
+.more-item[data-nxmega="mega-documents"]{--mi-glow:rgba(84,202,255,.34)}
+.more-item[data-nxmega="mega-documents"] .mi-icon{background:radial-gradient(circle at 28% 17%,#e4f9ff 0 8%,transparent 26%),linear-gradient(145deg,#69ddff,#248fd9 50%,#12578c) !important;}
+
+.more-item[data-nxmega="mega-vault"]{--mi-glow:rgba(149,114,255,.38)}
+.more-item[data-nxmega="mega-vault"] .mi-icon{background:radial-gradient(circle at 28% 17%,#eee6ff 0 8%,transparent 26%),linear-gradient(145deg,#ad90ff,#654fe1 50%,#35268c) !important;}
+
+.more-item[data-nxmega="mega-qr"]{--mi-glow:rgba(45,225,219,.36)}
+.more-item[data-nxmega="mega-qr"] .mi-icon{background:radial-gradient(circle at 28% 17%,#dffffe 0 8%,transparent 26%),linear-gradient(145deg,#50eee9,#0db8b0 50%,#076c6c) !important;}
+
+.more-item[data-nxmega="mega-security"]{--mi-glow:rgba(57,140,255,.42)}
+.more-item[data-nxmega="mega-security"] .mi-icon{background:radial-gradient(circle at 28% 17%,#dceaff 0 8%,transparent 26%),linear-gradient(145deg,#4fa4ff,#2259e0 50%,#142d86) !important;}
+
+.more-item[data-nxmega="mega-marketplace"]{--mi-glow:rgba(255,151,47,.38)}
+.more-item[data-nxmega="mega-marketplace"] .mi-icon{background:radial-gradient(circle at 28% 17%,#fff0d9 0 8%,transparent 26%),linear-gradient(145deg,#ffbf65,#ef7621 50%,#993609) !important;}
+
+.more-item[data-nxmega="mega-orders"]{--mi-glow:rgba(156,108,255,.38)}
+.more-item[data-nxmega="mega-orders"] .mi-icon{background:radial-gradient(circle at 28% 17%,#f0e7ff 0 8%,transparent 26%),linear-gradient(145deg,#b991ff,#7954e8 50%,#472b9f) !important;}
+
+.more-item[data-nxmega="mega-notifications"]{--mi-glow:rgba(255,87,104,.38)}
+.more-item[data-nxmega="mega-notifications"] .mi-icon{background:radial-gradient(circle at 28% 17%,#ffe2e5 0 8%,transparent 26%),linear-gradient(145deg,#ff7b8c,#e3334f 50%,#941528) !important;}
+
+.more-item[data-nxmega="mega-teacher"]{--mi-glow:rgba(67,189,255,.36)}
+.more-item[data-nxmega="mega-teacher"] .mi-icon{background:radial-gradient(circle at 28% 17%,#def7ff 0 8%,transparent 26%),linear-gradient(145deg,#55ccff,#287fdd 50%,#17478d) !important;}
+
+.more-item[data-nxmega="about"]{--mi-glow:rgba(189,204,229,.30)}
+.more-item[data-nxmega="about"] .mi-icon{background:radial-gradient(circle at 28% 17%,#ffffff 0 8%,transparent 26%),linear-gradient(145deg,#d7e3f6,#7589aa 50%,#3d4c67) !important;}
+
+/* Make every dynamic card itself subtly inherit its feature color. */
+.more-item[data-nxmega]{
+  background:
+    radial-gradient(120px 75px at 50% 0,var(--mi-glow,rgba(75,150,255,.14)),transparent 72%),
+    linear-gradient(180deg,rgba(11,19,31,.98),rgba(3,8,15,.98)) !important;
+}
+.more-item[data-nxmega]:hover .mi-icon{transform:translateY(-4px) scale(1.08) rotate(-1deg) !important;}
