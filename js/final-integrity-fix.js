@@ -3,6 +3,19 @@
 (() => {
   "use strict";
 
+  // news-fix.js is a classic script loaded before page2.js (module) finishes.
+  // Capture the premium Pakistan-first loader now so late module patches cannot
+  // silently replace it with the old world-news renderer.
+  const premiumNewsLoader = window.__nxPremiumNewsV3 && typeof window.loadNews === "function"
+    ? window.loadNews
+    : null;
+
+  function assertPremiumNews() {
+    if (!premiumNewsLoader) return false;
+    if (window.loadNews !== premiumNewsLoader) window.loadNews = premiumNewsLoader;
+    return true;
+  }
+
   // Bible English/Urdu corpora are large verse-aligned text files. Older code
   // aborts every source after 15 seconds, which can fail on slower connections.
   // Give only these known BibleNLP resources a longer finite window and allow
@@ -79,6 +92,12 @@
         window.nexusFinalConvertCurrency?.(false);
       }, 120);
     }
+    if (label.includes("news")) {
+      setTimeout(() => {
+        assertPremiumNews();
+        window.loadNews?.();
+      }, 120);
+    }
   }, true);
 
   function loadGuard(src, marker) {
@@ -90,10 +109,15 @@
   }
 
   window.addEventListener("load", () => {
+    // Re-assert after page2.js module and its legacy news patches have finished.
+    assertPremiumNews();
+    [150, 700, 1800, 4500].forEach(ms => setTimeout(assertPremiumNews, ms));
+
     const refresh = document.querySelector(".refresh-news");
-    if (refresh && typeof window.loadNews === "function") {
+    if (refresh) {
       refresh.addEventListener("click", () => setTimeout(() => {
-        if (document.getElementById("newsList")) window.loadNews();
+        assertPremiumNews();
+        if (document.getElementById("newsList")) window.loadNews?.();
       }, 50));
     }
 
