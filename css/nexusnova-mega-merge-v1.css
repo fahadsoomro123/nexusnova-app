@@ -1,3 +1,5 @@
+@import url("./nexusnova-paper-reader-v1.css?v=1");
+
 .nxmega-hero h2 { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
 .nxmega-grid {
   display: grid;
