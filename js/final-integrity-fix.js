@@ -3,9 +3,50 @@
 (() => {
   "use strict";
 
-  // news-fix.js is a classic script loaded before page2.js (module) finishes.
-  // Capture the premium Pakistan-first loader now so late module patches cannot
-  // silently replace it with the old world-news renderer.
+  // Remember which normal tab was underneath ALL APPS before a feature opened.
+  // This lets Back to ALL APPS close the feature instead of leaving it visible
+  // behind the menu, while still returning the user to the tab they came from.
+  let allAppsOriginTabId = "";
+
+  function currentActiveTab() {
+    return document.querySelector(".tab.active");
+  }
+
+  function rememberAllAppsOrigin() {
+    const active = currentActiveTab();
+    if (active?.id) allAppsOriginTabId = active.id;
+  }
+
+  function closeFeatureAndRestoreOrigin() {
+    const activeTabs = Array.from(document.querySelectorAll(".tab.active"));
+    activeTabs.forEach((tab) => tab.classList.remove("active"));
+
+    let origin = allAppsOriginTabId
+      ? document.getElementById(allAppsOriginTabId)
+      : null;
+
+    if (!origin || activeTabs.includes(origin)) {
+      origin = document.getElementById("tab-home");
+    }
+    origin?.classList.add("active");
+  }
+
+  document.addEventListener("click", (event) => {
+    const target = event.target;
+    const menu = document.getElementById("moreMenu");
+    const moreButton = target?.closest?.("#moreBtn");
+    const menuItem = target?.closest?.("#moreMenu .more-item");
+
+    if (moreButton && !menu?.classList.contains("show")) {
+      rememberAllAppsOrigin();
+      return;
+    }
+
+    if (menuItem) {
+      rememberAllAppsOrigin();
+    }
+  }, true);
+
   const premiumNewsLoader = window.__nxPremiumNewsV3 && typeof window.loadNews === "function"
     ? window.loadNews
     : null;
@@ -16,10 +57,6 @@
     return true;
   }
 
-  // Bible English/Urdu corpora are large verse-aligned text files. Older code
-  // aborts every source after 15 seconds, which can fail on slower connections.
-  // Give only these known BibleNLP resources a longer finite window and allow
-  // normal browser caching; all other application fetches remain untouched.
   if (!window.__nxBibleFetchGuard && typeof window.fetch === "function") {
     const nativeFetch = window.fetch.bind(window);
     window.__nxBibleFetchGuard = true;
@@ -62,8 +99,12 @@
     event.preventDefault();
     event.stopPropagation();
     event.stopImmediatePropagation();
-    try { window.nexusBackToTools?.(); } catch (_) {}
-    try { window.nexusBackToAllApps?.(event); } catch (error) { console.warn("ALL APPS back handler:", error); }
+
+    if (button.classList.contains("tools-main-back")) {
+      try { window.nexusBackToTools?.(); } catch (_) {}
+    }
+
+    closeFeatureAndRestoreOrigin();
     forceAllAppsVisible();
     requestAnimationFrame(forceAllAppsVisible);
     setTimeout(forceAllAppsVisible, 0);
@@ -71,8 +112,6 @@
     try { window.scrollTo({ top: 0, behavior: "smooth" }); } catch (_) {}
   }, true);
 
-  // page2.js is a module and may finish after the classic final repair scripts.
-  // Keep the already-exported final converter authoritative even on slow loads.
   function assertReliableConverter() {
     if (typeof window.nexusFinalConvertCurrency !== "function") return false;
     if (window.convertCurrency?.__nxIntegrityReliable) return true;
@@ -109,7 +148,6 @@
   }
 
   window.addEventListener("load", () => {
-    // Re-assert after page2.js module and its legacy news patches have finished.
     assertPremiumNews();
     [150, 700, 1800, 4500].forEach(ms => setTimeout(assertPremiumNews, ms));
 
@@ -130,8 +168,6 @@
       document.querySelectorAll("#tab-bible iframe").forEach((frame) => frame.remove());
     }, 250);
 
-    // Load guards only after normal NexusNova scripts have finished building
-    // their dynamic tabs and scripture readers.
     loadGuard('./js/nexusnova-allapps-order-guard-v5.js', 'data-nx-allapps-guard');
     loadGuard('./js/nexusnova-scripture-source-guard-v2.js', 'data-nx-scripture-guard');
     loadGuard('./js/nexusnova-local-apps-repair-v1.js', 'data-nx-local-apps-repair');
