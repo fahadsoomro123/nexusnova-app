@@ -12,6 +12,18 @@
     const news = document.createElement('script');
     news.src = './js/news-v9-override.js?v=10';
     news.setAttribute('data-nx-news-v10', '1');
+    news.onload = () => {
+      window.addEventListener('click', event => {
+        const button = event.target?.closest?.('.more-item,.dock-item,button');
+        if (!button || !/news/i.test(String(button.textContent || ''))) return;
+        setTimeout(() => {
+          if (typeof window.__nxNewsV10Load === 'function') {
+            window.loadNews = window.__nxNewsV10Load;
+            window.__nxNewsV10Load();
+          }
+        }, 220);
+      }, true);
+    };
     document.body.appendChild(news);
   }
 
