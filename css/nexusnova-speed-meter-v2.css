@@ -1,0 +1,174 @@
+/* NexusNova Speed Meter v2 — numbered 3D glass gauge */
+html body #tab-tools #tool-speed.nx-speed-v2 .nx-speed-gauge{
+  position:relative!important;
+  min-height:470px!important;
+  padding:300px 0 0!important;
+  overflow:visible!important;
+}
+html body #tab-tools #tool-speed.nx-speed-v2 .nx-speed-gauge::before,
+html body #tab-tools #tool-speed.nx-speed-v2 .nx-speed-gauge::after{
+  content:none!important;
+  display:none!important;
+  animation:none!important;
+}
+html body #tab-tools #tool-speed.nx-speed-v2 .nx-speed-dial-v2{
+  --nx-speed-angle:-135deg;
+  position:absolute;
+  z-index:2;
+  top:14px;
+  left:50%;
+  width:min(280px,78vw);
+  aspect-ratio:1;
+  transform:translateX(-50%);
+  border-radius:50%;
+  overflow:hidden;
+  border:1px solid rgba(143,226,255,.62);
+  background:
+    radial-gradient(circle at 50% 48%,rgba(5,16,32,.98) 0 37%,rgba(9,30,54,.98) 38% 52%,transparent 53%),
+    conic-gradient(from 225deg,#0b71d9 0deg,#13c9ef 78deg,#24e4c0 132deg,#d9e54a 190deg,#ffac45 226deg,#ff5a77 270deg,rgba(5,20,38,.7) 270deg 360deg);
+  box-shadow:
+    0 26px 55px rgba(0,0,0,.52),
+    0 0 45px rgba(29,190,255,.24),
+    inset 0 0 0 7px rgba(5,18,35,.92),
+    inset 0 0 0 9px rgba(142,226,255,.16),
+    inset 0 15px 30px rgba(255,255,255,.08);
+}
+html body #tab-tools #tool-speed.nx-speed-v2 .nx-speed-dial-v2::before{
+  content:"";
+  position:absolute;
+  inset:12px;
+  border-radius:50%;
+  background:
+    repeating-conic-gradient(from 225deg,rgba(239,251,255,.9) 0 1deg,transparent 1deg 6deg),
+    radial-gradient(circle,transparent 0 70%,rgba(4,16,30,.88) 71% 100%);
+  opacity:.8;
+}
+html body #tab-tools #tool-speed.nx-speed-v2 .nx-speed-dial-v2::after{
+  content:"";
+  position:absolute;
+  inset:24px;
+  border-radius:50%;
+  border:1px solid rgba(160,231,255,.18);
+  box-shadow:inset 0 0 25px rgba(41,190,255,.08),0 0 18px rgba(15,141,255,.09);
+  pointer-events:none;
+}
+html body #tab-tools #tool-speed.nx-speed-v2 .nx-speed-glass-v2{
+  position:absolute;
+  z-index:6;
+  inset:0;
+  border-radius:50%;
+  pointer-events:none;
+  background:
+    linear-gradient(145deg,rgba(255,255,255,.18),transparent 26%),
+    radial-gradient(ellipse at 35% 18%,rgba(255,255,255,.16),transparent 34%);
+  mix-blend-mode:screen;
+}
+html body #tab-tools #tool-speed.nx-speed-v2 .nx-speed-scale-v2{
+  position:absolute;
+  z-index:7;
+  inset:0;
+  pointer-events:none;
+}
+html body #tab-tools #tool-speed.nx-speed-v2 .nx-speed-scale-v2 span{
+  position:absolute;
+  transform:translate(-50%,-50%);
+  min-width:28px;
+  padding:3px 4px;
+  border-radius:8px;
+  color:#e8f8ff;
+  background:rgba(4,16,31,.62);
+  border:1px solid rgba(139,220,255,.22);
+  box-shadow:0 4px 10px rgba(0,0,0,.25),inset 0 1px 0 rgba(255,255,255,.08);
+  font-size:9px;
+  line-height:1;
+  font-weight:900;
+  text-align:center;
+  text-shadow:0 0 9px rgba(76,200,255,.44);
+}
+html body #tab-tools #tool-speed.nx-speed-v2 .nx-speed-needle-v2{
+  position:absolute;
+  z-index:9;
+  left:50%;
+  bottom:50%;
+  width:5px;
+  height:34%;
+  transform-origin:50% 100%;
+  transform:translateX(-50%) rotate(var(--nx-speed-angle));
+  transition:transform .7s cubic-bezier(.22,.75,.18,1)!important;
+  filter:drop-shadow(0 0 7px rgba(87,230,255,.92));
+}
+html body #tab-tools #tool-speed.nx-speed-v2 .nx-speed-needle-v2 i{
+  position:absolute;
+  inset:0;
+  border-radius:99px 99px 4px 4px;
+  background:linear-gradient(to top,#39c8ff,#c9fbff 55%,#fff);
+  box-shadow:0 0 12px rgba(72,222,255,.82),inset 1px 0 0 rgba(255,255,255,.8);
+}
+html body #tab-tools #tool-speed.nx-speed-v2 .nx-speed-needle-v2 i::before{
+  content:"";
+  position:absolute;
+  top:-8px;
+  left:50%;
+  transform:translateX(-50%);
+  border-left:7px solid transparent;
+  border-right:7px solid transparent;
+  border-bottom:16px solid #e5fdff;
+  filter:drop-shadow(0 0 5px rgba(94,231,255,.8));
+}
+html body #tab-tools #tool-speed.nx-speed-v2 .nx-speed-hub-v2{
+  position:absolute;
+  z-index:10;
+  left:50%;
+  top:50%;
+  width:28px;
+  height:28px;
+  transform:translate(-50%,-50%);
+  border-radius:50%;
+  border:3px solid rgba(213,250,255,.95);
+  background:radial-gradient(circle at 35% 30%,#efffff,#32c9ff 30%,#075f9b 66%,#021528 70%);
+  box-shadow:0 0 0 5px rgba(42,181,255,.16),0 0 22px rgba(61,217,255,.72),inset 0 2px 4px rgba(255,255,255,.65);
+}
+html body #tab-tools #tool-speed.nx-speed-v2 .nx-speed-main{
+  position:absolute!important;
+  z-index:8!important;
+  top:52%!important;
+  left:50%!important;
+  width:150px!important;
+  min-height:80px!important;
+  transform:translate(-50%,-50%)!important;
+  padding:30px 0 0!important;
+  border-radius:50%!important;
+  color:#f2fcff!important;
+  font-size:31px!important;
+  line-height:1!important;
+  font-weight:950!important;
+  letter-spacing:-.05em!important;
+  text-shadow:0 0 22px rgba(65,202,255,.54)!important;
+}
+html body #tab-tools #tool-speed.nx-speed-v2 .nx-speed-main::before{
+  content:"MEASURED SPEED"!important;
+  top:5px!important;
+  color:#71d7ff!important;
+  font-size:8px!important;
+  letter-spacing:.18em!important;
+}
+html body #tab-tools #tool-speed.nx-speed-v2 .nx-speed-grid{
+  position:relative!important;
+  z-index:4!important;
+  margin-top:8px!important;
+}
+html body #tab-tools #tool-speed.nx-speed-v2 .nx-speed-stat{
+  border-color:rgba(93,196,255,.34)!important;
+  background:linear-gradient(155deg,rgba(15,47,82,.94),rgba(4,17,32,.98))!important;
+  box-shadow:0 14px 30px rgba(0,0,0,.30),inset 0 1px 0 rgba(255,255,255,.08),0 0 18px rgba(40,173,255,.06)!important;
+}
+html body #tab-tools #tool-speed.nx-speed-v2 #nxSpeedStart:disabled + .nx-speed-progress + #nxSpeedStatus + .nx-speed-gauge .nx-speed-needle-v2,
+html body #tab-tools #tool-speed.nx-speed-v2:has(#nxSpeedStart:disabled) .nx-speed-needle-v2{
+  animation:none!important;
+}
+@media(max-width:520px){
+  html body #tab-tools #tool-speed.nx-speed-v2 .nx-speed-gauge{min-height:430px!important;padding-top:275px!important}
+  html body #tab-tools #tool-speed.nx-speed-v2 .nx-speed-dial-v2{width:min(255px,82vw)}
+  html body #tab-tools #tool-speed.nx-speed-v2 .nx-speed-scale-v2 span{font-size:8px;min-width:24px}
+  html body #tab-tools #tool-speed.nx-speed-v2 .nx-speed-main{font-size:28px!important}
+}
