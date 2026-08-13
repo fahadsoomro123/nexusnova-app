@@ -46,7 +46,7 @@
     if(!u){
       // Wait for page2's auth callback; it stores a safe public snapshot below.
       const name=$('profileName');
-      if(name && name.textContent==='Miner User') set('profileEmailDisplay','Account loaded');
+      if(name && name.textContent==='Miner User') set('profileEmailDisplay','Loading account…');
       return;
     }
     set('profileName',u.displayName||'Miner User');
