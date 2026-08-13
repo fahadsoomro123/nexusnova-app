@@ -172,6 +172,7 @@
     loadGuard('./js/nexusnova-scripture-source-guard-v2.js', 'data-nx-scripture-guard');
     loadGuard('./js/nexusnova-local-apps-repair-v1.js', 'data-nx-local-apps-repair');
     loadGuard('./js/nexusnova-profile-display-guard-v1.js', 'data-nx-profile-display-guard');
+    loadGuard('./js/nexusnova-speed-meter-sync-v2.js?v=2', 'data-nx-speed-meter-v2');
 
     let converterPasses = 0;
     const converterGuard = setInterval(() => {
