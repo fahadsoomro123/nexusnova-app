@@ -162,13 +162,20 @@
   }
 
   /* ---------- Browser enhancement ---------- */
+  function safeWebUrl(value){try{const u=new URL(String(value||""));return (u.protocol==="https:"||u.protocol==="http:")?u.href:""}catch{return ""}}
+  function openMegaUrl(u){
+    const safe=safeWebUrl(u);if(!safe)return;
+    if(window.NexusAndroid && typeof window.NexusAndroid.openExternal === "function"){try{window.NexusAndroid.openExternal(safe)}catch(_){};return}
+    const frame=$("nxMegaFrame");if(frame)frame.src=safe;
+  }
   function browserGo(){
     let q=$("nxMegaBrowserUrl")?.value.trim();if(!q)return;
-    const u=/^https?:\/\//i.test(q)?q:"https://www.google.com/search?q="+encodeURIComponent(q);
-    $("nxMegaFrame").src=u; const h=read("browserHistory");h.unshift({u,at:Date.now()});write("browserHistory",h.slice(0,50));
+    const u=/^https?:\/\//i.test(q)?safeWebUrl(q):"https://www.google.com/search?q="+encodeURIComponent(q);
+    if(!u)return;
+    openMegaUrl(u); const h=read("browserHistory");h.unshift({u,at:Date.now()});write("browserHistory",h.slice(0,50));
   }
   function bookmark(){const u=$("nxMegaFrame")?.src;if(!u||u==="about:blank")return;const a=read("bookmarks");if(!a.includes(u)){a.unshift(u);write("bookmarks",a);renderBookmarks();toast("Bookmark saved")}}
-  function renderBookmarks(){renderList("bookmarks","nxMegaBookmarks",(u,i)=>`<div class="nxmega-row"><a href="${esc(u)}" target="_blank" rel="noopener">${esc(u)}</a><button class="action-btn" data-open-book="${i}">Open</button></div>`);$("nxMegaBookmarks")?.querySelectorAll("[data-open-book]").forEach(b=>b.onclick=()=>{$("nxMegaFrame").src=read("bookmarks")[+b.dataset.openBook]})}
+  function renderBookmarks(){renderList("bookmarks","nxMegaBookmarks",(u,i)=>{const safe=safeWebUrl(u);return `<div class="nxmega-row"><a href="${esc(safe||"#")}" target="_blank" rel="noopener noreferrer">${esc(u)}</a><button class="action-btn" data-open-book="${i}">Open</button></div>`});$("nxMegaBookmarks")?.querySelectorAll("[data-open-book]").forEach(b=>b.onclick=()=>openMegaUrl(read("bookmarks")[+b.dataset.openBook]))}
 
   /* ---------- QR / Contacts / Shopping ---------- */
   function qr(){const x=$("nxMegaQRText")?.value.trim();if(!x)return;$("nxMegaQROut").innerHTML=`<img alt="QR code" src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(x)}">`}
@@ -185,7 +192,7 @@
   function analyzeDocument(){
     const f=$("nxMegaDoc")?.files[0];if(!f)return;
     $("nxMegaDocOut").textContent=`Loaded ${f.name}.`;
-    if(window.handleAIImage&&f.type.startsWith("image/")){try{window.handleAIImage(f)}catch{}}
+    if(window.handleAIImage&&f.type.startsWith("image/")){try{window.handleAIImage($("nxMegaDoc"))}catch{}}
   }
 
   /* ---------- Islamic / Qibla ---------- */
@@ -213,7 +220,7 @@
     const o=$("nxMegaNewsOut");o.textContent="Loading…";
     try{
       const d=await fetch("https://api.rss2json.com/v1/api.json?rss_url="+encodeURIComponent(feed)).then(r=>r.json());
-      o.innerHTML=(d.items||[]).slice(0,12).map(x=>`<div class="nxmega-news"><a href="${esc(x.link)}" target="_blank" rel="noopener">${esc(x.title)}</a><small>${esc(label)}</small></div>`).join("")||"No headlines.";
+      o.innerHTML=(d.items||[]).slice(0,12).map(x=>{const link=safeWebUrl(x.link);return `<div class="nxmega-news"><a href="${esc(link||"#")}" target="_blank" rel="noopener noreferrer">${esc(x.title)}</a><small>${esc(label)}</small></div>`}).join("")||"No headlines.";
     }catch{o.textContent="Feed unavailable."}
   }
 

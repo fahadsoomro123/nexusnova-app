@@ -1,5 +1,5 @@
 /* NexusNova Service Worker - fresh-code first, offline fallback */
-const CACHE = "nexusnova-shell-v4-converter-fix";
+const CACHE = "nexusnova-shell-v5-deep-audit";
 
 const ASSETS = [
   "./",
@@ -7,26 +7,35 @@ const ASSETS = [
   "./page2.html",
   "./styles.css",
   "./manifest.webmanifest",
+  "./icons/icon-192.png",
+  "./icons/icon-512.png",
+  "./css/style.css",
+  "./css/index.css",
+  "./css/page2.css",
+  "./css/nexusnova-mega-merge-v1.css",
+  "./css/nexusnova-button-safety-v1.css",
+  "./css/nexusnova-premium-blue-v1.css",
   "./js/page2.js",
   "./js/core-failsafe.js",
-  "./js/nexusnova-tools-hub-v1.js",
-  "./js/nexusnova-new-features-v1.js",
-  "./js/nexusnova-ultimate-upgrade.js",
-  "./js/family-hub-v1.js",
-  "./js/voice-commands-v1.js",
   "./js/aux-v8.js",
   "./js/news-fix.js",
   "./js/wallet-connect-fix-v2.js",
   "./js/wallet-onchain-sync-v3.js",
   "./js/final-integrity-fix.js",
+  "./js/nexusnova-ultimate-upgrade.js",
+  "./js/family-hub-v1.js",
+  "./js/voice-commands-v1.js",
+  "./js/wallet-actions-v2.js",
   "./js/rewards-security-v1.js",
   "./js/nexusnova-natural-voice-v1.js",
+  "./js/nexusnova-new-features-v1.js",
   "./js/nexusnova-allinone-hub-v1.js",
-  "./js/wallet-actions-v2.js",
-  "./js/nexusnova-top100-live-fix-v3.js",
-  "./css/style.css",
-  "./css/page2.css",
-  "./css/index.css"
+  "./js/nexusnova-tools-hub-v1.js",
+  "./js/nexusnova-android-callerid-v1.js",
+  "./js/nexusnova-regional-qibla-browser-v1.js",
+  "./js/nexusnova-super-app-v1.js",
+  "./js/nexusnova-mega-merge-v1.js",
+  "./js/nexusnova-top100-live-fix-v3.js"
 ];
 
 self.addEventListener("install", (event) => {

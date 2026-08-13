@@ -5997,54 +5997,6 @@ window.addEventListener(
         }
     }
 
-    /* ---------- WORLD NEWS: GDELT JSONP avoids browser CORS issues ---------- */
-    let newsRequestId = 0;
-    window.loadNews = async function(){
-        const list = document.getElementById("newsList");
-        const status = document.getElementById("newsStatus");
-        if (!list) return;
-        const requestId = ++newsRequestId;
-        list.innerHTML = '<div class="status">Loading live world news...</div>';
-        if (status) status.textContent = "Connecting...";
-
-        const callback = `nexusNewsV7_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-        const script = document.createElement("script");
-        const cleanup = () => {
-            try { delete window[callback]; } catch (_) {}
-            script.remove();
-        };
-
-        const timeout = setTimeout(() => {
-            cleanup();
-            if (requestId !== newsRequestId) return;
-            list.innerHTML = '<div class="status">Live news temporarily unavailable. Tap Refresh to retry.</div>';
-            if (status) status.textContent = "Offline";
-        }, 12000);
-
-        window[callback] = data => {
-            clearTimeout(timeout);
-            cleanup();
-            if (requestId !== newsRequestId) return;
-            const articles = Array.isArray(data?.articles) ? data.articles : [];
-            if (!articles.length) {
-                list.innerHTML = '<div class="status">No world news returned right now.</div>';
-                if (status) status.textContent = "Connected";
-                return;
-            }
-            list.innerHTML = articles.slice(0,10).map(article => {
-                const title = article.title || "World News";
-                const url = article.url || article.link || "";
-                const date = article.seendate || "";
-                return `<div class="news-item"><div class="news-title">${esc(title)}</div><div class="news-meta">${esc(date)}</div>${url ? `<button class="action-btn" style="margin-top:7px;padding:7px 10px" onclick="openLink('${String(url).replace(/'/g,"%27")}')">Read News</button>` : ""}</div>`;
-            }).join("");
-            if (status) status.textContent = "Connected • Live";
-        };
-
-        script.src = "https://api.gdeltproject.org/api/v2/doc/doc?query=world&mode=artlist&format=jsonp&callback=" + encodeURIComponent(callback) + "&maxrecords=10&timespan=1d";
-        script.async = true;
-        document.head.appendChild(script);
-    };
-
     /* ---------- GOLD + USD/PKR: CORS-enabled sources ---------- */
     window.loadFinanceData = async function(){
         const status = document.getElementById("goldStatus");
@@ -6341,6 +6293,15 @@ window.addEventListener(
         if(el) el.textContent = text;
     };
 
+    const safeNewsUrl = value => {
+        try {
+            const u = new URL(String(value || ""));
+            return (u.protocol === "https:" || u.protocol === "http:") ? u.href : "";
+        } catch (_) {
+            return "";
+        }
+    };
+
     const renderNewsFinal = items => {
         const list = document.getElementById("newsList");
         if(!list) return;
@@ -6352,7 +6313,7 @@ window.addEventListener(
         if(!clean.length) throw new Error("No articles");
 
         list.innerHTML = clean.map(item => {
-            const url = item.url || "";
+            const url = safeNewsUrl(item.url || "");
             return `
                 <article class="news-item">
                     <div class="news-title">${escNews(item.title)}</div>

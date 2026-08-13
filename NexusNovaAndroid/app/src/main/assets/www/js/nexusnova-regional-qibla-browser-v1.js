@@ -168,6 +168,11 @@
       return;
     }
     if(input) input.value=url;
+    if(window.NexusAndroid && typeof window.NexusAndroid.openExternal === "function"){
+      try{ window.NexusAndroid.openExternal(url); }catch(_){}
+      if(status) status.textContent="Opened safely in your external browser.";
+      return;
+    }
     if(frame) frame.src=url;
     if(status) status.textContent="Loading… Some sites block iframe viewing; use Open externally if needed.";
   };
@@ -177,7 +182,12 @@
   };
   window.nxOpenBrowserExternal = () => {
     const url=validHttp($("nxBrowserUrl")?.value?.trim() || "");
-    if(url) window.open(url,"_blank","noopener,noreferrer");
+    if(!url) return;
+    if(window.NexusAndroid && typeof window.NexusAndroid.openExternal === "function"){
+      try{ window.NexusAndroid.openExternal(url); }catch(_){}
+      return;
+    }
+    window.open(url,"_blank","noopener,noreferrer");
   };
 
   // ---------------- Caller ID helper ----------------

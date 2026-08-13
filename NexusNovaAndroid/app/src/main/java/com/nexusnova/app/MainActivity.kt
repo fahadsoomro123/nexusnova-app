@@ -47,14 +47,14 @@ class MainActivity : AppCompatActivity() {
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                 val url = request?.url?.toString() ?: return false
-                return if (url.startsWith("file:") || url.startsWith("http://") || url.startsWith("https://")) {
-                    false
-                } else {
-                    try {
-                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-                    } catch (_: Exception) {}
-                    true
-                }
+                // Keep only bundled NexusNova pages inside the privileged WebView.
+                // HTTP(S), custom schemes and remote iframe navigations are handed
+                // to an external app so they cannot share the NexusAndroid bridge.
+                if (url.startsWith("file:///android_asset/www/")) return false
+                try {
+                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                } catch (_: Exception) {}
+                return true
             }
         }
         webView.webChromeClient = object : WebChromeClient() {

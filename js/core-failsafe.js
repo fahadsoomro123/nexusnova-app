@@ -1415,14 +1415,14 @@
             const contacts =
                 JSON.parse(
                     localStorage.getItem(
-                        "nexusnova_emergency_contacts"
+                        "nexusnovaEmergencyContacts"
                     ) || "[]"
                 );
 
             contacts.push({name,phone});
 
             localStorage.setItem(
-                "nexusnova_emergency_contacts",
+                "nexusnovaEmergencyContacts",
                 JSON.stringify(contacts)
             );
 
@@ -1443,7 +1443,7 @@
             const contacts =
                 JSON.parse(
                     localStorage.getItem(
-                        "nexusnova_emergency_contacts"
+                        "nexusnovaEmergencyContacts"
                     ) || "[]"
                 );
 

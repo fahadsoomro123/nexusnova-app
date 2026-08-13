@@ -65,14 +65,13 @@
     }
 
     if (c.includes("start mining") || c === "start") {
-      document.getElementById("startMiningBtn")?.click();
+      document.getElementById("mineBtn")?.click();
       status("✓ Start mining command sent");
       return true;
     }
 
     if (c.includes("stop mining") || c === "stop") {
-      document.getElementById("stopMiningBtn")?.click();
-      status("✓ Stop mining command sent");
+      status("Mining sessions finish automatically after 24 hours; early stop is not enabled.");
       return true;
     }
 

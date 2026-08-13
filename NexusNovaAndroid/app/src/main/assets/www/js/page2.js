@@ -5997,54 +5997,6 @@ window.addEventListener(
         }
     }
 
-    /* ---------- WORLD NEWS: GDELT JSONP avoids browser CORS issues ---------- */
-    let newsRequestId = 0;
-    window.loadNews = async function(){
-        const list = document.getElementById("newsList");
-        const status = document.getElementById("newsStatus");
-        if (!list) return;
-        const requestId = ++newsRequestId;
-        list.innerHTML = '<div class="status">Loading live world news...</div>';
-        if (status) status.textContent = "Connecting...";
-
-        const callback = `nexusNewsV7_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-        const script = document.createElement("script");
-        const cleanup = () => {
-            try { delete window[callback]; } catch (_) {}
-            script.remove();
-        };
-
-        const timeout = setTimeout(() => {
-            cleanup();
-            if (requestId !== newsRequestId) return;
-            list.innerHTML = '<div class="status">Live news temporarily unavailable. Tap Refresh to retry.</div>';
-            if (status) status.textContent = "Offline";
-        }, 12000);
-
-        window[callback] = data => {
-            clearTimeout(timeout);
-            cleanup();
-            if (requestId !== newsRequestId) return;
-            const articles = Array.isArray(data?.articles) ? data.articles : [];
-            if (!articles.length) {
-                list.innerHTML = '<div class="status">No world news returned right now.</div>';
-                if (status) status.textContent = "Connected";
-                return;
-            }
-            list.innerHTML = articles.slice(0,10).map(article => {
-                const title = article.title || "World News";
-                const url = article.url || article.link || "";
-                const date = article.seendate || "";
-                return `<div class="news-item"><div class="news-title">${esc(title)}</div><div class="news-meta">${esc(date)}</div>${url ? `<button class="action-btn" style="margin-top:7px;padding:7px 10px" onclick="openLink('${String(url).replace(/'/g,"%27")}')">Read News</button>` : ""}</div>`;
-            }).join("");
-            if (status) status.textContent = "Connected • Live";
-        };
-
-        script.src = "https://api.gdeltproject.org/api/v2/doc/doc?query=world&mode=artlist&format=jsonp&callback=" + encodeURIComponent(callback) + "&maxrecords=10&timespan=1d";
-        script.async = true;
-        document.head.appendChild(script);
-    };
-
     /* ---------- GOLD + USD/PKR: CORS-enabled sources ---------- */
     window.loadFinanceData = async function(){
         const status = document.getElementById("goldStatus");
@@ -6341,6 +6293,15 @@ window.addEventListener(
         if(el) el.textContent = text;
     };
 
+    const safeNewsUrl = value => {
+        try {
+            const u = new URL(String(value || ""));
+            return (u.protocol === "https:" || u.protocol === "http:") ? u.href : "";
+        } catch (_) {
+            return "";
+        }
+    };
+
     const renderNewsFinal = items => {
         const list = document.getElementById("newsList");
         if(!list) return;
@@ -6352,7 +6313,7 @@ window.addEventListener(
         if(!clean.length) throw new Error("No articles");
 
         list.innerHTML = clean.map(item => {
-            const url = item.url || "";
+            const url = safeNewsUrl(item.url || "");
             return `
                 <article class="news-item">
                     <div class="news-title">${escNews(item.title)}</div>
@@ -6486,4 +6447,235 @@ window.addEventListener(
     window.addEventListener("load", () => {
         setTimeout(() => window.loadNews(), 900);
     });
+})();
+
+/* =========================================================
+   NEXUSNOVA CURRENCY CONVERTER RELIABILITY PATCH V8
+   Scope: Currency Converter only.
+   - Does not modify wallet, market, More icons, gold UI, auth,
+     mining, tasks, news, or any other NexusNova feature.
+   - Uses the existing converter UI/logic and only keeps the
+     exchange-rate data source from getting stuck on "Loading...".
+========================================================= */
+(() => {
+    "use strict";
+
+    const CONVERTER_CACHE_KEY = "nexusnova_converter_rates_v8";
+    const CONVERTER_CACHE_MS = 6 * 60 * 60 * 1000;
+    const REQUIRED = [
+        "USD","PKR","EUR","GBP","AED","SAR","INR","JPY","CAD","AUD"
+    ];
+
+    let converterRatePromise = null;
+    const originalConvertCurrency = window.convertCurrency;
+
+    function converterDisplay(message){
+        const el = document.getElementById("converterDisplay");
+        if(el) el.textContent = message;
+    }
+
+    function converterResult(value){
+        const el = document.getElementById("convertResult");
+        if(el) el.value = value;
+    }
+
+    function ratesAreUsable(rates){
+        return !!rates && REQUIRED.every(code => {
+            const n = Number(rates[code]);
+            return Number.isFinite(n) && n > 0;
+        });
+    }
+
+    function readConverterCache(){
+        try{
+            const cached = JSON.parse(
+                localStorage.getItem(CONVERTER_CACHE_KEY) || "null"
+            );
+            if(!cached || !ratesAreUsable(cached.rates)) return null;
+            return cached;
+        }catch(_){
+            return null;
+        }
+    }
+
+    function saveConverterCache(rates){
+        try{
+            localStorage.setItem(
+                CONVERTER_CACHE_KEY,
+                JSON.stringify({ at: Date.now(), rates })
+            );
+        }catch(_){}
+    }
+
+    async function fetchJsonWithTimeout(url, timeoutMs = 8000){
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        try{
+            const response = await fetch(url, {
+                cache: "no-store",
+                signal: controller.signal
+            });
+            if(!response.ok){
+                throw new Error(`HTTP ${response.status}`);
+            }
+            return await response.json();
+        }finally{
+            clearTimeout(timer);
+        }
+    }
+
+    async function fetchOpenErRates(){
+        const data = await fetchJsonWithTimeout(
+            "https://open.er-api.com/v6/latest/USD"
+        );
+        const rates = Object.assign({ USD: 1 }, data?.rates || {});
+        if(!ratesAreUsable(rates)){
+            throw new Error("Open FX response missing required currencies");
+        }
+        return rates;
+    }
+
+    async function fetchFrankfurterRates(){
+        const data = await fetchJsonWithTimeout(
+            "https://api.frankfurter.dev/v2/rates?base=USD"
+        );
+
+        const rates = { USD: 1 };
+
+        if(Array.isArray(data)){
+            data.forEach(row => {
+                const code = String(row?.quote || "").toUpperCase();
+                const rate = Number(row?.rate);
+                if(code && Number.isFinite(rate) && rate > 0){
+                    rates[code] = rate;
+                }
+            });
+        }else if(data && typeof data === "object"){
+            const source = data.rates || data;
+            Object.entries(source).forEach(([code,value]) => {
+                const rate = Number(value?.rate ?? value);
+                if(Number.isFinite(rate) && rate > 0){
+                    rates[String(code).toUpperCase()] = rate;
+                }
+            });
+        }
+
+        if(!ratesAreUsable(rates)){
+            throw new Error("Frankfurter response missing required currencies");
+        }
+        return rates;
+    }
+
+    async function ensureConverterRates(force = false){
+        if(!force && ratesAreUsable(currencyRates)){
+            return currencyRates;
+        }
+
+        const cached = readConverterCache();
+        if(
+            !force &&
+            cached &&
+            Date.now() - Number(cached.at || 0) < CONVERTER_CACHE_MS
+        ){
+            currencyRates = cached.rates;
+            return currencyRates;
+        }
+
+        if(converterRatePromise) return converterRatePromise;
+
+        converterDisplay("Loading live rates...");
+
+        converterRatePromise = (async () => {
+            let rates = null;
+            let lastError = null;
+
+            for(const loader of [fetchOpenErRates, fetchFrankfurterRates]){
+                try{
+                    rates = await loader();
+                    if(ratesAreUsable(rates)) break;
+                }catch(error){
+                    lastError = error;
+                    console.warn("Currency rate source failed:", error);
+                }
+            }
+
+            if(!ratesAreUsable(rates)){
+                const fallback = readConverterCache();
+                if(fallback?.rates){
+                    rates = fallback.rates;
+                }
+            }
+
+            if(!ratesAreUsable(rates)){
+                throw lastError || new Error("Currency rates unavailable");
+            }
+
+            currencyRates = rates;
+            saveConverterCache(rates);
+
+            // Also refresh the existing finance cache's rate data without
+            // changing its stored gold value.
+            try{
+                const financeCache = readFinanceCache?.();
+                writeFinanceCache?.(
+                    rates,
+                    Number(financeCache?.goldUsdPerOunce || 0)
+                );
+            }catch(_){}
+
+            return rates;
+        })();
+
+        try{
+            return await converterRatePromise;
+        }finally{
+            converterRatePromise = null;
+        }
+    }
+
+    window.convertCurrency = function(){
+        if(ratesAreUsable(currencyRates)){
+            return originalConvertCurrency?.();
+        }
+
+        converterDisplay("Loading live rates...");
+
+        ensureConverterRates(false)
+            .then(() => {
+                if(typeof originalConvertCurrency === "function"){
+                    originalConvertCurrency();
+                }
+            })
+            .catch(error => {
+                console.warn("Currency converter unavailable:", error);
+                converterResult("--");
+                converterDisplay(
+                    "Live currency rates unavailable. Change amount or currency to retry."
+                );
+            });
+    };
+
+    function bootConverter(){
+        if(!document.getElementById("converterDisplay")) return;
+        window.convertCurrency();
+    }
+
+    window.addEventListener("load", () => {
+        setTimeout(bootConverter, 700);
+        setTimeout(bootConverter, 2500);
+    });
+
+    document.addEventListener("visibilitychange", () => {
+        if(!document.hidden) bootConverter();
+    });
+
+    // If the Finance screen is opened after initial load, retry immediately.
+    document.addEventListener("click", event => {
+        const target = event.target.closest(".more-item,.dock-item,button");
+        if(!target) return;
+        const label = String(target.textContent || "").toLowerCase();
+        if(label.includes("finance") || label.includes("gold") || label.includes("fx")){
+            setTimeout(bootConverter, 250);
+        }
+    }, true);
 })();

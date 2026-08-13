@@ -10,7 +10,13 @@
     "ignore": [
       "firebase.json",
       "**/.*",
-      "**/node_modules/**"
+      "**/node_modules/**",
+      "functions/**",
+      "NexusNovaAndroid/**",
+      "**/*.txt",
+      "package.json",
+      "package-lock.json",
+      "firestore.rules"
     ]
   }
 }

@@ -302,10 +302,18 @@
     });
   }
 
-  // These are intentionally the final handlers.
-  // They replace the legacy alert-based handlers.
-  window.handleDeposit = deposit;
-  window.handleWithdraw = withdraw;
+  function installWalletActionHandlers() {
+    window.handleDeposit = deposit;
+    window.handleWithdraw = withdraw;
+  }
 
-  console.log("NexusNova Wallet Actions V2 loaded — legacy deposit/withdraw alerts disabled.");
+  // page2.js is a module, so an immediate assignment from this classic script
+  // can be overwritten later. Re-assert after modules and again at window load.
+  installWalletActionHandlers();
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", installWalletActionHandlers, { once: true });
+  }
+  window.addEventListener("load", installWalletActionHandlers, { once: true });
+
+  console.log("NexusNova Wallet Actions V2 loaded — secure callable handlers active.");
 })();

@@ -24,13 +24,16 @@
 
   function loadVoices() {
     state.voices = window.speechSynthesis?.getVoices?.() || [];
-    if (!state.selected) state.selected = chooseVoice();
+    if (!state.selected && state.voices.length) state.selected = chooseVoice();
     return state.voices;
   }
 
   function chooseVoice(lang = "") {
-    const voices = state.voices.length ? state.voices : loadVoices();
+    const voices = state.voices.length
+      ? state.voices
+      : (window.speechSynthesis?.getVoices?.() || []);
     if (!voices.length) return null;
+    if (!state.voices.length) state.voices = voices;
 
     const wantUrdu = /^ur/i.test(lang);
     const wantEnglish = /^en/i.test(lang);

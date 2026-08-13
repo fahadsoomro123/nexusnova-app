@@ -15,6 +15,13 @@
     if (el) el.textContent = text;
   };
 
+  const safeHttpUrl = value => {
+    try {
+      const u = new URL(String(value || ""));
+      return (u.protocol === "https:" || u.protocol === "http:") ? u.href : "";
+    } catch (_) { return ""; }
+  };
+
   const render = items => {
     const list = document.getElementById("newsList");
     if (!list) return;
@@ -22,7 +29,7 @@
     if (!clean.length) throw new Error("No articles");
 
     list.innerHTML = clean.map(item => {
-      const url = item.url || item.link || "";
+      const url = safeHttpUrl(item.url || item.link || "");
       const safeUrl = esc(url);
       return `
         <div class="news-item">

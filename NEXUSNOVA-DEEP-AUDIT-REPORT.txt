@@ -1,0 +1,412 @@
+NEXUSNOVA DEEP AUDIT + REPAIR REPORT
+Date: 2026-08-13
+Source: nexusnova-app.zip supplied by the user
+Scope: Entire web app, Firebase/Functions, PWA/service worker, Android wrapper/native caller ID, mirrored Android web bundle.
+
+============================================================
+1. RESULT SUMMARY
+============================================================
+The project was deeply inspected and repaired without redesigning the current UI.
+
+Files inspected (excluding .git metadata): 108
+Root web JavaScript modules: 23
+Android mirrored JavaScript modules: 23
+Firebase Functions JavaScript: 1
+Kotlin source files: 7
+XML resources/manifest: 11
+CSS files checked across root + Android mirror: 14
+
+Final automated/static verification:
+- JavaScript syntax: 47/47 checked files PASS
+- CSS parser: 14/14 PASS
+- JSON parser: 6/6 PASS
+- Android XML parser: 11/11 PASS
+- Duplicate HTML IDs: NONE
+- Missing local HTML / manifest / service-worker assets: NONE
+- Root active web bundle vs Android mirror: 36/36 active assets byte-identical
+- Inline page2 handler functions: 85/85 available at runtime
+- Runtime JavaScript page errors in deterministic browser harness: NONE
+
+Runtime functional checks after repairs:
+- Main Finance currency converter: PASS
+- Money-tab currency converter: PASS
+- Market Top 100 rows: PASS (100)
+- Wallet Top 100 rows: PASS (100)
+- Top 100 remains after later refresh/loadMarket calls: PASS
+- Wallet Top 100 remains after later refreshWalletFoundation calls: PASS
+- Wallet Deposit UI uses Firebase callable handler: PASS in stubbed backend test
+- Wallet Withdrawal UI uses Firebase callable handler: PASS in stubbed backend test
+- Split Bill: PASS
+- Salary planner: PASS
+- EMI calculator: PASS
+- BMI / water / sleep tools: PASS
+- Expense entry/list: PASS
+- Family contact add: PASS
+- Emergency contact add: PASS
+- Caller lookup finds Family contact: PASS
+- Caller lookup finds Emergency contact: PASS
+- Mega tools: calculator, notes, todo, events, reminders, expense, EMI, tip, split, savings, habits, contacts, shopping, grades, QR: PASS in browser harness
+- Sign-up Firebase profile payload: PASS; required mining/reward fields present
+
+IMPORTANT: "PASS" above means the local code path was exercised with deterministic browser/Firebase/API stubs where external services were involved. It does NOT claim that every third-party provider, live Firebase deployment, Android device permission, or external API is available in production.
+
+============================================================
+2. CONFIRMED DEFECTS FOUND AND FIXED
+============================================================
+
+A) SECOND CURRENCY CONVERTER WAS ACTUALLY UNWIRED
+Problem:
+The Money tab has a second converter using currencyAmount/currencyFrom/currencyTo/currencyResult/currencyStatus, but no JavaScript was connected to it. Previous converter fixes targeted the different Finance converter, which is why the Money converter could remain stuck on "Loading rates...".
+Fix:
+- Added independent Money-tab converter wiring.
+- Added 23 currency choices.
+- Uses cached rates first.
+- Uses live Open ER source, then Frankfurter v2 fallback.
+- Displays a real failure state instead of hanging forever.
+File:
+- js/nexusnova-allinone-hub-v1.js
+
+B) SPLIT BILL USED THE WRONG ELEMENT ID
+Problem:
+The function read billAmount while the visible Money tab uses moneyBillAmount.
+Fix:
+- Corrected the ID.
+- Runtime result verified: bill 1000 + 10% / 2 = total 1100, each 550.
+File:
+- js/nexusnova-allinone-hub-v1.js
+
+C) MONEY EXPENSES WERE RENDERED INTO THE WRONG LIST
+Problem:
+The Money module wrote expenses into expenseList belonging to another tools surface instead of moneyExpenseList.
+Fix:
+- Corrected rendering target.
+File:
+- js/nexusnova-allinone-hub-v1.js
+
+D) VOICE MODULE COULD RECURSE UNTIL STACK OVERFLOW
+Problem:
+If speechSynthesis.getVoices() initially returned an empty array, loadVoices() and chooseVoice() could call each other recursively.
+Fix:
+- Removed recursive cycle.
+- Empty voice state now returns safely and can retry later.
+File:
+- js/nexusnova-natural-voice-v1.js
+
+E) DOCUMENT IMAGE ANALYSIS PASSED THE WRONG OBJECT
+Problem:
+Mega document analysis passed a File object to handleAIImage(), while handleAIImage expects an input element containing .files[0].
+Fix:
+- Passes the actual file input element.
+File:
+- js/nexusnova-mega-merge-v1.js
+
+F) VOICE COMMAND "START MINING" TARGETED A NONEXISTENT BUTTON
+Problem:
+Voice command tried startMiningBtn; actual button is mineBtn.
+Fix:
+- Corrected start command.
+- Removed false "stop mining" behavior; the existing secure 24-hour flow auto-finishes and currently has no manual early-stop UI.
+File:
+- js/voice-commands-v1.js
+
+G) TOP-100 MARKET/WALLET HANDLER RACE
+Problem:
+The Top-100 module installed its handlers during parsing, but deferred page2 module code could overwrite them with older 20-row handlers later.
+Fix:
+- Top-100 handlers are reasserted after DOMContentLoaded and again at window load.
+- Runtime tests confirmed 100 Market rows and 100 Wallet rows both initially and after later refreshes.
+File:
+- js/nexusnova-top100-live-fix-v3.js
+
+H) DEPOSIT/WITHDRAW HANDLER RACE MADE SECURE BACKEND PATH LOSE
+Problem:
+wallet-actions-v2 intended to use Cloud Functions, but page2 module could overwrite handleDeposit/handleWithdraw with older direct-Firestore handlers. Firestore rules deny those direct writes, making the legacy path fail.
+Fix:
+- Secure callable wallet actions are reasserted after module execution and at window load.
+- Runtime verified final handlers are wallet-actions-v2 deposit()/withdraw().
+File:
+- js/wallet-actions-v2.js
+
+I) CALLER/PHONEBOOK MODULE HAD A REAL SCOPE CRASH
+Problem:
+Caller code was appended outside its earlier IIFE but referenced private helpers load/save/uid/esc. This produced ReferenceError at runtime.
+Fix:
+- Caller section now has its own scoped helpers.
+- Caller lookup runtime-tested.
+File:
+- js/nexusnova-tools-hub-v1.js
+
+J) CALLER LOOKUP COULD NOT SEE THE ACTUAL FAMILY/EMERGENCY STORAGE KEYS
+Problem:
+Family Hub and Emergency module stored contacts under different keys than Caller Lookup searched.
+Fix:
+- Caller now recognizes actual Family Hub and Emergency keys plus compatible fallbacks.
+- core failsafe emergency key normalized.
+Files:
+- js/nexusnova-tools-hub-v1.js
+- js/core-failsafe.js
+
+K) NEW FIRESTORE USER PROFILE MISSED A RULE-PROTECTED FIELD
+Problem:
+New profile did not include dailyRewardStreak even though update rules expect reward fields to exist and remain protected.
+Fix:
+- Added dailyRewardStreak: 0 to new profile creation.
+- Sign-up harness verified full payload.
+File:
+- index.html
+
+L) SERVICE WORKER / PWA COULD SERVE STALE CODE AND HAD INCOMPLETE OFFLINE ASSETS
+Problem:
+Older Android service worker was cache-first and root/Android versions were out of sync. Active assets/icons were incomplete.
+Fix:
+- Unified service worker to network-first same-origin behavior.
+- Cache bumped to nexusnova-shell-v5-deep-audit.
+- Active CSS/JS/manifest/icons added to shell cache list.
+- Root and Android service worker now match.
+File:
+- sw.js
+
+M) PWA ICON FILES WERE MISSING
+Problem:
+manifest.webmanifest referenced 192x192 and 512x512 icons that were absent from the supplied root project.
+Fix:
+- Added valid PNG icons in both root and Android web assets.
+Files:
+- icons/icon-192.png
+- icons/icon-512.png
+
+N) FIREBASE HOSTING WOULD PUBLISH NON-WEB SOURCE FILES
+Problem:
+Hosting public directory is "." and ignore rules were too small, so Android source, Cloud Functions source, package metadata and audit TXT files could be included in hosting deployment.
+Fix:
+- Added hosting exclusions for functions, NexusNovaAndroid, TXT reports, package files and firestore.rules.
+File:
+- firebase.json
+
+O) ANDROID WEBVIEW BRIDGE BOUNDARY WAS TOO BROAD
+Problem:
+The native JavaScript interface contains phonebook/caller methods, while the same WebView previously allowed arbitrary http/https navigation. Remote pages/frames should not share a privileged native bridge.
+Fix:
+- Only bundled file:///android_asset/www/ navigation stays in the privileged WebView.
+- Remote/custom navigation is handed to external apps.
+- Cleartext traffic disabled.
+- Android in-app browser modules now open remote web content externally when NexusAndroid is present instead of loading it into the privileged iframe.
+- Added a small validated NexusAndroid.openExternal(http/https only) bridge method.
+Files:
+- NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+- NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusBridge.kt
+- NexusNovaAndroid/app/src/main/AndroidManifest.xml
+- NexusNovaAndroid/app/src/main/res/xml/network_security_config.xml
+- js/nexusnova-regional-qibla-browser-v1.js
+- js/nexusnova-mega-merge-v1.js
+
+P) PRICE ALERT LOCAL-STORAGE XSS PATH
+Problem:
+Price-alert symbol text was inserted into innerHTML without validation/escaping.
+Fix:
+- Coin symbols restricted to safe symbol characters/length.
+- Rendered symbol escaped.
+File:
+- js/nexusnova-new-features-v1.js
+
+Q) NEWS HAD A LEGACY JSONP EXECUTION PATH + UNSAFE LINK SCHEME HANDLING
+Problem:
+An older page2 news implementation dynamically executed third-party JSONP script code even though a later JSON/fetch implementation already existed. News links also needed explicit http/https validation in fallbacks.
+Fix:
+- Removed the obsolete JSONP implementation from page2.js.
+- Final/fallback news links now allow only http/https.
+- Mega news links validated too.
+Files:
+- js/page2.js
+- js/news-fix.js
+- js/nexusnova-mega-merge-v1.js
+
+R) ANDROID WEB BUNDLE WAS OUT OF SYNC / CONTAINED NON-RUNTIME JUNK
+Problem:
+Root and Android assets differed. Android assets also contained Firebase deployment files, package files and legacy duplicate Mega files that were not referenced by runtime HTML.
+Fix:
+- Active root runtime bundle synchronized into Android assets.
+- Unused deployment/package/duplicate files removed from Android APK assets.
+- Active root<->Android parity verified byte-for-byte.
+
+============================================================
+3. FEATURES VERIFIED AS WORKING IN THE CURRENT CODE PATH
+============================================================
+Verified in deterministic browser harness unless noted:
+- Dashboard tab switching / More navigation handler availability
+- Top 100 Market rendering + search filter
+- Top 100 Wallet rendering
+- Main Finance currency converter
+- Money-tab currency converter
+- Salary planner
+- Expense list
+- EMI calculator
+- Split bill
+- BMI, water and sleep utilities
+- Tools BMI/tip
+- Family member local storage
+- Emergency contact local storage
+- Caller local/family/emergency lookup
+- Deposit modal and secure callable invocation path
+- Withdrawal modal and pending-review callable invocation path
+- Wallet connect final handler selection
+- News final JSON/fetch code path in harness
+- Profile loading code path in harness
+- Mega calculator
+- Mega notes
+- Mega todo
+- Mega events/reminders
+- Mega expenses
+- Mega EMI/tip/split
+- Mega savings/habits
+- Mega contacts/shopping
+- Mega grade calculator
+- Mega QR generation path
+- Sign-up profile payload creation
+
+============================================================
+4. WORKING CODE, BUT LIVE EXTERNAL SERVICE STILL REQUIRED
+============================================================
+These cannot truthfully be called fully production-verified from this archive alone:
+
+- Email/password + Google authentication against the real Firebase project:
+  Code is present. Local auth shell/profile creation has been exercised with Firebase stubs. Live Firebase auth was not executed from this audit environment.
+
+- Production reCAPTCHA / abuse protection:
+  index.html intentionally uses Google's official reCAPTCHA TEST key. It is useful for UI testing but is not production anti-abuse protection. Replace with a production site key and add server/App Check protection before launch.
+
+- Live Market/Wallet prices:
+  Code has CoinGecko/Binance fallbacks and Top-100 behavior was runtime-tested using deterministic responses. Third-party live availability/rate limits remain external dependencies.
+
+- Live Currency/Gold/FX:
+  Both converter code paths have fallback/cache logic. Live provider availability remains external.
+
+- Deposit addresses:
+  getDepositAddress intentionally refuses to invent an address. It requires NEXUSNOVA_DEPOSIT_ADDRESSES_JSON in the Cloud Functions environment.
+
+- Withdrawal:
+  Current backend creates a pending_review request only. It does NOT transfer funds. This is safer than faking a transaction, but it is not a production custody/withdrawal system.
+
+- Android caller ID:
+  Native caller-screening code, role flow and phonebook bridge are present. A real Android build/device/ROLE_CALL_SCREENING test is still required.
+
+============================================================
+5. FEATURES STILL PLACEHOLDER / BACKEND-PROVIDER REQUIRED
+============================================================
+The project itself marks several modules as future live integrations. They were not replaced with fake data:
+- Watch Ad reward: actual ad provider not connected.
+- Marketplace / Orders / Courier-type live operations: backend/provider integration required where the UI says so.
+- Push/FCM-style notification backend: provider/configuration required where referenced.
+- Real global caller-name database (Truecaller-style): legitimate provider required; the app currently uses NexusNova/local contacts and region hints.
+- Real-value automated withdrawals: custody/accounting/anti-fraud infrastructure required.
+
+============================================================
+6. SECURITY STATUS / REMAINING IMPORTANT RISKS
+============================================================
+FIXED/HARDENED:
+- Client cannot directly change protected mining/reward balances under current Firestore rules.
+- Deposit/withdraw UI final handlers now use callable backend path instead of denied legacy direct-Firestore path.
+- Android remote navigation separated from privileged WebView bridge.
+- Android cleartext disabled.
+- Price-alert HTML injection fixed.
+- Legacy news JSONP execution removed.
+- News/browser URL schemes restricted to http/https where repaired.
+- Firebase web configuration remains visible by design; no private key/OpenAI-style secret was found in source scan.
+
+REMAINING HIGH-IMPORTANCE PRODUCTION WORK:
+- Do NOT automate/release real-value withdrawals yet.
+- Add App Check / anti-bot controls / rate limits before any value-bearing rewards or wallet operations are treated as production-secure.
+- Add server-side balance reservation/accounting/limits/replay controls before any withdrawal processor sends assets.
+- Replace reCAPTCHA test key before production.
+- Test native Android caller ID and WebView behavior on a real device/build.
+
+============================================================
+7. LEGACY / DEAD CODE FOUND (PRESERVED, NOT DELETED)
+============================================================
+To avoid silently removing user features, these legacy files were preserved:
+
+- js/index.js
+  Not loaded by current index.html. It contains an older login/CAPTCHA implementation and stale element IDs. Current auth logic is inline in index.html.
+
+- js/nexusnova-super-app-v1.js
+  Contains older Super App helper functions whose target IDs are not present in current visible page markup. The current visible merged utility experience is implemented by other modules including Mega Merge. It is currently legacy/inactive code.
+
+These should be consolidated in a future refactor, but deleting them was intentionally avoided in this repair pass.
+
+============================================================
+8. ANDROID BUILD STATUS
+============================================================
+Could NOT run ./gradlew assembleDebug because the supplied Android project has:
+- no gradlew/Gradle wrapper
+- no system Gradle installed in the audit environment
+- no ANDROID_HOME / ANDROID_SDK_ROOT
+
+Static Android checks performed instead:
+- Android XML parses successfully
+- Manifest/resources are structurally present
+- Kotlin source was inspected for bridge/caller wiring
+- Web asset mirror was verified byte-for-byte against the active root bundle
+
+A real Gradle build/device test remains required before APK release.
+
+============================================================
+9. NPM / TOOLING STATUS
+============================================================
+Root and functions package manifests were inspected and parse correctly.
+An isolated npm dependency install was attempted, but dependency installation did not complete in the audit environment within the available execution window. This is an environment/network limitation, not evidence of a package.json syntax failure.
+
+============================================================
+10. FILES CHANGED BY THIS AUDIT
+============================================================
+44 paths differ from the uploaded archive (including root/Android mirrored copies, added PWA icons and removal of unused Android asset copies).
+
+Core root changes:
+- index.html
+- firebase.json
+- sw.js
+- js/core-failsafe.js
+- js/news-fix.js
+- js/nexusnova-allinone-hub-v1.js
+- js/nexusnova-mega-merge-v1.js
+- js/nexusnova-natural-voice-v1.js
+- js/nexusnova-new-features-v1.js
+- js/nexusnova-regional-qibla-browser-v1.js
+- js/nexusnova-tools-hub-v1.js
+- js/nexusnova-top100-live-fix-v3.js
+- js/page2.js
+- js/voice-commands-v1.js
+- js/wallet-actions-v2.js
+- icons/icon-192.png (added/restored)
+- icons/icon-512.png (added/restored)
+
+Android native changes:
+- NexusNovaAndroid/app/src/main/AndroidManifest.xml
+- NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+- NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusBridge.kt
+- NexusNovaAndroid/app/src/main/res/xml/network_security_config.xml
+
+Android web bundle:
+- Matching active web files synchronized from root.
+- PWA icons added.
+- Unused Android asset copies of .firebaserc, firebase.json, firestore.rules, package.json, package-lock.json, and duplicate root-level Mega files removed.
+
+NOTE: The final handoff ZIP intentionally excludes the uploaded .git directory. When copying this project into D:\nexusnova-app, keep your existing local .git folder so GitHub Desktop continues to work normally.
+
+============================================================
+11. FINAL STATUS
+============================================================
+WEB STATIC HEALTH: PASS
+WEB RUNTIME HARNESS: PASS for tested code paths
+TOP 100 MARKET: PASS
+TOP 100 WALLET: PASS
+BOTH CURRENCY CONVERTERS: PASS in runtime harness
+CALLER LOCAL/FAMILY/EMERGENCY LOOKUP: PASS
+SECURE DEPOSIT/WITHDRAW CALLABLE HANDLER SELECTION: PASS
+ROOT <-> ANDROID ACTIVE WEB ASSET SYNC: PASS
+PWA LOCAL ASSET REFERENCES: PASS
+ANDROID APK BUILD: NOT VERIFIED (wrapper/SDK unavailable)
+LIVE FIREBASE/PROVIDER END-TO-END: NOT VERIFIED in audit environment
+PRODUCTION REAL-VALUE WITHDRAWALS: NOT READY; requires security/accounting backend work
+PRODUCTION CAPTCHA/APP CHECK: NOT READY; test key/provider setup remains
+
+No claim of "100% production ready" is made. Confirmed local code defects found in this audit were repaired; external/provider/device requirements are explicitly separated above.

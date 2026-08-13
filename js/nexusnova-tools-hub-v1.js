@@ -894,6 +894,21 @@
 
   /* ========== CALLER / NUMBER LOOKUP (merged) ========== */
 
+(() => {
+  const load = (key, fallback) => {
+    try {
+      const value = JSON.parse(localStorage.getItem(key) || "null");
+      return value == null ? fallback : value;
+    } catch (_) {
+      return fallback;
+    }
+  };
+  const save = (key, value) => localStorage.setItem(key, JSON.stringify(value));
+  const uid = () => (globalThis.crypto?.randomUUID ? crypto.randomUUID() : String(Date.now()));
+  const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({
+    "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"
+  }[c]));
+
   const PHONEBOOK_KEY = "nexus_phonebook_v1";
 
   function normalizePhone(raw) {
@@ -930,7 +945,7 @@
   function collectAppContacts() {
     const out = [];
     try {
-      const fam = JSON.parse(localStorage.getItem("nexus_family_v1") || localStorage.getItem("nexusFamilyMembers") || "[]");
+      const fam = JSON.parse(localStorage.getItem("nexusnova_family_members_v1") || localStorage.getItem("nexus_family_v1") || localStorage.getItem("nexusFamilyMembers") || "[]");
       (Array.isArray(fam) ? fam : []).forEach(c => {
         const num = c.phone || c.number || c.mobile || "";
         const name = c.name || c.title || "Family";
@@ -938,7 +953,7 @@
       });
     } catch {}
     try {
-      const em = JSON.parse(localStorage.getItem("nexus_emergency_contacts") || localStorage.getItem("emergencyContacts") || "[]");
+      const em = JSON.parse(localStorage.getItem("nexusnovaEmergencyContacts") || localStorage.getItem("nexusnova_emergency_contacts") || localStorage.getItem("nexus_emergency_contacts") || localStorage.getItem("emergencyContacts") || "[]");
       (Array.isArray(em) ? em : []).forEach(c => {
         const num = c.phone || c.number || "";
         if (num) out.push({ name: c.name || "Emergency", phone: normalizePhone(num), address: c.relation || "Emergency contact", source: "Emergency" });
@@ -1121,3 +1136,4 @@
     } catch {}
   }
 
+})();

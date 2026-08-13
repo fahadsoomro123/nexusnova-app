@@ -1,6 +1,7 @@
 package com.nexusnova.app
 
 import android.content.Intent
+import android.net.Uri
 import android.webkit.JavascriptInterface
 import android.widget.Toast
 
@@ -40,6 +41,18 @@ class NexusBridge(private val activity: MainActivity) {
     @JavascriptInterface
     fun requestCallerRole() {
         activity.runOnUiThread { activity.requestCallerRole() }
+    }
+
+    @JavascriptInterface
+    fun openExternal(url: String) {
+        val uri = try { Uri.parse(url) } catch (_: Exception) { return }
+        val scheme = uri.scheme?.lowercase() ?: return
+        if (scheme != "https" && scheme != "http") return
+        activity.runOnUiThread {
+            try {
+                activity.startActivity(Intent(Intent.ACTION_VIEW, uri))
+            } catch (_: Exception) { }
+        }
     }
 
     private fun jsonStr(s: String): String =

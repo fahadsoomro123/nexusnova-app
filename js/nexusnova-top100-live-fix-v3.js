@@ -255,13 +255,17 @@
     return coins;
   }
 
-  window.loadMarket = function () {
-    return refreshBoth("market");
-  };
+  function installOverrides() {
+    window.loadMarket = function () {
+      return refreshBoth("market");
+    };
 
-  window.refreshWalletFoundation = function () {
-    return refreshBoth("wallet");
-  };
+    window.refreshWalletFoundation = function () {
+      return refreshBoth("wallet");
+    };
+  }
+
+  installOverrides();
 
   window.__nexusTop100LiveFix = {
     refreshAll: function () { return refreshBoth("all"); },
@@ -278,6 +282,9 @@
   }
 
   function boot() {
+    // page2.js is a module and executes after parsing; re-assert these final
+    // handlers here so its legacy 20-row loaders cannot overwrite Top 100.
+    installOverrides();
     fixBrandText();
     setTimeout(function () {
       refreshBoth("all").catch(function (error) {
@@ -291,4 +298,5 @@
   } else {
     boot();
   }
+  window.addEventListener("load", installOverrides, { once: true });
 })();

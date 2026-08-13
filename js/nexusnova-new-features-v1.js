@@ -81,13 +81,16 @@
   function saveAlerts(list){
     localStorage.setItem(STORAGE_ALERTS, JSON.stringify(list));
   }
+  function esc(value){
+    return String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
 
   window.addNexusPriceAlert = function(){
     const symbol = (document.getElementById('alertSymbol')?.value || '').trim().toUpperCase();
     const price = parseFloat(document.getElementById('alertPrice')?.value || '0');
     const dir = document.getElementById('alertDir')?.value || 'above';
-    if(!symbol || !price || price <= 0){
-      alert('Please enter a valid symbol and price.');
+    if(!/^[A-Z0-9._-]{1,15}$/.test(symbol) || !price || price <= 0){
+      alert('Please enter a valid coin symbol and price.');
       return;
     }
     const list = getAlerts();
@@ -114,7 +117,7 @@
     }
     box.innerHTML = list.map(a => `
       <div class="alert-row" style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border-bottom:1px solid #263449;font-size:13px">
-        <span><b>${a.symbol}</b> ${a.dir === 'above' ? '≥' : '≤'} $${a.price}</span>
+        <span><b>${esc(a.symbol)}</b> ${a.dir === 'above' ? '≥' : '≤'} $${Number(a.price).toLocaleString()}</span>
         <button onclick="removeNexusPriceAlert(${a.id})" style="background:#ef4444;color:#fff;border:0;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:11px">✕</button>
       </div>
     `).join('');
