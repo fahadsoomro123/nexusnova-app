@@ -1,9 +1,19 @@
 /* NexusNova Profile Display Guard v1
-   Preserves a real referral value already rendered by the final Firestore profile layer. */
+   Preserves a real referral value already rendered by the final Firestore profile layer.
+   Also loads the final web-only News V10 override during the existing guard phase. */
 (() => {
   'use strict';
   if (window.__nxProfileDisplayGuardV1) return;
   window.__nxProfileDisplayGuardV1 = true;
+
+  // final-integrity-fix.js already loads this guard after the normal app scripts.
+  // Load News V10 here so it executes after legacy News/page2 code and can take authority.
+  if (!document.querySelector('script[data-nx-news-v10]')) {
+    const news = document.createElement('script');
+    news.src = './js/news-v9-override.js?v=10';
+    news.setAttribute('data-nx-news-v10', '1');
+    document.body.appendChild(news);
+  }
 
   const bad = value => {
     const text = String(value || '').trim();
