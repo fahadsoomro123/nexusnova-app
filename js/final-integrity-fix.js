@@ -81,6 +81,14 @@
     }
   }, true);
 
+  function loadGuard(src, marker) {
+    if (document.querySelector(`script[${marker}]`)) return;
+    const guard = document.createElement('script');
+    guard.src = src;
+    guard.setAttribute(marker, '1');
+    document.body.appendChild(guard);
+  }
+
   window.addEventListener("load", () => {
     const refresh = document.querySelector(".refresh-news");
     if (refresh && typeof window.loadNews === "function") {
@@ -98,14 +106,10 @@
       document.querySelectorAll("#tab-bible iframe").forEach((frame) => frame.remove());
     }, 250);
 
-    // Load the order/back-control guard only after all normal NexusNova scripts
-    // have finished creating their dynamic ALL APPS tabs.
-    if (!document.querySelector('script[data-nx-allapps-guard]')) {
-      const guard = document.createElement('script');
-      guard.src = './js/nexusnova-allapps-order-guard-v4.js';
-      guard.dataset.nxAllappsGuard = '1';
-      document.body.appendChild(guard);
-    }
+    // Load guards only after normal NexusNova scripts have finished building
+    // their dynamic tabs and scripture readers.
+    loadGuard('./js/nexusnova-allapps-order-guard-v4.js', 'data-nx-allapps-guard');
+    loadGuard('./js/nexusnova-scripture-source-guard-v2.js', 'data-nx-scripture-guard');
 
     let converterPasses = 0;
     const converterGuard = setInterval(() => {
