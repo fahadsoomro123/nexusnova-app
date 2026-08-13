@@ -1,4 +1,4 @@
-/* NexusNova Super-App Expansion V1 */
+/* NexusNova Super-App Expansion V2 */
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -6,6 +6,15 @@
   const load = (k,d=[]) => { try { const v=JSON.parse(localStorage.getItem("nexus_"+k)); return v ?? d; } catch { return d; } };
 
   function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));}
+
+  function loadLateScript(src, marker){
+    if(document.querySelector(`script[${marker}]`)) return;
+    const script=document.createElement('script');
+    script.src=src;
+    script.setAttribute(marker,'1');
+    script.onerror=()=>console.warn(`NexusNova late module failed: ${src}`);
+    document.body.appendChild(script);
+  }
 
   // Daily dashboard
   window.nxBuildDailyBrief = () => {
@@ -79,19 +88,29 @@
 
   window.nxTrackOrder=()=>{
     const n=$("nxOrderTrack")?.value.trim();
-    $("nxOrderResult").textContent=n?`Tracking lookup prepared for ${n}. Connect a courier API for live status.`:"Enter a tracking number.";
+    $("nxOrderResult").textContent=n?`Tracking number ${n} saved for lookup. Live courier status needs a configured courier API.`:"Enter a tracking number.";
   };
 
   // Islamic utilities
   window.nxOpenPrayer=()=>{
-    const candidates=["https://www.islamicfinder.org/prayer-widget/","https://www.google.com/search?q=prayer+times+near+me"];
-    window.open(candidates[0],"_blank","noopener,noreferrer");
+    const url="https://www.islamicfinder.org/prayer-widget/";
+    if(typeof window.nxOpenExternal==='function') window.nxOpenExternal(url);
+    else window.open(url,"_blank","noopener,noreferrer");
   };
+
+  function renderTasbeeh(){
+    const n=Number(localStorage.getItem("nexus_tasbeeh")||0);
+    if($("nxTasbeehOut"))$("nxTasbeehOut").innerHTML=`Tasbeeh count: <b>${n}</b> <button type="button" onclick="nxResetTasbeeh()">Reset</button>`;
+  }
   window.nxTasbeeh=()=>{
     let n=Number(localStorage.getItem("nexus_tasbeeh")||0);
     n++;
     localStorage.setItem("nexus_tasbeeh",String(n));
-    if($("nxTasbeehOut"))$("nxTasbeehOut").innerHTML=`Tasbeeh count: <b>${n}</b> <button onclick="localStorage.setItem('nexus_tasbeeh','0');nxTasbeeh()">Reset</button>`;
+    renderTasbeeh();
+  };
+  window.nxResetTasbeeh=()=>{
+    localStorage.setItem("nexus_tasbeeh","0");
+    renderTasbeeh();
   };
   window.nxHijri=()=>{
     const d=new Date();
@@ -109,10 +128,17 @@
   };
 
   window.addEventListener("load",()=>{
-    renderEvents();renderDocs();nxBuildDailyBrief();nxSecurityCheck();
+    renderEvents();renderDocs();nxBuildDailyBrief();nxSecurityCheck();renderTasbeeh();
     const tt=load("timetable","");
     if($("nxTimetable"))$("nxTimetable").value=tt;
+
+    // Late authoritative modules. Each module retries its own dynamic-button install.
+    setTimeout(()=>{
+      loadLateScript('./js/nexusnova-learning-engine-v1.js?v=3','data-nx-learning-engine');
+      loadLateScript('./js/nexusnova-islamic-extras-v1.js?v=1','data-nx-islamic-extras');
+      loadLateScript('./js/nexusnova-ai-authority-v2.js?v=2','data-nx-ai-authority-v2');
+    },1800);
   });
 
-  console.log("NexusNova Super-App expansion loaded.");
+  console.log("NexusNova Super-App expansion V2 loaded.");
 })();
