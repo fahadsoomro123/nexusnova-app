@@ -81,17 +81,30 @@ async function qrRepair(){
   });
   await page.addScriptTag({url:base+'/js/nexusnova-local-apps-repair-v1.js'});
   await page.waitForSelector('#nxMegaWifiQrLocal');
-  const responses=['RuntimeWiFi','pass12345'];
-  page.on('dialog',async dialog=>{if(dialog.type()==='prompt') await dialog.accept(responses.shift()??''); else await dialog.accept();});
+
+  // The repaired QR flow must use the NexusNova premium in-app form — never
+  // fall back to the browser's native prompt dialogs.
+  let nativeDialogs=0;
+  page.on('dialog',async dialog=>{nativeDialogs+=1;await dialog.dismiss();});
   await page.click('#nxMegaWifiQrLocal');
+  await page.waitForSelector('.nxui-backdrop .nxui-modal',{timeout:5000});
+  assert.match(await page.textContent('.nxui-title'),/Create Wi.?Fi QR/i);
+  assert.ok(await page.$('.nxui-orb svg'),'premium modal should render a visual icon');
+  await page.fill('[data-nxui-field="ssid"]','RuntimeWiFi');
+  await page.fill('[data-nxui-field="password"]','pass12345');
+  await page.selectOption('[data-nxui-field="security"]','WPA');
+  await page.click('.nxui-form .nxui-btn.primary');
+  await page.waitForFunction(()=>Boolean(window.__qrGenerated),null,{timeout:3000});
+
   const payload=await page.evaluate(()=>window.__qrGenerated||'');
   assert.match(payload,/^WIFI:T:WPA;S:RuntimeWiFi;P:pass12345;;$/);
+  assert.equal(nativeDialogs,0,'Wi-Fi QR should not use native browser dialogs');
   assert.ok(await page.$('#nxMegaContactQrLocal'));
   assert.ok(await page.$('#nxMegaQrScannerLocal'));
   const payment=await page.locator('#tab-mega-qr button').filter({hasText:'Payment QR'}).count();
   assert.equal(payment,1);
   assert.equal(errors.length,0,errors.join('\n'));
-  console.log('PASS QR Tools — Wi-Fi/Contact/Scanner wiring passed; Payment QR remains provider-pending');
+  console.log('PASS QR Tools — premium Wi-Fi modal + Contact/Scanner wiring passed; Payment QR remains provider-pending');
   await page.close();
   await context.close();
 }
