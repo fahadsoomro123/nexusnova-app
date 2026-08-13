@@ -1,4 +1,4 @@
-/* NexusNova Smart Live v3
+/* NexusNova Smart Live v3.1
    Connects Smart Hub camera/daily brief to real AI flows and boots Documents + ALL APPS smart search. */
 (() => {
   'use strict';
@@ -101,7 +101,7 @@
     if(!document.querySelector('#moreMenu .more-inner')) return;
     if(window.__nxAllAppsSmartSearchV1 || document.querySelector('script[data-nx-allapps-smart-search]')) return;
     const script=document.createElement('script');
-    script.src='./js/nexusnova-allapps-smart-search-v1.js?v=1';
+    script.src='./js/nexusnova-allapps-smart-search-v1.js?v=2';
     script.setAttribute('data-nx-allapps-smart-search','1');
     script.onerror=()=>console.warn('NexusNova ALL APPS smart search failed to load.');
     document.body.appendChild(script);
