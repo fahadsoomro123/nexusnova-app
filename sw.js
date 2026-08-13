@@ -1,5 +1,5 @@
 /* NexusNova Service Worker - fresh-code first, offline fallback */
-const CACHE = "nexusnova-shell-v8-deep-repair";
+const CACHE = "nexusnova-shell-v9-integrity-pass";
 
 const ASSETS = [
   "./",
@@ -37,7 +37,9 @@ const ASSETS = [
   "./js/nexusnova-super-app-v1.js",
   "./js/nexusnova-mega-merge-v1.js",
   "./js/nexusnova-top100-live-fix-v3.js",
-  "./js/nexusnova-final-user-fixes-v1.js"
+  "./js/nexusnova-final-user-fixes-v1.js",
+  "./js/nexusnova-allapps-order-guard-v4.js",
+  "./js/nexusnova-scripture-source-guard-v2.js"
 ];
 
 self.addEventListener("install", (event) => {
