@@ -16,6 +16,26 @@
       return await r.json();
     } finally { clearTimeout(t); }
   };
+  const fetchText = async (url, timeout = 15000) => {
+    const c = new AbortController();
+    const t = setTimeout(() => c.abort(), timeout);
+    try {
+      const r = await fetch(url, { cache: 'no-store', signal: c.signal, mode: 'cors' });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return await r.text();
+    } finally { clearTimeout(t); }
+  };
+
+  async function fetchTextFromSources(urls, timeout = 15000) {
+    let lastError = null;
+    for (const url of urls) {
+      try {
+        const text = await fetchText(url, timeout);
+        if (text && text.trim()) return text;
+      } catch (err) { lastError = err; }
+    }
+    throw lastError || new Error('Text source unavailable');
+  }
 
   /* ---------------- One-active bottom navigation ---------------- */
   function setDockForTab(name, explicitButton) {
@@ -30,6 +50,11 @@
     } else {
       $('moreBtn')?.classList.add('active');
     }
+  }
+  function restoreDockFromActiveTab() {
+    const active = document.querySelector('.tab.active');
+    const name = active?.id?.replace(/^tab-/, '') || 'home';
+    setDockForTab(name, null);
   }
   function installDockGuard() {
     const original = window.switchTab;
@@ -187,6 +212,8 @@
     }
   }
   function installCurrency() {
+    window.nexusFinalConvertCurrency = finalConvertCurrency;
+    window.nexusFinalMoneyConvert = finalMoneyConvert;
     window.convertCurrency = () => finalConvertCurrency(false);
     ['convertAmount','fromCurrency','toCurrency'].forEach(id => $(id)?.addEventListener(id==='convertAmount'?'input':'change', () => finalConvertCurrency(false)));
     const from = $('currencyFrom'), to = $('currencyTo');
@@ -198,6 +225,11 @@
       from.addEventListener('change', () => finalMoneyConvert(false)); to.addEventListener('change', () => finalMoneyConvert(false));
     }
     finalConvertCurrency(false); finalMoneyConvert(false);
+    // page2.js is a module and can finish after classic scripts on slow links.
+    // Re-assert the reliable converter after those late initializers.
+    [2500, 6000, 12000].forEach(ms => setTimeout(() => {
+      window.convertCurrency = () => finalConvertCurrency(false);
+    }, ms));
   }
 
   /* ---------------- Tools navigation ---------------- */
@@ -237,11 +269,116 @@
     $$('.nexus-tool-chip').forEach(c=>c.classList.remove('active'));
     window.scrollTo({top:0,behavior:'smooth'});
   };
+  function showAllAppsMenu() {
+    window.nexusStopQRScan?.();
+    const m = $('moreMenu');
+    if (!m) return false;
+    // Older recovery scripts write an inline display:none. Clear that state
+    // explicitly so the approved .show CSS can take effect.
+    m.style.removeProperty('display');
+    m.classList.add('show');
+    if (getComputedStyle(m).display === 'none') m.style.display = 'block';
+    document.body.classList.add('nx-allapps-open');
+    setDockForTab('__allapps', $('moreBtn'));
+    return true;
+  }
+  function hideAllAppsMenu() {
+    const m = $('moreMenu');
+    if (!m) return;
+    m.classList.remove('show');
+    m.style.display = 'none';
+    document.body.classList.remove('nx-allapps-open');
+  }
   window.nexusBackToAllApps = function() {
-    window.nexusBackToTools();
-    const m=$('moreMenu'); if(m) m.classList.add('show');
-    setDockForTab('__allapps',$('moreBtn'));
+    window.nexusBackToTools?.();
+    document.body.classList.add('nx-opened-from-allapps');
+    showAllAppsMenu();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  function targetFromMoreButton(button) {
+    if (!button) return '';
+    if (button.dataset?.nxmega) return button.dataset.nxmega;
+    if (button.dataset?.finalBible) return 'bible';
+    const code = String(button.getAttribute('onclick') || '');
+    const match = code.match(/openMoreTab\(\s*['"]([^'"]+)['"]\s*\)/);
+    return match?.[1] || '';
+  }
+
+  function ensureAllAppsBackButtons() {
+    const buttons = $$('#moreMenu .more-item');
+    const targets = new Set(buttons.map(targetFromMoreButton).filter(Boolean));
+    targets.add('bible');
+    targets.forEach(name => {
+      if (name === 'tools') return; // Tools has its own Back to ALL APPS control.
+      const tab = $('tab-' + name);
+      if (!tab || tab.querySelector(':scope > .nx-allapps-back')) return;
+      const bar = document.createElement('div');
+      bar.className = 'nx-allapps-back';
+      bar.innerHTML = '<button class="tool-btn" type="button">← Back to ALL APPS</button>';
+      bar.querySelector('button').addEventListener('click', window.nexusBackToAllApps);
+      tab.insertBefore(bar, tab.firstChild);
+    });
+  }
+
+  function installAllAppsNavigation() {
+    ensureAllAppsBackButtons();
+
+    const realSwitchTab = window.switchTab;
+    if (typeof realSwitchTab === 'function' && !realSwitchTab.__nxAllAppsV2) {
+      const wrappedSwitch = function(name, button) {
+        if (button?.classList?.contains('dock-item') && button.id !== 'moreBtn') {
+          document.body.classList.remove('nx-opened-from-allapps');
+          hideAllAppsMenu();
+        }
+        const result = realSwitchTab.call(this, name, button);
+        setTimeout(() => setDockForTab(name, button), 0);
+        return result;
+      };
+      wrappedSwitch.__nxAllAppsV2 = true;
+      window.switchTab = wrappedSwitch;
+    }
+
+    window.openMoreTab = function(name) {
+      document.body.classList.add('nx-opened-from-allapps');
+      hideAllAppsMenu();
+      ensureAllAppsBackButtons();
+      if (typeof window.switchTab === 'function') window.switchTab(name, null);
+      setDockForTab(name, $('moreBtn'));
+      if (name === 'finance') setTimeout(() => window.nexusFinalConvertCurrency?.(false), 60);
+      if (name === 'tools') setTimeout(() => window.nexusBackToTools?.(), 60);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    window.toggleMore = function() {
+      const m = $('moreMenu');
+      if (!m) return;
+      const open = m.classList.contains('show') && getComputedStyle(m).display !== 'none';
+      if (open) { hideAllAppsMenu(); restoreDockFromActiveTab(); }
+      else {
+        document.body.classList.add('nx-opened-from-allapps');
+        showAllAppsMenu();
+      }
+    };
+
+    document.addEventListener('click', () => {
+      setTimeout(() => {
+        const m = $('moreMenu');
+        if (m && !m.classList.contains('show') && getComputedStyle(m).display === 'none') {
+          restoreDockFromActiveTab();
+        }
+      }, 30);
+    }, false);
+
+    // Mega modules are created shortly after DOMContentLoaded. Keep newly
+    // inserted tabs covered without asking the user to find missing Back buttons.
+    const main = document.querySelector('main.main') || document.querySelector('main');
+    if (main && !main.__nxAllAppsObserver) {
+      const observer = new MutationObserver(() => ensureAllAppsBackButtons());
+      observer.observe(main, { childList: true });
+      main.__nxAllAppsObserver = observer;
+    }
+  }
 
   /* ---------------- Height: feet + inches ---------------- */
   const feetToMeters = (ft, inch) => ((Number(ft)||0)*12 + (Number(inch)||0)) * 0.0254;
@@ -270,6 +407,30 @@
     let link=false; try{const u=new URL(qrValue);link=['http:','https:'].includes(u.protocol);}catch{}
     if(open)open.style.display=link?'inline-flex':'none';
   }
+  let qrLibraryPromise = null;
+  async function ensureQrLibrary() {
+    if (typeof window.jsQR === 'function') return true;
+    if (qrLibraryPromise) return qrLibraryPromise;
+    qrLibraryPromise = (async () => {
+      const sources = [
+        'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js',
+        'https://unpkg.com/jsqr@1.4.0/dist/jsQR.js'
+      ];
+      for (const src of sources) {
+        try {
+          await new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = src; script.async = true;
+            script.onload = resolve; script.onerror = reject;
+            document.head.appendChild(script);
+          });
+          if (typeof window.jsQR === 'function') return true;
+        } catch (_) {}
+      }
+      return false;
+    })().finally(() => { qrLibraryPromise = null; });
+    return qrLibraryPromise;
+  }
   function decodeCanvas(canvas) {
     const ctx=canvas.getContext('2d',{willReadFrequently:true}); if(!ctx)return null;
     const data=ctx.getImageData(0,0,canvas.width,canvas.height);
@@ -282,7 +443,13 @@
       const bmp=await createImageBitmap(file); const max=1400, scale=Math.min(1,max/Math.max(bmp.width,bmp.height)); const canvas=$('qrCanvas')||document.createElement('canvas');
       canvas.width=Math.max(1,Math.round(bmp.width*scale));canvas.height=Math.max(1,Math.round(bmp.height*scale));canvas.getContext('2d').drawImage(bmp,0,0,canvas.width,canvas.height);
       if('BarcodeDetector'in window){try{const codes=await new BarcodeDetector({formats:['qr_code']}).detect(canvas);if(codes?.length){showQrResult(codes[0].rawValue);return;}}catch{}}
-      const v=decodeCanvas(canvas); showQrResult(v||'');
+      if (typeof window.jsQR !== 'function') await ensureQrLibrary();
+      const v=decodeCanvas(canvas);
+      if (!v && typeof window.jsQR !== 'function') {
+        if(status) status.textContent='QR decoder could not load. Camera may still work in a supported browser.';
+        return;
+      }
+      showQrResult(v||'');
     }catch(e){if(status)status.textContent='Could not read this image. Try a clearer QR image.';}
   };
   window.nexusStartQRScan = async function() {
@@ -294,6 +461,7 @@
       video.srcObject=qrStream;video.style.display='block';await video.play();if(status)status.textContent='Point camera at a QR code...';
       const canvas=$('qrCanvas')||document.createElement('canvas'), ctx=canvas.getContext('2d',{willReadFrequently:true});
       const detector='BarcodeDetector'in window?new BarcodeDetector({formats:['qr_code']}):null;
+      if (!detector && typeof window.jsQR !== 'function') await ensureQrLibrary();
       const loop=async()=>{if(!video.srcObject)return; try{
         if(detector){const codes=await detector.detect(video);if(codes?.length){showQrResult(codes[0].rawValue);window.nexusStopQRScan();return;}}
         else if(typeof window.jsQR==='function'&&video.videoWidth){const scale=Math.min(1,900/video.videoWidth);canvas.width=Math.round(video.videoWidth*scale);canvas.height=Math.round(video.videoHeight*scale);ctx.drawImage(video,0,0,canvas.width,canvas.height);const v=decodeCanvas(canvas);if(v){showQrResult(v);window.nexusStopQRScan();return;}}
@@ -373,21 +541,98 @@
   async function loadSurah(){const n=Number($('nxQuranSurah').value||1),status=$('nxQuranStatus'),reader=$('nxQuranReader');status.textContent='Loading Surah...';reader.textContent='Loading...';try{const j=await fetchJson(`https://api.alquran.cloud/v1/surah/${n}/editions/quran-uthmani,ur.jalandhry`,12000);const editions=j?.data||[],ar=editions.find(x=>x.edition?.identifier==='quran-uthmani')||editions[0],ur=editions.find(x=>x.edition?.identifier==='ur.jalandhry')||editions[1];if(!ar?.ayahs?.length)throw new Error('No verses');reader.innerHTML=ar.ayahs.map((a,i)=>`<div class="nx-ayah"><div class="nx-verse-no">${n}:${a.numberInSurah}</div><div class="nx-arabic">${esc(a.text)}</div><div class="nx-urdu">${esc(ur?.ayahs?.[i]?.text||'')}</div></div>`).join('');status.textContent=`${SURAH_NAMES[n-1]} · ${ar.ayahs.length} Ayat`;localStorage.setItem('nx_quran_last',String(n));}catch(e){reader.textContent='Could not load Quran text. Check connection and retry.';status.textContent='Quran service unavailable';}}
   async function loadBukhari(n){n=Math.max(1,Math.floor(n||1));$('nxBukhariNo').value=String(n);const status=$('nxBukhariStatus'),reader=$('nxBukhariReader');status.textContent='Loading Hadith...';reader.textContent='Loading...';try{const [a,u]=await Promise.all([fetchJson(`https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1/editions/ara-bukhari/${n}.min.json`,12000),fetchJson(`https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1/editions/urd-bukhari/${n}.min.json`,12000)]);const ah=a?.hadiths?.[0]||a?.hadith||a,uh=u?.hadiths?.[0]||u?.hadith||u;const at=ah?.text||ah?.hadith||'',ut=uh?.text||uh?.hadith||'';if(!at&&!ut)throw new Error('Missing');reader.innerHTML=`<div class="nx-hadith"><div class="nx-verse-no">Sahih al-Bukhari · Hadith ${n}</div><div class="nx-arabic">${esc(at)}</div><div class="nx-urdu">${esc(ut)}</div></div>`;status.textContent=`Hadith ${n}`;localStorage.setItem('nx_bukhari_last',String(n));}catch(e){reader.textContent='Hadith could not be loaded. Check the number or connection.';status.textContent='Bukhari service unavailable';}}
   const BIBLE_BOOKS=[['GEN','Genesis',50],['EXO','Exodus',40],['LEV','Leviticus',27],['NUM','Numbers',36],['DEU','Deuteronomy',34],['JOS','Joshua',24],['JDG','Judges',21],['RUT','Ruth',4],['1SA','1 Samuel',31],['2SA','2 Samuel',24],['1KI','1 Kings',22],['2KI','2 Kings',25],['1CH','1 Chronicles',29],['2CH','2 Chronicles',36],['EZR','Ezra',10],['NEH','Nehemiah',13],['EST','Esther',10],['JOB','Job',42],['PSA','Psalms',150],['PRO','Proverbs',31],['ECC','Ecclesiastes',12],['SNG','Song of Songs',8],['ISA','Isaiah',66],['JER','Jeremiah',52],['LAM','Lamentations',5],['EZK','Ezekiel',48],['DAN','Daniel',12],['HOS','Hosea',14],['JOL','Joel',3],['AMO','Amos',9],['OBA','Obadiah',1],['JON','Jonah',4],['MIC','Micah',7],['NAM','Nahum',3],['HAB','Habakkuk',3],['ZEP','Zephaniah',3],['HAG','Haggai',2],['ZEC','Zechariah',14],['MAL','Malachi',4],['MAT','Matthew',28],['MRK','Mark',16],['LUK','Luke',24],['JHN','John',21],['ACT','Acts',28],['ROM','Romans',16],['1CO','1 Corinthians',16],['2CO','2 Corinthians',13],['GAL','Galatians',6],['EPH','Ephesians',6],['PHP','Philippians',4],['COL','Colossians',4],['1TH','1 Thessalonians',5],['2TH','2 Thessalonians',3],['1TI','1 Timothy',6],['2TI','2 Timothy',4],['TIT','Titus',3],['PHM','Philemon',1],['HEB','Hebrews',13],['JAS','James',5],['1PE','1 Peter',5],['2PE','2 Peter',3],['1JN','1 John',5],['2JN','2 John',1],['3JN','3 John',1],['JUD','Jude',1],['REV','Revelation',22]];
-  function installBible(){if($('tab-bible'))return;const main=document.querySelector('main.main')||document.querySelector('main');if(!main)return;const tab=document.createElement('section');tab.id='tab-bible';tab.className='tab nxmega-tab';tab.innerHTML=`<div class="card nxmega-hero"><h2>✝ Bible</h2><p class="tool-muted">Separate Christian scripture reader — not part of Islamic Hub.</p><div class="nx-scripture-controls"><select id="nxBibleBook" class="tool-input">${BIBLE_BOOKS.map((b,i)=>`<option value="${i}">${b[1]}</option>`).join('')}</select><select id="nxBibleChapter" class="tool-input"></select><select id="nxBibleLang" class="tool-input"><option value="engwebp">English — World English Bible</option><option value="urdoucv">Urdu — Open Urdu Contemporary Version</option></select><button id="nxBibleOpen" class="tool-btn primary">Open Chapter</button><button id="nxBibleExternal" class="tool-btn">Open Full Page</button></div><div id="nxBibleStatus" class="tool-muted">Choose book, chapter and language.</div><iframe id="nxBibleFrame" class="nx-bible-frame" title="Bible reader" referrerpolicy="no-referrer"></iframe><div class="nx-attribution">English: World English Bible (Public Domain). Urdu: Biblica® Open Urdu Contemporary Version™, copyright Biblica, Inc., available under CC BY-SA 4.0 via eBible.org. Text is displayed from eBible.org without modification.</div></div>`;main.appendChild(tab);
-    const book=$('nxBibleBook'),chap=$('nxBibleChapter');const fill=()=>{const b=BIBLE_BOOKS[Number(book.value)||0];chap.innerHTML=Array.from({length:b[2]},(_,i)=>`<option value="${i+1}">Chapter ${i+1}</option>`).join('');};fill();book.onchange=fill;$('nxBibleOpen').onclick=openBibleChapter;$('nxBibleExternal').onclick=()=>window.open(bibleUrl(),'_blank','noopener,noreferrer');
-    const menu=$('moreMenu')?.querySelector('.more-inner');if(menu&&!menu.querySelector('[data-final-bible]')){const b=document.createElement('button');b.type='button';b.className='more-item';b.dataset.finalBible='1';b.innerHTML='<span class="mi-icon nx3d-ico" aria-hidden="true">✝</span><span>Bible</span>';b.onclick=()=>window.openMoreTab('bible');const islamic=menu.querySelector('[data-nxmega="mega-islamic"]');islamic?.insertAdjacentElement('afterend',b)||menu.appendChild(b);}
+  const BIBLE_DATA = {
+    vref: [
+      'https://raw.githubusercontent.com/BibleNLP/ebible/main/metadata/vref.txt',
+      'https://cdn.jsdelivr.net/gh/BibleNLP/ebible@main/metadata/vref.txt'
+    ],
+    en: [
+      'https://raw.githubusercontent.com/BibleNLP/ebible/main/corpus/eng-engwebp.txt',
+      'https://cdn.jsdelivr.net/gh/BibleNLP/ebible@main/corpus/eng-engwebp.txt'
+    ],
+    ur: [
+      'https://raw.githubusercontent.com/BibleNLP/ebible/main/corpus/urd-urdgvu.txt',
+      'https://cdn.jsdelivr.net/gh/BibleNLP/ebible@main/corpus/urd-urdgvu.txt'
+    ]
+  };
+  const bibleMemory = { vref: null, en: null, ur: null };
+  async function bibleDataset(kind) {
+    if (bibleMemory[kind]) return bibleMemory[kind];
+    const text = await fetchTextFromSources(BIBLE_DATA[kind], 20000);
+    const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/);
+    bibleMemory[kind] = lines;
+    return lines;
   }
-  function bibleUrl(){const b=BIBLE_BOOKS[Number($('nxBibleBook')?.value)||0],ch=String(Number($('nxBibleChapter')?.value)||1).padStart(2,'0'),lang=$('nxBibleLang')?.value||'engwebp';return `https://ebible.org/${lang}/${b[0]}${ch}.htm`;}
-  function openBibleChapter(){const f=$('nxBibleFrame'),s=$('nxBibleStatus'),u=bibleUrl();if(f)f.src=u;if(s)s.textContent='Loading chapter from eBible.org… If embedding is blocked, use “Open Full Page”.';}
+  function installBible(){
+    let tab=$('tab-bible');
+    const main=document.querySelector('main.main')||document.querySelector('main');if(!main)return;
+    if(!tab){tab=document.createElement('section');tab.id='tab-bible';tab.className='tab nxmega-tab';main.appendChild(tab);}
+    tab.innerHTML=`<div class="card nxmega-hero"><h2>✝ Bible</h2><p class="tool-muted">Separate Christian scripture reader — not part of Islamic Hub.</p><div class="nx-scripture-controls"><select id="nxBibleBook" class="tool-input">${BIBLE_BOOKS.map((b,i)=>`<option value="${i}">${b[1]}</option>`).join('')}</select><select id="nxBibleChapter" class="tool-input"></select><select id="nxBibleLang" class="tool-input"><option value="en">English — World English Bible</option><option value="ur">Urdu — Urdu Bible</option></select><button id="nxBibleOpen" class="tool-btn primary" type="button">Open Chapter</button><button id="nxBiblePrev" class="tool-btn" type="button">Previous</button><button id="nxBibleNext" class="tool-btn" type="button">Next</button></div><div id="nxBibleStatus" class="tool-muted">Choose book, chapter and language.</div><div id="nxBibleReader" class="nx-scripture-reader tool-result"><div class="nx-bible-empty">Choose a chapter, then tap Open Chapter.</div></div><div class="nx-attribution">English: World English Bible. Urdu text: Urdu Bible corpus. Verse-aligned text is loaded directly as data instead of embedding another website.</div></div>`;
+    const book=$('nxBibleBook'),chap=$('nxBibleChapter');
+    const fill=()=>{const b=BIBLE_BOOKS[Number(book.value)||0];const old=Number(chap.value||1);chap.innerHTML=Array.from({length:b[2]},(_,i)=>`<option value="${i+1}">Chapter ${i+1}</option>`).join('');chap.value=String(Math.min(old,b[2]));};
+    fill();book.onchange=fill;
+    $('nxBibleOpen').onclick=()=>openBibleChapter(false);
+    $('nxBiblePrev').onclick=()=>moveBibleChapter(-1);
+    $('nxBibleNext').onclick=()=>moveBibleChapter(1);
+    const menu=$('moreMenu')?.querySelector('.more-inner');
+    if(menu&&!menu.querySelector('[data-final-bible]')){const b=document.createElement('button');b.type='button';b.className='more-item';b.dataset.finalBible='1';b.innerHTML='<span class="mi-icon nx3d-ico" aria-hidden="true">✝</span><span>Bible</span>';b.onclick=()=>window.openMoreTab('bible');const islamic=menu.querySelector('[data-nxmega="mega-islamic"]');islamic?.insertAdjacentElement('afterend',b)||menu.appendChild(b);}
+  }
+  async function openBibleChapter(force=false){
+    const status=$('nxBibleStatus'),reader=$('nxBibleReader');if(!status||!reader)return;
+    const b=BIBLE_BOOKS[Number($('nxBibleBook')?.value)||0], chapter=Math.max(1,Number($('nxBibleChapter')?.value)||1), lang=$('nxBibleLang')?.value||'en';
+    status.textContent='Loading Bible chapter…';reader.innerHTML='<div class="nx-bible-empty">Loading text…</div>';
+    try{
+      const [refs,texts]=await Promise.all([bibleDataset('vref'),bibleDataset(lang)]);
+      const prefix=`${b[0]} ${chapter}:`; const verses=[];
+      const total=Math.min(refs.length,texts.length);
+      for(let i=0;i<total;i++){
+        const ref=String(refs[i]||'').trim();
+        if(!ref.startsWith(prefix)) continue;
+        const verseNo=ref.slice(prefix.length).trim(); const text=String(texts[i]||'').trim();
+        if(text) verses.push({verseNo,text});
+      }
+      if(!verses.length) throw new Error('Chapter data missing');
+      const rtl=lang==='ur';
+      reader.innerHTML=verses.map(v=>`<div class="nx-bible-verse ${rtl?'rtl':''}"><span class="nx-bible-verse-no">${esc(v.verseNo)}</span><div>${esc(v.text)}</div></div>`).join('');
+      status.textContent=`${b[1]} ${chapter} · ${lang==='ur'?'Urdu':'English'} · ${verses.length} verses`;
+      localStorage.setItem('nx_bible_last',JSON.stringify({book:Number($('nxBibleBook').value)||0,chapter,lang}));
+      reader.scrollTop=0;
+    }catch(err){console.warn('Bible reader:',err);reader.innerHTML='<div class="nx-bible-error">Bible text could not load from either data source. Check internet access and tap Open Chapter again.</div>';status.textContent='Bible data temporarily unavailable';}
+  }
+  function moveBibleChapter(delta){
+    const book=$('nxBibleBook'),chap=$('nxBibleChapter');if(!book||!chap)return;
+    let bi=Number(book.value)||0, ch=Number(chap.value)||1; ch+=delta;
+    if(ch<1&&bi>0){bi--;book.value=String(bi);book.onchange?.();ch=BIBLE_BOOKS[bi][2];}
+    else if(ch>BIBLE_BOOKS[bi][2]&&bi<BIBLE_BOOKS.length-1){bi++;book.value=String(bi);book.onchange?.();ch=1;}
+    ch=Math.max(1,Math.min(ch,BIBLE_BOOKS[bi][2]));chap.value=String(ch);openBibleChapter(false);
+  }
 
   /* ---------------- ALL APPS label and mining state cosmetics ---------------- */
   function cosmetics(){const more=$('moreBtn');if(more){const span=more.querySelector('span:last-child');if(span)span.textContent='ALL APPS';}
     const mine=$('mineBtn');if(mine){const sync=()=>{const txt=(mine.textContent||'').toLowerCase();mine.classList.toggle('nx-stop-state',txt.includes('stop'));};new MutationObserver(sync).observe(mine,{childList:true,subtree:true,characterData:true,class:true});sync();}
   }
 
-  function init(){installDockGuard();installToolsNav();installFeetBMI();installCurrency();injectSpeedTool();scriptureUI();installBible();cosmetics();installProfileRepair();
+  function init(){
+    installDockGuard();
+    installToolsNav();
+    installFeetBMI();
+    installCurrency();
+    injectSpeedTool();
+    scriptureUI();
+    installBible();
+    installAllAppsNavigation();
+    cosmetics();
+    installProfileRepair();
+    ensureAllAppsBackButtons();
+    try {
+      const last=JSON.parse(localStorage.getItem('nx_bible_last')||'null');
+      if(last&&$('nxBibleBook')&&$('nxBibleChapter')&&$('nxBibleLang')){
+        $('nxBibleBook').value=String(last.book||0);$('nxBibleBook').onchange?.();$('nxBibleChapter').value=String(last.chapter||1);$('nxBibleLang').value=last.lang||'en';
+      }
+    } catch(_) {}
     // Remove misleading auxiliary fallback text if auth has not resolved yet.
     if($('profileEmailDisplay')?.textContent==='Account loaded')$('profileEmailDisplay').textContent='Loading account…';
+    setTimeout(ensureAllAppsBackButtons, 1800);
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(init,1350),{once:true});else setTimeout(init,1350);
 })();

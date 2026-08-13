@@ -1,5 +1,5 @@
 /* NexusNova Service Worker - fresh-code first, offline fallback */
-const CACHE = "nexusnova-shell-v7-user-batch";
+const CACHE = "nexusnova-shell-v8-deep-repair";
 
 const ASSETS = [
   "./",
