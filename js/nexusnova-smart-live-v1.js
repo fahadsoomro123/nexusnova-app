@@ -1,5 +1,5 @@
-/* NexusNova Smart Live v3.3
-   Connects Smart Hub camera/daily brief to real AI flows and boots Documents, File Vault, Security Lock + ALL APPS smart search. */
+/* NexusNova Smart Live v3.4
+   Connects Smart Hub camera/daily brief to real AI flows and boots late live modules. */
 (() => {
   'use strict';
   if (window.__nxSmartLiveV3) return;
@@ -105,6 +105,9 @@
     loadModule({tab:'tab-mega-documents',marker:'data-nx-documents-live',src:'./js/nexusnova-documents-live-v1.js?v=1',error:'NexusNova Documents live module failed to load.'});
     loadModule({tab:'tab-mega-vault',flag:'__nxFileVaultV1',marker:'data-nx-file-vault',src:'./js/nexusnova-file-vault-v1.js?v=1',error:'NexusNova encrypted File Vault failed to load.'});
     loadModule({tab:'tab-mega-security',flag:'__nxSecurityLockV1',marker:'data-nx-security-lock',src:'./js/nexusnova-security-lock-v1.js?v=1',error:'NexusNova Security App Lock failed to load.'});
+    loadModule({tab:'tab-mega-marketplace',flag:'__nxMarketplaceLiveV1',marker:'data-nx-marketplace-live',src:'./js/nexusnova-marketplace-live-v1.js?v=1',error:'NexusNova Marketplace live module failed to load.'});
+    loadModule({tab:'tab-mega-orders',flag:'__nxOrdersLiveV1',marker:'data-nx-orders-live',src:'./js/nexusnova-orders-live-v1.js?v=1',error:'NexusNova Orders live module failed to load.'});
+    loadModule({tab:'tab-mega-teacher',flag:'__nxTeacherLiveV2',marker:'data-nx-teacher-live',src:'./js/nexusnova-teacher-live-v2.js?v=2',error:'NexusNova Teacher Toolkit live module failed to load.'});
     loadModule({tab:null,flag:'__nxAllAppsSmartSearchV1',marker:'data-nx-allapps-smart-search',src:'./js/nexusnova-allapps-smart-search-v1.js?v=2',error:'NexusNova ALL APPS smart search failed to load.'});
   }
 
