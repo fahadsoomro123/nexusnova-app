@@ -1,4 +1,4 @@
-/* NexusNova Super-App Expansion V3 */
+/* NexusNova Super-App Expansion V4 */
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -130,8 +130,9 @@
       loadLateScript('./js/nexusnova-islamic-extras-v1.js?v=1','data-nx-islamic-extras');
       loadLateScript('./js/nexusnova-ai-authority-v2.js?v=2','data-nx-ai-authority-v2');
       loadLateScript('./js/nexusnova-travel-live-v1.js?v=1','data-nx-travel-live');
+      loadLateScript('./js/nexusnova-smart-live-v1.js?v=1','data-nx-smart-live');
     },1800);
   });
 
-  console.log("NexusNova Super-App expansion V3 loaded.");
+  console.log("NexusNova Super-App expansion V4 loaded.");
 })();
