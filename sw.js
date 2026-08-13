@@ -1,5 +1,5 @@
-/* NexusNova Service Worker - fresh-code first, offline fallback */
-const CACHE = "nexusnova-shell-v9-integrity-pass";
+/* NexusNova Service Worker - fresh-code first, offline fallback + FCM web push */
+const CACHE = "nexusnova-shell-v10-fcm";
 
 const ASSETS = [
   "./",
@@ -39,16 +39,68 @@ const ASSETS = [
   "./js/nexusnova-top100-live-fix-v3.js",
   "./js/nexusnova-final-user-fixes-v1.js",
   "./js/nexusnova-allapps-order-guard-v4.js",
-  "./js/nexusnova-scripture-source-guard-v2.js"
+  "./js/nexusnova-scripture-source-guard-v2.js",
+  "./js/nexusnova-fcm-v1.js"
 ];
+
+/*
+ * Keep the existing offline shell alive even if Firebase's remote messaging
+ * scripts cannot be fetched. FCM is additive; an offline CDN must never break
+ * NexusNova's core service worker registration.
+ */
+try {
+  importScripts(
+    "https://www.gstatic.com/firebasejs/12.1.0/firebase-app-compat.js",
+    "https://www.gstatic.com/firebasejs/12.1.0/firebase-messaging-compat.js"
+  );
+
+  firebase.initializeApp({
+    apiKey: "AIzaSyBU75WYp5ioaMD1LrNcDyAvROFW2wrTil0",
+    authDomain: "nexusnova-6ade2.firebaseapp.com",
+    projectId: "nexusnova-6ade2",
+    storageBucket: "nexusnova-6ade2.firebasestorage.app",
+    messagingSenderId: "49791194817",
+    appId: "1:49791194817:web:07f28326e0f15979536640"
+  });
+
+  const messaging = firebase.messaging();
+  messaging.onBackgroundMessage((payload) => {
+    const data = payload?.data || {};
+    if (data.nexusnova !== "1") return;
+    return self.registration.showNotification(data.title || "NexusNova", {
+      body: data.body || "You have a new NexusNova update.",
+      icon: "./icons/icon-192.png",
+      badge: "./icons/icon-192.png",
+      data: { url: data.url || "./page2.html" }
+    });
+  });
+} catch (error) {
+  console.warn("NexusNova FCM service-worker bootstrap unavailable:", error);
+}
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification?.close();
+  const target = String(event.notification?.data?.url || "./page2.html");
+  event.waitUntil((async () => {
+    const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    for (const client of windows) {
+      try {
+        if ("focus" in client) {
+          await client.focus();
+          if ("navigate" in client) await client.navigate(target);
+          return;
+        }
+      } catch (_) {}
+    }
+    if (self.clients.openWindow) await self.clients.openWindow(target);
+  })());
+});
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
       .open(CACHE)
       .then(async (cache) => {
-        // A single optional/unavailable asset must not discard the entire
-        // offline shell on first install.
         await Promise.allSettled(
           ASSETS.map(async (asset) => {
             const response = await fetch(asset, { cache: "no-store" });

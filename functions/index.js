@@ -293,3 +293,5 @@ exports.requestWithdrawal=protectedCallable(async req=>{
   });
   return {requestId:request.id,status:"pending_review"};
 });
+
+Object.assign(exports, require("./notifications"));

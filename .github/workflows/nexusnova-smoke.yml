@@ -29,8 +29,12 @@ jobs:
             echo "Checking $file"
             node --check "$file"
           done
-          echo "Checking functions/index.js"
-          node --check functions/index.js
+          find functions -maxdepth 1 -type f -name '*.js' -print0 | sort -z | while IFS= read -r -d '' file; do
+            echo "Checking $file"
+            node --check "$file"
+          done
+          echo "Checking sw.js"
+          node --check sw.js
 
       - name: Verify critical live modules exist
         shell: bash
