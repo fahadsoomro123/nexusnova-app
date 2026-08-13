@@ -1,8 +1,9 @@
-/* NexusNova Smart Live v2
-   Connects Smart Hub camera/daily brief to real AI flows and boots Documents live tools. */
+/* NexusNova Smart Live v3
+   Connects Smart Hub camera/daily brief to real AI flows and boots Documents + ALL APPS smart search. */
 (() => {
   'use strict';
-  if (window.__nxSmartLiveV2) return;
+  if (window.__nxSmartLiveV3) return;
+  window.__nxSmartLiveV3 = true;
   window.__nxSmartLiveV2 = true;
   window.__nxSmartLiveV1 = true;
 
@@ -96,12 +97,23 @@
     document.body.appendChild(script);
   }
 
+  function loadAllAppsSmartSearch(){
+    if(!document.querySelector('#moreMenu .more-inner')) return;
+    if(window.__nxAllAppsSmartSearchV1 || document.querySelector('script[data-nx-allapps-smart-search]')) return;
+    const script=document.createElement('script');
+    script.src='./js/nexusnova-allapps-smart-search-v1.js?v=1';
+    script.setAttribute('data-nx-allapps-smart-search','1');
+    script.onerror=()=>console.warn('NexusNova ALL APPS smart search failed to load.');
+    document.body.appendChild(script);
+  }
+
   function install() {
     if($('tab-smart')) {
       claim('Open Camera','nxSmartCameraLive',openCamera);
       claim('Build Brief','nxSmartBriefLive',buildBrief);
     }
     loadDocuments();
+    loadAllAppsSmartSearch();
   }
 
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>setTimeout(install,1200),{once:true});
