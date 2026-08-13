@@ -110,6 +110,7 @@
     // their dynamic tabs and scripture readers.
     loadGuard('./js/nexusnova-allapps-order-guard-v5.js', 'data-nx-allapps-guard');
     loadGuard('./js/nexusnova-scripture-source-guard-v2.js', 'data-nx-scripture-guard');
+    loadGuard('./js/nexusnova-local-apps-repair-v1.js', 'data-nx-local-apps-repair');
 
     let converterPasses = 0;
     const converterGuard = setInterval(() => {
