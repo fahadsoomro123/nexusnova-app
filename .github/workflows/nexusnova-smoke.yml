@@ -80,3 +80,27 @@ jobs:
           }
           console.log('ALL APPS order verified:', actual.length, 'items');
           NODE
+
+  firestore-rules:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install Firebase emulator test packages
+        run: npm install --no-save firebase@12.1.0 @firebase/rules-unit-testing@5.0.0 firebase-tools@14.12.1
+
+      - name: Run Firestore rules smoke
+        run: npx firebase emulators:exec --only firestore --project demo-nexusnova-rules "node .github/scripts/firestore-rules-smoke.mjs"
