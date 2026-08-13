@@ -30,7 +30,6 @@
             getFirestore,
             doc,
             getDoc,
-            updateDoc,
             setDoc
         } = await import(FIREBASE_FS_URL);
 
@@ -201,88 +200,7 @@
             }
         }
 
-        async function startMining(){
-
-            if(!user){
-
-                user =
-                    auth.currentUser;
-
-            }
-
-            if(!user){
-
-                alert(
-                    "Please wait for your account to finish loading."
-                );
-
-                return;
-            }
-
-            if(mining){
-
-                alert(
-                    "Mining session is already active."
-                );
-
-                return;
-            }
-
-            const start =
-                Date.now();
-
-            // Make the UI respond immediately.
-            mining = true;
-            miningStart = start;
-            setMinerUI(true,start);
-
-            try{
-
-                await updateDoc(
-                    doc(
-                        db,
-                        "users",
-                        user.uid
-                    ),
-                    {
-                        miningActive:true,
-                        miningStartedAt:start,
-                        miningLastUpdate:start
-                    }
-                );
-
-            }catch(error){
-
-                console.error(
-                    "Failsafe mining save:",
-                    error
-                );
-
-                mining = false;
-                miningStart = 0;
-                setMinerUI(false,0);
-
-                alert(
-                    "Mining could not be saved to Firebase."
-                );
-            }
-        }
-
-        // Override only the core mining click with the reliable handler.
-        window.nexusFailsafeStartMining =
-            startMining;
-
         function wireCoreButtons(){
-
-            const mineBtn =
-                byId("mineBtn");
-
-            if(mineBtn){
-
-                mineBtn.onclick =
-                    startMining;
-            }
-
             // Navigation works without relying on inline module functions.
             document
                 .querySelectorAll(".dock-item")
@@ -1030,96 +948,9 @@
             : "none";
     };
 
-    // Mining fallback: immediate UI + persistent local state.
-    window.startMining = function(){
-
-        const btn = $("mineBtn");
-        const status =
-            document.querySelector(
-                ".miner-status, #minerStatus"
-            );
-        const text = $("btnText");
-
-        localStorage.setItem(
-            "nexusnova_mining_active",
-            "1"
-        );
-
-        localStorage.setItem(
-            "nexusnova_mining_started",
-            String(Date.now())
-        );
-
-        if(btn){
-            btn.classList.add("mining-active");
-            btn.disabled = false;
-        }
-
-        if(text){
-            text.textContent = "MINING ACTIVE";
-        }
-
-        if(status){
-            status.textContent = "MINER ONLINE";
-            status.style.color = "#00f5d4";
-        }
-
-        const timer = $("timer");
-        if(timer){
-            timer.textContent = "24H SESSION";
-        }
-
-        alert("Mining started successfully.");
-    };
-
-    // If page2.js did not expose a mining handler, bind the actual button.
-    const mineBtn = $("mineBtn");
-    if(mineBtn){
-
-        mineBtn.addEventListener(
-            "click",
-            function(){
-                // If the normal handler has not changed the UI, make sure
-                // the recovery state is visible.
-                setTimeout(
-                    () => {
-
-                        const active =
-                            localStorage.getItem(
-                                "nexusnova_mining_active"
-                            ) === "1";
-
-                        const status =
-                            document.querySelector(
-                                ".miner-status, #minerStatus"
-                            );
-
-                        const text = $("btnText");
-
-                        if(active && status &&
-                           /offline/i.test(
-                               status.textContent || ""
-                           )){
-
-                            status.textContent =
-                                "MINER ONLINE";
-
-                            status.style.color =
-                                "#00f5d4";
-
-                            if(text){
-                                text.textContent =
-                                    "MINING ACTIVE";
-                            }
-                        }
-
-                    },
-                    250
-                );
-            },
-            {passive:true}
-        );
-    }
+    // Mining and reward state are value-bearing. The secure reward module is
+    // the sole owner of this button; never simulate a successful local session
+    // when its server-side write is unavailable.
 
     // Wallet actions remain clearly marked until real blockchain routing exists.
     

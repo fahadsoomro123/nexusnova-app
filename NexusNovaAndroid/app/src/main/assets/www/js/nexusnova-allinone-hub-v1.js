@@ -1,6 +1,43 @@
 /* NexusNova All-in-One Utilities V1 */
 (()=>{const $=id=>document.getElementById(id),store=(k,v)=>localStorage.setItem('nexus_'+k,JSON.stringify(v)),load=(k,d)=>{try{return JSON.parse(localStorage.getItem('nexus_'+k))??d}catch{return d}};const esc=s=>String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-window.nxComing=n=>alert(n+' is reserved for the live-integration phase. No fake data or fake tickets will be shown.');let calc='';window.nxCalc=v=>{let d=$('calcDisplay');if(v==='C'){calc='';d.value='';return}if(v==='='){try{if(!/^[0-9+\-*/().\s]+$/.test(calc))throw 0;let x=Function('"use strict";return ('+calc+')')();calc=String(Number.isFinite(x)?x:'');d.value=calc}catch{d.value='Error';calc=''}return}calc+=v;d.value=calc};
+window.nxComing=n=>alert(n+' is reserved for the live-integration phase. No fake data or fake tickets will be shown.');
+let calc='';
+function nxCalculateArithmetic(expression){
+  const compact=String(expression||'').replace(/\s+/g,'');
+  if(!compact||compact.length>120)throw new Error('Invalid expression');
+  const tokens=compact.match(/(?:\d+(?:\.\d+)?|\.\d+|[()+\-*/%])/g)||[];
+  if(tokens.join('')!==compact)throw new Error('Invalid expression');
+  let cursor=0;
+  const peek=()=>tokens[cursor];
+  const take=()=>tokens[cursor++];
+  const factor=()=>{
+    const token=take();
+    if(token==='+')return factor();
+    if(token==='-')return -factor();
+    if(token==='('){const value=expressionValue();if(take()!==')')throw new Error('Invalid expression');return value}
+    if(!/^(?:\d+(?:\.\d+)?|\.\d+)$/.test(token||''))throw new Error('Invalid expression');
+    return Number(token);
+  };
+  const term=()=>{
+    let value=factor();
+    while(['*','/','%'].includes(peek())){
+      const operator=take(),right=factor();
+      if((operator==='/'||operator==='%')&&right===0)throw new Error('Invalid expression');
+      value=operator==='*'?value*right:operator==='/'?value/right:value%right;
+    }
+    return value;
+  };
+  const expressionValue=()=>{
+    let value=term();
+    while(['+','-'].includes(peek())){const operator=take(),right=term();value=operator==='+'?value+right:value-right}
+    return value;
+  };
+  const value=expressionValue();
+  if(cursor!==tokens.length||!Number.isFinite(value))throw new Error('Invalid expression');
+  return value;
+}
+function nxSetCalcDisplay(display,value){if(!display)return;if('value' in display)display.value=value;else display.textContent=value}
+window.nxCalc=v=>{const d=$('calcDisplay');if(!d)return;if(v==='C'){calc='';nxSetCalcDisplay(d,'');return}if(v==='⌫'){calc=calc.slice(0,-1);nxSetCalcDisplay(d,calc);return}if(v==='='){try{calc=String(nxCalculateArithmetic(calc));nxSetCalcDisplay(d,calc)}catch{nxSetCalcDisplay(d,'Error');calc=''}return}calc+=String(v??'');nxSetCalcDisplay(d,calc)};
 const units={length:{m:1,km:1000,cm:.01,mm:.001,ft:.3048,yd:.9144,mi:1609.344},weight:{kg:1,g:.001,lb:.45359237,oz:.0283495235},data:{B:1,KB:1024,MB:1048576,GB:1073741824,TB:1099511627776}};function fillUnits(){let ty=$('unitType'),f=$('unitFrom'),t=$('unitTo');if(!ty||!f||!t)return;let k=ty.value==='temperature'?['C','F','K']:Object.keys(units[ty.value]);f.innerHTML=t.innerHTML=k.map(x=>`<option>${x}</option>`).join('');if(k.includes('km')){f.value='km';t.value='m'}else if(k.includes('kg')){f.value='kg';t.value='lb'}else if(k.includes('MB')){f.value='MB';t.value='GB'}else{f.value='C';t.value='F'}unitConvert()}function unitConvert(){let ty=$('unitType')?.value,a=+$('unitAmount')?.value,f=$('unitFrom')?.value,t=$('unitTo')?.value,r=$('unitResult');if(!r||!Number.isFinite(a))return;let out;if(ty==='temperature'){let c=f==='C'?a:f==='F'?(a-32)*5/9:a-273.15;out=t==='C'?c:t==='F'?c*9/5+32:c+273.15}else out=a*(units[ty][f]/units[ty][t]);r.textContent=`${out.toLocaleString(undefined,{maximumFractionDigits:8})} ${t}`}['unitType','unitAmount','unitFrom','unitTo'].forEach(id=>$(id)?.addEventListener(id==='unitType'?'change':'input',id==='unitType'?fillUnits:unitConvert));$('unitFrom')?.addEventListener('change',unitConvert);$('unitTo')?.addEventListener('change',unitConvert);fillUnits();
 function clocks(){[['clockPK','Asia/Karachi'],['clockDE','Europe/Berlin'],['clockUK','Europe/London'],['clockAE','Asia/Dubai'],['clockNY','America/New_York']].forEach(([id,tz])=>{let e=$(id);if(e)e.textContent=new Intl.DateTimeFormat('en-GB',{timeZone:tz,hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(new Date())})}clocks();setInterval(clocks,1000);
 let notes=load('notes',[]);window.nxAddNote=()=>{let i=$('noteInput'),v=i?.value.trim();if(!v)return;notes.unshift({id:Date.now(),text:v});store('notes',notes);i.value='';nxRenderNotes()};window.nxRenderNotes=()=>{let b=$('notesList'),q=($('noteSearch')?.value||'').toLowerCase();if(b)b.innerHTML=notes.filter(n=>n.text.toLowerCase().includes(q)).map(n=>`<div class="saved-item"><span>${esc(n.text)}</span><button onclick="nxDeleteNote(${n.id})">✕</button></div>`).join('')||'<div class="tool-muted">No notes yet.</div>'};window.nxDeleteNote=id=>{notes=notes.filter(n=>n.id!==id);store('notes',notes);nxRenderNotes()};nxRenderNotes();

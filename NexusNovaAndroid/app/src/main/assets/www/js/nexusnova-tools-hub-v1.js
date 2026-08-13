@@ -140,6 +140,110 @@
 
   /* ========== CALCULATOR ========== */
   let calcExpr = "";
+  const MAX_CALC_EXPR_LENGTH = 160;
+  const MAX_CALC_OPERATIONS = 128;
+
+  function evaluateCalculatorExpression(expression) {
+    const source = String(expression || "").replace(/\s+/g, "");
+    if (!source || source.length > MAX_CALC_EXPR_LENGTH || !/^[0-9+\-*/().%]+$/.test(source)) {
+      throw new Error("Invalid calculator expression");
+    }
+
+    let index = 0;
+    let depth = 0;
+    let operations = 0;
+    const next = () => source[index] || "";
+    const countOperation = () => {
+      operations += 1;
+      if (operations > MAX_CALC_OPERATIONS) throw new Error("Expression too complex");
+    };
+
+    const parsePrimary = () => {
+      if (next() === "(") {
+        depth += 1;
+        if (depth > 32) throw new Error("Expression too deeply nested");
+        index += 1;
+        const value = parseExpression();
+        if (next() !== ")") throw new Error("Unclosed parenthesis");
+        index += 1;
+        depth -= 1;
+        return value;
+      }
+
+      const start = index;
+      let sawDigit = false;
+      let sawDecimal = false;
+      while (/[0-9.]/.test(next())) {
+        if (next() === ".") {
+          if (sawDecimal) break;
+          sawDecimal = true;
+        } else {
+          sawDigit = true;
+        }
+        index += 1;
+      }
+      if (!sawDigit) throw new Error("Expected a number");
+      const value = Number(source.slice(start, index));
+      if (!Number.isFinite(value)) throw new Error("Invalid number");
+      return value;
+    };
+
+    const parseUnary = () => {
+      if (next() === "+") {
+        index += 1;
+        return parseUnary();
+      }
+      if (next() === "-") {
+        index += 1;
+        return -parseUnary();
+      }
+      return parsePrimary();
+    };
+
+    const parseFactor = () => {
+      let value = parseUnary();
+      while (next() === "%") {
+        countOperation();
+        index += 1;
+        value /= 100;
+      }
+      return value;
+    };
+
+    const parseTerm = () => {
+      let value = parseFactor();
+      while (next() === "*" || next() === "/") {
+        const operator = next();
+        countOperation();
+        index += 1;
+        const right = parseFactor();
+        if (operator === "/" && right === 0) throw new Error("Division by zero");
+        value = operator === "*" ? value * right : value / right;
+        if (!Number.isFinite(value)) throw new Error("Invalid result");
+      }
+      return value;
+    };
+
+    const parseExpression = () => {
+      let value = parseTerm();
+      while (next() === "+" || next() === "-") {
+        const operator = next();
+        countOperation();
+        index += 1;
+        const right = parseTerm();
+        value = operator === "+" ? value + right : value - right;
+        if (!Number.isFinite(value)) throw new Error("Invalid result");
+      }
+      return value;
+    };
+
+    const result = parseExpression();
+    if (index !== source.length || !Number.isFinite(result)) {
+      throw new Error("Invalid calculator expression");
+    }
+    return result;
+  }
+
   window.nexusCalcPress = function (val) {
     const display = document.getElementById("calcDisplay");
     if (!display) return;
@@ -155,10 +259,8 @@
     }
     if (val === "=") {
       try {
-        // Safe-ish eval: only numbers and operators
-        const safe = calcExpr.replace(/[^0-9+\-*/().%\s]/g, "");
-        let result = Function('"use strict"; return (' + safe.replace(/%/g, "/100") + ")")();
-        if (typeof result === "number" && isFinite(result)) {
+        const result = evaluateCalculatorExpression(calcExpr);
+        if (Number.isFinite(result)) {
           calcExpr = String(Number(result.toPrecision(12)));
           display.textContent = calcExpr;
         } else {
@@ -171,6 +273,8 @@
       }
       return;
     }
+    if (typeof val !== "string" || !/^[0-9+\-*/().%]$/.test(val) ||
+        calcExpr.length >= MAX_CALC_EXPR_LENGTH) return;
     calcExpr += val;
     display.textContent = calcExpr;
   };
@@ -417,7 +521,15 @@
       wrap.innerHTML = '<div class="muted-tools">Enter text or URL</div>';
       return;
     }
-    wrap.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(text)}" alt="QR" width="200" height="200" style="border-radius:10px;background:#fff;padding:8px">`;
+    if (!confirm("Generating this QR sends its text to the configured QR service. Continue?")) {
+      wrap.textContent = "QR not generated. Text was not sent.";
+      return;
+    }
+    const image = new Image(200, 200);
+    image.alt = "QR";
+    image.src = "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=" + encodeURIComponent(text);
+    image.style.cssText = "border-radius:10px;background:#fff;padding:8px";
+    wrap.replaceChildren(image);
   };
 
   // Simple QR scanner via BarcodeDetector if available, else file input fallback
@@ -908,8 +1020,33 @@
   const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({
     "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"
   }[c]));
+  const ACCOUNT_SCOPED_NATIVE_ACTIONS = new Set(["saveContact", "deleteContact"]);
+  const postNativeAction = (action, payload = {}) => {
+    if (typeof window.nexusPostNativeAction === "function") {
+      return window.nexusPostNativeAction(action, payload);
+    }
+    if (typeof window.NexusAndroid?.postMessage !== "function") return false;
+    try {
+      const message = { action, ...payload };
+      if (ACCOUNT_SCOPED_NATIVE_ACTIONS.has(action)) {
+        const accountId = String(window.nexusAccountId || "").trim();
+        if (!accountId || accountId.length > 128) return false;
+        message.accountId = accountId;
+      }
+      window.NexusAndroid.postMessage(JSON.stringify(message));
+      return true;
+    } catch (error) {
+      console.warn("NexusNova native bridge:", error);
+      return false;
+    }
+  };
 
   const PHONEBOOK_KEY = "nexus_phonebook_v1";
+
+  function accountScopedKey(base) {
+    const accountId = String(window.nexusAccountId || "");
+    return accountId ? `${base}:${accountId}` : "";
+  }
 
   function normalizePhone(raw) {
     let s = String(raw || "").replace(/[^\d+]/g, "");
@@ -918,6 +1055,9 @@
     if (/^03\d{9}$/.test(s)) s = "+92" + s.slice(1);
     if (/^3\d{9}$/.test(s)) s = "+92" + s;
     return s;
+  }
+  function isValidPhone(raw) {
+    return /^\+?\d{10,15}$/.test(normalizePhone(raw));
   }
 
   function guessRegion(phone) {
@@ -935,17 +1075,20 @@
   }
 
   function loadPhonebook() {
-    return load(PHONEBOOK_KEY, []);
+    const key = accountScopedKey(PHONEBOOK_KEY);
+    return key ? load(key, []) : [];
   }
   function savePhonebook(list) {
-    save(PHONEBOOK_KEY, list);
+    const key = accountScopedKey(PHONEBOOK_KEY);
+    if (key) save(key, list);
   }
 
   // Also pull family / emergency contacts if present in localStorage
   function collectAppContacts() {
     const out = [];
     try {
-      const fam = JSON.parse(localStorage.getItem("nexusnova_family_members_v1") || localStorage.getItem("nexus_family_v1") || localStorage.getItem("nexusFamilyMembers") || "[]");
+      const famKey = accountScopedKey("nexusnova_family_members_v1");
+      const fam = JSON.parse((famKey && localStorage.getItem(famKey)) || "[]");
       (Array.isArray(fam) ? fam : []).forEach(c => {
         const num = c.phone || c.number || c.mobile || "";
         const name = c.name || c.title || "Family";
@@ -953,7 +1096,8 @@
       });
     } catch {}
     try {
-      const em = JSON.parse(localStorage.getItem("nexusnovaEmergencyContacts") || localStorage.getItem("nexusnova_emergency_contacts") || localStorage.getItem("nexus_emergency_contacts") || localStorage.getItem("emergencyContacts") || "[]");
+      const emergencyKey = accountScopedKey("nexusnovaEmergencyContacts");
+      const em = JSON.parse((emergencyKey && localStorage.getItem(emergencyKey)) || "[]");
       (Array.isArray(em) ? em : []).forEach(c => {
         const num = c.phone || c.number || "";
         if (num) out.push({ name: c.name || "Emergency", phone: normalizePhone(num), address: c.relation || "Emergency contact", source: "Emergency" });
@@ -972,6 +1116,11 @@
       return;
     }
     const phone = normalizePhone(raw);
+    if (!isValidPhone(phone)) {
+      if (status) status.textContent = "Enter a valid phone number (10–15 digits).";
+      if (box) box.innerHTML = "";
+      return;
+    }
     if (status) status.textContent = "Looking up...";
     if (box) box.innerHTML = "";
 
@@ -1039,13 +1188,25 @@
       alert("Name likho");
       return;
     }
+    if (!isValidPhone(phone)) {
+      alert("Valid phone number daalo");
+      return;
+    }
     const list = loadPhonebook();
     const norm = normalizePhone(phone);
     const existing = list.findIndex(c => normalizePhone(c.phone) === norm);
-    const row = { id: uid(), name, phone: norm, address, source: "Phonebook", at: new Date().toISOString() };
+    const row = {
+      id: existing >= 0 && typeof list[existing].id === "string" ? list[existing].id : uid(),
+      name,
+      phone: norm,
+      address,
+      source: "Phonebook",
+      at: new Date().toISOString()
+    };
     if (existing >= 0) list[existing] = { ...list[existing], ...row };
     else list.unshift(row);
     savePhonebook(list);
+    postNativeAction("saveContact", { contactId: row.id, name, phone: norm, address });
     renderPhonebook();
     if (document.getElementById("callerNumber")) document.getElementById("callerNumber").value = norm;
     nexusLookupNumber();
@@ -1055,13 +1216,15 @@
     const name = (document.getElementById("pbName")?.value || "").trim();
     const phone = normalizePhone(document.getElementById("pbPhone")?.value || "");
     const address = (document.getElementById("pbAddr")?.value || "").trim();
-    if (!name || !phone) {
-      alert("Name aur number zaroori hain");
+    if (!name || !isValidPhone(phone)) {
+      alert("Valid name aur number zaroori hain");
       return;
     }
     const list = loadPhonebook();
-    list.unshift({ id: uid(), name, phone, address, source: "Phonebook", at: new Date().toISOString() });
+    const row = { id: uid(), name, phone, address, source: "Phonebook", at: new Date().toISOString() };
+    list.unshift(row);
     savePhonebook(list);
+    postNativeAction("saveContact", { contactId: row.id, name, phone, address });
     document.getElementById("pbName").value = "";
     document.getElementById("pbPhone").value = "";
     document.getElementById("pbAddr").value = "";
@@ -1069,7 +1232,11 @@
   };
 
   window.nexusDeletePhonebook = function (id) {
+    const removed = loadPhonebook().find(c => c.id === id);
     savePhonebook(loadPhonebook().filter(c => c.id !== id));
+    if (typeof removed?.id === "string") {
+      postNativeAction("deleteContact", { contactId: removed.id });
+    }
     renderPhonebook();
   };
 
@@ -1094,11 +1261,15 @@
 
   window.nexusSimulateIncoming = function () {
     const n = (document.getElementById("callerNumber")?.value || "").trim() || "+923001234567";
-    if (document.getElementById("callerNumber")) document.getElementById("callerNumber").value = n;
+    const phone = normalizePhone(n);
+    if (!isValidPhone(phone)) {
+      alert("Valid phone number daalo");
+      return;
+    }
+    if (document.getElementById("callerNumber")) document.getElementById("callerNumber").value = phone;
     const overlay = document.getElementById("nexusCallOverlay");
     if (!overlay) return;
     // Run lookup then show overlay
-    const phone = normalizePhone(n);
     const book = [...loadPhonebook(), ...collectAppContacts()];
     const digits = phone.replace(/\D/g, "");
     const match = book.find(c => {
@@ -1117,23 +1288,15 @@
     document.getElementById("nexusCallOverlay")?.classList.remove("show");
   };
 
-  // Android native bridge: save to native phonebook too when available.
-  const _oldNexusAddPhonebook = window.nexusAddPhonebook;
-  window.nexusAddPhonebook = function () {
-    const name = (document.getElementById("pbName")?.value || "").trim();
-    const phone = (document.getElementById("pbPhone")?.value || "").trim();
-    const address = (document.getElementById("pbAddr")?.value || "").trim();
-    if (typeof window.NexusAndroid !== "undefined" && name && phone) {
-      try { window.NexusAndroid.saveContact(name, phone, address); } catch (e) { console.warn(e); }
-    }
-    return _oldNexusAddPhonebook();
-  };
-
-  if (typeof window.NexusAndroid !== "undefined") {
+  if (typeof window.NexusAndroid?.postMessage === "function") {
     try {
       const btn=document.getElementById("androidCallerSetupBtn");
       if(btn) btn.style.display="block";
     } catch {}
   }
+
+  window.addEventListener("nexusaccountready", () => {
+    try { renderPhonebook(); } catch (_) {}
+  });
 
 })();

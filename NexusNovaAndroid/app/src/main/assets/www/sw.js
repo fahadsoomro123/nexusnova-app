@@ -1,5 +1,5 @@
 /* NexusNova Service Worker - fresh-code first, offline fallback */
-const CACHE = "nexusnova-shell-v5-deep-audit";
+const CACHE = "nexusnova-shell-v6-final-stabilization";
 
 const ASSETS = [
   "./",
@@ -42,7 +42,17 @@ self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
       .open(CACHE)
-      .then((cache) => cache.addAll(ASSETS).catch(() => undefined))
+      .then(async (cache) => {
+        // A single optional/unavailable asset must not discard the entire
+        // offline shell on first install.
+        await Promise.allSettled(
+          ASSETS.map(async (asset) => {
+            const response = await fetch(asset, { cache: "no-store" });
+            if (!response.ok) throw new Error(`HTTP ${response.status}: ${asset}`);
+            await cache.put(asset, response);
+          })
+        );
+      })
       .then(() => self.skipWaiting())
   );
 });

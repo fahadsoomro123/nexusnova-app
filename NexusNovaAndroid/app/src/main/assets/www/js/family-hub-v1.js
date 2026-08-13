@@ -9,9 +9,23 @@
 
   const $ = id => document.getElementById(id);
 
+  function storageKey() {
+    const accountId = String(window.nexusAccountId || "");
+    return accountId ? `${KEY}:${accountId}` : "";
+  }
+
+  function normalizePhone(raw) {
+    let phone = String(raw || "").trim().replace(/[^\d+]/g, "");
+    if (phone.startsWith("00")) phone = "+" + phone.slice(2);
+    if (/^03\d{9}$/.test(phone)) phone = "+92" + phone.slice(1);
+    return /^\+?\d{7,15}$/.test(phone) ? phone : "";
+  }
+
   function read() {
     try {
-      const value = JSON.parse(localStorage.getItem(KEY) || "[]");
+      const key = storageKey();
+      if (!key) return [];
+      const value = JSON.parse(localStorage.getItem(key) || "[]");
       return Array.isArray(value) ? value : [];
     } catch {
       return [];
@@ -19,7 +33,10 @@
   }
 
   function write(items) {
-    localStorage.setItem(KEY, JSON.stringify(items));
+    const key = storageKey();
+    if (!key) return false;
+    localStorage.setItem(key, JSON.stringify(items));
+    return true;
   }
 
   function esc(value) {
@@ -29,12 +46,12 @@
   }
 
   window.addNexusFamilyMember = function () {
-    const name = $("familyName")?.value.trim();
-    const relation = $("familyRelation")?.value.trim();
-    const phone = $("familyPhone")?.value.trim();
+    const name = $("familyName")?.value.trim().slice(0, 80);
+    const relation = $("familyRelation")?.value.trim().slice(0, 80);
+    const phone = normalizePhone($("familyPhone")?.value);
 
-    if (!name) {
-      alert("Please enter the family member's name.");
+    if (!name || !phone) {
+      alert("Enter a name and a valid 7–15 digit phone number.");
       return;
     }
 
@@ -46,7 +63,10 @@
       phone,
       createdAt: Date.now()
     });
-    write(items);
+    if (!write(items)) {
+      alert("Please wait for your account to finish loading.");
+      return;
+    }
 
     if ($("familyName")) $("familyName").value = "";
     if ($("familyRelation")) $("familyRelation").value = "";
@@ -71,7 +91,7 @@
     }
 
     list.innerHTML = items.map(item => {
-      const phone = String(item.phone || "").replace(/[^\d+]/g, "");
+      const phone = normalizePhone(item.phone);
       return `
         <div class="family-member">
           <div class="family-member-main">
@@ -129,4 +149,5 @@
   };
 
   window.addEventListener("load", () => window.renderNexusFamily());
+  window.addEventListener("nexusaccountready", () => window.renderNexusFamily());
 })();

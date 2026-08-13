@@ -1,31 +1,93 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /users/{uid} {
-      allow read: if request.auth != null && request.auth.uid == uid;
-      allow create: if request.auth != null
-        && request.auth.uid == uid
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function owns(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function validProfileCreate(uid) {
+      return request.resource.data.keys().hasAll([
+          'uid', 'name', 'email', 'balance', 'totalMined', 'tasksCompleted',
+          'completedTasks', 'miningActive', 'miningStartedAt',
+          'miningLastUpdate', 'sessionEarned', 'lastDailyReward',
+          'dailyRewardStreak', 'createdAt'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'uid', 'name', 'email', 'balance', 'totalMined', 'tasksCompleted',
+          'completedTasks', 'miningActive', 'miningStartedAt',
+          'miningLastUpdate', 'sessionEarned', 'lastDailyReward',
+          'dailyRewardStreak', 'createdAt'
+        ])
+        && request.resource.data.uid == uid
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 80
+        && request.resource.data.email is string
+        && request.resource.data.email.size() <= 320
+        && request.resource.data.email == request.auth.token.email
         && request.resource.data.balance == 0
         && request.resource.data.totalMined == 0
+        && request.resource.data.tasksCompleted == 0
+        && request.resource.data.completedTasks is map
+        && request.resource.data.completedTasks.size() == 0
         && request.resource.data.miningActive == false
-        && request.resource.data.miningStartedAt == 0;
-      allow update: if request.auth != null
-        && request.auth.uid == uid
-        && request.resource.data.balance == resource.data.balance
-        && request.resource.data.totalMined == resource.data.totalMined
-        && request.resource.data.miningActive == resource.data.miningActive
-        && request.resource.data.miningStartedAt == resource.data.miningStartedAt
-        && request.resource.data.miningLastUpdate == resource.data.miningLastUpdate
-        && request.resource.data.lastDailyReward == resource.data.lastDailyReward
-        && request.resource.data.dailyRewardStreak == resource.data.dailyRewardStreak
-        && request.resource.data.completedTasks == resource.data.completedTasks
-        && request.resource.data.tasksCompleted == resource.data.tasksCompleted;
+        && request.resource.data.miningStartedAt == 0
+        && request.resource.data.miningLastUpdate == 0
+        && request.resource.data.sessionEarned == 0
+        && request.resource.data.lastDailyReward == 0
+        && request.resource.data.dailyRewardStreak == 0
+        && request.resource.data.createdAt == request.time;
+    }
+
+    function validProfileNameEdit() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['name'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 80;
+    }
+
+    function validChatMessage() {
+      return request.resource.data.keys().hasAll([
+          'uid', 'name', 'text', 'createdAt'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'uid', 'name', 'text', 'createdAt'
+        ])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 80
+        && request.resource.data.text is string
+        && request.resource.data.text.size() > 0
+        && request.resource.data.text.size() <= 500
+        && request.resource.data.createdAt == request.time;
+    }
+
+    match /users/{uid} {
+      allow read: if owns(uid);
+      allow create: if owns(uid) && validProfileCreate(uid);
+      // All account value, mining, reward, and identity fields are server-owned
+      // after profile creation. Referral attribution is disabled until a
+      // server-verifiable flow exists. The dashboard may only edit name.
+      allow update: if owns(uid) && validProfileNameEdit();
       allow delete: if false;
     }
 
     match /withdrawalRequests/{id} {
-      allow read: if request.auth != null && resource.data.uid == request.auth.uid;
+      allow read: if signedIn() && resource.data.uid == request.auth.uid;
       allow create, update, delete: if false;
+    }
+
+    match /chatMessages/{id} {
+      // Community chat is intentionally visible only to authenticated users.
+      allow read: if signedIn();
+      allow create: if signedIn() && validChatMessage();
+      allow update, delete: if false;
     }
 
     match /{document=**} {

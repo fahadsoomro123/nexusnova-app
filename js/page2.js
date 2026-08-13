@@ -7,6 +7,12 @@ import {
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
 
 import {
+    getToken,
+    initializeAppCheck,
+    ReCaptchaEnterpriseProvider
+} from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app-check.js";
+
+import {
     getAuth,
     onAuthStateChanged,
     signOut
@@ -44,6 +50,64 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
+/*
+   App Check is required by callable rewards and wallet actions. The site key
+   is intentionally a blank HTML configuration placeholder until Firebase
+   Console registration is complete for every serving origin.
+*/
+const appCheckSiteKey = String(
+    document.querySelector('meta[name="nexusnova-app-check-site-key"]')
+        ?.getAttribute("content") || ""
+).trim();
+
+let nexusAppCheck = null;
+let nexusAppCheckStatus;
+
+if(!appCheckSiteKey){
+    nexusAppCheckStatus = {
+        ready:false,
+        message:"App Check is not configured. Add the production site key before using secure account actions."
+    };
+    console.warn("NexusNova App Check is not configured.");
+}else{
+    try{
+        nexusAppCheck = initializeAppCheck(
+            app,
+            {
+                provider:new ReCaptchaEnterpriseProvider(appCheckSiteKey),
+                isTokenAutoRefreshEnabled:true
+            }
+        );
+        nexusAppCheckStatus = {ready:true,message:""};
+    }catch(error){
+        console.error("NexusNova App Check initialization:",error);
+        nexusAppCheckStatus = {
+            ready:false,
+            message:"App Check could not be initialized. Check the configured site key and allowed domain."
+        };
+    }
+}
+
+window.nexusAppCheckReady = Promise.resolve(nexusAppCheckStatus);
+window.nexusRequireAppCheck = async function(){
+    const status = await window.nexusAppCheckReady;
+
+    if(!status?.ready || !nexusAppCheck){
+        throw new Error(status?.message || "App Check is unavailable.");
+    }
+
+    try{
+        const token = await getToken(nexusAppCheck,false);
+        if(!token?.token) throw new Error("No App Check token was returned.");
+        return token;
+    }catch(error){
+        console.warn("NexusNova App Check token:",error);
+        throw new Error(
+            "App Check could not obtain a token. Check the configured site key and allowed domain."
+        );
+    }
+};
+
 const auth = getAuth(app);
 const db = getFirestore(app);
 
@@ -72,6 +136,46 @@ let chatUnsubscribe = null;
 let aiModel = null;
 let aiChat = null;
 let aiReady = false;
+
+// Secure reward/mining callables return authoritative account fields. Keep the
+// legacy display helpers in sync without reintroducing client-side mutations.
+window.nexusApplySecureAccountState = function(state = {}){
+
+    if(!state || typeof state !== "object") return;
+
+    const balance = Number(state.balance);
+    if(Number.isFinite(balance)){
+        nvxBalance = balance;
+        userData.balance = balance;
+    }
+
+    const totalMined = Number(state.totalMined);
+    if(Number.isFinite(totalMined)){
+        userData.totalMined = totalMined;
+    }
+
+    const tasksCompleted = Number(state.tasksCompleted);
+    if(Number.isFinite(tasksCompleted)){
+        userData.tasksCompleted = tasksCompleted;
+    }
+
+    if(Number.isFinite(Number(state.streak))){
+        userData.dailyRewardStreak = Number(state.streak);
+        userData.lastDailyReward = Number(state.lastDailyReward) || Date.now();
+    }
+
+    if(state.taskId){
+        userData.completedTasks = {
+            ...(userData.completedTasks || {}),
+            [state.taskId]: true
+        };
+    }
+
+    updateUI();
+    updateProfileUI();
+    updateDailyButton();
+    updateTaskButtons();
+};
 
 
 /* =========================================================
@@ -349,6 +453,11 @@ window.editSettingsProfile = async function(){
         return;
     }
 
+    if(cleanName.length > 80){
+        alert("Name must be 80 characters or fewer.");
+        return;
+    }
+
     try{
         await updateDoc(
             doc(db,"users",currentUser.uid),
@@ -397,6 +506,79 @@ window.sendPasswordReset = async function(){
             error.message ||
             "Could not send password reset email."
         );
+    }
+};
+
+function renderEmailVerificationStatus(){
+    const statusEl = document.getElementById("emailVerificationStatus");
+    const refreshBtn = document.getElementById("refreshEmailVerificationBtn");
+    const resendBtn = document.getElementById("resendEmailVerificationBtn");
+    const user = currentUser || auth.currentUser;
+    const canVerify = Boolean(user?.email);
+    const verified = Boolean(user?.emailVerified);
+
+    if(statusEl){
+        statusEl.textContent = !user
+            ? "Sign in to check verification."
+            : !canVerify
+                ? "No verified email is attached to this account."
+                : verified
+                    ? "Verified. Secure rewards and wallet actions are available."
+                    : "Not verified. Open the latest email, then choose Refresh.";
+    }
+
+    if(refreshBtn) refreshBtn.disabled = !canVerify || verified;
+    if(resendBtn) resendBtn.disabled = !canVerify || verified;
+}
+
+async function refreshCurrentUserVerification(){
+    const user = auth.currentUser || currentUser;
+    if(!user || !user.email){
+        throw new Error("No account email is available.");
+    }
+
+    await user.reload();
+    const refreshed = auth.currentUser;
+    if(!refreshed){
+        throw new Error("Your session has ended. Please sign in again.");
+    }
+
+    await refreshed.getIdToken(true);
+    currentUser = refreshed;
+    renderEmailVerificationStatus();
+    return refreshed;
+}
+
+window.refreshEmailVerification = async function(){
+    try{
+        const user = await refreshCurrentUserVerification();
+        alert(
+            user.emailVerified
+                ? "Email verified. Secure account access has been refreshed."
+                : "Email is not verified yet. Open the latest verification email, then refresh again."
+        );
+    }catch(error){
+        console.error("EMAIL VERIFICATION REFRESH:",error);
+        alert(error.message || "Could not refresh email verification.");
+    }
+};
+
+window.resendEmailVerification = async function(){
+    try{
+        const user = await refreshCurrentUserVerification();
+        if(user.emailVerified){
+            alert("This email is already verified.");
+            return;
+        }
+
+        const { sendEmailVerification } =
+            await import("https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js");
+
+        await sendEmailVerification(user);
+        alert("Verification email sent to "+user.email+".");
+    }catch(error){
+        console.error("EMAIL VERIFICATION RESEND:",error);
+        alert(error.message || "Could not send a verification email.");
     }
 };
 
@@ -528,6 +710,7 @@ function populateSettingsAccount(){
             "No email available";
     }
 
+    renderEmailVerificationStatus();
     applyNexusSettings();
 }
 
@@ -538,20 +721,25 @@ function populateSettingsAccount(){
 
 window.switchTab = function(name,button){
 
+    const tab =
+        document.getElementById(
+            "tab-"+name
+        );
+
+    // Do not clear the currently visible screen for a stale or invalid
+    // navigation target supplied by an optional feature module.
+    if(!tab){
+        console.warn("NexusNova tab is unavailable:", name);
+        return false;
+    }
+
     document
         .querySelectorAll(".tab")
         .forEach(
             x=>x.classList.remove("active")
         );
 
-    const tab =
-        document.getElementById(
-            "tab-"+name
-        );
-
-    if(tab){
-        tab.classList.add("active");
-    }
+    tab.classList.add("active");
 
     document
         .querySelectorAll(".dock-item")
@@ -612,6 +800,8 @@ window.switchTab = function(name,button){
         populateSettingsAccount();
     }
 
+    return true;
+
 };
 
 
@@ -624,15 +814,17 @@ onAuthStateChanged(
     async user => {
 
         if(!user){
-
-            window.location.replace(
-                "./index.html"
-            );
+            delete window.nexusAccountId;
+            window.dispatchEvent(new Event("nexusaccountcleared"));
+            window.location.replace("./index.html");
 
             return;
         }
 
         currentUser = user;
+        window.nexusAccountId = user.uid;
+        window.dispatchEvent(new Event("nexusaccountready"));
+        renderEmailVerificationStatus();
 
         await loadUserProfile();
 
@@ -675,12 +867,13 @@ async function loadUserProfile(){
                 uid:currentUser.uid,
 
                 name:
-                    currentUser.displayName ||
-                    "Miner User",
+                    String(
+                        currentUser.displayName ||
+                        "Miner User"
+                    ).trim().slice(0,80) || "Miner User",
 
                 email:
-                    currentUser.email ||
-                    "",
+                    String(currentUser.email || "").trim().slice(0,320),
 
                 balance:0,
 
@@ -694,11 +887,13 @@ async function loadUserProfile(){
 
                 miningStartedAt:0,
 
-                referralCode:
-                    "NVX"+
-                    currentUser.uid
-                        .substring(0,8)
-                        .toUpperCase(),
+                miningLastUpdate:0,
+
+                sessionEarned:0,
+
+                lastDailyReward:0,
+
+                dailyRewardStreak:0,
 
                 createdAt:
                     serverTimestamp()
@@ -823,7 +1018,7 @@ function updateProfileUI(){
     document.getElementById(
         "refCodeDisplay"
     ).textContent =
-        userData.referralCode || "---";
+        "Unavailable until server-verified referrals launch";
 
 }
 
@@ -832,6 +1027,9 @@ function updateProfileUI(){
    MINING
 ========================================================= */
 
+/* Retired: this legacy mining path directly mutated Firestore value fields.
+ * The callable-backed implementation below is the only executable owner. */
+/*
 document.getElementById("mineBtn").onclick = async function(){
 
     if(!currentUser){
@@ -1108,6 +1306,27 @@ async function finishMining(){
 }
 
 
+*/
+
+document.getElementById("mineBtn").onclick = function(){
+    if(typeof window.nexusSecureStartMining === "function"){
+        return window.nexusSecureStartMining();
+    }
+    alert("Secure mining is still loading. Please try again.");
+};
+
+function startMiningTicker(){
+    if(typeof window.nexusSecureRenderMining === "function"){
+        window.nexusSecureRenderMining(Boolean(miningActive), miningStart);
+    }
+}
+
+async function finishMining(){
+    if(typeof window.nexusSecureFinishMining === "function"){
+        return window.nexusSecureFinishMining();
+    }
+}
+
 /* =========================================================
    DAILY REWARD + TASKS
 ========================================================= */
@@ -1126,6 +1345,8 @@ const COMMUNITY_TASK_REWARD =
    DAILY REWARD
 ========================================================= */
 
+/* Retired client-side transaction; rewards are server-authoritative. */
+/*
 window.claimDailyReward =
     async function(){
 
@@ -1306,6 +1527,15 @@ window.claimDailyReward =
     };
 
 
+*/
+
+window.claimDailyReward = function(){
+    if(typeof window.nexusSecureClaimDaily === "function"){
+        return window.nexusSecureClaimDaily();
+    }
+    alert("Secure rewards are still loading. Please try again.");
+};
+
 function updateDailyButton(){
 
     const btn =
@@ -1373,6 +1603,8 @@ function updateDailyButton(){
    COMMUNITY TASK
 ========================================================= */
 
+/* Retired client-side transaction; task verification must be server-side. */
+/*
 window.completeTask =
     async function(
         taskId,
@@ -1549,6 +1781,15 @@ window.completeTask =
     };
 
 
+*/
+
+window.completeTask = function(taskId){
+    if(typeof window.nexusSecureCompleteTask === "function"){
+        return window.nexusSecureCompleteTask(taskId);
+    }
+    alert("Secure task verification is still loading. Please try again.");
+};
+
 function updateTaskButtons(){
 
     const completed =
@@ -1572,7 +1813,7 @@ function updateTaskButtons(){
         }else{
 
             btn.textContent =
-                "CLAIM +10 NVX";
+                "VERIFICATION REQUIRED";
 
             btn.disabled =
                 false;
@@ -1641,6 +1882,22 @@ let nexusTop100Promise = null;
 
 const NEXUS_TOP100_CACHE_MS = 2 * 60 * 1000;
 
+// This local catalog is deliberately independent of the optional compatibility
+// script. It keeps the Market and Wallet views at 100 real assets even when a
+// provider, cache, or the compatibility script itself is unavailable.
+const NEXUS_TOP100_FALLBACK_COINS = [
+    ["BTC","Bitcoin"],["ETH","Ethereum"],["USDT","Tether"],["BNB","BNB"],["SOL","Solana"],["USDC","USD Coin"],["XRP","XRP"],["DOGE","Dogecoin"],["ADA","Cardano"],["TRX","TRON"],
+    ["AVAX","Avalanche"],["SHIB","Shiba Inu"],["TON","Toncoin"],["LINK","Chainlink"],["DOT","Polkadot"],["BCH","Bitcoin Cash"],["SUI","Sui"],["LTC","Litecoin"],["HBAR","Hedera"],["XLM","Stellar"],
+    ["UNI","Uniswap"],["PEPE","Pepe"],["NEAR","NEAR Protocol"],["APT","Aptos"],["ICP","Internet Computer"],["ETC","Ethereum Classic"],["AAVE","Aave"],["FIL","Filecoin"],["ATOM","Cosmos"],["ARB","Arbitrum"],
+    ["OP","Optimism"],["INJ","Injective"],["RENDER","Render"],["TAO","Bittensor"],["SEI","Sei"],["STX","Stacks"],["IMX","Immutable"],["MKR","Maker"],["LDO","Lido DAO"],["GRT","The Graph"],
+    ["RUNE","THORChain"],["QNT","Quant"],["FET","Artificial Superintelligence Alliance"],["ALGO","Algorand"],["VET","VeChain"],["MATIC","Polygon"],["POL","Polygon Ecosystem Token"],["CRO","Cronos"],["KAS","Kaspa"],["MNT","Mantle"],
+    ["OKB","OKB"],["WIF","dogwifhat"],["BONK","Bonk"],["JUP","Jupiter"],["TIA","Celestia"],["PYTH","Pyth Network"],["ONDO","Ondo"],["ENA","Ethena"],["WLD","Worldcoin"],["GALA","Gala"],
+    ["SAND","The Sandbox"],["MANA","Decentraland"],["AXS","Axie Infinity"],["THETA","Theta Network"],["EGLD","MultiversX"],["FLOW","Flow"],["KAVA","Kava"],["XTZ","Tezos"],["EOS","EOS"],["IOTA","IOTA"],
+    ["NEO","Neo"],["CHZ","Chiliz"],["CRV","Curve DAO"],["COMP","Compound"],["SNX","Synthetix"],["1INCH","1inch"],["BAT","Basic Attention Token"],["ZEC","Zcash"],["DASH","Dash"],["XMR","Monero"],
+    ["KCS","KuCoin Token"],["LUNC","Terra Classic"],["RPL","Rocket Pool"],["DYDX","dYdX"],["GMX","GMX"],["CAKE","PancakeSwap"],["FTM","Fantom"],["KSM","Kusama"],["MINA","Mina"],["ROSE","Oasis"],
+    ["CFX","Conflux"],["AR","Arweave"],["JASMY","JasmyCoin"],["ZIL","Zilliqa"],["ENS","Ethereum Name Service"],["LPT","Livepeer"],["BLUR","Blur"],["STRK","Starknet"],["NOT","Notcoin"],["JTO","Jito"]
+];
+
 function nexusKnownCoinName(symbol){
     const names = {
         BTC:"Bitcoin", ETH:"Ethereum", BNB:"BNB", SOL:"Solana", XRP:"XRP",
@@ -1656,6 +1913,46 @@ function nexusKnownCoinName(symbol){
         GRT:"The Graph", RUNE:"THORChain", QNT:"Quant", FET:"Artificial Superintelligence Alliance"
     };
     return names[String(symbol || "").toUpperCase()] || String(symbol || "").toUpperCase();
+}
+
+function createNexusTop100FallbackCatalog(){
+    return NEXUS_TOP100_FALLBACK_COINS.map(([symbol,name],index) => ({
+        id:symbol.toLowerCase(),
+        symbol,
+        name,
+        current_price:0,
+        price_change_percentage_24h:0,
+        market_cap_rank:index+1,
+        image:""
+    }));
+}
+
+function completeNexusTop100Coins(coins){
+    const result = [];
+    const seen = new Set();
+
+    (Array.isArray(coins) ? coins : []).forEach((coin,index) => {
+        const symbol = String(coin?.symbol || "").toUpperCase();
+        if(!symbol || seen.has(symbol) || result.length >= 100) return;
+        seen.add(symbol);
+        result.push({
+            id:String(coin.id || symbol.toLowerCase()),
+            symbol,
+            name:String(coin.name || nexusKnownCoinName(symbol)),
+            current_price:Number(coin.current_price || 0),
+            price_change_percentage_24h:Number(coin.price_change_percentage_24h || 0),
+            market_cap_rank:Number(coin.market_cap_rank || index+1),
+            image:String(coin.image || "")
+        });
+    });
+
+    createNexusTop100FallbackCatalog().forEach(coin => {
+        if(result.length >= 100 || seen.has(coin.symbol)) return;
+        seen.add(coin.symbol);
+        result.push({...coin, market_cap_rank:result.length+1});
+    });
+
+    return result;
 }
 
 async function fetchNexusTop100Coins(){
@@ -1687,7 +1984,7 @@ async function fetchNexusTop100Coins(){
 
             const rows = await response.json();
             if(Array.isArray(rows) && rows.length){
-                const coins = rows.slice(0,100).map((coin,index) => ({
+                const coins = completeNexusTop100Coins(rows.slice(0,100).map((coin,index) => ({
                     id:String(coin.id || coin.symbol || index),
                     symbol:String(coin.symbol || "").toUpperCase(),
                     name:String(coin.name || coin.symbol || "Coin"),
@@ -1695,7 +1992,7 @@ async function fetchNexusTop100Coins(){
                     price_change_percentage_24h:Number(coin.price_change_percentage_24h || 0),
                     market_cap_rank:Number(coin.market_cap_rank || index+1),
                     image:String(coin.image || "")
-                }));
+                })));
                 nexusTop100Cache = {time:Date.now(), coins};
                 return coins;
             }
@@ -1716,7 +2013,7 @@ async function fetchNexusTop100Coins(){
 
             const rows = await response.json();
             const excluded = /^(USDT|USDC|FDUSD|TUSD|USDP|DAI|EUR|TRY|BRL|BIDR|IDRT)$/;
-            const coins = rows
+            const coins = completeNexusTop100Coins(rows
                 .filter(row => {
                     const pair = String(row.symbol || "").toUpperCase();
                     if(!pair.endsWith("USDT")) return false;
@@ -1737,7 +2034,7 @@ async function fetchNexusTop100Coins(){
                         market_cap_rank:index+1,
                         image:""
                     };
-                });
+                }));
 
             if(coins.length){
                 nexusTop100Cache = {time:Date.now(), coins};
@@ -1747,13 +2044,27 @@ async function fetchNexusTop100Coins(){
             console.warn("Top-100 Binance fallback unavailable:", error);
         }
 
-        return nexusTop100Cache.coins.length
-            ? nexusTop100Cache.coins
-            : NEXUS_WALLET_ASSETS.map((asset,index) => ({
-                id:asset.id, symbol:asset.symbol, name:asset.name,
-                current_price:getWalletPrice(asset.symbol),
-                price_change_percentage_24h:0, market_cap_rank:index+1, image:""
-            }));
+        if(nexusTop100Cache.coins.length){
+            return completeNexusTop100Coins(nexusTop100Cache.coins);
+        }
+
+        // The compatibility owner runs as a classic script before this
+        // deferred module. Reuse its real 100-asset catalog rather than
+        // fabricating placeholder assets or prices.
+        if(typeof window.nexusTop100FallbackCatalog === "function"){
+            try{
+                const catalog = completeNexusTop100Coins(
+                    window.nexusTop100FallbackCatalog()
+                );
+                if(catalog.length >= 100) return catalog;
+            }catch(error){
+                console.warn("Top-100 compatibility catalog unavailable:", error);
+            }
+        }
+
+        // Ultimate source-safe fallback if the optional file itself failed to
+        // load. Prices are intentionally unavailable, never invented.
+        return createNexusTop100FallbackCatalog();
     })();
 
     try{
@@ -2585,6 +2896,9 @@ window.handleDeposit = function(){
 };
 
 
+/* Retired: direct client writes to withdrawalRequests are denied by rules and
+ * bypass server validation. Wallet Actions V2 owns the callable-only flow. */
+/*
 window.handleWithdraw = function(){
 
     const address =
@@ -2899,6 +3213,15 @@ window.handleWithdraw = function(){
 
 };
 
+
+*/
+
+window.handleWithdraw = function(){
+    if(typeof window.nexusSecureWalletWithdraw === "function"){
+        return window.nexusSecureWalletWithdraw();
+    }
+    alert("Secure wallet actions are still loading. Please try again.");
+};
 
 /* End wallet actions */
 
@@ -3678,10 +4001,11 @@ window.sendChatMessage =
                 {
                     uid:currentUser.uid,
 
-                    name:
+                    name:String(
                         userData.name ||
                         currentUser.displayName ||
-                        "NexusNova User",
+                        "NexusNova User"
+                    ).trim().slice(0,80) || "NexusNova User",
 
                     text:text,
 
@@ -4453,15 +4777,32 @@ window.openCurrentLocation =
    EMERGENCY CONTACTS
 ========================================================= */
 
+function emergencyContactsKey(){
+    const uid = currentUser?.uid || auth?.currentUser?.uid || "";
+    return uid ? "nexusnovaEmergencyContacts:"+uid : null;
+}
+
+function normalizeEmergencyPhone(value){
+    let phone = String(value || "").trim().replace(/[^\d+]/g, "");
+    if(phone.startsWith("00")) phone = "+"+phone.slice(2);
+    if(/^03\d{9}$/.test(phone)) phone = "+92"+phone.slice(1);
+    return /^\+?\d{7,15}$/.test(phone) ? phone : "";
+}
+
 function getEmergencyContacts(){
 
     try{
 
-        return JSON.parse(
-            localStorage.getItem(
-                "nexusnovaEmergencyContacts"
-            ) || "[]"
-        );
+        const key = emergencyContactsKey();
+        if(!key) return [];
+        const contacts = JSON.parse(localStorage.getItem(key) || "[]");
+        return Array.isArray(contacts)
+            ? contacts.map(contact => ({
+                id:Number(contact?.id) || 0,
+                name:String(contact?.name || "").trim().slice(0,80),
+                phone:normalizeEmergencyPhone(contact?.phone)
+            })).filter(contact => contact.id && contact.name && contact.phone)
+            : [];
 
     }catch(error){
 
@@ -4477,10 +4818,9 @@ function saveEmergencyContacts(
     contacts
 ){
 
-    localStorage.setItem(
-        "nexusnovaEmergencyContacts",
-        JSON.stringify(contacts)
-    );
+    const key = emergencyContactsKey();
+    if(!key) return;
+    localStorage.setItem(key, JSON.stringify(contacts));
 
 }
 
@@ -4495,18 +4835,17 @@ window.addEmergencyContact =
             .value
             .trim();
 
-        const phone =
+        const phone = normalizeEmergencyPhone(
             document.getElementById(
                 "contactPhone"
             )
             .value
-            .trim();
+            .trim()
+        );
 
         if(!name || !phone){
 
-            alert(
-                "Enter name and phone number."
-            );
+            alert("Enter a name and a valid 7–15 digit phone number.");
 
             return;
         }
@@ -4559,6 +4898,10 @@ function renderEmergencyContacts(){
         return;
     }
 
+    /* Retired: interpolating contact data into inline handlers allowed stored
+       data to become executable JavaScript. Keep the visual markup below out
+       of the executable path and use DOM listeners instead. */
+    /*
     container.innerHTML =
         contacts.map(
             contact => `
@@ -4591,15 +4934,45 @@ function renderEmergencyContacts(){
 
             `
         ).join("");
+    */
+
+    container.replaceChildren();
+    contacts.forEach(contact => {
+        const card=document.createElement("div");
+        card.className="contact-card";
+        const name=document.createElement("strong");
+        name.textContent=contact.name;
+        const number=document.createElement("div");
+        number.className="contact-number";
+        number.textContent=contact.phone;
+        const actions=document.createElement("div");
+        actions.className="contact-actions";
+        const call=document.createElement("button");
+        call.className="action-btn primary";
+        call.type="button";
+        call.textContent="📞 Call";
+        call.addEventListener("click",()=>window.callEmergencyContact(contact.phone));
+        const remove=document.createElement("button");
+        remove.className="action-btn danger";
+        remove.type="button";
+        remove.textContent="Delete";
+        remove.addEventListener("click",()=>window.deleteEmergencyContact(contact.id));
+        actions.append(call,remove);
+        card.append(name,number,actions);
+        container.append(card);
+    });
 
 }
 
 
 window.callEmergencyContact =
     function(phone){
-
-        window.location.href =
-            "tel:"+phone;
+        const normalized=normalizeEmergencyPhone(phone);
+        if(!normalized){
+            alert("That contact has an invalid phone number.");
+            return;
+        }
+        window.location.href = "tel:"+normalized;
 
     };
 
@@ -4747,33 +5120,9 @@ window.emergencySOS =
 
 window.copyReferral =
     async function(){
-
-        const code =
-            userData.referralCode || "";
-
-        const link =
-            window.location.origin+
-            window.location.pathname+
-            "?ref="+
-            encodeURIComponent(code);
-
-        try{
-
-            await navigator.clipboard.writeText(
-                link
-            );
-
-            alert(
-                "Referral link copied."
-            );
-
-        }catch(error){
-
-            alert(
-                link
-            );
-
-        }
+        alert(
+            "Referrals are unavailable until server-side attribution verification is configured."
+        );
 
     };
 
@@ -4794,6 +5143,8 @@ window.handleLogout =
         }
 
         try{
+
+            delete window.nexusAccountId;
 
             await signOut(
                 auth
@@ -5251,8 +5602,7 @@ window.addEventListener(
             );
             setText(
                 "refCodeDisplay",
-                data.referralCode ||
-                ("NVX"+user.uid.substring(0,8).toUpperCase())
+                "Unavailable until server-verified referrals launch"
             );
 
         }catch(error){
@@ -5980,7 +6330,7 @@ window.addEventListener(
         // Never leave the screen stuck on Loading/--- while Firestore is unavailable.
         if (document.getElementById("profileTotalMined")?.textContent.includes("Loading")) text("profileTotalMined", "0.0000 NVX");
         if (document.getElementById("profileTasksDone")?.textContent.includes("Loading")) text("profileTasksDone", "0");
-        if (document.getElementById("refCodeDisplay")?.textContent.includes("Loading")) text("refCodeDisplay", `NVX${user.uid.slice(0,8).toUpperCase()}`);
+        if (document.getElementById("refCodeDisplay")?.textContent.includes("Loading")) text("refCodeDisplay", "Unavailable until server-verified referrals launch");
 
         try {
             const snap = await getDoc(doc(db, "users", user.uid));
@@ -5991,7 +6341,7 @@ window.addEventListener(
             text("profileId", `${user.uid.slice(0,12)}...`);
             text("profileTotalMined", `${Number(data.totalMined || 0).toFixed(4)} NVX`);
             text("profileTasksDone", String(data.tasksCompleted || 0));
-            text("refCodeDisplay", data.referralCode || `NVX${user.uid.slice(0,8).toUpperCase()}`);
+            text("refCodeDisplay", "Unavailable until server-verified referrals launch");
         } catch (error) {
             console.warn("Profile V7 Firestore fallback:", error);
         }

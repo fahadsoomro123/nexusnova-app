@@ -7,11 +7,18 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 
 import {
+    getToken,
+    initializeAppCheck,
+    ReCaptchaEnterpriseProvider
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app-check.js";
+
+import {
     getAuth,
     createUserWithEmailAndPassword,
-    signInWithEmailAndPassword,
-    GoogleAuthProvider,
-    signInWithPopup
+     signInWithEmailAndPassword,
+     GoogleAuthProvider,
+     signInWithPopup,
+     sendEmailVerification
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
 import {
@@ -58,6 +65,64 @@ const firebaseConfig = {
 
 const app =
     initializeApp(firebaseConfig);
+
+/*
+   App Check site keys are public, but must be provisioned in Firebase Console.
+   Leave the HTML meta value blank until a production Enterprise key and every
+   serving origin have been registered. Callable features then fail clearly.
+*/
+const appCheckSiteKey = String(
+    document.querySelector('meta[name="nexusnova-app-check-site-key"]')
+        ?.getAttribute("content") || ""
+).trim();
+
+let nexusAppCheck = null;
+let nexusAppCheckStatus;
+
+if(!appCheckSiteKey){
+    nexusAppCheckStatus = {
+        ready:false,
+        message:"App Check is not configured. Add the production site key before using secure account actions."
+    };
+    console.warn("NexusNova App Check is not configured.");
+}else{
+    try{
+        nexusAppCheck = initializeAppCheck(
+            app,
+            {
+                provider:new ReCaptchaEnterpriseProvider(appCheckSiteKey),
+                isTokenAutoRefreshEnabled:true
+            }
+        );
+        nexusAppCheckStatus = {ready:true,message:""};
+    }catch(error){
+        console.error("NexusNova App Check initialization:",error);
+        nexusAppCheckStatus = {
+            ready:false,
+            message:"App Check could not be initialized. Check the configured site key and allowed domain."
+        };
+    }
+}
+
+window.nexusAppCheckReady = Promise.resolve(nexusAppCheckStatus);
+window.nexusRequireAppCheck = async function(){
+    const status = await window.nexusAppCheckReady;
+
+    if(!status?.ready || !nexusAppCheck){
+        throw new Error(status?.message || "App Check is unavailable.");
+    }
+
+    try{
+        const token = await getToken(nexusAppCheck,false);
+        if(!token?.token) throw new Error("No App Check token was returned.");
+        return token;
+    }catch(error){
+        console.warn("NexusNova App Check token:",error);
+        throw new Error(
+            "App Check could not obtain a token. Check the configured site key and allowed domain."
+        );
+    }
+};
 
 const auth =
     getAuth(app);
@@ -148,10 +213,8 @@ createCaptcha();
 
 function showMessage(text, success = false) {
 
-    message.innerHTML =
-        `<span style="color:${success ? "#22c55e" : "#ef4444"}">
-            ${text}
-        </span>`;
+    message.textContent = String(text || "");
+    message.style.color = success ? "#22c55e" : "#ef4444";
 }
 
 
@@ -174,12 +237,10 @@ async function createUserProfile(user, name = "") {
         return;
     }
 
-
-    /* Referral code */
-
-    const referralCode =
-        "NVX" +
-        user.uid.substring(0, 8).toUpperCase();
+    const profileName = String(
+        name || user.displayName || "Miner User"
+    ).trim().slice(0, 80) || "Miner User";
+    const profileEmail = String(user.email || "").trim().slice(0, 320);
 
 
     /* Create user */
@@ -192,12 +253,10 @@ async function createUserProfile(user, name = "") {
                 user.uid,
 
             name:
-                name ||
-                user.displayName ||
-                "Miner User",
+                profileName,
 
             email:
-                user.email || "",
+                profileEmail,
 
             balance:
                 0,
@@ -226,8 +285,8 @@ async function createUserProfile(user, name = "") {
             lastDailyReward:
                 0,
 
-            referralCode:
-                referralCode,
+            dailyRewardStreak:
+                0,
 
             createdAt:
                 serverTimestamp()
@@ -242,10 +301,10 @@ async function createUserProfile(user, name = "") {
    GO TO PAGE 2
 ========================================================= */
 
-function openDashboard() {
+function openDashboard(successMessage = "Login successful! Opening dashboard...") {
 
     showMessage(
-        "Login successful! Opening dashboard...",
+        successMessage,
         true
     );
 
@@ -440,6 +499,12 @@ authBtn.addEventListener(
                     password
                 );
 
+            try {
+                await sendEmailVerification(result.user);
+            } catch (verificationError) {
+                console.warn("EMAIL VERIFICATION ERROR:", verificationError);
+            }
+
 
             /* Create Firestore profile */
 
@@ -448,7 +513,9 @@ authBtn.addEventListener(
             );
 
 
-            openDashboard();
+            openDashboard(
+                "Account created. Check your email to verify it before using rewards. Opening dashboard..."
+            );
 
 
         } catch (error) {

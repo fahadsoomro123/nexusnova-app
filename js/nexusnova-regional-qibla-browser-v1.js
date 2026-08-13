@@ -17,6 +17,7 @@
     try {
       const u = new URL(url);
       if (u.protocol === "https:" || u.protocol === "http:") {
+        if (window.nexusPostNativeAction?.("openExternal", { url: u.href })) return;
         window.open(u.href, "_blank", "noopener,noreferrer");
       }
     } catch (_) {}
@@ -168,8 +169,7 @@
       return;
     }
     if(input) input.value=url;
-    if(window.NexusAndroid && typeof window.NexusAndroid.openExternal === "function"){
-      try{ window.NexusAndroid.openExternal(url); }catch(_){}
+    if(window.nexusPostNativeAction?.("openExternal", { url })){
       if(status) status.textContent="Opened safely in your external browser.";
       return;
     }
@@ -183,10 +183,7 @@
   window.nxOpenBrowserExternal = () => {
     const url=validHttp($("nxBrowserUrl")?.value?.trim() || "");
     if(!url) return;
-    if(window.NexusAndroid && typeof window.NexusAndroid.openExternal === "function"){
-      try{ window.NexusAndroid.openExternal(url); }catch(_){}
-      return;
-    }
+    if(window.nexusPostNativeAction?.("openExternal", { url })) return;
     window.open(url,"_blank","noopener,noreferrer");
   };
 
