@@ -1,5 +1,5 @@
-/* NexusNova Smart Live v3.1
-   Connects Smart Hub camera/daily brief to real AI flows and boots Documents + ALL APPS smart search. */
+/* NexusNova Smart Live v3.2
+   Connects Smart Hub camera/daily brief to real AI flows and boots Documents, File Vault + ALL APPS smart search. */
 (() => {
   'use strict';
   if (window.__nxSmartLiveV3) return;
@@ -97,6 +97,16 @@
     document.body.appendChild(script);
   }
 
+  function loadFileVault(){
+    if(!document.getElementById('tab-mega-vault')) return;
+    if(window.__nxFileVaultV1 || document.querySelector('script[data-nx-file-vault]')) return;
+    const script=document.createElement('script');
+    script.src='./js/nexusnova-file-vault-v1.js?v=1';
+    script.setAttribute('data-nx-file-vault','1');
+    script.onerror=()=>console.warn('NexusNova encrypted File Vault failed to load.');
+    document.body.appendChild(script);
+  }
+
   function loadAllAppsSmartSearch(){
     if(!document.querySelector('#moreMenu .more-inner')) return;
     if(window.__nxAllAppsSmartSearchV1 || document.querySelector('script[data-nx-allapps-smart-search]')) return;
@@ -113,6 +123,7 @@
       claim('Build Brief','nxSmartBriefLive',buildBrief);
     }
     loadDocuments();
+    loadFileVault();
     loadAllAppsSmartSearch();
   }
 
