@@ -25,8 +25,6 @@
     const menu = document.getElementById("moreMenu");
     if (!menu) return false;
 
-    // Some older recovery/navigation code writes inline display:none.
-    // Clear it and then explicitly assert the visible state.
     menu.style.removeProperty("display");
     menu.classList.add("show");
     if (getComputedStyle(menu).display === "none") {
@@ -51,8 +49,6 @@
     if (button.closest(".nx-allapps-back")) return button;
     if (button.matches("[data-nx-back-allapps]")) return button;
 
-    // Last-resort coverage for any existing/dynamically-created button that
-    // visibly says Back to ALL APPS but was not given one of the standard classes.
     const label = String(button.textContent || "")
       .replace(/\s+/g, " ")
       .trim()
@@ -60,16 +56,6 @@
     return label.includes("BACK TO ALL APPS") ? button : null;
   }
 
-  /*
-     Root-cause hotfix for ALL APPS return buttons:
-     page2.js has a document-level outside-click listener that closes #moreMenu.
-     A Back button used to open #moreMenu and then the SAME click bubbled to that
-     listener, which immediately closed it again. The button therefore looked dead.
-
-     Handle these clicks in capture phase, stop that same click before it reaches
-     the old outside-click listener, then open ALL APPS once and re-assert it after
-     synchronous/late legacy handlers have had a chance to run.
-  */
   document.addEventListener(
     "click",
     (event) => {
@@ -106,8 +92,33 @@
     true
   );
 
+  // page2.js is a module and may finish after the classic final repair scripts.
+  // Whenever that happens it can replace window.convertCurrency with an older
+  // implementation. Keep the already-exported final converter authoritative.
+  function assertReliableConverter() {
+    if (typeof window.nexusFinalConvertCurrency !== "function") return false;
+    if (window.convertCurrency?.__nxIntegrityReliable) return true;
+    const reliable = function() {
+      return window.nexusFinalConvertCurrency(false);
+    };
+    reliable.__nxIntegrityReliable = true;
+    window.convertCurrency = reliable;
+    return true;
+  }
+
+  document.addEventListener("click", (event) => {
+    const button = event.target?.closest?.(".more-item,.dock-item,button");
+    if (!button) return;
+    const label = String(button.textContent || "").toLowerCase();
+    if (label.includes("finance") || label.includes("gold") || label.includes("fx")) {
+      setTimeout(() => {
+        assertReliableConverter();
+        window.nexusFinalConvertCurrency?.(false);
+      }, 120);
+    }
+  }, true);
+
   window.addEventListener("load", () => {
-    // Never leave the news tab permanently stuck on the initial loader.
     const refresh = document.querySelector(".refresh-news");
     if (refresh && typeof window.loadNews === "function") {
       refresh.addEventListener("click", () => {
@@ -117,16 +128,23 @@
       });
     }
 
-    // Keep AI voice status truthful.
     const voiceStatus = document.getElementById("aiVoiceStatus");
     if (voiceStatus && !("speechSynthesis" in window)) {
       voiceStatus.textContent = "Voice output not supported in this browser";
     }
 
-    // Current Bible is a native reader. If an old cached build left an iframe in
-    // the DOM, remove it so a third-party frame can never show "refused to connect".
     setTimeout(() => {
       document.querySelectorAll("#tab-bible iframe").forEach((frame) => frame.remove());
     }, 250);
+
+    // Cover unusually slow StackBlitz/Firebase module initialization as well as
+    // normal loads. Stop after 40 seconds; opening Gold/FX also reasserts it.
+    let passes = 0;
+    const converterGuard = setInterval(() => {
+      assertReliableConverter();
+      passes += 1;
+      if (passes >= 20) clearInterval(converterGuard);
+    }, 2000);
+    assertReliableConverter();
   });
 })();
