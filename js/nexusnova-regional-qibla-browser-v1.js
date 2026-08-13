@@ -1,4 +1,4 @@
-/* NexusNova Regional News + Qibla + Entertainment + Web Viewer + Caller ID V1 */
+/* NexusNova Regional News + Qibla + Entertainment + Web Viewer + Caller ID V2 */
 (() => {
   "use strict";
 
@@ -13,15 +13,40 @@
     }[m]));
   }
 
-  window.nxOpenExternal = url => {
-    try {
-      const u = new URL(url);
-      if (u.protocol === "https:" || u.protocol === "http:") {
-        if (window.nexusPostNativeAction?.("openExternal", { url: u.href })) return;
-        window.open(u.href, "_blank", "noopener,noreferrer");
+  function validHttp(url){
+    try{
+      const u=new URL(url);
+      return u.protocol==="https:" || u.protocol==="http:" ? u.href : "";
+    }catch{return "";}
+  }
+
+  function openExternal(url){
+    const safe=validHttp(url);
+    if(!safe) return false;
+
+    if(window.nexusPostNativeAction?.("openExternal", { url:safe })) return true;
+
+    try{
+      const a=document.createElement("a");
+      a.href=safe;
+      a.target="_blank";
+      a.rel="noopener noreferrer";
+      a.style.display="none";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      return true;
+    }catch(_){
+      try{
+        const opened=window.open(safe,"_blank","noopener,noreferrer");
+        return Boolean(opened);
+      }catch(__){
+        return false;
       }
-    } catch (_) {}
-  };
+    }
+  }
+
+  window.nxOpenExternal = url => { openExternal(url); };
 
   // ---------------- Regional news ----------------
   const NEWS_QUERIES = {
@@ -63,14 +88,7 @@
       btn.className = "action-btn";
       btn.type = "button";
       btn.textContent = "Read";
-      btn.addEventListener("click", () => {
-        try{
-          const u = new URL(a.url);
-          if(u.protocol==="https:" || u.protocol==="http:") {
-            window.open(u.href,"_blank","noopener,noreferrer");
-          }
-        }catch(_){}
-      });
+      btn.addEventListener("click", () => openExternal(a.url));
       card.append(title, meta, btn);
       list.appendChild(card);
     });
@@ -114,7 +132,6 @@
   }
 
   function onOrientation(e){
-    // iOS gives webkitCompassHeading; many Android browsers give alpha.
     let heading = Number(e.webkitCompassHeading);
     if(!Number.isFinite(heading)) {
       const alpha = Number(e.alpha);
@@ -154,37 +171,55 @@
     }, {enableHighAccuracy:true, timeout:12000, maximumAge:60000});
   };
 
-  // ---------------- Browser viewer ----------------
-  function validHttp(url){
-    try{
-      const u=new URL(url);
-      return u.protocol==="https:" || u.protocol==="http:" ? u.href : "";
-    }catch{return "";}
+  // ---------------- Browser launcher ----------------
+  // A normal web/PWA cannot act as a universal in-app browser because many
+  // publishers deliberately reject iframe embedding via CSP/X-Frame-Options.
+  // Therefore web mode opens the requested site as a real top-level page.
+  // Native Android can later replace the openExternal bridge with an in-app WebView.
+  function renderBrowserFallback(url, message){
+    const frame=$("nxBrowserFrame"), status=$("nxBrowserStatus");
+    if(frame) frame.src="about:blank";
+    if(!status) return;
+    status.innerHTML="";
+    const text=document.createElement("span");
+    text.textContent=message+" ";
+    const link=document.createElement("a");
+    link.href=url;
+    link.target="_blank";
+    link.rel="noopener noreferrer";
+    link.textContent="Open website";
+    link.style.color="var(--accent,#00f5d4)";
+    status.append(text,link);
   }
+
   window.nxBrowse = () => {
-    const input=$("nxBrowserUrl"), frame=$("nxBrowserFrame"), status=$("nxBrowserStatus");
+    const input=$("nxBrowserUrl"), status=$("nxBrowserStatus");
     const url=validHttp(input?.value?.trim() || "");
     if(!url){
       if(status) status.textContent="Enter a valid http:// or https:// URL.";
       return;
     }
     if(input) input.value=url;
-    if(window.nexusPostNativeAction?.("openExternal", { url })){
-      if(status) status.textContent="Opened safely in your external browser.";
-      return;
-    }
-    if(frame) frame.src=url;
-    if(status) status.textContent="Loading… Some sites block iframe viewing; use Open externally if needed.";
+
+    const opened=openExternal(url);
+    renderBrowserFallback(
+      url,
+      opened
+        ? "Opened as a real web page. Universal iframe browsing is blocked by many sites."
+        : "Your preview/browser blocked the new page."
+    );
   };
+
   window.nxBrowsePreset = url => {
     if($("nxBrowserUrl")) $("nxBrowserUrl").value=url;
     window.nxBrowse();
   };
+
   window.nxOpenBrowserExternal = () => {
     const url=validHttp($("nxBrowserUrl")?.value?.trim() || "");
     if(!url) return;
-    if(window.nexusPostNativeAction?.("openExternal", { url })) return;
-    window.open(url,"_blank","noopener,noreferrer");
+    const opened=openExternal(url);
+    if(!opened) renderBrowserFallback(url,"Your preview/browser blocked the new page.");
   };
 
   // ---------------- Caller ID helper ----------------
@@ -207,15 +242,14 @@
     const n=normalizePhone($("nxCallerNumber")?.value || "");
     if(!/^\+\d{7,15}$/.test(n)) return window.nxCallerLookup();
     const q=encodeURIComponent(`"${n}" caller ID`);
-    window.open(`https://www.google.com/search?q=${q}`,"_blank","noopener,noreferrer");
+    openExternal(`https://www.google.com/search?q=${q}`);
   };
 
-  // Initial regional feed.
   window.addEventListener("load", () => {
     setTimeout(() => {
       if($("regionalNewsList")) window.nxRegionalNews("breaking");
     }, 800);
   });
 
-  console.log("NexusNova regional/Qibla/browser/caller module loaded.");
+  console.log("NexusNova regional/Qibla/browser/caller module V2 loaded.");
 })();
