@@ -29,6 +29,8 @@ jobs:
             echo "Checking $file"
             node --check "$file"
           done
+          echo "Checking functions/index.js"
+          node --check functions/index.js
 
       - name: Verify critical live modules exist
         shell: bash
