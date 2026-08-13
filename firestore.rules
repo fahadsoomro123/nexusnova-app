@@ -140,30 +140,36 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/marketplaceListings/$(request.resource.data.listingId)).data.currency == request.resource.data.currency;
     }
 
+    function sellerOrderTransitionAllowed() {
+      return request.auth.uid == resource.data.sellerUid
+        && (
+          (resource.data.status == 'requested'
+            && (request.resource.data.status == 'accepted' || request.resource.data.status == 'cancelled'))
+          || (resource.data.status == 'accepted'
+            && (request.resource.data.status == 'processing' || request.resource.data.status == 'cancelled'))
+          || (resource.data.status == 'processing'
+            && (request.resource.data.status == 'shipped' || request.resource.data.status == 'cancelled'))
+          || (resource.data.status == 'shipped'
+            && request.resource.data.status == 'out_for_delivery')
+          || (resource.data.status == 'out_for_delivery'
+            && request.resource.data.status == 'delivered')
+        );
+    }
+
+    function buyerOrderTransitionAllowed() {
+      return request.auth.uid == resource.data.buyerUid
+        && (
+          ((resource.data.status == 'requested' || resource.data.status == 'accepted')
+            && request.resource.data.status == 'cancelled')
+          || (resource.data.status == 'delivered'
+            && request.resource.data.status == 'return_requested')
+        );
+    }
+
     function validOrderUpdate() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','updatedAt'])
         && request.resource.data.updatedAt == request.time
-        && (
-          (
-            request.auth.uid == resource.data.sellerUid
-            && (
-              request.resource.data.status == 'accepted'
-              || request.resource.data.status == 'processing'
-              || request.resource.data.status == 'shipped'
-              || request.resource.data.status == 'out_for_delivery'
-              || request.resource.data.status == 'delivered'
-              || request.resource.data.status == 'cancelled'
-            )
-          )
-          ||
-          (
-            request.auth.uid == resource.data.buyerUid
-            && (
-              request.resource.data.status == 'cancelled'
-              || request.resource.data.status == 'return_requested'
-            )
-          )
-        );
+        && (sellerOrderTransitionAllowed() || buyerOrderTransitionAllowed());
     }
 
     match /users/{uid} {
