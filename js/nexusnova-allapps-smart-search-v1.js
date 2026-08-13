@@ -1,4 +1,4 @@
-/* NexusNova ALL APPS Smart Search v1
+/* NexusNova ALL APPS Smart Search v1.1
    Hidden intent/synonym tags stay in JavaScript and are never shown in the UI. */
 (() => {
   'use strict';
@@ -25,7 +25,7 @@
     'PK NEWS': 'pakistan news pak news sindh urdu sindhi karachi khabar',
     'WATCH': 'watch video movie drama music youtube dailymotion netflix entertainment song gaana',
     'BROWSER': 'browser web website internet open site google search web link url',
-    'CALLER': 'caller caller id phone number unknown number kis ka number lookup spam call identify',
+    'CALLER': 'caller caller id phone number unknown number kis ka number number kis ka hai lookup spam call identify',
     'SETTINGS': 'settings theme dark light language voice notification preference password verification',
     'SUPER APP': 'super app all features everything command center find feature app search',
     'DAILY TOOLS': 'daily tools calculator notes todo quick routine rozmarra',
@@ -107,9 +107,9 @@
     let total = 0;
 
     if (visible === query) total += 120;
-    else if (visible.includes(query) || query.includes(visible)) total += 65;
+    else if (Math.min(visible.length, query.length) >= 4 && (visible.includes(query) || query.includes(visible))) total += 65;
     if (hidden.split(' ').includes(query)) total += 90;
-    if (hidden.includes(query)) total += 45;
+    if (query.length >= 3 && hidden.includes(query)) total += 45;
 
     const candidates = [...new Set(corpus.split(' ').filter(Boolean))];
     query.split(' ').filter(Boolean).forEach(q => {
@@ -194,7 +194,8 @@
 
       if (autoOpen && rows[0].score >= 20) {
         const first=rows[0], second=rows[1];
-        if (!second || first.score >= second.score + 8 || first.score >= 70) setTimeout(() => openResult(first, query), 80);
+        const decisive=!second || first.score >= second.score + 8 || (first.score >= 120 && second.score < first.score * .75);
+        if (decisive) setTimeout(() => openResult(first, query), 80);
       }
     };
 
