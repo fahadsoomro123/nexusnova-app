@@ -100,7 +100,7 @@ try{
   await browserCallerQibla();
   await smartBrief();
   await qrRepair();
-  console.log('\nExtra runtime smoke complete: 6 checks passed.');
+  console.log('\nExtra runtime smoke complete: 5 feature groups passed.');
 }finally{
   await browser.close();
 }
