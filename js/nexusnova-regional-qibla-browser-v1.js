@@ -1,4 +1,4 @@
-/* NexusNova Regional News + Qibla + Entertainment + Web Viewer + Caller ID V2 */
+/* NexusNova Regional News + Qibla + Entertainment + Web Launcher + Caller ID V3 */
 (() => {
   "use strict";
 
@@ -172,10 +172,6 @@
   };
 
   // ---------------- Browser launcher ----------------
-  // A normal web/PWA cannot act as a universal in-app browser because many
-  // publishers deliberately reject iframe embedding via CSP/X-Frame-Options.
-  // Therefore web mode opens the requested site as a real top-level page.
-  // Native Android can later replace the openExternal bridge with an in-app WebView.
   function renderBrowserFallback(url, message){
     const frame=$("nxBrowserFrame"), status=$("nxBrowserStatus");
     if(frame) frame.src="about:blank";
@@ -245,11 +241,28 @@
     openExternal(`https://www.google.com/search?q=${q}`);
   };
 
+  function loadLateScript(src, marker){
+    if(document.querySelector(`script[${marker}]`)) return;
+    const script=document.createElement('script');
+    script.src=src;
+    script.setAttribute(marker,'1');
+    script.onerror=()=>console.warn(`NexusNova late script failed: ${src}`);
+    document.body.appendChild(script);
+  }
+
   window.addEventListener("load", () => {
     setTimeout(() => {
       if($("regionalNewsList")) window.nxRegionalNews("breaking");
     }, 800);
+
+    // nexusnova-mega-merge-v1.js creates Learning dynamically after this classic
+    // module has loaded. Load the real Learning engine only after those elements exist.
+    setTimeout(() => {
+      if(document.getElementById('tab-mega-learning')) {
+        loadLateScript('./js/nexusnova-learning-engine-v1.js?v=1','data-nx-learning-engine');
+      }
+    }, 1800);
   });
 
-  console.log("NexusNova regional/Qibla/browser/caller module V2 loaded.");
+  console.log("NexusNova regional/Qibla/browser/caller module V3 loaded.");
 })();
