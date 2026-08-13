@@ -3,6 +3,24 @@
 (() => {
   "use strict";
 
+  // Bible English/Urdu corpora are large verse-aligned text files. Older code
+  // aborts every source after 15 seconds, which can fail on slower connections.
+  // Give only these known BibleNLP resources a longer finite window and allow
+  // normal browser caching; all other application fetches remain untouched.
+  if (!window.__nxBibleFetchGuard && typeof window.fetch === "function") {
+    const nativeFetch = window.fetch.bind(window);
+    window.__nxBibleFetchGuard = true;
+    window.fetch = function(input, init) {
+      const url = typeof input === "string" ? input : String(input?.url || "");
+      const isBibleData = /(?:raw\.githubusercontent\.com|cdn\.jsdelivr\.net)\/.*BibleNLP\/ebible/i.test(url);
+      if (!isBibleData) return nativeFetch(input, init);
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 30000);
+      const options = { ...(init || {}), cache: "force-cache", signal: controller.signal };
+      return nativeFetch(input, options).finally(() => clearTimeout(timer));
+    };
+  }
+
   function forceAllAppsVisible() {
     const menu = document.getElementById("moreMenu");
     if (!menu) return false;
@@ -104,5 +122,11 @@
     if (voiceStatus && !("speechSynthesis" in window)) {
       voiceStatus.textContent = "Voice output not supported in this browser";
     }
+
+    // Current Bible is a native reader. If an old cached build left an iframe in
+    // the DOM, remove it so a third-party frame can never show "refused to connect".
+    setTimeout(() => {
+      document.querySelectorAll("#tab-bible iframe").forEach((frame) => frame.remove());
+    }, 250);
   });
 })();
