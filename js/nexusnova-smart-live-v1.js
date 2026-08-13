@@ -1,5 +1,5 @@
-/* NexusNova Smart Live v3.2
-   Connects Smart Hub camera/daily brief to real AI flows and boots Documents, File Vault + ALL APPS smart search. */
+/* NexusNova Smart Live v3.3
+   Connects Smart Hub camera/daily brief to real AI flows and boots Documents, File Vault, Security Lock + ALL APPS smart search. */
 (() => {
   'use strict';
   if (window.__nxSmartLiveV3) return;
@@ -87,33 +87,13 @@
     window.sendAIMessage();
   }
 
-  function loadDocuments(){
-    if(!document.getElementById('tab-mega-documents')) return;
-    if(document.querySelector('script[data-nx-documents-live]')) return;
+  function loadModule({tab, flag, marker, src, error}) {
+    if(tab && !document.getElementById(tab)) return;
+    if((flag && window[flag]) || document.querySelector(`script[${marker}]`)) return;
     const script=document.createElement('script');
-    script.src='./js/nexusnova-documents-live-v1.js?v=1';
-    script.setAttribute('data-nx-documents-live','1');
-    script.onerror=()=>console.warn('NexusNova Documents live module failed to load.');
-    document.body.appendChild(script);
-  }
-
-  function loadFileVault(){
-    if(!document.getElementById('tab-mega-vault')) return;
-    if(window.__nxFileVaultV1 || document.querySelector('script[data-nx-file-vault]')) return;
-    const script=document.createElement('script');
-    script.src='./js/nexusnova-file-vault-v1.js?v=1';
-    script.setAttribute('data-nx-file-vault','1');
-    script.onerror=()=>console.warn('NexusNova encrypted File Vault failed to load.');
-    document.body.appendChild(script);
-  }
-
-  function loadAllAppsSmartSearch(){
-    if(!document.querySelector('#moreMenu .more-inner')) return;
-    if(window.__nxAllAppsSmartSearchV1 || document.querySelector('script[data-nx-allapps-smart-search]')) return;
-    const script=document.createElement('script');
-    script.src='./js/nexusnova-allapps-smart-search-v1.js?v=2';
-    script.setAttribute('data-nx-allapps-smart-search','1');
-    script.onerror=()=>console.warn('NexusNova ALL APPS smart search failed to load.');
+    script.src=src;
+    script.setAttribute(marker,'1');
+    script.onerror=()=>console.warn(error);
     document.body.appendChild(script);
   }
 
@@ -122,9 +102,10 @@
       claim('Open Camera','nxSmartCameraLive',openCamera);
       claim('Build Brief','nxSmartBriefLive',buildBrief);
     }
-    loadDocuments();
-    loadFileVault();
-    loadAllAppsSmartSearch();
+    loadModule({tab:'tab-mega-documents',marker:'data-nx-documents-live',src:'./js/nexusnova-documents-live-v1.js?v=1',error:'NexusNova Documents live module failed to load.'});
+    loadModule({tab:'tab-mega-vault',flag:'__nxFileVaultV1',marker:'data-nx-file-vault',src:'./js/nexusnova-file-vault-v1.js?v=1',error:'NexusNova encrypted File Vault failed to load.'});
+    loadModule({tab:'tab-mega-security',flag:'__nxSecurityLockV1',marker:'data-nx-security-lock',src:'./js/nexusnova-security-lock-v1.js?v=1',error:'NexusNova Security App Lock failed to load.'});
+    loadModule({tab:null,flag:'__nxAllAppsSmartSearchV1',marker:'data-nx-allapps-smart-search',src:'./js/nexusnova-allapps-smart-search-v1.js?v=2',error:'NexusNova ALL APPS smart search failed to load.'});
   }
 
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>setTimeout(install,1200),{once:true});
