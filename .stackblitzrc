@@ -1,0 +1,5 @@
+{
+  "installDependencies": false,
+  "startCommand": "node server.js",
+  "compileTrigger": "save"
+}
