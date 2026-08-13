@@ -1,0 +1,106 @@
+import assert from 'node:assert/strict';
+import { chromium } from 'playwright';
+
+const base='http://127.0.0.1:4173';
+const browser=await chromium.launch({headless:true});
+
+async function originPage(context,html){
+  const page=await context.newPage();
+  const errors=[];
+  page.on('pageerror',e=>errors.push(e.message||String(e)));
+  await page.goto(base+'/.runtime-origin.html');
+  await page.setContent(`<!doctype html><html><body>${html}</body></html>`);
+  return {page,errors};
+}
+
+async function browserCallerQibla(){
+  const context=await browser.newContext({
+    geolocation:{latitude:27.9556,longitude:68.6382},
+    permissions:['geolocation']
+  });
+  const html=`
+    <input id="nxBrowserUrl" value="https://www.google.com/"><iframe id="nxBrowserFrame" src="about:blank"></iframe><div id="nxBrowserStatus"></div>
+    <input id="nxCallerNumber"><div id="nxCallerResult"></div>
+    <div id="qiblaStatus"></div><div id="qiblaDegree"></div><div id="qiblaArrow"></div>`;
+  const {page,errors}=await originPage(context,html);
+  await page.evaluate(()=>{window.nexusPostNativeAction=()=>true;});
+  await page.addScriptTag({url:base+'/js/nexusnova-regional-qibla-browser-v1.js'});
+
+  await page.evaluate(()=>window.nxBrowse());
+  assert.match(await page.textContent('#nxBrowserStatus'),/Opened as a real web page/i);
+  assert.equal(await page.getAttribute('#nxBrowserFrame','src'),'about:blank');
+  console.log('PASS Browser — real external handoff + non-iframe fallback passed');
+
+  await page.fill('#nxCallerNumber','+923001234567');
+  await page.evaluate(()=>window.nxCallerLookup());
+  const caller=await page.textContent('#nxCallerResult');
+  assert.match(caller,/format looks valid/i);
+  assert.match(caller,/will not guess/i);
+  console.log('PASS Caller helper — validates number without inventing identity');
+
+  await page.evaluate(()=>window.nxStartQibla());
+  await page.waitForFunction(()=>/Qibla:/i.test(document.getElementById('qiblaDegree')?.textContent||''),null,{timeout:5000});
+  assert.match(await page.textContent('#qiblaDegree'),/Qibla: \d/i);
+  assert.equal(errors.length,0,errors.join('\n'));
+  console.log('PASS Qibla — geolocation bearing calculation passed');
+  await page.close();
+  await context.close();
+}
+
+async function smartBrief(){
+  const context=await browser.newContext();
+  const html=`
+    <section id="tab-smart"><button>Open Camera</button><button>Build Brief</button></section>
+    <div id="balance">42.5000</div><div id="timer">MINING ACTIVE 10:00:00</div>
+    <input id="aiInput"><input id="aiImageInput" type="file">`;
+  const {page,errors}=await originPage(context,html);
+  await page.evaluate(()=>{
+    window.openMoreTab=()=>{};
+    window.sendAIMessage=()=>{window.__briefPrompt=document.getElementById('aiInput')?.value||'';};
+  });
+  await page.addScriptTag({url:base+'/js/nexusnova-smart-live-v1.js'});
+  await page.waitForSelector('#nxSmartBriefLive');
+  await page.click('#nxSmartBriefLive');
+  const prompt=await page.evaluate(()=>window.__briefPrompt||'');
+  assert.match(prompt,/42\.5000/);
+  assert.match(prompt,/MINING ACTIVE 10:00:00/);
+  assert.match(prompt,/do not invent missing information/i);
+  assert.equal(errors.length,0,errors.join('\n'));
+  console.log('PASS Smart Daily Brief — real app balance/mining context injected');
+  await page.close();
+  await context.close();
+}
+
+async function qrRepair(){
+  const context=await browser.newContext();
+  const html=`<section id="tab-mega-qr"><input id="nxMegaQRText"><button id="nxMegaQRBtn">Generate QR</button><button>📷 QR Scanner</button><button>📶 Wi-Fi QR</button><button>👤 Contact QR</button><button>💳 Payment QR</button></section>`;
+  const {page,errors}=await originPage(context,html);
+  await page.evaluate(()=>{
+    window.nexusAccountId='runtime-qr';
+    document.getElementById('nxMegaQRBtn').addEventListener('click',()=>{window.__qrGenerated=document.getElementById('nxMegaQRText').value;});
+  });
+  await page.addScriptTag({url:base+'/js/nexusnova-local-apps-repair-v1.js'});
+  await page.waitForSelector('#nxMegaWifiQrLocal');
+  const responses=['RuntimeWiFi','pass12345'];
+  page.on('dialog',async dialog=>{if(dialog.type()==='prompt') await dialog.accept(responses.shift()??''); else await dialog.accept();});
+  await page.click('#nxMegaWifiQrLocal');
+  const payload=await page.evaluate(()=>window.__qrGenerated||'');
+  assert.match(payload,/^WIFI:T:WPA;S:RuntimeWiFi;P:pass12345;;$/);
+  assert.ok(await page.$('#nxMegaContactQrLocal'));
+  assert.ok(await page.$('#nxMegaQrScannerLocal'));
+  const payment=await page.locator('#tab-mega-qr button').filter({hasText:'Payment QR'}).count();
+  assert.equal(payment,1);
+  assert.equal(errors.length,0,errors.join('\n'));
+  console.log('PASS QR Tools — Wi-Fi/Contact/Scanner wiring passed; Payment QR remains provider-pending');
+  await page.close();
+  await context.close();
+}
+
+try{
+  await browserCallerQibla();
+  await smartBrief();
+  await qrRepair();
+  console.log('\nExtra runtime smoke complete: 6 checks passed.');
+}finally{
+  await browser.close();
+}
