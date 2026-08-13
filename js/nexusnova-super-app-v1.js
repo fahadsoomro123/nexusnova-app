@@ -1,4 +1,4 @@
-/* NexusNova Super-App Expansion V2 */
+/* NexusNova Super-App Expansion V3 */
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -16,7 +16,6 @@
     document.body.appendChild(script);
   }
 
-  // Daily dashboard
   window.nxBuildDailyBrief = () => {
     const out=$("nxDailyBrief"); if(!out) return;
     const now=new Date();
@@ -26,7 +25,6 @@
       `Upcoming events: ${events.length} • Saved notes: ${notes.length} • NexusNova is ready for your day.`;
   };
 
-  // Teacher tools
   window.nxGenerateLesson=()=>{
     const topic=$("nxLessonTopic")?.value.trim()||"Lesson";
     const notes=$("nxLessonNotes")?.value.trim()||"";
@@ -50,7 +48,6 @@
     $("nxTimetableOut").textContent="Timetable saved on this device.";
   };
 
-  // Calendar
   function renderEvents(){
     const list=$("nxEventsList"); if(!list)return;
     const arr=load("events",[]).sort((a,b)=>new Date(a.date)-new Date(b.date));
@@ -63,7 +60,6 @@
   };
   window.nxDeleteEvent=i=>{const a=load("events",[]);a.splice(i,1);store("events",a);renderEvents();};
 
-  // Document expiry reminders (metadata only; not file storage)
   function renderDocs(){
     const list=$("nxDocsList");if(!list)return;
     const arr=load("docs",[]);
@@ -75,7 +71,6 @@
   };
   window.nxDeleteDocument=i=>{const a=load("docs",[]);a.splice(i,1);store("docs",a);renderDocs();};
 
-  // Shopping foundation
   window.nxShopSearch=()=>{
     const q=($("nxShopSearch")?.value||"").toLowerCase();
     document.querySelectorAll("#nxShopProducts .product-card").forEach(c=>c.style.display=(!q||c.textContent.toLowerCase().includes(q))?"":"none");
@@ -91,7 +86,6 @@
     $("nxOrderResult").textContent=n?`Tracking number ${n} saved for lookup. Live courier status needs a configured courier API.`:"Enter a tracking number.";
   };
 
-  // Islamic utilities
   window.nxOpenPrayer=()=>{
     const url="https://www.islamicfinder.org/prayer-widget/";
     if(typeof window.nxOpenExternal==='function') window.nxOpenExternal(url);
@@ -117,7 +111,6 @@
     if($("nxTasbeehOut"))$("nxTasbeehOut").textContent=`Today: ${d.toLocaleDateString("en-u-ca-islamic",{day:"numeric",month:"long",year:"numeric"})}`;
   };
 
-  // Security status
   window.nxSecurityCheck=()=>{
     const https=location.protocol==="https:"||location.hostname==="localhost";
     const secure=window.isSecureContext;
@@ -132,13 +125,13 @@
     const tt=load("timetable","");
     if($("nxTimetable"))$("nxTimetable").value=tt;
 
-    // Late authoritative modules. Each module retries its own dynamic-button install.
     setTimeout(()=>{
       loadLateScript('./js/nexusnova-learning-engine-v1.js?v=3','data-nx-learning-engine');
       loadLateScript('./js/nexusnova-islamic-extras-v1.js?v=1','data-nx-islamic-extras');
       loadLateScript('./js/nexusnova-ai-authority-v2.js?v=2','data-nx-ai-authority-v2');
+      loadLateScript('./js/nexusnova-travel-live-v1.js?v=1','data-nx-travel-live');
     },1800);
   });
 
-  console.log("NexusNova Super-App expansion V2 loaded.");
+  console.log("NexusNova Super-App expansion V3 loaded.");
 })();
