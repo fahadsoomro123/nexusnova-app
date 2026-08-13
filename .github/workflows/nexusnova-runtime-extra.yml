@@ -41,3 +41,6 @@ jobs:
 
       - name: Run Browser Caller Qibla Smart and QR checks
         run: node .github/scripts/nexusnova-runtime-extra.mjs
+
+      - name: Run local tools browser checks
+        run: node .github/scripts/nexusnova-local-tools-runtime.mjs
