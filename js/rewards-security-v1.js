@@ -1,13 +1,47 @@
 /*
  * NexusNova Secure Rewards Layer
  * All protected NVX mutations go through authenticated Firebase Functions.
+ * User-facing status is rendered inside NexusNova instead of browser alert boxes.
  */
 (() => {
   "use strict";
 
   let timerId = null;
   let startAt = 0;
+  let uiPromise = null;
   const DAY = 86400000;
+
+  function getUI(){
+    if(window.NexusNovaUI) return Promise.resolve(window.NexusNovaUI);
+    if(uiPromise) return uiPromise;
+    uiPromise = new Promise((resolve,reject)=>{
+      const existing=document.querySelector('script[data-nx-premium-ui]');
+      const done=()=>window.NexusNovaUI?resolve(window.NexusNovaUI):reject(new Error('Premium UI did not initialize.'));
+      if(existing){
+        window.addEventListener('nexusnova:premium-ui-ready',done,{once:true});
+        setTimeout(done,1200);
+        return;
+      }
+      const script=document.createElement('script');
+      script.src='./js/nexusnova-premium-ui-v1.js?v=1';
+      script.dataset.nxPremiumUi='1';
+      script.onload=done;
+      script.onerror=()=>reject(new Error('Premium UI could not be loaded.'));
+      document.body.appendChild(script);
+    }).finally(()=>{uiPromise=null;});
+    return uiPromise;
+  }
+
+  async function showMessage({title,text,icon='spark',buttonText='OK',eyebrow='NEXUSNOVA'}){
+    try{
+      const ui=await getUI();
+      await ui.alert({title,text,icon,buttonText,eyebrow});
+    }catch(error){
+      console.warn('Premium message unavailable:',error);
+      // Keep the feature usable even if the optional presentation layer fails.
+      window.alert(String(text||title||'NexusNova'));
+    }
+  }
 
   async function call(name, data = {}) {
     if(typeof window.nexusRequireAppCheck !== "function"){
@@ -83,7 +117,13 @@
       }
       if(r.finished){
         renderMining(false,0);
-        alert("+"+Number(r.earned||0).toFixed(4)+" NVX mined!");
+        await showMessage({
+          eyebrow:'MINING SESSION COMPLETE',
+          title:'NVX Mining Completed',
+          text:'+'+Number(r.earned||0).toFixed(4)+' NVX was credited by the secure server.',
+          icon:'spark',
+          buttonText:'Done'
+        });
       }
       return r;
     }catch(e){
@@ -105,7 +145,15 @@
       }
     }catch(e){
       console.error("Secure mining start:",e);
-      alert(e?.message||"Mining could not be started.");
+      const raw=String(e?.message||"Mining could not be started.");
+      const appCheck=/app check/i.test(raw);
+      await showMessage({
+        eyebrow:appCheck?'SECURE SETUP REQUIRED':'MINING STATUS',
+        title:appCheck?'Firebase App Check Required':'Mining Could Not Start',
+        text:raw,
+        icon:'security',
+        buttonText:'Got it'
+      });
     }finally{
       if(b) b.disabled=false;
     }
@@ -126,10 +174,24 @@
       if(typeof window.nexusApplySecureAccountState === "function"){
         window.nexusApplySecureAccountState(r);
       }
-      alert("+"+Number(r.reward||5).toFixed(2)+" NVX added! 🎁");
+      await showMessage({
+        eyebrow:'DAILY REWARD',
+        title:'Reward Added',
+        text:'+'+Number(r.reward||5).toFixed(2)+' NVX was added to your secure NexusNova balance.',
+        icon:'spark',
+        buttonText:'Great'
+      });
       if(typeof window.updateDailyButton==="function") window.updateDailyButton();
     }catch(e){
-      alert(e?.message||"Daily reward could not be claimed.");
+      const raw=String(e?.message||"Daily reward could not be claimed.");
+      const appCheck=/app check/i.test(raw);
+      await showMessage({
+        eyebrow:appCheck?'SECURE SETUP REQUIRED':'DAILY REWARD',
+        title:appCheck?'Firebase App Check Required':'Reward Unavailable',
+        text:raw,
+        icon:'security',
+        buttonText:'Got it'
+      });
     }finally{
       if(b) b.disabled=false;
     }
@@ -150,10 +212,23 @@
       if(typeof window.nexusApplySecureAccountState === "function"){
         window.nexusApplySecureAccountState(r);
       }
-      alert("+"+Number(r.reward||0).toFixed(2)+" NVX added! 🎁");
+      await showMessage({
+        eyebrow:'TASK VERIFIED',
+        title:'Task Reward Added',
+        text:'+'+Number(r.reward||0).toFixed(2)+' NVX was added to your secure balance.',
+        icon:'spark',
+        buttonText:'Done'
+      });
       if(typeof window.updateTaskButtons==="function") window.updateTaskButtons();
     }catch(e){
-      alert(e?.message||"Task reward could not be claimed.");
+      const raw=String(e?.message||"Task reward could not be claimed.");
+      await showMessage({
+        eyebrow:'TASK VERIFICATION',
+        title:/app check/i.test(raw)?'Firebase App Check Required':'Task Could Not Be Verified',
+        text:raw,
+        icon:'security',
+        buttonText:'Got it'
+      });
       if(b){b.disabled=false;b.textContent="VERIFICATION REQUIRED";}
     }
   }
@@ -165,18 +240,15 @@
     if(mine) mine.onclick=startMining;
   }
 
-  // Explicit exports let compatibility code proxy safely instead of keeping
-  // its own client-side writes to mining and reward fields.
   window.nexusSecureStartMining=startMining;
   window.nexusSecureFinishMining=finishMining;
   window.nexusSecureClaimDaily=claimDaily;
   window.nexusSecureCompleteTask=task;
   window.nexusSecureRenderMining=renderMining;
+  getUI().catch(()=>{});
   installSecureHandlers();
   window.addEventListener("load",installSecureHandlers,{once:true});
 
-  // If a previously active session is loaded, use the server timestamp as
-  // the client display source; no client reward is ever written.
   window.addEventListener("load",()=>{
     setTimeout(async()=>{
       try{
