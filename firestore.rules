@@ -9,6 +9,10 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == uid;
     }
 
+    function validCurrency(value) {
+      return value == 'PKR' || value == 'USD' || value == 'EUR' || value == 'GBP';
+    }
+
     function validProfileCreate(uid) {
       return request.resource.data.keys().hasAll([
           'uid', 'name', 'email', 'balance', 'totalMined', 'tasksCompleted',
@@ -68,12 +72,103 @@ service cloud.firestore {
         && request.resource.data.createdAt == request.time;
     }
 
+    function validListingFields(data) {
+      return data.sellerUid is string
+        && data.sellerName is string && data.sellerName.size() > 0 && data.sellerName.size() <= 80
+        && data.title is string && data.title.size() >= 2 && data.title.size() <= 120
+        && data.description is string && data.description.size() <= 1200
+        && data.category is string && data.category.size() > 0 && data.category.size() <= 60
+        && data.price is number && data.price >= 0 && data.price <= 1000000000
+        && validCurrency(data.currency)
+        && (data.status == 'active' || data.status == 'sold' || data.status == 'hidden');
+    }
+
+    function validListingCreate() {
+      return request.resource.data.keys().hasAll([
+          'sellerUid','sellerName','title','description','category','price','currency','status','createdAt','updatedAt'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'sellerUid','sellerName','title','description','category','price','currency','status','createdAt','updatedAt'
+        ])
+        && request.resource.data.sellerUid == request.auth.uid
+        && request.resource.data.status == 'active'
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && validListingFields(request.resource.data);
+    }
+
+    function validListingUpdate() {
+      return request.auth.uid == resource.data.sellerUid
+        && request.resource.data.keys().hasAll([
+          'sellerUid','sellerName','title','description','category','price','currency','status','createdAt','updatedAt'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'sellerUid','sellerName','title','description','category','price','currency','status','createdAt','updatedAt'
+        ])
+        && request.resource.data.sellerUid == resource.data.sellerUid
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedAt == request.time
+        && validListingFields(request.resource.data);
+    }
+
+    function orderListingExists() {
+      return exists(/databases/$(database)/documents/marketplaceListings/$(request.resource.data.listingId));
+    }
+
+    function validOrderCreate() {
+      return request.resource.data.keys().hasAll([
+          'listingId','buyerUid','sellerUid','title','amount','currency','status','createdAt','updatedAt'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'listingId','buyerUid','sellerUid','title','amount','currency','status','createdAt','updatedAt'
+        ])
+        && request.resource.data.listingId is string
+        && request.resource.data.buyerUid == request.auth.uid
+        && request.resource.data.sellerUid is string
+        && request.resource.data.sellerUid != request.auth.uid
+        && request.resource.data.title is string && request.resource.data.title.size() > 0 && request.resource.data.title.size() <= 120
+        && request.resource.data.amount is number && request.resource.data.amount >= 0 && request.resource.data.amount <= 1000000000
+        && validCurrency(request.resource.data.currency)
+        && request.resource.data.status == 'requested'
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && orderListingExists()
+        && get(/databases/$(database)/documents/marketplaceListings/$(request.resource.data.listingId)).data.status == 'active'
+        && get(/databases/$(database)/documents/marketplaceListings/$(request.resource.data.listingId)).data.sellerUid == request.resource.data.sellerUid
+        && get(/databases/$(database)/documents/marketplaceListings/$(request.resource.data.listingId)).data.title == request.resource.data.title
+        && get(/databases/$(database)/documents/marketplaceListings/$(request.resource.data.listingId)).data.price == request.resource.data.amount
+        && get(/databases/$(database)/documents/marketplaceListings/$(request.resource.data.listingId)).data.currency == request.resource.data.currency;
+    }
+
+    function validOrderUpdate() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','updatedAt'])
+        && request.resource.data.updatedAt == request.time
+        && (
+          (
+            request.auth.uid == resource.data.sellerUid
+            && (
+              request.resource.data.status == 'accepted'
+              || request.resource.data.status == 'processing'
+              || request.resource.data.status == 'shipped'
+              || request.resource.data.status == 'out_for_delivery'
+              || request.resource.data.status == 'delivered'
+              || request.resource.data.status == 'cancelled'
+            )
+          )
+          ||
+          (
+            request.auth.uid == resource.data.buyerUid
+            && (
+              request.resource.data.status == 'cancelled'
+              || request.resource.data.status == 'return_requested'
+            )
+          )
+        );
+    }
+
     match /users/{uid} {
       allow read: if owns(uid);
       allow create: if owns(uid) && validProfileCreate(uid);
-      // All account value, mining, reward, and identity fields are server-owned
-      // after profile creation. Referral attribution is disabled until a
-      // server-verifiable flow exists. The dashboard may only edit name.
       allow update: if owns(uid) && validProfileNameEdit();
       allow delete: if false;
     }
@@ -84,10 +179,23 @@ service cloud.firestore {
     }
 
     match /chatMessages/{id} {
-      // Community chat is intentionally visible only to authenticated users.
       allow read: if signedIn();
       allow create: if signedIn() && validChatMessage();
       allow update, delete: if false;
+    }
+
+    match /marketplaceListings/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn() && validListingCreate();
+      allow update: if signedIn() && validListingUpdate();
+      allow delete: if signedIn() && request.auth.uid == resource.data.sellerUid;
+    }
+
+    match /marketplaceOrders/{id} {
+      allow read: if signedIn() && (request.auth.uid == resource.data.buyerUid || request.auth.uid == resource.data.sellerUid);
+      allow create: if signedIn() && validOrderCreate();
+      allow update: if signedIn() && validOrderUpdate();
+      allow delete: if false;
     }
 
     match /{document=**} {
