@@ -108,7 +108,7 @@
 
     // Load guards only after normal NexusNova scripts have finished building
     // their dynamic tabs and scripture readers.
-    loadGuard('./js/nexusnova-allapps-order-guard-v4.js', 'data-nx-allapps-guard');
+    loadGuard('./js/nexusnova-allapps-order-guard-v5.js', 'data-nx-allapps-guard');
     loadGuard('./js/nexusnova-scripture-source-guard-v2.js', 'data-nx-scripture-guard');
 
     let converterPasses = 0;
