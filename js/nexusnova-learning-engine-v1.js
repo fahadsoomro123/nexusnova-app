@@ -1,9 +1,11 @@
-/* NexusNova Learning Engine v1
+/* NexusNova Learning Engine v2
    Genuine no-key learning tools: Wikimedia knowledge lookup, real web paper search,
-   live-summary quiz generation, and a local study planner. */
+   live-summary quiz generation, and a local study planner.
+   Also acts as a late bootstrap for dynamic feature modules. */
 (() => {
   'use strict';
-  if (window.__nxLearningEngineV1) return;
+  if (window.__nxLearningEngineV2) return;
+  window.__nxLearningEngineV2 = true;
   window.__nxLearningEngineV1 = true;
 
   const $ = id => document.getElementById(id);
@@ -108,11 +110,21 @@
       const short = article.extract.length > 2200 ? article.extract.slice(0,2200).replace(/\s+\S*$/, '') + '…' : article.extract;
       out.innerHTML = `<b>${esc(article.title)}</b><div style="margin-top:9px;line-height:1.55">${esc(short)}</div>` +
         `<button type="button" class="tool-btn" data-nx-open-source style="margin-top:12px">Open source article</button>`;
-      out.querySelector('[data-nx-open-source]')?.addEventListener('click', () => window.open(article.url, '_blank', 'noopener,noreferrer'));
+      out.querySelector('[data-nx-open-source]')?.addEventListener('click', () => {
+        const opener = window.nxOpenExternal;
+        if (typeof opener === 'function') opener(article.url);
+        else window.open(article.url, '_blank', 'noopener,noreferrer');
+      });
     } catch (error) {
       console.warn('NexusNova learning lookup:', error);
       out.textContent = 'Live knowledge lookup unavailable right now. Use Search Web or try another topic.';
     }
+  }
+
+  function openWebSearch(query) {
+    const url = 'https://www.google.com/search?q=' + encodeURIComponent(query);
+    if (typeof window.nxOpenExternal === 'function') window.nxOpenExternal(url);
+    else window.open(url, '_blank', 'noopener,noreferrer');
   }
 
   function solvedPapers() {
@@ -131,10 +143,9 @@
       `<button type="button" class="tool-btn" data-paper="pdf">Search PDFs</button>` +
       `<button type="button" class="tool-btn" data-paper="web">Search web</button></div>` +
       `<div class="nxmega-muted" style="margin-top:9px">Results come from real websites. NexusNova does not invent paper files.</div>`;
-    const openSearch = q => window.open('https://www.google.com/search?q=' + encodeURIComponent(q), '_blank', 'noopener,noreferrer');
-    out.querySelector('[data-paper="edu"]')?.addEventListener('click', () => openSearch(eduQuery));
-    out.querySelector('[data-paper="pdf"]')?.addEventListener('click', () => openSearch(pdfQuery));
-    out.querySelector('[data-paper="web"]')?.addEventListener('click', () => openSearch(query));
+    out.querySelector('[data-paper="edu"]')?.addEventListener('click', () => openWebSearch(eduQuery));
+    out.querySelector('[data-paper="pdf"]')?.addEventListener('click', () => openWebSearch(pdfQuery));
+    out.querySelector('[data-paper="web"]')?.addEventListener('click', () => openWebSearch(query));
   }
 
   function hideWord(sentence) {
@@ -214,12 +225,23 @@
     } catch (_) {}
   }
 
+  function loadLateModule() {
+    if (!document.getElementById('tab-mega-islamic')) return;
+    if (document.querySelector('script[data-nx-islamic-extras]')) return;
+    const script = document.createElement('script');
+    script.src = './js/nexusnova-islamic-extras-v1.js?v=1';
+    script.setAttribute('data-nx-islamic-extras', '1');
+    script.onerror = () => console.warn('NexusNova Islamic extras failed to load.');
+    document.body.appendChild(script);
+  }
+
   function install() {
     claim('tab-mega-learning', '📖 Solved Papers', 'nxLearningSolvedPapers', solvedPapers);
     claim('tab-mega-learning', '📝 Quiz', 'nxLearningQuiz', learningQuiz);
     claim('tab-mega-learning', '📅 Study Planner', 'nxLearningPlanner', studyPlanner);
     claim('tab-learn', 'Open Learning', 'nxLearnOpenKnowledge', openLearning);
     claim('tab-learn', 'Open Papers', 'nxLearnOpenPapers', solvedPapers);
+    loadLateModule();
   }
 
   window.nxLearningKnowledge = openLearning;
