@@ -1,8 +1,9 @@
-/* NexusNova Smart Live v1
-   Connects Smart Hub camera and daily brief to real app/AI flows. */
+/* NexusNova Smart Live v2
+   Connects Smart Hub camera/daily brief to real AI flows and boots Documents live tools. */
 (() => {
   'use strict';
-  if (window.__nxSmartLiveV1) return;
+  if (window.__nxSmartLiveV2) return;
+  window.__nxSmartLiveV2 = true;
   window.__nxSmartLiveV1 = true;
 
   const $ = id => document.getElementById(id);
@@ -39,8 +40,6 @@
       alert('AI image input is not available on this build.');
       return;
     }
-    // This runs directly inside the user click handler so mobile browsers can
-    // preserve the camera/file-picker user gesture.
     input.click();
   }
 
@@ -60,31 +59,19 @@
 
   function buildBriefPrompt() {
     const now=Date.now();
-    const events=readList('events')
-      .filter(item=>Number(item?.when)>=now)
-      .sort((a,b)=>Number(a.when)-Number(b.when))
-      .slice(0,5);
-    const reminders=readList('reminders')
-      .filter(item=>!item?.fired && Number(item?.when)>=now)
-      .sort((a,b)=>Number(a.when)-Number(b.when))
-      .slice(0,5);
+    const events=readList('events').filter(item=>Number(item?.when)>=now).sort((a,b)=>Number(a.when)-Number(b.when)).slice(0,5);
+    const reminders=readList('reminders').filter(item=>!item?.fired && Number(item?.when)>=now).sort((a,b)=>Number(a.when)-Number(b.when)).slice(0,5);
     const expenses=readList('expenses');
     const expenseTotal=expenses.reduce((sum,item)=>sum+(Number(item?.amount)||0),0);
     const habits=readList('habits').slice(0,8);
     const balance=String($('balance')?.textContent||'unavailable').trim();
     const mining=String($('timer')?.textContent||'unavailable').trim();
-
     const eventText=events.length?events.map(x=>`${x.title} @ ${new Date(Number(x.when)).toLocaleString()}`).join('; '):'none';
     const reminderText=reminders.length?reminders.map(x=>`${x.text} @ ${new Date(Number(x.when)).toLocaleString()}`).join('; '):'none';
     const habitText=habits.length?habits.map(x=>`${x.name}: ${x.days||0} check-ins`).join('; '):'none';
-
     return `Build my concise NexusNova daily brief in Roman Urdu. Use only this real app data and do not invent missing information.\n`+
-      `NVX visible balance: ${balance}\n`+
-      `Mining timer/status: ${mining}\n`+
-      `Upcoming events: ${eventText}\n`+
-      `Upcoming reminders: ${reminderText}\n`+
-      `Logged expense total: ${expenseTotal}\n`+
-      `Habits: ${habitText}\n`+
+      `NVX visible balance: ${balance}\nMining timer/status: ${mining}\nUpcoming events: ${eventText}\n`+
+      `Upcoming reminders: ${reminderText}\nLogged expense total: ${expenseTotal}\nHabits: ${habitText}\n`+
       `Give priorities for today and clearly say when weather/news data is not supplied rather than guessing.`;
   }
 
@@ -99,10 +86,22 @@
     window.sendAIMessage();
   }
 
+  function loadDocuments(){
+    if(!document.getElementById('tab-mega-documents')) return;
+    if(document.querySelector('script[data-nx-documents-live]')) return;
+    const script=document.createElement('script');
+    script.src='./js/nexusnova-documents-live-v1.js?v=1';
+    script.setAttribute('data-nx-documents-live','1');
+    script.onerror=()=>console.warn('NexusNova Documents live module failed to load.');
+    document.body.appendChild(script);
+  }
+
   function install() {
-    if(!$('tab-smart')) return;
-    claim('Open Camera','nxSmartCameraLive',openCamera);
-    claim('Build Brief','nxSmartBriefLive',buildBrief);
+    if($('tab-smart')) {
+      claim('Open Camera','nxSmartCameraLive',openCamera);
+      claim('Build Brief','nxSmartBriefLive',buildBrief);
+    }
+    loadDocuments();
   }
 
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>setTimeout(install,1200),{once:true});
