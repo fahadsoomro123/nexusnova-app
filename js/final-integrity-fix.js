@@ -118,6 +118,12 @@
     src:'./js/nexusnova-referral-capture-v1.js?v=1',
     error:'NexusNova referral capture failed to load.'
   });
+  loadCritical({
+    flag:'__nxOnboardingInsightsV1',
+    marker:'data-nx-onboarding-insights',
+    src:'./js/nexusnova-onboarding-insights-v1.js?v=1',
+    error:'NexusNova guided onboarding failed to load.'
+  });
 
   await import('./final-integrity-fix-core.js?v=3');
 
