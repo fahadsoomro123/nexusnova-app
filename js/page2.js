@@ -19,6 +19,21 @@ const isNexusNovaDevHost =
 if (isNexusNovaDevHost) {
   self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
   console.info('NexusNova App Check: development debug provider enabled.');
+
+  // StackBlitz/WebContainer can preserve a Firebase DEFAULT app across hot reloads.
+  // Remove only the development DEFAULT instance so page2-core can initialize cleanly.
+  try {
+    const { getApps, deleteApp } = await import(
+      'https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js'
+    );
+    for (const existingApp of getApps()) {
+      if (existingApp?.name === '[DEFAULT]') {
+        await deleteApp(existingApp);
+      }
+    }
+  } catch (error) {
+    console.warn('NexusNova dev Firebase reset:', error);
+  }
 }
 
 const meta = document.querySelector('meta[name="nexusnova-app-check-site-key"]');
@@ -26,4 +41,4 @@ if (meta) {
   meta.setAttribute('content', '6LfEc4QtAAAAAOohkqSv0p76iwPTeHI98hqVlwIs');
 }
 
-await import('./page2-core.js?v=appcheck-debug-2');
+await import('./page2-core.js?v=appcheck-debug-3');
