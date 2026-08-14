@@ -179,7 +179,7 @@ try {
 
     /* Browser V4 must be requested immediately by the bootstrap, not from window.load + timers. */
     await page.waitForFunction(()=>window.__nxNexusBrowserV4===true,{timeout:5000});
-    await page.waitForSelector('[data-nx-browser-window]');
+    await page.waitForSelector('[data-nx-browser-window]',{state:'attached'});
 
     await page.click('#moreBtn');
     await page.waitForFunction(()=>document.body.classList.contains('nx-allapps-open'));
