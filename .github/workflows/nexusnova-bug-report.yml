@@ -1,0 +1,65 @@
+name: NexusNova Bug Report Check
+
+on:
+  push:
+    branches:
+      - main
+      - codex-final-audit
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check module syntax and loader
+        shell: bash
+        run: |
+          node --check js/nexusnova-bug-report-v1.js
+          grep -F "./js/nexusnova-bug-report-v1.js?v=1" js/final-integrity-fix.js
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Start local NexusNova origin
+        shell: bash
+        run: |
+          printf '<!doctype html><meta charset="utf-8"><title>runtime</title>' > .runtime-origin.html
+          python3 -m http.server 4173 > /tmp/nexusnova-bug-http.log 2>&1 &
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:4173/.runtime-origin.html >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/nexusnova-bug-http.log || true
+          exit 1
+      - name: Run bug report privacy browser check
+        run: node .github/scripts/nexusnova-bug-report-runtime.mjs
+
+  firestore-rules:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install Firebase emulator test packages
+        run: npm install --no-save firebase@12.1.0 @firebase/rules-unit-testing@5.0.0 firebase-tools@14.12.1
+      - name: Run bug report Firestore rules smoke
+        run: npx firebase emulators:exec --only firestore --project demo-nexusnova-bug-rules "node .github/scripts/bug-report-rules-smoke.mjs"
