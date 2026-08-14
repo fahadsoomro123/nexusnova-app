@@ -26,4 +26,52 @@ if (meta) {
   meta.setAttribute('content', '6LfEc4QtAAAAAOohkqSv0p76iwPTeHI98hqVlwIs');
 }
 
-await import('./page2-core.js?v=appcheck-debug-4');
+await import('./page2-core.js?v=appcheck-debug-5');
+
+// Firebase Auth can keep an ID token that was minted before the user verified
+// their email. Firestore Security Rules read the token claim, not only the
+// client-side user.emailVerified property. Refresh both the user record and
+// the ID token once on app startup so secure mining sees the new claim without
+// requiring a logout/login cycle.
+window.nexusAuthFreshReady = (async () => {
+  try {
+    const [appMod, authMod] = await Promise.all([
+      import('https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js'),
+      import('https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js')
+    ]);
+    const apps = appMod.getApps();
+    if (!apps.length) return null;
+    const auth = authMod.getAuth(apps[0]);
+
+    let user = auth.currentUser;
+    if (!user) {
+      user = await new Promise(resolve => {
+        let settled = false;
+        const unsubscribe = authMod.onAuthStateChanged(auth, value => {
+          if (settled) return;
+          settled = true;
+          unsubscribe();
+          resolve(value || null);
+        });
+        setTimeout(() => {
+          if (settled) return;
+          settled = true;
+          unsubscribe();
+          resolve(auth.currentUser || null);
+        }, 2500);
+      });
+    }
+
+    if (!user) return null;
+    await user.reload();
+    user = auth.currentUser || user;
+    await user.getIdToken(true);
+    console.info('NexusNova Auth: verification claims refreshed.', {
+      emailVerified: Boolean(user.emailVerified)
+    });
+    return user;
+  } catch (error) {
+    console.warn('NexusNova Auth refresh:', error);
+    return null;
+  }
+})();
