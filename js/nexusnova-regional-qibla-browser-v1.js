@@ -237,28 +237,29 @@
     openExternal(`https://www.google.com/search?q=${q}`);
   };
 
+  function activateBrowserFallback(section){
+    document.querySelectorAll(".tab").forEach(tab => tab.classList.remove("active"));
+    section.classList.add("active");
+    const menu=$("moreMenu");
+    if(menu){
+      menu.classList.remove("show","open","active");
+      menu.style.display="none";
+      menu.setAttribute("aria-hidden","true");
+    }
+    document.body.classList.remove("nx-allapps-open");
+    document.body.classList.add("nx-browser-open","nx-opened-from-allapps");
+  }
+
   function openNexusBrowserFromAllApps(){
     const section=$("tab-browser");
     if(!section) return false;
 
     try{
-      if(typeof window.openMoreTab === "function"){
-        window.openMoreTab("browser");
-      }else{
-        document.querySelectorAll(".tab").forEach(tab => tab.classList.remove("active"));
-        section.classList.add("active");
-        const menu=$("moreMenu");
-        if(menu){
-          menu.classList.remove("show","open","active");
-          menu.setAttribute("aria-hidden","true");
-        }
-        document.body.classList.add("nx-browser-open");
-      }
+      if(typeof window.openMoreTab === "function") window.openMoreTab("browser");
     }catch(error){
       console.warn("NexusNova browser launcher:", error);
-      document.querySelectorAll(".tab").forEach(tab => tab.classList.remove("active"));
-      section.classList.add("active");
     }
+    if(!section.classList.contains("active")) activateBrowserFallback(section);
 
     try{ window.NexusNovaBrowser?.install?.(); }catch(_){ }
     setTimeout(() => { try{ window.NexusNovaBrowser?.install?.(); }catch(_){ } }, 120);
@@ -282,15 +283,30 @@
       button.className="more-item";
       host.appendChild(button);
     }
+
     button.dataset.nxBrowserLauncher="1";
     button.type="button";
     button.title="Open NexusNova Browser";
-    button.innerHTML='<span class="mi-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg></span><span>NexusNova Browser</span>';
+    button.style.setProperty("--mi-a","#42a5ff");
+    button.style.setProperty("--mi-b","#084ec1");
+    button.style.setProperty("--mi-edge","#76c0ff");
+    button.style.setProperty("--mi-glow","rgba(45,145,255,.24)");
+
+    const label=button.querySelector("span:last-child");
+    if(!button.querySelector(".mi-icon") || label?.textContent !== "NexusNova Browser"){
+      button.innerHTML='<span class="mi-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg></span><span>NexusNova Browser</span>';
+    }
+
     button.onclick=event => {
       event.preventDefault();
       event.stopPropagation();
       openNexusBrowserFromAllApps();
     };
+
+    const firstOther=Array.from(host.children).find(node => node !== button && node.classList?.contains("more-item"));
+    if(firstOther && firstOther.nextElementSibling !== button){
+      host.insertBefore(button, firstOther.nextElementSibling);
+    }
 
     if(menu.dataset.nxBrowserWatch !== "1"){
       menu.dataset.nxBrowserWatch="1";
@@ -301,7 +317,7 @@
         setTimeout(() => {
           queued=false;
           ensureBrowserLauncher();
-        }, 60);
+        }, 80);
       });
       observer.observe(menu,{childList:true,subtree:true});
     }
