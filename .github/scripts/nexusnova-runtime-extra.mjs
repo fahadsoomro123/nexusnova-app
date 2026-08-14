@@ -82,8 +82,6 @@ async function qrRepair(){
   await page.addScriptTag({url:base+'/js/nexusnova-local-apps-repair-v1.js'});
   await page.waitForSelector('#nxMegaWifiQrLocal');
 
-  // The repaired QR flow must use the NexusNova premium in-app form — never
-  // fall back to the browser's native prompt dialogs.
   let nativeDialogs=0;
   page.on('dialog',async dialog=>{nativeDialogs+=1;await dialog.dismiss();});
   await page.click('#nxMegaWifiQrLocal');
@@ -109,11 +107,81 @@ async function qrRepair(){
   await context.close();
 }
 
+async function walletActions(){
+  const context=await browser.newContext();
+  const html=`<div id="walletActionStatus"></div><div id="walletAssetList"></div>`;
+  const {page,errors}=await originPage(context,html);
+  const from='0x1111111111111111111111111111111111111111';
+  const to='0x2222222222222222222222222222222222222222';
+  await page.evaluate(({from})=>{
+    const provider={
+      isRabby:true,
+      selectedAddress:from,
+      async request({method,params}){
+        if(method==='eth_accounts') return [from];
+        if(method==='eth_chainId') return '0x1';
+        if(method==='eth_sendTransaction'){
+          window.__walletTx=params?.[0]||null;
+          return '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+        }
+        throw new Error('Unexpected method '+method);
+      }
+    };
+    window.ethereum=provider;
+    window.nexusConnectedAddress=from;
+    window.nexusConnectedChainId='0x1';
+    window.connectNexusWallet=async()=>{};
+    window.refreshNexusOnchainWallet=async()=>{};
+  },{from});
+
+  await page.addScriptTag({url:base+'/js/wallet-actions-v2.js?v=3'});
+  await page.waitForFunction(()=>window.nexusWalletActionsVersion==='non-custodial-v3');
+
+  await page.evaluate(()=>window.handleDeposit());
+  await page.waitForSelector('#nexusWalletActionModal');
+  assert.match(await page.textContent('#nexusWalletActionModal'),/Ethereum Mainnet/i);
+  assert.match(await page.textContent('#nexusWalletActionModal'),new RegExp(from,'i'));
+  const depositAssets=await page.locator('#nxDepositAsset option').allTextContents();
+  assert.deepEqual(depositAssets,['ETH','USDT','USDC']);
+  await page.click('#nexusModalClose');
+
+  await page.evaluate(()=>window.handleWithdraw());
+  await page.waitForSelector('#nxWithdrawSubmit');
+  await page.selectOption('#nxWithdrawAsset','ETH');
+  await page.fill('#nxWithdrawAmount','0.01');
+  await page.fill('#nxWithdrawAddress',to);
+  await page.click('#nxWithdrawSubmit');
+  await page.waitForFunction(()=>Boolean(window.__walletTx));
+  const nativeTx=await page.evaluate(()=>window.__walletTx);
+  assert.equal(nativeTx.from.toLowerCase(),from.toLowerCase());
+  assert.equal(nativeTx.to.toLowerCase(),to.toLowerCase());
+  assert.equal(nativeTx.value,'0x2386f26fc10000');
+  await page.click('#nexusModalClose');
+
+  await page.evaluate(()=>{window.__walletTx=null;window.handleWithdraw();});
+  await page.waitForSelector('#nxWithdrawSubmit');
+  await page.selectOption('#nxWithdrawAsset','USDC');
+  await page.fill('#nxWithdrawAmount','1.5');
+  await page.fill('#nxWithdrawAddress',to);
+  await page.click('#nxWithdrawSubmit');
+  await page.waitForFunction(()=>Boolean(window.__walletTx));
+  const tokenTx=await page.evaluate(()=>window.__walletTx);
+  assert.equal(tokenTx.to.toLowerCase(),'0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48');
+  assert.match(tokenTx.data,/^0xa9059cbb/i);
+  assert.ok(tokenTx.data.toLowerCase().includes(to.slice(2).toLowerCase().padStart(64,'0')));
+  assert.ok(tokenTx.data.toLowerCase().endsWith(BigInt(1500000).toString(16).padStart(64,'0')));
+  assert.equal(errors.length,0,errors.join('\n'));
+  console.log('PASS Wallet — connected deposit address + native/ERC20 wallet-signed transfer payloads passed');
+  await page.close();
+  await context.close();
+}
+
 try{
   await browserCallerQibla();
   await smartBrief();
   await qrRepair();
-  console.log('\nExtra runtime smoke complete: 5 feature groups passed.');
+  await walletActions();
+  console.log('\nExtra runtime smoke complete: 6 feature groups passed.');
 }finally{
   await browser.close();
 }
