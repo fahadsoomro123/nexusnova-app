@@ -381,7 +381,7 @@ class MainActivity : AppCompatActivity() {
             contentResolver.getType(uri)?.lowercase(Locale.ROOT)
         } catch (_: Exception) {
             null
-        } ?: return false
+        } ?: return null
         val accepted = acceptedTypes
             .asSequence()
             .flatMap { value -> value.split(',').asSequence() }
