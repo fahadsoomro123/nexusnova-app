@@ -1,5 +1,5 @@
 /* NexusNova Community League + Progress Center v1
-   - Separate privacy-safe public leaderboard mirror (no email/wallet/balance).
+   - Separate privacy-safe public leaderboard mirror (no email/wallet/balance/UID field).
    - Own progress is derived from the secure users/{uid} profile.
    - Public leaderboard writes are validated by Firestore Security Rules.
 */
@@ -222,9 +222,8 @@
     return null;
   }
 
-  function publicShape(profile, uid, timestamp) {
+  function publicShape(profile, timestamp) {
     return {
-      uid,
       name:String(profile?.name || 'Miner User').slice(0,80),
       totalMined:num(profile?.totalMined),
       tasksCompleted:num(profile?.tasksCompleted),
@@ -254,7 +253,7 @@
       }
       await auth.currentUser.getIdToken(true);
       const ref = fs.doc(db, 'leaderboardPublic', user.uid);
-      await fs.setDoc(ref, publicShape(profile, user.uid, fs.serverTimestamp()));
+      await fs.setDoc(ref, publicShape(profile, fs.serverTimestamp()));
       lastSyncSignature = signature;
       status('League profile verified • rankings are synced securely.', true);
       await loadLeaderboard(false);
@@ -273,9 +272,9 @@
     try {
       const q = fs.query(fs.collection(db,'leaderboardPublic'), fs.orderBy('totalMined','desc'), fs.limit(50));
       const snap = await fs.getDocs(q);
-      const rows = snap.docs.map(d => d.data());
+      const rows = snap.docs.map(d => ({...d.data(), __docId:d.id}));
       const myUid = auth.currentUser.uid;
-      const myIndex = rows.findIndex(row => row.uid === myUid);
+      const myIndex = rows.findIndex(row => row.__docId === myUid);
       const rankText = myIndex >= 0 ? `#${myIndex+1}` : (rows.length >= 50 ? '50+' : '—');
       renderOwn(ownProfile, rankText);
       if (!list) return;
@@ -286,10 +285,10 @@
       list.innerHTML = rows.map((row,index) => {
         const rank = index + 1;
         const cls = rank===1?'top1':rank===2?'top2':rank===3?'top3':'';
-        const mine = row.uid === myUid ? ' me' : '';
+        const mine = row.__docId === myUid ? ' me' : '';
         return `<div class="nx-leader-row${mine}">
           <div class="nx-rank ${cls}">${rank===1?'🥇':rank===2?'🥈':rank===3?'🥉':'#'+rank}</div>
-          <div class="nx-leader-name"><strong>${esc(row.name || 'Miner User')}${row.uid===myUid?' • YOU':''}</strong><small>🔥 ${num(row.dailyRewardStreak)} day streak • ${num(row.tasksCompleted)} tasks</small></div>
+          <div class="nx-leader-name"><strong>${esc(row.name || 'Miner User')}${row.__docId===myUid?' • YOU':''}</strong><small>🔥 ${num(row.dailyRewardStreak)} day streak • ${num(row.tasksCompleted)} tasks</small></div>
           <div class="nx-leader-score"><strong>${num(row.totalMined).toFixed(0)} NVX</strong><small>mined</small></div>
         </div>`;
       }).join('');
@@ -347,8 +346,16 @@
     ensureSection();
     ensureMenuButton();
     ensureMiniCard();
-    document.getElementById('nxLeagueRefresh')?.addEventListener('click', () => loadLeaderboard(true));
-    document.getElementById('nxLeagueProfile')?.addEventListener('click', () => showTab('profile'));
+    const refresh = document.getElementById('nxLeagueRefresh');
+    if (refresh && refresh.dataset.nxBound !== '1') {
+      refresh.dataset.nxBound='1';
+      refresh.addEventListener('click', () => loadLeaderboard(true));
+    }
+    const profile = document.getElementById('nxLeagueProfile');
+    if (profile && profile.dataset.nxBound !== '1') {
+      profile.dataset.nxBound='1';
+      profile.addEventListener('click', () => showTab('profile'));
+    }
   }
 
   function boot() {
