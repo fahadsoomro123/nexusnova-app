@@ -85,6 +85,29 @@ try {
     await setDoc(doc(ctx.firestore(),'users/rewarder-2'),baseProfile('rewarder-2','rewarder2@example.com'));
   });
 
+  // Privacy-safe public leaderboard mirror. It contains no email, wallet,
+  // balance or user-controlled score: values must equal the secure user doc.
+  const leagueRef=doc(miner,'leaderboardPublic/miner-1');
+  const leagueZero={name:'Miner',totalMined:0,tasksCompleted:0,dailyRewardStreak:0,updatedAt:serverTimestamp()};
+  await assertSucceeds(setDoc(leagueRef,leagueZero));
+  console.log('PASS verified miner can publish exact privacy-safe leaderboard mirror');
+
+  await assertSucceeds(getDoc(doc(stranger,'leaderboardPublic/miner-1')));
+  await assertFails(getDoc(doc(anon,'leaderboardPublic/miner-1')));
+  console.log('PASS leaderboard readable to signed-in community but denied to anonymous users');
+
+  await assertFails(setDoc(leagueRef,{...leagueZero,totalMined:999999}));
+  console.log('PASS miner cannot forge leaderboard mining score');
+
+  await assertFails(setDoc(leagueRef,{...leagueZero,email:'miner@example.com'}));
+  console.log('PASS private email field cannot be published in leaderboard document');
+
+  await assertFails(setDoc(doc(stranger,'leaderboardPublic/miner-1'),leagueZero));
+  console.log('PASS another signed-in user cannot overwrite a miner leaderboard document');
+
+  await assertFails(setDoc(doc(unverifiedMiner,'leaderboardPublic/miner-2'),leagueZero));
+  console.log('PASS unverified miner cannot publish leaderboard position');
+
   // Daily Reward: first verified claim is exactly +5 and starts streak 1.
   const dailyNow=Date.now();
   await assertSucceeds(updateDoc(rewarderRef,{balance:15,lastDailyReward:dailyNow,dailyRewardStreak:1}));
@@ -165,6 +188,14 @@ try {
   assert.equal(finished.data().referralCode,'NVXMINER1');
   console.log('PASS legacy 63/48 expired session settles to 87/72 without touching unrelated fields');
 
+  await assertSucceeds(setDoc(leagueRef,{name:'Miner',totalMined:72,tasksCompleted:0,dailyRewardStreak:0,updatedAt:serverTimestamp()}));
+  const leagueAfterMining=await getDoc(leagueRef);
+  assert.equal(leagueAfterMining.data().totalMined,72);
+  console.log('PASS leaderboard can sync only the newly verified 72 NVX mining total');
+
+  await assertFails(setDoc(leagueRef,{name:'Miner',totalMined:96,tasksCompleted:0,dailyRewardStreak:0,updatedAt:serverTimestamp()}));
+  console.log('PASS leaderboard cannot get ahead of authoritative mining total');
+
   // Mirror transaction #2: immediately start the next 24h session.
   await assertSucceeds(runTransaction(miner,async tx=>{
     const snap=await tx.get(minerRef);
@@ -185,7 +216,7 @@ try {
   await assertFails(updateDoc(minerRef,{balance:111,totalMined:96,miningLastUpdate:Date.now()}));
   console.log('PASS active new session cannot replay another +24 reward');
 
-  console.log('\nFirestore rules smoke complete: daily reward + mining + marketplace security passed.');
+  console.log('\nFirestore rules smoke complete: leaderboard + daily reward + mining + marketplace security passed.');
 } finally {
   await env.cleanup();
 }
