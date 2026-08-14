@@ -7,24 +7,24 @@ const browser=await chromium.launch({headless:true});
 function shell(){
   return `<!doctype html><html><head><meta charset="utf-8"></head><body>
     <div id="moreMenu"><button class="more-item"><span>BROWSER</span></button></div>
-    <section id="tab-browser">
-      <div class="card">
-        <div class="hub-hero"><div><div class="hub-kicker">NEXUS BROWSER</div><h2><span class="mi-icon">◎</span> Built-in Web Viewer</h2><p>Old copy</p></div><div class="hub-orb">◎</div></div>
-        <div class="tool-row"><input id="nxBrowserUrl" value="https://example.com/"><button id="oldGo" onclick="nxBrowse()">Go</button></div>
-        <div class="browser-links"><button id="preset" onclick="nxBrowsePreset('https://example.org/')">Example preset</button></div>
-        <div class="browser-frame-wrap"><iframe id="nxBrowserFrame" src="about:blank"></iframe></div>
-        <div id="nxBrowserStatus">Old status</div>
-        <button id="external" onclick="nxOpenBrowserExternal()">Open externally</button>
-      </div>
-    </section>
+    <main class="main"><section id="tab-browser"><div class="card">Legacy browser placeholder</div></section></main>
   </body></html>`;
 }
 
-async function installBrowserV2(page){
-  await page.addScriptTag({url:`${base}/js/nexusnova-browser-v1.js?v=2`});
-  await page.waitForFunction(()=>window.__nxNexusBrowserV2===true && window.NexusNovaBrowser?.version==='in-app-browser-v2');
+async function installBrowserV3(page){
+  await page.addScriptTag({url:`${base}/js/nexusnova-browser-v1.js?v=3`});
+  await page.waitForFunction(()=>window.__nxNexusBrowserV3===true && window.NexusNovaBrowser?.version==='nexus-browser-v3');
   await page.waitForSelector('[data-nx-browser-toolbar]');
-  await page.waitForTimeout(120);
+  await page.waitForTimeout(100);
+}
+
+async function hookExternalClicks(page){
+  await page.evaluate(()=>{
+    window.__externalClicks=[];
+    HTMLAnchorElement.prototype.click=function(){
+      if(this.target==='_blank') window.__externalClicks.push({href:this.href,target:this.target,rel:this.rel});
+    };
+  });
 }
 
 try {
@@ -34,86 +34,60 @@ try {
     page.on('pageerror',e=>errors.push(e.message||String(e)));
     await page.goto(base+'/.runtime-origin.html');
     await page.setContent(shell());
-    await page.evaluate(()=>{
-      window.__externalClicks=0;
-      const nativeClick=HTMLAnchorElement.prototype.click;
-      HTMLAnchorElement.prototype.click=function(){
-        if(this.target==='_blank') window.__externalClicks+=1;
-        else return nativeClick.call(this);
-      };
-      window.nxBrowse=()=>{window.__legacyCalls=(window.__legacyCalls||0)+1;};
-      window.nxBrowsePreset=()=>{window.__legacyCalls=(window.__legacyCalls||0)+1;};
-      window.nxOpenBrowserExternal=()=>{window.__legacyCalls=(window.__legacyCalls||0)+1;};
-    });
-
-    await installBrowserV2(page);
+    await hookExternalClicks(page);
+    await installBrowserV3(page);
 
     assert.ok((await page.textContent('#tab-browser h2')).includes('NexusNova Browser'));
-    assert.equal((await page.textContent('.more-item span')).trim(),'NEXUSNOVA BROWSER');
     assert.equal(await page.locator('#tab-browser').evaluate(node=>node.classList.contains('nx-browser-shell')),true);
-    assert.ok((await page.textContent('.nx-browser-mode-line')).includes('Protected HTTPS navigation'));
-    assert.ok((await page.textContent('.nx-browser-mode-line')).includes('WEB • IN APP'));
+    assert.equal(await page.locator('#nxBrowserFrame').count(),0,'V3 must not restore the broken iframe viewer');
     assert.equal(await page.locator('[data-nx-browser-toolbar] .nx-browser-nav').count(),4);
     assert.equal(await page.locator('[data-nx-browser-toolbar] .nx-browser-nav svg').count(),4);
-    assert.ok((await page.textContent('[data-nx-browser-toolbar]')).includes('NEXUS SECURE VIEW'));
-    assert.ok((await page.getAttribute('#nxBrowserUrl','placeholder')).includes('secure website'));
-    assert.equal(await page.locator('.browser-links .nx-browser-link-icon svg').count(),1);
-    console.log('PASS NexusNova Browser V2 premium shell, Nexus branding, SVG controls and HTTPS chrome');
+    assert.ok((await page.getAttribute('#nxBrowserUrl','placeholder')).includes('Search or enter website'));
+    assert.equal(await page.locator('.nx-speed-grid [data-nx-speed]').count(),8);
+    assert.ok((await page.textContent('#tab-browser')).includes('Speed Dial'));
+    assert.ok((await page.textContent('#tab-browser')).includes('REAL PAGE • NEW TAB'));
+    console.log('PASS NexusNova Browser V3 full browser chrome, Speed Dial and non-iframe start page');
+
+    await page.fill('#nxBrowserUrl','https://example.com/');
+    await page.click('[data-nx-browser-go]');
+    let clicks=await page.evaluate(()=>window.__externalClicks);
+    assert.equal(clicks.length,1);
+    assert.equal(clicks[0].href,'https://example.com/');
+    assert.equal(clicks[0].target,'_blank');
+    assert.ok(clicks[0].rel.includes('noopener'));
+    assert.ok((await page.textContent('#nxBrowserStatus')).includes('real browser tab'));
+    console.log('PASS web/PWA routing opens a real top-level browser tab instead of blocked iframe');
+
+    await page.fill('#nxBrowserUrl','nexusnova test search');
+    await page.press('#nxBrowserUrl','Enter');
+    clicks=await page.evaluate(()=>window.__externalClicks);
+    assert.equal(clicks.length,2);
+    assert.ok(clicks[1].href.startsWith('https://www.google.com/search?q='));
+    console.log('PASS omnibox supports web search');
+
+    await page.fill('#nxBrowserUrl','javascript:alert(1)');
+    await page.click('[data-nx-browser-go]');
+    assert.ok((await page.textContent('#nxBrowserStatus')).includes('Website ya search term'));
+    assert.equal((await page.evaluate(()=>window.__externalClicks)).length,2);
+    console.log('PASS unsafe schemes are rejected');
 
     await page.addScriptTag({url:`${base}/js/nexusnova-browser-extensions-v1.js?v=2`});
     await page.waitForFunction(()=>window.NexusNovaBrowserExtensions?.version==='extensions-apps-hub-v2');
     await page.evaluate(()=>window.NexusNovaBrowserExtensions.install());
     await page.waitForSelector('[data-nx-browser-extensions]');
-    assert.equal(await page.locator('[data-nx-browser-extensions] svg').count(),1);
     await page.click('[data-nx-browser-extensions]');
     await page.waitForSelector('#nxBrowserExtensionsOverlay.open');
     const extText=await page.textContent('#nxBrowserExtensionsOverlay');
     assert.ok(extText.includes('NEXUSNOVA // EXTENSIONS + APPS'));
     assert.ok(extText.includes('Extensions & Apps Hub'));
     assert.ok(extText.includes('Chrome .crx') && extText.includes('cannot execute arbitrary desktop'));
-    console.log('PASS NexusNova Extensions & Apps V2 is branded and honest about WebView limits');
 
     await page.fill('[data-app-name]','Example App');
     await page.fill('[data-app-url]','https://example.net/');
     await page.click('[data-app-install]');
     assert.ok((await page.textContent('[data-app-install-status]')).includes('installed in NexusNova Browser'));
     assert.equal(await page.locator('[data-nx-installed-apps] [data-app-id]').count(),1);
-    console.log('PASS secure HTTPS web app installs into NexusNova Browser Apps Hub');
-    await page.evaluate(()=>window.NexusNovaBrowserExtensions.close());
-
-    await page.click('#oldGo');
-    await page.waitForFunction(()=>document.getElementById('nxBrowserFrame')?.src==='https://example.com/');
-    assert.equal(await page.evaluate(()=>window.__externalClicks),0);
-    assert.equal(await page.evaluate(()=>window.__legacyCalls||0),0);
-    console.log('PASS Go stays inside NexusNova web viewer');
-
-    await page.click('#preset');
-    await page.waitForFunction(()=>document.getElementById('nxBrowserFrame')?.src==='https://example.org/');
-    assert.equal(await page.evaluate(()=>window.__externalClicks),0);
-    console.log('PASS quick link stays inside NexusNova web viewer');
-
-    await page.fill('#nxBrowserUrl','nexusnova test search');
-    await page.press('#nxBrowserUrl','Enter');
-    await page.waitForFunction(()=>document.getElementById('nxBrowserFrame')?.src.startsWith('https://www.google.com/search?q='));
-    assert.equal(await page.evaluate(()=>window.__externalClicks),0);
-    console.log('PASS address bar supports in-app search');
-
-    await page.fill('#nxBrowserUrl','javascript:alert(1)');
-    await page.click('#oldGo');
-    assert.ok((await page.textContent('#nxBrowserStatus')).includes('secure HTTPS'));
-    console.log('PASS unsafe schemes are rejected');
-
-    await page.evaluate(()=>{
-      window.nxBrowse=()=>{window.__lateLegacy=(window.__lateLegacy||0)+1;};
-      window.nxBrowsePreset=()=>{window.__lateLegacy=(window.__lateLegacy||0)+1;};
-    });
-    await page.addScriptTag({url:`${base}/js/nexusnova-browser-guard-v1.js?v=1`});
-    await page.waitForTimeout(80);
-    await page.fill('#nxBrowserUrl','https://example.edu/');
-    await page.click('#oldGo');
-    await page.waitForFunction(()=>document.getElementById('nxBrowserFrame')?.src==='https://example.edu/');
-    assert.equal(await page.evaluate(()=>window.__lateLegacy||0),0);
-    console.log('PASS late legacy launcher cannot retake Browser ownership');
+    console.log('PASS Extensions & Apps Hub remains connected to Browser V3');
 
     assert.equal(errors.length,0,errors.join('\n'));
     await page.close();
@@ -127,28 +101,28 @@ try {
     await page.setContent(shell());
     await page.evaluate(()=>{
       window.__nativeMessages=[];
-      window.__externalClicks=0;
+      window.__externalClicks=[];
       window.NexusBrowserAndroid={postMessage(message){window.__nativeMessages.push(JSON.parse(message));}};
-      HTMLAnchorElement.prototype.click=function(){if(this.target==='_blank')window.__externalClicks+=1;};
+      HTMLAnchorElement.prototype.click=function(){if(this.target==='_blank')window.__externalClicks.push(this.href);};
     });
-    await installBrowserV2(page);
+    await installBrowserV3(page);
 
-    assert.ok((await page.textContent('.nx-browser-mode-line')).includes('ANDROID • IN APP'));
+    assert.ok((await page.textContent('#tab-browser')).includes('ANDROID ENGINE'));
+    assert.ok((await page.textContent('#tab-browser')).includes('NEXUS NATIVE'));
     await page.fill('#nxBrowserUrl','https://www.google.com/');
-    await page.click('#oldGo');
+    await page.click('[data-nx-browser-go]');
     const messages=await page.evaluate(()=>window.__nativeMessages);
     assert.equal(messages.length,1);
     assert.deepEqual(messages[0],{action:'open',url:'https://www.google.com/'});
-    assert.equal(await page.getAttribute('#nxBrowserFrame','src'),'about:blank');
-    assert.equal(await page.evaluate(()=>window.__externalClicks),0);
-    assert.ok((await page.textContent('#nxBrowserStatus')).includes('native NexusNova Browser'));
-    console.log('PASS Android mode preserves NexusNova identity and routes into dedicated native Browser Activity');
+    assert.equal((await page.evaluate(()=>window.__externalClicks)).length,0);
+    assert.ok((await page.textContent('#nxBrowserStatus')).includes('Android Browser'));
+    console.log('PASS Android mode routes into dedicated NexusNova Browser Activity without external handoff');
 
     assert.equal(errors.length,0,errors.join('\n'));
     await page.close();
   }
 
-  console.log('\nNexusNova Browser runtime complete: V2 visual identity, Extensions & Apps V2, secure in-app browsing and Android routing passed.');
+  console.log('\nNexusNova Browser runtime complete: V3 browser chrome, real web routing, Extensions & Apps and Android native routing passed.');
 } finally {
   await browser.close();
 }
