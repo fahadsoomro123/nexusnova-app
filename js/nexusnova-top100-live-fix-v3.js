@@ -1,6 +1,7 @@
-/* NexusNova Top-100 Live Market + Wallet Fix V3
-   Targeted compatibility layer for environments where the Firebase module
-   fails before the main market/wallet functions are registered.
+/* NexusNova Live Market + Wallet Integrity V4
+   CoinGecko market-cap data is primary. Binance 24h-volume markets are an
+   honest fallback. A static catalog is used only with unavailable prices.
+   Market search always filters the same authoritative rows currently rendered.
 */
 (function () {
   "use strict";
@@ -15,12 +16,12 @@
     ["AVAX","Avalanche"],["SHIB","Shiba Inu"],["TON","Toncoin"],["LINK","Chainlink"],["DOT","Polkadot"],["BCH","Bitcoin Cash"],["SUI","Sui"],["LTC","Litecoin"],["HBAR","Hedera"],["XLM","Stellar"],
     ["UNI","Uniswap"],["PEPE","Pepe"],["NEAR","NEAR Protocol"],["APT","Aptos"],["ICP","Internet Computer"],["ETC","Ethereum Classic"],["AAVE","Aave"],["FIL","Filecoin"],["ATOM","Cosmos"],["ARB","Arbitrum"],
     ["OP","Optimism"],["INJ","Injective"],["RENDER","Render"],["TAO","Bittensor"],["SEI","Sei"],["STX","Stacks"],["IMX","Immutable"],["MKR","Maker"],["LDO","Lido DAO"],["GRT","The Graph"],
-    ["RUNE","THORChain"],["QNT","Quant"],["FET","Artificial Superintelligence Alliance"],["ALGO","Algorand"],["VET","VeChain"],["MATIC","Polygon"],["POL","Polygon Ecosystem Token"],["CRO","Cronos"],["KAS","Kaspa"],["MNT","Mantle"],
-    ["OKB","OKB"],["WIF","dogwifhat"],["BONK","Bonk"],["JUP","Jupiter"],["TIA","Celestia"],["PYTH","Pyth Network"],["ONDO","Ondo"],["ENA","Ethena"],["WLD","Worldcoin"],["GALA","Gala"],
-    ["SAND","The Sandbox"],["MANA","Decentraland"],["AXS","Axie Infinity"],["THETA","Theta Network"],["EGLD","MultiversX"],["FLOW","Flow"],["KAVA","Kava"],["XTZ","Tezos"],["EOS","EOS"],["IOTA","IOTA"],
-    ["NEO","Neo"],["CHZ","Chiliz"],["CRV","Curve DAO"],["COMP","Compound"],["SNX","Synthetix"],["1INCH","1inch"],["BAT","Basic Attention Token"],["ZEC","Zcash"],["DASH","Dash"],["XMR","Monero"],
-    ["KCS","KuCoin Token"],["LUNC","Terra Classic"],["RPL","Rocket Pool"],["DYDX","dYdX"],["GMX","GMX"],["CAKE","PancakeSwap"],["FTM","Fantom"],["KSM","Kusama"],["MINA","Mina"],["ROSE","Oasis"],
-    ["CFX","Conflux"],["AR","Arweave"],["JASMY","JasmyCoin"],["ZIL","Zilliqa"],["ENS","Ethereum Name Service"],["LPT","Livepeer"],["BLUR","Blur"],["STRK","Starknet"],["NOT","Notcoin"],["JTO","Jito"]
+    ["RUNE","THORChain"],["QNT","Quant"],["FET","Artificial Superintelligence Alliance"],["ALGO","Algorand"],["VET","VeChain"],["POL","Polygon Ecosystem Token"],["CRO","Cronos"],["KAS","Kaspa"],["MNT","Mantle"],["OKB","OKB"],
+    ["WIF","dogwifhat"],["BONK","Bonk"],["JUP","Jupiter"],["TIA","Celestia"],["PYTH","Pyth Network"],["ONDO","Ondo"],["ENA","Ethena"],["WLD","Worldcoin"],["GALA","Gala"],["SAND","The Sandbox"],
+    ["MANA","Decentraland"],["AXS","Axie Infinity"],["THETA","Theta Network"],["EGLD","MultiversX"],["FLOW","Flow"],["KAVA","Kava"],["XTZ","Tezos"],["EOS","EOS"],["IOTA","IOTA"],["NEO","Neo"],
+    ["CHZ","Chiliz"],["CRV","Curve DAO"],["COMP","Compound"],["SNX","Synthetix"],["1INCH","1inch"],["BAT","Basic Attention Token"],["ZEC","Zcash"],["DASH","Dash"],["XMR","Monero"],["KCS","KuCoin Token"],
+    ["LUNC","Terra Classic"],["RPL","Rocket Pool"],["DYDX","dYdX"],["GMX","GMX"],["CAKE","PancakeSwap"],["KSM","Kusama"],["MINA","Mina"],["ROSE","Oasis"],["CFX","Conflux"],["AR","Arweave"],
+    ["JASMY","JasmyCoin"],["ZIL","Zilliqa"],["ENS","Ethereum Name Service"],["LPT","Livepeer"],["BLUR","Blur"],["STRK","Starknet"],["NOT","Notcoin"],["JTO","Jito"],["PENDLE","Pendle"],["W","Wormhole"]
   ].slice(0, TOP_LIMIT);
 
   function esc(value) {
@@ -70,15 +71,17 @@
     }));
   }
 
-  // The deferred primary dashboard module can use this same genuine catalog
-  // if both live providers are unavailable. It contains no made-up prices.
   window.nexusTop100FallbackCatalog = fallbackCatalog;
 
+  function publish(rows, source) {
+    cache = { at: Date.now(), coins: rows.slice(0, TOP_LIMIT), source };
+    window.__nexusMarketCoins = cache.coins;
+    window.__nexusMarketSource = source;
+    return cache;
+  }
 
-  async function fetchTop100() {
-    if (cache.coins.length >= TOP_LIMIT && Date.now() - cache.at < CACHE_MS) {
-      return cache;
-    }
+  async function fetchTop100(force = false) {
+    if (!force && cache.coins.length && Date.now() - cache.at < CACHE_MS) return cache;
     if (pending) return pending;
 
     pending = (async function () {
@@ -90,7 +93,7 @@
           9000
         );
         if (Array.isArray(rows) && rows.length >= 80) {
-          const coins = rows.slice(0, TOP_LIMIT).map((coin, index) => ({
+          return publish(rows.slice(0, TOP_LIMIT).map((coin, index) => ({
             id: String(coin.id || coin.symbol || index),
             symbol: String(coin.symbol || "").toUpperCase(),
             name: String(coin.name || coin.symbol || "Coin"),
@@ -98,12 +101,10 @@
             price_change_percentage_24h: num(coin.price_change_percentage_24h),
             market_cap_rank: num(coin.market_cap_rank) || index + 1,
             image: String(coin.image || "")
-          }));
-          cache = { at: Date.now(), coins: coins, source: "CoinGecko market cap" };
-          return cache;
+          })), "coingecko-market-cap");
         }
       } catch (error) {
-        console.warn("NexusNova top-100 CoinGecko source:", error);
+        console.warn("NexusNova market CoinGecko source:", error);
       }
 
       try {
@@ -136,172 +137,152 @@
               image: ""
             };
           });
-
-        if (coins.length >= 80) {
-          while (coins.length < TOP_LIMIT) {
-            const extra = fallbackCatalog().find(c => !coins.some(x => x.symbol === c.symbol));
-            if (!extra) break;
-            extra.market_cap_rank = coins.length + 1;
-            coins.push(extra);
-          }
-          cache = { at: Date.now(), coins: coins.slice(0, TOP_LIMIT), source: "Binance 24h volume" };
-          return cache;
-        }
+        if (coins.length >= 50) return publish(coins, "binance-volume");
       } catch (error) {
-        console.warn("NexusNova top-100 Binance source:", error);
+        console.warn("NexusNova market Binance fallback:", error);
       }
 
-      const coins = fallbackCatalog();
-      cache = { at: Date.now(), coins: coins, source: "catalog" };
-      return cache;
+      return publish(fallbackCatalog(), "catalog");
     })();
 
-    try {
-      return await pending;
-    } finally {
-      pending = null;
-    }
+    try { return await pending; }
+    finally { pending = null; }
   }
 
-  function renderMarket(coins, source) {
+  function sourceText(source, count, filtered = false) {
+    const n = Number(count || 0);
+    if (filtered) return `${n} match${n === 1 ? "" : "es"}`;
+    if (source === "coingecko-market-cap") return `${n} coins • Market-cap live`;
+    if (source === "binance-volume") return `${n} liquid USDT markets • Live fallback`;
+    return `${n} coins • prices reconnecting`;
+  }
+
+  function renderMarket(coins, source, filtered = false) {
     const list = document.getElementById("marketList");
     const count = document.getElementById("marketCount");
     if (!list) return;
 
-    list.innerHTML = coins.slice(0, TOP_LIMIT).map((coin, index) => {
+    list.innerHTML = coins.map((coin, index) => {
       const change = num(coin.price_change_percentage_24h);
+      const rank = source === "coingecko-market-cap"
+        ? `#${num(coin.market_cap_rank) || index + 1}`
+        : source === "binance-volume"
+          ? `VOL #${index + 1}`
+          : `#${index + 1}`;
+      const changeText = num(coin.current_price) > 0
+        ? `<div class="${change >= 0 ? "up" : "down"} coin-change">${change >= 0 ? "+" : ""}${change.toFixed(2)}%</div>`
+        : `<div class="coin-change" style="color:#64748b">24h unavailable</div>`;
       return `
         <div class="coin-row" data-top100-market="${esc(coin.symbol)}">
-          <div class="coin-rank">#${index + 1}</div>
+          <div class="coin-rank">${rank}</div>
           <div style="min-width:0;flex:1">
             <div class="coin-name">${esc(coin.name)}</div>
             <div class="coin-symbol">${esc(coin.symbol)}</div>
           </div>
           <div class="coin-price" style="text-align:right">
             ${priceText(coin.current_price)}
-            <div class="${change >= 0 ? "up" : "down"} coin-change">
-              ${change >= 0 ? "+" : ""}${change.toFixed(2)}%
-            </div>
+            ${changeText}
           </div>
         </div>`;
-    }).join("");
+    }).join("") || '<div class="status">No matching coin found.</div>';
 
-    if (count) {
-      count.textContent = source === "catalog"
-        ? "100 coins • live prices reconnecting"
-        : "Top 100 coins • Live";
-    }
+    if (count) count.textContent = sourceText(source, coins.length, filtered);
   }
 
   function currentBalance(symbol) {
-    const cache = window.__nexusOnchainVisibleBalances || {};
-    if (Object.prototype.hasOwnProperty.call(cache, symbol)) return num(cache[symbol]);
-    return 0;
+    const values = window.__nexusOnchainVisibleBalances || {};
+    return Object.prototype.hasOwnProperty.call(values, symbol) ? num(values[symbol]) : 0;
   }
 
   function renderWallet(coins, source) {
     const list = document.getElementById("walletAssetList");
     if (!list) return;
-
     let totalUsd = 0;
-    list.innerHTML = coins.slice(0, TOP_LIMIT).map((coin) => {
+    list.innerHTML = coins.map(coin => {
       const symbol = String(coin.symbol || "").toUpperCase();
       const balance = currentBalance(symbol);
       const price = num(coin.current_price);
-      const value = balance * price;
-      totalUsd += value;
+      totalUsd += balance * price;
       const icon = coin.image
         ? `<img src="${esc(coin.image)}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover">`
         : esc(symbol.slice(0, 1));
-
       return `
         <div class="coin-row" data-wallet-symbol="${esc(symbol)}" data-symbol="${esc(symbol)}">
-          <div style="width:34px;height:34px;border-radius:50%;background:#182234;display:flex;align-items:center;justify-content:center;font-weight:800;color:#49a7ff;overflow:hidden;flex:0 0 34px">
-            ${icon}
-          </div>
-          <div style="flex:1;min-width:0;margin-left:9px">
-            <div class="coin-name">${esc(coin.name)}</div>
-            <div class="coin-symbol">${esc(symbol)}</div>
-          </div>
-          <div style="text-align:right;min-width:115px">
-            <div class="coin-price wallet-live-price">${priceText(price)}</div>
-            <div style="font-size:10px;color:#64748b;margin-top:3px">${balance > 0 ? balance.toLocaleString(undefined,{maximumFractionDigits:6}) : "0"} ${esc(symbol)}</div>
-          </div>
+          <div style="width:34px;height:34px;border-radius:50%;background:#182234;display:flex;align-items:center;justify-content:center;font-weight:800;color:#49a7ff;overflow:hidden;flex:0 0 34px">${icon}</div>
+          <div style="flex:1;min-width:0;margin-left:9px"><div class="coin-name">${esc(coin.name)}</div><div class="coin-symbol">${esc(symbol)}</div></div>
+          <div style="text-align:right;min-width:115px"><div class="coin-price wallet-live-price">${priceText(price)}</div><div style="font-size:10px;color:#64748b;margin-top:3px">${balance > 0 ? balance.toLocaleString(undefined,{maximumFractionDigits:6}) : "0"} ${esc(symbol)}</div></div>
         </div>`;
     }).join("");
 
     const total = document.getElementById("walletTotalUsd");
-    if (total) {
-      total.textContent = "$ " + totalUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    }
-
+    if (total) total.textContent = "$ " + totalUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const status = document.getElementById("walletActionStatus");
-    if (status) {
-      status.textContent = source === "catalog"
-        ? "100 crypto assets loaded • reconnecting live prices"
-        : "Top 100 crypto assets loaded • Live prices";
-    }
+    if (status && !document.getElementById("nexusWalletActionModal")) status.textContent = sourceText(source, coins.length);
   }
 
-  async function refreshBoth(which) {
+  function filterMarket() {
+    const query = String(document.getElementById("cryptoSearch")?.value || "").toLowerCase().trim();
+    const rows = cache.coins.length ? cache.coins : (window.__nexusMarketCoins || []);
+    if (!query) {
+      renderMarket(rows, cache.source || window.__nexusMarketSource || "catalog", false);
+      return;
+    }
+    const filtered = rows.filter(coin =>
+      String(coin.name || "").toLowerCase().includes(query) ||
+      String(coin.symbol || "").toLowerCase().includes(query)
+    );
+    renderMarket(filtered, cache.source || window.__nexusMarketSource || "catalog", true);
+  }
+
+  async function refreshBoth(which, force = false) {
     if (which !== "wallet") {
       const marketList = document.getElementById("marketList");
-      if (marketList) marketList.innerHTML = '<div class="status">Loading top 100 crypto market...</div>';
+      if (marketList) marketList.innerHTML = '<div class="status">Loading live crypto market...</div>';
     }
     if (which !== "market") {
       const walletList = document.getElementById("walletAssetList");
-      if (walletList) walletList.innerHTML = '<div class="status">Loading top 100 crypto assets...</div>';
+      if (walletList) walletList.innerHTML = '<div class="status">Loading crypto assets...</div>';
     }
-
-    const result = await fetchTop100();
+    const result = await fetchTop100(force);
     const coins = result.coins.slice(0, TOP_LIMIT);
-    if (which !== "wallet") renderMarket(coins, result.source);
+    if (which !== "wallet") renderMarket(coins, result.source, false);
     if (which !== "market") renderWallet(coins, result.source);
     return coins;
   }
 
   function installOverrides() {
-    window.loadMarket = function () {
-      return refreshBoth("market");
-    };
-
-    window.refreshWalletFoundation = function () {
-      return refreshBoth("wallet");
-    };
+    window.loadMarket = () => refreshBoth("market");
+    window.refreshNexusMarket = () => refreshBoth("market", true);
+    window.refreshWalletFoundation = () => refreshBoth("wallet");
+    window.filterCryptoMarket = filterMarket;
   }
 
   installOverrides();
-
   window.__nexusTop100LiveFix = {
-    refreshAll: function () { return refreshBoth("all"); },
-    fetchTop100: fetchTop100
+    refreshAll: force => refreshBoth("all", Boolean(force)),
+    fetchTop100
   };
+  window.nexusMarketIntegrityVersion = "live-v4";
 
   function fixBrandText() {
-    document.querySelectorAll(".logo-title").forEach(function (el) {
+    document.querySelectorAll(".logo-title").forEach(el => {
       const text = (el.textContent || "").replace(/\s+/g, "");
-      if (/^NexusNovaNova$/i.test(text)) {
-        el.innerHTML = 'Nexus<span>Nova</span>';
-      }
+      if (/^NexusNovaNova$/i.test(text)) el.innerHTML = 'Nexus<span>Nova</span>';
     });
   }
 
   function boot() {
-    // page2.js is a module and executes after parsing; re-assert these final
-    // handlers here so its legacy 20-row loaders cannot overwrite Top 100.
     installOverrides();
     fixBrandText();
-    setTimeout(function () {
-      refreshBoth("all").catch(function (error) {
-        console.warn("NexusNova top-100 boot:", error);
-      });
-    }, 250);
+    const search = document.getElementById("cryptoSearch");
+    if (search && !search.dataset.nxMarketV4) {
+      search.dataset.nxMarketV4 = "1";
+      search.addEventListener("input", filterMarket, true);
+    }
+    setTimeout(() => refreshBoth("all").catch(error => console.warn("NexusNova market boot:", error)), 250);
   }
 
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", boot, { once: true });
-  } else {
-    boot();
-  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot, { once: true });
+  else boot();
   window.addEventListener("load", installOverrides, { once: true });
 })();
