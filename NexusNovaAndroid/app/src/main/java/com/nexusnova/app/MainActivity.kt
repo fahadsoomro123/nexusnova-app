@@ -14,6 +14,7 @@ import android.webkit.GeolocationPermissions
 import android.webkit.PermissionRequest
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
@@ -43,6 +44,7 @@ class MainActivity : AppCompatActivity() {
     private var pendingGeolocation: PendingGeolocation? = null
     private var fileChooserCallback: ValueCallback<Array<Uri>>? = null
     private var fileChooserAcceptTypes: Set<String> = emptySet()
+    private var usingOfflineFallback = false
 
     private data class PendingGeolocation(
         val origin: String,
@@ -112,7 +114,10 @@ class MainActivity : AppCompatActivity() {
         configureWebView()
         installNativeMessageListener()
 
-        webView.loadUrl(APP_URL)
+        // The production GitHub Pages origin is also the registered web App
+        // Check origin. Loading it here means web and Android use one tested
+        // mining engine instead of maintaining two drifting copies.
+        webView.loadUrl(PRODUCTION_APP_URL)
         showCallerSetupOnce()
     }
 
@@ -148,7 +153,7 @@ class MainActivity : AppCompatActivity() {
             ): Boolean {
                 val requestToHandle = request ?: return true
                 val uri = requestToHandle.url
-                if (isTrustedAppAsset(uri)) return false
+                if (isTrustedAppPage(uri)) return false
 
                 // Remote frames never receive the origin-bound native bridge. Permit
                 // normal http(s) content in the in-app browser iframe, but block
@@ -157,6 +162,23 @@ class MainActivity : AppCompatActivity() {
 
                 openExternalUri(uri)
                 return true
+            }
+
+            override fun onReceivedError(
+                view: WebView?,
+                request: WebResourceRequest?,
+                error: WebResourceError?
+            ) {
+                super.onReceivedError(view, request, error)
+                val failed = request ?: return
+                if (!failed.isForMainFrame || usingOfflineFallback) return
+                if (!isProductionOrigin(failed.url)) return
+
+                // Offline fallback is intentionally local. It keeps non-value
+                // utilities available, while production mining remains bound to
+                // the stable, registered App Check origin.
+                usingOfflineFallback = true
+                view?.loadUrl(LOCAL_APP_URL)
             }
         }
 
@@ -224,9 +246,9 @@ class MainActivity : AppCompatActivity() {
             ): Boolean {
                 val callback = filePathCallback ?: return false
                 // Android does not expose the requesting frame's origin here. It can
-                // at least prove the top-level document remains our appassets page;
-                // untrusted top-level navigations therefore never open a picker.
-                if (!isTrustedAppAssetPage(view)) {
+                // at least prove the top-level document remains one of our two exact
+                // trusted app locations before opening the picker.
+                if (!isTrustedAppPage(view)) {
                     callback.onReceiveValue(null)
                     return true
                 }
@@ -266,7 +288,7 @@ class MainActivity : AppCompatActivity() {
         WebViewCompat.addWebMessageListener(
             webView,
             NATIVE_BRIDGE_NAME,
-            setOf(APP_ORIGIN),
+            setOf(LOCAL_APP_ORIGIN, PRODUCTION_APP_ORIGIN),
             listener
         )
     }
@@ -398,10 +420,10 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun isTrustedAppAssetPage(view: WebView?): Boolean {
+    private fun isTrustedAppPage(view: WebView?): Boolean {
         val url = view?.url ?: return false
         return try {
-            isTrustedAppAsset(Uri.parse(url))
+            isTrustedAppPage(Uri.parse(url))
         } catch (_: Exception) {
             false
         }
@@ -414,13 +436,23 @@ class MainActivity : AppCompatActivity() {
         hasPermission(Manifest.permission.ACCESS_FINE_LOCATION) ||
             hasPermission(Manifest.permission.ACCESS_COARSE_LOCATION)
 
-    private fun isTrustedOrigin(uri: Uri): Boolean =
-        uri.scheme.equals("https", ignoreCase = true) &&
-            uri.host.equals(ASSET_HOST, ignoreCase = true) &&
-            (uri.port == -1 || uri.port == 443)
+    private fun isHttpsDefaultPort(uri: Uri): Boolean =
+        uri.scheme.equals("https", ignoreCase = true) && (uri.port == -1 || uri.port == 443)
 
-    private fun isTrustedAppAsset(uri: Uri): Boolean =
-        isTrustedOrigin(uri) && uri.path?.startsWith(ASSET_PATH) == true
+    private fun isLocalOrigin(uri: Uri): Boolean =
+        isHttpsDefaultPort(uri) && uri.host.equals(ASSET_HOST, ignoreCase = true)
+
+    private fun isProductionOrigin(uri: Uri): Boolean =
+        isHttpsDefaultPort(uri) && uri.host.equals(PRODUCTION_HOST, ignoreCase = true)
+
+    private fun isTrustedOrigin(uri: Uri): Boolean =
+        isLocalOrigin(uri) || isProductionOrigin(uri)
+
+    private fun isTrustedAppPage(uri: Uri): Boolean = when {
+        isLocalOrigin(uri) -> uri.path?.startsWith(ASSET_PATH) == true
+        isProductionOrigin(uri) -> uri.path?.startsWith(PRODUCTION_PATH) == true
+        else -> false
+    }
 
     private fun isHttpUri(uri: Uri): Boolean =
         (uri.scheme.equals("https", ignoreCase = true) ||
@@ -496,9 +528,15 @@ class MainActivity : AppCompatActivity() {
 
     private companion object {
         const val ASSET_HOST = "appassets.androidplatform.net"
-        const val APP_ORIGIN = "https://appassets.androidplatform.net"
+        const val LOCAL_APP_ORIGIN = "https://appassets.androidplatform.net"
         const val ASSET_PATH = "/assets/www/"
-        const val APP_URL = "https://appassets.androidplatform.net/assets/www/index.html"
+        const val LOCAL_APP_URL = "https://appassets.androidplatform.net/assets/www/index.html"
+
+        const val PRODUCTION_HOST = "fahadsoomro123.github.io"
+        const val PRODUCTION_APP_ORIGIN = "https://fahadsoomro123.github.io"
+        const val PRODUCTION_PATH = "/nexusnova-app/"
+        const val PRODUCTION_APP_URL = "https://fahadsoomro123.github.io/nexusnova-app/"
+
         const val NATIVE_BRIDGE_NAME = "NexusAndroid"
 
         const val ACTION_SAVE_CONTACT = "saveContact"
