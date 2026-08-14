@@ -33,13 +33,19 @@ const menuHtml = `<div id="moreMenu"><div class="more-inner">${labels.map((label
 
 async function testSmartSearch() {
   const {page,pageErrors} = await makePage(menuHtml);
-  await add(page, 'js/nexusnova-allapps-smart-search-v1.js?v=2');
+  await add(page, 'js/nexusnova-allapps-smart-search-v1.js?v=4');
   await page.waitForSelector('#nxAllAppsSmartSearch');
   const checks = {
     'food':'SHOPPING',
     'salary':'BUDGET',
     'ticket':'TRAVEL',
     'dua':'ISLAMIC HUB',
+    'quran':'ISLAMIC HUB',
+    'quran pak':'ISLAMIC HUB',
+    'para':'ISLAMIC HUB',
+    'juz':'ISLAMIC HUB',
+    'bukhari':'ISLAMIC HUB',
+    'hadith':'ISLAMIC HUB',
     'barish':'WEATHER',
     'unknown number':'CALLER',
     'scan receipt':'DOCUMENTS',
@@ -50,8 +56,41 @@ async function testSmartSearch() {
     const rows = await page.evaluate(q => window.nexusAllAppsSmartSearch(q), query);
     assert.equal(rows[0]?.label, expected, `${query} should map to ${expected}, got ${rows[0]?.label}`);
   }
+  assert.equal(await page.evaluate(() => window.nexusAllAppsSmartSearchVersion),'local-first-v2.1');
   assert.equal(pageErrors.length,0,pageErrors.join('\n'));
-  ok('ALL APPS Smart Search', 'intent mappings passed');
+  ok('ALL APPS Smart Search', 'hidden tags + Quran/Bukhari intent mappings passed');
+  await page.close();
+}
+
+async function testSmartSearchDeepRoutes() {
+  const html = `
+    <div id="moreMenu"><div class="more-inner">
+      <button class="more-item" data-nxmega="mega-islamic" type="button"><span>ISLAMIC HUB</span></button>
+      <button class="more-item" data-nxmega="ai" type="button"><span>AI</span></button>
+    </div></div>
+    <section id="tab-mega-islamic">
+      <button data-faith="quran" type="button">Quran Pak</button>
+      <button data-faith="bukhari" type="button">Sahih Bukhari</button>
+      <div id="faith-quran"><select id="nxQuranSurah"><option>Al-Fatihah</option></select></div>
+      <div id="faith-bukhari">Bukhari reader</div>
+    </section>`;
+  const {page,pageErrors} = await makePage(html);
+  await page.evaluate(() => {
+    window.__quranRouteHits=0;
+    window.__bukhariRouteHits=0;
+    document.querySelector('[data-faith="quran"]').addEventListener('click',()=>window.__quranRouteHits++);
+    document.querySelector('[data-faith="bukhari"]').addEventListener('click',()=>window.__bukhariRouteHits++);
+  });
+  await add(page, 'js/nexusnova-allapps-smart-search-v1.js?v=4');
+  await page.waitForSelector('#nxAllAppsSmartSearch');
+  await page.fill('[data-smart-input]','quran');
+  await page.click('[data-smart-go]');
+  await page.waitForFunction(() => window.__quranRouteHits > 0);
+  await page.fill('[data-smart-input]','hadith');
+  await page.click('[data-smart-go]');
+  await page.waitForFunction(() => window.__bukhariRouteHits > 0);
+  assert.equal(pageErrors.length,0,pageErrors.join('\n'));
+  ok('ALL APPS Deep Routing', 'Quran → Quran Pak and Hadith → Sahih Bukhari passed');
   await page.close();
 }
 
@@ -226,7 +265,7 @@ async function testLateLoaderChain() {
     marketplace:!!window.__nxMarketplaceLiveV1,
     orders:!!window.__nxOrdersLiveV1,
     teacher:!!window.__nxTeacherLiveV2,
-    search:!!window.__nxAllAppsSmartSearchV1
+    search:!!window.__nxAllAppsSmartSearchV2
   }));
   for (const [name,value] of Object.entries(flags)) assert.equal(value,true,`${name} late module did not load`);
   assert.ok(await page.$('#nxAllAppsSmartSearch'));
@@ -240,6 +279,7 @@ async function testLateLoaderChain() {
 
 try {
   await testSmartSearch();
+  await testSmartSearchDeepRoutes();
   await testAI();
   await testTravel();
   await testLearning();
