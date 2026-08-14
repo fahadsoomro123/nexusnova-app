@@ -29,9 +29,10 @@ body.nx-opened-from-allapps .tab.active>.nx-allapps-back{display:flex}
 .nx-bible-empty,.nx-bible-error{padding:22px;text-align:center;color:#a9bed7}.nx-bible-error{color:#ffb3bd}
 @media(max-width:620px){.nx-bible-verse{grid-template-columns:34px 1fr;font-size:16px}.nx-bible-verse.rtl{font-size:18px}}
 
-/* Browser-only first-paint branding. Search remains first; app order itself is untouched. */
+/* Browser-only first-paint branding. Search first; Tools + Browser are the first two launcher tiles below it. */
 body #moreMenu #nxAllAppsSmartSearch{order:-10!important}
-body #moreMenu .more-item[onclick*="browser"]{order:0!important}
+body #moreMenu .more-item[onclick*="tools"]{order:-2!important}
+body #moreMenu .more-item[onclick*="browser"]{order:-1!important}
 body #moreMenu .more-item[onclick*="browser"] .mi-icon{position:relative!important;overflow:visible!important;background:radial-gradient(circle at 32% 24%,#6ee7ff 0 8%,transparent 9%),linear-gradient(145deg,#1795ff 0%,#1267e6 48%,#082f84 100%)!important;border-color:rgba(113,214,255,.82)!important;box-shadow:0 10px 30px rgba(23,149,255,.34),inset 0 1px 0 rgba(255,255,255,.34)!important;color:#eafaff!important}
 body #moreMenu .more-item[onclick*="browser"] .mi-icon svg{display:block!important;width:62%!important;height:62%!important;margin:19%!important;stroke:#fff!important;stroke-width:1.65!important;filter:drop-shadow(0 2px 5px rgba(0,0,0,.24))}
 body #moreMenu .more-item[onclick*="browser"] .mi-icon:before{content:none!important}
@@ -43,4 +44,4 @@ body #moreMenu .more-item[onclick*="browser"]>span:last-child:after{content:"Nex
 #nxSplash{animation:nxSplashHardExit .32s ease 1.80s forwards!important}
 @keyframes nxSplashHardExit{to{opacity:0;visibility:hidden;pointer-events:none}}
 
-/* deploy-marker: browser-launcher-authoritative-2026-08-15 */
+/* deploy-marker: browser-launcher-search-first-2026-08-15 */
