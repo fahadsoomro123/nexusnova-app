@@ -1,4 +1,4 @@
-/* NexusNova Spark Rewards v1
+/* NexusNova Spark Rewards v1.1
    Secure daily reward fallback for the no-cost Firebase plan.
    Daily reward mutations are constrained by Firestore Security Rules.
    Unverifiable community/ad rewards never mint NVX. */
@@ -198,9 +198,26 @@
     return {rewarded:false};
   }
 
-  function polishTaskButtons() {
+  function bindCapture(button, key, handler) {
+    if (!button || button.dataset[key] === '1') return;
+    button.dataset[key] = '1';
+    button.addEventListener('click', event => {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      Promise.resolve(handler()).catch(error => console.warn('NexusNova reward action:', error));
+    }, true);
+  }
+
+  function bindTaskButtons() {
     const buttons = Array.from(document.querySelectorAll('#tab-tasks button'));
+    const daily = el('dailyBtn') || buttons.find(button => /claim\s+daily|daily\s+bonus/i.test(String(button.textContent || '')));
+    const task1 = el('task1Btn') || buttons.find(button => /telegram|official\s+channel/i.test(String(button.textContent || '')));
     const ad = buttons.find(button => /watch\s*ad/i.test(String(button.textContent || '')));
+
+    bindCapture(daily, 'nxSparkDailyBound', claimDaily);
+    bindCapture(task1, 'nxSparkTaskBound', () => explainTask('task1'));
+    bindCapture(ad, 'nxSparkAdBound', explainRewardedAd);
+
     if (ad) {
       ad.title = 'Reward activates after a real rewarded-ad provider is connected.';
       ad.dataset.nxRewardState = 'provider-pending';
@@ -212,12 +229,12 @@
     window.claimDailyReward = claimDaily;
     window.completeTask = explainTask;
     window.watchAdReward = explainRewardedAd;
-    window.nexusRewardsEngineVersion = 'spark-secure-v1';
-    polishTaskButtons();
+    window.nexusRewardsEngineVersion = 'spark-secure-v1.1';
+    bindTaskButtons();
   }
 
   install();
   window.addEventListener('load', install, {once:true});
-  [500,1400,3000,6000].forEach(ms => setTimeout(install, ms));
-  console.info('NexusNova rewards engine loaded: spark-secure-v1');
+  [300,700,1400,2400,3800,6000].forEach(ms => setTimeout(install, ms));
+  console.info('NexusNova rewards engine loaded: spark-secure-v1.1');
 })();
