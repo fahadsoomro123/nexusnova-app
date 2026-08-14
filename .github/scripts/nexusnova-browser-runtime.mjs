@@ -177,7 +177,7 @@ try {
     await page.setContent(allAppsShell());
     await page.addStyleTag({url:`${base}/css/nexusnova-final-user-fixes-v1.css?v=launcher-test`});
     await page.addScriptTag({url:`${base}/js/nexusnova-allapps-smart-search-v1.js?v=search-first-test`});
-    await page.waitForSelector('#nxAllAppsSmartSearch');
+    await page.waitForSelector('#nxAllAppsSmartSearch',{state:'attached'});
     await page.addScriptTag({url:`${base}/js/nexusnova-regional-qibla-browser-v1.js?v=ui-stability-test`});
 
     /* The intro should be visible long enough to feel intentional. */
