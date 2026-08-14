@@ -41,8 +41,8 @@ try {
     assert.ok((await page.textContent('#tab-browser h2')).includes('NexusNova Browser'));
     assert.equal(await page.locator('#tab-browser').evaluate(node=>node.classList.contains('nx-browser-shell')),true);
     assert.equal(await page.locator('#nxBrowserFrame').count(),0,'V4 must not restore the broken iframe viewer');
-    assert.equal(await page.locator('[data-nx-browser-toolbar] .nx-browser-nav').count(),4);
-    assert.equal(await page.locator('[data-nx-browser-toolbar] .nx-browser-nav svg').count(),4);
+    assert.equal(await page.locator('.nx-browser-toolbar .nx-browser-nav').count(),4);
+    assert.equal(await page.locator('.nx-browser-toolbar .nx-browser-nav svg').count(),4);
     assert.ok((await page.getAttribute('#nxBrowserUrl','placeholder')).includes('Search or enter website'));
     assert.equal(await page.locator('.nx-speed-grid [data-nx-speed]').count(),8);
     assert.ok((await page.textContent('#tab-browser')).includes('Speed Dial'));
