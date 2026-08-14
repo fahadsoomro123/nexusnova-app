@@ -35,3 +35,7 @@ body.nx-opened-from-allapps .tab.active>.nx-allapps-back{display:flex}
 #moreMenu .more-item[onclick*="browser"] .mi-icon:before{content:"N";display:grid;place-items:center;position:absolute;inset:0;color:#fff;font-size:28px;font-weight:1000;line-height:1;text-shadow:0 2px 10px rgba(0,0,0,.24)}
 #moreMenu .more-item[onclick*="browser"]>span:last-child{font-size:0!important}
 #moreMenu .more-item[onclick*="browser"]>span:last-child:after{content:"NexusNova";font-size:11px;font-weight:900;letter-spacing:.02em;color:inherit}
+
+/* Hard visual cap for the startup splash: never wait on slow scripts/CDNs to reveal the app. */
+#nxSplash{animation:nxSplashHardExit .32s ease 1.05s forwards!important}
+@keyframes nxSplashHardExit{to{opacity:0;visibility:hidden;pointer-events:none}}
