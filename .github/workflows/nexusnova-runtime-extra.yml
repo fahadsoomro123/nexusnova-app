@@ -64,5 +64,8 @@ jobs:
       - name: Run analytics consent privacy and retention browser check
         run: node .github/scripts/nexusnova-analytics-runtime.mjs
 
+      - name: Run automatic health monitor privacy and recovery browser check
+        run: node .github/scripts/nexusnova-health-runtime.mjs
+
       - name: Run local tools browser checks
         run: node .github/scripts/nexusnova-local-tools-runtime.mjs

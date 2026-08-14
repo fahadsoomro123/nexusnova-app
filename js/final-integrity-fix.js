@@ -68,6 +68,7 @@
   loadCritical({flag:'__nxOnboardingInsightsV1',marker:'data-nx-onboarding-insights',src:'./js/nexusnova-onboarding-insights-v1.js?v=1',error:'NexusNova guided onboarding failed to load.'});
   loadCritical({flag:'__nxAnalyticsV1',marker:'data-nx-analytics',src:'./js/nexusnova-analytics-v1.js?v=2',error:'NexusNova anonymous analytics failed to load.'});
   loadCritical({flag:'__nxBugReportV1',marker:'data-nx-bug-report',src:'./js/nexusnova-bug-report-v1.js?v=1',error:'NexusNova bug reporting failed to load.'});
+  loadCritical({flag:'__nxHealthMonitorV1',marker:'data-nx-health-monitor',src:'./js/nexusnova-health-monitor-v1.js?v=1',error:'NexusNova automatic local health monitor failed to load.'});
 
   await import('./final-integrity-fix-core.js?v=3');
 
