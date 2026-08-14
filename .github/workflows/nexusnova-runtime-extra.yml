@@ -73,5 +73,8 @@ jobs:
       - name: Run Smart Camera and Daily Brief browser check
         run: node .github/scripts/nexusnova-smart-runtime.mjs
 
+      - name: Run Documents Vault and Security browser check
+        run: node .github/scripts/nexusnova-documents-vault-security-runtime.mjs
+
       - name: Run local tools browser checks
         run: node .github/scripts/nexusnova-local-tools-runtime.mjs
