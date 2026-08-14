@@ -3,6 +3,7 @@ name: NexusNova Smoke Check
 on:
   push:
     branches:
+      - main
       - codex-final-audit
   workflow_dispatch:
 
@@ -36,11 +37,15 @@ jobs:
           echo "Checking sw.js"
           node --check sw.js
 
+      - name: Verify single-owner mining architecture
+        run: node .github/scripts/mining-architecture-smoke.mjs
+
       - name: Verify critical live modules exist
         shell: bash
         run: |
           set -euo pipefail
           for file in \
+            js/rewards-security-v1.js \
             js/nexusnova-smart-live-v1.js \
             js/nexusnova-allapps-smart-search-v1.js \
             js/nexusnova-file-vault-v1.js \
