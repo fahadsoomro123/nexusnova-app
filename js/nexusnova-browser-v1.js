@@ -1,74 +1,72 @@
-/* NexusNova Browser v2
-   Premium NexusNova visual shell + in-app browsing behavior.
-   Web/PWA keeps HTTPS pages inside the existing NexusNova iframe when allowed.
-   Android delegates to the dedicated NexusNova Browser Activity.
+/* NexusNova Browser v3
+   Opera/Firefox-inspired NexusNova browser shell.
+   Web/PWA launches real pages in a secure browser tab because most public sites
+   block iframe embedding. Android delegates to the dedicated NexusNova Browser Activity.
 */
 (() => {
   'use strict';
-  if (window.__nxNexusBrowserV2) return;
+  if (window.__nxNexusBrowserV3) return;
+  window.__nxNexusBrowserV3 = true;
   window.__nxNexusBrowserV2 = true;
   window.__nxNexusBrowserV1 = true;
-  window.nexusBrowserVersion = 'in-app-browser-v2';
+  window.nexusBrowserVersion = 'nexus-browser-v3';
 
-  const HOME = 'https://www.google.com/';
   const MAX_URL = 2000;
-  const stack = [];
-  let stackIndex = -1;
-  const $ = id => document.getElementById(id);
+  const HOME_SEARCH = 'https://www.google.com/search?q=';
+  const RECENT_KEY = 'nexusnova_browser_recent_v3';
+  const $ = (sel, root = document) => root.querySelector(sel);
 
   const ICONS = {
-    back:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 5 7.5 12l7 7"/><path d="M8 12h9"/></svg>',
-    forward:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 5 7 7-7 7"/><path d="M16 12H7"/></svg>',
-    reload:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5"/><path d="M19 12a7 7 0 1 1-2.05-4.95L20 10"/></svg>',
+    globe:'<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.2 4.1 6.2 4.1 9S15 17.8 12 21M12 3c-3 3.2-4.1 6.2-4.1 9S9 17.8 12 21"/></svg>',
+    search:'<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.3"/><path d="m15.6 15.6 4.4 4.4"/></svg>',
+    back:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 5-7 7 7 7"/><path d="M8 12h10"/></svg>',
+    forward:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 5 7 7-7 7"/><path d="M16 12H6"/></svg>',
+    reload:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5"/><path d="M19 12a7 7 0 1 1-2.1-5L20 10"/></svg>',
     home:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 11 8-7 8 7"/><path d="M6 10v10h12V10"/><path d="M10 20v-6h4v6"/></svg>',
-    search:'<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg>',
-    shield:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v5c0 4.5 2.7 7.8 7 10 4.3-2.2 7-5.5 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-5"/></svg>',
-    globe:'<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>',
-    open:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 5h6v6"/><path d="m19 5-8 8"/><path d="M18 13v6H5V6h6"/></svg>',
-    play:'<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="4"/><path d="m10 9 5 3-5 3V9Z"/></svg>',
-    book:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A3.5 3.5 0 0 1 7.5 2H11v17H7.5A3.5 3.5 0 0 0 4 22V5.5Z"/><path d="M20 5.5A3.5 3.5 0 0 0 16.5 2H13v17h3.5A3.5 3.5 0 0 1 20 22V5.5Z"/></svg>',
-    news:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h12v14H4z"/><path d="M16 8h4v11a2 2 0 0 1-2 2H6"/><path d="M7 9h6M7 13h6M7 17h4"/></svg>',
-    map:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3V6Z"/><path d="M9 3v15M15 6v15"/></svg>'
+    shield:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v5c0 4.6 2.7 7.8 7 10 4.3-2.2 7-5.4 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-5"/></svg>',
+    plus:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
+    tabs:'<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="3"/><path d="M9 2h6M22 9v6M2 9v6"/></svg>',
+    menu:'<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>',
+    puzzle:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 4H4v4.5a2.5 2.5 0 1 0 0 5V20h4.5a2.5 2.5 0 1 1 5 0H20v-6.5a2.5 2.5 0 1 0 0-5V4h-6.5a2.5 2.5 0 1 0-5 0Z"/></svg>',
+    external:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 5h6v6"/><path d="m19 5-8 8"/><path d="M18 13v6H5V6h6"/></svg>'
   };
 
-  function safeHttps(raw) {
+  const SPEED_DIALS = [
+    ['Google', 'Search', 'https://www.google.com/', 'G'],
+    ['YouTube', 'Video', 'https://www.youtube.com/', 'Y'],
+    ['Wikipedia', 'Knowledge', 'https://www.wikipedia.org/', 'W'],
+    ['BBC', 'News', 'https://www.bbc.com/', 'B'],
+    ['Maps', 'Places', 'https://www.google.com/maps/', 'M'],
+    ['GitHub', 'Code', 'https://github.com/', 'GH'],
+    ['ChatGPT', 'AI', 'https://chatgpt.com/', 'AI'],
+    ['Gmail', 'Mail', 'https://mail.google.com/', 'GM']
+  ];
+
+  function safeUrl(raw) {
     const text = String(raw || '').trim().slice(0, MAX_URL);
     if (!text) return '';
     if (/^(?:javascript|data|file|blob|intent|content):/i.test(text)) return '';
-
+    const looksLikeSearch = /\s/.test(text) || (!text.includes('.') && !/^https?:\/\//i.test(text) && !/^localhost(?::\d+)?(?:\/|$)/i.test(text));
+    if (looksLikeSearch) return HOME_SEARCH + encodeURIComponent(text);
     let candidate = text;
-    const looksLikeSearch = /\s/.test(candidate) || (!candidate.includes('.') && !/^https?:\/\//i.test(candidate));
-    if (looksLikeSearch) candidate = 'https://www.google.com/search?q=' + encodeURIComponent(text);
-    else if (!/^https?:\/\//i.test(candidate)) candidate = 'https://' + candidate;
-
+    if (!/^https?:\/\//i.test(candidate)) candidate = 'https://' + candidate;
     try {
       const url = new URL(candidate);
-      if (url.protocol !== 'https:') {
-        if (url.protocol === 'http:') url.protocol = 'https:';
-        else return '';
-      }
+      if (!['https:', 'http:'].includes(url.protocol) || !url.hostname) return '';
       return url.href.slice(0, MAX_URL);
-    } catch (_) {
-      return '';
-    }
+    } catch (_) { return ''; }
   }
 
-  function browserSection() {
-    return $('nxBrowserUrl')?.closest('section') || null;
+  function hostLabel(url) {
+    try { return new URL(url).hostname.replace(/^www\./, '').slice(0, 48); }
+    catch (_) { return 'website'; }
   }
 
-  function status(message, tone = 'normal') {
-    const node = $('nxBrowserStatus');
-    if (!node) return;
-    node.textContent = message;
-    node.dataset.nxBrowserTone = tone;
-    node.classList.remove('nx-browser-pulse');
-    if (tone === 'loading') requestAnimationFrame(() => node.classList.add('nx-browser-pulse'));
+  function escapeHtml(text) {
+    return String(text ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   }
 
-  function nativeAvailable() {
-    return typeof window.NexusBrowserAndroid?.postMessage === 'function';
-  }
+  function nativeAvailable() { return typeof window.NexusBrowserAndroid?.postMessage === 'function'; }
 
   function postNative(url) {
     if (!nativeAvailable()) return false;
@@ -76,62 +74,38 @@
       window.NexusBrowserAndroid.postMessage(JSON.stringify({ action:'open', url }));
       return true;
     } catch (error) {
-      console.warn('NexusNova Browser native bridge:', error);
+      console.warn('NexusNova native browser bridge:', error);
       return false;
     }
+  }
+
+  function status(message, tone = 'normal') {
+    const node = $('#nxBrowserStatus');
+    if (!node) return;
+    node.textContent = message;
+    node.dataset.tone = tone;
+  }
+
+  function setTabTitle(value) {
+    const title = $('[data-nx-browser-tab-title]');
+    if (title) title.textContent = value || 'New Tab';
+  }
+
+  function loadRecent() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(RECENT_KEY) || '[]');
+      return Array.isArray(parsed) ? parsed.filter(x => x && x.url).slice(0, 8) : [];
+    } catch (_) { return []; }
   }
 
   function remember(url) {
-    if (stack[stackIndex] === url) return;
-    stack.splice(stackIndex + 1);
-    stack.push(url);
-    if (stack.length > 40) stack.shift();
-    stackIndex = stack.length - 1;
-    syncNav();
+    const recent = loadRecent().filter(x => x.url !== url);
+    recent.unshift({ url, host:hostLabel(url), at:Date.now() });
+    try { localStorage.setItem(RECENT_KEY, JSON.stringify(recent.slice(0, 8))); } catch (_) {}
+    renderRecent();
   }
 
-  function setFrameBusy(busy) {
-    browserSection()?.classList.toggle('nx-browser-loading', Boolean(busy));
-  }
-
-  function frameNavigate(url, rememberEntry = true) {
-    const frame = $('nxBrowserFrame');
-    const input = $('nxBrowserUrl');
-    if (!frame) {
-      status('NexusNova Browser frame is unavailable on this screen.', 'error');
-      return false;
-    }
-    if (input) input.value = url;
-    if (rememberEntry) remember(url);
-    setFrameBusy(true);
-    frame.src = url;
-    status('Opening securely inside NexusNova…', 'loading');
-    return true;
-  }
-
-  function openInApp(raw, rememberEntry = true) {
-    const url = safeHttps(raw);
-    if (!url) {
-      status('Enter a website or search term. NexusNova Browser allows secure HTTPS destinations.', 'error');
-      return false;
-    }
-    const input = $('nxBrowserUrl');
-    if (input) input.value = url;
-
-    if (postNative(url)) {
-      if (rememberEntry) remember(url);
-      status('Opened in the native NexusNova Browser window.', 'success');
-      return true;
-    }
-    return frameNavigate(url, rememberEntry);
-  }
-
-  function manualExternal(raw) {
-    const url = safeHttps(raw);
-    if (!url) {
-      status('Enter a valid website first.', 'error');
-      return false;
-    }
+  function launchWeb(url) {
     try {
       const link = document.createElement('a');
       link.href = url;
@@ -141,272 +115,153 @@
       document.body.appendChild(link);
       link.click();
       link.remove();
-      status('Opened in your system browser by your choice.', 'normal');
       return true;
-    } catch (_) {
-      status('System browser could not be opened.', 'error');
+    } catch (error) {
+      console.warn('NexusNova Browser launch:', error);
       return false;
     }
   }
 
-  function back() {
-    if (nativeAvailable()) {
-      status('Use the Back control inside the opened NexusNova Browser window.', 'normal');
-      return;
+  function openUrl(raw) {
+    const url = safeUrl(raw);
+    const input = $('#nxBrowserUrl');
+    if (!url) {
+      status('Website ya search term likho.', 'error');
+      input?.focus();
+      return false;
     }
-    if (stackIndex <= 0) return;
-    stackIndex -= 1;
-    frameNavigate(stack[stackIndex], false);
-    syncNav();
+    if (input) input.value = url;
+    setTabTitle(hostLabel(url));
+    remember(url);
+    if (postNative(url)) {
+      status('NexusNova Android Browser khul gaya — page app ke andar load ho raha hai.', 'success');
+      return true;
+    }
+    const opened = launchWeb(url);
+    status(opened ? 'Website real browser tab mein khol di gayi. GitHub Pages ke andar Google jaisi sites iframe allow nahi kartin.' : 'Browser ne new tab block kar diya. Address bar se dobara Browse dabao.', opened ? 'success' : 'error');
+    return opened;
   }
 
-  function forward() {
-    if (nativeAvailable()) {
-      status('Use the Forward control inside the opened NexusNova Browser window.', 'normal');
-      return;
-    }
-    if (stackIndex >= stack.length - 1) return;
-    stackIndex += 1;
-    frameNavigate(stack[stackIndex], false);
-    syncNav();
+  function openExternal(raw) {
+    const url = safeUrl(raw);
+    if (!url) { status('Pehle valid website ya search term likho.', 'error'); return false; }
+    return launchWeb(url);
   }
 
-  function reload() {
-    if (nativeAvailable()) {
-      status('Use Reload inside the opened NexusNova Browser window.', 'normal');
+  function renderRecent() {
+    const host = $('[data-nx-browser-recent]');
+    if (!host) return;
+    const items = loadRecent();
+    if (!items.length) {
+      host.innerHTML = '<div class="nx-browser-empty">Abhi koi recent website nahi. Upar search karo ya Speed Dial use karo.</div>';
       return;
     }
-    const frame = $('nxBrowserFrame');
-    if (!frame) return;
-    setFrameBusy(true);
-    try { frame.src = frame.src || HOME; } catch (_) {}
-    status('Refreshing page…', 'loading');
-  }
-
-  function home() { openInApp(HOME); }
-
-  function syncNav() {
-    const backBtn = document.querySelector('[data-nx-browser-back]');
-    const nextBtn = document.querySelector('[data-nx-browser-forward]');
-    if (backBtn) backBtn.disabled = !nativeAvailable() && stackIndex <= 0;
-    if (nextBtn) nextBtn.disabled = !nativeAvailable() && stackIndex >= stack.length - 1;
+    host.innerHTML = items.map(item => `<button type="button" class="nx-recent-item" data-nx-recent-url="${escapeHtml(item.url)}"><span class="nx-recent-icon">${escapeHtml(item.host.slice(0,2).toUpperCase())}</span><span><strong>${escapeHtml(item.host)}</strong><small>${escapeHtml(item.url)}</small></span>${ICONS.external}</button>`).join('');
+    host.querySelectorAll('[data-nx-recent-url]').forEach(btn => btn.addEventListener('click', () => openUrl(btn.dataset.nxRecentUrl || '')));
   }
 
   function installStyle() {
-    if ($('nxBrowserStyleV2')) return;
+    if ($('#nxBrowserStyleV3')) return;
     const style = document.createElement('style');
-    style.id = 'nxBrowserStyleV2';
+    style.id = 'nxBrowserStyleV3';
     style.textContent = `
-      #tab-browser.nx-browser-shell{--nxb-blue:#2f8cff;--nxb-blue2:#58b5ff;--nxb-deep:#071426;--nxb-line:rgba(82,165,255,.28);position:relative;isolation:isolate;overflow:hidden}
-      #tab-browser.nx-browser-shell::before{content:"";position:absolute;inset:-180px -120px auto;z-index:-2;height:520px;background:radial-gradient(circle at 25% 30%,rgba(32,126,255,.25),transparent 35%),radial-gradient(circle at 80% 18%,rgba(45,190,255,.13),transparent 28%);filter:blur(6px);pointer-events:none}
-      #tab-browser.nx-browser-shell>.card{position:relative;overflow:hidden;border:1px solid var(--nxb-line)!important;border-radius:28px!important;background:linear-gradient(155deg,rgba(13,32,58,.96),rgba(3,9,18,.98) 56%,rgba(4,14,27,.99))!important;box-shadow:0 28px 70px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.025) inset,0 0 42px rgba(35,126,255,.10)!important;padding:18px!important}
-      #tab-browser.nx-browser-shell>.card::before{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(120deg,rgba(255,255,255,.05),transparent 28%,transparent 72%,rgba(75,170,255,.035))}
-      #tab-browser .hub-hero{position:relative;margin:-2px 0 15px!important;padding:16px!important;border:1px solid rgba(76,157,255,.18);border-radius:22px;background:radial-gradient(260px 120px at 15% 0%,rgba(48,136,255,.18),transparent 74%),linear-gradient(135deg,rgba(7,21,39,.92),rgba(5,13,25,.70));overflow:hidden}
-      #tab-browser .hub-hero::after{content:"NEXUS // WEB GRID";position:absolute;right:14px;bottom:9px;font-size:8px;letter-spacing:.22em;font-weight:900;color:rgba(130,190,255,.33)}
-      #tab-browser .hub-kicker{display:flex;align-items:center;gap:8px;color:#8fc7ff!important;font-size:9px!important;letter-spacing:.22em!important;font-weight:950!important}
-      #tab-browser .hub-kicker::before{content:"";width:7px;height:7px;border-radius:50%;background:#4da3ff;box-shadow:0 0 0 5px rgba(77,163,255,.09),0 0 18px rgba(77,163,255,.7)}
-      #tab-browser .hub-hero h2{margin-top:5px!important;font-size:clamp(22px,4vw,31px)!important;letter-spacing:-.035em!important;text-shadow:0 0 24px rgba(70,160,255,.18)}
-      #tab-browser .hub-hero p{max-width:680px;color:#a9c4e7!important;line-height:1.6!important;font-size:12px!important}
-      #tab-browser .hub-orb{width:72px!important;height:72px!important;border-radius:24px!important;border:1px solid rgba(92,176,255,.32)!important;background:radial-gradient(circle at 35% 28%,rgba(106,190,255,.38),transparent 28%),linear-gradient(145deg,#123a69,#071426)!important;box-shadow:0 18px 35px rgba(0,0,0,.38),inset 0 1px 0 rgba(255,255,255,.15),0 0 28px rgba(40,132,255,.20)!important;color:#d9efff!important;transform:rotate(-5deg)}
-      #tab-browser .hub-orb svg{width:34px!important;height:34px!important;filter:drop-shadow(0 0 9px rgba(78,169,255,.6))}
-      .nx-browser-mode-line{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 11px;padding:10px 12px;border:1px solid rgba(73,151,255,.14);border-radius:15px;background:rgba(4,12,24,.72)}
-      .nx-browser-mode{display:flex;align-items:center;gap:8px;color:#d9ebff;font-size:10px;font-weight:800}.nx-browser-mode svg{width:15px;height:15px;fill:none;stroke:#63b8ff;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-      .nx-browser-badge{font-size:8px;font-weight:950;letter-spacing:.12em;padding:6px 9px;border-radius:999px;border:1px solid rgba(90,180,255,.26);color:#92d3ff;background:linear-gradient(135deg,rgba(13,83,162,.28),rgba(6,31,63,.62));box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
-      #tab-browser .tool-row:has(#nxBrowserUrl){position:relative;display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;gap:8px!important;align-items:center!important;margin:0 0 11px!important;padding:7px!important;border-radius:20px!important;border:1px solid rgba(72,157,255,.28)!important;background:linear-gradient(180deg,rgba(15,36,64,.96),rgba(6,17,32,.96))!important;box-shadow:0 13px 32px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.06),0 0 22px rgba(42,128,255,.08)}
-      .nx-browser-search-icon{position:absolute;left:18px;top:50%;transform:translateY(-50%);z-index:2;display:grid;place-items:center;color:#6bbaff;pointer-events:none}.nx-browser-search-icon svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
-      #nxBrowserUrl{height:48px!important;border:0!important;border-radius:14px!important;padding:0 14px 0 42px!important;background:rgba(2,9,18,.82)!important;color:#fff!important;font-size:13px!important;font-weight:650!important;letter-spacing:.005em;outline:none!important;box-shadow:inset 0 0 0 1px rgba(91,167,255,.12)!important;transition:box-shadow .18s ease,background .18s ease!important}
-      #nxBrowserUrl:focus{background:rgba(3,12,24,.98)!important;box-shadow:inset 0 0 0 1px rgba(91,176,255,.45),0 0 0 3px rgba(43,139,255,.09),0 0 24px rgba(32,124,255,.12)!important}
-      #tab-browser .tool-row:has(#nxBrowserUrl) .tool-btn.primary{height:48px!important;min-width:94px!important;border-radius:14px!important;padding:0 17px!important;display:flex!important;align-items:center!important;justify-content:center!important;gap:8px!important;font-size:11px!important;font-weight:950!important;letter-spacing:.08em!important;text-transform:uppercase;background:linear-gradient(135deg,#0d67f8,#52b5ff)!important;box-shadow:0 10px 25px rgba(25,118,255,.32),inset 0 1px 0 rgba(255,255,255,.2)!important}
-      #tab-browser .tool-row:has(#nxBrowserUrl) .tool-btn.primary svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-      .nx-browser-toolbar{display:grid;grid-template-columns:repeat(4,46px) minmax(0,1fr);gap:8px;align-items:center;margin:10px 0 12px}.nx-browser-nav{position:relative;display:grid;place-items:center;width:46px;height:44px;padding:0!important;border-radius:14px!important;border:1px solid rgba(83,164,255,.22)!important;background:linear-gradient(160deg,rgba(21,48,80,.92),rgba(5,16,30,.96))!important;color:#cfe8ff!important;cursor:pointer;box-shadow:0 8px 19px rgba(0,0,0,.27),inset 0 1px 0 rgba(255,255,255,.055)!important;transition:transform .15s ease,border-color .15s ease,box-shadow .15s ease!important}.nx-browser-nav:hover{transform:translateY(-1px);border-color:rgba(93,180,255,.48)!important;box-shadow:0 10px 24px rgba(0,0,0,.32),0 0 20px rgba(47,140,255,.10)!important}.nx-browser-nav:disabled{opacity:.3;cursor:not-allowed;transform:none}.nx-browser-nav svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}.nx-browser-toolbar .nx-browser-badge{justify-self:end}
-      .browser-links{display:grid!important;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px!important;margin:0 0 12px!important}.browser-links button{min-height:58px!important;padding:8px 5px!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;gap:5px!important;border-radius:15px!important;border:1px solid rgba(79,157,255,.15)!important;background:linear-gradient(160deg,rgba(18,39,66,.84),rgba(4,13,25,.94))!important;color:#bcd8f7!important;font-size:9px!important;font-weight:850!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.04),0 7px 17px rgba(0,0,0,.22)!important}.browser-links button:hover{color:#fff!important;border-color:rgba(83,172,255,.38)!important;background:linear-gradient(160deg,rgba(24,58,98,.93),rgba(5,17,33,.98))!important}.browser-links button .nx-browser-link-icon{display:grid;place-items:center;width:25px;height:25px;border-radius:9px;background:rgba(38,126,235,.13);color:#68b8ff}.browser-links button svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-      .browser-frame-wrap{position:relative;overflow:hidden!important;border-radius:22px!important;border:1px solid rgba(76,157,255,.25)!important;background:linear-gradient(180deg,#071426,#030812)!important;box-shadow:0 24px 48px rgba(0,0,0,.44),inset 0 1px 0 rgba(255,255,255,.05),0 0 35px rgba(28,112,240,.08)!important}.browser-frame-wrap::before{content:"NEXUSNOVA SECURE VIEW";position:absolute;top:9px;left:12px;z-index:3;pointer-events:none;font-size:7px;font-weight:950;letter-spacing:.18em;color:rgba(137,198,255,.28)}.browser-frame-wrap::after{content:"";position:absolute;inset:0;z-index:4;pointer-events:none;opacity:0;background:linear-gradient(180deg,rgba(70,166,255,.08),transparent 17%)}.nx-browser-loading .browser-frame-wrap::after{opacity:1;animation:nxBrowserSweep 1.3s ease-in-out infinite}.browser-frame-wrap iframe{display:block!important;width:100%!important;min-height:62vh!important;border:0!important;background:#fff!important}
-      @keyframes nxBrowserSweep{0%,100%{transform:translateY(-8%);opacity:.08}50%{transform:translateY(8%);opacity:.45}}
-      #nxBrowserStatus{position:relative;margin:11px 0 0!important;padding:10px 12px 10px 34px!important;border:1px solid rgba(81,158,255,.13)!important;border-radius:14px!important;background:rgba(4,14,27,.68)!important;color:#91afd0!important;font-size:9.5px!important;line-height:1.5!important}.nx-browser-shell #nxBrowserStatus::before{content:"";position:absolute;left:14px;top:14px;width:7px;height:7px;border-radius:50%;background:#4da3ff;box-shadow:0 0 0 4px rgba(77,163,255,.07)}#nxBrowserStatus[data-nx-browser-tone="error"]{color:#ffb3bd!important;border-color:rgba(255,86,111,.18)!important}#nxBrowserStatus[data-nx-browser-tone="error"]::before{background:#ff6277}#nxBrowserStatus[data-nx-browser-tone="success"]{color:#9be8c4!important;border-color:rgba(57,212,143,.17)!important}#nxBrowserStatus[data-nx-browser-tone="success"]::before{background:#45d79a}.nx-browser-pulse::before{animation:nxBrowserDot 1s ease-in-out infinite}@keyframes nxBrowserDot{50%{transform:scale(1.45);box-shadow:0 0 0 7px rgba(77,163,255,0)}}
-      .nx-browser-native-note,.nx-browser-security-note{display:flex;gap:9px;align-items:flex-start;margin:10px 0;padding:10px 12px;border-radius:14px;border:1px solid rgba(76,157,255,.13);background:linear-gradient(135deg,rgba(7,28,54,.7),rgba(4,12,23,.7));font-size:9px;line-height:1.55;color:#8faecc}.nx-browser-native-note svg,.nx-browser-security-note svg{flex:0 0 auto;width:16px;height:16px;fill:none;stroke:#5eb4ff;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-      #tab-browser .tool-btn.ghost[onclick*="nxOpenBrowserExternal"]{width:100%!important;min-height:42px!important;margin-top:10px!important;display:flex!important;align-items:center!important;justify-content:center!important;gap:8px!important;border-radius:14px!important;background:rgba(7,22,40,.72)!important;color:#9fc8f3!important;border-color:rgba(75,154,255,.17)!important;font-size:10px!important;font-weight:850!important}#tab-browser .tool-btn.ghost[onclick*="nxOpenBrowserExternal"] svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-      @media(max-width:760px){.browser-links{grid-template-columns:repeat(3,minmax(0,1fr))!important}.nx-browser-toolbar{grid-template-columns:repeat(4,42px) minmax(0,1fr)}.nx-browser-nav{width:42px;height:42px}}
-      @media(max-width:520px){#tab-browser.nx-browser-shell>.card{padding:13px!important;border-radius:23px!important}#tab-browser .hub-hero{padding:13px!important}.nx-browser-toolbar{grid-template-columns:repeat(4,39px) minmax(0,1fr);gap:6px}.nx-browser-nav{width:39px;height:39px;border-radius:12px!important}.nx-browser-toolbar .nx-browser-badge{font-size:7px;padding:5px 7px}.browser-links{gap:6px!important}.browser-links button{min-height:54px!important}.browser-frame-wrap iframe{min-height:58vh!important}#tab-browser .tool-row:has(#nxBrowserUrl){grid-template-columns:minmax(0,1fr) 74px!important}#tab-browser .tool-row:has(#nxBrowserUrl) .tool-btn.primary{min-width:74px!important;padding:0 9px!important}}
+      body.nx-browser-open{background:#03060c!important}
+      body.nx-browser-open .top-header,body.nx-browser-open .ticker-wrap{display:none!important}
+      body.nx-browser-open .main{width:100%!important;max-width:none!important;margin:0!important;padding:8px 12px 96px!important}
+      #tab-browser.nx-browser-shell{--nxb-panel:#0b111c;--nxb-line:rgba(134,180,255,.16);--nxb-text:#f3f8ff;width:100%!important;max-width:none!important;margin:0!important;padding:0!important}
+      #tab-browser.nx-browser-shell.active{display:block!important}
+      #tab-browser .nx-browser-window{width:100%;min-height:calc(100vh - 118px);overflow:hidden;border:1px solid var(--nxb-line);border-radius:18px;background:linear-gradient(180deg,#090f19,#05080d);box-shadow:0 24px 80px rgba(0,0,0,.48);color:var(--nxb-text)}
+      #tab-browser .nx-browser-window *{box-sizing:border-box}#tab-browser .nx-browser-window svg{fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+      #tab-browser .nx-browser-tabbar{display:flex;align-items:center;gap:8px;min-height:50px;padding:7px 10px;border-bottom:1px solid rgba(255,255,255,.055);background:linear-gradient(180deg,#101827,#0a111c)}
+      #tab-browser .nx-browser-brand{display:flex;align-items:center;gap:8px;flex:0 0 auto;margin-right:4px}.nx-browser-logo{display:grid;place-items:center;width:32px;height:32px;border-radius:11px;background:linear-gradient(145deg,#1768d7,#61c6ff);box-shadow:0 8px 24px rgba(30,124,255,.28),inset 0 1px 0 rgba(255,255,255,.28);font-size:15px;font-weight:1000;color:#fff}
+      #tab-browser .nx-browser-brand-copy strong{display:block;font-size:11px;letter-spacing:.02em}#tab-browser .nx-browser-brand-copy small{display:block;color:#6f88a8;font-size:6.7px;letter-spacing:.18em;font-weight:900}
+      #tab-browser .nx-browser-tab{display:flex;align-items:center;gap:8px;min-width:170px;max-width:330px;height:36px;padding:0 10px;border:1px solid rgba(103,168,255,.17);border-radius:11px 11px 8px 8px;background:linear-gradient(180deg,#182438,#111a29)}
+      #tab-browser .nx-browser-tab>svg{width:15px;height:15px;color:#67b9ff;flex:0 0 auto}#tab-browser .nx-browser-tab span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;font-weight:800;flex:1}.nx-browser-tab-close{width:22px;height:22px;border:0;border-radius:7px;background:transparent;color:#71839d;font-size:14px;cursor:pointer}
+      #tab-browser .nx-browser-icon-btn{display:grid;place-items:center;width:36px;height:36px;padding:0;border:1px solid transparent;border-radius:11px;background:transparent;color:#a8b7ca;cursor:pointer}#tab-browser .nx-browser-icon-btn:hover{border-color:rgba(104,173,255,.18);background:rgba(75,149,236,.08);color:#e8f4ff}#tab-browser .nx-browser-icon-btn svg{width:17px;height:17px}
+      #tab-browser .nx-browser-spacer{flex:1}#tab-browser .nx-browser-engine{display:flex;align-items:center;gap:6px;padding:6px 9px;border:1px solid rgba(77,164,255,.18);border-radius:999px;background:rgba(33,95,160,.11);color:#83caff;font-size:7.5px;font-weight:950;letter-spacing:.09em}#tab-browser .nx-browser-engine i{width:6px;height:6px;border-radius:50%;background:#49caff;box-shadow:0 0 12px #49caff}
+      #tab-browser .nx-browser-toolbar{display:flex!important;align-items:center;gap:6px;padding:8px 10px;border-bottom:1px solid rgba(255,255,255,.05);background:#0a111c}#tab-browser .nx-browser-nav{display:grid;place-items:center;flex:0 0 36px;width:36px;height:36px;padding:0;border:1px solid transparent;border-radius:11px;background:transparent;color:#9eb0c7;cursor:pointer}#tab-browser .nx-browser-nav:hover{background:#121d2d;border-color:rgba(104,168,245,.12);color:white}#tab-browser .nx-browser-nav svg{width:17px;height:17px}
+      #tab-browser .nx-omnibox{display:flex;align-items:center;gap:8px;min-width:180px;flex:1;height:42px;padding:0 6px 0 11px;border:1px solid rgba(110,163,230,.17);border-radius:21px;background:#111a27}.nx-omnibox:focus-within{border-color:rgba(83,177,255,.5)!important;box-shadow:0 0 0 3px rgba(64,154,255,.08)}#tab-browser .nx-lock{display:grid;place-items:center;color:#65c7ff}#tab-browser .nx-lock svg{width:15px;height:15px}
+      #tab-browser #nxBrowserUrl{min-width:0;flex:1;height:38px!important;padding:0!important;border:0!important;outline:0!important;background:transparent!important;box-shadow:none!important;color:#eaf4ff!important;font-size:11px!important;font-family:inherit!important}#tab-browser #nxBrowserUrl::placeholder{color:#6e7f96}
+      #tab-browser .nx-go{display:grid;place-items:center;flex:0 0 32px;width:32px;height:32px;border:0;border-radius:16px;background:linear-gradient(145deg,#267deb,#55bdff);color:white;box-shadow:0 7px 18px rgba(36,125,236,.3);cursor:pointer}#tab-browser .nx-go svg{width:15px;height:15px}#tab-browser .nx-browser-badge{flex:0 0 auto;padding:7px 10px;border:1px solid rgba(83,169,255,.17);border-radius:999px;background:rgba(32,102,175,.11);color:#82c9ff;font-size:7px;font-weight:950;letter-spacing:.08em}
+      #tab-browser .nx-browser-progress{height:2px;background:#08101b;overflow:hidden}#tab-browser .nx-browser-progress i{display:block;width:34%;height:100%;background:linear-gradient(90deg,transparent,#4ea8ff,#72d8ff,transparent)}
+      #tab-browser .nx-browser-page{min-height:calc(100vh - 270px);padding:34px 24px 26px;background:radial-gradient(800px 340px at 50% -20%,rgba(36,116,220,.18),transparent 68%),radial-gradient(420px 230px at 88% 16%,rgba(57,190,255,.07),transparent 70%),#070b12}.nx-start{width:min(980px,100%);margin:0 auto}.nx-start-hero{text-align:center;padding:20px 0 24px}
+      #tab-browser .nx-start-mark{position:relative;display:grid;place-items:center;width:76px;height:76px;margin:0 auto 15px;border-radius:26px;background:linear-gradient(145deg,#1457b6,#66caff);box-shadow:0 24px 55px rgba(27,120,245,.28),inset 0 1px 0 rgba(255,255,255,.34);font-size:35px;font-weight:1000;color:white}#tab-browser .nx-start h2{margin:0;font-size:clamp(28px,4vw,44px);letter-spacing:-.045em;color:#f5f9ff}#tab-browser .nx-start h2 span{color:#5ebcff}#tab-browser .nx-start-hero p{margin:8px auto 0;max-width:620px;color:#7e91ab;font-size:11px;line-height:1.65}
+      #tab-browser .nx-home-search{display:flex;align-items:center;gap:9px;width:min(720px,100%);height:52px;margin:21px auto 0;padding:0 7px 0 16px;border:1px solid rgba(119,174,244,.19);border-radius:26px;background:#101926;box-shadow:0 16px 38px rgba(0,0,0,.24)}#tab-browser .nx-home-search svg{width:18px;height:18px;color:#6dbfff;flex:0 0 auto}#tab-browser .nx-home-search input{min-width:0;flex:1;height:46px;border:0!important;outline:0!important;background:transparent!important;color:#eaf4ff!important;font-size:12px!important;box-shadow:none!important}#tab-browser .nx-home-search button{height:38px;padding:0 18px;border:0;border-radius:19px;background:linear-gradient(145deg,#1973e7,#62c9ff);color:white;font-size:9px;font-weight:950;cursor:pointer}
+      #tab-browser .nx-section-label{display:flex;align-items:center;justify-content:space-between;margin:28px 2px 10px;color:#90a6c2;font-size:8px;font-weight:950;letter-spacing:.13em;text-transform:uppercase}#tab-browser .nx-section-label span:last-child{color:#58708e;font-size:7px}#tab-browser .nx-speed-grid{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:10px}
+      #tab-browser .nx-speed{min-width:0;padding:13px 8px 11px;border:1px solid rgba(105,158,222,.12);border-radius:15px;background:linear-gradient(160deg,#101a28,#0b121d);color:#cfe1f5;text-align:center;cursor:pointer;transition:.18s ease}#tab-browser .nx-speed:hover{transform:translateY(-2px);border-color:rgba(83,177,255,.32);background:linear-gradient(160deg,#14243a,#0d1724)}#tab-browser .nx-speed-icon{display:grid;place-items:center;width:38px;height:38px;margin:0 auto 8px;border-radius:13px;background:linear-gradient(145deg,rgba(41,120,220,.45),rgba(23,49,79,.9));color:#8fd2ff;font-size:10px;font-weight:1000}#tab-browser .nx-speed strong{display:block;font-size:9px}#tab-browser .nx-speed small{display:block;margin-top:2px;color:#627894;font-size:7px}
+      #tab-browser .nx-recent-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.nx-recent-item{display:flex;align-items:center;gap:10px;min-width:0;padding:10px 11px;border:1px solid rgba(105,158,222,.1);border-radius:14px;background:#0d1521;color:#dceaf8;text-align:left;cursor:pointer}.nx-recent-icon{display:grid;place-items:center;flex:0 0 32px;width:32px;height:32px;border-radius:10px;background:linear-gradient(145deg,#153f70,#1a2e49);color:#82caff;font-size:8px;font-weight:1000}.nx-recent-item>span:nth-child(2){min-width:0;flex:1}.nx-recent-item strong,.nx-recent-item small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.nx-recent-item strong{font-size:9px}.nx-recent-item small{margin-top:2px;color:#5f7590;font-size:7px}.nx-recent-item>svg{width:14px;height:14px;color:#5b7998}.nx-browser-empty{grid-column:1/-1;padding:18px;border:1px dashed rgba(112,164,226,.15);border-radius:15px;color:#60758f;text-align:center;font-size:9px}
+      #tab-browser .nx-browser-info{display:flex;align-items:center;gap:10px;margin-top:20px;padding:11px 13px;border:1px solid rgba(87,156,229,.12);border-radius:14px;background:rgba(15,29,47,.68);color:#7990aa;font-size:8.5px;line-height:1.55}#tab-browser .nx-browser-info svg{width:18px;height:18px;flex:0 0 auto;color:#66bdff}
+      #tab-browser .nx-browser-statusbar{display:flex;align-items:center;gap:7px;min-height:31px;padding:7px 12px;border-top:1px solid rgba(255,255,255,.045);background:#080d15;color:#687d98;font-size:7.5px}#tab-browser .nx-browser-statusbar::before{content:"";width:6px;height:6px;border-radius:50%;background:#5d7997}.nx-browser-statusbar[data-tone="success"]{color:#78bca8!important}.nx-browser-statusbar[data-tone="success"]::before{background:#45d5a7!important}.nx-browser-statusbar[data-tone="error"]{color:#d99aa2!important}.nx-browser-statusbar[data-tone="error"]::before{background:#ff6f7c!important}
+      #tab-browser .nx-browser-bottom{display:none}
+      @media(max-width:980px){#tab-browser .nx-speed-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+      @media(max-width:720px){body.nx-browser-open .main{padding:0 0 78px!important}#tab-browser .nx-browser-window{min-height:calc(100vh - 78px);border-width:0;border-radius:0}#tab-browser .nx-browser-brand-copy,#tab-browser .nx-browser-engine{display:none}#tab-browser .nx-browser-tab{min-width:0;max-width:none;flex:1}#tab-browser .nx-browser-toolbar>.nx-browser-nav:nth-of-type(2),#tab-browser .nx-browser-toolbar>.nx-browser-nav:nth-of-type(4){display:none}#tab-browser .nx-browser-badge{display:none}#tab-browser .nx-browser-page{min-height:calc(100vh - 235px);padding:24px 14px 20px}#tab-browser .nx-start-mark{width:64px;height:64px;border-radius:22px;font-size:29px}#tab-browser .nx-start h2{font-size:30px}#tab-browser .nx-speed-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}#tab-browser .nx-recent-grid{grid-template-columns:1fr}#tab-browser .nx-browser-bottom{display:grid;grid-template-columns:repeat(5,1fr);gap:3px;padding:6px 8px;border-top:1px solid rgba(255,255,255,.05);background:#0a101a}#tab-browser .nx-bottom-btn{display:flex;flex-direction:column;align-items:center;gap:2px;padding:5px 2px;border:0;background:transparent;color:#778ba6;font-size:6.5px;font-weight:850;cursor:pointer}#tab-browser .nx-bottom-btn svg{width:17px;height:17px}#tab-browser .nx-bottom-btn.primary{color:#71c6ff}}
+      @media(max-width:420px){#tab-browser .nx-speed-grid{grid-template-columns:repeat(4,minmax(0,1fr))}#tab-browser .nx-omnibox{min-width:110px}}
     `;
     document.head.appendChild(style);
   }
 
-  function decorateQuickLinks(section) {
-    const icons = [ICONS.search, ICONS.play, ICONS.book, ICONS.play, ICONS.news, ICONS.map];
-    section.querySelectorAll('.browser-links button').forEach((button, index) => {
-      if (button.dataset.nxBrowserDecorated === '1') return;
-      const label = String(button.textContent || '').trim();
-      button.innerHTML = `<span class="nx-browser-link-icon">${icons[index] || ICONS.globe}</span><span>${label}</span>`;
-      button.dataset.nxBrowserDecorated = '1';
-    });
+  function browserMarkup() {
+    const dials = SPEED_DIALS.map(([name,type,url,mark]) => `<button type="button" class="nx-speed" data-nx-speed="${escapeHtml(url)}"><span class="nx-speed-icon">${escapeHtml(mark)}</span><strong>${escapeHtml(name)}</strong><small>${escapeHtml(type)}</small></button>`).join('');
+    return `<div class="nx-browser-window" data-nx-browser-window>
+      <div class="nx-browser-tabbar"><div class="nx-browser-brand"><div class="nx-browser-logo">N</div><div class="nx-browser-brand-copy"><strong>NexusNova</strong><small>NEURAL WEB</small></div></div><div class="nx-browser-tab">${ICONS.globe}<span data-nx-browser-tab-title>New Tab</span><button type="button" class="nx-browser-tab-close" data-nx-browser-new title="New tab">×</button></div><button type="button" class="nx-browser-icon-btn" data-nx-browser-new title="New tab">${ICONS.plus}</button><div class="nx-browser-spacer"></div><div class="nx-browser-engine"><i></i>${nativeAvailable() ? 'ANDROID ENGINE' : 'WEB LAUNCH MODE'}</div><button type="button" class="nx-browser-icon-btn" data-nx-browser-extensions-local title="Extensions & Apps">${ICONS.puzzle}</button><button type="button" class="nx-browser-icon-btn" data-nx-browser-menu title="Browser menu">${ICONS.menu}</button></div>
+      <div class="nx-browser-toolbar" data-nx-browser-toolbar><button type="button" class="nx-browser-nav" data-nx-browser-home title="Home">${ICONS.home}</button><button type="button" class="nx-browser-nav" data-nx-browser-back title="Back">${ICONS.back}</button><button type="button" class="nx-browser-nav" data-nx-browser-forward title="Forward">${ICONS.forward}</button><button type="button" class="nx-browser-nav" data-nx-browser-reload title="Reload">${ICONS.reload}</button><div class="nx-omnibox"><span class="nx-lock">${ICONS.shield}</span><input id="nxBrowserUrl" type="text" inputmode="url" autocomplete="off" spellcheck="false" placeholder="Search or enter website"><button type="button" class="nx-go" data-nx-browser-go aria-label="Browse">${ICONS.search}</button></div><span class="nx-browser-badge">${nativeAvailable() ? 'NEXUS NATIVE' : 'REAL PAGE • NEW TAB'}</span></div>
+      <div class="nx-browser-progress"><i></i></div>
+      <div class="nx-browser-page"><div class="nx-start"><div class="nx-start-hero"><div class="nx-start-mark">N</div><h2>Nexus<span>Nova</span> Browser</h2><p>Opera/Firefox inspired browser layout with NexusNova styling. Search, speed dial, recent sites, extensions hub and native Android browsing — without the broken blank iframe.</p><form class="nx-home-search" data-nx-home-search>${ICONS.search}<input type="text" data-nx-home-query autocomplete="off" placeholder="Search the web with NexusNova"><button type="submit">SEARCH</button></form></div><div class="nx-section-label"><span>Speed Dial</span><span>Quick access</span></div><div class="nx-speed-grid">${dials}</div><div class="nx-section-label"><span>Recent</span><span>Stored on this device</span></div><div class="nx-recent-grid" data-nx-browser-recent></div><div class="nx-browser-info">${ICONS.shield}<span>${nativeAvailable() ? 'Android mode detected: websites open inside the dedicated NexusNova Browser window with real WebView navigation.' : 'Web/PWA mode: public sites such as Google block iframe embedding. NexusNova now opens the real website in a new browser tab instead of showing a broken white frame.'}</span></div></div></div>
+      <div id="nxBrowserStatus" class="nx-browser-statusbar" data-tone="normal">${nativeAvailable() ? 'NexusNova native browser ready.' : 'NexusNova web launcher ready — search or choose a Speed Dial.'}</div>
+      <div class="nx-browser-bottom"><button type="button" class="nx-bottom-btn" data-nx-browser-back>${ICONS.back}<span>Back</span></button><button type="button" class="nx-bottom-btn primary" data-nx-browser-home>${ICONS.home}<span>Home</span></button><button type="button" class="nx-bottom-btn" data-nx-browser-new>${ICONS.plus}<span>New</span></button><button type="button" class="nx-bottom-btn" data-nx-browser-tabs>${ICONS.tabs}<span>Tabs</span></button><button type="button" class="nx-bottom-btn" data-nx-browser-menu>${ICONS.menu}<span>Menu</span></button></div>
+    </div>`;
   }
 
-  function renameUi() {
-    const section = browserSection();
-    if (!section) return;
-    section.classList.add('nx-browser-shell');
-
-    const kicker = section.querySelector('.hub-kicker');
-    if (kicker) kicker.textContent = 'NEXUSNOVA BROWSER';
-
-    const heading = section.querySelector('h2');
-    if (heading && !heading.dataset.nxBrowserNamed) {
-      heading.innerHTML = `${ICONS.globe}<span>NexusNova Browser</span>`;
-      heading.querySelector('svg')?.classList.add('mi-icon');
-      heading.dataset.nxBrowserNamed = '1';
-    }
-
-    const heroText = section.querySelector('.hub-hero p');
-    if (heroText) heroText.textContent = 'A private-looking NexusNova web workspace with secure HTTPS navigation, branded controls and an in-app Android browsing window.';
-
-    const orb = section.querySelector('.hub-orb');
-    if (orb) orb.innerHTML = ICONS.globe;
-
-    const frame = $('nxBrowserFrame');
-    if (frame) {
-      frame.title = 'NexusNova Browser';
-      frame.referrerPolicy = 'strict-origin-when-cross-origin';
-    }
-
-    const input = $('nxBrowserUrl');
-    const row = input?.parentElement;
-    if (row && !row.querySelector('.nx-browser-search-icon')) {
-      const searchIcon = document.createElement('span');
-      searchIcon.className = 'nx-browser-search-icon';
-      searchIcon.innerHTML = ICONS.search;
-      row.insertBefore(searchIcon, input);
-    }
-
-    const goButton = Array.from(section.querySelectorAll('button')).find(button =>
-      String(button.getAttribute('onclick') || '').includes('nxBrowse()')
-    );
-    if (goButton) goButton.innerHTML = `${ICONS.search}<span>Browse</span>`;
-
-    const external = Array.from(section.querySelectorAll('button')).find(button =>
-      String(button.getAttribute('onclick') || '').includes('nxOpenBrowserExternal()')
-    );
-    if (external) external.innerHTML = `${ICONS.open}<span>Open in system browser</span>`;
-
-    decorateQuickLinks(section);
-
-    document.querySelectorAll('.more-item span').forEach(span => {
-      if (String(span.textContent || '').trim().toUpperCase() === 'BROWSER') span.textContent = 'NEXUSNOVA BROWSER';
-    });
+  function resetHome() {
+    const input = $('#nxBrowserUrl'), homeInput = $('[data-nx-home-query]');
+    if (input) input.value = '';
+    if (homeInput) homeInput.value = '';
+    setTabTitle('New Tab');
+    status(nativeAvailable() ? 'NexusNova native browser ready.' : 'New NexusNova tab ready.');
+    window.scrollTo({top:0,behavior:'smooth'});
   }
 
-  function installModeLine() {
-    const section = browserSection();
-    const row = $('nxBrowserUrl')?.parentElement;
-    if (!section || !row || section.querySelector('.nx-browser-mode-line')) return;
-    const line = document.createElement('div');
-    line.className = 'nx-browser-mode-line';
-    line.innerHTML = `<span class="nx-browser-mode">${ICONS.shield}<span>Protected HTTPS navigation</span></span><span class="nx-browser-badge">${nativeAvailable() ? 'ANDROID • IN APP' : 'WEB • IN APP'}</span>`;
-    row.parentElement?.insertBefore(line, row);
+  function installHandlers(section) {
+    const input = $('#nxBrowserUrl', section);
+    input?.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); openUrl(input.value); } });
+    $('[data-nx-browser-go]', section)?.addEventListener('click', () => openUrl(input?.value || ''));
+    $('[data-nx-home-search]', section)?.addEventListener('submit', event => { event.preventDefault(); openUrl($('[data-nx-home-query]', section)?.value || ''); });
+    section.querySelectorAll('[data-nx-speed]').forEach(btn => btn.addEventListener('click', () => openUrl(btn.dataset.nxSpeed || '')));
+    section.querySelectorAll('[data-nx-browser-home],[data-nx-browser-new]').forEach(btn => btn.addEventListener('click', resetHome));
+    section.querySelectorAll('[data-nx-browser-reload]').forEach(btn => btn.addEventListener('click', () => { const current=input?.value?.trim(); current ? openUrl(current) : resetHome(); }));
+    section.querySelectorAll('[data-nx-browser-back]').forEach(btn => btn.addEventListener('click', () => { const recent=loadRecent(); recent[1] ? openUrl(recent[1].url) : status('Back history native Android browser mein available hai.'); }));
+    section.querySelectorAll('[data-nx-browser-forward]').forEach(btn => btn.addEventListener('click', () => status('Forward history real Android browser window mein available hai.')));
+    section.querySelectorAll('[data-nx-browser-tabs]').forEach(btn => btn.addEventListener('click', () => status('Web launcher ek NexusNova start tab use karta hai. Android browser mein real page history active hai.')));
+    section.querySelectorAll('[data-nx-browser-extensions-local]').forEach(btn => btn.addEventListener('click', () => { if (typeof window.nxOpenBrowserExtensions === 'function') window.nxOpenBrowserExtensions(); else if (window.NexusNovaBrowserExtensions?.open) window.NexusNovaBrowserExtensions.open(); else status('Extensions & Apps Hub load ho raha hai — ek second baad dobara dabao.'); }));
+    section.querySelectorAll('[data-nx-browser-menu]').forEach(btn => btn.addEventListener('click', () => status(nativeAvailable() ? 'Android browser: real in-app pages, Desktop Site, navigation aur Extensions & Apps controls available hain.' : 'Web mode: sites real new tab mein khulti hain. Full in-app browsing Android NexusNova Browser mein hoti hai.')));
   }
 
-  function installToolbar() {
-    const frame = $('nxBrowserFrame');
-    const wrap = frame?.parentElement;
-    if (!wrap || document.querySelector('[data-nx-browser-toolbar]')) return;
-    const toolbar = document.createElement('div');
-    toolbar.className = 'nx-browser-toolbar';
-    toolbar.dataset.nxBrowserToolbar = '1';
-    toolbar.innerHTML = `
-      <button type="button" class="nx-browser-nav" data-nx-browser-back aria-label="Back" title="Back">${ICONS.back}</button>
-      <button type="button" class="nx-browser-nav" data-nx-browser-forward aria-label="Forward" title="Forward">${ICONS.forward}</button>
-      <button type="button" class="nx-browser-nav" data-nx-browser-reload aria-label="Reload" title="Reload">${ICONS.reload}</button>
-      <button type="button" class="nx-browser-nav" data-nx-browser-home aria-label="Home" title="Home">${ICONS.home}</button>
-      <span class="nx-browser-badge">NEXUS SECURE VIEW</span>`;
-    wrap.parentElement?.insertBefore(toolbar, wrap);
-    toolbar.querySelector('[data-nx-browser-back]')?.addEventListener('click', back);
-    toolbar.querySelector('[data-nx-browser-forward]')?.addEventListener('click', forward);
-    toolbar.querySelector('[data-nx-browser-reload]')?.addEventListener('click', reload);
-    toolbar.querySelector('[data-nx-browser-home]')?.addEventListener('click', home);
-
-    if (nativeAvailable() && !document.querySelector('.nx-browser-native-note')) {
-      const note = document.createElement('div');
-      note.className = 'nx-browser-native-note';
-      note.innerHTML = `${ICONS.globe}<span><strong>Android native mode.</strong> Websites open inside the dedicated NexusNova Browser window rather than Chrome. Navigation controls remain inside NexusNova.</span>`;
-      wrap.parentElement?.insertBefore(note, toolbar.nextSibling);
-    }
-    syncNav();
-  }
-
-  function installSecurityNote() {
-    const section = browserSection();
-    const external = Array.from(section?.querySelectorAll('button') || []).find(button =>
-      String(button.getAttribute('onclick') || '').includes('nxOpenBrowserExternal()')
-    );
-    if (!external || section.querySelector('.nx-browser-security-note')) return;
-    const note = document.createElement('div');
-    note.className = 'nx-browser-security-note';
-    note.innerHTML = `${ICONS.shield}<span>NexusNova blocks unsafe local/data URLs here and upgrades normal HTTP input to HTTPS. Some websites still refuse iframe embedding on the web version; Android native mode is designed for those sites.</span>`;
-    external.parentElement?.insertBefore(note, external);
-  }
-
-  function installHandlers() {
-    const input = $('nxBrowserUrl');
-    const section = browserSection();
-    if (!input || !section || input.dataset.nxBrowserReady === '1') return;
-    input.dataset.nxBrowserReady = '1';
-    input.placeholder = 'Search the web or enter a secure website';
-    input.autocomplete = 'off';
-    input.spellcheck = false;
-
-    input.addEventListener('keydown', event => {
-      if (event.key === 'Enter') {
-        event.preventDefault();
-        openInApp(input.value);
-      }
-    });
-
-    const frame = $('nxBrowserFrame');
-    if (frame && frame.dataset.nxBrowserLoad !== '1') {
-      frame.dataset.nxBrowserLoad = '1';
-      frame.addEventListener('load', () => {
-        setFrameBusy(false);
-        const src = String(frame.getAttribute('src') || '');
-        if (!src || src === 'about:blank') return;
-        status('Page loaded inside NexusNova Browser.', 'success');
-      });
-    }
-  }
+  function syncOpenState(section) { document.body.classList.toggle('nx-browser-open', section.classList.contains('active')); }
 
   function install() {
-    if (!$('nxBrowserUrl')) return false;
+    const section = document.getElementById('tab-browser');
+    if (!section) return false;
     installStyle();
-    renameUi();
-    installModeLine();
-    installToolbar();
-    installSecurityNote();
-    installHandlers();
-    status(nativeAvailable()
-      ? 'NexusNova Browser ready • Android native in-app mode detected.'
-      : 'NexusNova Browser ready • secure web/PWA in-app mode.');
+    section.classList.add('nx-browser-shell');
+    if (section.dataset.nxBrowserV3 !== '1') {
+      section.dataset.nxBrowserV3 = '1';
+      section.innerHTML = browserMarkup();
+      installHandlers(section);
+      renderRecent();
+      const observer = new MutationObserver(() => syncOpenState(section));
+      observer.observe(section,{attributes:true,attributeFilter:['class']});
+      syncOpenState(section);
+    }
+    if (window.NexusNovaBrowserExtensions?.install) { try { window.NexusNovaBrowserExtensions.install(); } catch (_) {} }
     return true;
   }
 
-  window.nxBrowse = () => openInApp($('nxBrowserUrl')?.value || '');
-  window.nxBrowsePreset = url => {
-    if ($('nxBrowserUrl')) $('nxBrowserUrl').value = url;
-    return openInApp(url);
-  };
-  window.nxOpenBrowserExternal = () => manualExternal($('nxBrowserUrl')?.value || '');
-  window.nexusOpenInAppBrowser = openInApp;
-
-  window.NexusNovaBrowser = Object.freeze({
-    version:'in-app-browser-v2',
-    install,
-    open:openInApp,
-    normalize:safeHttps,
-    back,
-    forward,
-    reload,
-    home,
-    nativeAvailable
-  });
-
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(install, 120), {once:true});
-  else setTimeout(install, 120);
-  [500,1200,2400,4200].forEach(ms => setTimeout(install, ms));
+  window.nxBrowse = () => openUrl($('#nxBrowserUrl')?.value || '');
+  window.nxBrowsePreset = url => openUrl(url);
+  window.nxOpenBrowserExternal = () => openExternal($('#nxBrowserUrl')?.value || '');
+  window.nexusOpenInAppBrowser = openUrl;
+  window.nxOpenBrowserExtensions = () => { if (window.NexusNovaBrowserExtensions?.open) { window.NexusNovaBrowserExtensions.open(); return true; } status('Extensions & Apps Hub abhi load ho raha hai.'); return false; };
+  window.NexusNovaBrowser = Object.freeze({version:'nexus-browser-v3',install,open:openUrl,normalize:safeUrl,home:resetHome,nativeAvailable});
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(install,80), {once:true}); else setTimeout(install,80);
+  [450,1000,1800,3200].forEach(ms => setTimeout(install,ms));
 })();
