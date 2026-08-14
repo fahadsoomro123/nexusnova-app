@@ -48,7 +48,6 @@
 
   window.nxOpenExternal = url => { openExternal(url); };
 
-  // ---------------- Regional news ----------------
   const NEWS_QUERIES = {
     breaking: "Pakistan breaking latest news",
     urdu: "پاکستان اردو خبریں",
@@ -111,7 +110,6 @@
     }
   };
 
-  // ---------------- Qibla ----------------
   function rad(x){ return x * Math.PI / 180; }
   function deg(x){ return x * 180 / Math.PI; }
   function bearing(lat, lon){
@@ -171,7 +169,6 @@
     }, {enableHighAccuracy:true, timeout:12000, maximumAge:60000});
   };
 
-  // ---------------- Browser launcher ----------------
   function renderBrowserFallback(url, message){
     const frame=$("nxBrowserFrame"), status=$("nxBrowserStatus");
     if(frame) frame.src="about:blank";
@@ -218,7 +215,6 @@
     if(!opened) renderBrowserFallback(url,"Your preview/browser blocked the new page.");
   };
 
-  // ---------------- Caller ID helper ----------------
   function normalizePhone(value){
     return String(value||"").replace(/[^\d+]/g,"").replace(/(?!^)\+/g,"");
   }
@@ -255,8 +251,12 @@
       if($("regionalNewsList")) window.nxRegionalNews("breaking");
     }, 800);
 
-    // nexusnova-mega-merge-v1.js creates Learning dynamically after this classic
-    // module has loaded. Load the real Learning engine only after those elements exist.
+    setTimeout(() => {
+      if(document.getElementById('tab-browser')) {
+        loadLateScript('./js/nexusnova-browser-v1.js?v=2','data-nx-browser-shell');
+      }
+    }, 350);
+
     setTimeout(() => {
       if(document.getElementById('tab-mega-learning')) {
         loadLateScript('./js/nexusnova-learning-engine-v1.js?v=1','data-nx-learning-engine');
