@@ -30,17 +30,17 @@ body.nx-opened-from-allapps .tab.active>.nx-allapps-back{display:flex}
 @media(max-width:620px){.nx-bible-verse{grid-template-columns:34px 1fr;font-size:16px}.nx-bible-verse.rtl{font-size:18px}}
 
 /* Browser-only first-paint branding. Search remains first; app order itself is untouched. */
-#moreMenu #nxAllAppsSmartSearch{order:-10!important}
-#moreMenu .more-item[onclick*="browser"]{order:0!important}
-#moreMenu .more-item[onclick*="browser"] .mi-icon{position:relative!important;overflow:visible!important;background:radial-gradient(circle at 32% 24%,#6ee7ff 0 8%,transparent 9%),linear-gradient(145deg,#1795ff 0%,#1267e6 48%,#082f84 100%)!important;border-color:rgba(113,214,255,.82)!important;box-shadow:0 10px 30px rgba(23,149,255,.34),inset 0 1px 0 rgba(255,255,255,.34)!important;color:#eafaff!important}
-#moreMenu .more-item[onclick*="browser"] .mi-icon svg{display:block!important;width:62%!important;height:62%!important;margin:19%!important;stroke:#fff!important;stroke-width:1.65!important;filter:drop-shadow(0 2px 5px rgba(0,0,0,.24))}
-#moreMenu .more-item[onclick*="browser"] .mi-icon:before{content:none!important}
-#moreMenu .more-item[onclick*="browser"] .mi-icon:after{content:"N";position:absolute;right:-5px;bottom:-5px;width:22px;height:22px;display:grid;place-items:center;border-radius:8px;background:linear-gradient(145deg,#3db9ff,#0757cf);border:2px solid #07101d;color:#fff;font-size:12px;font-weight:1000;line-height:1;box-shadow:0 5px 12px rgba(0,0,0,.34)}
-#moreMenu .more-item[onclick*="browser"]>span:last-child{font-size:0!important}
-#moreMenu .more-item[onclick*="browser"]>span:last-child:after{content:"NexusNova Browser";display:block;font-size:9.5px;font-weight:900;line-height:1.08;letter-spacing:.01em;color:inherit;white-space:normal}
+body #moreMenu #nxAllAppsSmartSearch{order:-10!important}
+body #moreMenu .more-item[onclick*="browser"]{order:0!important}
+body #moreMenu .more-item[onclick*="browser"] .mi-icon{position:relative!important;overflow:visible!important;background:radial-gradient(circle at 32% 24%,#6ee7ff 0 8%,transparent 9%),linear-gradient(145deg,#1795ff 0%,#1267e6 48%,#082f84 100%)!important;border-color:rgba(113,214,255,.82)!important;box-shadow:0 10px 30px rgba(23,149,255,.34),inset 0 1px 0 rgba(255,255,255,.34)!important;color:#eafaff!important}
+body #moreMenu .more-item[onclick*="browser"] .mi-icon svg{display:block!important;width:62%!important;height:62%!important;margin:19%!important;stroke:#fff!important;stroke-width:1.65!important;filter:drop-shadow(0 2px 5px rgba(0,0,0,.24))}
+body #moreMenu .more-item[onclick*="browser"] .mi-icon:before{content:none!important}
+body #moreMenu .more-item[onclick*="browser"] .mi-icon:after{content:"N";position:absolute;right:-5px;bottom:-5px;width:22px;height:22px;display:grid;place-items:center;border-radius:8px;background:linear-gradient(145deg,#3db9ff,#0757cf);border:2px solid #07101d;color:#fff;font-size:12px;font-weight:1000;line-height:1;box-shadow:0 5px 12px rgba(0,0,0,.34)}
+body #moreMenu .more-item[onclick*="browser"]>span:last-child{font-size:0!important}
+body #moreMenu .more-item[onclick*="browser"]>span:last-child:after{content:"NexusNova Browser";display:block;font-size:9.5px;font-weight:900;line-height:1.08;letter-spacing:.01em;color:inherit;white-space:normal}
 
 /* Balanced startup splash: visible long enough to feel intentional, but not sluggish. */
 #nxSplash{animation:nxSplashHardExit .32s ease 1.80s forwards!important}
 @keyframes nxSplashHardExit{to{opacity:0;visibility:hidden;pointer-events:none}}
 
-/* deploy-marker: browser-launcher-polish-2026-08-15 */
+/* deploy-marker: browser-launcher-authoritative-2026-08-15 */
