@@ -9,6 +9,24 @@
   const splash = document.getElementById("nxSplash");
   if (splash) splash.dataset.nxFastExit = "1";
 
+  // Neutralize the old 1.8s emergency CSS exit. The page's own 2.8s minimum
+  // remains authoritative. On phones the content is nudged upward so the
+  // system navigation area does not make the splash look vertically low.
+  if (!document.getElementById("nxStartupTimingGuard")) {
+    const startupStyle = document.createElement("style");
+    startupStyle.id = "nxStartupTimingGuard";
+    startupStyle.textContent = `
+      #nxSplash{animation:none!important}
+      @media(max-width:700px){
+        #nxSplash{
+          min-height:100dvh!important;
+          padding:max(12px,env(safe-area-inset-top)) 16px calc(7vh + max(18px,env(safe-area-inset-bottom)))!important;
+        }
+      }
+    `;
+    document.head.appendChild(startupStyle);
+  }
+
   const FIREBASE_APP_URL = "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
   const config = {
     apiKey: "AIzaSyBU75WYp5ioaMD1LrNcDyAvROFW2wrTil0",
