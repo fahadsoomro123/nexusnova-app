@@ -45,18 +45,37 @@
     };
   }
 
-  // These are core user-facing utilities, not mining owners. Boot them from a
-  // script that page2.html already loads directly so their availability does
-  // not depend on a late optional loader.
+  // These are core user-facing utilities, not mining owners. Dynamic scripts
+  // are forced into insertion order so the secure rewarded-ad guard registers
+  // before the legacy Spark reward handler can capture the Watch Ad button.
   function loadCritical({flag, marker, src, error}) {
     if (window[flag] || document.querySelector(`script[${marker}]`)) return;
     const script = document.createElement('script');
     script.src = src;
+    script.async = false;
     script.setAttribute(marker, '1');
     script.onerror = () => console.warn(error);
     document.body.appendChild(script);
   }
 
+  loadCritical({
+    flag:'__nxRewardedAdsConfigV1',
+    marker:'data-nx-rewarded-config',
+    src:'./js/nexusnova-rewarded-ads-config-v1.js?v=1',
+    error:'NexusNova rewarded ads public config failed to load.'
+  });
+  loadCritical({
+    flag:'__nxRewardedAdsV1',
+    marker:'data-nx-rewarded-ads',
+    src:'./js/nexusnova-rewarded-ads-v1.js?v=1',
+    error:'NexusNova rewarded ads bridge failed to load.'
+  });
+  loadCritical({
+    flag:'__nxRewardedAdsButtonGuardV1',
+    marker:'data-nx-rewarded-guard',
+    src:'./js/nexusnova-rewarded-ads-button-guard-v1.js?v=1',
+    error:'NexusNova rewarded ads button guard failed to load.'
+  });
   loadCritical({
     flag:'__nxRewardsSparkV1',
     marker:'data-nx-rewards-spark',
