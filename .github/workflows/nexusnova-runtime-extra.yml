@@ -70,5 +70,8 @@ jobs:
       - name: Run Travel and Learning real-action browser check
         run: node .github/scripts/nexusnova-travel-learning-runtime.mjs
 
+      - name: Run Smart Camera and Daily Brief browser check
+        run: node .github/scripts/nexusnova-smart-runtime.mjs
+
       - name: Run local tools browser checks
         run: node .github/scripts/nexusnova-local-tools-runtime.mjs

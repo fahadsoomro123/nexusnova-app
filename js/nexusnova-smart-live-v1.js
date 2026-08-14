@@ -1,4 +1,4 @@
-/* NexusNova Smart Live v3.6
+/* NexusNova Smart Live v3.7
    Connects Smart Hub camera/daily brief to real AI flows and boots late live modules. */
 (() => {
   'use strict';
@@ -6,6 +6,7 @@
   window.__nxSmartLiveV3 = true;
   window.__nxSmartLiveV2 = true;
   window.__nxSmartLiveV1 = true;
+  window.nexusSmartLiveVersion = 'real-actions-v3.7';
 
   const $ = id => document.getElementById(id);
 
@@ -27,6 +28,14 @@
       handler();
     });
     return true;
+  }
+
+  function updateTileCopy() {
+    const tiles=Array.from(document.querySelectorAll('#tab-smart .feature-tile'));
+    const camera=tiles.find(tile=>String(tile.querySelector('strong')?.textContent||'').trim()==='Camera / Documents');
+    const brief=tiles.find(tile=>String(tile.querySelector('strong')?.textContent||'').trim()==='AI Daily Brief');
+    if(camera?.querySelector('small')) camera.querySelector('small').textContent='Send a selected image/document into the real NexusNova AI image workflow.';
+    if(brief?.querySelector('small')) brief.querySelector('small').textContent='Balance, mining, events, reminders, expenses and habits — using only data already available in NexusNova.';
   }
 
   function openAI() {
@@ -101,6 +110,7 @@
     if($('tab-smart')) {
       claim('Open Camera','nxSmartCameraLive',openCamera);
       claim('Build Brief','nxSmartBriefLive',buildBrief);
+      updateTileCopy();
     }
     loadModule({tab:'tab-mega-documents',marker:'data-nx-documents-live',src:'./js/nexusnova-documents-live-v1.js?v=1',error:'NexusNova Documents live module failed to load.'});
     loadModule({tab:'tab-mega-vault',flag:'__nxFileVaultV1',marker:'data-nx-file-vault',src:'./js/nexusnova-file-vault-v1.js?v=1',error:'NexusNova encrypted File Vault failed to load.'});
@@ -113,7 +123,15 @@
     loadModule({tab:null,flag:'__nxAllAppsSmartSearchV2',marker:'data-nx-allapps-smart-search',src:'./js/nexusnova-allapps-smart-search-v1.js?v=3',error:'NexusNova ALL APPS smart search failed to load.'});
   }
 
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>setTimeout(install,1200),{once:true});
-  else setTimeout(install,1200);
-  [2200,4000,7000].forEach(ms=>setTimeout(install,ms));
+  window.nexusSmartLive = Object.freeze({
+    version:'real-actions-v3.7',
+    install,
+    buildBriefPrompt,
+    openCamera,
+    buildBrief
+  });
+
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>setTimeout(install,500),{once:true});
+  else setTimeout(install,500);
+  [1200,2400,4500].forEach(ms=>setTimeout(install,ms));
 })();
