@@ -34,3 +34,10 @@ jobs:
 
       - name: Compile Android debug APK
         run: gradle -p NexusNovaAndroid :app:assembleDebug --stacktrace --no-daemon
+
+      - name: Upload Android debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: NexusNova-debug-apk
+          path: NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
