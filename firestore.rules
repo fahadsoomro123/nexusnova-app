@@ -59,9 +59,6 @@ service cloud.firestore {
         && request.resource.data.name.size() <= 80;
     }
 
-    // Complete Profile edits are intentionally isolated from all value-bearing
-    // account fields. A profile photo is a small client-compressed JPEG data URI;
-    // arbitrary extra fields, email changes, balances and mining state are denied.
     function validProfileDetailsEdit() {
       return request.resource.data.diff(resource.data).affectedKeys()
           .hasOnly(['name', 'photoDataUrl', 'bio', 'city', 'country', 'profileUpdatedAt'])
@@ -83,9 +80,6 @@ service cloud.firestore {
         && request.resource.data.profileUpdatedAt == request.time;
     }
 
-    // Spark-plan secure value transitions. The browser proposes a current
-    // millisecond timestamp, but Firestore's trusted request.time limits it to
-    // a narrow window. This prevents backdating cooldowns/sessions.
     function freshMiningMillis(value) {
       return value is int
         && value >= request.time.toMillis() - 60000
@@ -201,9 +195,6 @@ service cloud.firestore {
         && request.resource.data.updatedAt == request.time;
     }
 
-    // Referral attribution contains no email, wallet or balance. Codes cannot
-    // be listed/enumerated, relationships are one-per-referred-account, and
-    // referral creation is only allowed for a genuinely new account window.
     function userSource(uid) {
       return get(/databases/$(database)/documents/users/$(uid)).data;
     }
@@ -266,6 +257,49 @@ service cloud.firestore {
         && request.resource.data.text is string
         && request.resource.data.text.size() > 0
         && request.resource.data.text.size() <= 500
+        && request.resource.data.createdAt == request.time;
+    }
+
+    function validBugReportCreate(uid) {
+      return owns(uid)
+        && request.resource.data.keys().hasAll([
+          'category','severity','description','feature','diagnosticsIncluded',
+          'diagnostics','moduleVersion','status','createdAt'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'category','severity','description','feature','diagnosticsIncluded',
+          'diagnostics','moduleVersion','status','createdAt'
+        ])
+        && request.resource.data.category is string
+        && (
+          request.resource.data.category == 'ui'
+          || request.resource.data.category == 'login'
+          || request.resource.data.category == 'mining'
+          || request.resource.data.category == 'wallet'
+          || request.resource.data.category == 'tasks'
+          || request.resource.data.category == 'market'
+          || request.resource.data.category == 'search'
+          || request.resource.data.category == 'profile'
+          || request.resource.data.category == 'growth'
+          || request.resource.data.category == 'other'
+        )
+        && request.resource.data.severity is string
+        && (
+          request.resource.data.severity == 'low'
+          || request.resource.data.severity == 'medium'
+          || request.resource.data.severity == 'high'
+          || request.resource.data.severity == 'critical'
+        )
+        && request.resource.data.description is string
+        && request.resource.data.description.size() >= 15
+        && request.resource.data.description.size() <= 2000
+        && request.resource.data.feature is string
+        && request.resource.data.feature.size() <= 50
+        && request.resource.data.diagnosticsIncluded is bool
+        && request.resource.data.diagnostics is string
+        && request.resource.data.diagnostics.size() <= 1200
+        && request.resource.data.moduleVersion == 'bug-report-v1'
+        && request.resource.data.status == 'new'
         && request.resource.data.createdAt == request.time;
     }
 
@@ -402,6 +436,11 @@ service cloud.firestore {
       allow create: if validReferralCreate(referredUid);
       allow update: if validReferralVerify(referredUid);
       allow delete: if false;
+    }
+
+    match /bugReports/{uid}/items/{reportId} {
+      allow create: if validBugReportCreate(uid);
+      allow read, update, delete: if false;
     }
 
     match /withdrawalRequests/{id} {
