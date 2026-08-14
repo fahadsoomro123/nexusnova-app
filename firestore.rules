@@ -157,6 +157,37 @@ service cloud.firestore {
         );
     }
 
+    // The leaderboard is deliberately separated from private user profiles.
+    // A user may only publish a tiny mirror that exactly matches their secure
+    // users/{uid} mining/task/streak state. Email, balance, wallet data and any
+    // arbitrary score fields are rejected by hasOnly().
+    function leaderboardSource(uid) {
+      return get(/databases/$(database)/documents/users/$(uid)).data;
+    }
+
+    function validLeaderboardWrite(uid) {
+      return request.resource.data.keys().hasAll([
+          'name', 'totalMined', 'tasksCompleted', 'dailyRewardStreak', 'updatedAt'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'name', 'totalMined', 'tasksCompleted', 'dailyRewardStreak', 'updatedAt'
+        ])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 80
+        && request.resource.data.totalMined is number
+        && request.resource.data.totalMined >= 0
+        && request.resource.data.tasksCompleted is number
+        && request.resource.data.tasksCompleted >= 0
+        && request.resource.data.dailyRewardStreak is number
+        && request.resource.data.dailyRewardStreak >= 0
+        && request.resource.data.name == leaderboardSource(uid).name
+        && request.resource.data.totalMined == leaderboardSource(uid).totalMined
+        && request.resource.data.tasksCompleted == leaderboardSource(uid).tasksCompleted
+        && request.resource.data.dailyRewardStreak == leaderboardSource(uid).get('dailyRewardStreak', 0)
+        && request.resource.data.updatedAt == request.time;
+    }
+
     function validChatMessage() {
       return request.resource.data.keys().hasAll([
           'uid', 'name', 'text', 'createdAt'
@@ -285,6 +316,12 @@ service cloud.firestore {
           || validMiningRepair()
           || validDailyReward()
         ));
+      allow delete: if false;
+    }
+
+    match /leaderboardPublic/{uid} {
+      allow read: if signedIn();
+      allow create, update: if verifiedOwner(uid) && validLeaderboardWrite(uid);
       allow delete: if false;
     }
 
