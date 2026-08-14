@@ -29,6 +29,8 @@ try {
 
   await page.evaluate(() => {
     localStorage.clear();
+    window.switchTab=()=>{};
+    window.openMoreTab=()=>{};
     localStorage.setItem('nexusnova_analytics_consent_v1',JSON.stringify({status:'granted',at:Date.now()}));
     window.__nxAnalyticsEvents=[];
     window.__nxAnalyticsAdapterState={enabled:null,consent:null,inits:0};
