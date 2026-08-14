@@ -41,7 +41,7 @@ try {
     document.getElementById('nxReferralCode').textContent='NVX-ABCDEFGH';
     window.copyReferral=()=>{throw new Error('legacy disabled referral handler should be replaced');};
   });
-  await page.addScriptTag({url:`${base}/js/nexusnova-growth-referral-link-v1.js?v=1`});
+  await page.addScriptTag({url:`${base}/js/nexusnova-growth-referral-link-v1.js?v=2`});
   await page.waitForFunction(()=>document.getElementById('refCodeDisplay')?.textContent==='NVX-ABCDEFGH');
   assert.equal(await page.evaluate(()=>typeof window.copyReferral),'function');
   console.log('PASS legacy Profile referral display is synchronized with secure Growth code');
