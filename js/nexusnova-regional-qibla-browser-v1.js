@@ -258,6 +258,12 @@
     }, 350);
 
     setTimeout(() => {
+      if(document.getElementById('tab-browser')) {
+        loadLateScript('./js/nexusnova-browser-extensions-v1.js?v=1','data-nx-browser-extensions');
+      }
+    }, 900);
+
+    setTimeout(() => {
       if(document.getElementById('tab-mega-learning')) {
         loadLateScript('./js/nexusnova-learning-engine-v1.js?v=1','data-nx-learning-engine');
       }
