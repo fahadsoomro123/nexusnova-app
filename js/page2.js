@@ -26,7 +26,23 @@ if (meta) {
   meta.setAttribute('content', '6LfEc4QtAAAAAOohkqSv0p76iwPTeHI98hqVlwIs');
 }
 
-await import('./page2-core.js?v=appcheck-debug-5');
+await import('./page2-core.js?v=appcheck-debug-6');
+
+// A secure mining transaction must not be reported as failed just because a
+// secondary/profile UI refresh throws afterwards. The secure rewards layer
+// calls this helper only after Firestore has accepted the mining transition.
+// Keep those presentation errors non-fatal so an accepted session stays ON.
+if (typeof window.nexusApplySecureAccountState === 'function') {
+  const applySecureAccountState = window.nexusApplySecureAccountState;
+  window.nexusApplySecureAccountState = function safeNexusApplySecureAccountState(state = {}) {
+    try {
+      return applySecureAccountState(state);
+    } catch (error) {
+      console.warn('NexusNova account UI sync was non-fatal:', error);
+      return undefined;
+    }
+  };
+}
 
 // Firebase Auth can keep an ID token that was minted before the user verified
 // their email. Firestore Security Rules read the token claim, not only the
