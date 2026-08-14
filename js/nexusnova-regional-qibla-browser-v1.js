@@ -51,9 +51,10 @@
   /* ---------------------------------------------------------
      UI stability hotfix
      - ALL APPS becomes its own screen instead of overlaying Home/Mining.
-     - Browser stays visually #2 without moving/rebuilding DOM nodes.
-     - Splash exits quickly without waiting for slow window.load resources.
-     This does not reorder DOM, replace app click handlers, or touch app modules.
+     - Smart Search remains first; app tile DOM order is preserved.
+     - Browser gets recognizable NexusNova Browser branding.
+     - Splash stays visible for a balanced ~1.8 seconds.
+     This does not rebuild app buttons or replace module click handlers.
   --------------------------------------------------------- */
   function installUiStability(){
     if(!document.getElementById('nxRegionalUiStabilityV4')){
@@ -72,18 +73,27 @@
           padding:16px 12px 96px!important;
         }
         body.nx-allapps-open #moreMenu .more-inner{max-width:900px!important;margin:0 auto!important}
-        #moreMenu .more-item[onclick*="openMoreTab('tools')"]{order:-2}
-        #moreMenu .more-item[onclick*="openMoreTab('browser')"]{order:-1}
+        #moreMenu #nxAllAppsSmartSearch{order:-10!important}
+        #moreMenu .more-item[onclick*="openMoreTab('tools')"],
+        #moreMenu .more-item[onclick*="openMoreTab('browser')"]{order:0!important}
         #moreMenu .more-item[onclick*="openMoreTab('browser')"] .mi-icon{
-          position:relative!important;background:linear-gradient(145deg,#ff3455,#8b1630)!important;
-          border-color:rgba(255,116,137,.78)!important;
-          box-shadow:0 10px 28px rgba(255,45,76,.30),inset 0 1px 0 rgba(255,255,255,.30)!important;
-          color:#fff!important
+          position:relative!important;
+          overflow:visible!important;
+          background:radial-gradient(circle at 32% 24%,#6ee7ff 0 8%,transparent 9%),linear-gradient(145deg,#1795ff 0%,#1267e6 48%,#082f84 100%)!important;
+          border-color:rgba(113,214,255,.82)!important;
+          box-shadow:0 10px 30px rgba(23,149,255,.34),inset 0 1px 0 rgba(255,255,255,.34)!important;
+          color:#eafaff!important
         }
-        #moreMenu .more-item[onclick*="openMoreTab('browser')"] .mi-icon svg{display:none!important}
-        #moreMenu .more-item[onclick*="openMoreTab('browser')"] .mi-icon:before{
-          content:'N';display:grid;place-items:center;position:absolute;inset:0;color:#fff;
-          font-size:28px;font-weight:1000;line-height:1;text-shadow:0 2px 10px rgba(0,0,0,.24)
+        #moreMenu .more-item[onclick*="openMoreTab('browser')"] .mi-icon svg{
+          display:block!important;width:62%!important;height:62%!important;margin:19%!important;
+          stroke:#fff!important;stroke-width:1.65!important;filter:drop-shadow(0 2px 5px rgba(0,0,0,.24))
+        }
+        #moreMenu .more-item[onclick*="openMoreTab('browser')"] .mi-icon:before{content:none!important}
+        #moreMenu .more-item[onclick*="openMoreTab('browser')"] .mi-icon:after{
+          content:'N';position:absolute;right:-5px;bottom:-5px;width:22px;height:22px;
+          display:grid;place-items:center;border-radius:8px;background:linear-gradient(145deg,#3db9ff,#0757cf);
+          border:2px solid #07101d;color:#fff;font-size:12px;font-weight:1000;line-height:1;
+          box-shadow:0 5px 12px rgba(0,0,0,.34)
         }
         #moreMenu .more-item[onclick*="openMoreTab('browser')"]>span:last-child{font-size:0!important}
         #moreMenu .more-item[onclick*="openMoreTab('browser')"]>span:last-child:after{
@@ -102,7 +112,7 @@
         splash.classList.add('hide');
         splash.style.pointerEvents='none';
         setTimeout(()=>{ try{splash.remove();}catch(_){} },420);
-      },450);
+      },1800);
     }
 
     document.addEventListener('click', event=>{
