@@ -20,7 +20,11 @@ try {
     </nav>
     <div id="moreMenu"><div class="more-inner"><button class="more-item" onclick="openMoreTab('weather')" type="button">Weather</button></div></div>
   </body></html>`);
-  await page.evaluate(()=>localStorage.clear());
+  await page.evaluate(()=>{
+    localStorage.clear();
+    window.switchTab=()=>{};
+    window.openMoreTab=()=>{};
+  });
   await page.addScriptTag({url:`${base}/js/nexusnova-onboarding-insights-v1.js?v=1`});
 
   assert.equal(await page.evaluate(()=>window.nexusOnboardingVersion),'onboarding-insights-v1');
