@@ -1,7 +1,8 @@
 /*
  * NexusNova Secure Rewards Layer
- * All protected NVX mutations go through authenticated Firebase Functions.
- * User-facing status is rendered inside NexusNova instead of browser alert boxes.
+ * Mining uses authenticated Firestore transactions protected by server-side
+ * Security Rules so the Spark-plan build does not depend on unavailable
+ * production Cloud Functions. Other reward operations remain callable-backed.
  */
 (() => {
   "use strict";
@@ -10,6 +11,7 @@
   let startAt = 0;
   let uiPromise = null;
   const DAY = 86400000;
+  const MINING_REWARD = 24;
   const MINING_STYLE_ID = "nx-future-mining-style";
 
   function installMiningVisuals(){
@@ -54,7 +56,7 @@
       if(!btn.querySelector(".nx-mining-note")){
         const note=document.createElement("span");
         note.className="nx-mining-note";
-        note.textContent="SECURE NVX REACTOR • SERVER VERIFIED";
+        note.textContent="SECURE NVX REACTOR • RULES VERIFIED";
         btn.appendChild(note);
       }
       if(!btn.dataset.state) btn.dataset.state="ready";
@@ -68,7 +70,11 @@
     const text=document.getElementById("btnText");
     const timer=document.getElementById("timer");
     if(btn) btn.dataset.state=state;
-    if(timer){timer.classList.toggle("nx-locked",state==="locked");timer.classList.toggle("nx-error",state==="error");if(timerText) timer.textContent=timerText;}
+    if(timer){
+      timer.classList.toggle("nx-locked",state==="locked");
+      timer.classList.toggle("nx-error",state==="error");
+      if(timerText) timer.textContent=timerText;
+    }
     if(text&&state==="locked") text.textContent="SECURE SETUP REQUIRED";
     if(text&&state==="error") text.textContent="SYNC REQUIRED";
   }
@@ -78,7 +84,9 @@
       if(!window.nexusAppCheckReady) return {ready:false,message:"App Check is still loading."};
       const status=await window.nexusAppCheckReady;
       return status&&typeof status==="object"?status:{ready:false,message:"App Check is unavailable."};
-    }catch(error){return {ready:false,message:error?.message||"App Check is unavailable."};}
+    }catch(error){
+      return {ready:false,message:error?.message||"App Check is unavailable."};
+    }
   }
 
   function getUI(){
@@ -88,30 +96,129 @@
       const existing=document.querySelector('script[data-nx-premium-ui]');
       const done=()=>window.NexusNovaUI?resolve(window.NexusNovaUI):reject(new Error('Premium UI did not initialize.'));
       if(existing){window.addEventListener('nexusnova:premium-ui-ready',done,{once:true});setTimeout(done,1200);return;}
-      const script=document.createElement('script');script.src='./js/nexusnova-premium-ui-v1.js?v=1';script.dataset.nxPremiumUi='1';script.onload=done;script.onerror=()=>reject(new Error('Premium UI could not be loaded.'));document.body.appendChild(script);
+      const script=document.createElement('script');
+      script.src='./js/nexusnova-premium-ui-v1.js?v=1';
+      script.dataset.nxPremiumUi='1';
+      script.onload=done;
+      script.onerror=()=>reject(new Error('Premium UI could not be loaded.'));
+      document.body.appendChild(script);
     }).finally(()=>{uiPromise=null;});
     return uiPromise;
   }
 
   async function showMessage({title,text,icon='spark',buttonText='OK',eyebrow='NEXUSNOVA'}){
-    try{const ui=await getUI();await ui.alert({title,text,icon,buttonText,eyebrow});}
-    catch(error){console.warn('Premium message unavailable:',error);window.alert(String(text||title||'NexusNova'));}
+    try{
+      const ui=await getUI();
+      await ui.alert({title,text,icon,buttonText,eyebrow});
+    }catch(error){
+      console.warn('Premium message unavailable:',error,String(text||title||'NexusNova'));
+    }
+  }
+
+  async function getFirebaseContext(){
+    const [appMod,authMod,fsMod]=await Promise.all([
+      import("https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js"),
+      import("https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js"),
+      import("https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js")
+    ]);
+    const apps=appMod.getApps();
+    if(!apps.length) throw new Error("Firebase app is not initialized.");
+    const app=apps[0];
+    const auth=authMod.getAuth(app);
+    const user=auth.currentUser;
+    if(!user) throw new Error("Please sign in first.");
+    if(!user.emailVerified) throw new Error("Verify your email before using NVX mining.");
+    return {app,user,db:fsMod.getFirestore(app),fsMod};
+  }
+
+  async function requireAppCheck(){
+    if(typeof window.nexusRequireAppCheck!=="function"){
+      throw new Error("App Check is unavailable. Reload the app after it has been configured.");
+    }
+    await window.nexusRequireAppCheck();
+  }
+
+  async function miningCall(name){
+    await requireAppCheck();
+    const {user,db,fsMod}=await getFirebaseContext();
+    const ref=fsMod.doc(db,"users",user.uid);
+
+    if(name==="startMiningSession"){
+      const now=Date.now();
+      return fsMod.runTransaction(db,async tx=>{
+        const snap=await tx.get(ref);
+        if(!snap.exists()) throw new Error("User profile not found.");
+        const d=snap.data()||{};
+        const balance=Number(d.balance);
+        const active=d.miningActive===true;
+        const started=Number(d.miningStartedAt)||0;
+        if(!Number.isFinite(balance)||balance<0) throw new Error("Account balance needs repair.");
+        if(active){
+          if(started<=0) throw new Error("Mining session needs repair.");
+          return {started:false,alreadyActive:true,startedAt:started,balance,miningActive:true};
+        }
+        if(started!==0) throw new Error("Mining session needs repair.");
+        tx.update(ref,{miningActive:true,miningStartedAt:now,miningLastUpdate:now});
+        return {started:true,startedAt:now,balance,miningActive:true};
+      });
+    }
+
+    if(name==="finishMiningSession"){
+      const now=Date.now();
+      return fsMod.runTransaction(db,async tx=>{
+        const snap=await tx.get(ref);
+        if(!snap.exists()) throw new Error("User profile not found.");
+        const d=snap.data()||{};
+        const active=d.miningActive===true;
+        const started=Number(d.miningStartedAt)||0;
+        const balance0=Number(d.balance);
+        const total0=Number(d.totalMined);
+        if(!Number.isFinite(balance0)||balance0<0||!Number.isFinite(total0)||total0<0){
+          throw new Error("Account mining data needs repair.");
+        }
+        if(!active){
+          if(started!==0) throw new Error("Mining session needs repair.");
+          return {finished:false,balance:balance0,earned:0,totalMined:total0,miningActive:false};
+        }
+        if(started<=0) throw new Error("Mining session needs repair.");
+        if(now-started<DAY) throw new Error("Your 24-hour mining session is still active.");
+        const balance=balance0+MINING_REWARD;
+        const totalMined=total0+MINING_REWARD;
+        tx.update(ref,{balance,totalMined,miningActive:false,miningStartedAt:0,miningLastUpdate:now});
+        return {finished:true,balance,earned:MINING_REWARD,totalMined,miningActive:false};
+      });
+    }
+
+    throw new Error("Unknown mining operation.");
+  }
+
+  async function functionCall(name,data={}){
+    await requireAppCheck();
+    const [appMod,fnMod]=await Promise.all([
+      import("https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js"),
+      import("https://www.gstatic.com/firebasejs/12.1.0/firebase-functions.js")
+    ]);
+    const apps=appMod.getApps();
+    if(!apps.length) throw new Error("Firebase app is not initialized.");
+    return (await fnMod.httpsCallable(fnMod.getFunctions(apps[0]),name)(data)).data||{};
   }
 
   async function call(name,data={}){
-    if(typeof window.nexusRequireAppCheck!=="function") throw new Error("App Check is unavailable. Reload the app after it has been configured.");
-    await window.nexusRequireAppCheck();
-    const [{getApps},{getFunctions,httpsCallable}]=await Promise.all([import("https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js"),import("https://www.gstatic.com/firebasejs/12.1.0/firebase-functions.js")]);
-    const apps=getApps();if(!apps.length) throw new Error("Firebase app is not initialized.");
-    return (await httpsCallable(getFunctions(apps[0]),name)(data)).data||{};
+    if(name==="startMiningSession"||name==="finishMiningSession") return miningCall(name);
+    return functionCall(name,data);
   }
 
   function renderMining(active,startedAt){
     installMiningVisuals();
     const btn=document.getElementById("mineBtn"),text=document.getElementById("btnText"),timer=document.getElementById("timer");
     if(!btn||!text||!timer) return;
-    clearInterval(timerId);btn.classList.toggle("active",!!active);btn.dataset.state=active?"active":"ready";timer.classList.remove("nx-locked","nx-error");text.textContent=active?"MINING ACTIVE":"START MINING";
+    clearInterval(timerId);
+    btn.classList.toggle("active",!!active);
+    btn.dataset.state=active?"active":"ready";
+    timer.classList.remove("nx-locked","nx-error");
+    text.textContent=active?"MINING ACTIVE":"START MINING";
     if(!active){timer.textContent="MINER OFFLINE";return;}
+
     startAt=Number(startedAt)||Date.now();
     const tick=async()=>{
       const elapsed=Math.max(0,Date.now()-startAt),left=Math.max(0,DAY-elapsed);
@@ -119,78 +226,148 @@
       if(elapsed<DAY) return;
       clearInterval(timerId);
       try{
-        const r=await call("finishMiningSession"),b=Number(r.balance);
-        if(Number.isFinite(b)){const el=document.getElementById("balance"),wb=document.getElementById("walletBalance");if(el) el.textContent=b.toFixed(4);if(wb) wb.textContent=b.toFixed(4)+" NVX";}
+        const r=await miningCall("finishMiningSession"),b=Number(r.balance);
+        if(Number.isFinite(b)){
+          const el=document.getElementById("balance"),wb=document.getElementById("walletBalance");
+          if(el) el.textContent=b.toFixed(4);
+          if(wb) wb.textContent=b.toFixed(4)+" NVX";
+        }
+        if(typeof window.nexusApplySecureAccountState==="function") window.nexusApplySecureAccountState(r);
         renderMining(false,0);
       }catch(e){
-        console.error("Secure mining finish:",e);const raw=String(e?.message||"Mining sync failed.");
-        if(/app check/i.test(raw)) setMiningState("locked","APP CHECK REQUIRED");else setMiningState("error","SECURE SYNC REQUIRED");
+        console.error("Secure mining finish:",e);
+        setMiningState("error","SECURE SYNC REQUIRED");
       }
     };
-    tick();timerId=setInterval(tick,1000);
+    tick();
+    timerId=setInterval(tick,1000);
   }
 
   async function finishMining(){
     try{
-      const r=await call("finishMiningSession"),balance=Number(r.balance);
-      if(Number.isFinite(balance)){const el=document.getElementById("balance"),wb=document.getElementById("walletBalance");if(el) el.textContent=balance.toFixed(4);if(wb) wb.textContent=balance.toFixed(4)+" NVX";}
+      const r=await miningCall("finishMiningSession"),balance=Number(r.balance);
+      if(Number.isFinite(balance)){
+        const el=document.getElementById("balance"),wb=document.getElementById("walletBalance");
+        if(el) el.textContent=balance.toFixed(4);
+        if(wb) wb.textContent=balance.toFixed(4)+" NVX";
+      }
       if(typeof window.nexusApplySecureAccountState==="function") window.nexusApplySecureAccountState(r);
-      if(r.finished){renderMining(false,0);await showMessage({eyebrow:'MINING SESSION COMPLETE',title:'NVX Mining Completed',text:'+'+Number(r.earned||0).toFixed(4)+' NVX was credited by the secure server.',icon:'spark',buttonText:'Done'});}
+      if(r.finished){
+        renderMining(false,0);
+        await showMessage({eyebrow:'MINING SESSION COMPLETE',title:'NVX Mining Completed',text:'+'+Number(r.earned||0).toFixed(4)+' NVX was credited after the secure 24-hour rule check.',icon:'spark',buttonText:'Done'});
+      }
       return r;
     }catch(e){
-      console.error("Secure mining finish:",e);const raw=String(e?.message||"Mining sync failed.");if(/app check/i.test(raw)) setMiningState("locked","APP CHECK REQUIRED");else setMiningState("error","SECURE SYNC REQUIRED");throw e;
+      console.error("Secure mining finish:",e);
+      setMiningState("error","SECURE SYNC REQUIRED");
+      throw e;
     }
   }
 
   async function startMining(){
-    installMiningVisuals();const b=document.getElementById("mineBtn");if(b) b.disabled=true;
+    installMiningVisuals();
+    const b=document.getElementById("mineBtn");
+    if(b) b.disabled=true;
     try{
       const status=await appCheckStatus();
-      if(!status.ready){setMiningState("locked","APP CHECK REQUIRED");throw new Error(status.message||"App Check is not configured.");}
-      const r=await call("startMiningSession");renderMining(true,Number(r.startedAt)||Date.now());if(typeof window.nexusApplySecureAccountState==="function") window.nexusApplySecureAccountState(r);
+      if(!status.ready){
+        setMiningState("locked","APP CHECK REQUIRED");
+        throw new Error(status.message||"App Check is not configured.");
+      }
+      const r=await miningCall("startMiningSession");
+      renderMining(true,Number(r.startedAt)||Date.now());
+      if(typeof window.nexusApplySecureAccountState==="function") window.nexusApplySecureAccountState(r);
     }catch(e){
-      console.error("Secure mining start:",e);const raw=String(e?.message||"Mining could not be started."),appCheck=/app check/i.test(raw);if(appCheck) setMiningState("locked","APP CHECK REQUIRED");else setMiningState("error","SECURE MINING UNAVAILABLE");
-      await showMessage({eyebrow:appCheck?'SECURE SETUP REQUIRED':'MINING STATUS',title:appCheck?'Firebase App Check Required':'Mining Could Not Start',text:appCheck?'Secure NVX mining is ready in the app, but Firebase App Check is not configured for this origin yet. Configure the production App Check site key to enable server-verified mining.':raw,icon:'security',buttonText:'Got it'});
-    }finally{if(b) b.disabled=false;}
+      console.error("Secure mining start:",e);
+      const raw=String(e?.message||"Mining could not be started."),appCheck=/app check/i.test(raw);
+      if(appCheck) setMiningState("locked","APP CHECK REQUIRED"); else setMiningState("error","SECURE MINING UNAVAILABLE");
+      await showMessage({eyebrow:appCheck?'SECURE SETUP REQUIRED':'MINING STATUS',title:appCheck?'Firebase App Check Required':'Mining Could Not Start',text:raw,icon:'security',buttonText:'Got it'});
+    }finally{
+      if(b) b.disabled=false;
+    }
   }
 
   async function claimDaily(){
-    const b=document.getElementById("dailyBtn");if(b) b.disabled=true;
+    const b=document.getElementById("dailyBtn");
+    if(b) b.disabled=true;
     try{
-      const r=await call("claimDailyReward"),bal=Number(r.balance);if(Number.isFinite(bal)){const el=document.getElementById("balance"),wb=document.getElementById("walletBalance");if(el) el.textContent=bal.toFixed(4);if(wb) wb.textContent=bal.toFixed(4)+" NVX";}if(typeof window.nexusApplySecureAccountState==="function") window.nexusApplySecureAccountState(r);
-      await showMessage({eyebrow:'DAILY REWARD',title:'Reward Added',text:'+'+Number(r.reward||5).toFixed(2)+' NVX was added to your secure NexusNova balance.',icon:'spark',buttonText:'Great'});if(typeof window.updateDailyButton==="function") window.updateDailyButton();
-    }catch(e){const raw=String(e?.message||"Daily reward could not be claimed."),appCheck=/app check/i.test(raw);await showMessage({eyebrow:appCheck?'SECURE SETUP REQUIRED':'DAILY REWARD',title:appCheck?'Firebase App Check Required':'Reward Unavailable',text:raw,icon:'security',buttonText:'Got it'});}finally{if(b) b.disabled=false;}
+      const r=await functionCall("claimDailyReward"),bal=Number(r.balance);
+      if(Number.isFinite(bal)){
+        const el=document.getElementById("balance"),wb=document.getElementById("walletBalance");
+        if(el) el.textContent=bal.toFixed(4);
+        if(wb) wb.textContent=bal.toFixed(4)+" NVX";
+      }
+      if(typeof window.nexusApplySecureAccountState==="function") window.nexusApplySecureAccountState(r);
+      await showMessage({eyebrow:'DAILY REWARD',title:'Reward Added',text:'+'+Number(r.reward||5).toFixed(2)+' NVX was added to your secure NexusNova balance.',icon:'spark',buttonText:'Great'});
+      if(typeof window.updateDailyButton==="function") window.updateDailyButton();
+    }catch(e){
+      const raw=String(e?.message||"Daily reward could not be claimed.");
+      await showMessage({eyebrow:'DAILY REWARD',title:'Reward Unavailable',text:raw,icon:'security',buttonText:'Got it'});
+    }finally{
+      if(b) b.disabled=false;
+    }
   }
 
   async function task(taskId){
-    const b=taskId==="task1"?document.getElementById("task1Btn"):null;if(b){b.disabled=true;b.textContent="VERIFYING...";}
+    const b=taskId==="task1"?document.getElementById("task1Btn"):null;
+    if(b){b.disabled=true;b.textContent="VERIFYING...";}
     try{
-      const r=await call("completeTaskReward",{taskId}),bal=Number(r.balance);if(Number.isFinite(bal)){const el=document.getElementById("balance"),wb=document.getElementById("walletBalance");if(el) el.textContent=bal.toFixed(4);if(wb) wb.textContent=bal.toFixed(4)+" NVX";}if(typeof window.nexusApplySecureAccountState==="function") window.nexusApplySecureAccountState(r);
-      await showMessage({eyebrow:'TASK VERIFIED',title:'Task Reward Added',text:'+'+Number(r.reward||0).toFixed(2)+' NVX was added to your secure balance.',icon:'spark',buttonText:'Done'});if(typeof window.updateTaskButtons==="function") window.updateTaskButtons();
-    }catch(e){const raw=String(e?.message||"Task reward could not be claimed.");await showMessage({eyebrow:'TASK VERIFICATION',title:/app check/i.test(raw)?'Firebase App Check Required':'Task Could Not Be Verified',text:raw,icon:'security',buttonText:'Got it'});if(b){b.disabled=false;b.textContent="VERIFICATION REQUIRED";}}
+      const r=await functionCall("completeTaskReward",{taskId}),bal=Number(r.balance);
+      if(Number.isFinite(bal)){
+        const el=document.getElementById("balance"),wb=document.getElementById("walletBalance");
+        if(el) el.textContent=bal.toFixed(4);
+        if(wb) wb.textContent=bal.toFixed(4)+" NVX";
+      }
+      if(typeof window.nexusApplySecureAccountState==="function") window.nexusApplySecureAccountState(r);
+      await showMessage({eyebrow:'TASK VERIFIED',title:'Task Reward Added',text:'+'+Number(r.reward||0).toFixed(2)+' NVX was added to your secure balance.',icon:'spark',buttonText:'Done'});
+      if(typeof window.updateTaskButtons==="function") window.updateTaskButtons();
+    }catch(e){
+      const raw=String(e?.message||"Task reward could not be claimed.");
+      await showMessage({eyebrow:'TASK VERIFICATION',title:'Task Could Not Be Verified',text:raw,icon:'security',buttonText:'Got it'});
+      if(b){b.disabled=false;b.textContent="VERIFICATION REQUIRED";}
+    }
   }
 
-  function installSecureHandlers(){installMiningVisuals();window.claimDailyReward=claimDaily;window.completeTask=task;const mine=document.getElementById("mineBtn");if(mine) mine.onclick=startMining;}
+  function installSecureHandlers(){
+    installMiningVisuals();
+    window.claimDailyReward=claimDaily;
+    window.completeTask=task;
+    const mine=document.getElementById("mineBtn");
+    if(mine) mine.onclick=startMining;
+  }
 
-  window.nexusSecureStartMining=startMining;window.nexusSecureFinishMining=finishMining;window.nexusSecureClaimDaily=claimDaily;window.nexusSecureCompleteTask=task;window.nexusSecureRenderMining=renderMining;
-  getUI().catch(()=>{});installSecureHandlers();window.addEventListener("load",installSecureHandlers,{once:true});
+  window.nexusSecureStartMining=startMining;
+  window.nexusSecureFinishMining=finishMining;
+  window.nexusSecureClaimDaily=claimDaily;
+  window.nexusSecureCompleteTask=task;
+  window.nexusSecureRenderMining=renderMining;
+
+  getUI().catch(()=>{});
+  installSecureHandlers();
+  window.addEventListener("load",installSecureHandlers,{once:true});
 
   window.addEventListener("load",()=>{
     setTimeout(async()=>{
       try{
-        const [{getApps},{getAuth,onAuthStateChanged},{getFirestore,doc,getDoc}]=await Promise.all([import("https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js"),import("https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js"),import("https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js")]);
-        const apps=getApps();if(!apps.length) return;
-        onAuthStateChanged(getAuth(apps[0]),async user=>{
-          if(!user) return;const snap=await getDoc(doc(getFirestore(apps[0]),"users",user.uid)),d=snap.exists()?snap.data():{};
-          if(d.miningActive&&Number(d.miningStartedAt)>0){
-            const status=await appCheckStatus(),elapsed=Math.max(0,Date.now()-Number(d.miningStartedAt));
-            if(!status.ready&&elapsed>=DAY){clearInterval(timerId);const btn=document.getElementById("mineBtn");if(btn) btn.classList.remove("active");setMiningState("locked","APP CHECK REQUIRED");return;}
-            renderMining(true,Number(d.miningStartedAt));
-          }else renderMining(false,0);
+        const [appMod,authMod,fsMod]=await Promise.all([
+          import("https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js"),
+          import("https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js"),
+          import("https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js")
+        ]);
+        const apps=appMod.getApps();
+        if(!apps.length) return;
+        authMod.onAuthStateChanged(authMod.getAuth(apps[0]),async user=>{
+          if(!user) return;
+          const snap=await fsMod.getDoc(fsMod.doc(fsMod.getFirestore(apps[0]),"users",user.uid));
+          const d=snap.exists()?snap.data():{};
+          if(d.miningActive&&Number(d.miningStartedAt)>0) renderMining(true,Number(d.miningStartedAt));
+          else renderMining(false,0);
         });
-      }catch(e){console.warn("Secure reward init:",e);}
+      }catch(e){
+        console.warn("Secure reward init:",e);
+      }
     },1200);
   });
 
-  console.log("NexusNova secure reward layer loaded.");
+  console.log("NexusNova secure reward layer loaded — Spark mining uses Firestore rules.");
 })();
