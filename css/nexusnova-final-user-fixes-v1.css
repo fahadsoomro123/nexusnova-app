@@ -39,3 +39,5 @@ body.nx-opened-from-allapps .tab.active>.nx-allapps-back{display:flex}
 /* Hard visual cap for the startup splash: never wait on slow scripts/CDNs to reveal the app. */
 #nxSplash{animation:nxSplashHardExit .32s ease 1.05s forwards!important}
 @keyframes nxSplashHardExit{to{opacity:0;visibility:hidden;pointer-events:none}}
+
+/* deploy-marker: tested-allapps-browser-hotfix-2026-08-15 */
