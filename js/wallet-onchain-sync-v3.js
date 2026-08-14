@@ -38,7 +38,7 @@
     "0x2105": {
       name: "Base",
       native: "ETH",
-      tokens: { USDC: ["0x833589fCD6eDb6E08f4a7fC32D4f71b54bdA02913", 6] }
+      tokens: { USDC: ["0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", 6] }
     },
     "0xa86a": {
       name: "Avalanche C-Chain",
@@ -73,12 +73,12 @@
         #nxHideZeroBalances{display:inline-flex;align-items:center;justify-content:center;gap:7px;white-space:nowrap}
         #nxHideZeroBalances.active{color:#fff!important;border-color:rgba(57,180,255,.7)!important;background:linear-gradient(135deg,#116ce7,#27a3ff)!important;box-shadow:0 8px 20px rgba(22,126,255,.22)}
         @media(max-width:700px){
-          body{padding-bottom:118px!important}
-          .bottom-dock{left:8px!important;right:8px!important;bottom:12px!important;border-radius:19px!important;overflow:hidden!important;box-shadow:0 12px 30px rgba(0,0,0,.45),0 0 0 1px rgba(85,159,255,.18)!important}
+          body{padding-bottom:132px!important}
+          .bottom-dock{left:8px!important;right:8px!important;bottom:max(24px,env(safe-area-inset-bottom))!important;border-radius:19px!important;overflow:hidden!important;box-shadow:0 12px 30px rgba(0,0,0,.45),0 0 0 1px rgba(85,159,255,.18)!important}
           .dock-inner{padding:2px 3px 4px!important}
           .dock-item{padding:8px 2px 7px!important;min-height:58px!important}
           .dock-item .mi-icon{margin-bottom:1px!important}
-          .more-menu{bottom:88px!important}
+          .more-menu{bottom:calc(max(24px,env(safe-area-inset-bottom)) + 78px)!important}
           .more-menu.show{max-height:calc(100dvh - 112px)!important;overflow-y:auto!important;-webkit-overflow-scrolling:touch}
           .main{padding-bottom:22px!important}
         }

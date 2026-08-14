@@ -27,7 +27,6 @@ if (meta) {
 }
 
 await import('./page2-core.js?v=appcheck-debug-10');
-await import('./nexusnova-mobile-wallet-ux-v1.js?v=1');
 
 // A secure account transaction must not be reported as failed merely because a
 // secondary/profile renderer throws afterwards.
