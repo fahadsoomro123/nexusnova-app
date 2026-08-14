@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { initializeTestEnvironment, assertSucceeds, assertFails } from '@firebase/rules-unit-testing';
-import { doc, setDoc, getDoc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, deleteDoc, serverTimestamp, runTransaction } from 'firebase/firestore';
 import fs from 'node:fs/promises';
 
 const projectId='demo-nexusnova-rules';
@@ -75,7 +75,7 @@ try {
   const minerRef=doc(miner,'users/miner-1');
   const unverifiedMinerRef=doc(unverifiedMiner,'users/miner-2');
   await env.withSecurityRulesDisabled(async ctx=>{
-    await setDoc(doc(ctx.firestore(),'users/miner-1'),baseProfile('miner-1','miner@example.com'));
+    await setDoc(doc(ctx.firestore(),'users/miner-1'),{...baseProfile('miner-1','miner@example.com'),referralCode:'NVXMINER1'});
     await setDoc(doc(ctx.firestore(),'users/miner-2'),baseProfile('miner-2','miner2@example.com'));
   });
 
@@ -93,28 +93,61 @@ try {
   await assertFails(updateDoc(unverifiedMinerRef,{miningActive:true,miningStartedAt:unverifiedNow,miningLastUpdate:unverifiedNow}));
   console.log('PASS unverified email cannot start value-bearing mining');
 
+  // Seed the exact kind of legacy expired state seen in production. Extra
+  // profile fields must not prevent a valid mining-only transition.
   await env.withSecurityRulesDisabled(async ctx=>{
     await updateDoc(doc(ctx.firestore(),'users/miner-1'),{
       miningActive:true,
       miningStartedAt:Date.now()-86400000-5000,
       miningLastUpdate:Date.now()-86400000-5000,
-      balance:0,
-      totalMined:0
+      balance:63,
+      totalMined:48,
+      referralCode:'NVXMINER1'
     });
   });
 
-  const finishNow=Date.now();
-  await assertSucceeds(updateDoc(minerRef,{balance:24,totalMined:24,miningActive:false,miningStartedAt:0,miningLastUpdate:finishNow}));
-  const finished=await getDoc(minerRef);
-  assert.equal(finished.data().balance,24);
-  assert.equal(finished.data().totalMined,24);
+  // Mirror the single-owner engine: transaction #1 settles exactly +24.
+  await assertSucceeds(runTransaction(miner,async tx=>{
+    const snap=await tx.get(minerRef);
+    const d=snap.data();
+    const now=Date.now();
+    tx.update(minerRef,{
+      balance:Number(d.balance)+24,
+      totalMined:Number(d.totalMined)+24,
+      miningActive:false,
+      miningStartedAt:0,
+      miningLastUpdate:now
+    });
+  }));
+
+  let finished=await getDoc(minerRef);
+  assert.equal(finished.data().balance,87);
+  assert.equal(finished.data().totalMined,72);
   assert.equal(finished.data().miningActive,false);
-  console.log('PASS exactly 24 NVX can be credited after a verified 24-hour session');
+  assert.equal(finished.data().referralCode,'NVXMINER1');
+  console.log('PASS legacy 63/48 expired session settles to 87/72 without touching unrelated fields');
 
-  await assertFails(updateDoc(minerRef,{balance:48,totalMined:48,miningLastUpdate:Date.now()}));
-  console.log('PASS finished session cannot be replayed for another reward');
+  // Mirror transaction #2: immediately start the next 24h session.
+  await assertSucceeds(runTransaction(miner,async tx=>{
+    const snap=await tx.get(minerRef);
+    const d=snap.data();
+    assert.equal(d.miningActive,false);
+    assert.equal(Number(d.miningStartedAt),0);
+    const now=Date.now();
+    tx.update(minerRef,{miningActive:true,miningStartedAt:now,miningLastUpdate:now});
+  }));
 
-  console.log('\nFirestore rules smoke complete: security cases passed.');
+  const restarted=await getDoc(minerRef);
+  assert.equal(restarted.data().balance,87);
+  assert.equal(restarted.data().totalMined,72);
+  assert.equal(restarted.data().miningActive,true);
+  assert.ok(Number(restarted.data().miningStartedAt)>0);
+  console.log('PASS settled legacy session can immediately start a fresh 24h session');
+
+  await assertFails(updateDoc(minerRef,{balance:111,totalMined:96,miningLastUpdate:Date.now()}));
+  console.log('PASS active new session cannot replay another +24 reward');
+
+  console.log('\nFirestore rules smoke complete: security + production legacy mining sequence passed.');
 } finally {
   await env.cleanup();
 }
