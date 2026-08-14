@@ -45,6 +45,15 @@
     document.head.appendChild(startupStyle);
   }
 
+  // UI-only polish is intentionally isolated from wallet/provider logic.
+  if (!document.querySelector('script[data-nx-mobile-wallet-polish]')) {
+    const polish = document.createElement("script");
+    polish.src = "./js/nexusnova-mobile-wallet-polish-v1.js?v=1";
+    polish.setAttribute("data-nx-mobile-wallet-polish", "1");
+    polish.onerror = () => console.warn("NexusNova mobile wallet polish failed to load");
+    document.body.appendChild(polish);
+  }
+
   const FIREBASE_APP_URL = "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
   const config = {
     apiKey: "AIzaSyBU75WYp5ioaMD1LrNcDyAvROFW2wrTil0",
