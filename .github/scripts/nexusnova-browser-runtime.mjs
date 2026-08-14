@@ -87,8 +87,8 @@ try {
     await page.addScriptTag({url:`${base}/js/nexusnova-browser-extensions-v1.js?v=2`});
     await page.waitForFunction(()=>window.NexusNovaBrowserExtensions?.version==='extensions-apps-hub-v2');
     await page.evaluate(()=>window.NexusNovaBrowserExtensions.install());
-    await page.waitForSelector('[data-nx-browser-extensions]');
-    await page.click('[data-nx-browser-extensions]');
+    await page.waitForSelector('[data-nx-browser-extensions-local]');
+    await page.click('[data-nx-browser-extensions-local]');
     await page.waitForSelector('#nxBrowserExtensionsOverlay.open');
     const extText=await page.textContent('#nxBrowserExtensionsOverlay');
     assert.ok(extText.includes('NEXUSNOVA // EXTENSIONS + APPS'));
