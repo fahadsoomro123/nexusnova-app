@@ -37,15 +37,16 @@ class BrowserActivity : AppCompatActivity() {
     private lateinit var secureBadge: TextView
     private lateinit var backButton: Button
     private lateinit var forwardButton: Button
+    private lateinit var desktopButton: Button
+
+    private var desktopMode = false
+    private var mobileUserAgent = ""
 
     private val navy = Color.rgb(2, 7, 14)
-    private val navy2 = Color.rgb(5, 16, 30)
     private val panel = Color.rgb(8, 23, 42)
     private val panel2 = Color.rgb(12, 34, 59)
-    private val blue = Color.rgb(47, 140, 255)
     private val blueBright = Color.rgb(88, 181, 255)
     private val textPrimary = Color.WHITE
-    private val textSecondary = Color.rgb(166, 196, 230)
     private val textMuted = Color.rgb(119, 153, 190)
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -55,6 +56,8 @@ class BrowserActivity : AppCompatActivity() {
         title = "NexusNova Browser"
         window.statusBarColor = Color.rgb(1, 5, 10)
         window.navigationBarColor = Color.BLACK
+
+        desktopMode = getPreferences(MODE_PRIVATE).getBoolean(PREF_DESKTOP_MODE, false)
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -200,7 +203,7 @@ class BrowserActivity : AppCompatActivity() {
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(7))
+            setPadding(dp(7), dp(7), dp(7), dp(7))
             background = roundedGradient(
                 intArrayOf(Color.rgb(12, 34, 59), Color.rgb(5, 17, 31)),
                 dp(18).toFloat(),
@@ -296,12 +299,41 @@ class BrowserActivity : AppCompatActivity() {
         }
         container.addView(row)
 
+        val featureRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(7), 0, 0)
+        }
+
+        desktopButton = browserButton(if (desktopMode) "Desktop: ON" else "Desktop Site").apply {
+            textSize = 10f
+            contentDescription = "Toggle desktop site mode"
+            setOnClickListener { toggleDesktopMode() }
+        }
+        val extensions = browserButton("Extensions & Apps").apply {
+            textSize = 10f
+            contentDescription = "Extensions and Apps Hub"
+            setOnClickListener {
+                try {
+                    startActivity(Intent(this@BrowserActivity, MainActivity::class.java).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+                        putExtra(EXTRA_OPEN_BROWSER_EXTENSIONS, true)
+                    })
+                } catch (_: Exception) {
+                    // Keep browsing if the main app activity cannot be brought forward.
+                }
+            }
+        }
+        featureRow.addView(desktopButton, LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginEnd = dp(4) })
+        featureRow.addView(extensions, LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginStart = dp(4) })
+        container.addView(featureRow)
+
         val hint = TextView(this).apply {
-            text = "BACK   •   FORWARD   •   RELOAD   •   HOME"
+            text = "BACK • FORWARD • RELOAD • HOME     |     DESKTOP • EXTENSIONS"
             gravity = Gravity.CENTER
             setTextColor(Color.rgb(77, 119, 162))
-            textSize = 7.5f
-            letterSpacing = 0.06f
+            textSize = 7.2f
+            letterSpacing = 0.04f
             setPadding(0, dp(5), 0, 0)
         }
         container.addView(hint)
@@ -323,7 +355,11 @@ class BrowserActivity : AppCompatActivity() {
         settings.cacheMode = WebSettings.LOAD_DEFAULT
         settings.setSupportMultipleWindows(false)
         settings.javaScriptCanOpenWindowsAutomatically = false
-        settings.userAgentString = settings.userAgentString + " NexusNovaBrowser/2.0"
+        settings.builtInZoomControls = true
+        settings.displayZoomControls = false
+        settings.setSupportZoom(true)
+        mobileUserAgent = settings.userAgentString
+        applyDesktopMode(reload = false)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) settings.safeBrowsingEnabled = true
 
         CookieManager.getInstance().setAcceptCookie(true)
@@ -341,7 +377,7 @@ class BrowserActivity : AppCompatActivity() {
                 super.onPageStarted(view, url, favicon)
                 if (!url.isNullOrBlank()) addressBar.setText(url)
                 progressBar.visibility = View.VISIBLE
-                secureBadge.text = "LOADING"
+                secureBadge.text = if (desktopMode) "DESKTOP" else "LOADING"
                 secureBadge.setTextColor(Color.rgb(151, 215, 255))
                 syncNavigationButtons()
             }
@@ -349,7 +385,7 @@ class BrowserActivity : AppCompatActivity() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
                 if (!url.isNullOrBlank()) addressBar.setText(url)
-                secureBadge.text = "SECURE"
+                secureBadge.text = if (desktopMode) "DESKTOP" else "SECURE"
                 secureBadge.setTextColor(Color.rgb(151, 215, 255))
                 syncNavigationButtons()
             }
@@ -366,6 +402,38 @@ class BrowserActivity : AppCompatActivity() {
                 titleView.text = if (clean.isBlank()) "NexusNova Browser" else clean
             }
         }
+    }
+
+    private fun toggleDesktopMode() {
+        desktopMode = !desktopMode
+        getPreferences(MODE_PRIVATE).edit().putBoolean(PREF_DESKTOP_MODE, desktopMode).apply()
+        applyDesktopMode(reload = true)
+    }
+
+    private fun applyDesktopMode(reload: Boolean) {
+        if (!this::webView.isInitialized) return
+        val settings = webView.settings
+        if (mobileUserAgent.isBlank()) mobileUserAgent = settings.userAgentString
+
+        if (desktopMode) {
+            settings.userAgentString = DESKTOP_USER_AGENT
+            settings.useWideViewPort = true
+            settings.loadWithOverviewMode = true
+            settings.textZoom = 100
+            webView.setInitialScale(0)
+            if (this::desktopButton.isInitialized) desktopButton.text = "Desktop: ON"
+            if (this::secureBadge.isInitialized) secureBadge.text = "DESKTOP"
+        } else {
+            settings.userAgentString = mobileUserAgent
+            settings.useWideViewPort = true
+            settings.loadWithOverviewMode = false
+            settings.textZoom = 100
+            webView.setInitialScale(0)
+            if (this::desktopButton.isInitialized) desktopButton.text = "Desktop Site"
+            if (this::secureBadge.isInitialized) secureBadge.text = "SECURE"
+        }
+
+        if (reload && webView.url != null) webView.reload()
     }
 
     private fun syncNavigationButtons() {
@@ -482,7 +550,10 @@ class BrowserActivity : AppCompatActivity() {
 
     companion object {
         const val EXTRA_URL = "nexusnova.browser.url"
+        const val EXTRA_OPEN_BROWSER_EXTENSIONS = "nexusnova.browser.open_extensions"
+        private const val PREF_DESKTOP_MODE = "desktop_mode"
         private const val HOME_URL = "https://www.google.com/"
         private const val MAX_URL_CHARS = 2_000
+        private const val DESKTOP_USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 NexusNovaBrowser/2.0"
     }
 }
