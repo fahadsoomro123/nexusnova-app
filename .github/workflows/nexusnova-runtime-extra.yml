@@ -40,8 +40,11 @@ jobs:
           cat /tmp/nexusnova-extra-http.log || true
           exit 1
 
-      - name: Run Browser Caller Qibla Smart and QR checks
+      - name: Run Browser Caller Qibla Smart QR and Wallet checks
         run: node .github/scripts/nexusnova-runtime-extra.mjs
+
+      - name: Run market integrity browser check
+        run: node .github/scripts/nexusnova-market-runtime.mjs
 
       - name: Run local tools browser checks
         run: node .github/scripts/nexusnova-local-tools-runtime.mjs
