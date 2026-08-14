@@ -4,23 +4,41 @@
 (async () => {
   "use strict";
 
-  // The main page owns splash timing. Mark it before later regional scripts run
-  // so no secondary bootstrap can cut the intro short.
+  // Keep the flagship splash visible long enough to feel intentional on mobile.
+  // The original page timer may add .hide earlier; this guard holds it until
+  // ~3.8s from navigation start, then lets the normal fade complete.
   const splash = document.getElementById("nxSplash");
-  if (splash) splash.dataset.nxFastExit = "1";
+  if (splash) {
+    splash.dataset.nxFastExit = "1";
+    splash.classList.add("nx-startup-hold");
 
-  // Neutralize the old 1.8s emergency CSS exit. The page's own 2.8s minimum
-  // remains authoritative. On phones the content is nudged upward so the
-  // system navigation area does not make the splash look vertically low.
+    const originalRemove = splash.remove.bind(splash);
+    splash.remove = function(){
+      if (splash.classList.contains("nx-startup-hold")) return;
+      originalRemove();
+    };
+
+    const elapsed = Number(performance?.now?.() || 0);
+    const remaining = Math.max(0, 3800 - elapsed);
+    setTimeout(() => {
+      if (!splash.isConnected) return;
+      splash.classList.remove("nx-startup-hold");
+      splash.classList.add("hide");
+      setTimeout(() => {
+        try { originalRemove(); } catch (_) {}
+      }, 560);
+    }, remaining);
+  }
+
   if (!document.getElementById("nxStartupTimingGuard")) {
     const startupStyle = document.createElement("style");
     startupStyle.id = "nxStartupTimingGuard";
     startupStyle.textContent = `
-      #nxSplash{animation:none!important}
+      #nxSplash{animation:none!important;min-height:100dvh!important;height:100dvh!important}
+      #nxSplash.nx-startup-hold.hide{opacity:1!important;visibility:visible!important;pointer-events:auto!important}
       @media(max-width:700px){
         #nxSplash{
-          min-height:100dvh!important;
-          padding:max(12px,env(safe-area-inset-top)) 16px calc(7vh + max(18px,env(safe-area-inset-bottom)))!important;
+          padding:max(12px,env(safe-area-inset-top)) 16px calc(4vh + max(18px,env(safe-area-inset-bottom)))!important;
         }
       }
     `;
