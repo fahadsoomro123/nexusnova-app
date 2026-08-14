@@ -144,7 +144,7 @@ try {
 
   await page.fill('#nxAppLockPin','1111');
   await page.click('#nxAppUnlockBtn');
-  assert.ok((await page.textContent('#nxAppLockStatus')).includes('Wrong NexusNova PIN'));
+  await page.waitForFunction(()=>document.getElementById('nxAppLockStatus')?.textContent?.includes('Wrong NexusNova PIN'));
   await page.fill('#nxAppLockPin','2468');
   await page.click('#nxAppUnlockBtn');
   await page.waitForFunction(()=>document.getElementById('nxAppLockOverlay')?.style.display==='none');
@@ -153,7 +153,7 @@ try {
   await page.waitForFunction(()=>document.getElementById('nxAppLockOverlay')?.style.display==='flex');
   await page.fill('#nxAppLockPin','2468');
   await page.click('#nxAppRemoveLockBtn');
-  assert.ok((await page.textContent('#nxAppLockStatus')).includes('Tap “Remove App Lock” again'));
+  await page.waitForFunction(()=>document.getElementById('nxAppLockStatus')?.textContent?.includes('Tap “Remove App Lock” again'));
   await page.click('#nxAppRemoveLockBtn');
   await page.waitForFunction(()=>document.getElementById('nxAppLockOverlay')?.style.display==='none');
   assert.equal(await page.evaluate(()=>localStorage.getItem('nexusnova_browser_app_lock_v1')),null);
