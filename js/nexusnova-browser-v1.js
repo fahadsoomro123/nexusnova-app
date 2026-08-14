@@ -1,9 +1,9 @@
 /* NexusNova Browser v1
    Web/PWA: loads HTTPS pages inside the existing NexusNova iframe when the
    destination allows embedding. Never auto-redirects to Chrome/Edge.
-   Android: asks the trusted native bridge to open the dedicated NexusNova
-   Browser Activity so normal websites can stay inside the app even when they
-   block iframe embedding.
+   Android: asks the dedicated origin-bound browser bridge to open the native
+   NexusNova Browser Activity so normal websites stay inside the app even when
+   they block iframe embedding.
 */
 (() => {
   'use strict';
@@ -55,13 +55,18 @@
   }
 
   function nativeAvailable() {
-    return typeof window.NexusAndroid?.postMessage === 'function' &&
-      typeof window.nexusPostNativeAction === 'function';
+    return typeof window.NexusBrowserAndroid?.postMessage === 'function';
   }
 
   function postNative(url) {
     if (!nativeAvailable()) return false;
-    return window.nexusPostNativeAction('openInAppBrowser', { url });
+    try {
+      window.NexusBrowserAndroid.postMessage(JSON.stringify({ action:'open', url }));
+      return true;
+    } catch (error) {
+      console.warn('NexusNova Browser native bridge:', error);
+      return false;
+    }
   }
 
   function remember(url) {
@@ -98,7 +103,7 @@
 
     if (postNative(url)) {
       if (rememberEntry) remember(url);
-      status('Opened inside the NexusNova Browser app window.', 'success');
+      status('Opened inside the NexusNova Browser app window — not Chrome.', 'success');
       return true;
     }
 
@@ -130,7 +135,7 @@
 
   function back() {
     if (nativeAvailable()) {
-      window.nexusPostNativeAction('browserBack');
+      status('Use ← inside the opened NexusNova Browser window for page history.', 'normal');
       return;
     }
     if (stackIndex <= 0) return;
@@ -141,7 +146,7 @@
 
   function forward() {
     if (nativeAvailable()) {
-      window.nexusPostNativeAction('browserForward');
+      status('Use → inside the opened NexusNova Browser window for page history.', 'normal');
       return;
     }
     if (stackIndex >= stack.length - 1) return;
@@ -152,7 +157,7 @@
 
   function reload() {
     if (nativeAvailable()) {
-      window.nexusPostNativeAction('browserReload');
+      status('Use ↻ inside the opened NexusNova Browser window to reload the current site.', 'normal');
       return;
     }
     const frame = $('nxBrowserFrame');
@@ -244,7 +249,7 @@
     if (nativeAvailable()) {
       const note = document.createElement('div');
       note.className = 'nx-browser-native-note';
-      note.textContent = 'Android mode: websites open in the dedicated NexusNova Browser WebView, not Chrome. Use the Android browser toolbar for Back, Forward, Reload and Home.';
+      note.textContent = 'Android mode: websites open in the dedicated NexusNova Browser WebView, not Chrome. Use the toolbar inside that browser window for Back, Forward, Reload and Home.';
       wrap.parentElement?.insertBefore(note, toolbar.nextSibling);
     }
     syncNav();
@@ -253,7 +258,8 @@
   function installHandlers() {
     const input = $('nxBrowserUrl');
     const section = browserSection();
-    if (!input || !section) return;
+    if (!input || !section || input.dataset.nxBrowserReady === '1') return;
+    input.dataset.nxBrowserReady = '1';
 
     input.placeholder = 'Search or enter website';
     input.addEventListener('keydown', event => {
