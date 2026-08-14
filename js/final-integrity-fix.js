@@ -109,7 +109,7 @@
   loadCritical({
     flag:'__nxGrowthReferralLinkV1',
     marker:'data-nx-growth-referral-link',
-    src:'./js/nexusnova-growth-referral-link-v1.js?v=1',
+    src:'./js/nexusnova-growth-referral-link-v1.js?v=2',
     error:'NexusNova referral invite link guard failed to load.'
   });
   loadCritical({
