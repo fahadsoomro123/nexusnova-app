@@ -88,6 +88,12 @@
     src:'./js/nexusnova-allapps-smart-search-v1.js?v=4',
     error:'NexusNova ALL APPS smart search failed to load.'
   });
+  loadCritical({
+    flag:'__nxCommunityProgressV1',
+    marker:'data-nx-community-progress',
+    src:'./js/nexusnova-community-progress-v1.js?v=1',
+    error:'NexusNova Community League failed to load.'
+  });
 
   await import('./final-integrity-fix-core.js?v=3');
 })();
