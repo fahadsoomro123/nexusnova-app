@@ -55,5 +55,8 @@ jobs:
       - name: Run auth Enter and Complete Profile browser check
         run: node .github/scripts/nexusnova-auth-profile-runtime.mjs
 
+      - name: Run Growth Center referral and mission browser check
+        run: node .github/scripts/nexusnova-growth-runtime.mjs
+
       - name: Run local tools browser checks
         run: node .github/scripts/nexusnova-local-tools-runtime.mjs
