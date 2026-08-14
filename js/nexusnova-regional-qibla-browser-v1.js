@@ -253,7 +253,7 @@
 
     setTimeout(() => {
       if(document.getElementById('tab-browser')) {
-        loadLateScript('./js/nexusnova-browser-v1.js?v=3','data-nx-browser-shell');
+        loadLateScript('./js/nexusnova-browser-v1.js?v=4','data-nx-browser-shell');
       }
     }, 350);
 
