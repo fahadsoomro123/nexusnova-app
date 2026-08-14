@@ -59,10 +59,9 @@ service cloud.firestore {
         && request.resource.data.name.size() <= 80;
     }
 
-    // Spark-plan secure mining fallback. The browser can propose a current
+    // Spark-plan secure value transitions. The browser proposes a current
     // millisecond timestamp, but Firestore's trusted request.time limits it to
-    // a narrow window. The client cannot backdate a session or mint arbitrary
-    // NVX because the allowed field changes and reward amount are exact.
+    // a narrow window. This prevents backdating cooldowns/sessions.
     function freshMiningMillis(value) {
       return value is int
         && value >= request.time.toMillis() - 60000
@@ -97,7 +96,6 @@ service cloud.firestore {
 
     // Legacy-session rollover: after a valid old session has completed, credit
     // exactly one 24 NVX reward and immediately start the next 24h session.
-    // The fresh timestamp prevents replaying the same completed session.
     function validMiningRollover() {
       return request.resource.data.diff(resource.data).affectedKeys()
           .hasOnly(['balance', 'totalMined', 'miningActive', 'miningStartedAt', 'miningLastUpdate'])
@@ -126,6 +124,37 @@ service cloud.firestore {
         && request.resource.data.miningActive == false
         && request.resource.data.miningStartedAt == 0
         && freshMiningMillis(request.resource.data.miningLastUpdate);
+    }
+
+    // Daily Reward on Spark: exactly +5 NVX after 24h. The streak may only
+    // advance by one inside the 48h continuation window, otherwise it resets
+    // to 1. No other profile field may change in this transition.
+    function validDailyReward() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['balance', 'lastDailyReward', 'dailyRewardStreak'])
+        && resource.data.balance is number
+        && resource.data.balance >= 0
+        && resource.data.lastDailyReward is number
+        && resource.data.lastDailyReward >= 0
+        && resource.data.dailyRewardStreak is number
+        && resource.data.dailyRewardStreak >= 0
+        && request.time.toMillis() - resource.data.lastDailyReward >= 86400000
+        && request.resource.data.balance == resource.data.balance + 5
+        && freshMiningMillis(request.resource.data.lastDailyReward)
+        && (
+          (
+            resource.data.lastDailyReward > 0
+            && request.time.toMillis() - resource.data.lastDailyReward <= 172800000
+            && request.resource.data.dailyRewardStreak == resource.data.dailyRewardStreak + 1
+          )
+          || (
+            (
+              resource.data.lastDailyReward == 0
+              || request.time.toMillis() - resource.data.lastDailyReward > 172800000
+            )
+            && request.resource.data.dailyRewardStreak == 1
+          )
+        );
     }
 
     function validChatMessage() {
@@ -248,13 +277,14 @@ service cloud.firestore {
     match /users/{uid} {
       allow read: if owns(uid);
       allow create: if owns(uid) && validProfileCreate(uid);
-      allow update: if owns(uid) && validProfileNameEdit()
-        || verifiedOwner(uid) && (
+      allow update: if (owns(uid) && validProfileNameEdit())
+        || (verifiedOwner(uid) && (
           validMiningStart()
           || validMiningFinish()
           || validMiningRollover()
           || validMiningRepair()
-        );
+          || validDailyReward()
+        ));
       allow delete: if false;
     }
 
