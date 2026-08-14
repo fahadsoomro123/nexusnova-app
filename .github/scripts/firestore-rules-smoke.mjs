@@ -12,6 +12,8 @@ const buyer=env.authenticatedContext('buyer-1',{email:'buyer@example.com'}).fire
 const stranger=env.authenticatedContext('stranger-1',{email:'stranger@example.com'}).firestore();
 const miner=env.authenticatedContext('miner-1',{email:'miner@example.com',email_verified:true}).firestore();
 const unverifiedMiner=env.authenticatedContext('miner-2',{email:'miner2@example.com',email_verified:false}).firestore();
+const rewarder=env.authenticatedContext('rewarder-1',{email:'rewarder@example.com',email_verified:true}).firestore();
+const unverifiedRewarder=env.authenticatedContext('rewarder-2',{email:'rewarder2@example.com',email_verified:false}).firestore();
 const anon=env.unauthenticatedContext().firestore();
 
 const listingRef=doc(seller,'marketplaceListings/listing-1');
@@ -74,10 +76,46 @@ try {
 
   const minerRef=doc(miner,'users/miner-1');
   const unverifiedMinerRef=doc(unverifiedMiner,'users/miner-2');
+  const rewarderRef=doc(rewarder,'users/rewarder-1');
+  const unverifiedRewarderRef=doc(unverifiedRewarder,'users/rewarder-2');
   await env.withSecurityRulesDisabled(async ctx=>{
     await setDoc(doc(ctx.firestore(),'users/miner-1'),{...baseProfile('miner-1','miner@example.com'),referralCode:'NVXMINER1'});
     await setDoc(doc(ctx.firestore(),'users/miner-2'),baseProfile('miner-2','miner2@example.com'));
+    await setDoc(doc(ctx.firestore(),'users/rewarder-1'),{...baseProfile('rewarder-1','rewarder@example.com'),balance:10});
+    await setDoc(doc(ctx.firestore(),'users/rewarder-2'),baseProfile('rewarder-2','rewarder2@example.com'));
   });
+
+  // Daily Reward: first verified claim is exactly +5 and starts streak 1.
+  const dailyNow=Date.now();
+  await assertSucceeds(updateDoc(rewarderRef,{balance:15,lastDailyReward:dailyNow,dailyRewardStreak:1}));
+  let dailyDoc=await getDoc(rewarderRef);
+  assert.equal(dailyDoc.data().balance,15);
+  assert.equal(dailyDoc.data().dailyRewardStreak,1);
+  console.log('PASS verified user can claim exact +5 daily reward after cooldown');
+
+  await assertFails(updateDoc(rewarderRef,{balance:20,lastDailyReward:Date.now(),dailyRewardStreak:2}));
+  console.log('PASS immediate repeat daily reward denied');
+
+  await env.withSecurityRulesDisabled(async ctx=>{
+    await updateDoc(doc(ctx.firestore(),'users/rewarder-1'),{
+      balance:15,
+      lastDailyReward:Date.now()-25*60*60*1000,
+      dailyRewardStreak:1
+    });
+  });
+
+  await assertFails(updateDoc(rewarderRef,{balance:21,lastDailyReward:Date.now(),dailyRewardStreak:2}));
+  console.log('PASS daily reward cannot mint +6 or arbitrary value');
+
+  const continuationNow=Date.now();
+  await assertSucceeds(updateDoc(rewarderRef,{balance:20,lastDailyReward:continuationNow,dailyRewardStreak:2}));
+  dailyDoc=await getDoc(rewarderRef);
+  assert.equal(dailyDoc.data().balance,20);
+  assert.equal(dailyDoc.data().dailyRewardStreak,2);
+  console.log('PASS 24-48h daily claim continues streak by exactly one');
+
+  await assertFails(updateDoc(unverifiedRewarderRef,{balance:5,lastDailyReward:Date.now(),dailyRewardStreak:1}));
+  console.log('PASS unverified user cannot claim daily NVX');
 
   const startNow=Date.now();
   await assertSucceeds(updateDoc(minerRef,{miningActive:true,miningStartedAt:startNow,miningLastUpdate:startNow}));
@@ -147,7 +185,7 @@ try {
   await assertFails(updateDoc(minerRef,{balance:111,totalMined:96,miningLastUpdate:Date.now()}));
   console.log('PASS active new session cannot replay another +24 reward');
 
-  console.log('\nFirestore rules smoke complete: security + production legacy mining sequence passed.');
+  console.log('\nFirestore rules smoke complete: daily reward + mining + marketplace security passed.');
 } finally {
   await env.cleanup();
 }
