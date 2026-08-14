@@ -10,8 +10,12 @@
   const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({
     "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
   }[c]));
-  const read = (k,d=[]) => { try { return JSON.parse(localStorage.getItem("nxmega_"+k)) ?? d; } catch { return d; } };
-  const write = (k,v) => localStorage.setItem("nxmega_"+k, JSON.stringify(v));
+  const accountKey = k => {
+    const accountId = String(window.nexusAccountId || "");
+    return accountId ? `nxmega_${k}:${accountId}` : "";
+  };
+  const read = (k,d=[]) => { try { const key=accountKey(k); return key ? (JSON.parse(localStorage.getItem(key)) ?? d) : d; } catch { return d; } };
+  const write = (k,v) => { const key=accountKey(k); if (key) localStorage.setItem(key, JSON.stringify(v)); };
   const go = name => window.openMoreTab ? window.openMoreTab(name) : window.switchTab?.(name);
   const toast = msg => {
     let e = $("nxMegaToast");
@@ -26,7 +30,9 @@
   };
   const addMenu = (name, icon, label) => {
     const box = document.querySelector("#moreMenu .more-inner");
-    if (!box || box.querySelector(`[data-nxmega="${name}"]`)) return;
+    const hasStaticTarget = [...box?.querySelectorAll(".more-item") || []]
+      .some(button => String(button.getAttribute("onclick") || "").includes(`openMoreTab('${name}')`));
+    if (!box || hasStaticTarget || box.querySelector(`[data-nxmega="${name}"]`)) return;
     const b = document.createElement("button");
     b.type = "button"; b.className = "more-item"; b.dataset.nxmega = name;
     b.innerHTML = `${icon}<span>${label}</span>`;
@@ -42,6 +48,58 @@
     main.appendChild(s);
   };
   const btn = (id, fn) => $(id)?.addEventListener("click", fn);
+
+  // Deliberately small arithmetic parser for the calculator. It accepts only
+  // numeric expressions, so the tool no longer needs Function/eval and stays
+  // compatible with a strict future CSP.
+  function calculateArithmetic(expression) {
+    const compact = String(expression || "").replace(/\s+/g, "");
+    if (!compact || compact.length > 120) throw new Error("Invalid expression");
+    const tokens = compact.match(/(?:\d+(?:\.\d+)?|\.\d+|[()+\-*/%])/g) || [];
+    if (tokens.join("") !== compact) throw new Error("Invalid expression");
+    let cursor = 0;
+    const peek = () => tokens[cursor];
+    const consume = () => tokens[cursor++];
+    const factor = () => {
+      const token = consume();
+      if (token === "+") return factor();
+      if (token === "-") return -factor();
+      if (token === "(") {
+        const value = expressionValue();
+        if (consume() !== ")") throw new Error("Invalid expression");
+        return value;
+      }
+      if (!/^(?:\d+(?:\.\d+)?|\.\d+)$/.test(token || "")) {
+        throw new Error("Invalid expression");
+      }
+      return Number(token);
+    };
+    const term = () => {
+      let value = factor();
+      while (["*", "/", "%"].includes(peek())) {
+        const operator = consume();
+        const right = factor();
+        if ((operator === "/" || operator === "%") && right === 0) {
+          throw new Error("Division by zero");
+        }
+        value = operator === "*" ? value * right :
+          operator === "/" ? value / right : value % right;
+      }
+      return value;
+    };
+    const expressionValue = () => {
+      let value = term();
+      while (["+", "-"].includes(peek())) {
+        value = consume() === "+" ? value + term() : value - term();
+      }
+      return value;
+    };
+    const result = expressionValue();
+    if (cursor !== tokens.length || !Number.isFinite(result)) {
+      throw new Error("Invalid expression");
+    }
+    return result;
+  }
 
   /* ---------- Universal Search ---------- */
   const featureIndex = [
@@ -165,7 +223,7 @@
   function safeWebUrl(value){try{const u=new URL(String(value||""));return (u.protocol==="https:"||u.protocol==="http:")?u.href:""}catch{return ""}}
   function openMegaUrl(u){
     const safe=safeWebUrl(u);if(!safe)return;
-    if(window.NexusAndroid && typeof window.NexusAndroid.openExternal === "function"){try{window.NexusAndroid.openExternal(safe)}catch(_){};return}
+    if(window.nexusPostNativeAction?.("openExternal",{url:safe}))return;
     const frame=$("nxMegaFrame");if(frame)frame.src=safe;
   }
   function browserGo(){
@@ -178,7 +236,18 @@
   function renderBookmarks(){renderList("bookmarks","nxMegaBookmarks",(u,i)=>{const safe=safeWebUrl(u);return `<div class="nxmega-row"><a href="${esc(safe||"#")}" target="_blank" rel="noopener noreferrer">${esc(u)}</a><button class="action-btn" data-open-book="${i}">Open</button></div>`});$("nxMegaBookmarks")?.querySelectorAll("[data-open-book]").forEach(b=>b.onclick=()=>openMegaUrl(read("bookmarks")[+b.dataset.openBook]))}
 
   /* ---------- QR / Contacts / Shopping ---------- */
-  function qr(){const x=$("nxMegaQRText")?.value.trim();if(!x)return;$("nxMegaQROut").innerHTML=`<img alt="QR code" src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(x)}">`}
+  function qr(){
+    const text=$("nxMegaQRText")?.value.trim(),out=$("nxMegaQROut");
+    if(!text||!out)return;
+    if(!confirm("Generating this QR sends its text to the configured QR service. Continue?")){
+      out.textContent="QR not generated. Text was not sent.";
+      return;
+    }
+    const image=new Image();
+    image.alt="QR code";
+    image.src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data="+encodeURIComponent(text);
+    out.replaceChildren(image);
+  }
   function addContact(){const n=$("nxMegaContactName")?.value.trim(),p=$("nxMegaContactPhone")?.value.trim();if(!n||!p)return;const a=read("contacts");a.push({n,p});write("contacts",a);$("nxMegaContactName").value="";$("nxMegaContactPhone").value="";renderContacts()}
   function renderContacts(){renderList("contacts","nxMegaContacts",(x)=>`<div class="nxmega-row"><span>${esc(x.n)}<small>${esc(x.p)}</small></span><a class="action-btn" href="tel:${esc(x.p)}">Call</a></div>`)}
   function addShopping(){const x=$("nxMegaShopping")?.value.trim();if(!x)return;const a=read("shopping");a.push({x,done:false});write("shopping",a);$("nxMegaShopping").value="";renderShopping()}
@@ -300,7 +369,13 @@
 
     /* Event wiring */
     btn("nxMegaSearchBtn", searchFeatures); $("nxMegaSearch")?.addEventListener("input",searchFeatures);
-    btn("nxMegaCalcBtn",()=>{const v=$("nxMegaCalc").value.trim();if(!/^[0-9+\-*/%().\s]+$/.test(v))return $("nxMegaCalcOut").textContent="Invalid expression.";try{$("nxMegaCalcOut").textContent=String(Function('"use strict";return('+v+')')())}catch{$("nxMegaCalcOut").textContent="Invalid expression."}});
+    btn("nxMegaCalcBtn",()=>{
+      try {
+        $("nxMegaCalcOut").textContent=String(calculateArithmetic($("nxMegaCalc").value));
+      } catch (_) {
+        $("nxMegaCalcOut").textContent="Invalid expression.";
+      }
+    });
     btn("nxMegaNoteBtn",addNote);btn("nxMegaTodoBtn",addTodo);btn("nxMegaEventBtn",addEvent);btn("nxMegaReminderBtn",addReminder);
     btn("nxMegaNotifyBtn",async()=>{"Notification"in window?toast((await Notification.requestPermission())==="granted"?"Notifications enabled":"Notifications not enabled"):toast("Notifications not supported")});
     btn("nxMegaExpenseBtn",addExpense);btn("nxMegaLoanBtn",calcEMI);btn("nxMegaTipBtn",calcTip);btn("nxMegaSplitBtn",calcSplit);btn("nxMegaSaveBtn",addSaving);
@@ -310,6 +385,16 @@
     btn("nxMegaPriceBtn",()=>{const q=$("nxMegaShopping").value.trim()||"product";window.open("https://www.google.com/search?q="+encodeURIComponent("best price "+q),"_blank","noopener")});
     btn("nxMegaPak",()=>news("https://www.dawn.com/feeds/home","Pakistan"));btn("nxMegaUrdu",()=>news("https://www.bbc.com/urdu/index.xml","Urdu"));btn("nxMegaSindhi",()=>news("https://www.bbc.com/sindhi/index.xml","Sindhi"));btn("nxMegaWorld",()=>news("https://feeds.bbci.co.uk/news/world/rss.xml","World"));
     btn("nxMegaNotify",async()=>{"Notification"in window?toast((await Notification.requestPermission())==="granted"?"Notifications enabled":"Notifications not enabled"):toast("Notifications not supported")});
+
+    // Additive hubs contain provider-backed controls that have no configured
+    // backend yet. Make each one explicitly report that state rather than
+    // leaving a polished-looking but inert button.
+    document.addEventListener("click", event => {
+      const button = event.target.closest(".nxmega-tab button");
+      if (!button || button.id || button.hasAttribute("onclick") || Object.keys(button.dataset).length) return;
+      const label = (button.textContent || "This feature").trim().replace(/\s+/g, " ");
+      toast(`${label} requires provider or backend setup and is not available yet.`);
+    });
 
     /* Second savings view mirrors finance data */
     const syncSavings=()=>{const b=$("nxMegaSavings2");if(b)b.innerHTML=read("savings").map(x=>`<div class="nxmega-goal"><b>${esc(x.name)}</b><span>${x.current}/${x.target}</span></div>`).join("")||"<div class='nxmega-muted'>No savings goals yet.</div>"};

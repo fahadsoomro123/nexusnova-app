@@ -70,6 +70,11 @@
     }));
   }
 
+  // The deferred primary dashboard module can use this same genuine catalog
+  // if both live providers are unavailable. It contains no made-up prices.
+  window.nexusTop100FallbackCatalog = fallbackCatalog;
+
+
   async function fetchTop100() {
     if (cache.coins.length >= TOP_LIMIT && Date.now() - cache.at < CACHE_MS) {
       return cache;

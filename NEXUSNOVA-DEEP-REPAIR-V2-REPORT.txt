@@ -1,0 +1,69 @@
+NexusNova Deep Repair V2
+========================
+Scope: Follow-up after manual testing of NexusNova_USER_BATCH_FIXED.zip.
+
+CONFIRMED USER-REPORTED ROOT CAUSES FIXED
+1. Back to ALL APPS did not work
+   - Root cause: core-failsafe.js writes inline display:none to #moreMenu.
+     The old Back handler only added the CSS class "show", which cannot override
+     that inline display property.
+   - Fix: the final navigation owner now clears/sets the inline display state,
+     synchronizes the show class, and restores bottom-dock state correctly.
+
+2. Most ALL APPS destinations had no Back button
+   - Fix: every destination represented by an ALL APPS tile receives a universal
+     "Back to ALL APPS" control when opened from ALL APPS.
+   - Dynamic Mega tabs are included through a MutationObserver.
+   - Tools keeps its dedicated Back to ALL APPS plus Back to Tools hierarchy.
+
+3. Bible showed "connect refused"
+   - Root cause: eBible pages reject third-party iframe embedding.
+   - Fix: iframe removed completely.
+   - Bible is now a native NexusNova reader which fetches verse-aligned text data.
+   - English source: BibleNLP/eBible World English Bible corpus.
+   - Urdu source: BibleNLP/eBible Urdu corpus (urd-urdgvu).
+   - Verse map: BibleNLP/eBible metadata/vref.txt.
+   - Raw GitHub is primary; jsDelivr GitHub CDN is automatic fallback.
+   - Book/chapter/language selector + Previous/Next chapter controls included.
+
+4. Bottom navigation active-state resilience
+   - Final navigation owner always removes active from every dock item first.
+   - Closing ALL APPS restores the dock state from the actually active screen.
+
+5. Currency converter late-load regression protection
+   - Existing reliable live converter kept.
+   - The final converter is reasserted after delayed module initialization so a
+     slow page2.js/Firebase module cannot silently replace it with an older handler.
+   - Opening Gold/FX explicitly refreshes the final converter handler.
+
+6. QR scanner resilience
+   - Camera + image upload paths retained.
+   - Native BarcodeDetector is used when available.
+   - jsQR is loaded on demand from a second source if the initial CDN copy is absent.
+   - Failure state is explicit instead of silently doing nothing.
+
+STATIC / CONSISTENCY VERIFICATION
+- JavaScript files checked: 49
+- JavaScript syntax failures: 0
+- Duplicate IDs in page2.html: 0
+- Missing local script/style/image references: 0
+- Undefined first-call inline handlers: 0
+- Missing ALL APPS target tabs: 0
+- Bible iframe code remaining: NO
+- Native Bible reader code present: YES
+- Universal ALL APPS Back system present: YES
+- Root/Android runtime assets checked: 38
+- Root/Android mismatches: 0
+- CSS brace-balance failures: 0
+- Service Worker cache bumped to nexusnova-shell-v8-deep-repair
+
+IMPORTANT EXTERNAL/DEVICE ITEMS (NOT FAKED)
+- Firebase App Check/production CAPTCHA configuration
+- Daily reward/mining Functions + deployed Firestore rules
+- Telegram/community proof verification
+- Rewarded-ad network
+- Real wallet custody/withdrawal ledger
+- Android APK/device/caller-ID validation
+- Native Android Google auth architecture
+
+These need real provider/backend/device setup and were intentionally not bypassed.

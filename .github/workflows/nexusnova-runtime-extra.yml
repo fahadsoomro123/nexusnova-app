@@ -1,0 +1,46 @@
+name: NexusNova Extra Runtime Check
+
+on:
+  push:
+    branches:
+      - codex-final-audit
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  extra-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Start local NexusNova origin
+        shell: bash
+        run: |
+          printf '<!doctype html><meta charset="utf-8"><title>runtime</title>' > .runtime-origin.html
+          python3 -m http.server 4173 > /tmp/nexusnova-extra-http.log 2>&1 &
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:4173/.runtime-origin.html >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/nexusnova-extra-http.log || true
+          exit 1
+
+      - name: Run Browser Caller Qibla Smart and QR checks
+        run: node .github/scripts/nexusnova-runtime-extra.mjs
+
+      - name: Run local tools browser checks
+        run: node .github/scripts/nexusnova-local-tools-runtime.mjs

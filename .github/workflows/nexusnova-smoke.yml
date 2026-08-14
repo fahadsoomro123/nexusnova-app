@@ -1,0 +1,112 @@
+name: NexusNova Smoke Check
+
+on:
+  push:
+    branches:
+      - codex-final-audit
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Check JavaScript syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          find js -maxdepth 1 -type f -name '*.js' -print0 | sort -z | while IFS= read -r -d '' file; do
+            echo "Checking $file"
+            node --check "$file"
+          done
+          find functions -maxdepth 1 -type f -name '*.js' -print0 | sort -z | while IFS= read -r -d '' file; do
+            echo "Checking $file"
+            node --check "$file"
+          done
+          echo "Checking sw.js"
+          node --check sw.js
+
+      - name: Verify critical live modules exist
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in \
+            js/nexusnova-smart-live-v1.js \
+            js/nexusnova-allapps-smart-search-v1.js \
+            js/nexusnova-file-vault-v1.js \
+            js/nexusnova-security-lock-v1.js \
+            js/nexusnova-marketplace-live-v1.js \
+            js/nexusnova-orders-live-v1.js \
+            js/nexusnova-teacher-live-v2.js \
+            js/nexusnova-documents-live-v1.js \
+            js/nexusnova-learning-engine-v1.js \
+            js/nexusnova-islamic-extras-v1.js \
+            js/nexusnova-travel-live-v1.js \
+            js/nexusnova-ai-authority-v2.js; do
+              test -s "$file" || { echo "Missing/empty: $file"; exit 1; }
+          done
+
+      - name: Verify Smart Live loader targets
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('fs');
+          const src = fs.readFileSync('js/nexusnova-smart-live-v1.js','utf8');
+          const refs = [...src.matchAll(/src:'\.\/js\/([^']+\.js)(?:\?[^']*)?'/g)].map(m => m[1]);
+          if (!refs.length) throw new Error('No late-loader module references found.');
+          const missing = refs.filter(name => !fs.existsSync('js/' + name));
+          console.log('Loader refs:', refs.join(', '));
+          if (missing.length) throw new Error('Missing loader files: ' + missing.join(', '));
+          NODE
+
+      - name: Verify approved ALL APPS order is still present
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('fs');
+          const src = fs.readFileSync('js/nexusnova-allapps-order-guard-v5.js','utf8');
+          const expected = ['TOOLS','GOLD/FX','NEWS','CHAT','AI','LOCATION','SOS','FAMILY','PROFILE','DAILY','BUDGET','LEARN','TRAVEL','HEALTH','SMART','QIBLA','PK NEWS','WATCH','BROWSER','CALLER','SETTINGS','SUPER APP','DAILY TOOLS','CALENDAR','REMINDERS','FINANCE','WEATHER','LEARNING','PAKISTAN HUB','ISLAMIC HUB','BIBLE','HABITS','SAVINGS','CONTACTS','SHOPPING','DOCUMENTS','FILE VAULT','QR TOOLS','SECURITY','MARKETPLACE','ORDERS','NOTIFICATIONS','TEACHER TOOLKIT'];
+          const match = src.match(/const ORDER=(\[[^;]+\]);/);
+          if (!match) throw new Error('ALL APPS ORDER array not found.');
+          const actual = Function('return ' + match[1])();
+          if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+            throw new Error('ALL APPS order changed.\nExpected: ' + expected.join(' > ') + '\nActual: ' + actual.join(' > '));
+          }
+          console.log('ALL APPS order verified:', actual.length, 'items');
+          NODE
+
+  firestore-rules:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install Firebase emulator test packages
+        run: npm install --no-save firebase@12.1.0 @firebase/rules-unit-testing@5.0.0 firebase-tools@14.12.1
+
+      - name: Run Firestore rules smoke
+        run: npx firebase emulators:exec --only firestore --project demo-nexusnova-rules "node .github/scripts/firestore-rules-smoke.mjs"

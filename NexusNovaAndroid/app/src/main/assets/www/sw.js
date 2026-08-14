@@ -1,5 +1,5 @@
 /* NexusNova Service Worker - fresh-code first, offline fallback */
-const CACHE = "nexusnova-shell-v5-deep-audit";
+const CACHE = "nexusnova-shell-v8-deep-repair";
 
 const ASSETS = [
   "./",
@@ -15,6 +15,7 @@ const ASSETS = [
   "./css/nexusnova-mega-merge-v1.css",
   "./css/nexusnova-button-safety-v1.css",
   "./css/nexusnova-premium-blue-v1.css",
+  "./css/nexusnova-final-user-fixes-v1.css",
   "./js/page2.js",
   "./js/core-failsafe.js",
   "./js/aux-v8.js",
@@ -35,14 +36,25 @@ const ASSETS = [
   "./js/nexusnova-regional-qibla-browser-v1.js",
   "./js/nexusnova-super-app-v1.js",
   "./js/nexusnova-mega-merge-v1.js",
-  "./js/nexusnova-top100-live-fix-v3.js"
+  "./js/nexusnova-top100-live-fix-v3.js",
+  "./js/nexusnova-final-user-fixes-v1.js"
 ];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
       .open(CACHE)
-      .then((cache) => cache.addAll(ASSETS).catch(() => undefined))
+      .then(async (cache) => {
+        // A single optional/unavailable asset must not discard the entire
+        // offline shell on first install.
+        await Promise.allSettled(
+          ASSETS.map(async (asset) => {
+            const response = await fetch(asset, { cache: "no-store" });
+            if (!response.ok) throw new Error(`HTTP ${response.status}: ${asset}`);
+            await cache.put(asset, response);
+          })
+        );
+      })
       .then(() => self.skipWaiting())
   );
 });

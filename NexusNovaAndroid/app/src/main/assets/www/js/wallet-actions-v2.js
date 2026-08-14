@@ -100,6 +100,10 @@
 
   async function firebaseCallable(name, data) {
     try {
+      if(typeof window.nexusRequireAppCheck !== "function"){
+        throw new Error("App Check is unavailable. Reload the app after it has been configured.");
+      }
+      await window.nexusRequireAppCheck();
       const [{ getApps }, { getFunctions, httpsCallable }] = await Promise.all([
         import("https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js"),
         import("https://www.gstatic.com/firebasejs/12.1.0/firebase-functions.js")
@@ -305,6 +309,7 @@
   function installWalletActionHandlers() {
     window.handleDeposit = deposit;
     window.handleWithdraw = withdraw;
+    window.nexusSecureWalletWithdraw = withdraw;
   }
 
   // page2.js is a module, so an immediate assignment from this classic script

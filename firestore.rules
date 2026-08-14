@@ -1,31 +1,248 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /users/{uid} {
-      allow read: if request.auth != null && request.auth.uid == uid;
-      allow create: if request.auth != null
-        && request.auth.uid == uid
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function owns(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function verifiedOwner(uid) {
+      return owns(uid) && request.auth.token.email_verified == true;
+    }
+
+    function validCurrency(value) {
+      return value == 'PKR' || value == 'USD' || value == 'EUR' || value == 'GBP';
+    }
+
+    function validProfileCreate(uid) {
+      return request.resource.data.keys().hasAll([
+          'uid', 'name', 'email', 'balance', 'totalMined', 'tasksCompleted',
+          'completedTasks', 'miningActive', 'miningStartedAt',
+          'miningLastUpdate', 'sessionEarned', 'lastDailyReward',
+          'dailyRewardStreak', 'createdAt'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'uid', 'name', 'email', 'balance', 'totalMined', 'tasksCompleted',
+          'completedTasks', 'miningActive', 'miningStartedAt',
+          'miningLastUpdate', 'sessionEarned', 'lastDailyReward',
+          'dailyRewardStreak', 'createdAt'
+        ])
+        && request.resource.data.uid == uid
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 80
+        && request.resource.data.email is string
+        && request.resource.data.email.size() <= 320
+        && request.resource.data.email == request.auth.token.email
         && request.resource.data.balance == 0
         && request.resource.data.totalMined == 0
+        && request.resource.data.tasksCompleted == 0
+        && request.resource.data.completedTasks is map
+        && request.resource.data.completedTasks.size() == 0
         && request.resource.data.miningActive == false
-        && request.resource.data.miningStartedAt == 0;
-      allow update: if request.auth != null
-        && request.auth.uid == uid
-        && request.resource.data.balance == resource.data.balance
-        && request.resource.data.totalMined == resource.data.totalMined
-        && request.resource.data.miningActive == resource.data.miningActive
-        && request.resource.data.miningStartedAt == resource.data.miningStartedAt
-        && request.resource.data.miningLastUpdate == resource.data.miningLastUpdate
-        && request.resource.data.lastDailyReward == resource.data.lastDailyReward
-        && request.resource.data.dailyRewardStreak == resource.data.dailyRewardStreak
-        && request.resource.data.completedTasks == resource.data.completedTasks
-        && request.resource.data.tasksCompleted == resource.data.tasksCompleted;
+        && request.resource.data.miningStartedAt == 0
+        && request.resource.data.miningLastUpdate == 0
+        && request.resource.data.sessionEarned == 0
+        && request.resource.data.lastDailyReward == 0
+        && request.resource.data.dailyRewardStreak == 0
+        && request.resource.data.createdAt == request.time;
+    }
+
+    function validProfileNameEdit() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['name'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 80;
+    }
+
+    // Spark-plan secure mining fallback. The browser can propose a current
+    // millisecond timestamp, but Firestore's trusted request.time limits it to
+    // a narrow window. The client cannot backdate a session or mint arbitrary
+    // NVX because the allowed field changes and reward amount are exact.
+    function freshMiningMillis(value) {
+      return value is int
+        && value >= request.time.toMillis() - 60000
+        && value <= request.time.toMillis() + 60000;
+    }
+
+    function validMiningStart() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['miningActive', 'miningStartedAt', 'miningLastUpdate'])
+        && resource.data.miningActive == false
+        && resource.data.miningStartedAt == 0
+        && request.resource.data.miningActive == true
+        && freshMiningMillis(request.resource.data.miningStartedAt)
+        && request.resource.data.miningLastUpdate == request.resource.data.miningStartedAt;
+    }
+
+    function validMiningFinish() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['balance', 'totalMined', 'miningActive', 'miningStartedAt', 'miningLastUpdate'])
+        && resource.data.miningActive == true
+        && resource.data.miningStartedAt is int
+        && resource.data.miningStartedAt > 0
+        && request.time.toMillis() - resource.data.miningStartedAt >= 86400000
+        && resource.data.balance is number
+        && resource.data.totalMined is number
+        && request.resource.data.balance == resource.data.balance + 24
+        && request.resource.data.totalMined == resource.data.totalMined + 24
+        && request.resource.data.miningActive == false
+        && request.resource.data.miningStartedAt == 0
+        && freshMiningMillis(request.resource.data.miningLastUpdate);
+    }
+
+    function validChatMessage() {
+      return request.resource.data.keys().hasAll([
+          'uid', 'name', 'text', 'createdAt'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'uid', 'name', 'text', 'createdAt'
+        ])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 80
+        && request.resource.data.text is string
+        && request.resource.data.text.size() > 0
+        && request.resource.data.text.size() <= 500
+        && request.resource.data.createdAt == request.time;
+    }
+
+    function validListingFields(data) {
+      return data.sellerUid is string
+        && data.sellerName is string && data.sellerName.size() > 0 && data.sellerName.size() <= 80
+        && data.title is string && data.title.size() >= 2 && data.title.size() <= 120
+        && data.description is string && data.description.size() <= 1200
+        && data.category is string && data.category.size() > 0 && data.category.size() <= 60
+        && data.price is number && data.price >= 0 && data.price <= 1000000000
+        && validCurrency(data.currency)
+        && (data.status == 'active' || data.status == 'sold' || data.status == 'hidden');
+    }
+
+    function validListingCreate() {
+      return request.resource.data.keys().hasAll([
+          'sellerUid','sellerName','title','description','category','price','currency','status','createdAt','updatedAt'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'sellerUid','sellerName','title','description','category','price','currency','status','createdAt','updatedAt'
+        ])
+        && request.resource.data.sellerUid == request.auth.uid
+        && request.resource.data.status == 'active'
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && validListingFields(request.resource.data);
+    }
+
+    function validListingUpdate() {
+      return request.auth.uid == resource.data.sellerUid
+        && request.resource.data.keys().hasAll([
+          'sellerUid','sellerName','title','description','category','price','currency','status','createdAt','updatedAt'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'sellerUid','sellerName','title','description','category','price','currency','status','createdAt','updatedAt'
+        ])
+        && request.resource.data.sellerUid == resource.data.sellerUid
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedAt == request.time
+        && validListingFields(request.resource.data);
+    }
+
+    function orderListingExists() {
+      return exists(/databases/$(database)/documents/marketplaceListings/$(request.resource.data.listingId));
+    }
+
+    function validOrderCreate() {
+      return request.resource.data.keys().hasAll([
+          'listingId','buyerUid','sellerUid','title','amount','currency','status','createdAt','updatedAt'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'listingId','buyerUid','sellerUid','title','amount','currency','status','createdAt','updatedAt'
+        ])
+        && request.resource.data.listingId is string
+        && request.resource.data.buyerUid == request.auth.uid
+        && request.resource.data.sellerUid is string
+        && request.resource.data.sellerUid != request.auth.uid
+        && request.resource.data.title is string && request.resource.data.title.size() > 0 && request.resource.data.title.size() <= 120
+        && request.resource.data.amount is number && request.resource.data.amount >= 0 && request.resource.data.amount <= 1000000000
+        && validCurrency(request.resource.data.currency)
+        && request.resource.data.status == 'requested'
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && orderListingExists()
+        && get(/databases/$(database)/documents/marketplaceListings/$(request.resource.data.listingId)).data.status == 'active'
+        && get(/databases/$(database)/documents/marketplaceListings/$(request.resource.data.listingId)).data.sellerUid == request.resource.data.sellerUid
+        && get(/databases/$(database)/documents/marketplaceListings/$(request.resource.data.listingId)).data.title == request.resource.data.title
+        && get(/databases/$(database)/documents/marketplaceListings/$(request.resource.data.listingId)).data.price == request.resource.data.amount
+        && get(/databases/$(database)/documents/marketplaceListings/$(request.resource.data.listingId)).data.currency == request.resource.data.currency;
+    }
+
+    function sellerOrderTransitionAllowed() {
+      return request.auth.uid == resource.data.sellerUid
+        && (
+          (resource.data.status == 'requested'
+            && (request.resource.data.status == 'accepted' || request.resource.data.status == 'cancelled'))
+          || (resource.data.status == 'accepted'
+            && (request.resource.data.status == 'processing' || request.resource.data.status == 'cancelled'))
+          || (resource.data.status == 'processing'
+            && (request.resource.data.status == 'shipped' || request.resource.data.status == 'cancelled'))
+          || (resource.data.status == 'shipped'
+            && request.resource.data.status == 'out_for_delivery')
+          || (resource.data.status == 'out_for_delivery'
+            && request.resource.data.status == 'delivered')
+        );
+    }
+
+    function buyerOrderTransitionAllowed() {
+      return request.auth.uid == resource.data.buyerUid
+        && (
+          ((resource.data.status == 'requested' || resource.data.status == 'accepted')
+            && request.resource.data.status == 'cancelled')
+          || (resource.data.status == 'delivered'
+            && request.resource.data.status == 'return_requested')
+        );
+    }
+
+    function validOrderUpdate() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','updatedAt'])
+        && request.resource.data.updatedAt == request.time
+        && (sellerOrderTransitionAllowed() || buyerOrderTransitionAllowed());
+    }
+
+    match /users/{uid} {
+      allow read: if owns(uid);
+      allow create: if owns(uid) && validProfileCreate(uid);
+      allow update: if owns(uid) && validProfileNameEdit()
+        || verifiedOwner(uid) && (validMiningStart() || validMiningFinish());
       allow delete: if false;
     }
 
     match /withdrawalRequests/{id} {
-      allow read: if request.auth != null && resource.data.uid == request.auth.uid;
+      allow read: if signedIn() && resource.data.uid == request.auth.uid;
       allow create, update, delete: if false;
+    }
+
+    match /chatMessages/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn() && validChatMessage();
+      allow update, delete: if false;
+    }
+
+    match /marketplaceListings/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn() && validListingCreate();
+      allow update: if signedIn() && validListingUpdate();
+      allow delete: if signedIn() && request.auth.uid == resource.data.sellerUid;
+    }
+
+    match /marketplaceOrders/{id} {
+      allow read: if signedIn() && (request.auth.uid == resource.data.buyerUid || request.auth.uid == resource.data.sellerUid);
+      allow create: if signedIn() && validOrderCreate();
+      allow update: if signedIn() && validOrderUpdate();
+      allow delete: if false;
     }
 
     match /{document=**} {

@@ -10,6 +10,10 @@
   const DAY = 86400000;
 
   async function call(name, data = {}) {
+    if(typeof window.nexusRequireAppCheck !== "function"){
+      throw new Error("App Check is unavailable. Reload the app after it has been configured.");
+    }
+    await window.nexusRequireAppCheck();
     const [{getApps}, {getFunctions, httpsCallable}] = await Promise.all([
       import("https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js"),
       import("https://www.gstatic.com/firebasejs/12.1.0/firebase-functions.js")
@@ -64,13 +68,46 @@
     timerId=setInterval(tick,1000);
   }
 
+  async function finishMining(){
+    try{
+      const r=await call("finishMiningSession");
+      const balance=Number(r.balance);
+      if(Number.isFinite(balance)){
+        const el=document.getElementById("balance");
+        const wb=document.getElementById("walletBalance");
+        if(el) el.textContent=balance.toFixed(4);
+        if(wb) wb.textContent=balance.toFixed(4)+" NVX";
+      }
+      if(typeof window.nexusApplySecureAccountState === "function"){
+        window.nexusApplySecureAccountState(r);
+      }
+      if(r.finished){
+        renderMining(false,0);
+        alert("+"+Number(r.earned||0).toFixed(4)+" NVX mined!");
+      }
+      return r;
+    }catch(e){
+      console.error("Secure mining finish:",e);
+      const timer=document.getElementById("timer");
+      if(timer) timer.textContent="SYNC ERROR — TRY AGAIN";
+      throw e;
+    }
+  }
+
   async function startMining(){
+    const b=document.getElementById("mineBtn");
+    if(b) b.disabled=true;
     try{
       const r=await call("startMiningSession");
       renderMining(true,Number(r.startedAt)||Date.now());
+      if(typeof window.nexusApplySecureAccountState === "function"){
+        window.nexusApplySecureAccountState(r);
+      }
     }catch(e){
       console.error("Secure mining start:",e);
       alert(e?.message||"Mining could not be started.");
+    }finally{
+      if(b) b.disabled=false;
     }
   }
 
@@ -85,6 +122,9 @@
         const wb=document.getElementById("walletBalance");
         if(el) el.textContent=bal.toFixed(4);
         if(wb) wb.textContent=bal.toFixed(4)+" NVX";
+      }
+      if(typeof window.nexusApplySecureAccountState === "function"){
+        window.nexusApplySecureAccountState(r);
       }
       alert("+"+Number(r.reward||5).toFixed(2)+" NVX added! 🎁");
       if(typeof window.updateDailyButton==="function") window.updateDailyButton();
@@ -107,19 +147,33 @@
         if(el) el.textContent=bal.toFixed(4);
         if(wb) wb.textContent=bal.toFixed(4)+" NVX";
       }
+      if(typeof window.nexusApplySecureAccountState === "function"){
+        window.nexusApplySecureAccountState(r);
+      }
       alert("+"+Number(r.reward||0).toFixed(2)+" NVX added! 🎁");
       if(typeof window.updateTaskButtons==="function") window.updateTaskButtons();
     }catch(e){
       alert(e?.message||"Task reward could not be claimed.");
-      if(b){b.disabled=false;b.textContent="🎯 CLAIM +10 NVX";}
+      if(b){b.disabled=false;b.textContent="VERIFICATION REQUIRED";}
     }
   }
 
-  window.claimDailyReward=claimDaily;
-  window.completeTask=task;
+  function installSecureHandlers(){
+    window.claimDailyReward=claimDaily;
+    window.completeTask=task;
+    const mine=document.getElementById("mineBtn");
+    if(mine) mine.onclick=startMining;
+  }
 
-  const mine=document.getElementById("mineBtn");
-  if(mine) mine.onclick=startMining;
+  // Explicit exports let compatibility code proxy safely instead of keeping
+  // its own client-side writes to mining and reward fields.
+  window.nexusSecureStartMining=startMining;
+  window.nexusSecureFinishMining=finishMining;
+  window.nexusSecureClaimDaily=claimDaily;
+  window.nexusSecureCompleteTask=task;
+  window.nexusSecureRenderMining=renderMining;
+  installSecureHandlers();
+  window.addEventListener("load",installSecureHandlers,{once:true});
 
   // If a previously active session is loaded, use the server timestamp as
   // the client display source; no client reward is ever written.

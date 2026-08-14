@@ -1,4 +1,4 @@
-/* NexusNova Super-App Expansion V1 */
+/* NexusNova Super-App Expansion V4 */
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -7,7 +7,15 @@
 
   function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));}
 
-  // Daily dashboard
+  function loadLateScript(src, marker){
+    if(document.querySelector(`script[${marker}]`)) return;
+    const script=document.createElement('script');
+    script.src=src;
+    script.setAttribute(marker,'1');
+    script.onerror=()=>console.warn(`NexusNova late module failed: ${src}`);
+    document.body.appendChild(script);
+  }
+
   window.nxBuildDailyBrief = () => {
     const out=$("nxDailyBrief"); if(!out) return;
     const now=new Date();
@@ -17,7 +25,6 @@
       `Upcoming events: ${events.length} • Saved notes: ${notes.length} • NexusNova is ready for your day.`;
   };
 
-  // Teacher tools
   window.nxGenerateLesson=()=>{
     const topic=$("nxLessonTopic")?.value.trim()||"Lesson";
     const notes=$("nxLessonNotes")?.value.trim()||"";
@@ -41,7 +48,6 @@
     $("nxTimetableOut").textContent="Timetable saved on this device.";
   };
 
-  // Calendar
   function renderEvents(){
     const list=$("nxEventsList"); if(!list)return;
     const arr=load("events",[]).sort((a,b)=>new Date(a.date)-new Date(b.date));
@@ -54,7 +60,6 @@
   };
   window.nxDeleteEvent=i=>{const a=load("events",[]);a.splice(i,1);store("events",a);renderEvents();};
 
-  // Document expiry reminders (metadata only; not file storage)
   function renderDocs(){
     const list=$("nxDocsList");if(!list)return;
     const arr=load("docs",[]);
@@ -66,7 +71,6 @@
   };
   window.nxDeleteDocument=i=>{const a=load("docs",[]);a.splice(i,1);store("docs",a);renderDocs();};
 
-  // Shopping foundation
   window.nxShopSearch=()=>{
     const q=($("nxShopSearch")?.value||"").toLowerCase();
     document.querySelectorAll("#nxShopProducts .product-card").forEach(c=>c.style.display=(!q||c.textContent.toLowerCase().includes(q))?"":"none");
@@ -79,26 +83,34 @@
 
   window.nxTrackOrder=()=>{
     const n=$("nxOrderTrack")?.value.trim();
-    $("nxOrderResult").textContent=n?`Tracking lookup prepared for ${n}. Connect a courier API for live status.`:"Enter a tracking number.";
+    $("nxOrderResult").textContent=n?`Tracking number ${n} saved for lookup. Live courier status needs a configured courier API.`:"Enter a tracking number.";
   };
 
-  // Islamic utilities
   window.nxOpenPrayer=()=>{
-    const candidates=["https://www.islamicfinder.org/prayer-widget/","https://www.google.com/search?q=prayer+times+near+me"];
-    window.open(candidates[0],"_blank","noopener,noreferrer");
+    const url="https://www.islamicfinder.org/prayer-widget/";
+    if(typeof window.nxOpenExternal==='function') window.nxOpenExternal(url);
+    else window.open(url,"_blank","noopener,noreferrer");
   };
+
+  function renderTasbeeh(){
+    const n=Number(localStorage.getItem("nexus_tasbeeh")||0);
+    if($("nxTasbeehOut"))$("nxTasbeehOut").innerHTML=`Tasbeeh count: <b>${n}</b> <button type="button" onclick="nxResetTasbeeh()">Reset</button>`;
+  }
   window.nxTasbeeh=()=>{
     let n=Number(localStorage.getItem("nexus_tasbeeh")||0);
     n++;
     localStorage.setItem("nexus_tasbeeh",String(n));
-    if($("nxTasbeehOut"))$("nxTasbeehOut").innerHTML=`Tasbeeh count: <b>${n}</b> <button onclick="localStorage.setItem('nexus_tasbeeh','0');nxTasbeeh()">Reset</button>`;
+    renderTasbeeh();
+  };
+  window.nxResetTasbeeh=()=>{
+    localStorage.setItem("nexus_tasbeeh","0");
+    renderTasbeeh();
   };
   window.nxHijri=()=>{
     const d=new Date();
     if($("nxTasbeehOut"))$("nxTasbeehOut").textContent=`Today: ${d.toLocaleDateString("en-u-ca-islamic",{day:"numeric",month:"long",year:"numeric"})}`;
   };
 
-  // Security status
   window.nxSecurityCheck=()=>{
     const https=location.protocol==="https:"||location.hostname==="localhost";
     const secure=window.isSecureContext;
@@ -109,10 +121,18 @@
   };
 
   window.addEventListener("load",()=>{
-    renderEvents();renderDocs();nxBuildDailyBrief();nxSecurityCheck();
+    renderEvents();renderDocs();nxBuildDailyBrief();nxSecurityCheck();renderTasbeeh();
     const tt=load("timetable","");
     if($("nxTimetable"))$("nxTimetable").value=tt;
+
+    setTimeout(()=>{
+      loadLateScript('./js/nexusnova-learning-engine-v1.js?v=3','data-nx-learning-engine');
+      loadLateScript('./js/nexusnova-islamic-extras-v1.js?v=1','data-nx-islamic-extras');
+      loadLateScript('./js/nexusnova-ai-authority-v2.js?v=2','data-nx-ai-authority-v2');
+      loadLateScript('./js/nexusnova-travel-live-v1.js?v=1','data-nx-travel-live');
+      loadLateScript('./js/nexusnova-smart-live-v1.js?v=1','data-nx-smart-live');
+    },1800);
   });
 
-  console.log("NexusNova Super-App expansion loaded.");
+  console.log("NexusNova Super-App expansion V4 loaded.");
 })();
