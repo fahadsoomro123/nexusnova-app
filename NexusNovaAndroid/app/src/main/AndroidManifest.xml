@@ -31,6 +31,13 @@
         </activity>
 
         <activity
+            android:name=".BrowserActivity"
+            android:exported="false"
+            android:label="NexusNova Browser"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
             android:name=".CallerSetupActivity"
             android:exported="false"
             android:label="Caller ID Setup" />
