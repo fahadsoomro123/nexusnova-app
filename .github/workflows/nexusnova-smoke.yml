@@ -40,7 +40,7 @@ jobs:
       - name: Verify single-owner mining architecture
         run: node .github/scripts/mining-architecture-smoke.mjs
 
-      - name: Verify smart local search and Spark rewards
+      - name: Verify smart search rewards profile and growth guards
         shell: bash
         run: |
           set -euo pipefail
@@ -48,7 +48,10 @@ jobs:
           const fs = require('fs');
           const search = fs.readFileSync('js/nexusnova-allapps-smart-search-v1.js','utf8');
           const rewards = fs.readFileSync('js/nexusnova-rewards-spark-v1.js','utf8');
+          const growth = fs.readFileSync('js/nexusnova-growth-center-v1.js','utf8');
+          const referral = fs.readFileSync('js/nexusnova-referral-capture-v1.js','utf8');
           const integrity = fs.readFileSync('js/final-integrity-fix.js','utf8');
+          const landing = fs.readFileSync('referral.html','utf8');
 
           if (!search.includes("local-first-v2")) throw new Error('Smart search v2 marker missing.');
           for (const token of ['quran','bukhari','surah','para','juz','tarjuma','hadith']) {
@@ -66,14 +69,25 @@ jobs:
           if (!rewards.includes('nxSparkDailyBound')) throw new Error('Direct Daily Reward click guard missing.');
           if (/httpsCallable|getFunctions\(/.test(rewards)) throw new Error('Spark rewards must not depend on Cloud Functions.');
 
+          if (!growth.includes("window.nexusGrowthCenterVersion = 'growth-v1'")) throw new Error('Growth Center version marker missing.');
+          for (const text of ['Referral Center','Mission Center','Reward Activity','Referral mining multipliers and referral NVX rewards are intentionally OFF']) {
+            if (!growth.includes(text)) throw new Error(`Growth Center safety/UI marker missing: ${text}`);
+          }
+          if (!growth.includes("fs.collection(db,'referrals')")) throw new Error('Growth Center referral metrics query missing.');
+          if (!referral.includes("status:'pending'")) throw new Error('Referral capture must begin as pending.');
+          if (!referral.includes("referrerUid === user.uid")) throw new Error('Client self-referral guard missing.');
+          if (!landing.includes('nexusnova_pending_referral_v1')) throw new Error('Referral landing capture key missing.');
+
           for (const target of [
             './js/nexusnova-rewards-spark-v1.js?v=2',
             './js/nexusnova-allapps-smart-search-v1.js?v=4',
-            './js/nexusnova-complete-profile-v1.js?v=1'
+            './js/nexusnova-complete-profile-v1.js?v=1',
+            './js/nexusnova-growth-center-v1.js?v=1',
+            './js/nexusnova-referral-capture-v1.js?v=1'
           ]) {
             if (!integrity.includes(target)) throw new Error(`Direct critical loader missing: ${target}`);
           }
-          console.log('Smart search + Spark rewards + Complete Profile loader regression guard passed.');
+          console.log('Smart search + rewards + profile + Growth Center regression guards passed.');
           NODE
 
       - name: Verify critical live modules exist
@@ -87,6 +101,8 @@ jobs:
             js/nexusnova-allapps-smart-search-v1.js \
             js/nexusnova-complete-profile-v1.js \
             js/nexusnova-community-progress-v1.js \
+            js/nexusnova-growth-center-v1.js \
+            js/nexusnova-referral-capture-v1.js \
             js/nexusnova-file-vault-v1.js \
             js/nexusnova-security-lock-v1.js \
             js/nexusnova-marketplace-live-v1.js \
@@ -99,6 +115,7 @@ jobs:
             js/nexusnova-ai-authority-v2.js; do
               test -s "$file" || { echo "Missing/empty: $file"; exit 1; }
           done
+          test -s referral.html || { echo "Missing/empty: referral.html"; exit 1; }
 
       - name: Verify Smart Live loader targets
         shell: bash
@@ -153,4 +170,4 @@ jobs:
         run: npm install --no-save firebase@12.1.0 @firebase/rules-unit-testing@5.0.0 firebase-tools@14.12.1
 
       - name: Run Firestore rules smoke
-        run: npx firebase emulators:exec --only firestore --project demo-nexusnova-rules "node .github/scripts/firestore-rules-smoke.mjs && node .github/scripts/nexusnova-profile-rules-smoke.mjs"
+        run: npx firebase emulators:exec --only firestore --project demo-nexusnova-rules "node .github/scripts/firestore-rules-smoke.mjs && node .github/scripts/nexusnova-profile-rules-smoke.mjs && node .github/scripts/referral-rules-smoke.mjs"
