@@ -1,4 +1,4 @@
-/* NexusNova Smart Live v3.5
+/* NexusNova Smart Live v3.6
    Connects Smart Hub camera/daily brief to real AI flows and boots late live modules. */
 (() => {
   'use strict';
@@ -109,7 +109,8 @@
     loadModule({tab:'tab-mega-orders',flag:'__nxOrdersLiveV1',marker:'data-nx-orders-live',src:'./js/nexusnova-orders-live-v1.js?v=1',error:'NexusNova Orders live module failed to load.'});
     loadModule({tab:'tab-mega-notifications',flag:'__nxFcmV1',marker:'data-nx-fcm',src:'./js/nexusnova-fcm-v1.js?v=1',error:'NexusNova FCM push module failed to load.'});
     loadModule({tab:'tab-mega-teacher',flag:'__nxTeacherLiveV2',marker:'data-nx-teacher-live',src:'./js/nexusnova-teacher-live-v2.js?v=2',error:'NexusNova Teacher Toolkit live module failed to load.'});
-    loadModule({tab:null,flag:'__nxAllAppsSmartSearchV1',marker:'data-nx-allapps-smart-search',src:'./js/nexusnova-allapps-smart-search-v1.js?v=2',error:'NexusNova ALL APPS smart search failed to load.'});
+    loadModule({tab:null,flag:'__nxRewardsSparkV1',marker:'data-nx-rewards-spark',src:'./js/nexusnova-rewards-spark-v1.js?v=1',error:'NexusNova Spark rewards module failed to load.'});
+    loadModule({tab:null,flag:'__nxAllAppsSmartSearchV2',marker:'data-nx-allapps-smart-search',src:'./js/nexusnova-allapps-smart-search-v1.js?v=3',error:'NexusNova ALL APPS smart search failed to load.'});
   }
 
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>setTimeout(install,1200),{once:true});
