@@ -51,7 +51,13 @@ try {
   await page.evaluate(()=>window.nexusOpenAppTour());
   await page.waitForSelector('#nxOnboardingOverlay:not([hidden])');
   assert.match(await page.textContent('#nxTourTitle'),/Meet NexusNova/i);
-  for(let i=0;i<5;i++) await page.click('#nxTourNext');
+  const tourStepCount=await page.evaluate(()=>{
+    const counter=String(document.getElementById('nxTourCounter')?.textContent||'');
+    const match=counter.match(/\/(\d+)\s*$/);
+    return Number(match?.[1]||0);
+  });
+  assert.ok(tourStepCount>0,'Onboarding step count was not available.');
+  for(let i=0;i<tourStepCount;i++) await page.click('#nxTourNext');
   await page.waitForFunction(()=>document.getElementById('nxOnboardingOverlay')?.hidden===true);
   const state=await page.evaluate(()=>JSON.parse(localStorage.getItem('nexusnova_onboarding_v1_state')||'null'));
   assert.equal(state.status,'completed');
