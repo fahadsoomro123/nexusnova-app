@@ -7,7 +7,10 @@ const referrer = String(document.referrer || '').toLowerCase();
 const isNexusNovaDevHost =
   host === 'localhost' ||
   host === '127.0.0.1' ||
+  host.includes('--3000--') ||
+  host.includes('webcontainer') ||
   host.endsWith('.webcontainer.io') ||
+  host.endsWith('.webcontainer-api.io') ||
   host.endsWith('.stackblitz.io') ||
   host === 'stackblitz.com' ||
   host.endsWith('.stackblitz.com') ||
@@ -23,4 +26,4 @@ if (meta) {
   meta.setAttribute('content', '6LfEc4QtAAAAAOohkqSv0p76iwPTeHI98hqVlwIs');
 }
 
-await import('./page2-core.js?v=appcheck-debug-1');
+await import('./page2-core.js?v=appcheck-debug-2');
