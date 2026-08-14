@@ -9,6 +9,10 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == uid;
     }
 
+    function verifiedOwner(uid) {
+      return owns(uid) && request.auth.token.email_verified == true;
+    }
+
     function validCurrency(value) {
       return value == 'PKR' || value == 'USD' || value == 'EUR' || value == 'GBP';
     }
@@ -53,6 +57,42 @@ service cloud.firestore {
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0
         && request.resource.data.name.size() <= 80;
+    }
+
+    // Spark-plan secure mining fallback. The browser can propose a current
+    // millisecond timestamp, but Firestore's trusted request.time limits it to
+    // a narrow window. The client cannot backdate a session or mint arbitrary
+    // NVX because the allowed field changes and reward amount are exact.
+    function freshMiningMillis(value) {
+      return value is int
+        && value >= request.time.toMillis() - 60000
+        && value <= request.time.toMillis() + 60000;
+    }
+
+    function validMiningStart() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['miningActive', 'miningStartedAt', 'miningLastUpdate'])
+        && resource.data.miningActive == false
+        && resource.data.miningStartedAt == 0
+        && request.resource.data.miningActive == true
+        && freshMiningMillis(request.resource.data.miningStartedAt)
+        && request.resource.data.miningLastUpdate == request.resource.data.miningStartedAt;
+    }
+
+    function validMiningFinish() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['balance', 'totalMined', 'miningActive', 'miningStartedAt', 'miningLastUpdate'])
+        && resource.data.miningActive == true
+        && resource.data.miningStartedAt is int
+        && resource.data.miningStartedAt > 0
+        && request.time.toMillis() - resource.data.miningStartedAt >= 86400000
+        && resource.data.balance is number
+        && resource.data.totalMined is number
+        && request.resource.data.balance == resource.data.balance + 24
+        && request.resource.data.totalMined == resource.data.totalMined + 24
+        && request.resource.data.miningActive == false
+        && request.resource.data.miningStartedAt == 0
+        && freshMiningMillis(request.resource.data.miningLastUpdate);
     }
 
     function validChatMessage() {
@@ -175,7 +215,8 @@ service cloud.firestore {
     match /users/{uid} {
       allow read: if owns(uid);
       allow create: if owns(uid) && validProfileCreate(uid);
-      allow update: if owns(uid) && validProfileNameEdit();
+      allow update: if owns(uid) && validProfileNameEdit()
+        || verifiedOwner(uid) && (validMiningStart() || validMiningFinish());
       allow delete: if false;
     }
 
