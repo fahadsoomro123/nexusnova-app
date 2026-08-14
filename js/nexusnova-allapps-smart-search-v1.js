@@ -1,9 +1,13 @@
-/* NexusNova ALL APPS Smart Search v2
+/* NexusNova ALL APPS Smart Search v2.1
    Local-first feature discovery with hidden intent tags, typo tolerance,
-   and target-tab content indexing. AI never auto-opens on a local miss. */
+   target-tab content indexing, and deep routing inside supported hubs.
+   AI never auto-opens on a local miss. */
 (() => {
   'use strict';
   if (window.__nxAllAppsSmartSearchV2) return;
+  // Keep the old capability flag for older integration tests/loaders while v2
+  // remains the authoritative implementation.
+  window.__nxAllAppsSmartSearchV1 = true;
   window.__nxAllAppsSmartSearchV2 = true;
 
   const TAGS = {
@@ -175,10 +179,40 @@
       .sort((a,b) => b.score - a.score || a.label.localeCompare(b.label));
   }
 
+  function faithRoute(query) {
+    const q = normalize(query);
+    const quran = ['quran','quran pak','holy quran','koran','surah','surat','ayat','ayah','para','juz','sipara','tilawat','recitation','tarjuma','tafseer','tafsir'];
+    const bukhari = ['bukhari','sahih bukhari','hadith','hadees','ahadith'];
+    if (quran.some(term => q === term || q.includes(term))) return 'quran';
+    if (bukhari.some(term => q === term || q.includes(term))) return 'bukhari';
+    return '';
+  }
+
+  function deepRoute(row, query) {
+    if (row?.label !== 'ISLAMIC HUB') return;
+    const faith = faithRoute(query);
+    if (!faith) return;
+    let done = false;
+    const activate = () => {
+      if (done) return;
+      const hub = document.getElementById('tab-mega-islamic') || document.getElementById(`tab-${row.target}`);
+      const button = hub?.querySelector(`[data-faith="${faith}"]`);
+      if (!button) return;
+      done = true;
+      button.click();
+      const focus = faith === 'quran'
+        ? (document.getElementById('nxQuranSurah') || document.getElementById('faith-quran'))
+        : (document.getElementById('faith-bukhari') || button);
+      setTimeout(() => focus?.scrollIntoView?.({behavior:'smooth',block:'start'}), 80);
+    };
+    [80,220,500,900,1500].forEach(ms => setTimeout(activate, ms));
+  }
+
   function openResult(row, query) {
     if (!row?.button) return;
     try { row.button.click(); }
     catch (_) { if (row.target) window.openMoreTab?.(row.target); }
+    deepRoute(row, query);
     try { localStorage.setItem('nexusnova_last_allapps_search', JSON.stringify({query, label:row.label, target:row.target, at:Date.now()})); } catch (_) {}
   }
 
@@ -280,7 +314,7 @@
   }
 
   window.nexusAllAppsSmartSearch = query => ranked(query).slice(0,8).map(row => ({label:row.label,target:row.target,score:row.score}));
-  window.nexusAllAppsSmartSearchVersion = 'local-first-v2';
+  window.nexusAllAppsSmartSearchVersion = 'local-first-v2.1';
 
   const boot = () => {
     install();
