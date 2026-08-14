@@ -29,7 +29,7 @@
   function bind() {
     const button = findButton();
     if (!button) return;
-    if (!button.id) button.id = 'rewardedAdBtn';
+    button.id = 'rewardedAdBtn';
     ensureStatus(button);
     if (button.dataset.nxSecureRewardedBound === '1') return;
     button.dataset.nxSecureRewardedBound = '1';
