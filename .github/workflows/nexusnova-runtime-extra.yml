@@ -58,5 +58,8 @@ jobs:
       - name: Run Growth Center referral and mission browser check
         run: node .github/scripts/nexusnova-growth-runtime.mjs
 
+      - name: Run onboarding and private insights browser check
+        run: node .github/scripts/nexusnova-onboarding-runtime.mjs
+
       - name: Run local tools browser checks
         run: node .github/scripts/nexusnova-local-tools-runtime.mjs
