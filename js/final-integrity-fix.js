@@ -70,6 +70,7 @@
   loadCritical({flag:'__nxBugReportV1',marker:'data-nx-bug-report',src:'./js/nexusnova-bug-report-v1.js?v=1',error:'NexusNova bug reporting failed to load.'});
   loadCritical({flag:'__nxHealthMonitorV1',marker:'data-nx-health-monitor',src:'./js/nexusnova-health-monitor-v1.js?v=1',error:'NexusNova automatic local health monitor failed to load.'});
   loadCritical({flag:'__nxNexusBrowserV1',marker:'data-nx-browser',src:'./js/nexusnova-browser-v1.js?v=1',error:'NexusNova Browser failed to load.'});
+  loadCritical({flag:'__nxNexusBrowserGuardV1',marker:'data-nx-browser-guard',src:'./js/nexusnova-browser-guard-v1.js?v=1',error:'NexusNova Browser guard failed to load.'});
 
   await import('./final-integrity-fix-core.js?v=3');
 
