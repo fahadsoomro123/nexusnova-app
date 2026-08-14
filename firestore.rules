@@ -59,6 +59,30 @@ service cloud.firestore {
         && request.resource.data.name.size() <= 80;
     }
 
+    // Complete Profile edits are intentionally isolated from all value-bearing
+    // account fields. A profile photo is a small client-compressed JPEG data URI;
+    // arbitrary extra fields, email changes, balances and mining state are denied.
+    function validProfileDetailsEdit() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['name', 'photoDataUrl', 'bio', 'city', 'country', 'profileUpdatedAt'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 80
+        && request.resource.data.get('photoDataUrl', '') is string
+        && request.resource.data.get('photoDataUrl', '').size() <= 180000
+        && (
+          request.resource.data.get('photoDataUrl', '') == ''
+          || request.resource.data.get('photoDataUrl', '').matches('^data:image/jpeg;base64,.*$')
+        )
+        && request.resource.data.get('bio', '') is string
+        && request.resource.data.get('bio', '').size() <= 180
+        && request.resource.data.get('city', '') is string
+        && request.resource.data.get('city', '').size() <= 80
+        && request.resource.data.get('country', '') is string
+        && request.resource.data.get('country', '').size() <= 80
+        && request.resource.data.profileUpdatedAt == request.time;
+    }
+
     // Spark-plan secure value transitions. The browser proposes a current
     // millisecond timestamp, but Firestore's trusted request.time limits it to
     // a narrow window. This prevents backdating cooldowns/sessions.
@@ -308,7 +332,7 @@ service cloud.firestore {
     match /users/{uid} {
       allow read: if owns(uid);
       allow create: if owns(uid) && validProfileCreate(uid);
-      allow update: if (owns(uid) && validProfileNameEdit())
+      allow update: if (owns(uid) && (validProfileNameEdit() || validProfileDetailsEdit()))
         || (verifiedOwner(uid) && (
           validMiningStart()
           || validMiningFinish()
