@@ -100,6 +100,12 @@
     src:'./js/nexusnova-complete-profile-v1.js?v=1',
     error:'NexusNova Complete Profile failed to load.'
   });
+  loadCritical({
+    flag:'__nxGrowthCenterV1',
+    marker:'data-nx-growth-center',
+    src:'./js/nexusnova-growth-center-v1.js?v=1',
+    error:'NexusNova Growth Center failed to load.'
+  });
 
   await import('./final-integrity-fix-core.js?v=3');
 
