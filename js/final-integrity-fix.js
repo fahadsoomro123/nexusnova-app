@@ -102,4 +102,13 @@
   });
 
   await import('./final-integrity-fix-core.js?v=3');
+
+  // page2-core historically owns a name-only Settings editor. It can finish
+  // after dynamically loaded modules, so re-bind Settings to the complete
+  // profile editor once all critical scripts have had time to initialize.
+  [250, 750, 1500, 3000, 6000].forEach(ms => setTimeout(() => {
+    if (typeof window.nexusOpenCompleteProfile === 'function') {
+      window.editSettingsProfile = window.nexusOpenCompleteProfile;
+    }
+  }, ms));
 })();
