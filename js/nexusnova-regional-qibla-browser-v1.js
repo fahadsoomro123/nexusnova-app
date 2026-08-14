@@ -1,4 +1,4 @@
-/* NexusNova Regional News + Qibla + Entertainment + Web Launcher + Caller ID V3 */
+/* NexusNova Regional News + Qibla + Entertainment + Browser Bootstrap V4 */
 (() => {
   "use strict";
 
@@ -47,6 +47,78 @@
   }
 
   window.nxOpenExternal = url => { openExternal(url); };
+
+  /* ---------------------------------------------------------
+     UI stability hotfix
+     - ALL APPS becomes its own screen instead of overlaying Home/Mining.
+     - Browser stays visually #2 without moving/rebuilding DOM nodes.
+     - Splash exits quickly without waiting for slow window.load resources.
+     This does not reorder DOM, replace app click handlers, or touch app modules.
+  --------------------------------------------------------- */
+  function installUiStability(){
+    if(!document.getElementById('nxRegionalUiStabilityV4')){
+      const style=document.createElement('style');
+      style.id='nxRegionalUiStabilityV4';
+      style.textContent=`
+        body.nx-allapps-open main.main{display:none!important}
+        body.nx-allapps-open #moreMenu.more-menu{
+          position:relative!important;
+          left:auto!important;right:auto!important;top:auto!important;bottom:auto!important;
+          display:block!important;
+          min-height:calc(100vh - 150px)!important;
+          max-height:none!important;
+          overflow:visible!important;
+          margin:0!important;
+          padding:16px 12px 96px!important;
+        }
+        body.nx-allapps-open #moreMenu .more-inner{max-width:900px!important;margin:0 auto!important}
+        #moreMenu .more-item[onclick*="openMoreTab('tools')"]{order:-2}
+        #moreMenu .more-item[onclick*="openMoreTab('browser')"]{order:-1}
+        #moreMenu .more-item[onclick*="openMoreTab('browser')"] .mi-icon{
+          position:relative!important;background:linear-gradient(145deg,#ff3455,#8b1630)!important;
+          border-color:rgba(255,116,137,.78)!important;
+          box-shadow:0 10px 28px rgba(255,45,76,.30),inset 0 1px 0 rgba(255,255,255,.30)!important;
+          color:#fff!important
+        }
+        #moreMenu .more-item[onclick*="openMoreTab('browser')"] .mi-icon svg{display:none!important}
+        #moreMenu .more-item[onclick*="openMoreTab('browser')"] .mi-icon:before{
+          content:'N';display:grid;place-items:center;position:absolute;inset:0;color:#fff;
+          font-size:28px;font-weight:1000;line-height:1;text-shadow:0 2px 10px rgba(0,0,0,.24)
+        }
+        #moreMenu .more-item[onclick*="openMoreTab('browser')"]>span:last-child{font-size:0!important}
+        #moreMenu .more-item[onclick*="openMoreTab('browser')"]>span:last-child:after{
+          content:'NexusNova Browser';display:block;font-size:9.5px;font-weight:900;line-height:1.08;
+          letter-spacing:.01em;color:inherit;white-space:normal
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
+    const splash=$("nxSplash");
+    if(splash && splash.dataset.nxFastExit!=="1"){
+      splash.dataset.nxFastExit="1";
+      setTimeout(()=>{
+        if(!splash.isConnected) return;
+        splash.classList.add('hide');
+        splash.style.pointerEvents='none';
+        setTimeout(()=>{ try{splash.remove();}catch(_){} },420);
+      },450);
+    }
+
+    document.addEventListener('click', event=>{
+      if(event.target.closest('#moreBtn')){
+        setTimeout(()=>{
+          const menu=$("moreMenu");
+          const open=Boolean(menu?.classList.contains('show') && getComputedStyle(menu).display!=='none');
+          document.body.classList.toggle('nx-allapps-open',open);
+        },0);
+      }else if(event.target.closest('#moreMenu .more-item')){
+        setTimeout(()=>document.body.classList.remove('nx-allapps-open'),0);
+      }
+    },true);
+  }
+
+  installUiStability();
 
   const NEWS_QUERIES = {
     breaking: "Pakistan breaking latest news",
@@ -175,16 +247,20 @@
     if(!status) return;
     status.innerHTML="";
     const text=document.createElement("span");
-    text.textContent=message+" ";
-    const link=document.createElement("a");
-    link.href=url;
-    link.target="_blank";
-    link.rel="noopener noreferrer";
-    link.textContent="Open website";
-    link.style.color="var(--accent,#00f5d4)";
-    status.append(text,link);
+    text.textContent=message;
+    status.append(text);
   }
 
+  function nativeBrowserOpen(url){
+    if(typeof window.NexusBrowserAndroid?.postMessage !== 'function') return false;
+    try{
+      window.NexusBrowserAndroid.postMessage(JSON.stringify({action:'open',url}));
+      return true;
+    }catch(_){ return false; }
+  }
+
+  /* Legacy fallback is deliberately non-external. Browser V4 replaces these
+     functions as soon as its script finishes loading. */
   window.nxBrowse = () => {
     const input=$("nxBrowserUrl"), status=$("nxBrowserStatus");
     const url=validHttp(input?.value?.trim() || "");
@@ -193,14 +269,12 @@
       return;
     }
     if(input) input.value=url;
-
-    const opened=openExternal(url);
-    renderBrowserFallback(
-      url,
-      opened
-        ? "Opened as a real web page. Universal iframe browsing is blocked by many sites."
-        : "Your preview/browser blocked the new page."
-    );
+    if(nativeBrowserOpen(url)){
+      if(status) status.textContent='Opening inside NexusNova Browser…';
+      return;
+    }
+    loadBrowserNow();
+    renderBrowserFallback(url,"NexusNova Browser is loading. Automatic Chrome redirect is disabled.");
   };
 
   window.nxBrowsePreset = url => {
@@ -238,30 +312,37 @@
   };
 
   function loadLateScript(src, marker){
-    if(document.querySelector(`script[${marker}]`)) return;
+    const existing=document.querySelector(`script[${marker}]`);
+    if(existing) return existing;
     const script=document.createElement('script');
     script.src=src;
     script.setAttribute(marker,'1');
     script.onerror=()=>console.warn(`NexusNova late script failed: ${src}`);
     document.body.appendChild(script);
+    return script;
   }
+
+  function loadBrowserNow(){
+    if(!document.getElementById('tab-browser')) return;
+    const loadExtensions=()=>{
+      loadLateScript('./js/nexusnova-browser-extensions-v1.js?v=2-ui-stable','data-nx-browser-extensions');
+    };
+    if(window.__nxNexusBrowserV4){
+      loadExtensions();
+      return;
+    }
+    const browserScript=loadLateScript('./js/nexusnova-browser-v1.js?v=4-ui-stable','data-nx-browser-shell');
+    browserScript?.addEventListener('load',loadExtensions,{once:true});
+    setTimeout(()=>{ if(window.__nxNexusBrowserV4) loadExtensions(); },900);
+  }
+
+  /* Browser must be ready before the user can interact with ALL APPS. */
+  loadBrowserNow();
 
   window.addEventListener("load", () => {
     setTimeout(() => {
       if($("regionalNewsList")) window.nxRegionalNews("breaking");
     }, 800);
-
-    setTimeout(() => {
-      if(document.getElementById('tab-browser')) {
-        loadLateScript('./js/nexusnova-browser-v1.js?v=4','data-nx-browser-shell');
-      }
-    }, 350);
-
-    setTimeout(() => {
-      if(document.getElementById('tab-browser')) {
-        loadLateScript('./js/nexusnova-browser-extensions-v1.js?v=2','data-nx-browser-extensions');
-      }
-    }, 900);
 
     setTimeout(() => {
       if(document.getElementById('tab-mega-learning')) {
@@ -270,5 +351,5 @@
     }, 1800);
   });
 
-  console.log("NexusNova regional/Qibla/browser/caller module V3 loaded.");
+  console.log("NexusNova regional/Qibla/browser bootstrap V4 loaded.");
 })();
