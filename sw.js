@@ -1,5 +1,5 @@
 /* NexusNova Service Worker - fresh-code first, offline fallback + FCM web push */
-const CACHE = "nexusnova-shell-v10-fcm";
+const CACHE = "nexusnova-shell-v11-mining-single-owner";
 
 const ASSETS = [
   "./",
@@ -43,11 +43,6 @@ const ASSETS = [
   "./js/nexusnova-fcm-v1.js"
 ];
 
-/*
- * Keep the existing offline shell alive even if Firebase's remote messaging
- * scripts cannot be fetched. FCM is additive; an offline CDN must never break
- * NexusNova's core service worker registration.
- */
 try {
   importScripts(
     "https://www.gstatic.com/firebasejs/12.1.0/firebase-app-compat.js",
