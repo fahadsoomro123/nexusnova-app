@@ -94,6 +94,12 @@
     src:'./js/nexusnova-community-progress-v1.js?v=1',
     error:'NexusNova Community League failed to load.'
   });
+  loadCritical({
+    flag:'__nxCompleteProfileV1',
+    marker:'data-nx-complete-profile',
+    src:'./js/nexusnova-complete-profile-v1.js?v=1',
+    error:'NexusNova Complete Profile failed to load.'
+  });
 
   await import('./final-integrity-fix-core.js?v=3');
 })();
