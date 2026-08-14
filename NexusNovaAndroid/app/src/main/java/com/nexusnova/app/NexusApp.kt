@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.WebView
+import androidx.core.view.WindowCompat
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import org.json.JSONObject
@@ -24,7 +25,13 @@ class NexusApp : Application() {
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
             override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {
                 if (activity is MainActivity) {
-                    activity.window.decorView.post { installBrowserBridge(activity) }
+                    activity.window.decorView.post {
+                        // MainActivity creates an edge-to-edge WebView. Restore normal
+                        // system-window fitting after creation so NexusNova's fixed dock,
+                        // login and splash stay clear of Android navigation buttons.
+                        WindowCompat.setDecorFitsSystemWindows(activity.window, true)
+                        installBrowserBridge(activity)
+                    }
                 }
             }
 
