@@ -68,11 +68,12 @@ jobs:
 
           for (const target of [
             './js/nexusnova-rewards-spark-v1.js?v=2',
-            './js/nexusnova-allapps-smart-search-v1.js?v=4'
+            './js/nexusnova-allapps-smart-search-v1.js?v=4',
+            './js/nexusnova-complete-profile-v1.js?v=1'
           ]) {
             if (!integrity.includes(target)) throw new Error(`Direct critical loader missing: ${target}`);
           }
-          console.log('Smart search + Spark rewards regression guard passed.');
+          console.log('Smart search + Spark rewards + Complete Profile loader regression guard passed.');
           NODE
 
       - name: Verify critical live modules exist
@@ -84,6 +85,8 @@ jobs:
             js/nexusnova-rewards-spark-v1.js \
             js/nexusnova-smart-live-v1.js \
             js/nexusnova-allapps-smart-search-v1.js \
+            js/nexusnova-complete-profile-v1.js \
+            js/nexusnova-community-progress-v1.js \
             js/nexusnova-file-vault-v1.js \
             js/nexusnova-security-lock-v1.js \
             js/nexusnova-marketplace-live-v1.js \
@@ -150,4 +153,4 @@ jobs:
         run: npm install --no-save firebase@12.1.0 @firebase/rules-unit-testing@5.0.0 firebase-tools@14.12.1
 
       - name: Run Firestore rules smoke
-        run: npx firebase emulators:exec --only firestore --project demo-nexusnova-rules "node .github/scripts/firestore-rules-smoke.mjs"
+        run: npx firebase emulators:exec --only firestore --project demo-nexusnova-rules "node .github/scripts/firestore-rules-smoke.mjs && node .github/scripts/nexusnova-profile-rules-smoke.mjs"
