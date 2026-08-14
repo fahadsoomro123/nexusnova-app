@@ -3,6 +3,7 @@ name: NexusNova Runtime Browser Check
 on:
   push:
     branches:
+      - main
       - codex-final-audit
   workflow_dispatch:
 
