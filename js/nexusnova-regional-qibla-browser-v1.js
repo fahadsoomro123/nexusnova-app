@@ -1,4 +1,4 @@
-/* NexusNova Regional News + Qibla + Entertainment + Web Launcher + Caller ID V3 */
+/* NexusNova Regional News + Qibla + Entertainment + Web Launcher + Caller ID V4 */
 (() => {
   "use strict";
 
@@ -237,6 +237,79 @@
     openExternal(`https://www.google.com/search?q=${q}`);
   };
 
+  function openNexusBrowserFromAllApps(){
+    const section=$("tab-browser");
+    if(!section) return false;
+
+    try{
+      if(typeof window.openMoreTab === "function"){
+        window.openMoreTab("browser");
+      }else{
+        document.querySelectorAll(".tab").forEach(tab => tab.classList.remove("active"));
+        section.classList.add("active");
+        const menu=$("moreMenu");
+        if(menu){
+          menu.classList.remove("show","open","active");
+          menu.setAttribute("aria-hidden","true");
+        }
+        document.body.classList.add("nx-browser-open");
+      }
+    }catch(error){
+      console.warn("NexusNova browser launcher:", error);
+      document.querySelectorAll(".tab").forEach(tab => tab.classList.remove("active"));
+      section.classList.add("active");
+    }
+
+    try{ window.NexusNovaBrowser?.install?.(); }catch(_){ }
+    setTimeout(() => { try{ window.NexusNovaBrowser?.install?.(); }catch(_){ } }, 120);
+    window.scrollTo({top:0,behavior:"smooth"});
+    return true;
+  }
+
+  window.nxOpenNexusBrowser = openNexusBrowserFromAllApps;
+
+  function ensureBrowserLauncher(){
+    const menu=$("moreMenu");
+    if(!menu) return false;
+    const host=menu.querySelector(".more-inner") || menu;
+    let button=host.querySelector("[data-nx-browser-launcher]");
+    if(!button){
+      button=Array.from(host.querySelectorAll(".more-item")).find(node => /browser/i.test(node.textContent || "")) || null;
+    }
+    if(!button){
+      button=document.createElement("button");
+      button.type="button";
+      button.className="more-item";
+      host.appendChild(button);
+    }
+    button.dataset.nxBrowserLauncher="1";
+    button.type="button";
+    button.title="Open NexusNova Browser";
+    button.innerHTML='<span class="mi-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg></span><span>NexusNova Browser</span>';
+    button.onclick=event => {
+      event.preventDefault();
+      event.stopPropagation();
+      openNexusBrowserFromAllApps();
+    };
+
+    if(menu.dataset.nxBrowserWatch !== "1"){
+      menu.dataset.nxBrowserWatch="1";
+      let queued=false;
+      const observer=new MutationObserver(() => {
+        if(queued) return;
+        queued=true;
+        setTimeout(() => {
+          queued=false;
+          ensureBrowserLauncher();
+        }, 60);
+      });
+      observer.observe(menu,{childList:true,subtree:true});
+    }
+    return true;
+  }
+
+  window.nxEnsureBrowserLauncher = ensureBrowserLauncher;
+
   function loadLateScript(src, marker){
     if(document.querySelector(`script[${marker}]`)) return;
     const script=document.createElement('script');
@@ -247,6 +320,8 @@
   }
 
   window.addEventListener("load", () => {
+    [0,250,700,1400,2600,5000].forEach(ms => setTimeout(ensureBrowserLauncher, ms));
+
     setTimeout(() => {
       if($("regionalNewsList")) window.nxRegionalNews("breaking");
     }, 800);
@@ -270,5 +345,9 @@
     }, 1800);
   });
 
-  console.log("NexusNova regional/Qibla/browser/caller module V3 loaded.");
+  if(document.readyState === "complete" || document.readyState === "interactive"){
+    setTimeout(ensureBrowserLauncher, 0);
+  }
+
+  console.log("NexusNova regional/Qibla/browser/caller module V4 loaded.");
 })();
