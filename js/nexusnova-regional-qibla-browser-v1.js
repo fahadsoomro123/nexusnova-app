@@ -113,7 +113,7 @@
           document.body.classList.toggle('nx-allapps-open',open);
         },0);
       }else if(event.target.closest('#moreMenu .more-item')){
-        setTimeout(()=>document.body.classList.remove('nx-allapps-open'),0);
+        document.body.classList.remove('nx-allapps-open');
       }
     },true);
   }
