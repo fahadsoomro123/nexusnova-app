@@ -213,22 +213,26 @@ async function testFileVault() {
 async function testSecurityLock() {
   const html = `<section id="tab-mega-security"><button>Account</button><button>Privacy / Settings</button><button>Permission Manager</button><button>Wallet Security</button><button>App Lock</button><button>Data Backup</button></section>`;
   const {page,pageErrors} = await makePage(html);
-  await add(page, 'js/nexusnova-security-lock-v1.js?v=1');
+  await add(page, 'js/nexusnova-security-lock-v1.js?v=2');
   await page.waitForSelector('#nxSecurityAppLock');
-  const prompts=['1234','1234'];
-  page.on('dialog', async dialog => {
-    if(dialog.type()==='prompt') await dialog.accept(prompts.shift() ?? '1234');
-    else await dialog.accept();
-  });
+  assert.equal(await page.evaluate(() => window.nexusSecurityLockVersion),'browser-pin-v2');
+
   await page.click('#nxSecurityAppLock');
+  await page.waitForFunction(() => document.getElementById('nxAppLockSetupOverlay')?.style.display === 'flex', null, {timeout:12000});
+  await page.fill('#nxAppLockSetupPin','1234');
+  await page.fill('#nxAppLockSetupConfirm','1234');
+  await page.click('#nxAppLockSetupSave');
   await page.waitForFunction(() => document.getElementById('nxAppLockOverlay')?.style.display === 'flex', null, {timeout:12000});
+
+  const config = await page.evaluate(() => JSON.parse(localStorage.getItem('nexusnova_browser_app_lock_v1') || 'null'));
+  assert.ok(config?.hash && config?.salt);
+  assert.equal(JSON.stringify(config).includes('1234'),false);
+
   await page.fill('#nxAppLockPin','1234');
   await page.click('#nxAppUnlockBtn');
   await page.waitForFunction(() => document.getElementById('nxAppLockOverlay')?.style.display === 'none');
-  const config = await page.evaluate(() => JSON.parse(localStorage.getItem('nexusnova_browser_app_lock_v1') || 'null'));
-  assert.ok(config?.hash && config?.salt);
   assert.equal(pageErrors.length,0,pageErrors.join('\n'));
-  ok('Security App Lock', 'PIN setup + lock + unlock passed');
+  ok('Security App Lock', 'in-app PIN setup + PBKDF2 storage + unlock passed');
   await page.close();
 }
 
