@@ -280,6 +280,7 @@ class MainActivity : AppCompatActivity() {
     private fun installNativeMessageListener() {
         if (!WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) return
 
+        val trustedOrigins = setOf(LOCAL_APP_ORIGIN, PRODUCTION_APP_ORIGIN)
         val listener = WebViewCompat.WebMessageListener { _, message, sourceOrigin, isMainFrame, _ ->
             if (isMainFrame && isTrustedOrigin(sourceOrigin)) {
                 handleNativeMessage(message.data)
@@ -288,9 +289,52 @@ class MainActivity : AppCompatActivity() {
         WebViewCompat.addWebMessageListener(
             webView,
             NATIVE_BRIDGE_NAME,
-            setOf(LOCAL_APP_ORIGIN, PRODUCTION_APP_ORIGIN),
+            trustedOrigins,
             listener
         )
+
+        // Dedicated, origin-bound bridge for the NexusNova Browser shell.
+        // It is intentionally separate from the general native action bridge so
+        // remote iframes can never launch privileged NexusNova activities.
+        val browserListener = WebViewCompat.WebMessageListener { _, message, sourceOrigin, isMainFrame, _ ->
+            if (isMainFrame && isTrustedOrigin(sourceOrigin)) {
+                handleBrowserMessage(message.data)
+            }
+        }
+        WebViewCompat.addWebMessageListener(
+            webView,
+            BROWSER_BRIDGE_NAME,
+            trustedOrigins,
+            browserListener
+        )
+    }
+
+    private fun handleBrowserMessage(payload: String?) {
+        if (payload.isNullOrBlank() || payload.length > MAX_BRIDGE_MESSAGE_CHARS) return
+        val message = try {
+            JSONObject(payload)
+        } catch (_: Exception) {
+            return
+        }
+        if (message.optString("action") != BROWSER_ACTION_OPEN) return
+
+        val url = message.optString("url").trim()
+        if (url.isBlank() || url.length > MAX_EXTERNAL_URL_CHARS) return
+        val uri = try {
+            Uri.parse(url)
+        } catch (_: Exception) {
+            return
+        }
+        if (!uri.scheme.equals("https", ignoreCase = true) || uri.host.isNullOrBlank()) return
+
+        try {
+            startActivity(
+                Intent(this, BrowserActivity::class.java)
+                    .putExtra(BrowserActivity.EXTRA_URL, uri.toString())
+            )
+        } catch (_: Exception) {
+            // If the dedicated browser activity cannot launch, keep the main app alive.
+        }
     }
 
     private fun handleNativeMessage(payload: String?) {
@@ -538,6 +582,8 @@ class MainActivity : AppCompatActivity() {
         const val PRODUCTION_APP_URL = "https://fahadsoomro123.github.io/nexusnova-app/"
 
         const val NATIVE_BRIDGE_NAME = "NexusAndroid"
+        const val BROWSER_BRIDGE_NAME = "NexusBrowserAndroid"
+        const val BROWSER_ACTION_OPEN = "open"
 
         const val ACTION_SAVE_CONTACT = "saveContact"
         const val ACTION_DELETE_CONTACT = "deleteContact"
