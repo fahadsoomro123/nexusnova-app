@@ -54,6 +54,16 @@
     document.body.appendChild(polish);
   }
 
+  // ALL APPS repair/visual layer is isolated from feature business logic.
+  // It installs after window.load so the canonical navigation functions exist first.
+  if (!document.querySelector('script[data-nx-allapps-experience]')) {
+    const experience = document.createElement("script");
+    experience.src = "./js/nexusnova-allapps-experience-v2.js?v=2";
+    experience.setAttribute("data-nx-allapps-experience", "2");
+    experience.onerror = () => console.warn("NexusNova ALL APPS experience failed to load");
+    document.body.appendChild(experience);
+  }
+
   const FIREBASE_APP_URL = "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
   const config = {
     apiKey: "AIzaSyBU75WYp5ioaMD1LrNcDyAvROFW2wrTil0",
