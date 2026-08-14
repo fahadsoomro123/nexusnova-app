@@ -87,6 +87,15 @@
     <script src="https://www.google.com/recaptcha/api.js" async defer></script>
 <link rel="manifest" href="./manifest.webmanifest">
   <link rel="stylesheet" href="./css/index.css">
+
+<style id="nxAuthMobileSplashPolish">
+@media(max-width:700px){
+  #nxSplash{
+    min-height:100dvh!important;
+    padding:max(12px,env(safe-area-inset-top)) 16px calc(7vh + max(18px,env(safe-area-inset-bottom)))!important;
+  }
+}
+</style>
 </head>
 
 <body>
@@ -108,7 +117,7 @@
 </div>
 <script>
 (function(){
-  var minMs = 2800;
+  var minMs = 3200;
   var start = Date.now();
   function hide(){
     var el = document.getElementById("nxSplash");
