@@ -14,7 +14,7 @@ try {
     <div id="moreMenu"><div class="more-inner"></div></div>
     <main class="main">
       <section id="tab-home" class="tab active"></section>
-      <section id="tab-profile" class="tab"></section>
+      <section id="tab-profile" class="tab"><span id="refCodeDisplay">Unavailable until server-verified referrals launch</span></section>
       <section id="tab-tasks" class="tab"></section>
     </main>
   </body></html>`);
@@ -39,13 +39,25 @@ try {
       value:{writeText:async value=>{window.__copiedReferral=String(value);}}
     });
     document.getElementById('nxReferralCode').textContent='NVX-ABCDEFGH';
+    window.copyReferral=()=>{throw new Error('legacy disabled referral handler should be replaced');};
   });
   await page.addScriptTag({url:`${base}/js/nexusnova-growth-referral-link-v1.js?v=1`});
+  await page.waitForFunction(()=>document.getElementById('refCodeDisplay')?.textContent==='NVX-ABCDEFGH');
+  assert.equal(await page.evaluate(()=>typeof window.copyReferral),'function');
+  console.log('PASS legacy Profile referral display is synchronized with secure Growth code');
+
   await page.click('#nxCopyReferral');
   await page.waitForFunction(()=>window.__copiedReferral.includes('referral.html?ref=NVX-ABCDEFGH'));
-  const copied=await page.evaluate(()=>window.__copiedReferral);
+  let copied=await page.evaluate(()=>window.__copiedReferral);
   assert.equal(copied,`${base}/referral.html?ref=NVX-ABCDEFGH`);
   console.log('PASS Growth referral copy routes through referral landing page');
+
+  await page.evaluate(()=>{window.__copiedReferral='';});
+  await page.evaluate(()=>window.copyReferral());
+  await page.waitForFunction(()=>window.__copiedReferral.includes('referral.html?ref=NVX-ABCDEFGH'));
+  copied=await page.evaluate(()=>window.__copiedReferral);
+  assert.equal(copied,`${base}/referral.html?ref=NVX-ABCDEFGH`);
+  console.log('PASS legacy Profile Copy Referral uses the same secure landing URL');
   assert.equal(errors.length,0,errors.join('\n'));
   await page.close();
 
@@ -57,7 +69,7 @@ try {
   console.log('PASS referral landing persists invite code before signup redirect');
   await landing.close();
 
-  console.log('\nGrowth runtime complete: UI, invite link and landing capture passed.');
+  console.log('\nGrowth runtime complete: UI, Profile sync, invite link and landing capture passed.');
 } finally {
   await browser.close();
 }
