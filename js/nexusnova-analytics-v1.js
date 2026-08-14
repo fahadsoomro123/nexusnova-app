@@ -4,8 +4,8 @@
    - No UID, email, wallet address, search text, message text, contact data,
      exact location, referral code, page URL/query string, or form values are
      sent as custom analytics parameters.
-   - Automatic page_view is disabled; NexusNova records only safe product
-     events and Firebase's normal consented session/retention signals.
+   - Automatic page_view is disabled; NexusNova records only a strict whitelist
+     of safe product events/features plus Firebase's consented session signals.
 */
 (() => {
   'use strict';
@@ -29,6 +29,17 @@
     'nx_onboarding_skip',
     'nx_bug_report_open'
   ]);
+  const SAFE_FEATURES = new Set([
+    'home','mine','mining','wallet','tasks','market','more','all-apps','about',
+    'tools','gold-fx','news','chat','ai','location','sos','family','profile','daily',
+    'budget','learn','travel','health','smart','qibla','pk-news','watch','browser',
+    'caller','settings','super-app','daily-tools','calendar','reminders','finance',
+    'weather','learning','pakistan-hub','islamic-hub','bible','habits','savings',
+    'contacts','shopping','documents','file-vault','qr-tools','security','marketplace',
+    'orders','notifications','teacher-toolkit','growth','leaderboard'
+  ]);
+  const SAFE_ACTIONS = new Set(['mine','claim','open','share']);
+  const SAFE_STATUSES = new Set(['completed','skipped']);
 
   let adapter = null;
   let initPromise = null;
@@ -42,6 +53,11 @@
       .replace(/[^a-z0-9_-]+/g, '-')
       .replace(/^-+|-+$/g, '')
       .slice(0, max);
+  }
+
+  function knownFeature(value) {
+    const feature = safeSlug(value, 40);
+    return SAFE_FEATURES.has(feature) ? feature : '';
   }
 
   function readConsent() {
@@ -67,28 +83,39 @@
 
   function currentFeature() {
     const active = document.querySelector('.tab.active,.tab-content.active,[id^="tab-"][style*="display: block"]');
-    if (active?.id) return safeSlug(active.id.replace(/^tab-/, '')) || 'home';
+    if (active?.id) return knownFeature(active.id.replace(/^tab-/, '')) || 'home';
     return 'home';
   }
 
   function featureFromButton(button) {
     if (!button) return '';
     const dataValue = button.dataset?.nxmega || button.dataset?.target || button.dataset?.tab || '';
-    if (dataValue) return safeSlug(dataValue);
+    if (dataValue) return knownFeature(dataValue);
     const onclick = String(button.getAttribute?.('onclick') || '');
     const match = onclick.match(/(?:openMoreTab|switchTab)\(\s*['"]([^'"]+)['"]/i);
-    if (match) return safeSlug(match[1]);
+    if (match) return knownFeature(match[1]);
     if (button.id === 'moreBtn') return 'all-apps';
     return '';
   }
 
   function cleanParams(params = {}) {
     const out = {};
-    const allowed = ['feature','action','source','status'];
-    for (const key of allowed) {
-      if (!(key in params)) continue;
-      const value = safeSlug(params[key], 40);
-      if (value) out[key] = value;
+    if ('feature' in params) {
+      const feature = knownFeature(params.feature);
+      if (feature) out.feature = feature;
+    }
+    if ('source' in params) {
+      const sourceRaw = safeSlug(params.source, 40);
+      const source = sourceRaw === 'web' ? 'web' : knownFeature(sourceRaw);
+      if (source) out.source = source;
+    }
+    if ('action' in params) {
+      const action = safeSlug(params.action, 20);
+      if (SAFE_ACTIONS.has(action)) out.action = action;
+    }
+    if ('status' in params) {
+      const status = safeSlug(params.status, 20);
+      if (SAFE_STATUSES.has(status)) out.status = status;
     }
     return out;
   }
@@ -292,7 +319,7 @@
     node.innerHTML = `<div class="nx-analytics-privacy-card" role="dialog" aria-modal="true" aria-label="Analytics privacy details">
       <h3>Analytics Privacy</h3>
       <p><strong>Only after you opt in</strong>, NexusNova uses Firebase Analytics for anonymous session/retention measurement and a small whitelist of product events such as opening Wallet, starting Mining, Daily Reward actions, Growth/Referral actions and onboarding completion.</p>
-      <p><strong>Not sent by NexusNova custom analytics:</strong> email, Firebase UID, wallet address, referral code, search text, messages, contacts, exact location, page URL/query string or any form input value. Advertising storage and ad-personalization consent remain denied.</p>
+      <p><strong>Not sent by NexusNova custom analytics:</strong> email, Firebase UID, wallet address, referral code, search text, messages, contacts, exact location, page URL/query string or any form input value. Unknown feature names are dropped instead of being sanitized and sent. Advertising storage and ad-personalization consent remain denied.</p>
       <p>You can disable future analytics collection at any time from Profile or Settings. Disabling does not erase aggregate statistics already processed by the analytics service.</p>
       <button type="button" class="nx-analytics-btn nx-analytics-privacy-close">CLOSE</button>
     </div>`;
