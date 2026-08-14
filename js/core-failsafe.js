@@ -4,6 +4,11 @@
 (async () => {
   "use strict";
 
+  // The main page owns splash timing. Mark it before later regional scripts run
+  // so no secondary bootstrap can cut the intro short.
+  const splash = document.getElementById("nxSplash");
+  if (splash) splash.dataset.nxFastExit = "1";
+
   const FIREBASE_APP_URL = "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
   const config = {
     apiKey: "AIzaSyBU75WYp5ioaMD1LrNcDyAvROFW2wrTil0",
