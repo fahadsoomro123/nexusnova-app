@@ -26,7 +26,7 @@ if (meta) {
   meta.setAttribute('content', '6LfEc4QtAAAAAOohkqSv0p76iwPTeHI98hqVlwIs');
 }
 
-await import('./page2-core.js?v=appcheck-debug-6');
+await import('./page2-core.js?v=appcheck-debug-7');
 
 // A secure mining transaction must not be reported as failed just because a
 // secondary/profile UI refresh throws afterwards. The secure rewards layer
@@ -91,3 +91,10 @@ window.nexusAuthFreshReady = (async () => {
     return null;
   }
 })();
+
+// One-time automatic migration for legacy/stuck mining sessions. This runs for
+// every user transparently; nobody should ever need to open Firebase or edit
+// mining fields by hand.
+import('./mining-session-recovery-v1.js?v=1').catch(error => {
+  console.warn('NexusNova mining recovery module:', error);
+});
