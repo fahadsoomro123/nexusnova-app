@@ -27,11 +27,13 @@
   function claim(label,id,handler) {
     const button=findButton(label);
     if(!button || button.dataset.nxDocLive==='1') return false;
+    button.onclick=null;
+    button.removeAttribute('onclick');
     button.id=id;
     button.dataset.nxDocLive='1';
     button.addEventListener('click',event=>{
       event.preventDefault();
-      event.stopPropagation();
+      event.stopImmediatePropagation();
       handler();
     });
     return true;
