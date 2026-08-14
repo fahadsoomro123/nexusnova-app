@@ -78,7 +78,7 @@ try {
 
     const launcherLabel=await page.locator('#moreMenu .more-item>span:last-child').evaluate(node=>getComputedStyle(node,'::after').content);
     assert.ok(String(launcherLabel).includes('NexusNova'));
-    console.log('PASS NexusNova Browser V4 chrome + red NexusNova launcher branding');
+    console.log('PASS NexusNova Browser V4 chrome + launcher integration layer');
 
     await page.fill('#nxBrowserUrl','https://example.com/');
     await page.click('[data-nx-browser-go]');
@@ -175,7 +175,15 @@ try {
     page.on('pageerror',e=>errors.push(e.message||String(e)));
     await page.goto(base+'/.runtime-origin.html');
     await page.setContent(allAppsShell());
+    await page.addStyleTag({url:`${base}/css/nexusnova-final-user-fixes-v1.css?v=launcher-test`});
+    await page.addScriptTag({url:`${base}/js/nexusnova-allapps-smart-search-v1.js?v=search-first-test`});
+    await page.waitForSelector('#nxAllAppsSmartSearch');
     await page.addScriptTag({url:`${base}/js/nexusnova-regional-qibla-browser-v1.js?v=ui-stability-test`});
+
+    /* The intro should be visible long enough to feel intentional. */
+    await page.waitForTimeout(900);
+    assert.equal(await page.locator('#nxSplash').count(),1,'Splash should still exist at ~0.9 seconds');
+    assert.notEqual(await page.locator('#nxSplash').evaluate(el=>getComputedStyle(el).visibility),'hidden','Splash should still be visible at ~0.9 seconds');
 
     /* Browser V4 must be requested immediately by the bootstrap, not from window.load + timers. */
     await page.waitForFunction(()=>window.__nxNexusBrowserV4===true,{timeout:5000});
@@ -185,9 +193,21 @@ try {
     await page.waitForFunction(()=>document.body.classList.contains('nx-allapps-open'));
     assert.equal(await page.locator('main.main').evaluate(el=>getComputedStyle(el).display),'none','Mining/Home must be hidden while ALL APPS is open');
     assert.equal(await page.locator('#moreMenu').evaluate(el=>getComputedStyle(el).position),'relative','ALL APPS must render as its own screen, not a fixed overlay');
+
+    const searchOrder=Number(await page.locator('#nxAllAppsSmartSearch').evaluate(el=>getComputedStyle(el).order));
     const toolOrder=Number(await page.locator("#moreMenu .more-item[onclick*='tools']").evaluate(el=>getComputedStyle(el).order));
     const browserOrder=Number(await page.locator("#moreMenu .more-item[onclick*='browser']").evaluate(el=>getComputedStyle(el).order));
-    assert.ok(toolOrder < browserOrder && browserOrder < 0,'Tools must stay first and NexusNova Browser must be visually second without DOM reordering');
+    assert.ok(searchOrder < toolOrder && toolOrder < browserOrder && browserOrder < 0,'Smart Search must be first, followed by Tools and NexusNova Browser');
+
+    const searchTop=await page.locator('#nxAllAppsSmartSearch').evaluate(el=>el.getBoundingClientRect().top);
+    const toolTop=await page.locator("#moreMenu .more-item[onclick*='tools']").evaluate(el=>el.getBoundingClientRect().top);
+    assert.ok(searchTop < toolTop,'Smart Search must render above the launcher tiles');
+
+    const browserLabel=await page.locator("#moreMenu .more-item[onclick*='browser']>span:last-child").evaluate(el=>getComputedStyle(el,'::after').content);
+    assert.ok(String(browserLabel).includes('NexusNova Browser'),'Browser launcher must use the full NexusNova Browser name');
+    assert.notEqual(await page.locator("#moreMenu .more-item[onclick*='browser'] .mi-icon svg").evaluate(el=>getComputedStyle(el).display),'none','Browser globe icon must stay visible');
+    const browserBadge=await page.locator("#moreMenu .more-item[onclick*='browser'] .mi-icon").evaluate(el=>getComputedStyle(el,'::after').content);
+    assert.ok(String(browserBadge).includes('N'),'Browser icon must include the NexusNova N badge');
 
     /* Other ALL APPS launchers must still use their original handlers. */
     await page.click("#moreMenu .more-item[onclick*='tools']");
@@ -195,14 +215,14 @@ try {
     assert.equal(await page.locator('main.main').evaluate(el=>getComputedStyle(el).display),'block');
     assert.equal(await page.locator('#tools-fixture').isVisible(),true);
 
-    await page.waitForTimeout(1000);
-    assert.equal(await page.locator('#nxSplash').count(),0,'Splash must exit quickly instead of waiting for all window.load resources');
+    await page.waitForTimeout(1450);
+    assert.equal(await page.locator('#nxSplash').count(),0,'Splash should finish after the balanced ~1.8 second intro');
     assert.equal(errors.length,0,errors.join('\n'));
-    console.log('PASS fast splash + isolated ALL APPS screen + stable Browser #2 + untouched app launcher clicks');
+    console.log('PASS balanced splash + Search-first ALL APPS + NexusNova Browser launcher + untouched app clicks');
     await page.close();
   }
 
-  console.log('\nNexusNova Browser runtime complete: V4 branding, no automatic Chrome redirect, explicit web fallback, Extensions Hub, native Android routing, fast splash and isolated ALL APPS passed.');
+  console.log('\nNexusNova Browser runtime complete: V4 branding, no automatic Chrome redirect, Extensions Hub, Android routing, balanced splash and Search-first ALL APPS passed.');
 } finally {
   await browser.close();
 }
