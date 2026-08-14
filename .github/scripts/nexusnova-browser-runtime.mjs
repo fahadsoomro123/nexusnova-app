@@ -12,6 +12,34 @@ function shell(){
   </body></html>`;
 }
 
+function allAppsShell(){
+  return `<!doctype html><html><head><meta charset="utf-8"><style>
+    .tab{display:none}.tab.active{display:block}.more-menu{display:none}.more-menu.show{display:block}.more-inner{display:grid;grid-template-columns:repeat(3,1fr)}
+  </style></head><body>
+    <div id="nxSplash">Loading NexusNova</div>
+    <header class="top-header">NexusNova</header><div class="ticker-wrap">Ticker</div>
+    <main class="main">
+      <section id="tab-home" class="tab active"><div id="mining-fixture">MINING ACTIVE</div></section>
+      <section id="tab-tools" class="tab"><div id="tools-fixture">TOOLS WORKS</div></section>
+      <section id="tab-browser" class="tab"><div>Legacy browser placeholder</div></section>
+    </main>
+    <div id="moreMenu" class="more-menu"><div class="more-inner">
+      <button class="more-item" onclick="openMoreTab('tools')" type="button"><span class="mi-icon"></span><span>Tools</span></button>
+      <button class="more-item" onclick="openMoreTab('other')" type="button"><span class="mi-icon"></span><span>Other</span></button>
+      <button class="more-item" onclick="openMoreTab('browser')" type="button"><span class="mi-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/></svg></span><span>Browser</span></button>
+    </div></div>
+    <button id="moreBtn" type="button" onclick="toggleMore()">ALL APPS</button>
+    <script>
+      window.toggleMore=()=>document.getElementById('moreMenu').classList.toggle('show');
+      window.openMoreTab=name=>{
+        document.getElementById('moreMenu').classList.remove('show');
+        document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+        document.getElementById('tab-'+name)?.classList.add('active');
+      };
+    </script>
+  </body></html>`;
+}
+
 async function installBrowserV4(page){
   await page.addScriptTag({url:`${base}/js/nexusnova-browser-v1.js?v=4`});
   await page.waitForFunction(()=>window.__nxNexusBrowserV4===true && window.NexusNovaBrowser?.version==='nexus-browser-v4');
@@ -141,7 +169,40 @@ try {
     await page.close();
   }
 
-  console.log('\nNexusNova Browser runtime complete: V4 branding, no automatic Chrome redirect, explicit web fallback, Extensions Hub and native Android routing passed.');
+  {
+    const page=await browser.newPage();
+    const errors=[];
+    page.on('pageerror',e=>errors.push(e.message||String(e)));
+    await page.goto(base+'/.runtime-origin.html');
+    await page.setContent(allAppsShell());
+    await page.addScriptTag({url:`${base}/js/nexusnova-regional-qibla-browser-v1.js?v=ui-stability-test`});
+
+    /* Browser V4 must be requested immediately by the bootstrap, not from window.load + timers. */
+    await page.waitForFunction(()=>window.__nxNexusBrowserV4===true,{timeout:5000});
+    await page.waitForSelector('[data-nx-browser-window]');
+
+    await page.click('#moreBtn');
+    await page.waitForFunction(()=>document.body.classList.contains('nx-allapps-open'));
+    assert.equal(await page.locator('main.main').evaluate(el=>getComputedStyle(el).display),'none','Mining/Home must be hidden while ALL APPS is open');
+    assert.equal(await page.locator('#moreMenu').evaluate(el=>getComputedStyle(el).position),'relative','ALL APPS must render as its own screen, not a fixed overlay');
+    const toolOrder=Number(await page.locator("#moreMenu .more-item[onclick*='tools']").evaluate(el=>getComputedStyle(el).order));
+    const browserOrder=Number(await page.locator("#moreMenu .more-item[onclick*='browser']").evaluate(el=>getComputedStyle(el).order));
+    assert.ok(toolOrder < browserOrder && browserOrder < 0,'Tools must stay first and NexusNova Browser must be visually second without DOM reordering');
+
+    /* Other ALL APPS launchers must still use their original handlers. */
+    await page.click("#moreMenu .more-item[onclick*='tools']");
+    await page.waitForFunction(()=>document.getElementById('tab-tools')?.classList.contains('active'));
+    assert.equal(await page.locator('main.main').evaluate(el=>getComputedStyle(el).display),'block');
+    assert.equal(await page.locator('#tools-fixture').isVisible(),true);
+
+    await page.waitForTimeout(1000);
+    assert.equal(await page.locator('#nxSplash').count(),0,'Splash must exit quickly instead of waiting for all window.load resources');
+    assert.equal(errors.length,0,errors.join('\n'));
+    console.log('PASS fast splash + isolated ALL APPS screen + stable Browser #2 + untouched app launcher clicks');
+    await page.close();
+  }
+
+  console.log('\nNexusNova Browser runtime complete: V4 branding, no automatic Chrome redirect, explicit web fallback, Extensions Hub, native Android routing, fast splash and isolated ALL APPS passed.');
 } finally {
   await browser.close();
 }
