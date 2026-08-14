@@ -45,9 +45,6 @@
     };
   }
 
-  // These are core user-facing utilities, not mining owners. Dynamic scripts
-  // are forced into insertion order so the secure rewarded-ad guard registers
-  // before the legacy Spark reward handler can capture the Watch Ad button.
   function loadCritical({flag, marker, src, error}) {
     if (window[flag] || document.querySelector(`script[${marker}]`)) return;
     const script = document.createElement('script');
@@ -58,78 +55,21 @@
     document.body.appendChild(script);
   }
 
-  loadCritical({
-    flag:'__nxRewardedAdsConfigV1',
-    marker:'data-nx-rewarded-config',
-    src:'./js/nexusnova-rewarded-ads-config-v1.js?v=1',
-    error:'NexusNova rewarded ads public config failed to load.'
-  });
-  loadCritical({
-    flag:'__nxRewardedAdsV1',
-    marker:'data-nx-rewarded-ads',
-    src:'./js/nexusnova-rewarded-ads-v1.js?v=1',
-    error:'NexusNova rewarded ads bridge failed to load.'
-  });
-  loadCritical({
-    flag:'__nxRewardedAdsButtonGuardV1',
-    marker:'data-nx-rewarded-guard',
-    src:'./js/nexusnova-rewarded-ads-button-guard-v1.js?v=1',
-    error:'NexusNova rewarded ads button guard failed to load.'
-  });
-  loadCritical({
-    flag:'__nxRewardsSparkV1',
-    marker:'data-nx-rewards-spark',
-    src:'./js/nexusnova-rewards-spark-v1.js?v=2',
-    error:'NexusNova Spark rewards module failed to load.'
-  });
-  loadCritical({
-    flag:'__nxAllAppsSmartSearchV2',
-    marker:'data-nx-allapps-smart-search',
-    src:'./js/nexusnova-allapps-smart-search-v1.js?v=4',
-    error:'NexusNova ALL APPS smart search failed to load.'
-  });
-  loadCritical({
-    flag:'__nxCommunityProgressV1',
-    marker:'data-nx-community-progress',
-    src:'./js/nexusnova-community-progress-v1.js?v=1',
-    error:'NexusNova Community League failed to load.'
-  });
-  loadCritical({
-    flag:'__nxCompleteProfileV1',
-    marker:'data-nx-complete-profile',
-    src:'./js/nexusnova-complete-profile-v1.js?v=1',
-    error:'NexusNova Complete Profile failed to load.'
-  });
-  loadCritical({
-    flag:'__nxGrowthCenterV1',
-    marker:'data-nx-growth-center',
-    src:'./js/nexusnova-growth-center-v1.js?v=1',
-    error:'NexusNova Growth Center failed to load.'
-  });
-  loadCritical({
-    flag:'__nxGrowthReferralLinkV1',
-    marker:'data-nx-growth-referral-link',
-    src:'./js/nexusnova-growth-referral-link-v1.js?v=2',
-    error:'NexusNova referral invite link guard failed to load.'
-  });
-  loadCritical({
-    flag:'__nxReferralCaptureV1',
-    marker:'data-nx-referral-capture',
-    src:'./js/nexusnova-referral-capture-v1.js?v=1',
-    error:'NexusNova referral capture failed to load.'
-  });
-  loadCritical({
-    flag:'__nxOnboardingInsightsV1',
-    marker:'data-nx-onboarding-insights',
-    src:'./js/nexusnova-onboarding-insights-v1.js?v=1',
-    error:'NexusNova guided onboarding failed to load.'
-  });
+  loadCritical({flag:'__nxRewardedAdsConfigV1',marker:'data-nx-rewarded-config',src:'./js/nexusnova-rewarded-ads-config-v1.js?v=1',error:'NexusNova rewarded ads public config failed to load.'});
+  loadCritical({flag:'__nxRewardedAdsV1',marker:'data-nx-rewarded-ads',src:'./js/nexusnova-rewarded-ads-v1.js?v=1',error:'NexusNova rewarded ads bridge failed to load.'});
+  loadCritical({flag:'__nxRewardedAdsButtonGuardV1',marker:'data-nx-rewarded-guard',src:'./js/nexusnova-rewarded-ads-button-guard-v1.js?v=1',error:'NexusNova rewarded ads button guard failed to load.'});
+  loadCritical({flag:'__nxRewardsSparkV1',marker:'data-nx-rewards-spark',src:'./js/nexusnova-rewards-spark-v1.js?v=2',error:'NexusNova Spark rewards module failed to load.'});
+  loadCritical({flag:'__nxAllAppsSmartSearchV2',marker:'data-nx-allapps-smart-search',src:'./js/nexusnova-allapps-smart-search-v1.js?v=4',error:'NexusNova ALL APPS smart search failed to load.'});
+  loadCritical({flag:'__nxCommunityProgressV1',marker:'data-nx-community-progress',src:'./js/nexusnova-community-progress-v1.js?v=1',error:'NexusNova Community League failed to load.'});
+  loadCritical({flag:'__nxCompleteProfileV1',marker:'data-nx-complete-profile',src:'./js/nexusnova-complete-profile-v1.js?v=1',error:'NexusNova Complete Profile failed to load.'});
+  loadCritical({flag:'__nxGrowthCenterV1',marker:'data-nx-growth-center',src:'./js/nexusnova-growth-center-v1.js?v=1',error:'NexusNova Growth Center failed to load.'});
+  loadCritical({flag:'__nxGrowthReferralLinkV1',marker:'data-nx-growth-referral-link',src:'./js/nexusnova-growth-referral-link-v1.js?v=2',error:'NexusNova referral invite link guard failed to load.'});
+  loadCritical({flag:'__nxReferralCaptureV1',marker:'data-nx-referral-capture',src:'./js/nexusnova-referral-capture-v1.js?v=1',error:'NexusNova referral capture failed to load.'});
+  loadCritical({flag:'__nxOnboardingInsightsV1',marker:'data-nx-onboarding-insights',src:'./js/nexusnova-onboarding-insights-v1.js?v=1',error:'NexusNova guided onboarding failed to load.'});
+  loadCritical({flag:'__nxBugReportV1',marker:'data-nx-bug-report',src:'./js/nexusnova-bug-report-v1.js?v=1',error:'NexusNova bug reporting failed to load.'});
 
   await import('./final-integrity-fix-core.js?v=3');
 
-  // page2-core historically owns a name-only Settings editor. It can finish
-  // after dynamically loaded modules, so re-bind Settings to the complete
-  // profile editor once all critical scripts have had time to initialize.
   [250, 750, 1500, 3000, 6000].forEach(ms => setTimeout(() => {
     if (typeof window.nexusOpenCompleteProfile === 'function') {
       window.editSettingsProfile = window.nexusOpenCompleteProfile;
