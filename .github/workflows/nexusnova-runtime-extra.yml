@@ -43,6 +43,9 @@ jobs:
       - name: Run Browser Caller Qibla Smart QR and Wallet checks
         run: node .github/scripts/nexusnova-runtime-extra.mjs
 
+      - name: Run NexusNova Browser in-app routing check
+        run: node .github/scripts/nexusnova-browser-runtime.mjs
+
       - name: Run market integrity browser check
         run: node .github/scripts/nexusnova-market-runtime.mjs
 
