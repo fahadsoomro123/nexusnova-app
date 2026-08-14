@@ -66,7 +66,7 @@
   loadCritical({flag:'__nxGrowthReferralLinkV1',marker:'data-nx-growth-referral-link',src:'./js/nexusnova-growth-referral-link-v1.js?v=2',error:'NexusNova referral invite link guard failed to load.'});
   loadCritical({flag:'__nxReferralCaptureV1',marker:'data-nx-referral-capture',src:'./js/nexusnova-referral-capture-v1.js?v=1',error:'NexusNova referral capture failed to load.'});
   loadCritical({flag:'__nxOnboardingInsightsV1',marker:'data-nx-onboarding-insights',src:'./js/nexusnova-onboarding-insights-v1.js?v=1',error:'NexusNova guided onboarding failed to load.'});
-  loadCritical({flag:'__nxAnalyticsV1',marker:'data-nx-analytics',src:'./js/nexusnova-analytics-v1.js?v=1',error:'NexusNova anonymous analytics failed to load.'});
+  loadCritical({flag:'__nxAnalyticsV1',marker:'data-nx-analytics',src:'./js/nexusnova-analytics-v1.js?v=2',error:'NexusNova anonymous analytics failed to load.'});
   loadCritical({flag:'__nxBugReportV1',marker:'data-nx-bug-report',src:'./js/nexusnova-bug-report-v1.js?v=1',error:'NexusNova bug reporting failed to load.'});
 
   await import('./final-integrity-fix-core.js?v=3');
