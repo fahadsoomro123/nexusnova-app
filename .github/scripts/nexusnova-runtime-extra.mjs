@@ -17,12 +17,17 @@ async function browserCallerQibla(){
   const context=await browser.newContext({geolocation:{latitude:27.9556,longitude:68.6382},permissions:['geolocation']});
   const html=`<input id="nxBrowserUrl" value="https://www.google.com/"><iframe id="nxBrowserFrame" src="about:blank"></iframe><div id="nxBrowserStatus"></div><input id="nxCallerNumber"><div id="nxCallerResult"></div><div id="qiblaStatus"></div><div id="qiblaDegree"></div><div id="qiblaArrow"></div>`;
   const {page,errors}=await originPage(context,html);
-  await page.evaluate(()=>{window.nexusPostNativeAction=()=>true;});
+  await page.evaluate(()=>{
+    window.__externalAttempts=0;
+    window.nexusPostNativeAction=()=>{window.__externalAttempts+=1;return true;};
+    HTMLAnchorElement.prototype.click=function(){window.__externalAttempts+=1;};
+  });
   await page.addScriptTag({url:base+'/js/nexusnova-regional-qibla-browser-v1.js'});
   await page.evaluate(()=>window.nxBrowse());
-  assert.match(await page.textContent('#nxBrowserStatus'),/Opened as a real web page/i);
+  assert.match(await page.textContent('#nxBrowserStatus'),/Automatic Chrome redirect is disabled/i);
   assert.equal(await page.getAttribute('#nxBrowserFrame','src'),'about:blank');
-  console.log('PASS Browser — real external handoff + non-iframe fallback passed');
+  assert.equal(await page.evaluate(()=>window.__externalAttempts),0,'Legacy browser fallback must not auto-open Chrome/external pages');
+  console.log('PASS Browser fallback — no iframe navigation and no automatic Chrome/external handoff');
   await page.fill('#nxCallerNumber','+923001234567');
   await page.evaluate(()=>window.nxCallerLookup());
   const caller=await page.textContent('#nxCallerResult');
