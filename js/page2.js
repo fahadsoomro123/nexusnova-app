@@ -26,12 +26,10 @@ if (meta) {
   meta.setAttribute('content', '6LfEc4QtAAAAAOohkqSv0p76iwPTeHI98hqVlwIs');
 }
 
-await import('./page2-core.js?v=appcheck-debug-8');
+await import('./page2-core.js?v=appcheck-debug-10');
 
-// A secure mining transaction must not be reported as failed just because a
-// secondary/profile UI refresh throws afterwards. The secure rewards layer
-// calls this helper only after Firestore has accepted the mining transition.
-// Keep those presentation errors non-fatal so an accepted session stays ON.
+// A secure account transaction must not be reported as failed merely because a
+// secondary/profile renderer throws afterwards.
 if (typeof window.nexusApplySecureAccountState === 'function') {
   const applySecureAccountState = window.nexusApplySecureAccountState;
   window.nexusApplySecureAccountState = function safeNexusApplySecureAccountState(state = {}) {
@@ -44,11 +42,9 @@ if (typeof window.nexusApplySecureAccountState === 'function') {
   };
 }
 
-// Firebase Auth can keep an ID token that was minted before the user verified
-// their email. Firestore Security Rules read the token claim, not only the
-// client-side user.emailVerified property. Refresh both the user record and
-// the ID token once on app startup so secure mining sees the new claim without
-// requiring a logout/login cycle.
+// Keep Auth verification claims fresh for all value-bearing features. The
+// mining engine also refreshes again immediately before every mining write, so
+// there is no race with a token minted before email verification.
 window.nexusAuthFreshReady = (async () => {
   try {
     const [appMod, authMod] = await Promise.all([
@@ -91,10 +87,3 @@ window.nexusAuthFreshReady = (async () => {
     return null;
   }
 })();
-
-// Mining self-heal v2 owns legacy-session recovery and the final Mine button
-// handler. It refreshes auth inside the write path and uses normal finish then
-// start transactions, so users never have to edit Firebase fields manually.
-import('./mining-session-recovery-v2.js?v=2').catch(error => {
-  console.warn('NexusNova mining self-heal module:', error);
-});
