@@ -40,12 +40,48 @@ jobs:
       - name: Verify single-owner mining architecture
         run: node .github/scripts/mining-architecture-smoke.mjs
 
+      - name: Verify smart local search and Spark rewards
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('fs');
+          const search = fs.readFileSync('js/nexusnova-allapps-smart-search-v1.js','utf8');
+          const rewards = fs.readFileSync('js/nexusnova-rewards-spark-v1.js','utf8');
+          const integrity = fs.readFileSync('js/final-integrity-fix.js','utf8');
+
+          if (!search.includes("local-first-v2")) throw new Error('Smart search v2 marker missing.');
+          for (const token of ['quran','bukhari','surah','para','juz','tarjuma','hadith']) {
+            if (!search.toLowerCase().includes(token)) throw new Error(`Islamic Hub search alias missing: ${token}`);
+          }
+          if (!search.includes('tabCorpus')) throw new Error('Smart search must index target-tab content.');
+          if (search.includes('No strong tool match. NexusNova AI is the fallback for this request.')) {
+            throw new Error('Old automatic AI-fallback search behavior returned.');
+          }
+          if (!search.includes('AI is optional')) throw new Error('Local-first no-match behavior missing.');
+
+          if (!rewards.includes('spark-secure-v1.1')) throw new Error('Spark rewards v1.1 marker missing.');
+          if (!rewards.includes('runTransaction')) throw new Error('Daily reward must use Firestore transaction.');
+          if (!rewards.includes('nextBalance = balance + DAILY')) throw new Error('Exact daily +5 implementation missing.');
+          if (!rewards.includes('nxSparkDailyBound')) throw new Error('Direct Daily Reward click guard missing.');
+          if (/httpsCallable|getFunctions\(/.test(rewards)) throw new Error('Spark rewards must not depend on Cloud Functions.');
+
+          for (const target of [
+            './js/nexusnova-rewards-spark-v1.js?v=2',
+            './js/nexusnova-allapps-smart-search-v1.js?v=4'
+          ]) {
+            if (!integrity.includes(target)) throw new Error(`Direct critical loader missing: ${target}`);
+          }
+          console.log('Smart search + Spark rewards regression guard passed.');
+          NODE
+
       - name: Verify critical live modules exist
         shell: bash
         run: |
           set -euo pipefail
           for file in \
             js/rewards-security-v1.js \
+            js/nexusnova-rewards-spark-v1.js \
             js/nexusnova-smart-live-v1.js \
             js/nexusnova-allapps-smart-search-v1.js \
             js/nexusnova-file-vault-v1.js \
