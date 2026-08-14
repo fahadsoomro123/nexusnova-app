@@ -106,6 +106,12 @@
     src:'./js/nexusnova-growth-center-v1.js?v=1',
     error:'NexusNova Growth Center failed to load.'
   });
+  loadCritical({
+    flag:'__nxReferralCaptureV1',
+    marker:'data-nx-referral-capture',
+    src:'./js/nexusnova-referral-capture-v1.js?v=1',
+    error:'NexusNova referral capture failed to load.'
+  });
 
   await import('./final-integrity-fix-core.js?v=3');
 
