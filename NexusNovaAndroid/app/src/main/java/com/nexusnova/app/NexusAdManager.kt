@@ -1,6 +1,8 @@
 package com.nexusnova.app
 
 import android.app.Activity
+import android.os.Handler
+import android.os.Looper
 import android.webkit.WebView
 import com.google.android.gms.ads.AdError
 import com.google.android.gms.ads.AdRequest
@@ -29,18 +31,31 @@ import org.json.JSONObject
  *   policy review and server-side ad-proof hardening are complete.
  * - Interstitials retain their native cooldown and are shown only when the web
  *   app explicitly requests a natural transition placement.
+ *
+ * UX contract:
+ * - If the user taps Rewarded Ad before Google has finished loading it, keep that
+ *   single request pending, retry short transient load failures, and open the ad
+ *   automatically as soon as it is ready.
+ * - Never mint a reward just because loading started; only Google's earned callback
+ *   can emit rewarded-earned.
  */
 class NexusAdManager(
     private val activity: Activity,
     private val webView: WebView,
     private val isTrustedPage: (WebView?) -> Boolean
 ) {
+    private val mainHandler = Handler(Looper.getMainLooper())
+
     private var initialized = false
     private var rewardedLoading = false
     private var interstitialLoading = false
     private var rewardedAd: RewardedAd? = null
     private var interstitialAd: InterstitialAd? = null
     private var lastInterstitialShownAt = 0L
+
+    private var pendingRewardedShow = false
+    private var pendingRewardedStartedAt = 0L
+    private var rewardedRetryCount = 0
 
     fun initialize() {
         if (initialized) return
@@ -65,6 +80,8 @@ class NexusAdManager(
                 "status",
                 mapOf(
                     "rewardedReady" to (rewardedAd != null),
+                    "rewardedLoading" to rewardedLoading,
+                    "rewardedPending" to pendingRewardedShow,
                     "interstitialReady" to (interstitialAd != null),
                     "rewardPurpose" to REWARD_PURPOSE,
                     "boostHours" to BOOST_HOURS
@@ -76,26 +93,69 @@ class NexusAdManager(
     fun showRewarded() {
         activity.runOnUiThread {
             val ad = rewardedAd
-            if (ad == null) {
-                dispatch("rewarded-unavailable", mapOf("reason" to "loading-or-no-fill"))
-                loadRewarded()
+            if (ad != null) {
+                pendingRewardedShow = false
+                pendingRewardedStartedAt = 0L
+                rewardedRetryCount = 0
+                presentRewarded(ad)
                 return@runOnUiThread
             }
 
-            rewardedAd = null
-            dispatch("rewarded-showing", mapOf("rewardPurpose" to REWARD_PURPOSE))
-            ad.show(activity) { rewardItem ->
+            if (!pendingRewardedShow) {
+                pendingRewardedShow = true
+                pendingRewardedStartedAt = System.currentTimeMillis()
+                rewardedRetryCount = 0
                 dispatch(
-                    "rewarded-earned",
+                    "rewarded-preparing",
                     mapOf(
-                        "rewardPurpose" to REWARD_PURPOSE,
-                        "boostHours" to BOOST_HOURS,
-                        "rewardType" to rewardItem.type,
-                        "rewardAmount" to rewardItem.amount
+                        "reason" to "waiting-for-admob",
+                        "timeoutMs" to REWARDED_PENDING_TIMEOUT_MS
                     )
                 )
+                schedulePendingTimeout()
+            } else {
+                dispatch("rewarded-preparing", mapOf("reason" to "already-loading"))
             }
+
+            loadRewarded()
         }
+    }
+
+    private fun presentRewarded(ad: RewardedAd) {
+        if (activity.isFinishing || activity.isDestroyed) {
+            pendingRewardedShow = false
+            return
+        }
+
+        rewardedAd = null
+        dispatch("rewarded-showing", mapOf("rewardPurpose" to REWARD_PURPOSE))
+        ad.show(activity) { rewardItem ->
+            dispatch(
+                "rewarded-earned",
+                mapOf(
+                    "rewardPurpose" to REWARD_PURPOSE,
+                    "boostHours" to BOOST_HOURS,
+                    "rewardType" to rewardItem.type,
+                    "rewardAmount" to rewardItem.amount
+                )
+            )
+        }
+    }
+
+    private fun schedulePendingTimeout() {
+        mainHandler.postDelayed({
+            if (!pendingRewardedShow) return@postDelayed
+            val elapsed = System.currentTimeMillis() - pendingRewardedStartedAt
+            if (elapsed < REWARDED_PENDING_TIMEOUT_MS) return@postDelayed
+
+            pendingRewardedShow = false
+            pendingRewardedStartedAt = 0L
+            rewardedRetryCount = 0
+            dispatch(
+                "rewarded-unavailable",
+                mapOf("reason" to "load-timeout")
+            )
+        }, REWARDED_PENDING_TIMEOUT_MS)
     }
 
     fun showInterstitial() {
@@ -130,6 +190,7 @@ class NexusAdManager(
             object : RewardedAdLoadCallback() {
                 override fun onAdLoaded(ad: RewardedAd) {
                     rewardedLoading = false
+                    rewardedRetryCount = 0
                     rewardedAd = ad
                     ad.fullScreenContentCallback = object : FullScreenContentCallback() {
                         override fun onAdShowedFullScreenContent() {
@@ -138,6 +199,8 @@ class NexusAdManager(
 
                         override fun onAdDismissedFullScreenContent() {
                             rewardedAd = null
+                            pendingRewardedShow = false
+                            pendingRewardedStartedAt = 0L
                             dispatch("rewarded-dismissed")
                             loadRewarded()
                             publishStatus()
@@ -145,6 +208,8 @@ class NexusAdManager(
 
                         override fun onAdFailedToShowFullScreenContent(adError: AdError) {
                             rewardedAd = null
+                            pendingRewardedShow = false
+                            pendingRewardedStartedAt = 0L
                             dispatch(
                                 "rewarded-failed",
                                 mapOf("message" to safeMessage(adError.message))
@@ -155,11 +220,44 @@ class NexusAdManager(
                     }
                     dispatch("rewarded-ready")
                     publishStatusWithoutReload()
+
+                    if (pendingRewardedShow) {
+                        mainHandler.post {
+                            if (pendingRewardedShow && rewardedAd != null) {
+                                showRewarded()
+                            }
+                        }
+                    }
                 }
 
                 override fun onAdFailedToLoad(loadAdError: LoadAdError) {
                     rewardedLoading = false
                     rewardedAd = null
+
+                    if (
+                        pendingRewardedShow &&
+                        rewardedRetryCount < REWARDED_MAX_RETRIES &&
+                        System.currentTimeMillis() - pendingRewardedStartedAt < REWARDED_PENDING_TIMEOUT_MS
+                    ) {
+                        rewardedRetryCount += 1
+                        dispatch(
+                            "rewarded-retrying",
+                            mapOf(
+                                "attempt" to rewardedRetryCount,
+                                "message" to safeMessage(loadAdError.message)
+                            )
+                        )
+                        mainHandler.postDelayed(
+                            { loadRewarded() },
+                            REWARDED_RETRY_DELAY_MS
+                        )
+                        publishStatusWithoutReload()
+                        return
+                    }
+
+                    pendingRewardedShow = false
+                    pendingRewardedStartedAt = 0L
+                    rewardedRetryCount = 0
                     dispatch(
                         "rewarded-load-failed",
                         mapOf("message" to safeMessage(loadAdError.message))
@@ -225,6 +323,8 @@ class NexusAdManager(
             "status",
             mapOf(
                 "rewardedReady" to (rewardedAd != null),
+                "rewardedLoading" to rewardedLoading,
+                "rewardedPending" to pendingRewardedShow,
                 "interstitialReady" to (interstitialAd != null),
                 "rewardPurpose" to REWARD_PURPOSE,
                 "boostHours" to BOOST_HOURS
@@ -280,6 +380,9 @@ class NexusAdManager(
         const val REWARD_PURPOSE = "mining-boost"
         const val BOOST_HOURS = 2
         const val INTERSTITIAL_COOLDOWN_MS = 3L * 60L * 1000L
+        const val REWARDED_PENDING_TIMEOUT_MS = 15_000L
+        const val REWARDED_RETRY_DELAY_MS = 1_500L
+        const val REWARDED_MAX_RETRIES = 2
         const val MAX_ERROR_CHARS = 180
     }
 }
