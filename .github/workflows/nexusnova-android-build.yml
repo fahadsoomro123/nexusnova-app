@@ -16,7 +16,7 @@ permissions:
 jobs:
   android-build:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -44,12 +44,27 @@ jobs:
       - name: Defer Caller ID setup until feature use
         run: python3 NexusNovaAndroid/patch_deferred_caller_setup.py
 
-      - name: Compile Android debug APK
-        run: gradle -p NexusNovaAndroid :app:assembleDebug --stacktrace --no-daemon
+      - name: Compile Android test and production variants
+        run: gradle -p NexusNovaAndroid :app:assembleDebug :app:assembleRelease --stacktrace --no-daemon
 
-      - name: Upload Android debug APK
+      - name: Verify ad build-mode separation
+        run: |
+          grep -q 'NEXUS_ADS_TEST_MODE' NexusNovaAndroid/app/build.gradle.kts
+          grep -q 'ca-app-pub-3940256099942544~3347511713' NexusNovaAndroid/app/build.gradle.kts
+          grep -q 'ca-app-pub-5070673529890078~1824799663' NexusNovaAndroid/app/build.gradle.kts
+          grep -q 'NexusAdConsentManager' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -q 'ssvIdentityReady' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
+
+      - name: Upload Android debug TEST APK
         uses: actions/upload-artifact@v4
         with:
-          name: NexusNova-Android-ModernToolchain-AdMob-test-apk
+          name: NexusNova-Android-AdMob-TEST-apk
           path: NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+      - name: Upload unsigned production release candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: NexusNova-Android-PRODUCTION-unsigned-apk
+          path: NexusNovaAndroid/app/build/outputs/apk/release/app-release-unsigned.apk
           if-no-files-found: error
