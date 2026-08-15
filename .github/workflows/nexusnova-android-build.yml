@@ -30,7 +30,7 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.2.1'
+          gradle-version: '8.13'
 
       - name: Apply Android viewport lock
         run: python3 NexusNovaAndroid/patch_viewport.py
@@ -50,6 +50,6 @@ jobs:
       - name: Upload Android debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: NexusNova-AdMob-SessionRestore-test-apk
+          name: NexusNova-Android-ModernToolchain-AdMob-test-apk
           path: NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
