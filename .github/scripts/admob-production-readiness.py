@@ -27,9 +27,6 @@ def read(path):
         return ''
     return p.read_text(encoding='utf-8')
 
-# app-ads.txt must be identical in the GitHub Pages project tree and in the
-# Firebase Hosting root payload. Firebase Hosting is the crawler-compatible
-# root-domain target for NexusNova until a dedicated root website is used.
 root_ads = read('app-ads.txt').strip()
 hosting_ads = read('firebase-public/app-ads.txt').strip()
 if root_ads != APP_ADS_LINE:
@@ -39,7 +36,6 @@ if hosting_ads != APP_ADS_LINE:
 if root_ads != hosting_ads:
     fail('root and Firebase Hosting app-ads.txt copies have drifted')
 
-# Firebase Hosting must expose the file at /app-ads.txt with a text content type.
 try:
     firebase = json.loads(read('firebase.json'))
 except Exception as exc:
@@ -89,6 +85,16 @@ for marker in required_patch_markers:
     if marker not in patch:
         fail(f'Android AdMob build patch is missing required SSV/ad-policy marker: {marker}')
 
+reward_guard = read('NexusNovaAndroid/patch_rewarded_test_contract.py')
+for marker in [
+    'nx-rewarded-production-proof-guard-v1',
+    'production-proof-not-enabled',
+    "boostKind:expected, testOnly:true",
+    'PRODUCTION_SSV_ENABLED = false',
+]:
+    if marker not in reward_guard:
+        fail(f'rewarded production guard is missing marker: {marker}')
+
 ssv = read('functions/admobRewardedSsv.js')
 checks = {
     rf"const EXPECTED_AD_UNIT = '{re.escape(EXPECTED_REWARDED_SUFFIX)}';": 'SSV expected ad unit',
@@ -110,6 +116,29 @@ if 'const PRODUCTION_SSV_ENABLED = false;' not in watch:
     fail('Production Watch Ad must stay disabled until the signed SSV endpoint is confirmed live')
 if 'ssvIdentityReady' not in watch:
     fail('Watch Ad client is missing the native SSV capability handshake')
+
+daily_gate = read('js/nexusnova-daily-ad-test-v1.js')
+if "const REWARD_PURPOSE = 'daily-reward-test';" not in daily_gate:
+    fail('Daily Reward ad purpose changed unexpectedly')
+if 'testOnly: true' not in daily_gate:
+    fail('Daily Reward ad flow must remain test-only before production proof is available')
+if 'window.nexusSecureClaimDaily' not in daily_gate:
+    fail('Daily Reward ad gate is not wired to the secure claim bridge')
+
+daily_secure = read('js/nexusnova-daily-secure-claim-v1.js')
+for marker in [
+    'window.nexusSecureClaimDaily = claimDailySecure',
+    "httpsCallable(fnMod.getFunctions(app, 'us-central1'), 'claimDailyReward')",
+    'await window.nexusRequireAppCheck()',
+    'await user.getIdToken(true)',
+    'result.claimed !== true',
+]:
+    if marker not in daily_secure:
+        fail(f'Daily secure claim bridge missing marker: {marker}')
+
+page2_boot = read('js/page2.js')
+if "await import('./nexusnova-daily-secure-claim-v1.js?v=1');" not in page2_boot:
+    fail('page2 bootstrap does not load the Daily secure claim bridge')
 
 placements = read('js/nexusnova-ad-placements-v1.js')
 for feature in ['wallet','tasks','emergency','quran','bukhari','bible','profile']:
@@ -143,4 +172,6 @@ print(f' - Watch Ad SSV purpose/reward: {EXPECTED_PURPOSE} / +{EXPECTED_REWARD} 
 print(' - Firebase Hosting app-ads.txt root payload: consistent')
 print(' - protected-screen and interstitial frequency policy: consistent')
 print(' - no-fill/unavailable interstitial requests do not consume cooldown/session caps')
+print(' - Daily Reward uses a secure callable bridge and propagates claim failures')
+print(' - unreleased rewarded value flows stay test-only in release builds')
 print(' - production Watch Ad credit remains safely disabled until SSV deployment is verified')
