@@ -44,5 +44,8 @@ dependencies {
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")
     implementation("androidx.webkit:webkit:1.10.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
-    implementation("com.google.android.gms:play-services-ads:25.4.0")
+
+    // GMA Next-Gen SDK. Google recommends migrating from the legacy
+    // play-services-ads path for improved stability and lower RPC overhead.
+    implementation("com.google.android.libraries.ads.mobile.sdk:ads-mobile-sdk:1.3.0")
 }
