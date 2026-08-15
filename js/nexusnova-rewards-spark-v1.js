@@ -1,7 +1,9 @@
 /* NexusNova Spark Rewards v1.1
    Secure daily reward fallback for the no-cost Firebase plan.
    Daily reward mutations are constrained by Firestore Security Rules.
-   Unverifiable community/ad rewards never mint NVX. */
+   App Check is optional extra hardening when a real site key is configured.
+   Unverifiable community/ad rewards never mint NVX.
+*/
 (() => {
   'use strict';
   if (window.__nxRewardsSparkV1) return;
@@ -45,6 +47,20 @@
     });
   }
 
+  async function optionalAppCheck() {
+    const configuredKey = String(
+      document.querySelector('meta[name="nexusnova-app-check-site-key"]')?.content ||
+      window.NEXUSNOVA_PUBLIC_CONFIG?.appCheckSiteKey ||
+      ''
+    ).trim();
+    if (!configuredKey) return false;
+    if (typeof window.nexusRequireAppCheck !== 'function') {
+      throw new Error('App Check is configured but its verifier is unavailable. Reload NexusNova and try again.');
+    }
+    await window.nexusRequireAppCheck();
+    return true;
+  }
+
   async function context() {
     const [appMod, authMod, fsMod] = await modules();
     const apps = appMod.getApps();
@@ -57,8 +73,12 @@
     user = auth.currentUser || user;
     await user.getIdToken(true);
     if (!user.emailVerified) throw new Error('Verify your email before claiming NVX rewards.');
-    if (typeof window.nexusRequireAppCheck !== 'function') throw new Error('App Check is unavailable. Reload NexusNova and try again.');
-    await window.nexusRequireAppCheck();
+
+    // Firestore Security Rules are the authoritative reward boundary on the
+    // no-cost plan. If the owner later configures a real App Check site key,
+    // require it as an additional layer; never block legitimate rewards merely
+    // because the optional key is intentionally blank.
+    await optionalAppCheck();
     return {user, db:fsMod.getFirestore(app), fsMod};
   }
 
@@ -176,6 +196,9 @@
   async function explainTask(taskId) {
     const id = String(taskId || '');
     if (id === 'task1') {
+      if (typeof window.NexusNovaTelegramRewards?.verify === 'function') {
+        return window.NexusNovaTelegramRewards.verify();
+      }
       await message({
         eyebrow:'COMMUNITY TASK',
         title:'Verification Not Connected Yet',
@@ -189,6 +212,9 @@
   }
 
   async function explainRewardedAd() {
+    if (typeof window.NexusNovaRewardedAds?.show === 'function') {
+      return window.NexusNovaRewardedAds.show();
+    }
     await message({
       eyebrow:'WATCH AD BONUS',
       title:'Rewarded Ads Setup Pending',
@@ -220,7 +246,7 @@
 
     if (ad) {
       ad.title = 'Reward activates after a real rewarded-ad provider is connected.';
-      ad.dataset.nxRewardState = 'provider-pending';
+      ad.dataset.nxRewardState = window.NexusNovaRewardedAds?.configured?.() ? 'provider-ready' : 'provider-pending';
     }
   }
 
