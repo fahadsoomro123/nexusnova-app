@@ -43,10 +43,17 @@ jobs:
           cat /tmp/nexusnova-runtime-http.log || true
           exit 1
 
-      - name: Run browser runtime smoke tests
-        run: |
-          node .github/scripts/nexusnova-runtime-smoke.mjs
-          node .github/scripts/nexusnova-allapps-regression-smoke.mjs
-          node .github/scripts/nexusnova-premium-features-smoke.mjs
-          node .github/scripts/nexusnova-touch-lifeline-runtime.mjs
-          node .github/scripts/nexusnova-android-fullpage-stability.mjs
+      - name: Core browser runtime
+        run: node .github/scripts/nexusnova-runtime-smoke.mjs
+
+      - name: ALL APPS regression
+        run: node .github/scripts/nexusnova-allapps-regression-smoke.mjs
+
+      - name: Premium feature regression
+        run: node .github/scripts/nexusnova-premium-features-smoke.mjs
+
+      - name: Synthetic touch lifeline regression
+        run: node .github/scripts/nexusnova-touch-lifeline-runtime.mjs
+
+      - name: Real Android full-page freeze regression
+        run: node .github/scripts/nexusnova-android-fullpage-stability.mjs
