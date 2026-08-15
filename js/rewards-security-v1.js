@@ -15,6 +15,8 @@
   const HOUR = 3_600_000;
   const MINING_REWARD = 24;
   const MINING_STYLE_ID = 'nx-future-mining-style';
+  const SYNC_TIMEOUT_MS = 10_000;
+  const SYNC_RETRY_DELAYS_MS = [2_500, 7_500, 15_000];
 
   let uiPromise = null;
   let firebasePromise = null;
@@ -22,6 +24,10 @@
   let unsubscribeMining = null;
   let operationPromise = null;
   let currentUid = '';
+  let syncWatchdog = null;
+  let syncRetryTimers = [];
+  let syncInFlight = null;
+  let syncError = '';
 
   const miningState = {
     known: false,
@@ -32,6 +38,39 @@
   };
 
   function el(id) { return document.getElementById(id); }
+
+  function withTimeout(promise, ms, message) {
+    let timer = null;
+    const timeout = new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(message || 'Secure session sync timed out.')), ms);
+    });
+    return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+  }
+
+  function clearSyncTimers() {
+    clearTimeout(syncWatchdog);
+    syncWatchdog = null;
+    syncRetryTimers.forEach(clearTimeout);
+    syncRetryTimers = [];
+  }
+
+  function markSyncPending() {
+    syncError = '';
+    miningState.known = false;
+    renderMiningAuthoritative();
+    clearTimeout(syncWatchdog);
+    syncWatchdog = setTimeout(() => {
+      if (miningState.known) return;
+      syncError = 'Secure session is taking longer than expected.';
+      renderMiningAuthoritative();
+    }, SYNC_TIMEOUT_MS);
+  }
+
+  function markSyncError(error) {
+    if (miningState.known) return;
+    syncError = readableError(error || new Error('Secure session could not sync.'));
+    renderMiningAuthoritative();
+  }
 
   function installMiningVisuals() {
     if (!document.getElementById(MINING_STYLE_ID)) {
@@ -110,9 +149,11 @@
     timer.classList.remove('nx-complete', 'nx-error');
 
     if (!miningState.known) {
-      button.dataset.state = 'ready';
-      text.textContent = 'SYNCING MINING';
-      timer.textContent = 'CHECKING SECURE SESSION';
+      button.dataset.state = syncError ? 'error' : 'ready';
+      button.classList.remove('active');
+      text.textContent = syncError ? 'RETRY SECURE SYNC' : 'SYNCING MINING';
+      timer.classList.toggle('nx-error', Boolean(syncError));
+      timer.textContent = syncError ? 'SESSION SYNC DELAYED • TAP TO RETRY' : 'CHECKING SECURE SESSION';
       return;
     }
 
@@ -160,6 +201,8 @@
   }
 
   function adoptState(data = {}) {
+    clearSyncTimers();
+    syncError = '';
     const balance = Number(data.balance);
     const totalMined = Number(data.totalMined);
     miningState.known = true;
@@ -183,11 +226,19 @@
 
   async function firebaseModules() {
     if (!firebasePromise) {
-      firebasePromise = Promise.all([
+      const loader = Promise.all([
         import('https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js'),
         import('https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js'),
         import('https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js')
       ]);
+      firebasePromise = withTimeout(
+        loader,
+        SYNC_TIMEOUT_MS,
+        'Firebase secure-session modules timed out. Check your internet and tap retry.'
+      ).catch(error => {
+        firebasePromise = null;
+        throw error;
+      });
     }
     return firebasePromise;
   }
@@ -451,26 +502,110 @@
     return operationPromise;
   }
 
+  async function readMiningStateOnce(user) {
+    const [appMod, , fsMod] = await firebaseModules();
+    const apps = appMod.getApps();
+    if (!apps.length) throw new Error('Firebase app is not initialized.');
+    const ref = fsMod.doc(fsMod.getFirestore(apps[0]), 'users', user.uid);
+    const snap = await withTimeout(
+      fsMod.getDoc(ref),
+      SYNC_TIMEOUT_MS,
+      'Secure session sync timed out. Check your internet and tap retry.'
+    );
+    if (!snap.exists()) throw new Error('User profile not found.');
+    if (user.uid !== currentUid) return null;
+    adoptState(snap.data() || {});
+    return snap.data() || {};
+  }
+
+  function scheduleSyncRetries(user) {
+    syncRetryTimers.forEach(clearTimeout);
+    syncRetryTimers = SYNC_RETRY_DELAYS_MS.map(delay => setTimeout(() => {
+      if (miningState.known || user.uid !== currentUid) return;
+      readMiningStateOnce(user).catch(error => {
+        console.warn('NexusNova secure mining retry:', error);
+        markSyncError(error);
+      });
+    }, delay));
+  }
+
+  async function retrySecureSync({ userInitiated = false } = {}) {
+    if (syncInFlight) return syncInFlight;
+    syncInFlight = (async () => {
+      try {
+        const [appMod, authMod] = await firebaseModules();
+        const apps = appMod.getApps();
+        if (!apps.length) throw new Error('Firebase app is not initialized.');
+        const auth = authMod.getAuth(apps[0]);
+        const user = auth.currentUser || await waitForUser(authMod, auth);
+        if (!user) throw new Error('Please sign in first.');
+        currentUid = user.uid;
+        markSyncPending();
+        return await readMiningStateOnce(user);
+      } catch (error) {
+        console.warn('NexusNova secure mining manual sync:', error);
+        markSyncError(error);
+        if (userInitiated) {
+          await showMessage({
+            eyebrow:'SECURE SESSION',
+            title:'Sync Delayed',
+            text:readableError(error),
+            icon:'security',
+            buttonText:'OK'
+          });
+        }
+        throw error;
+      } finally {
+        syncInFlight = null;
+      }
+    })();
+    return syncInFlight;
+  }
+
   async function subscribeToMining() {
     const [appMod, authMod, fsMod] = await firebaseModules();
     const apps = appMod.getApps();
-    if (!apps.length) return;
+    if (!apps.length) {
+      markSyncError(new Error('Firebase app is not initialized.'));
+      return;
+    }
     const auth = authMod.getAuth(apps[0]);
     authMod.onAuthStateChanged(auth, user => {
       try { unsubscribeMining?.(); } catch (_) {}
       unsubscribeMining = null;
+      clearSyncTimers();
       currentUid = user?.uid || '';
       if (!user) {
         miningState.known = false;
+        syncError = 'Sign in is required to sync mining.';
         renderMiningAuthoritative();
         return;
       }
+
+      markSyncPending();
       const ref = fsMod.doc(fsMod.getFirestore(apps[0]), 'users', user.uid);
       unsubscribeMining = fsMod.onSnapshot(ref, snap => {
-        if (user.uid !== currentUid || !snap.exists()) return;
+        if (user.uid !== currentUid) return;
+        if (!snap.exists()) {
+          markSyncError(new Error('User profile not found.'));
+          return;
+        }
         adoptState(snap.data() || {});
       }, error => {
+        if (user.uid !== currentUid) return;
         console.warn('NexusNova mining state watch:', error);
+        markSyncError(error);
+        scheduleSyncRetries(user);
+      });
+
+      // Firestore listeners can occasionally wait on a weak/mobile connection.
+      // A bounded one-shot read gives startup a second path and prevents an
+      // infinite CHECKING SECURE SESSION state without changing any NVX value.
+      readMiningStateOnce(user).catch(error => {
+        if (user.uid !== currentUid || miningState.known) return;
+        console.warn('NexusNova initial mining sync:', error);
+        markSyncError(error);
+        scheduleSyncRetries(user);
       });
     });
   }
@@ -520,7 +655,13 @@
   function installHandlers() {
     installMiningVisuals();
     const mine = el('mineBtn');
-    if (mine) mine.onclick = startMining;
+    if (mine) mine.onclick = () => {
+      if (!miningState.known) {
+        retrySecureSync({ userInitiated:true }).catch(() => {});
+        return;
+      }
+      startMining().catch(() => {});
+    };
     window.claimDailyReward = claimDaily;
     window.completeTask = completeTask;
   }
@@ -532,21 +673,22 @@
   window.nexusSecureFinishMining = finishMining;
   window.nexusSecureRenderMining = () => renderMiningAuthoritative();
   window.nexusSecureSyncMining = async () => {
-    const context = await getContext({ write:false });
-    const state = await readState(context);
-    adoptState(state);
-    return state;
+    if (miningState.known) return { ...miningState };
+    return retrySecureSync({ userInitiated:false });
   };
-  window.nexusMiningEngineVersion = 'single-owner-v3';
+  window.nexusMiningEngineVersion = 'single-owner-v4-sync-watchdog';
 
   installHandlers();
   renderMiningAuthoritative();
-  subscribeToMining().catch(error => console.warn('NexusNova mining subscription:', error));
+  subscribeToMining().catch(error => {
+    console.warn('NexusNova mining subscription:', error);
+    markSyncError(error);
+  });
   window.addEventListener('load', () => {
     installHandlers();
     setTimeout(installHandlers, 1200);
     setTimeout(installHandlers, 3500);
   }, { once:true });
 
-  console.info('NexusNova mining engine loaded: single-owner-v3');
+  console.info('NexusNova mining engine loaded: single-owner-v4-sync-watchdog');
 })();
