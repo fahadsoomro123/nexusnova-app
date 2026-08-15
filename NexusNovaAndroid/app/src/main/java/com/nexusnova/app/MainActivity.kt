@@ -45,6 +45,9 @@ class MainActivity : AppCompatActivity() {
     private var fileChooserCallback: ValueCallback<Array<Uri>>? = null
     private var fileChooserAcceptTypes: Set<String> = emptySet()
     private var usingOfflineFallback = false
+    private var mainFrameWatchdogToken = 0
+    private var finishedWatchdogToken = -1
+    private var webRecoveryAttempts = 0
 
     private data class PendingGeolocation(
         val origin: String,
@@ -117,7 +120,7 @@ class MainActivity : AppCompatActivity() {
         // The production GitHub Pages origin is also the registered web App
         // Check origin. Loading it here means web and Android use one tested
         // mining engine instead of maintaining two drifting copies.
-        webView.loadUrl(PRODUCTION_APP_URL)
+        loadProductionApp()
         showCallerSetupOnce()
     }
 
@@ -147,6 +150,22 @@ class MainActivity : AppCompatActivity() {
                     ?: super.shouldInterceptRequest(view, request)
             }
 
+            override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                super.onPageStarted(view, url, favicon)
+                val uri = url?.let { runCatching { Uri.parse(it) }.getOrNull() } ?: return
+                if (!isProductionOrigin(uri) || usingOfflineFallback) return
+                armMainFrameWatchdog(view ?: return)
+            }
+
+            override fun onPageFinished(view: WebView?, url: String?) {
+                super.onPageFinished(view, url)
+                val target = view ?: return
+                val uri = url?.let { runCatching { Uri.parse(it) }.getOrNull() } ?: return
+                if (!isProductionOrigin(uri) || usingOfflineFallback) return
+                finishedWatchdogToken = mainFrameWatchdogToken
+                scheduleBlankScreenCheck(target, mainFrameWatchdogToken)
+            }
+
             override fun shouldOverrideUrlLoading(
                 view: WebView?,
                 request: WebResourceRequest?
@@ -174,11 +193,20 @@ class MainActivity : AppCompatActivity() {
                 if (!failed.isForMainFrame || usingOfflineFallback) return
                 if (!isProductionOrigin(failed.url)) return
 
-                // Offline fallback is intentionally local. It keeps non-value
-                // utilities available, while production mining remains bound to
-                // the stable, registered App Check origin.
-                usingOfflineFallback = true
-                view?.loadUrl(LOCAL_APP_URL)
+                recoverProductionWebView(view, "main-frame network error")
+            }
+
+            override fun onReceivedHttpError(
+                view: WebView?,
+                request: WebResourceRequest?,
+                errorResponse: WebResourceResponse?
+            ) {
+                super.onReceivedHttpError(view, request, errorResponse)
+                val failed = request ?: return
+                val status = errorResponse?.statusCode ?: return
+                if (!failed.isForMainFrame || status < 400 || usingOfflineFallback) return
+                if (!isProductionOrigin(failed.url)) return
+                recoverProductionWebView(view, "HTTP $status")
             }
         }
 
@@ -275,6 +303,63 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    private fun loadProductionApp(forceFresh: Boolean = false) {
+        usingOfflineFallback = false
+        if (forceFresh) webView.clearCache(true)
+        val suffix = if (forceFresh) "?androidRecovery=${System.currentTimeMillis()}" else ""
+        webView.loadUrl(PRODUCTION_APP_URL + suffix)
+    }
+
+    private fun armMainFrameWatchdog(view: WebView) {
+        val token = ++mainFrameWatchdogToken
+        finishedWatchdogToken = -1
+        view.postDelayed({
+            if (isFinishing || isDestroyed || usingOfflineFallback) return@postDelayed
+            if (token != mainFrameWatchdogToken || finishedWatchdogToken == token) return@postDelayed
+            recoverProductionWebView(view, "main-frame load timeout")
+        }, MAIN_FRAME_LOAD_TIMEOUT_MS)
+    }
+
+    private fun scheduleBlankScreenCheck(view: WebView, token: Int) {
+        view.postDelayed({
+            if (isFinishing || isDestroyed || usingOfflineFallback) return@postDelayed
+            if (token != mainFrameWatchdogToken || finishedWatchdogToken != token) return@postDelayed
+            view.evaluateJavascript(BLANK_SCREEN_PROBE) { result ->
+                if (token != mainFrameWatchdogToken || usingOfflineFallback) return@evaluateJavascript
+                if (result == "true") {
+                    webRecoveryAttempts = 0
+                    return@evaluateJavascript
+                }
+                recoverProductionWebView(view, "blank rendered page")
+            }
+        }, BLANK_SCREEN_GRACE_MS)
+    }
+
+    private fun recoverProductionWebView(view: WebView?, reason: String) {
+        if (usingOfflineFallback || isFinishing || isDestroyed) return
+        val target = view ?: webView
+        if (webRecoveryAttempts < MAX_WEB_RECOVERY_ATTEMPTS) {
+            webRecoveryAttempts += 1
+            target.stopLoading()
+            target.clearCache(true)
+            target.postDelayed({
+                if (!isFinishing && !isDestroyed && !usingOfflineFallback) {
+                    loadProductionApp(forceFresh = true)
+                }
+            }, WEB_RECOVERY_RELOAD_DELAY_MS)
+            return
+        }
+
+        // A technically successful but visually blank remote page is just as unusable
+        // as a network failure. Fall back to the bundled shell instead of leaving the
+        // user on an empty WebView. Value-bearing mining remains disabled offline.
+        usingOfflineFallback = true
+        mainFrameWatchdogToken += 1
+        target.stopLoading()
+        target.loadUrl(LOCAL_APP_URL)
+        android.util.Log.w("NexusNovaWeb", "Using local fallback after $reason")
     }
 
     private fun installNativeMessageListener() {
@@ -603,6 +688,33 @@ class MainActivity : AppCompatActivity() {
         const val CALLER_PROMPT_PREFERENCES = "caller_role_prompt"
         const val CALLER_PROMPT_SHOWN = "shown"
         const val CALLER_PROMPT_DELAY_MS = 2_500L
+
+        const val MAIN_FRAME_LOAD_TIMEOUT_MS = 12_000L
+        const val BLANK_SCREEN_GRACE_MS = 3_500L
+        const val WEB_RECOVERY_RELOAD_DELAY_MS = 350L
+        const val MAX_WEB_RECOVERY_ATTEMPTS = 1
+        const val BLANK_SCREEN_PROBE = """
+            (function(){
+              try {
+                var b = document.body;
+                if (!b) return false;
+                var bs = getComputedStyle(b);
+                if (bs.display === 'none' || bs.visibility === 'hidden' || Number(bs.opacity) === 0) return false;
+                var selectors = ['#nxSplash','.auth-shell','#mineBtn','.bottom-nav','.bottom-dock','main','.app-container'];
+                for (var i = 0; i < selectors.length; i++) {
+                  var e = document.querySelector(selectors[i]);
+                  if (!e) continue;
+                  var r = e.getBoundingClientRect();
+                  var es = getComputedStyle(e);
+                  if (r.width > 20 && r.height > 20 && es.display !== 'none' && es.visibility !== 'hidden' && Number(es.opacity) > 0) return true;
+                }
+                var text = (b.innerText || '').replace(/\s+/g, ' ').trim();
+                return text.length > 80 && document.documentElement.scrollHeight > 150;
+              } catch (_) {
+                return true;
+              }
+            })();
+        """
 
         val LOCATION_PERMISSIONS = arrayOf(
             Manifest.permission.ACCESS_FINE_LOCATION,
