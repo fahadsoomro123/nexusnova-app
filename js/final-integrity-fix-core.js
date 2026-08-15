@@ -173,6 +173,10 @@
     loadGuard('./js/nexusnova-local-apps-repair-v1.js', 'data-nx-local-apps-repair');
     loadGuard('./js/nexusnova-profile-display-guard-v1.js', 'data-nx-profile-display-guard');
     loadGuard('./js/nexusnova-speed-meter-sync-v2.js?v=2', 'data-nx-speed-meter-v2');
+    // Premium ALL APPS identity is deliberately loaded after the stability guards.
+    // It only decorates feature screens and reuses the existing navigation contract;
+    // it does not replace feature logic or the approved ALL APPS ordering.
+    loadGuard('./js/nexusnova-allapps-experience-v2.js?v=3', 'data-nx-allapps-experience-v2');
 
     let converterPasses = 0;
     const converterGuard = setInterval(() => {
