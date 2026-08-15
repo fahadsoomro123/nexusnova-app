@@ -84,6 +84,11 @@
       body.nx-allapps-open #moreMenu.more-menu.show{
         display:block!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important;z-index:1250!important
       }
+      /* The menu may fill the viewport, but the fixed dock must always remain
+         the top touch surface so ALL APPS can be closed with the same button. */
+      body.nx-allapps-open .bottom-dock{
+        z-index:1300!important;pointer-events:auto!important
+      }
       .nx-app-hero{position:relative;overflow:hidden;display:grid;grid-template-columns:74px minmax(0,1fr);gap:15px;align-items:center;margin:0 0 14px;padding:18px;border-radius:23px;background:linear-gradient(145deg,rgba(10,30,57,.98),rgba(4,15,32,.98));border:1px solid rgba(84,166,255,.22);box-shadow:0 18px 42px rgba(0,0,0,.24),inset 0 1px 0 rgba(255,255,255,.05)}
       .nx-app-hero:before{content:"";position:absolute;right:-60px;top:-85px;width:200px;height:200px;border-radius:50%;background:radial-gradient(circle,rgba(40,151,255,.25),transparent 67%);pointer-events:none}
       .nx-app-hero-icon{width:70px;height:70px;display:grid;place-items:center;border-radius:22px;color:#fff;background:linear-gradient(145deg,#1675ff,#32b5ff 62%,#69dcff);border:1px solid rgba(183,230,255,.35);box-shadow:0 14px 32px rgba(20,122,255,.30),inset 0 1px 0 rgba(255,255,255,.34)}
