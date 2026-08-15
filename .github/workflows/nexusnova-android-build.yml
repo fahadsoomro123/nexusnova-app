@@ -7,6 +7,13 @@ on:
       - codex-final-audit
     paths:
       - 'NexusNovaAndroid/**'
+      - 'index.html'
+      - 'page2.html'
+      - 'referral.html'
+      - 'styles.css'
+      - 'manifest.webmanifest'
+      - 'css/**'
+      - 'js/**'
       - '.github/workflows/nexusnova-android-build.yml'
   workflow_dispatch:
 
@@ -16,7 +23,7 @@ permissions:
 jobs:
   android-build:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -31,6 +38,9 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.13'
+
+      - name: Prepare deterministic Android web shell
+        run: python3 NexusNovaAndroid/prepare_native_web_shell.py
 
       - name: Apply Android viewport lock
         run: python3 NexusNovaAndroid/patch_viewport.py
@@ -50,10 +60,23 @@ jobs:
       - name: Reset stale WebView shell once
         run: python3 NexusNovaAndroid/patch_web_shell_reset.py
 
+      - name: Apply deterministic native shell and startup stabilization
+        run: python3 NexusNovaAndroid/patch_native_shell.py
+
+      - name: Verify native shell before compile
+        run: |
+          grep -q 'nxAndroidNativeShellBootstrap' NexusNovaAndroid/app/src/main/assets/www/page2.html
+          grep -q 'window.__nexusInteractiveReady = true' NexusNovaAndroid/app/src/main/assets/www/page2.html
+          grep -q '!window.__nexusAndroidShell' NexusNovaAndroid/app/src/main/assets/www/page2.html
+          grep -q 'NATIVE_SHELL_PATH = "/nexusnova-native/"' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -q 'interceptNativeShell' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -q 'scheduleInteractiveShellCheck' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -q 'scheduleNativeAdInitialization' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+
       - name: Compile Android test and production variants
         run: gradle -p NexusNovaAndroid :app:assembleDebug :app:assembleRelease --stacktrace --no-daemon
 
-      - name: Verify ad and recovery build separation
+      - name: Verify ad, privacy, and recovery build separation
         run: |
           grep -q 'NEXUS_ADS_TEST_MODE' NexusNovaAndroid/app/build.gradle.kts
           grep -q 'ca-app-pub-3940256099942544~3347511713' NexusNovaAndroid/app/build.gradle.kts
@@ -64,11 +87,13 @@ jobs:
           grep -q 'showAdPrivacyOptions' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
           grep -q 'WEB_SHELL_RECOVERY_EPOCH' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
           grep -q 'resetStaleWebShellOnce' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -q 'REWARDED_FALLBACK_STAGGER_MS' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
+          grep -q 'INTERSTITIAL_STARTUP_STAGGER_MS' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
 
       - name: Upload Android debug TEST APK
         uses: actions/upload-artifact@v4
         with:
-          name: NexusNova-Android-AdMob-TEST-apk
+          name: NexusNova-Android-Stability-TEST-apk
           path: NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
 
