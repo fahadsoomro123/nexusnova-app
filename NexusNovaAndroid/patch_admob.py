@@ -19,12 +19,12 @@ if 'adManager = NexusAdManager(this, webView)' not in text:
         raise SystemExit('Ad manager initialization insertion point not found')
     text = text.replace(old, new, 1)
 
-# Preserve the reward purpose coming from the web layer. Daily Reward and
-# Mining Boost share one native ad owner, but their callbacks must never be
-# mislabeled or consumed by the wrong feature.
+# Preserve reward purpose + authenticated Firebase UID coming from the trusted
+# top-level web app. The native owner uses them only for Google SSV metadata;
+# no client field can directly grant NVX.
 if 'ACTION_SHOW_REWARDED_AD -> adManager.showRewarded(' not in text:
     old = '''            ACTION_REQUEST_CALLER_ROLE -> requestCallerRole()\n\n            ACTION_OPEN_EXTERNAL -> {'''
-    new = '''            ACTION_REQUEST_CALLER_ROLE -> requestCallerRole()\n\n            ACTION_SHOW_REWARDED_AD -> adManager.showRewarded(\n                rewardPurpose = message.optString("rewardPurpose").trim(),\n                testOnly = message.optBoolean("testOnly", false)\n            )\n            ACTION_SHOW_INTERSTITIAL_AD -> adManager.showInterstitial()\n            ACTION_AD_STATUS -> adManager.publishStatus()\n\n            ACTION_OPEN_EXTERNAL -> {'''
+    new = '''            ACTION_REQUEST_CALLER_ROLE -> requestCallerRole()\n\n            ACTION_SHOW_REWARDED_AD -> adManager.showRewarded(\n                rewardPurpose = message.optString("rewardPurpose").trim(),\n                testOnly = message.optBoolean("testOnly", false),\n                userId = message.optString("userId").trim()\n            )\n            ACTION_SHOW_INTERSTITIAL_AD -> adManager.showInterstitial()\n            ACTION_AD_STATUS -> adManager.publishStatus()\n\n            ACTION_OPEN_EXTERNAL -> {'''
     if old not in text:
         raise SystemExit('Ad native-action insertion point not found')
     text = text.replace(old, new, 1)
@@ -55,16 +55,88 @@ if 'gma-next-gen-1.3.0-gam-direct-test' in manager:
         'gma-next-gen-1.3.0',
         1
     )
+
+# Google Next-Gen SSV metadata support. This is additive to the proven v60 ad
+# load/show path and is only attached immediately before a production ad shows.
+ssv_import = 'import com.google.android.libraries.ads.mobile.sdk.rewarded.ServerSideVerificationOptions\n'
+if ssv_import not in manager:
+    marker = 'import com.google.android.libraries.ads.mobile.sdk.rewarded.OnUserEarnedRewardListener\n'
+    if marker not in manager:
+        raise SystemExit('SSV import insertion point not found')
+    manager = manager.replace(marker, marker + ssv_import, 1)
+
+if 'private var pendingRewardUserId = ""' not in manager:
+    marker = '    private var pendingTestOnly = false\n'
+    addition = marker + '    private var pendingRewardUserId = ""\n    private var pendingRewardCustomData = ""\n'
+    if marker not in manager:
+        raise SystemExit('SSV pending-field insertion point not found')
+    manager = manager.replace(marker, addition, 1)
+
+old_signature = '    fun showRewarded(rewardPurpose: String? = null, testOnly: Boolean = false) {'
+new_signature = '    fun showRewarded(rewardPurpose: String? = null, testOnly: Boolean = false, userId: String? = null) {'
+if old_signature in manager:
+    manager = manager.replace(old_signature, new_signature, 1)
+
+if 'pendingRewardUserId = sanitizeRewardUserId(userId)' not in manager:
+    marker = '''            pendingRewardPurpose = purpose\n            pendingTestOnly = testOnly\n'''
+    addition = marker + '''            pendingRewardUserId = sanitizeRewardUserId(userId)\n            pendingRewardCustomData = purpose\n'''
+    if marker not in manager:
+        raise SystemExit('SSV request identity insertion point not found')
+    manager = manager.replace(marker, addition, 1)
+
+ssv_block = '''        if (!TEST_MODE && pendingRewardUserId.isNotBlank()) {\n            ad.setServerSideVerificationOptions(\n                ServerSideVerificationOptions(pendingRewardUserId, pendingRewardCustomData)\n            )\n        }\n\n'''
+if manager.count(ssv_block) < 2:
+    primary_marker = '''        dispatchRewardEvent("rewarded-showing", "rewarded")\n        ad.show(\n'''
+    primary_new = '''        dispatchRewardEvent("rewarded-showing", "rewarded")\n''' + ssv_block + '''        ad.show(\n'''
+    if primary_marker in manager and ssv_block not in manager[manager.index(primary_marker):manager.index(primary_marker)+800]:
+        manager = manager.replace(primary_marker, primary_new, 1)
+
+    fallback_marker = '''        dispatchRewardEvent("rewarded-showing", "rewarded-interstitial-fallback")\n        ad.show(\n'''
+    fallback_new = '''        dispatchRewardEvent("rewarded-showing", "rewarded-interstitial-fallback")\n''' + ssv_block + '''        ad.show(\n'''
+    if fallback_marker in manager and ssv_block not in manager[manager.index(fallback_marker):manager.index(fallback_marker)+900]:
+        manager = manager.replace(fallback_marker, fallback_new, 1)
+
+if 'pendingRewardUserId = ""' in manager and manager.count('pendingRewardUserId = ""') == 1:
+    marker = '''        pendingTestOnly = false\n        rewardedRetryRound = 0\n'''
+    addition = '''        pendingTestOnly = false\n        pendingRewardUserId = ""\n        pendingRewardCustomData = ""\n        rewardedRetryRound = 0\n'''
+    if marker not in manager:
+        raise SystemExit('SSV clear-state insertion point not found')
+    manager = manager.replace(marker, addition, 1)
+
+if 'REWARD_PURPOSE_WATCH_AD -> REWARD_PURPOSE_WATCH_AD' not in manager:
+    marker = '''            REWARD_PURPOSE_DAILY_TEST -> REWARD_PURPOSE_DAILY_TEST\n            REWARD_PURPOSE_MINING -> REWARD_PURPOSE_MINING\n'''
+    addition = '''            REWARD_PURPOSE_DAILY_TEST -> REWARD_PURPOSE_DAILY_TEST\n            REWARD_PURPOSE_WATCH_AD -> REWARD_PURPOSE_WATCH_AD\n            REWARD_PURPOSE_MINING -> REWARD_PURPOSE_MINING\n'''
+    if marker not in manager:
+        raise SystemExit('Reward-purpose insertion point not found')
+    manager = manager.replace(marker, addition, 1)
+
+if 'private fun sanitizeRewardUserId' not in manager:
+    marker = '    private fun dispatch(event: String, extras: Map<String, Any?> = emptyMap()) {'
+    addition = '''    private fun sanitizeRewardUserId(raw: String?): String {\n        val value = raw.orEmpty().trim()\n        return value.takeIf { Regex("^[A-Za-z0-9:_-]{3,128}$").matches(it) }.orEmpty()\n    }\n\n''' + marker
+    if marker not in manager:
+        raise SystemExit('SSV UID sanitizer insertion point not found')
+    manager = manager.replace(marker, addition, 1)
+
+if 'const val REWARD_PURPOSE_WATCH_AD = "task-watch-ad"' not in manager:
+    marker = '        const val REWARD_PURPOSE_DAILY_TEST = "daily-reward-test"\n'
+    addition = marker + '        const val REWARD_PURPOSE_WATCH_AD = "task-watch-ad"\n'
+    if marker not in manager:
+        raise SystemExit('Watch-ad constant insertion point not found')
+    manager = manager.replace(marker, addition, 1)
+
 manager_path.write_text(manager)
 
 required_markers = [
     'gma-next-gen-1.3.0',
     'daily-reward-test',
+    'task-watch-ad',
     'TEST_REWARDED_INTERSTITIAL_AD_UNIT_ID',
     'BuildConfig.NEXUS_ADS_TEST_MODE',
+    'ServerSideVerificationOptions',
+    'pendingRewardUserId',
 ]
 missing = [marker for marker in required_markers if marker not in manager]
 if missing:
     raise SystemExit('Next-Gen Ad manager verification failed: ' + ', '.join(missing))
 
-print('GMA Next-Gen ad bridge patch applied with consent-gated production and purpose-safe routing.')
+print('GMA Next-Gen ad bridge patch applied with consent-gated production, SSV identity and purpose-safe routing.')
