@@ -84,6 +84,14 @@ try {
 
 await import('./page2-core.js?v=appcheck-debug-10');
 
+// Central monetization controller. It owns frequency caps and protected-screen
+// exclusions while the proven native v60+ ad owner remains unchanged.
+try {
+  await import('./nexusnova-ad-placements-v1.js?v=1');
+} catch (error) {
+  console.warn('NexusNova ad placements:', error);
+}
+
 // A secure account transaction must not be reported as failed merely because a
 // secondary/profile renderer throws afterwards.
 if (typeof window.nexusApplySecureAccountState === 'function') {
