@@ -4,12 +4,16 @@ MAIN = Path("NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.k
 
 src = MAIN.read_text(encoding="utf-8")
 
-startup = """        webView.loadUrl(PRODUCTION_APP_URL)\n        showCallerSetupOnce()\n"""
-replacement = """        webView.loadUrl(PRODUCTION_APP_URL)\n        // Caller ID setup is intentionally deferred. Do not interrupt splash/auth.\n        // The user sees setup only after explicitly choosing the Caller ID feature.\n"""
-
-if startup not in src:
+# Session-restore builds may choose either index.html or page2.html at startup,
+# so do not couple Caller ID deferral to a specific webView.loadUrl(...) line.
+startup_call = "        showCallerSetupOnce()\n"
+startup_comment = """        // Caller ID setup is intentionally deferred. Do not interrupt splash/auth.
+        // The user sees setup only after explicitly choosing the Caller ID feature.
+"""
+if startup_call in src:
+    src = src.replace(startup_call, startup_comment, 1)
+elif "Caller ID setup is intentionally deferred" not in src:
     raise SystemExit("Caller setup startup marker not found; refusing unsafe patch")
-src = src.replace(startup, replacement, 1)
 
 old_action = "            ACTION_REQUEST_CALLER_ROLE -> requestCallerRole()"
 new_action = """            ACTION_REQUEST_CALLER_ROLE -> {
@@ -19,9 +23,10 @@ new_action = """            ACTION_REQUEST_CALLER_ROLE -> {
                 callerSetupLauncher.launch(Intent(this, CallerSetupActivity::class.java))
             }"""
 
-if old_action not in src:
+if old_action in src:
+    src = src.replace(old_action, new_action, 1)
+elif "callerSetupLauncher.launch(Intent(this, CallerSetupActivity::class.java))" not in src:
     raise SystemExit("Caller role bridge marker not found; refusing unsafe patch")
-src = src.replace(old_action, new_action, 1)
 
 # Safety assertions: no automatic setup call may remain in onCreate, while the
 # on-demand bridge and setup activity must remain wired.
