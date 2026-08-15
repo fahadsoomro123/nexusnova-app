@@ -4,7 +4,25 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+
+    <!-- NexusNova blue rounded-square brand tile -->
     <path
-        android:fillColor="#00FFCC"
-        android:pathData="M54,30c-13.2,0 -24,10.8 -24,24s10.8,24 24,24 24,-10.8 24,-24 -10.8,-24 -24,-24zM48,48h12v12h-12z" />
+        android:fillColor="#1479FF"
+        android:pathData="M30,20 C24.5,20 20,24.5 20,30 L20,78 C20,83.5 24.5,88 30,88 L78,88 C83.5,88 88,83.5 88,78 L88,30 C88,24.5 83.5,20 78,20 Z" />
+
+    <!-- subtle inner highlight -->
+    <path
+        android:fillColor="#3EA8FF"
+        android:fillAlpha="0.55"
+        android:pathData="M31,25 C27.7,25 25,27.7 25,31 L25,50 C37,38 55,29 82,27 C81.1,25.8 79.7,25 78,25 Z" />
+
+    <!-- white NexusNova N -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M38,69 L38,39 L45.5,39 L62.5,59.8 L62.5,39 L70,39 L70,69 L62.8,69 L45.5,48.1 L45.5,69 Z" />
+
+    <!-- signature nova dot -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M75.5,69 m-4.5,0 a4.5,4.5 0,1 0,9 0 a4.5,4.5 0,1 0,-9 0" />
 </vector>
