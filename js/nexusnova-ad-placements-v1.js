@@ -5,6 +5,7 @@
    - Rewarded ads stay opt-in and purpose-owned by their feature.
    - Interstitials only run at natural breaks, never on protected/sensitive screens.
    - Strong session/time frequency caps prevent ad spam.
+   - Content opens can warm eligibility but NEVER show an ad immediately.
    - This file never mints NVX or changes mining value.
 */
 (() => {
@@ -16,6 +17,7 @@
   const INTERSTITIAL_MIN_GAP_MS = 180_000;
   const INTERSTITIAL_SESSION_MAX = 4;
   const ELIGIBLE_BREAKS_BEFORE_FIRST = 3;
+  const ENGAGEMENT_MIN_GAP_MS = 12_000;
 
   const MONETIZABLE_FEATURES = new Set([
     'tools','finance','news','learn','travel','smart','entertainment','browser',
@@ -35,6 +37,8 @@
   let lastInterstitialAt = 0;
   let eligibleBreakCount = 0;
   let sessionInterstitialCount = 0;
+  let lastEngagementAt = 0;
+  let lastEngagementKey = '';
   let sessionId = '';
 
   function readSession() {
@@ -44,6 +48,8 @@
       lastInterstitialAt = Number(raw.lastInterstitialAt || 0) || 0;
       eligibleBreakCount = Number(raw.eligibleBreakCount || 0) || 0;
       sessionInterstitialCount = Number(raw.sessionInterstitialCount || 0) || 0;
+      lastEngagementAt = Number(raw.lastEngagementAt || 0) || 0;
+      lastEngagementKey = String(raw.lastEngagementKey || '');
       persist();
     } catch (_) {
       sessionId = `${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
@@ -53,7 +59,8 @@
   function persist() {
     try {
       sessionStorage.setItem(SESSION_KEY, JSON.stringify({
-        sessionId,lastInterstitialAt,eligibleBreakCount,sessionInterstitialCount
+        sessionId,lastInterstitialAt,eligibleBreakCount,sessionInterstitialCount,
+        lastEngagementAt,lastEngagementKey
       }));
     } catch (_) {}
   }
@@ -87,6 +94,23 @@
     return !isProtected(name) && MONETIZABLE_FEATURES.has(name);
   }
 
+  function noteEngagement(feature, placement = 'content-use') {
+    const name = normalizeFeature(feature);
+    if (!isEligibleFeature(name)) return { counted:false, reason:'protected-or-ineligible', feature:name };
+
+    const key = `${name}:${String(placement || '').slice(0,64)}`;
+    const now = Date.now();
+    if (key === lastEngagementKey && now - lastEngagementAt < ENGAGEMENT_MIN_GAP_MS) {
+      return { counted:false, reason:'debounced', feature:name };
+    }
+
+    lastEngagementAt = now;
+    lastEngagementKey = key;
+    eligibleBreakCount = Math.min(ELIGIBLE_BREAKS_BEFORE_FIRST, eligibleBreakCount + 1);
+    persist();
+    return { counted:true, feature:name, eligibleBreakCount };
+  }
+
   function canShowInterstitial(feature) {
     if (!isEligibleFeature(feature)) return false;
     if (sessionInterstitialCount >= INTERSTITIAL_SESSION_MAX) return false;
@@ -101,7 +125,9 @@
       return { shown:false, reason:'protected-or-ineligible', placement, feature };
     }
 
-    eligibleBreakCount += 1;
+    // A real natural break itself counts as one eligible use if prior content
+    // engagement did not already warm the threshold.
+    eligibleBreakCount = Math.min(ELIGIBLE_BREAKS_BEFORE_FIRST, eligibleBreakCount + 1);
     persist();
 
     if (eligibleBreakCount < ELIGIBLE_BREAKS_BEFORE_FIRST) {
@@ -155,6 +181,31 @@
     if (type === 'interstitial-showing' || type === 'interstitial-unavailable' || type === 'interstitial-failed') interstitialReady = false;
   });
 
+  // Outbound content actions only warm eligibility. No ad interrupts the user's
+  // explicit content-open action; the actual interstitial can appear later at a
+  // safe return/break point.
+  document.addEventListener('click', event => {
+    const target = event.target;
+    if (!target?.closest) return;
+    if (target.closest('#nxNewsRoot [data-v9-i]')) {
+      noteEngagement('news','article-open');
+      return;
+    }
+    if (target.closest('#nxEntertainmentSearchBtn,.nx-ent-chip')) {
+      noteEngagement('entertainment','provider-open');
+      return;
+    }
+    if (target.closest('#tab-browser [data-nx-browser-go],#tab-browser .nx-speed,#tab-browser [data-nx-explicit-external]')) {
+      noteEngagement('browser','site-open');
+    }
+  }, true);
+
+  document.addEventListener('submit', event => {
+    if (event.target?.closest?.('#tab-browser [data-nx-home-search]')) {
+      noteEngagement('browser','search-open');
+    }
+  }, true);
+
   // All Apps back/return is a natural break. Capture the feature on pointer-up
   // before legacy click handlers hide it, then let the normal navigation finish.
   // Only the safe allow-list above can ever trigger an interstitial.
@@ -170,6 +221,7 @@
   window.NexusNovaAds = Object.freeze({
     maybeInterstitial,
     requestRewarded,
+    noteEngagement,
     isProtected,
     isEligibleFeature,
     status
