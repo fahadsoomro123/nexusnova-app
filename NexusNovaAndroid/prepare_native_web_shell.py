@@ -29,6 +29,7 @@ NATIVE_HEAD = '''<script id="nxAndroidNativeShellBootstrap">
   'use strict';
   window.__nexusAndroidShell = true;
   window.__nexusInteractiveReady = false;
+  window.__nexusEmergencyAppassets = location.origin === 'https://appassets.androidplatform.net';
 
   function byId(id){ return document.getElementById(id); }
   function activate(name, button){
@@ -84,7 +85,7 @@ def patch_html(path: Path, dashboard: bool):
         marker = '<head>'
         if marker not in text:
             raise SystemExit(f'{path}: <head> marker missing')
-        injection = NATIVE_HEAD if dashboard else '''<script id="nxAndroidNativeShellBootstrap">window.__nexusAndroidShell=true;</script>\n'''
+        injection = NATIVE_HEAD if dashboard else '''<script id="nxAndroidNativeShellBootstrap">window.__nexusAndroidShell=true;window.__nexusEmergencyAppassets=location.origin==='https://appassets.androidplatform.net';</script>\n'''
         text = text.replace(marker, marker + '\n' + injection, 1)
 
     text = text.replace(
@@ -124,11 +125,32 @@ def patch_fcm():
     path.write_text(text, encoding='utf-8')
 
 
+def patch_emergency_rewards_guard():
+    """Keep synthetic github.io native shell fully functional, but make the
+    last-resort appassets origin explicitly read-only for all NVX mining.
+    This prevents emergency fallback from becoming a second value owner."""
+    path = ASSETS / 'js/rewards-security-v1.js'
+    if not path.exists():
+        return
+    text = path.read_text(encoding='utf-8')
+    marker = "  'use strict';\n"
+    guard_marker = 'android-appassets-readonly-guard-v2'
+    if guard_marker in text:
+        return
+    if marker not in text:
+        raise SystemExit('Rewards emergency guard insertion point missing')
+
+    guard = '''  // android-appassets-readonly-guard-v2\n  if (location.origin === 'https://appassets.androidplatform.net') {\n    window.__nexusSecureRewardsSingleOwner = true;\n    window.nexusMiningEngineVersion = 'android-appassets-readonly-guard-v2';\n    const renderOfflineMining = () => {\n      const button = document.getElementById('mineBtn');\n      const label = document.getElementById('btnText');\n      const timer = document.getElementById('timer');\n      if (button) { button.disabled = true; button.dataset.state = 'offline'; }\n      if (label) label.textContent = 'ONLINE MINING REQUIRED';\n      if (timer) timer.textContent = 'RECONNECT TO SECURE NEXUSNOVA';\n    };\n    window.nexusSecureStartMining = async () => { renderOfflineMining(); return false; };\n    window.nexusSecureRenderMining = () => renderOfflineMining();\n    window.nexusSecureMiningState = () => Object.freeze({known:false,active:false,offline:true});\n    if (document.readyState === 'loading') {\n      document.addEventListener('DOMContentLoaded', renderOfflineMining, {once:true});\n    } else {\n      renderOfflineMining();\n    }\n    return;\n  }\n'''
+    text = text.replace(marker, marker + guard, 1)
+    path.write_text(text, encoding='utf-8')
+
+
 copy_required_shell()
 patch_html(ASSETS / 'page2.html', dashboard=True)
 patch_html(ASSETS / 'index.html', dashboard=False)
 patch_html(ASSETS / 'referral.html', dashboard=False)
 patch_fcm()
+patch_emergency_rewards_guard()
 
 required = [
     ASSETS / 'index.html',
@@ -143,9 +165,12 @@ if missing:
     raise SystemExit('Android shell sync missing: ' + ', '.join(missing))
 
 page2 = (ASSETS / 'page2.html').read_text(encoding='utf-8')
+rewards = (ASSETS / 'js/rewards-security-v1.js').read_text(encoding='utf-8')
 if 'window.__nexusAndroidShell = true' not in page2 or 'window.__nexusInteractiveReady = true' not in page2:
     raise SystemExit('Android interactive bootstrap was not embedded')
 if 'if (!window.__nexusAndroidShell && "serviceWorker" in navigator)' not in page2:
     raise SystemExit('Android service-worker bypass was not embedded')
+if 'android-appassets-readonly-guard-v2' not in rewards or 'ONLINE MINING REQUIRED' not in rewards:
+    raise SystemExit('Android emergency appassets rewards guard was not embedded')
 
-print('Prepared deterministic NexusNova Android web shell from current root sources.')
+print('Prepared deterministic NexusNova Android web shell with read-only emergency fallback.')
