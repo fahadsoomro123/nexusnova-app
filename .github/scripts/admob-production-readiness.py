@@ -125,7 +125,7 @@ for marker in [
 ]:
     if marker not in placements:
         fail(f'interstitial cap/no-fill accounting marker missing: {marker}')
-if 'sessionInterstitialCount += 1' not in placements:
+if 'sessionInterstitialCount + 1' not in placements:
     fail('interstitial session counter is not committed on a real show event')
 if 'A request that is unavailable/no-fill never consumes a cooldown or session slot.' not in placements:
     fail('interstitial no-fill accounting contract is missing')
