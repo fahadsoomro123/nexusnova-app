@@ -170,4 +170,4 @@ jobs:
         run: npm install --no-save firebase@12.1.0 @firebase/rules-unit-testing@5.0.0 firebase-tools@14.12.1
 
       - name: Run Firestore rules smoke
-        run: npx firebase emulators:exec --only firestore --project demo-nexusnova-rules "node .github/scripts/firestore-rules-smoke.mjs && node .github/scripts/nexusnova-profile-rules-smoke.mjs && node .github/scripts/referral-rules-smoke.mjs"
+        run: npx firebase emulators:exec --only firestore --project demo-nexusnova-rules "node .github/scripts/firestore-rules-smoke.mjs && node .github/scripts/mining-boost-rules-smoke.mjs && node .github/scripts/nexusnova-profile-rules-smoke.mjs && node .github/scripts/referral-rules-smoke.mjs"
