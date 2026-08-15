@@ -92,6 +92,14 @@ try {
   console.warn('NexusNova ad placements:', error);
 }
 
+// Secure Watch Ad +2.5 NVX controller. Older APKs are capability-gated and
+// cannot accidentally route this new reward purpose into Mining Boost.
+try {
+  await import('./nexusnova-watch-ad-reward-v1.js?v=1');
+} catch (error) {
+  console.warn('NexusNova Watch Ad reward:', error);
+}
+
 // A secure account transaction must not be reported as failed merely because a
 // secondary/profile renderer throws afterwards.
 if (typeof window.nexusApplySecureAccountState === 'function') {
