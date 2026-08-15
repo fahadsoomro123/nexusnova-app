@@ -48,4 +48,8 @@ dependencies {
     // GMA Next-Gen SDK. Google recommends migrating from the legacy
     // play-services-ads path for improved stability and lower RPC overhead.
     implementation("com.google.android.libraries.ads.mobile.sdk:ads-mobile-sdk:1.3.0")
+
+    // Google User Messaging Platform. Production ad requests will be gated by
+    // fresh consent state before NexusNova switches away from test inventory.
+    implementation("com.google.android.ump:user-messaging-platform:4.0.0")
 }
