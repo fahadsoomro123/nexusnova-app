@@ -144,7 +144,10 @@ exports.ayetRewardedVideoCallback = onRequest(
         }
 
         const nextBalance = balance + REWARD_NVX;
-        tx.create(rewardRef, {
+        // rewardRef was read as absent above. If another callback writes it
+        // concurrently, Firestore retries this transaction and the duplicate
+        // branch wins before a second balance credit can occur.
+        tx.set(rewardRef, {
           provider: 'ayet',
           transactionId,
           uid,
