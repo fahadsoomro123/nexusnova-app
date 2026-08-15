@@ -10,13 +10,18 @@ try {
 
   await page.evaluate(() => {
     document.body.innerHTML = `
-      <section id="tab-tasks">
+      <section id="tab-home">
         <div id="balance">42.0000</div>
+        <div id="timer">20:00:00</div>
+        <div class="stats-grid"></div>
+      </section>
+      <section id="tab-tasks">
         <button id="legacyWatchAd" onclick="watchAdReward()">WATCH AD (+2.5 NVX)</button>
       </section>`;
 
     window.__nativeAdMessages = [];
     window.__premiumMessages = [];
+    window.__appliedBoosts = [];
     window.NexusAndroid = {
       postMessage(raw) {
         window.__nativeAdMessages.push(JSON.parse(String(raw)));
@@ -34,23 +39,57 @@ try {
   await page.addScriptTag({ url: `${origin}/js/nexusnova-rewarded-ads-v1.js?v=test` });
   await page.addScriptTag({ url: `${origin}/js/nexusnova-rewarded-ads-button-guard-v1.js?v=test` });
 
-  await page.waitForFunction(() => window.__nxAdMobNexusPassV1 === true);
-  await page.waitForFunction(() => /NEXUS PASS/i.test(document.getElementById('rewardedAdBtn')?.textContent || ''));
+  await page.waitForFunction(() => window.__nxAdMobMiningBoostV1 === true);
+  await page.waitForFunction(() => Boolean(window.NexusNovaMiningBoosters?.adoptDisplayState));
+
+  const sessionAnchor = Date.now();
+  await page.evaluate(anchor => {
+    window.NexusNovaMiningBoosters.adoptDisplayState({
+      miningActive: true,
+      miningStartedAt: anchor,
+      miningLastUpdate: anchor
+    });
+    window.dispatchEvent(new CustomEvent('nexusnova:native-ad-event', {
+      detail: {
+        event: 'status',
+        provider: 'admob',
+        testMode: true,
+        rewardedReady: true,
+        interstitialReady: true,
+        rewardPurpose: 'mining-boost',
+        boostHours: 2
+      }
+    }));
+  }, sessionAnchor);
+
+  await page.waitForFunction(() => /NOVA BOOSTER/i.test(document.getElementById('rewardedAdBtn')?.textContent || ''));
+  await page.waitForFunction(() => document.getElementById('nxBoosterCount')?.textContent?.includes('0 / 2'));
 
   let state = await page.evaluate(() => ({
     button: document.getElementById('rewardedAdBtn')?.textContent || '',
     balance: document.getElementById('balance')?.textContent || '',
     provider: window.NEXUSNOVA_REWARDED_ADS_PUBLIC_CONFIG?.provider,
-    native: window.__nativeAdMessages.slice()
+    purpose: window.NEXUSNOVA_REWARDED_ADS_PUBLIC_CONFIG?.rewardPurpose,
+    native: window.__nativeAdMessages.slice(),
+    passActive: window.NexusNovaAccessPass?.active?.()
   }));
 
-  assert.match(state.button, /UNLOCK 20 MIN NEXUS PASS/i);
-  assert.doesNotMatch(state.button, /\+2\.5\s*NVX/i);
+  assert.match(state.button, /NOVA BOOSTER \(-2H\)/i);
+  assert.doesNotMatch(state.button, /\+2\.5\s*NVX|NEXUS PASS/i);
   assert.equal(state.balance, '42.0000');
   assert.equal(state.provider, 'admob-native');
+  assert.equal(state.purpose, 'mining-boost');
+  assert.equal(state.passActive, false);
   assert.ok(state.native.some(message => message.action === 'adStatus'), 'Bridge should request native ad status');
 
-  await page.evaluate(() => { window.__nativeAdMessages.length = 0; });
+  await page.evaluate(() => {
+    window.__nativeAdMessages.length = 0;
+    window.NexusNovaMiningBoosters.apply = async kind => {
+      window.__appliedBoosts.push(kind);
+      return { appliedKind:kind, reducedHours:2, uses:1 };
+    };
+  });
+
   await page.locator('#rewardedAdBtn').click();
   await page.waitForFunction(() => window.__nativeAdMessages.some(message => message.action === 'showRewardedAd'));
 
@@ -60,36 +99,56 @@ try {
   }));
   assert.equal(state.balance, '42.0000', 'Requesting an ad must never mint NVX');
   assert.equal(state.native.filter(message => message.action === 'showRewardedAd').length, 1);
+  assert.equal(state.native.find(message => message.action === 'showRewardedAd')?.rewardPurpose, 'mining-boost');
 
-  const expiry = Date.now() + 20 * 60 * 1000;
-  await page.evaluate(passExpiresAt => {
+  await page.evaluate(() => {
     window.dispatchEvent(new CustomEvent('nexusnova:native-ad-event', {
       detail: {
         event: 'rewarded-earned',
         provider: 'admob',
         testMode: true,
-        passExpiresAt,
-        passMinutes: 20,
-        rewardType: 'Nexus Pass',
+        rewardPurpose: 'mining-boost',
+        boostHours: 2,
+        rewardType: 'Nexus Mining Boost',
         rewardAmount: 1
       }
     }));
-  }, expiry);
+  });
 
-  await page.waitForFunction(() => window.NexusNovaAccessPass?.active() === true);
+  await page.waitForFunction(() => window.__appliedBoosts.length === 1);
   state = await page.evaluate(() => ({
     balance: document.getElementById('balance')?.textContent || '',
-    active: window.NexusNovaAccessPass?.active(),
-    remaining: window.NexusNovaAccessPass?.remainingMs(),
-    status: document.getElementById('rewardedAdStatus')?.textContent || '',
-    messages: window.__premiumMessages.slice()
+    applied: window.__appliedBoosts.slice(),
+    messages: window.__premiumMessages.slice(),
+    passActive: window.NexusNovaAccessPass?.active?.()
   }));
 
-  assert.equal(state.balance, '42.0000', 'Rewarded completion must unlock access, not mutate NVX');
-  assert.equal(state.active, true);
-  assert.ok(state.remaining > 19 * 60 * 1000, 'Nexus Pass should have close to 20 minutes remaining');
-  assert.match(state.status, /Nexus Pass ACTIVE/i);
-  assert.ok(state.messages.some(message => /Nexus Pass Unlocked/i.test(message.title || '')));
+  assert.equal(state.balance, '42.0000', 'Rewarded completion must alter session time, never directly mint NVX');
+  assert.deepEqual(state.applied, ['booster']);
+  assert.equal(state.passActive, false, 'Nexus Pass must remain retired in the mining-boost flow');
+  assert.ok(state.messages.some(message => /Nova Booster Applied/i.test(message.title || '')));
+
+  // Two completed boost slots are represented by a four-hour shift from the
+  // immutable session anchor. The next reward must become Nova Rain.
+  await page.evaluate(anchor => {
+    window.NexusNovaMiningBoosters.adoptDisplayState({
+      miningActive: true,
+      miningStartedAt: anchor - 4 * 60 * 60 * 1000,
+      miningLastUpdate: anchor
+    });
+    window.dispatchEvent(new CustomEvent('nexusnova:native-ad-event', {
+      detail: { event:'rewarded-ready', provider:'admob', testMode:true }
+    }));
+  }, sessionAnchor);
+  await page.waitForFunction(() => /NOVA RAIN/i.test(document.getElementById('rewardedAdBtn')?.textContent || ''));
+  state = await page.evaluate(() => ({
+    taskButton: document.getElementById('rewardedAdBtn')?.textContent || '',
+    boosterCount: document.getElementById('nxBoosterCount')?.textContent || '',
+    rainCount: document.getElementById('nxRainCount')?.textContent || ''
+  }));
+  assert.match(state.taskButton, /NOVA RAIN \(-2H\)/i);
+  assert.equal(state.boosterCount, '2 / 2');
+  assert.equal(state.rainCount, '0 / 4');
 
   await page.evaluate(() => {
     window.__nativeAdMessages.length = 0;
@@ -105,7 +164,7 @@ try {
   assert.equal(state.native[0].reason, 'test-natural-transition');
   assert.equal(state.balance, '42.0000');
 
-  console.log('Rewarded ads runtime: PASS — AdMob native bridge, Nexus Pass, interstitial routing, and zero NVX mutation verified.');
+  console.log('Rewarded ads runtime: PASS — AdMob mining boost routing, Booster->Rain progression, and zero direct NVX mutation verified.');
 } finally {
   await browser.close();
 }
