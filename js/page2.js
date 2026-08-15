@@ -84,10 +84,18 @@ try {
 
 await import('./page2-core.js?v=appcheck-debug-10');
 
+// The Daily Ad gate deliberately does not write NVX itself. This bridge exposes
+// one protected callable that returns/rethrows the authoritative +5 NVX result.
+try {
+  await import('./nexusnova-daily-secure-claim-v1.js?v=1');
+} catch (error) {
+  console.warn('NexusNova Daily Reward secure claim bridge:', error);
+}
+
 // Central monetization controller. It owns frequency caps and protected-screen
 // exclusions while the proven native v60+ ad owner remains unchanged.
 try {
-  await import('./nexusnova-ad-placements-v1.js?v=2');
+  await import('./nexusnova-ad-placements-v1.js?v=3');
 } catch (error) {
   console.warn('NexusNova ad placements:', error);
 }
