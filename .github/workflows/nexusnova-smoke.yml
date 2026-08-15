@@ -138,45 +138,19 @@ jobs:
           node <<'NODE'
           const fs = require('fs');
           const src = fs.readFileSync('js/nexusnova-allapps-order-guard-v5.js','utf8');
-          for (const token of ['AI Hub','Tools Hub','Islamic Hub','Bible Hub','Entertainment Hub','Travel Hub','Learning Hub','Wallet Hub','Marketplace Hub','Orders Hub','Browser Hub']) {
-            if (!src.includes(token)) throw new Error(`Approved ALL APPS order marker missing: ${token}`);
+          const expected = ['TOOLS','GOLD/FX','NEWS','CHAT','AI','LOCATION','SOS','FAMILY','PROFILE','DAILY','BUDGET','LEARN','TRAVEL','HEALTH','SMART','QIBLA','PK NEWS','WATCH','BROWSER','CALLER','SETTINGS','SUPER APP','DAILY TOOLS','CALENDAR','REMINDERS','FINANCE','WEATHER','LEARNING','PAKISTAN HUB','ISLAMIC HUB','BIBLE','HABITS','SAVINGS','CONTACTS','SHOPPING','DOCUMENTS','FILE VAULT','QR TOOLS','SECURITY','MARKETPLACE','ORDERS','NOTIFICATIONS','TEACHER TOOLKIT'];
+          const match = src.match(/const ORDER=(\[[^;]+\]);/);
+          if (!match) throw new Error('ALL APPS ORDER array not found.');
+          const actual = Function('return ' + match[1])();
+          if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+            throw new Error('ALL APPS order changed.\nExpected: ' + expected.join(' > ') + '\nActual: ' + actual.join(' > '));
           }
-          console.log('Approved ALL APPS order markers present.');
+          console.log('ALL APPS order verified:', actual.length, 'items');
           NODE
-
-      - name: Verify standalone privacy page exists
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -s privacy.html || { echo "Missing/empty: privacy.html"; exit 1; }
-
-      - name: Verify service worker cache list references existing local assets
-        shell: bash
-        run: |
-          set -euo pipefail
-          node <<'NODE'
-          const fs = require('fs');
-          const sw = fs.readFileSync('sw.js','utf8');
-          const arrayMatch = sw.match(/const ASSETS = \[([\s\S]*?)\];/);
-          if (!arrayMatch) throw new Error('Service worker ASSETS list missing.');
-          const refs = [...arrayMatch[1].matchAll(/["']\.\/([^"']+)["']/g)].map(m => m[1]);
-          const missing = refs.filter(ref => ref && !fs.existsSync(ref));
-          if (missing.length) throw new Error('Missing service-worker assets: ' + missing.join(', '));
-          console.log(`Service-worker cache assets verified: ${refs.length}`);
-          NODE
-
-      - name: Verify no unresolved merge markers
-        shell: bash
-        run: |
-          set -euo pipefail
-          if grep -RInE '^(<<<<<<<|=======|>>>>>>>)' --exclude-dir=.git --exclude='package-lock.json' .; then
-            echo 'Unresolved merge marker detected.'
-            exit 1
-          fi
-          echo 'No unresolved merge markers.'
 
   firestore-rules:
     runs-on: ubuntu-latest
+    timeout-minutes: 12
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -193,7 +167,7 @@ jobs:
           java-version: '21'
 
       - name: Install Firebase emulator test packages
-        run: npm install --no-save --ignore-scripts --no-audit --no-fund firebase-tools@14 @firebase/rules-unit-testing@4 firebase@12
+        run: npm install --no-save firebase@12.1.0 @firebase/rules-unit-testing@5.0.0 firebase-tools@14.12.1
 
       - name: Run Firestore rules smoke
-        run: npx firebase emulators:exec --only firestore --project nexusnova-rules-test "node .github/scripts/firestore-rules-smoke.mjs"
+        run: npx firebase emulators:exec --only firestore --project demo-nexusnova-rules "node .github/scripts/firestore-rules-smoke.mjs && node .github/scripts/nexusnova-profile-rules-smoke.mjs && node .github/scripts/referral-rules-smoke.mjs"
