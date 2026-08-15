@@ -1,7 +1,6 @@
 package com.nexusnova.app
 
 import android.app.Activity
-import android.content.Context
 import android.webkit.WebView
 import com.google.android.gms.ads.AdError
 import com.google.android.gms.ads.AdRequest
@@ -20,20 +19,22 @@ import org.json.JSONObject
 /**
  * Native AdMob owner for NexusNova's WebView shell.
  *
- * Policy/safety contract:
+ * Reward contract:
  * - Development builds use Google's demo ad units, never the publisher's live units.
- * - Rewarded ads are opt-in and only grant a non-transferable in-app Nexus Pass.
- * - Advertiser clicks / installs are never required for the reward.
- * - Interstitials have a native cooldown and are only shown when the web app
- *   explicitly requests a natural transition placement.
+ * - Rewarded ads are explicit opt-in and emit a completion signal for one 2-hour
+ *   NexusNova mining boost. The web/Firestore layer owns the mining-state change.
+ * - Rewarded ads never directly grant NVX and advertiser clicks/installs are never
+ *   required for the reward.
+ * - Production IDs remain present but TEST_MODE stays enabled until consent,
+ *   policy review and server-side ad-proof hardening are complete.
+ * - Interstitials retain their native cooldown and are shown only when the web
+ *   app explicitly requests a natural transition placement.
  */
 class NexusAdManager(
     private val activity: Activity,
     private val webView: WebView,
     private val isTrustedPage: (WebView?) -> Boolean
 ) {
-    private val preferences = activity.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
-
     private var initialized = false
     private var rewardedLoading = false
     private var interstitialLoading = false
@@ -65,7 +66,8 @@ class NexusAdManager(
                 mapOf(
                     "rewardedReady" to (rewardedAd != null),
                     "interstitialReady" to (interstitialAd != null),
-                    "passExpiresAt" to currentPassExpiry()
+                    "rewardPurpose" to REWARD_PURPOSE,
+                    "boostHours" to BOOST_HOURS
                 )
             )
         }
@@ -81,14 +83,13 @@ class NexusAdManager(
             }
 
             rewardedAd = null
-            dispatch("rewarded-showing")
+            dispatch("rewarded-showing", mapOf("rewardPurpose" to REWARD_PURPOSE))
             ad.show(activity) { rewardItem ->
-                val expiresAt = activatePass()
                 dispatch(
                     "rewarded-earned",
                     mapOf(
-                        "passExpiresAt" to expiresAt,
-                        "passMinutes" to PASS_MINUTES,
+                        "rewardPurpose" to REWARD_PURPOSE,
+                        "boostHours" to BOOST_HOURS,
                         "rewardType" to rewardItem.type,
                         "rewardAmount" to rewardItem.amount
                     )
@@ -153,7 +154,7 @@ class NexusAdManager(
                         }
                     }
                     dispatch("rewarded-ready")
-                    publishStatus()
+                    publishStatusWithoutReload()
                 }
 
                 override fun onAdFailedToLoad(loadAdError: LoadAdError) {
@@ -219,30 +220,14 @@ class NexusAdManager(
         )
     }
 
-    private fun activatePass(): Long {
-        val now = System.currentTimeMillis()
-        val current = currentPassExpiry()
-        val expiresAt = maxOf(now, current) + PASS_DURATION_MS
-        preferences.edit().putLong(KEY_PASS_EXPIRES_AT, expiresAt).apply()
-        return expiresAt
-    }
-
-    private fun currentPassExpiry(): Long {
-        val expiresAt = preferences.getLong(KEY_PASS_EXPIRES_AT, 0L)
-        if (expiresAt <= System.currentTimeMillis()) {
-            if (expiresAt != 0L) preferences.edit().remove(KEY_PASS_EXPIRES_AT).apply()
-            return 0L
-        }
-        return expiresAt
-    }
-
     private fun publishStatusWithoutReload() {
         dispatch(
             "status",
             mapOf(
                 "rewardedReady" to (rewardedAd != null),
                 "interstitialReady" to (interstitialAd != null),
-                "passExpiresAt" to currentPassExpiry()
+                "rewardPurpose" to REWARD_PURPOSE,
+                "boostHours" to BOOST_HOURS
             )
         )
     }
@@ -292,12 +277,9 @@ class NexusAdManager(
         const val PRODUCTION_REWARDED_AD_UNIT_ID = "ca-app-pub-5070673529890078/7194148596"
         const val PRODUCTION_INTERSTITIAL_AD_UNIT_ID = "ca-app-pub-5070673529890078/7807608294"
 
-        const val PASS_MINUTES = 20L
-        const val PASS_DURATION_MS = PASS_MINUTES * 60L * 1000L
+        const val REWARD_PURPOSE = "mining-boost"
+        const val BOOST_HOURS = 2
         const val INTERSTITIAL_COOLDOWN_MS = 3L * 60L * 1000L
         const val MAX_ERROR_CHARS = 180
-
-        const val PREFERENCES = "nexusnova_admob"
-        const val KEY_PASS_EXPIRES_AT = "nexus_pass_expires_at"
     }
 }
