@@ -45,3 +45,4 @@ jobs:
           node .github/scripts/nexusnova-runtime-smoke.mjs
           node .github/scripts/nexusnova-allapps-regression-smoke.mjs
           node .github/scripts/nexusnova-premium-features-smoke.mjs
+          node .github/scripts/nexusnova-touch-lifeline-runtime.mjs
