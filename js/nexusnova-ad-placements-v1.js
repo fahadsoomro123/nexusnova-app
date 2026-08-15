@@ -1,10 +1,11 @@
-/* NexusNova Ad Placements v1
+/* NexusNova Ad Placements v1.1
    One policy-aware web controller for all Android ad placements.
 
    Rules:
    - Rewarded ads stay opt-in and purpose-owned by their feature.
    - Interstitials only run at natural breaks, never on protected/sensitive screens.
    - Strong session/time frequency caps prevent ad spam.
+   - A request that is unavailable/no-fill never consumes a cooldown or session slot.
    - Content opens can warm eligibility but NEVER show an ad immediately.
    - Returning from outbound News/Entertainment/Browser content is a natural break.
    - This file never mints NVX or changes mining value.
@@ -17,6 +18,7 @@
   const SESSION_KEY = 'nx_ad_placements_session_v1';
   const INTERSTITIAL_MIN_GAP_MS = 180_000;
   const INTERSTITIAL_SESSION_MAX = 4;
+  const INTERSTITIAL_REQUEST_TIMEOUT_MS = 12_000;
   const ELIGIBLE_BREAKS_BEFORE_FIRST = 3;
   const ENGAGEMENT_MIN_GAP_MS = 12_000;
   const CONTENT_RETURN_MAX_MS = 10 * 60_000;
@@ -44,6 +46,8 @@
   let pendingReturnFeature = '';
   let pendingReturnAt = 0;
   let pendingReturnSawHidden = false;
+  let pendingInterstitial = null;
+  let pendingInterstitialTimer = null;
   let sessionId = '';
 
   function readSession() {
@@ -130,8 +134,24 @@
     pendingReturnSawHidden = false;
   }
 
+  function clearPendingInterstitial() {
+    clearTimeout(pendingInterstitialTimer);
+    pendingInterstitialTimer = null;
+    pendingInterstitial = null;
+  }
+
+  function markInterstitialShown() {
+    if (!pendingInterstitial) return;
+    lastInterstitialAt = Date.now();
+    sessionInterstitialCount = Math.min(INTERSTITIAL_SESSION_MAX, sessionInterstitialCount + 1);
+    eligibleBreakCount = 0;
+    clearPendingInterstitial();
+    persist();
+  }
+
   function canShowInterstitial(feature) {
     if (!isEligibleFeature(feature)) return false;
+    if (pendingInterstitial) return false;
     if (sessionInterstitialCount >= INTERSTITIAL_SESSION_MAX) return false;
     if (Date.now() - lastInterstitialAt < INTERSTITIAL_MIN_GAP_MS) return false;
     if (!interstitialReady) return false;
@@ -151,22 +171,34 @@
       return { shown:false, reason:'warmup', placement, feature, eligibleBreakCount };
     }
     if (!canShowInterstitial(feature)) {
-      return { shown:false, reason:'frequency-or-not-ready', placement, feature };
+      return { shown:false, reason:pendingInterstitial ? 'request-pending' : 'frequency-or-not-ready', placement, feature };
     }
 
+    const safePlacement = String(placement || 'natural-break').slice(0,80);
     const posted = postNative('showInterstitialAd', {
-      placement:String(placement || 'natural-break').slice(0,80),
+      placement:safePlacement,
       feature,
       testOnly:nativeTestMode
     });
-    if (!posted) return { shown:false, reason:'native-unavailable', placement, feature };
+    if (!posted) return { shown:false, reason:'native-unavailable', placement:safePlacement, feature };
 
-    lastInterstitialAt = Date.now();
-    sessionInterstitialCount += 1;
-    eligibleBreakCount = 0;
+    // Do not consume a cooldown/session slot just because the bridge accepted
+    // the request. Native may still report no-fill/unavailable. Only the
+    // interstitial-showing/opened event commits the impression to our caps.
+    pendingInterstitial = {
+      placement:safePlacement,
+      feature,
+      requestedAt:Date.now()
+    };
     interstitialReady = false;
-    persist();
-    return { shown:true, placement, feature, testOnly:nativeTestMode };
+    clearTimeout(pendingInterstitialTimer);
+    pendingInterstitialTimer = setTimeout(() => {
+      if (!pendingInterstitial) return;
+      clearPendingInterstitial();
+      postNative('adStatus');
+    }, INTERSTITIAL_REQUEST_TIMEOUT_MS);
+
+    return { shown:true, pending:true, placement:safePlacement, feature, testOnly:nativeTestMode };
   }
 
   function requestRewarded(rewardPurpose, extra = {}) {
@@ -184,7 +216,8 @@
     return Object.freeze({
       nativeTestMode,interstitialReady,lastInterstitialAt,eligibleBreakCount,
       sessionInterstitialCount,sessionMax:INTERSTITIAL_SESSION_MAX,
-      minGapMs:INTERSTITIAL_MIN_GAP_MS
+      minGapMs:INTERSTITIAL_MIN_GAP_MS,
+      interstitialPending:Boolean(pendingInterstitial)
     });
   }
 
@@ -193,9 +226,25 @@
     if (String(detail.provider || '') !== 'admob') return;
     if (typeof detail.testMode === 'boolean') nativeTestMode = detail.testMode;
     const type = String(detail.event || '');
+
     if (type === 'status') interstitialReady = Boolean(detail.interstitialReady);
     if (type === 'interstitial-ready') interstitialReady = true;
-    if (type === 'interstitial-showing' || type === 'interstitial-unavailable' || type === 'interstitial-failed' || type === 'interstitial-load-failed') interstitialReady = false;
+
+    if (type === 'interstitial-showing' || type === 'interstitial-opened') {
+      interstitialReady = false;
+      markInterstitialShown();
+      return;
+    }
+
+    if (
+      type === 'interstitial-unavailable' ||
+      type === 'interstitial-failed' ||
+      type === 'interstitial-load-failed' ||
+      type === 'interstitial-skipped'
+    ) {
+      interstitialReady = false;
+      clearPendingInterstitial();
+    }
   });
 
   document.addEventListener('click', event => {
