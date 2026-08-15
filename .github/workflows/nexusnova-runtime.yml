@@ -41,4 +41,6 @@ jobs:
           exit 1
 
       - name: Run browser runtime smoke tests
-        run: node .github/scripts/nexusnova-runtime-smoke.mjs
+        run: |
+          node .github/scripts/nexusnova-runtime-smoke.mjs
+          node .github/scripts/nexusnova-allapps-regression-smoke.mjs
