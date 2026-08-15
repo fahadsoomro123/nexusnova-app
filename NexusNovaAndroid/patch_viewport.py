@@ -17,11 +17,7 @@ if old not in text:
     raise SystemExit('Viewport insertion point not found')
 text = text.replace(old, new, 1)
 
-old_client = """        webView.webViewClient = object : WebViewClient() {
-            override fun shouldInterceptRequest("""
-new_client = """        webView.webViewClient = object : WebViewClient() {
-            override fun onPageFinished(view: WebView?, url: String?) {
-                super.onPageFinished(view, url)
+viewport_body = '''
                 view?.post {
                     view.scrollTo(0, 0)
                     view.evaluateJavascript(
@@ -45,10 +41,28 @@ new_client = """        webView.webViewClient = object : WebViewClient() {
                         null
                     )
                 }
-            }
+'''
 
+old_client = """        webView.webViewClient = object : WebViewClient() {
             override fun shouldInterceptRequest("""
+
+# Newer MainActivity versions own onPageFinished for blank-screen health checks.
+# Keep the locked viewport correction independent by using onPageCommitVisible in
+# that case. Older versions retain the original onPageFinished implementation.
+if 'override fun onPageFinished(view: WebView?, url: String?)' in text:
+    callback = '''        webView.webViewClient = object : WebViewClient() {
+            override fun onPageCommitVisible(view: WebView?, url: String?) {
+                super.onPageCommitVisible(view, url)''' + viewport_body + '''            }
+
+            override fun shouldInterceptRequest('''
+else:
+    callback = '''        webView.webViewClient = object : WebViewClient() {
+            override fun onPageFinished(view: WebView?, url: String?) {
+                super.onPageFinished(view, url)''' + viewport_body + '''            }
+
+            override fun shouldInterceptRequest('''
+
 if old_client not in text:
     raise SystemExit('WebViewClient insertion point not found')
-text = text.replace(old_client, new_client, 1)
+text = text.replace(old_client, callback, 1)
 path.write_text(text)
