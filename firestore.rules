@@ -96,6 +96,33 @@ service cloud.firestore {
         && request.resource.data.miningLastUpdate == request.resource.data.miningStartedAt;
     }
 
+    // Rewarded mining boosts deliberately do not touch balance/totalMined.
+    // A valid boost shifts only the session start timestamp by exactly 2 hours.
+    // miningLastUpdate is the immutable session-start anchor until finish, so
+    // the rule can enforce a hard six-use / 12-hour maximum without trusting
+    // client-maintained counters.
+    function validMiningBoost() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['miningStartedAt'])
+        && resource.data.miningActive == true
+        && resource.data.miningStartedAt is int
+        && resource.data.miningStartedAt > 0
+        && resource.data.miningLastUpdate is int
+        && resource.data.miningLastUpdate > 0
+        && resource.data.miningStartedAt <= resource.data.miningLastUpdate
+        && (
+          resource.data.miningLastUpdate - resource.data.miningStartedAt == 0
+          || resource.data.miningLastUpdate - resource.data.miningStartedAt == 7200000
+          || resource.data.miningLastUpdate - resource.data.miningStartedAt == 14400000
+          || resource.data.miningLastUpdate - resource.data.miningStartedAt == 21600000
+          || resource.data.miningLastUpdate - resource.data.miningStartedAt == 28800000
+          || resource.data.miningLastUpdate - resource.data.miningStartedAt == 36000000
+        )
+        && request.time.toMillis() - resource.data.miningStartedAt < 86400000
+        && request.resource.data.miningStartedAt == resource.data.miningStartedAt - 7200000
+        && request.resource.data.miningStartedAt >= resource.data.miningLastUpdate - 43200000;
+    }
+
     function validMiningFinish() {
       return request.resource.data.diff(resource.data).affectedKeys()
           .hasOnly(['balance', 'totalMined', 'miningActive', 'miningStartedAt', 'miningLastUpdate'])
@@ -409,6 +436,7 @@ service cloud.firestore {
       allow update: if (owns(uid) && (validProfileNameEdit() || validProfileDetailsEdit()))
         || (verifiedOwner(uid) && (
           validMiningStart()
+          || validMiningBoost()
           || validMiningFinish()
           || validMiningRollover()
           || validMiningRepair()
