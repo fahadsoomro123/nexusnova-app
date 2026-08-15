@@ -73,14 +73,13 @@ if (meta) {
   meta.setAttribute('content', '6LfEc4QtAAAAAOohkqSv0p76iwPTeHI98hqVlwIs');
 }
 
-// Load the Android Daily Reward owner-test gate before page2-core. page2-core
-// loads the legacy rewarded/mining compatibility stack, so registering the Daily
-// capture listener first guarantees that a Daily test failure is consumed inline
-// before any legacy mining-boost popup can see the same native event.
+// Load the Android Daily Reward ad gate before page2-core. page2-core loads the
+// legacy rewarded/mining compatibility stack, so registering the Daily capture
+// listener first guarantees that a Daily ad result belongs only to Daily Reward.
 try {
-  await import('./nexusnova-daily-ad-test-v1.js?v=4');
+  await import('./nexusnova-daily-ad-test-v1.js?v=5');
 } catch (error) {
-  console.warn('NexusNova Daily Reward ad test gate:', error);
+  console.warn('NexusNova Daily Reward ad gate:', error);
 }
 
 await import('./page2-core.js?v=appcheck-debug-10');
