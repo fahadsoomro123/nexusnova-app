@@ -1,5 +1,5 @@
-/* NexusNova Service Worker - fresh-code first, offline fallback + FCM web push */
-const CACHE = "nexusnova-shell-v15-daily-ad-owner";
+/* NexusNova Service Worker - fresh-code first, bounded network + offline fallback + FCM web push */
+const CACHE = "nexusnova-shell-v16-touch-lifeline";
 
 const ASSETS = [
   "./",
@@ -33,7 +33,7 @@ const ASSETS = [
   "./js/nexusnova-rewarded-ads-config-v1.js",
   "./js/nexusnova-rewarded-ads-v1.js",
   "./js/nexusnova-rewarded-ads-button-guard-v1.js",
-  "./js/nexusnova-daily-ad-test-v1.js?v=4",
+  "./js/nexusnova-daily-ad-test-v1.js?v=5",
   "./js/nexusnova-admob-diagnostics-v1.js",
   /* Compatibility filename; implementation is the AdMob Mining Boost bridge. */
   "./js/nexusnova-admob-nexus-pass-v1.js",
@@ -136,8 +136,12 @@ self.addEventListener("activate", (event) => {
 });
 
 async function networkFirst(request) {
+  const controller = new AbortController();
+  const isDocument = request.mode === "navigate" || request.destination === "document";
+  const timeoutMs = isDocument ? 7000 : 4500;
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(request, { cache: "no-store" });
+    const response = await fetch(request, { cache: "no-store", signal: controller.signal });
     if (response && response.ok) {
       const copy = response.clone();
       caches.open(CACHE).then((cache) => cache.put(request, copy)).catch(() => {});
@@ -147,6 +151,8 @@ async function networkFirst(request) {
     const cached = await caches.match(request);
     if (cached) return cached;
     throw error;
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
