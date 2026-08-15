@@ -43,7 +43,7 @@ NATIVE_HEAD = '''<script id="nxAndroidNativeShellBootstrap">
   // Android must never leave a full-screen startup layer above the dock just
   // because a remote CDN/Firebase request is slow. The normal splash animation
   // can finish earlier; this is only a deterministic hard safety release.
-  setTimeout(releaseSplash, 3300);
+  setTimeout(releaseSplash, 2400);
   window.__nexusAndroidReleaseSplash = releaseSplash;
 
   function activate(name, button){
