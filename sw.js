@@ -1,5 +1,5 @@
 /* NexusNova Service Worker - fresh-code first, offline fallback + FCM web push */
-const CACHE = "nexusnova-shell-v12-current-premium";
+const CACHE = "nexusnova-shell-v13-admob-nexus-pass";
 
 const ASSETS = [
   "./",
@@ -33,6 +33,7 @@ const ASSETS = [
   "./js/nexusnova-rewarded-ads-config-v1.js",
   "./js/nexusnova-rewarded-ads-v1.js",
   "./js/nexusnova-rewarded-ads-button-guard-v1.js",
+  "./js/nexusnova-admob-nexus-pass-v1.js",
   "./js/nexusnova-natural-voice-v1.js",
   "./js/nexusnova-new-features-v1.js",
   "./js/nexusnova-allinone-hub-v1.js",
