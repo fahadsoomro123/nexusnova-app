@@ -1,8 +1,8 @@
-/* NexusNova Spark Rewards v1.1
+/* NexusNova Spark Rewards v1.2
    Secure daily reward fallback for the no-cost Firebase plan.
    Daily reward mutations are constrained by Firestore Security Rules.
    App Check is optional extra hardening when a real site key is configured.
-   Unverifiable community/ad rewards never mint NVX.
+   Rewarded ads route to mining boosts and never directly mint NVX.
 */
 (() => {
   'use strict';
@@ -216,9 +216,9 @@
       return window.NexusNovaRewardedAds.show();
     }
     await message({
-      eyebrow:'WATCH AD BONUS',
-      title:'Rewarded Ads Setup Pending',
-      text:'A real rewarded-ad provider and ad unit are not connected yet. No +2.5 NVX will be issued until an ad is genuinely completed and verified.',
+      eyebrow:'MINING BOOST',
+      title:'Mining Boost Is Preparing',
+      text:'Rewarded ads run inside the NexusNova Android app. A completed ad can reduce the active mining session by 2 hours; it never directly awards NVX.',
       icon:'security'
     });
     return {rewarded:false};
@@ -245,7 +245,7 @@
     bindCapture(ad, 'nxSparkAdBound', explainRewardedAd);
 
     if (ad) {
-      ad.title = 'Reward activates after a real rewarded-ad provider is connected.';
+      ad.title = 'Optional rewarded ad: one completed ad can reduce the active mining session by 2 hours. No direct NVX ad reward.';
       ad.dataset.nxRewardState = window.NexusNovaRewardedAds?.configured?.() ? 'provider-ready' : 'provider-pending';
     }
   }
@@ -255,12 +255,12 @@
     window.claimDailyReward = claimDaily;
     window.completeTask = explainTask;
     window.watchAdReward = explainRewardedAd;
-    window.nexusRewardsEngineVersion = 'spark-secure-v1.1';
+    window.nexusRewardsEngineVersion = 'spark-secure-v1.2';
     bindTaskButtons();
   }
 
   install();
   window.addEventListener('load', install, {once:true});
   [300,700,1400,2400,3800,6000].forEach(ms => setTimeout(install, ms));
-  console.info('NexusNova rewards engine loaded: spark-secure-v1.1');
+  console.info('NexusNova rewards engine loaded: spark-secure-v1.2');
 })();
