@@ -28,6 +28,15 @@ if (meta) {
 
 await import('./page2-core.js?v=appcheck-debug-10');
 
+// Temporary Android-only owner verification: while the real Daily Reward is
+// still on its 24-hour cooldown, allow the same button to open a rewarded TEST
+// ad without calling the reward backend or applying a mining boost.
+try {
+  await import('./nexusnova-daily-ad-test-v1.js?v=1');
+} catch (error) {
+  console.warn('NexusNova Daily Reward ad test gate:', error);
+}
+
 // A secure account transaction must not be reported as failed merely because a
 // secondary/profile renderer throws afterwards.
 if (typeof window.nexusApplySecureAccountState === 'function') {
