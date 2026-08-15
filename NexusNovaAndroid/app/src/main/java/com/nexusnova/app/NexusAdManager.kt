@@ -13,9 +13,6 @@ import com.google.android.gms.ads.interstitial.InterstitialAd
 import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
 import com.google.android.gms.ads.rewarded.RewardedAd
 import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import org.json.JSONObject
 
 /**
@@ -33,6 +30,7 @@ import org.json.JSONObject
  *   app explicitly requests a natural transition placement.
  *
  * UX contract:
+ * - All Google Mobile Ads SDK calls are made from Android's main/UI thread.
  * - If the user taps Rewarded Ad before Google has finished loading it, keep that
  *   single request pending, retry short transient load failures, and open the ad
  *   automatically as soon as it is ready.
@@ -61,9 +59,13 @@ class NexusAdManager(
         if (initialized) return
         initialized = true
 
-        CoroutineScope(Dispatchers.IO).launch {
+        // Google Mobile Ads requires SDK calls on the main thread. Keep both
+        // initialization and the first load on Android's UI thread.
+        activity.runOnUiThread {
+            if (activity.isFinishing || activity.isDestroyed) return@runOnUiThread
             MobileAds.initialize(activity) {
                 activity.runOnUiThread {
+                    if (activity.isFinishing || activity.isDestroyed) return@runOnUiThread
                     loadRewarded()
                     loadInterstitial()
                     publishStatus()
@@ -181,6 +183,10 @@ class NexusAdManager(
     }
 
     private fun loadRewarded() {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            mainHandler.post { loadRewarded() }
+            return
+        }
         if (rewardedLoading || rewardedAd != null || activity.isFinishing || activity.isDestroyed) return
         rewardedLoading = true
         RewardedAd.load(
@@ -212,7 +218,11 @@ class NexusAdManager(
                             pendingRewardedStartedAt = 0L
                             dispatch(
                                 "rewarded-failed",
-                                mapOf("message" to safeMessage(adError.message))
+                                mapOf(
+                                    "code" to adError.code,
+                                    "domain" to adError.domain,
+                                    "message" to safeMessage(adError.message)
+                                )
                             )
                             loadRewarded()
                             publishStatus()
@@ -244,6 +254,8 @@ class NexusAdManager(
                             "rewarded-retrying",
                             mapOf(
                                 "attempt" to rewardedRetryCount,
+                                "code" to loadAdError.code,
+                                "domain" to loadAdError.domain,
                                 "message" to safeMessage(loadAdError.message)
                             )
                         )
@@ -260,7 +272,12 @@ class NexusAdManager(
                     rewardedRetryCount = 0
                     dispatch(
                         "rewarded-load-failed",
-                        mapOf("message" to safeMessage(loadAdError.message))
+                        mapOf(
+                            "code" to loadAdError.code,
+                            "domain" to loadAdError.domain,
+                            "message" to safeMessage(loadAdError.message),
+                            "responseId" to (loadAdError.responseInfo?.responseId ?: "")
+                        )
                     )
                     publishStatusWithoutReload()
                 }
@@ -269,6 +286,10 @@ class NexusAdManager(
     }
 
     private fun loadInterstitial() {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            mainHandler.post { loadInterstitial() }
+            return
+        }
         if (interstitialLoading || interstitialAd != null || activity.isFinishing || activity.isDestroyed) return
         interstitialLoading = true
         InterstitialAd.load(
@@ -295,7 +316,11 @@ class NexusAdManager(
                             interstitialAd = null
                             dispatch(
                                 "interstitial-failed",
-                                mapOf("message" to safeMessage(adError.message))
+                                mapOf(
+                                    "code" to adError.code,
+                                    "domain" to adError.domain,
+                                    "message" to safeMessage(adError.message)
+                                )
                             )
                             loadInterstitial()
                             publishStatus()
@@ -310,7 +335,12 @@ class NexusAdManager(
                     interstitialAd = null
                     dispatch(
                         "interstitial-load-failed",
-                        mapOf("message" to safeMessage(loadAdError.message))
+                        mapOf(
+                            "code" to loadAdError.code,
+                            "domain" to loadAdError.domain,
+                            "message" to safeMessage(loadAdError.message),
+                            "responseId" to (loadAdError.responseInfo?.responseId ?: "")
+                        )
                     )
                     publishStatusWithoutReload()
                 }
@@ -380,9 +410,9 @@ class NexusAdManager(
         const val REWARD_PURPOSE = "mining-boost"
         const val BOOST_HOURS = 2
         const val INTERSTITIAL_COOLDOWN_MS = 3L * 60L * 1000L
-        const val REWARDED_PENDING_TIMEOUT_MS = 15_000L
-        const val REWARDED_RETRY_DELAY_MS = 1_500L
-        const val REWARDED_MAX_RETRIES = 2
-        const val MAX_ERROR_CHARS = 180
+        const val REWARDED_PENDING_TIMEOUT_MS = 20_000L
+        const val REWARDED_RETRY_DELAY_MS = 2_000L
+        const val REWARDED_MAX_RETRIES = 3
+        const val MAX_ERROR_CHARS = 220
     }
 }
