@@ -9,7 +9,10 @@
     provider: 'admob-native',
     placementId: '',
     adslotName: '',
-    rewardLabel: '20 min Nexus Pass'
+    rewardLabel: '2h mining time reduction',
+    rewardPurpose: 'mining-boost',
+    boostHours: 2,
+    maxBoostHoursPerSession: 12
   };
 
   function setMeta(name, value) {
@@ -23,11 +26,12 @@
   }
 
   setMeta('nexusnova-rewarded-provider', config.provider);
-  // Legacy ayeT slots remain deliberately blank/dormant. NexusNova now routes
+  // Legacy ayeT slots remain deliberately blank/dormant. NexusNova routes
   // rewarded ads through the origin-bound native Android AdMob bridge.
   setMeta('nexusnova-ayet-placement-id', config.placementId);
   setMeta('nexusnova-ayet-adslot-name', config.adslotName);
   setMeta('nexusnova-rewarded-reward-label', config.rewardLabel);
+  setMeta('nexusnova-rewarded-purpose', config.rewardPurpose);
 
   window.NEXUSNOVA_REWARDED_ADS_PUBLIC_CONFIG = Object.freeze({...config});
 })();
