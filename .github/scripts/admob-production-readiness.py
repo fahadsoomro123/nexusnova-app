@@ -64,9 +64,9 @@ else:
 build = read('NexusNovaAndroid/app/build.gradle.kts')
 if PRODUCTION_APP_ID not in build:
     fail('Android release AdMob app ID does not match the NexusNova publisher')
-if 'NEXUS_ADS_TEST_MODE", "true"' not in build:
+if 'NEXUS_ADS_TEST_MODE\", \"true\"' not in build:
     fail('Android debug build must remain locked to AdMob test mode')
-if 'NEXUS_ADS_TEST_MODE", "false"' not in build:
+if 'NEXUS_ADS_TEST_MODE\", \"false\"' not in build:
     fail('Android release build must remain locked to production ad mode')
 
 manager = read('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt')
@@ -81,12 +81,13 @@ required_patch_markers = [
     'ServerSideVerificationOptions',
     'pendingRewardUserId = sanitizeRewardUserId(userId)',
     'pendingRewardCustomData = purpose',
-    'REWARD_PURPOSE_WATCH_AD = "task-watch-ad"',
-    '"ssvIdentityReady" to true',
+    'REWARD_PURPOSE_WATCH_AD = \"task-watch-ad\"',
+    '\"ssvIdentityReady\" to true',
+    'INTERSTITIAL_ALLOWED_FEATURES',
 ]
 for marker in required_patch_markers:
     if marker not in patch:
-        fail(f'Android AdMob build patch is missing required SSV marker: {marker}')
+        fail(f'Android AdMob build patch is missing required SSV/ad-policy marker: {marker}')
 
 ssv = read('functions/admobRewardedSsv.js')
 checks = {
@@ -110,6 +111,25 @@ if 'const PRODUCTION_SSV_ENABLED = false;' not in watch:
 if 'ssvIdentityReady' not in watch:
     fail('Watch Ad client is missing the native SSV capability handshake')
 
+placements = read('js/nexusnova-ad-placements-v1.js')
+for feature in ['wallet','tasks','emergency','quran','bukhari','bible','profile']:
+    if f"'{feature}'" not in placements:
+        fail(f'protected ad feature is missing from policy: {feature}')
+for marker in [
+    'INTERSTITIAL_MIN_GAP_MS = 180_000',
+    'INTERSTITIAL_SESSION_MAX = 4',
+    'pendingInterstitial',
+    'markInterstitialShown()',
+    "type === 'interstitial-showing'",
+    "type === 'interstitial-unavailable'",
+]:
+    if marker not in placements:
+        fail(f'interstitial cap/no-fill accounting marker missing: {marker}')
+if 'sessionInterstitialCount += 1' not in placements:
+    fail('interstitial session counter is not committed on a real show event')
+if 'A request that is unavailable/no-fill never consumes a cooldown or session slot.' not in placements:
+    fail('interstitial no-fill accounting contract is missing')
+
 if errors:
     print('NexusNova AdMob production readiness: FAIL')
     for item in errors:
@@ -121,4 +141,6 @@ print(f' - publisher: {PUBLISHER_ID}')
 print(f' - production rewarded: {PRODUCTION_REWARDED_ID}')
 print(f' - Watch Ad SSV purpose/reward: {EXPECTED_PURPOSE} / +{EXPECTED_REWARD} NVX')
 print(' - Firebase Hosting app-ads.txt root payload: consistent')
+print(' - protected-screen and interstitial frequency policy: consistent')
+print(' - no-fill/unavailable interstitial requests do not consume cooldown/session caps')
 print(' - production Watch Ad credit remains safely disabled until SSV deployment is verified')
