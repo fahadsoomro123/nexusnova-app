@@ -35,6 +35,9 @@ jobs:
       - name: Apply Android viewport lock
         run: python3 NexusNovaAndroid/patch_viewport.py
 
+      - name: Defer Caller ID setup until feature use
+        run: python3 NexusNovaAndroid/patch_deferred_caller_setup.py
+
       - name: Apply native AdMob bridge
         run: python3 NexusNovaAndroid/patch_admob.py
 
