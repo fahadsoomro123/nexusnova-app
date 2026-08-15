@@ -134,3 +134,7 @@ exports.sendPushTest = protectedCallable(async (req) => {
     pruned: stale.length
   };
 });
+
+// Keep the provider callback in a separate module while exporting it through
+// the same bundle already re-exported by functions/index.js.
+Object.assign(exports, require("./rewardedAds"));
