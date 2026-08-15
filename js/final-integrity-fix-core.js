@@ -179,6 +179,7 @@
     loadGuard('./js/nexusnova-allapps-experience-v2.js?v=3', 'data-nx-allapps-experience-v2');
     loadGuard('./js/nexusnova-allapps-visual-polish-v1.js?v=1', 'data-nx-allapps-visual-polish-v1');
     loadGuard('./js/nexusnova-popup-modernizer-v1.js?v=1', 'data-nx-popup-modernizer-v1');
+    loadGuard('./js/nexusnova-scripture-reader-polish-v1.js?v=1', 'data-nx-scripture-reader-polish-v1');
 
     let converterPasses = 0;
     const converterGuard = setInterval(() => {
