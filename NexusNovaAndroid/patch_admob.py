@@ -124,6 +124,16 @@ if 'const val REWARD_PURPOSE_WATCH_AD = "task-watch-ad"' not in manager:
         raise SystemExit('Watch-ad constant insertion point not found')
     manager = manager.replace(marker, addition, 1)
 
+# Capability handshake prevents an older APK (not aware of task-watch-ad) from
+# silently downgrading the request to Mining Boost. The web layer must see this
+# flag before enabling the secure +2.5 NVX Watch Ad route.
+if '"ssvIdentityReady" to true' not in manager:
+    marker = '''                "sdkReady" to initialized,\n                "sdkFamily" to SDK_FAMILY,\n'''
+    addition = '''                "sdkReady" to initialized,\n                "ssvIdentityReady" to true,\n                "sdkFamily" to SDK_FAMILY,\n'''
+    if marker not in manager:
+        raise SystemExit('SSV capability status insertion point not found')
+    manager = manager.replace(marker, addition, 1)
+
 manager_path.write_text(manager)
 
 required_markers = [
@@ -134,9 +144,10 @@ required_markers = [
     'BuildConfig.NEXUS_ADS_TEST_MODE',
     'ServerSideVerificationOptions',
     'pendingRewardUserId',
+    'ssvIdentityReady',
 ]
 missing = [marker for marker in required_markers if marker not in manager]
 if missing:
     raise SystemExit('Next-Gen Ad manager verification failed: ' + ', '.join(missing))
 
-print('GMA Next-Gen ad bridge patch applied with consent-gated production, SSV identity and purpose-safe routing.')
+print('GMA Next-Gen ad bridge patch applied with consent-gated production, SSV identity, capability handshake and purpose-safe routing.')
