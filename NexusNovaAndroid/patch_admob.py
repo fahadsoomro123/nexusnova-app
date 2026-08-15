@@ -9,47 +9,44 @@ if 'private lateinit var adManager: NexusAdManager' not in text:
     old = '    private lateinit var webView: WebView\n'
     new = old + '    private lateinit var adManager: NexusAdManager\n'
     if old not in text:
-        raise SystemExit('AdMob field insertion point not found')
+        raise SystemExit('Ad manager field insertion point not found')
     text = text.replace(old, new, 1)
 
 if 'adManager = NexusAdManager(this, webView)' not in text:
     old = '''        configureWebView()\n        installNativeMessageListener()\n\n        // The production GitHub Pages origin'''
     new = '''        configureWebView()\n        installNativeMessageListener()\n        adManager = NexusAdManager(this, webView) { view -> isTrustedAppPage(view) }\n        adManager.initialize()\n\n        // The production GitHub Pages origin'''
     if old not in text:
-        raise SystemExit('AdMob initialization insertion point not found')
+        raise SystemExit('Ad manager initialization insertion point not found')
     text = text.replace(old, new, 1)
 
-if 'ACTION_SHOW_REWARDED_AD -> adManager.showRewarded()' not in text:
+# Preserve the reward purpose coming from the web layer. Daily Reward test and
+# Mining Boost share one native ad owner, but their callbacks must never be
+# mislabeled or consumed by the wrong feature.
+if 'ACTION_SHOW_REWARDED_AD -> adManager.showRewarded(' not in text:
     old = '''            ACTION_REQUEST_CALLER_ROLE -> requestCallerRole()\n\n            ACTION_OPEN_EXTERNAL -> {'''
-    new = '''            ACTION_REQUEST_CALLER_ROLE -> requestCallerRole()\n\n            ACTION_SHOW_REWARDED_AD -> adManager.showRewarded()\n            ACTION_SHOW_INTERSTITIAL_AD -> adManager.showInterstitial()\n            ACTION_AD_STATUS -> adManager.publishStatus()\n\n            ACTION_OPEN_EXTERNAL -> {'''
+    new = '''            ACTION_REQUEST_CALLER_ROLE -> requestCallerRole()\n\n            ACTION_SHOW_REWARDED_AD -> adManager.showRewarded(\n                rewardPurpose = message.optString("rewardPurpose").trim(),\n                testOnly = message.optBoolean("testOnly", false)\n            )\n            ACTION_SHOW_INTERSTITIAL_AD -> adManager.showInterstitial()\n            ACTION_AD_STATUS -> adManager.publishStatus()\n\n            ACTION_OPEN_EXTERNAL -> {'''
     if old not in text:
-        raise SystemExit('AdMob native-action insertion point not found')
+        raise SystemExit('Ad native-action insertion point not found')
     text = text.replace(old, new, 1)
 
 if 'const val ACTION_SHOW_REWARDED_AD = "showRewardedAd"' not in text:
     old = '''        const val ACTION_REQUEST_CALLER_ROLE = "requestCallerRole"\n        const val ACTION_OPEN_EXTERNAL = "openExternal"\n'''
     new = '''        const val ACTION_REQUEST_CALLER_ROLE = "requestCallerRole"\n        const val ACTION_OPEN_EXTERNAL = "openExternal"\n        const val ACTION_SHOW_REWARDED_AD = "showRewardedAd"\n        const val ACTION_SHOW_INTERSTITIAL_AD = "showInterstitialAd"\n        const val ACTION_AD_STATUS = "adStatus"\n'''
     if old not in text:
-        raise SystemExit('AdMob action-constant insertion point not found')
+        raise SystemExit('Ad action-constant insertion point not found')
     text = text.replace(old, new, 1)
 
 path.write_text(text)
 
-# Rewarded demo ads are intentionally allowed a longer retry window on owner
-# test builds. This is especially important on slow/mobile networks: a transient
-# first-load failure must not immediately collapse into "Ad Not Ready".
 manager_path = Path('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt')
 manager = manager_path.read_text()
-replacements = {
-    'const val REWARDED_PENDING_TIMEOUT_MS = 20_000L': 'const val REWARDED_PENDING_TIMEOUT_MS = 60_000L',
-    'const val REWARDED_RETRY_DELAY_MS = 2_000L': 'const val REWARDED_RETRY_DELAY_MS = 3_000L',
-    'const val REWARDED_MAX_RETRIES = 3': 'const val REWARDED_MAX_RETRIES = 8',
-}
-for old, new in replacements.items():
-    if old in manager:
-        manager = manager.replace(old, new, 1)
-    elif new not in manager:
-        raise SystemExit(f'AdMob resilience insertion point not found: {old}')
-manager_path.write_text(manager)
+required_markers = [
+    'gma-next-gen-1.3.0',
+    'daily-reward-test',
+    'TEST_REWARDED_INTERSTITIAL_AD_UNIT_ID',
+]
+missing = [marker for marker in required_markers if marker not in manager]
+if missing:
+    raise SystemExit('Next-Gen Ad manager verification failed: ' + ', '.join(missing))
 
-print('AdMob bridge patch applied safely with slow-network retry hardening.')
+print('GMA Next-Gen ad bridge patch applied with purpose-safe rewarded routing.')
