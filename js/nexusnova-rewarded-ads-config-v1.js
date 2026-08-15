@@ -1,16 +1,15 @@
 /* NexusNova Rewarded Ads public configuration.
-   These values are public placement identifiers, NOT secrets.
-   Publisher API keys / HMAC secrets must never be placed here or committed. */
+   Public provider identifiers only; no publisher secret belongs in web code. */
 (() => {
   'use strict';
   if (window.__nxRewardedAdsConfigV1) return;
   window.__nxRewardedAdsConfigV1 = true;
 
   const config = {
-    provider: 'ayet',
+    provider: 'admob-native',
     placementId: '',
     adslotName: '',
-    rewardLabel: '+2.5 NVX'
+    rewardLabel: '20 min Nexus Pass'
   };
 
   function setMeta(name, value) {
@@ -24,6 +23,8 @@
   }
 
   setMeta('nexusnova-rewarded-provider', config.provider);
+  // Legacy ayeT slots remain deliberately blank/dormant. NexusNova now routes
+  // rewarded ads through the origin-bound native Android AdMob bridge.
   setMeta('nexusnova-ayet-placement-id', config.placementId);
   setMeta('nexusnova-ayet-adslot-name', config.adslotName);
   setMeta('nexusnova-rewarded-reward-label', config.rewardLabel);
