@@ -32,6 +32,20 @@ NATIVE_HEAD = '''<script id="nxAndroidNativeShellBootstrap">
   window.__nexusEmergencyAppassets = location.origin === 'https://appassets.androidplatform.net';
 
   function byId(id){ return document.getElementById(id); }
+  function releaseSplash(){
+    var splash = byId('nxSplash');
+    if(!splash) return;
+    splash.style.pointerEvents = 'none';
+    splash.classList.add('hide');
+    setTimeout(function(){ try { splash.remove(); } catch (_) {} }, 450);
+  }
+
+  // Android must never leave a full-screen startup layer above the dock just
+  // because a remote CDN/Firebase request is slow. The normal splash animation
+  // can finish earlier; this is only a deterministic hard safety release.
+  setTimeout(releaseSplash, 3300);
+  window.__nexusAndroidReleaseSplash = releaseSplash;
+
   function activate(name, button){
     var target = byId('tab-' + name);
     if (!target) return false;
@@ -75,6 +89,31 @@ NATIVE_HEAD = '''<script id="nxAndroidNativeShellBootstrap">
 })();
 </script>
 '''
+
+
+def patch_android_startup_assets():
+    """Remove remote resources from the Android critical-render path.
+
+    The APK already ships its HTML/CSS/JS. A font CDN or optional QR decoder
+    must never delay the first usable frame on a slow mobile connection.
+    """
+    styles = ASSETS / 'styles.css'
+    if styles.exists():
+        text = styles.read_text(encoding='utf-8')
+        text = text.replace(
+            '@import url("https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,400&display=swap");\n',
+            '',
+            1,
+        )
+        styles.write_text(text, encoding='utf-8')
+
+    page = ASSETS / 'page2.html'
+    if page.exists():
+        text = page.read_text(encoding='utf-8')
+        blocking = '<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js" crossorigin="anonymous" onerror="console.warn(\'jsQR fallback library unavailable\')"></script>'
+        nonblocking = '<script async src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js" crossorigin="anonymous" onerror="console.warn(\'jsQR fallback library unavailable\')"></script>'
+        text = text.replace(blocking, nonblocking, 1)
+        page.write_text(text, encoding='utf-8')
 
 
 def patch_html(path: Path, dashboard: bool):
@@ -146,6 +185,7 @@ def patch_emergency_rewards_guard():
 
 
 copy_required_shell()
+patch_android_startup_assets()
 patch_html(ASSETS / 'page2.html', dashboard=True)
 patch_html(ASSETS / 'index.html', dashboard=False)
 patch_html(ASSETS / 'referral.html', dashboard=False)
@@ -165,12 +205,19 @@ if missing:
     raise SystemExit('Android shell sync missing: ' + ', '.join(missing))
 
 page2 = (ASSETS / 'page2.html').read_text(encoding='utf-8')
+styles = (ASSETS / 'styles.css').read_text(encoding='utf-8')
 rewards = (ASSETS / 'js/rewards-security-v1.js').read_text(encoding='utf-8')
 if 'window.__nexusAndroidShell = true' not in page2 or 'window.__nexusInteractiveReady = true' not in page2:
     raise SystemExit('Android interactive bootstrap was not embedded')
+if 'window.__nexusAndroidReleaseSplash = releaseSplash' not in page2:
+    raise SystemExit('Android startup splash safety release was not embedded')
 if 'if (!window.__nexusAndroidShell && "serviceWorker" in navigator)' not in page2:
     raise SystemExit('Android service-worker bypass was not embedded')
+if '@import url("https://fonts.googleapis.com/' in styles:
+    raise SystemExit('Android critical CSS still contains a remote font import')
+if '<script async src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"' not in page2:
+    raise SystemExit('Android jsQR dependency was not made non-blocking')
 if 'android-appassets-readonly-guard-v2' not in rewards or 'ONLINE MINING REQUIRED' not in rewards:
     raise SystemExit('Android emergency appassets rewards guard was not embedded')
 
-print('Prepared deterministic NexusNova Android web shell with read-only emergency fallback.')
+print('Prepared deterministic NexusNova Android web shell with network-independent startup and read-only emergency fallback.')
