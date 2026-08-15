@@ -19,11 +19,11 @@
         android:usesCleartextTraffic="false"
         android:networkSecurityConfig="@xml/network_security_config">
 
-        <!-- TEST MODE: Google sample AdMob App ID. Production NexusNova App ID:
-             ca-app-pub-5070673529890078~1824799663 -->
+        <!-- Debug builds inject Google's sample App ID; release builds inject
+             NexusNova's production App ID from app/build.gradle.kts. -->
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="ca-app-pub-3940256099942544~3347511713" />
+            android:value="${admobAppId}" />
 
         <activity
             android:name=".MainActivity"
