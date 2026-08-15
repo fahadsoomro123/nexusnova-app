@@ -1,6 +1,6 @@
-/* NexusNova Rewarded Ads button guard v1.1.
-   Keeps legacy handlers from minting/intercepting Watch Ad and presents the
-   current non-transferable Nexus Pass reward model.
+/* NexusNova Rewarded Ads button guard v1.2.
+   Keeps legacy handlers from minting/intercepting Watch Ad while the native
+   AdMob bridge owns the current 2-hour mining-boost reward flow.
 */
 (() => {
   'use strict';
@@ -15,12 +15,15 @@
 
   function relabel(button) {
     if (!button) return;
+    // Once the mining-boost bridge is active it owns the dynamic Booster/Rain
+    // label and status. The guard must not overwrite that richer state.
+    if (window.__nxAdMobMiningBoostV1) return;
     const icon = button.querySelector('.mi-icon');
     Array.from(button.childNodes).forEach(node => {
       if (node !== icon) node.remove();
     });
     if (icon) button.appendChild(icon);
-    button.appendChild(document.createTextNode(' WATCH AD — UNLOCK 20 MIN NEXUS PASS'));
+    button.appendChild(document.createTextNode(' WATCH AD — MINING BOOST (-2H)'));
   }
 
   function ensureStatus(button) {
@@ -31,7 +34,7 @@
       status.className = 'status';
       status.style.marginTop = '8px';
       status.style.fontSize = '11px';
-      status.textContent = 'AdMob rewarded ads • Android app';
+      status.textContent = 'AdMob mining boost • Android app';
       button.insertAdjacentElement('afterend', status);
     }
     return status;
@@ -43,7 +46,9 @@
     button.id = 'rewardedAdBtn';
     relabel(button);
     ensureStatus(button);
-    button.title = 'Watch an optional rewarded ad to unlock Nexus Pass. Advertiser clicks or installs are not required.';
+    if (!window.__nxAdMobMiningBoostV1) {
+      button.title = 'Watch an optional rewarded ad for a 2-hour mining-time reduction. No advertiser click or install is required.';
+    }
     if (button.dataset.nxSecureRewardedBound === '1') return;
     button.dataset.nxSecureRewardedBound = '1';
 
