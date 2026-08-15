@@ -1,51 +1,120 @@
 /* NexusNova Core Failsafe bootstrap
-   Initializes the canonical Firebase DEFAULT app once, with the exact same
-   options used by page2-core, then loads the original failsafe implementation. */
-(async () => {
+   Critical UI navigation is installed synchronously BEFORE any network/Firebase
+   dependency. Firebase remains optional for rendering and data sync; it can never
+   make the visible app feel untouchable again. */
+(() => {
   "use strict";
 
-  // Keep the flagship splash visible long enough to feel intentional on mobile.
-  // The original page timer may add .hide earlier; this guard holds it until
-  // ~3.8s from navigation start, then lets the normal fade complete.
-  const splash = document.getElementById("nxSplash");
+  const byId = id => document.getElementById(id);
+
+  function showTabNow(name, button = null) {
+    if (!name) return false;
+    const target = byId("tab-" + name);
+    if (!target) return false;
+
+    document.querySelectorAll(".tab").forEach(tab => tab.classList.remove("active"));
+    target.classList.add("active");
+
+    document.querySelectorAll(".bottom-dock .dock-item").forEach(item => item.classList.remove("active"));
+    if (button?.classList?.contains("dock-item")) button.classList.add("active");
+
+    const menu = byId("moreMenu");
+    if (menu) {
+      menu.classList.remove("show");
+      menu.style.removeProperty("display");
+    }
+
+    try { window.scrollTo({ top:0, behavior:"auto" }); } catch (_) { try { window.scrollTo(0,0); } catch (_) {} }
+    return true;
+  }
+
+  // Install synchronous lifelines before Firebase imports. Canonical page2-core
+  // may replace these later; until then the visible UI is already tappable.
+  if (typeof window.switchTab !== "function") {
+    window.switchTab = function(name, button) {
+      return showTabNow(name, button || null);
+    };
+  }
+
+  if (typeof window.openMoreTab !== "function") {
+    window.openMoreTab = function(name) {
+      const ok = showTabNow(name, null);
+      if (ok) byId("moreBtn")?.classList.add("active");
+      return ok;
+    };
+  }
+
+  if (typeof window.toggleMore !== "function") {
+    window.toggleMore = function() {
+      const menu = byId("moreMenu");
+      if (!menu) return false;
+      const opening = !menu.classList.contains("show") && getComputedStyle(menu).display === "none";
+      menu.style.removeProperty("display");
+      menu.classList.toggle("show", opening);
+      if (opening && getComputedStyle(menu).display === "none") menu.style.display = "block";
+      if (!opening) menu.style.removeProperty("display");
+      document.querySelectorAll(".bottom-dock .dock-item").forEach(item => item.classList.remove("active"));
+      byId("moreBtn")?.classList.add("active");
+      return opening;
+    };
+  }
+
+  // Capture-phase native click lifeline. This does not own mining/reward writes;
+  // it only guarantees the four core navigation buttons and ALL APPS respond.
+  if (!window.__nxCriticalTouchLifeline) {
+    window.__nxCriticalTouchLifeline = true;
+    document.addEventListener("click", event => {
+      const item = event.target?.closest?.(".bottom-dock .dock-item");
+      if (!item) return;
+      const label = String(item.textContent || "").replace(/\s+/g, " ").trim().toLowerCase();
+      if (item.id === "moreBtn" || label.includes("all apps")) {
+        if (typeof window.toggleMore === "function") window.toggleMore();
+        return;
+      }
+      const map = { mine:"home", wallet:"wallet", tasks:"tasks", market:"market" };
+      const name = Object.keys(map).find(key => label.includes(key));
+      if (name) showTabNow(map[name], item);
+    }, true);
+  }
+
+  // Splash is presentation only. It must never retain an invisible touch shield.
+  const splash = byId("nxSplash");
   if (splash) {
     splash.dataset.nxFastExit = "1";
     splash.classList.add("nx-startup-hold");
-
     const originalRemove = splash.remove.bind(splash);
     splash.remove = function(){
       if (splash.classList.contains("nx-startup-hold")) return;
       originalRemove();
     };
 
-    const elapsed = Number(performance?.now?.() || 0);
-    const remaining = Math.max(0, 3800 - elapsed);
-    setTimeout(() => {
+    const releaseSplash = () => {
       if (!splash.isConnected) return;
       splash.classList.remove("nx-startup-hold");
       splash.classList.add("hide");
-      setTimeout(() => {
-        try { originalRemove(); } catch (_) {}
-      }, 560);
-    }, remaining);
+      splash.style.pointerEvents = "none";
+      splash.style.visibility = "hidden";
+      setTimeout(() => { try { originalRemove(); } catch (_) {} }, 260);
+    };
+    const elapsed = Number(performance?.now?.() || 0);
+    setTimeout(releaseSplash, Math.max(0, 1900 - elapsed));
+    // Independent belt-and-braces release in case another script mutates classes.
+    setTimeout(releaseSplash, 2600);
   }
 
-  if (!document.getElementById("nxStartupTimingGuard")) {
+  if (!byId("nxStartupTimingGuard")) {
     const startupStyle = document.createElement("style");
     startupStyle.id = "nxStartupTimingGuard";
     startupStyle.textContent = `
-      #nxSplash{animation:none!important;min-height:100dvh!important;height:100dvh!important}
+      #nxSplash{min-height:100dvh!important;height:100dvh!important}
       #nxSplash.nx-startup-hold.hide{opacity:1!important;visibility:visible!important;pointer-events:auto!important}
-      @media(max-width:700px){
-        #nxSplash{
-          padding:max(12px,env(safe-area-inset-top)) 16px calc(4vh + max(18px,env(safe-area-inset-bottom)))!important;
-        }
-      }
+      #nxSplash:not(.nx-startup-hold),#nxSplash.hide:not(.nx-startup-hold){pointer-events:none!important}
+      @media(max-width:700px){#nxSplash{padding:max(12px,env(safe-area-inset-top)) 16px calc(4vh + max(18px,env(safe-area-inset-bottom)))!important}}
     `;
     document.head.appendChild(startupStyle);
   }
 
-  // UI-only polish is intentionally isolated from wallet/provider logic.
+  // Optional visual layers can load without blocking core navigation.
   if (!document.querySelector('script[data-nx-mobile-wallet-polish]')) {
     const polish = document.createElement("script");
     polish.src = "./js/nexusnova-mobile-wallet-polish-v1.js?v=2";
@@ -54,8 +123,6 @@
     document.body.appendChild(polish);
   }
 
-  // ALL APPS repair/visual layer is isolated from feature business logic.
-  // It installs after window.load so the canonical navigation functions exist first.
   if (!document.querySelector('script[data-nx-allapps-experience]')) {
     const experience = document.createElement("script");
     experience.src = "./js/nexusnova-allapps-experience-v2.js?v=2";
@@ -64,42 +131,47 @@
     document.body.appendChild(experience);
   }
 
-  const FIREBASE_APP_URL = "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
-  const config = {
-    apiKey: "AIzaSyBU75WYp5ioaMD1LrNcDyAvROFW2wrTil0",
-    authDomain: "nexusnova-6ade2.firebaseapp.com",
-    projectId: "nexusnova-6ade2",
-    storageBucket: "nexusnova-6ade2.firebasestorage.app",
-    messagingSenderId: "49791194817",
-    appId: "1:49791194817:web:07f28326e0f15979536640",
-    measurementId: "G-YLPFKWSS12"
-  };
+  // Firebase bootstrap runs asynchronously after the UI lifeline is alive.
+  (async () => {
+    const FIREBASE_APP_URL = "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
+    const config = {
+      apiKey: "AIzaSyBU75WYp5ioaMD1LrNcDyAvROFW2wrTil0",
+      authDomain: "nexusnova-6ade2.firebaseapp.com",
+      projectId: "nexusnova-6ade2",
+      storageBucket: "nexusnova-6ade2.firebasestorage.app",
+      messagingSenderId: "49791194817",
+      appId: "1:49791194817:web:07f28326e0f15979536640",
+      measurementId: "G-YLPFKWSS12"
+    };
 
-  try {
-    const { initializeApp, getApps, deleteApp } = await import(FIREBASE_APP_URL);
-    const current = getApps().find(app => app?.name === "[DEFAULT]") || null;
-
-    if (current) {
-      const opts = current.options || {};
-      const sameCanonicalConfig =
-        String(opts.apiKey || "") === config.apiKey &&
-        String(opts.authDomain || "") === config.authDomain &&
-        String(opts.projectId || "") === config.projectId &&
-        String(opts.storageBucket || "") === config.storageBucket &&
-        String(opts.messagingSenderId || "") === config.messagingSenderId &&
-        String(opts.appId || "") === config.appId &&
-        String(opts.measurementId || "") === config.measurementId;
-
-      if (!sameCanonicalConfig) {
-        await deleteApp(current);
+    try {
+      const { initializeApp, getApps, deleteApp } = await import(FIREBASE_APP_URL);
+      const current = getApps().find(app => app?.name === "[DEFAULT]") || null;
+      if (current) {
+        const opts = current.options || {};
+        const sameCanonicalConfig =
+          String(opts.apiKey || "") === config.apiKey &&
+          String(opts.authDomain || "") === config.authDomain &&
+          String(opts.projectId || "") === config.projectId &&
+          String(opts.storageBucket || "") === config.storageBucket &&
+          String(opts.messagingSenderId || "") === config.messagingSenderId &&
+          String(opts.appId || "") === config.appId &&
+          String(opts.measurementId || "") === config.measurementId;
+        if (!sameCanonicalConfig) {
+          await deleteApp(current);
+          initializeApp(config);
+        }
+      } else {
         initializeApp(config);
       }
-    } else {
-      initializeApp(config);
+    } catch (error) {
+      console.error("NexusNova Firebase bootstrap:", error);
     }
-  } catch (error) {
-    console.error("NexusNova Firebase bootstrap:", error);
-  }
 
-  await import("./core-failsafe-core.js?v=4");
+    try {
+      await import("./core-failsafe-core.js?v=5");
+    } catch (error) {
+      console.error("NexusNova extended failsafe unavailable; critical UI lifeline remains active:", error);
+    }
+  })();
 })();
