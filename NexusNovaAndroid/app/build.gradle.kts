@@ -43,5 +43,8 @@ dependencies {
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")
     implementation("androidx.webkit:webkit:1.10.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
-    implementation("com.google.android.gms:play-services-ads:23.6.0")
+    // Safe diagnostic upgrade from 23.6.0. Google Mobile Ads SDK 24.0.0
+    // keeps this project's existing Kotlin/AGP toolchain intact while picking up
+    // the v24 initialization/loading changes before any larger toolchain migration.
+    implementation("com.google.android.gms:play-services-ads:24.0.0")
 }
