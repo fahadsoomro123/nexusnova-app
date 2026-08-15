@@ -22,7 +22,7 @@
   const CONTENT_RETURN_MAX_MS = 10 * 60_000;
 
   const MONETIZABLE_FEATURES = new Set([
-    'tools','finance','news','learn','travel','smart','entertainment','browser',
+    'tools','finance','money','news','learn','travel','smart','ai','entertainment','browser',
     'mega-tools','mega-finance','mega-calendar','mega-reminders','mega-weather',
     'mega-learning','mega-pakistan','mega-shopping','mega-marketplace','mega-orders',
     'mega-teacher','marketplace','shopping'
@@ -144,8 +144,6 @@
       return { shown:false, reason:'protected-or-ineligible', placement, feature };
     }
 
-    // A real natural break itself counts as one eligible use if prior content
-    // engagement did not already warm the threshold.
     eligibleBreakCount = Math.min(ELIGIBLE_BREAKS_BEFORE_FIRST, eligibleBreakCount + 1);
     persist();
 
@@ -197,12 +195,9 @@
     const type = String(detail.event || '');
     if (type === 'status') interstitialReady = Boolean(detail.interstitialReady);
     if (type === 'interstitial-ready') interstitialReady = true;
-    if (type === 'interstitial-showing' || type === 'interstitial-unavailable' || type === 'interstitial-failed') interstitialReady = false;
+    if (type === 'interstitial-showing' || type === 'interstitial-unavailable' || type === 'interstitial-failed' || type === 'interstitial-load-failed') interstitialReady = false;
   });
 
-  // Outbound content actions only warm eligibility. No ad interrupts the user's
-  // explicit content-open action; the actual interstitial can appear later at a
-  // safe return/break point after the app was genuinely backgrounded/covered.
   document.addEventListener('click', event => {
     const target = event.target;
     if (!target?.closest) return;
@@ -219,7 +214,15 @@
     if (target.closest('#tab-browser [data-nx-browser-go],#tab-browser .nx-speed,#tab-browser [data-nx-explicit-external]')) {
       const result = noteEngagement('browser','site-open');
       if (result.counted) armContentReturn('browser');
+      return;
     }
+
+    const action = target.closest('button,[role="button"],input[type="submit"]');
+    const tab = action?.closest?.('.tab[id^="tab-"]');
+    if (!action || !tab) return;
+    if (action.closest('.nx-allapps-back,.tools-main-back')) return;
+    const feature = normalizeFeature(tab.id || '');
+    if (isEligibleFeature(feature)) noteEngagement(feature,'utility-action');
   }, true);
 
   document.addEventListener('submit', event => {
@@ -246,9 +249,6 @@
     setTimeout(() => maybeInterstitial('content-return', { feature }), 500);
   });
 
-  // All Apps back/return is a natural break. Capture the feature on pointer-up
-  // before legacy click handlers hide it, then let the normal navigation finish.
-  // Only the safe allow-list above can ever trigger an interstitial.
   document.addEventListener('pointerup', event => {
     const back = event.target?.closest?.('.nx-allapps-back button,.tools-main-back');
     if (!back) return;
@@ -267,6 +267,5 @@
     status
   });
 
-  // Ask native owner for its current preload/readiness state once the bridge exists.
   [700,1800,3500].forEach(ms => setTimeout(() => postNative('adStatus'), ms));
 })();
