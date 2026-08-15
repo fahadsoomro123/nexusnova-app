@@ -1,0 +1,41 @@
+name: NexusNova AdMob Production Readiness
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'app-ads.txt'
+      - 'firebase-public/app-ads.txt'
+      - 'firebase.json'
+      - 'NexusNovaAndroid/app/build.gradle.kts'
+      - 'NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt'
+      - 'NexusNovaAndroid/patch_admob.py'
+      - 'functions/admobRewardedSsv.js'
+      - 'js/nexusnova-watch-ad-reward-v1.js'
+      - '.github/scripts/admob-production-readiness.py'
+      - '.github/workflows/admob-production-readiness.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  readiness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate AdMob production contract
+        run: python3 .github/scripts/admob-production-readiness.py
+
+      - name: Check Watch Ad client syntax
+        run: node --check js/nexusnova-watch-ad-reward-v1.js
+
+      - name: Check signed SSV endpoint syntax
+        run: node --check functions/admobRewardedSsv.js
+
+      - name: Validate Firebase Hosting JSON
+        run: python3 -m json.tool firebase.json >/dev/null
