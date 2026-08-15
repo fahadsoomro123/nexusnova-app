@@ -18,7 +18,9 @@ const boostBridge = read('js/nexusnova-admob-nexus-pass-v1.js');
 const androidOfflineRewards = read('NexusNovaAndroid/app/src/main/assets/www/js/rewards-security-v1.js');
 const androidMain = read('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt');
 
-assert.match(rewards, /single-owner-v3/, 'single-owner mining version marker missing');
+assert.match(rewards, /const SYNC_TIMEOUT_MS = 10_000;/, 'bounded mining sync timeout missing');
+assert.match(rewards, /const SYNC_RETRY_DELAYS_MS = \[2_500, 7_500, 15_000\];/, 'bounded mining sync retry schedule missing');
+assert.match(rewards, /RETRY SECURE SYNC/, 'manual secure-session retry state missing');
 assert.match(rewards, /runTransaction/, 'mining engine must use Firestore transactions');
 assert.match(rewards, /onSnapshot/, 'mining engine must watch authoritative Firestore state');
 assert.match(rewards, /getIdToken\(true\)/, 'mining writes must force-refresh Auth claims');
@@ -70,4 +72,4 @@ assert.match(androidOfflineRewards, /android-offline-guard-v1/, 'Android offline
 assert.doesNotMatch(androidOfflineRewards, /runTransaction|updateDoc|httpsCallable|getFunctions|startMiningSession|finishMiningSession/, 'Android offline bundle must not write mining/rewards');
 assert.match(androidOfflineRewards, /ONLINE MINING REQUIRED/, 'Android offline mining must clearly require online production app');
 
-console.log('PASS mining architecture: one Firestore-authoritative mining session owner plus capped timestamp-only AdMob boost bridge.');
+console.log('PASS mining architecture: one Firestore-authoritative mining session owner plus bounded secure-session recovery and capped timestamp-only AdMob boost bridge.');
