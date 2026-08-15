@@ -1,0 +1,100 @@
+name: NexusNova Blank Screen Hotfix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/nexusnova-blank-screen-hotfix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply-hotfix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Patch Android WebView recovery
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          p = Path('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt')
+          s = p.read_text()
+          if 'BLANK_SCREEN_PROBE' in s and 'recoverProductionWebView' in s:
+              print('Blank-screen recovery already present.')
+              raise SystemExit(0)
+
+          def replace_once(old, new, label):
+              global s
+              if old not in s:
+                  raise SystemExit(f'Hotfix anchor missing: {label}')
+              s = s.replace(old, new, 1)
+
+          replace_once(
+              '''    private var fileChooserAcceptTypes: Set<String> = emptySet()\n    private var usingOfflineFallback = false\n''',
+              '''    private var fileChooserAcceptTypes: Set<String> = emptySet()\n    private var usingOfflineFallback = false\n    private var mainFrameWatchdogToken = 0\n    private var finishedWatchdogToken = -1\n    private var webRecoveryAttempts = 0\n''',
+              'state fields'
+          )
+
+          replace_once(
+              '''        // The production GitHub Pages origin is also the registered web App\n        // Check origin. Loading it here means web and Android use one tested\n        // mining engine instead of maintaining two drifting copies.\n        webView.loadUrl(PRODUCTION_APP_URL)\n        showCallerSetupOnce()\n''',
+              '''        // The production GitHub Pages origin is also the registered web App\n        // Check origin. Loading it here means web and Android use one tested\n        // mining engine instead of maintaining two drifting copies.\n        loadProductionApp()\n        showCallerSetupOnce()\n''',
+              'initial load'
+          )
+
+          replace_once(
+              '''            override fun shouldInterceptRequest(\n                view: WebView?,\n                request: WebResourceRequest?\n            ): WebResourceResponse? {\n                val uri = request?.url ?: return super.shouldInterceptRequest(view, request)\n                return assetLoader.shouldInterceptRequest(uri)\n                    ?: super.shouldInterceptRequest(view, request)\n            }\n\n            override fun shouldOverrideUrlLoading(\n''',
+              '''            override fun shouldInterceptRequest(\n                view: WebView?,\n                request: WebResourceRequest?\n            ): WebResourceResponse? {\n                val uri = request?.url ?: return super.shouldInterceptRequest(view, request)\n                return assetLoader.shouldInterceptRequest(uri)\n                    ?: super.shouldInterceptRequest(view, request)\n            }\n\n            override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {\n                super.onPageStarted(view, url, favicon)\n                val uri = url?.let { runCatching { Uri.parse(it) }.getOrNull() } ?: return\n                if (!isProductionOrigin(uri) || usingOfflineFallback) return\n                armMainFrameWatchdog(view ?: return)\n            }\n\n            override fun onPageFinished(view: WebView?, url: String?) {\n                super.onPageFinished(view, url)\n                val target = view ?: return\n                val uri = url?.let { runCatching { Uri.parse(it) }.getOrNull() } ?: return\n                if (!isProductionOrigin(uri) || usingOfflineFallback) return\n                finishedWatchdogToken = mainFrameWatchdogToken\n                scheduleBlankScreenCheck(target, mainFrameWatchdogToken)\n            }\n\n            override fun shouldOverrideUrlLoading(\n''',
+              'page callbacks'
+          )
+
+          replace_once(
+              '''                // Offline fallback is intentionally local. It keeps non-value\n                // utilities available, while production mining remains bound to\n                // the stable, registered App Check origin.\n                usingOfflineFallback = true\n                view?.loadUrl(LOCAL_APP_URL)\n            }\n        }\n''',
+              '''                recoverProductionWebView(view, "main-frame network error")\n            }\n\n            override fun onReceivedHttpError(\n                view: WebView?,\n                request: WebResourceRequest?,\n                errorResponse: WebResourceResponse?\n            ) {\n                super.onReceivedHttpError(view, request, errorResponse)\n                val failed = request ?: return\n                val status = errorResponse?.statusCode ?: return\n                if (!failed.isForMainFrame || status < 400 || usingOfflineFallback) return\n                if (!isProductionOrigin(failed.url)) return\n                recoverProductionWebView(view, "HTTP $status")\n            }\n        }\n''',
+              'network fallback'
+          )
+
+          replace_once(
+              '''    private fun installNativeMessageListener() {\n''',
+              '''    private fun loadProductionApp(forceFresh: Boolean = false) {\n        usingOfflineFallback = false\n        if (forceFresh) webView.clearCache(true)\n        val suffix = if (forceFresh) "?androidRecovery=${System.currentTimeMillis()}" else ""\n        webView.loadUrl(PRODUCTION_APP_URL + suffix)\n    }\n\n    private fun armMainFrameWatchdog(view: WebView) {\n        val token = ++mainFrameWatchdogToken\n        finishedWatchdogToken = -1\n        view.postDelayed({\n            if (isFinishing || isDestroyed || usingOfflineFallback) return@postDelayed\n            if (token != mainFrameWatchdogToken || finishedWatchdogToken == token) return@postDelayed\n            recoverProductionWebView(view, "main-frame load timeout")\n        }, MAIN_FRAME_LOAD_TIMEOUT_MS)\n    }\n\n    private fun scheduleBlankScreenCheck(view: WebView, token: Int) {\n        view.postDelayed({\n            if (isFinishing || isDestroyed || usingOfflineFallback) return@postDelayed\n            if (token != mainFrameWatchdogToken || finishedWatchdogToken != token) return@postDelayed\n            view.evaluateJavascript(BLANK_SCREEN_PROBE) { result ->\n                if (token != mainFrameWatchdogToken || usingOfflineFallback) return@evaluateJavascript\n                if (result == "true") {\n                    webRecoveryAttempts = 0\n                    return@evaluateJavascript\n                }\n                recoverProductionWebView(view, "blank rendered page")\n            }\n        }, BLANK_SCREEN_GRACE_MS)\n    }\n\n    private fun recoverProductionWebView(view: WebView?, reason: String) {\n        if (usingOfflineFallback || isFinishing || isDestroyed) return\n        val target = view ?: webView\n        if (webRecoveryAttempts < MAX_WEB_RECOVERY_ATTEMPTS) {\n            webRecoveryAttempts += 1\n            target.stopLoading()\n            target.clearCache(true)\n            target.postDelayed({\n                if (!isFinishing && !isDestroyed && !usingOfflineFallback) {\n                    loadProductionApp(forceFresh = true)\n                }\n            }, WEB_RECOVERY_RELOAD_DELAY_MS)\n            return\n        }\n\n        // A technically successful but visually blank remote page is just as unusable\n        // as a network failure. Fall back to the bundled shell instead of leaving the\n        // user on an empty WebView. Value-bearing mining remains disabled offline.\n        usingOfflineFallback = true\n        mainFrameWatchdogToken += 1\n        target.stopLoading()\n        target.loadUrl(LOCAL_APP_URL)\n        android.util.Log.w("NexusNovaWeb", "Using local fallback after $reason")\n    }\n\n    private fun installNativeMessageListener() {\n''',
+              'recovery helpers'
+          )
+
+          replace_once(
+              '''        const val CALLER_PROMPT_DELAY_MS = 2_500L\n\n        val LOCATION_PERMISSIONS = arrayOf(\n''',
+              '''        const val CALLER_PROMPT_DELAY_MS = 2_500L\n\n        const val MAIN_FRAME_LOAD_TIMEOUT_MS = 12_000L\n        const val BLANK_SCREEN_GRACE_MS = 3_500L\n        const val WEB_RECOVERY_RELOAD_DELAY_MS = 350L\n        const val MAX_WEB_RECOVERY_ATTEMPTS = 1\n        const val BLANK_SCREEN_PROBE = """\n            (function(){\n              try {\n                var b = document.body;\n                if (!b) return false;\n                var bs = getComputedStyle(b);\n                if (bs.display === 'none' || bs.visibility === 'hidden' || Number(bs.opacity) === 0) return false;\n                var selectors = ['#nxSplash','.auth-shell','#mineBtn','.bottom-nav','.bottom-dock','main','.app-container'];\n                for (var i = 0; i < selectors.length; i++) {\n                  var e = document.querySelector(selectors[i]);\n                  if (!e) continue;\n                  var r = e.getBoundingClientRect();\n                  var es = getComputedStyle(e);\n                  if (r.width > 20 && r.height > 20 && es.display !== 'none' && es.visibility !== 'hidden' && Number(es.opacity) > 0) return true;\n                }\n                var text = (b.innerText || '').replace(/\\s+/g, ' ').trim();\n                return text.length > 80 && document.documentElement.scrollHeight > 150;\n              } catch (_) {\n                return true;\n              }\n            })();\n        """\n\n        val LOCATION_PERMISSIONS = arrayOf(\n''',
+              'recovery constants'
+          )
+
+          p.write_text(s)
+          print('Applied Android blank-screen recovery hotfix.')
+          PY
+
+      - name: Validate patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'BLANK_SCREEN_PROBE' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -q 'recoverProductionWebView' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -q 'onReceivedHttpError' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          git diff --check
+
+      - name: Commit hotfix
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo 'No source change needed.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          git commit -m 'Recover Android WebView from blank startup screens'
+          git push origin HEAD:main
