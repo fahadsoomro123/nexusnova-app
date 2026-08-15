@@ -34,4 +34,22 @@ if 'const val ACTION_SHOW_REWARDED_AD = "showRewardedAd"' not in text:
     text = text.replace(old, new, 1)
 
 path.write_text(text)
-print('AdMob bridge patch applied safely.')
+
+# Rewarded demo ads are intentionally allowed a longer retry window on owner
+# test builds. This is especially important on slow/mobile networks: a transient
+# first-load failure must not immediately collapse into "Ad Not Ready".
+manager_path = Path('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt')
+manager = manager_path.read_text()
+replacements = {
+    'const val REWARDED_PENDING_TIMEOUT_MS = 20_000L': 'const val REWARDED_PENDING_TIMEOUT_MS = 60_000L',
+    'const val REWARDED_RETRY_DELAY_MS = 2_000L': 'const val REWARDED_RETRY_DELAY_MS = 3_000L',
+    'const val REWARDED_MAX_RETRIES = 3': 'const val REWARDED_MAX_RETRIES = 8',
+}
+for old, new in replacements.items():
+    if old in manager:
+        manager = manager.replace(old, new, 1)
+    elif new not in manager:
+        raise SystemExit(f'AdMob resilience insertion point not found: {old}')
+manager_path.write_text(manager)
+
+print('AdMob bridge patch applied safely with slow-network retry hardening.')
