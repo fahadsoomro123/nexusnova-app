@@ -3,43 +3,10 @@
    No external image assets: all feature visuals are inline SVG so they stay fast and offline-friendly. */
 (() => {
   'use strict';
-  if (window.NexusNovaUI?.version === '1.0.1') return;
+  if (window.NexusNovaUI?.version === '1.0.0') return;
 
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]));
   const uid = () => 'nxui-' + Math.random().toString(36).slice(2,10) + Date.now().toString(36);
-
-  let bodyOverflowBeforeModal = null;
-
-  function syncBodyScrollLock() {
-    if (!document.body) return;
-    const hasBackdrop = Boolean(document.querySelector('.nxui-backdrop'));
-    if (hasBackdrop) {
-      if (bodyOverflowBeforeModal === null) {
-        bodyOverflowBeforeModal = document.body.style.overflow || '';
-      }
-      document.body.style.overflow = 'hidden';
-      return;
-    }
-
-    if (bodyOverflowBeforeModal !== null || document.body.style.overflow === 'hidden') {
-      const previous = bodyOverflowBeforeModal || '';
-      if (previous && previous !== 'hidden') document.body.style.overflow = previous;
-      else document.body.style.removeProperty('overflow');
-      bodyOverflowBeforeModal = null;
-    }
-  }
-
-  function lockBodyScroll() {
-    syncBodyScrollLock();
-  }
-
-  function installScrollSafety() {
-    if (!document.body || window.__nxuiScrollSafetyV101) return;
-    window.__nxuiScrollSafetyV101 = true;
-    const observer = new MutationObserver(() => queueMicrotask(syncBodyScrollLock));
-    observer.observe(document.body, { childList:true });
-    window.addEventListener('pageshow', syncBodyScrollLock);
-  }
 
   const paths = {
     university:'<path d="M3 10 12 4l9 6-9 4-9-4Z"/><path d="M6 12v5M10 14v3M14 14v3M18 12v5M4 19h16"/>',
@@ -130,26 +97,16 @@
   }
 
   function closeBackdrop(backdrop, result, resolve) {
-    if (backdrop?._nxuiClosed) return;
-    if (backdrop) backdrop._nxuiClosed = true;
-
-    if (backdrop?.isConnected) {
-      backdrop.style.opacity = '0';
-      backdrop.style.transition = 'opacity .14s ease';
-      setTimeout(() => {
-        backdrop.remove();
-        syncBodyScrollLock();
-      }, 150);
-    } else {
-      syncBodyScrollLock();
-    }
-
+    if (!backdrop?.isConnected) return;
+    backdrop.style.opacity = '0';
+    backdrop.style.transition = 'opacity .14s ease';
+    setTimeout(() => backdrop.remove(), 150);
+    document.body.style.removeProperty('overflow');
     resolve(result);
   }
 
   function form(config={}) {
     installStyles();
-    installScrollSafety();
     return new Promise(resolve => {
       const backdrop = document.createElement('div');
       backdrop.className = 'nxui-backdrop';
@@ -160,7 +117,7 @@
         <form class="nxui-form" novalidate><div class="nxui-grid">${(config.fields || []).map(fieldMarkup).join('')}</div><div class="nxui-actions"><button class="nxui-btn secondary" type="button" data-nxui-cancel>${esc(config.cancelText || 'Cancel')}</button><button class="nxui-btn primary" type="submit">${esc(config.submitText || 'Continue')}</button></div></form>
       </div>`;
       document.body.appendChild(backdrop);
-      lockBodyScroll();
+      document.body.style.overflow = 'hidden';
       const formEl = backdrop.querySelector('form');
       const cancel = () => closeBackdrop(backdrop, null, resolve);
       backdrop.querySelector('.nxui-close')?.addEventListener('click', cancel);
@@ -189,14 +146,13 @@
 
   function message(config={}, confirmMode=false) {
     installStyles();
-    installScrollSafety();
     return new Promise(resolve => {
       const backdrop = document.createElement('div');
       backdrop.className = 'nxui-backdrop';
       const id = uid();
       backdrop.innerHTML = `<div class="nxui-modal" role="dialog" aria-modal="true" aria-labelledby="${id}-title"><button class="nxui-close" type="button" aria-label="Close">×</button><div class="nxui-hero"><div class="nxui-orb">${icon(config.icon || (confirmMode?'security':'spark'))}</div><div><div class="nxui-eyebrow">${esc(config.eyebrow || 'NEXUSNOVA')}</div><h2 class="nxui-title" id="${id}-title">${esc(config.title || (confirmMode?'Confirm action':'NexusNova'))}</h2><p class="nxui-subtitle">${esc(config.subtitle || '')}</p></div></div><div class="nxui-message"><div class="nxui-message-box">${esc(config.text || config.message || '')}</div><div class="nxui-actions">${confirmMode?`<button class="nxui-btn secondary" data-nxui-no type="button">${esc(config.cancelText || 'Cancel')}</button>`:''}<button class="nxui-btn primary" data-nxui-yes type="button">${esc(config.buttonText || config.confirmText || 'OK')}</button></div></div></div>`;
       document.body.appendChild(backdrop);
-      lockBodyScroll();
+      document.body.style.overflow = 'hidden';
       const finish = result => closeBackdrop(backdrop, result, resolve);
       backdrop.querySelector('.nxui-close')?.addEventListener('click', () => finish(confirmMode ? false : true));
       backdrop.querySelector('[data-nxui-no]')?.addEventListener('click', () => finish(false));
@@ -225,10 +181,8 @@
   }
 
   installStyles();
-  installScrollSafety();
-  syncBodyScrollLock();
   window.NexusNovaUI = Object.freeze({
-    version:'1.0.1',
+    version:'1.0.0',
     icon,
     esc,
     form,
