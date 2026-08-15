@@ -52,6 +52,9 @@ jobs:
       - name: Run rewarded ads security browser check
         run: node .github/scripts/nexusnova-rewarded-ads-runtime.mjs
 
+      - name: Run Watch Ad Android touch-freeze regression
+        run: node .github/scripts/nexusnova-watch-ad-touch-runtime.mjs
+
       - name: Run Community League browser check
         run: node .github/scripts/nexusnova-community-runtime.mjs
 
