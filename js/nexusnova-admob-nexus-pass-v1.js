@@ -1,24 +1,52 @@
-/* NexusNova AdMob + Nexus Pass bridge v1
-   Native Android rewarded ads unlock a non-transferable in-app Nexus Pass.
-   Advertiser clicks/installs are never required for the reward.
+/* NexusNova AdMob Mining Boost bridge v1
+   Compatibility filename retained so existing loaders do not break.
+
+   Reward flow (TEST MODE until production hardening is complete):
+   rewarded ad -> one 2-hour mining-time reduction -> Firestore rules cap the
+   session to six reductions / 12 hours total. No rewarded ad directly mints NVX.
 */
 (() => {
   'use strict';
-  if (window.__nxAdMobNexusPassV1) return;
+  if (window.__nxAdMobMiningBoostV1) return;
+  window.__nxAdMobMiningBoostV1 = true;
+  // Legacy marker kept temporarily so an already-cached v2 loader can discover
+  // this bridge during the migration from Nexus Pass to mining boosts.
   window.__nxAdMobNexusPassV1 = true;
 
-  const PASS_MINUTES = 20;
-  let passExpiresAt = 0;
+  const HOUR = 3_600_000;
+  const DAY = 24 * HOUR;
+  const BOOST_MS = 2 * HOUR;
+  const BOOSTER_LIMIT = 2;
+  const RAIN_LIMIT = 4;
+  const TOTAL_LIMIT = BOOSTER_LIMIT + RAIN_LIMIT;
+  const MAX_BOOST_MS = TOTAL_LIMIT * BOOST_MS;
+  const STYLE_ID = 'nx-mining-boost-style-v1';
+  const PANEL_ID = 'nxMiningBoostPanel';
+
   let rewardedReady = false;
   let interstitialReady = false;
   let testMode = true;
-  let ticker = null;
+  let pendingKind = '';
+  let firebasePromise = null;
+  let miningUnsubscribe = null;
+  let authUnsubscribe = null;
+  let installTimer = null;
 
-  const findButton = () => document.getElementById('rewardedAdBtn') ||
-    Array.from(document.querySelectorAll('#tab-tasks button'))
-      .find(button => /watch\s*ad/i.test(String(button.textContent || '')));
+  const miningState = {
+    known: false,
+    active: false,
+    startedAt: 0,
+    anchorAt: 0,
+    uses: 0,
+    boosterUses: 0,
+    rainUses: 0,
+    reducedMs: 0,
+    complete: false,
+    malformed: false
+  };
 
   const hasNative = () => typeof window.NexusAndroid?.postMessage === 'function';
+  const el = id => document.getElementById(id);
 
   function post(action, payload = {}) {
     try {
@@ -26,7 +54,7 @@
         return window.nexusPostNativeAction(action, payload);
       }
       if (!hasNative()) return false;
-      window.NexusAndroid.postMessage(JSON.stringify({action, ...payload}));
+      window.NexusAndroid.postMessage(JSON.stringify({ action, ...payload }));
       return true;
     } catch (error) {
       console.warn('NexusNova AdMob native bridge:', error);
@@ -34,9 +62,15 @@
     }
   }
 
+  function findTaskButton() {
+    return el('rewardedAdBtn') ||
+      Array.from(document.querySelectorAll('#tab-tasks button'))
+        .find(button => /watch\s*ad/i.test(String(button.textContent || '')));
+  }
+
   function statusNode() {
-    let node = document.getElementById('rewardedAdStatus');
-    const button = findButton();
+    let node = el('rewardedAdStatus');
+    const button = findTaskButton();
     if (!node && button) {
       node = document.createElement('div');
       node.id = 'rewardedAdStatus';
@@ -48,100 +82,400 @@
     return node;
   }
 
-  function relabelButton() {
-    const button = findButton();
-    if (!button) return null;
-    button.id = 'rewardedAdBtn';
+  function setButtonText(button, text) {
+    if (!button) return;
     const icon = button.querySelector('.mi-icon');
     Array.from(button.childNodes).forEach(node => {
       if (node !== icon) node.remove();
     });
     if (icon) button.appendChild(icon);
-    button.appendChild(document.createTextNode(' WATCH AD — UNLOCK 20 MIN NEXUS PASS'));
-    button.title = 'Watch an optional rewarded ad to unlock Nexus Pass. Advertiser clicks or installs are not required.';
+    button.appendChild(document.createTextNode(` ${text}`));
+  }
+
+  function expectedKind() {
+    if (!miningState.active || miningState.complete || miningState.uses >= TOTAL_LIMIT) return '';
+    return miningState.uses < BOOSTER_LIMIT ? 'booster' : 'rain';
+  }
+
+  function kindLabel(kind) {
+    return kind === 'rain' ? 'Nova Rain' : 'Nova Booster';
+  }
+
+  function adoptMiningState(raw = {}) {
+    const active = raw.miningActive === true || raw.active === true;
+    const startedAt = Number(raw.miningStartedAt ?? raw.startedAt) || 0;
+    const anchorAt = Number(raw.miningLastUpdate ?? raw.anchorAt) || 0;
+    let malformed = false;
+    let reducedMs = 0;
+    let uses = 0;
+
+    if (active) {
+      if (startedAt <= 0 || anchorAt <= 0 || startedAt > anchorAt) {
+        malformed = true;
+      } else {
+        reducedMs = Math.max(0, anchorAt - startedAt);
+        const exactUses = reducedMs / BOOST_MS;
+        if (reducedMs > MAX_BOOST_MS || Math.abs(exactUses - Math.round(exactUses)) > 0.001) {
+          malformed = true;
+        } else {
+          uses = Math.max(0, Math.min(TOTAL_LIMIT, Math.round(exactUses)));
+        }
+      }
+    }
+
+    miningState.known = true;
+    miningState.active = active;
+    miningState.startedAt = startedAt;
+    miningState.anchorAt = anchorAt;
+    miningState.uses = uses;
+    miningState.boosterUses = Math.min(BOOSTER_LIMIT, uses);
+    miningState.rainUses = Math.max(0, Math.min(RAIN_LIMIT, uses - BOOSTER_LIMIT));
+    miningState.reducedMs = Math.min(MAX_BOOST_MS, reducedMs);
+    miningState.complete = active && startedAt > 0 && Date.now() - startedAt >= DAY;
+    miningState.malformed = malformed;
+    render();
+  }
+
+  function installStyle() {
+    if (el(STYLE_ID)) return;
+    const style = document.createElement('style');
+    style.id = STYLE_ID;
+    style.textContent = `
+      #${PANEL_ID}{margin:2px 0 18px;padding:14px;border:1px solid rgba(76,172,255,.24);border-radius:22px;background:linear-gradient(145deg,rgba(4,16,37,.94),rgba(6,33,61,.88));box-shadow:0 18px 42px rgba(0,39,92,.18),inset 0 1px rgba(255,255,255,.04)}
+      .nx-boost-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:11px}.nx-boost-kicker{font-size:9px;font-weight:900;letter-spacing:.18em;color:#6dbdff}.nx-boost-title{margin-top:3px;font-size:16px;font-weight:900;color:#eef9ff}.nx-boost-title small{display:block;margin-top:4px;font-size:9px;font-weight:700;letter-spacing:.06em;color:#7895b0}.nx-boost-cap{flex:0 0 auto;padding:6px 9px;border-radius:999px;border:1px solid rgba(85,218,255,.25);background:rgba(20,125,184,.12);font-size:9px;font-weight:900;letter-spacing:.1em;color:#83e7ff}
+      .nx-boost-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.nx-boost-card{position:relative;overflow:hidden;border:1px solid rgba(255,255,255,.08);border-radius:17px;padding:12px;background:rgba(7,21,42,.82);min-width:0}.nx-boost-card::after{content:"";position:absolute;width:74px;height:74px;right:-28px;top:-34px;border-radius:50%;background:radial-gradient(circle,rgba(75,198,255,.28),transparent 68%);pointer-events:none}.nx-boost-card.rain::after{background:radial-gradient(circle,rgba(110,117,255,.28),transparent 68%)}
+      .nx-boost-icon{width:34px;height:34px;display:grid;place-items:center;border-radius:12px;background:linear-gradient(145deg,#0b8fff,#43d7ff);box-shadow:0 7px 20px rgba(0,151,255,.22);font-size:18px}.nx-boost-card.rain .nx-boost-icon{background:linear-gradient(145deg,#6258ff,#8e9dff)}.nx-boost-name{margin-top:8px;font-size:12px;font-weight:900;color:#f2fbff}.nx-boost-effect{margin-top:2px;font-size:10px;color:#7fa2bf}.nx-boost-count{position:absolute;right:10px;top:10px;padding:4px 7px;border-radius:999px;background:rgba(255,255,255,.07);font-size:9px;font-weight:900;color:#b9d9ef}.nx-boost-btn{position:relative;z-index:1;width:100%;margin-top:9px;border:0;border-radius:11px;padding:9px 8px;background:linear-gradient(135deg,#0b90ff,#1fc7e8);color:white;font-size:9px;font-weight:900;letter-spacing:.04em;cursor:pointer}.nx-boost-card.rain .nx-boost-btn{background:linear-gradient(135deg,#6258ff,#788dff)}.nx-boost-btn:disabled{cursor:not-allowed;opacity:.42;filter:saturate(.45)}
+      .nx-boost-progress{height:5px;margin-top:11px;border-radius:999px;background:rgba(255,255,255,.07);overflow:hidden}.nx-boost-progress i{display:block;height:100%;width:0;border-radius:inherit;background:linear-gradient(90deg,#0e94ff,#48e6d0);transition:width .3s ease}.nx-boost-status{margin-top:8px;text-align:center;font-size:9px;line-height:1.35;color:#7392ac}.nx-boost-status strong{color:#9edcff}.nx-boost-test{color:#ffd477!important}
+      @media(max-width:390px){.nx-boost-grid{grid-template-columns:1fr}.nx-boost-card{padding:11px}.nx-boost-head{align-items:center}}
+    `;
+    document.head.appendChild(style);
+  }
+
+  function installPanel() {
+    installStyle();
+    if (el(PANEL_ID)) return el(PANEL_ID);
+    const timer = el('timer');
+    if (!timer?.parentNode) return null;
+
+    const panel = document.createElement('div');
+    panel.id = PANEL_ID;
+    panel.innerHTML = `
+      <div class="nx-boost-head">
+        <div>
+          <div class="nx-boost-kicker">MINING ACCELERATOR</div>
+          <div class="nx-boost-title">Nova Time Boosts<small>Rewarded ad = real session time -2 hours</small></div>
+        </div>
+        <div class="nx-boost-cap">MAX -12H</div>
+      </div>
+      <div class="nx-boost-grid">
+        <div class="nx-boost-card booster">
+          <div class="nx-boost-icon">⚡</div>
+          <div class="nx-boost-count" id="nxBoosterCount">0 / 2</div>
+          <div class="nx-boost-name">Nova Booster</div>
+          <div class="nx-boost-effect">2 hours instant reduction</div>
+          <button type="button" class="nx-boost-btn" id="nxBoosterBtn">WATCH AD • -2H</button>
+        </div>
+        <div class="nx-boost-card rain">
+          <div class="nx-boost-icon">☄</div>
+          <div class="nx-boost-count" id="nxRainCount">0 / 4</div>
+          <div class="nx-boost-name">Nova Rain</div>
+          <div class="nx-boost-effect">2 hours instant reduction</div>
+          <button type="button" class="nx-boost-btn" id="nxRainBtn">UNLOCK AFTER BOOSTER</button>
+        </div>
+      </div>
+      <div class="nx-boost-progress"><i id="nxBoostProgress"></i></div>
+      <div class="nx-boost-status" id="nxBoostStatus">Checking mining session…</div>`;
+
+    timer.insertAdjacentElement('afterend', panel);
+    el('nxBoosterBtn')?.addEventListener('click', () => showRewarded('booster'));
+    el('nxRainBtn')?.addEventListener('click', () => showRewarded('rain'));
+    return panel;
+  }
+
+  function relabelTaskButton() {
+    const button = findTaskButton();
+    if (!button) return null;
+    button.id = 'rewardedAdBtn';
+    const kind = expectedKind();
+    let label = 'WATCH AD — MINING BOOST (-2H)';
+    if (!miningState.known) label = 'PREPARING MINING BOOST…';
+    else if (!miningState.active) label = 'START MINING TO USE BOOST';
+    else if (miningState.complete) label = 'CLAIM SESSION BEFORE BOOSTING';
+    else if (!kind) label = 'SESSION BOOST LIMIT REACHED';
+    else label = `WATCH AD — ${kindLabel(kind).toUpperCase()} (-2H)`;
+    setButtonText(button, label);
+    button.disabled = Boolean(miningState.known && (!kind || !miningState.active || miningState.complete)) || (hasNative() && !rewardedReady);
+    button.title = 'Optional rewarded ad. Completion applies one 2-hour reduction to the current mining session; no advertiser click or install is required.';
     return button;
   }
 
-  function remainingText() {
-    const ms = Math.max(0, passExpiresAt - Date.now());
-    if (!ms) return '';
-    const totalSeconds = Math.ceil(ms / 1000);
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    return `${minutes}:${String(seconds).padStart(2, '0')}`;
-  }
-
-  function passActive() {
-    return passExpiresAt > Date.now();
-  }
-
   function render() {
-    relabelButton();
-    const node = statusNode();
-    if (!node) return;
+    installPanel();
+    relabelTaskButton();
 
-    if (passActive()) {
-      node.textContent = `Nexus Pass ACTIVE • ${remainingText()} remaining`;
-      node.dataset.state = 'pass-active';
-      return;
+    const boosterCount = el('nxBoosterCount');
+    const rainCount = el('nxRainCount');
+    const boosterBtn = el('nxBoosterBtn');
+    const rainBtn = el('nxRainBtn');
+    const progress = el('nxBoostProgress');
+    const status = el('nxBoostStatus');
+    const taskStatus = statusNode();
+
+    if (boosterCount) boosterCount.textContent = `${miningState.boosterUses} / ${BOOSTER_LIMIT}`;
+    if (rainCount) rainCount.textContent = `${miningState.rainUses} / ${RAIN_LIMIT}`;
+    if (progress) progress.style.width = `${Math.min(100, (miningState.uses / TOTAL_LIMIT) * 100)}%`;
+
+    const kind = expectedKind();
+    const adReady = hasNative() && rewardedReady;
+    if (boosterBtn) {
+      boosterBtn.disabled = kind !== 'booster' || !adReady || miningState.malformed;
+      boosterBtn.textContent = miningState.boosterUses >= BOOSTER_LIMIT
+        ? 'BOOSTER COMPLETE'
+        : !hasNative() ? 'ANDROID APP REQUIRED'
+        : rewardedReady ? 'WATCH AD • -2H' : 'PREPARING AD…';
     }
-    if (!hasNative()) {
-      node.textContent = 'Rewarded ads are available inside the NexusNova Android app.';
-      node.dataset.state = 'android-only';
-      return;
+    if (rainBtn) {
+      rainBtn.disabled = kind !== 'rain' || !adReady || miningState.malformed;
+      rainBtn.textContent = miningState.rainUses >= RAIN_LIMIT
+        ? 'RAIN COMPLETE'
+        : miningState.boosterUses < BOOSTER_LIMIT ? 'UNLOCK AFTER BOOSTER'
+        : !hasNative() ? 'ANDROID APP REQUIRED'
+        : rewardedReady ? 'WATCH AD • -2H' : 'PREPARING AD…';
     }
-    node.textContent = rewardedReady
-      ? `Rewarded ad ready${testMode ? ' • TEST MODE' : ''}`
-      : `Preparing rewarded ad…${testMode ? ' • TEST MODE' : ''}`;
-    node.dataset.state = rewardedReady ? 'ready' : 'loading';
+
+    let text = 'Checking secure mining session…';
+    if (miningState.malformed) {
+      text = 'Mining timestamps need repair before a boost can be applied.';
+    } else if (miningState.known && !miningState.active) {
+      text = 'Start a mining session to activate Nova Booster.';
+    } else if (miningState.complete) {
+      text = 'Session is complete — claim it before using another boost.';
+    } else if (miningState.uses >= TOTAL_LIMIT) {
+      text = '<strong>12 hours reduced</strong> • session boost limit reached.';
+    } else if (miningState.active) {
+      text = `<strong>${miningState.uses * 2}h reduced</strong> • ${TOTAL_LIMIT - miningState.uses} boost${TOTAL_LIMIT - miningState.uses === 1 ? '' : 's'} remaining${testMode ? ' • TEST ADS' : ''}`;
+    }
+    if (status) {
+      status.innerHTML = text;
+      status.classList.toggle('nx-boost-test', Boolean(testMode && miningState.active && !miningState.complete));
+    }
+
+    if (taskStatus) {
+      taskStatus.textContent = !hasNative()
+        ? 'Mining boost ads are available inside the NexusNova Android app.'
+        : !miningState.active
+          ? 'Start mining first; rewarded ads do not directly grant NVX.'
+          : miningState.complete
+            ? 'Current session is complete. Claim it before another boost.'
+            : miningState.uses >= TOTAL_LIMIT
+              ? 'Maximum 12-hour reduction reached for this session.'
+              : rewardedReady
+                ? `${kindLabel(kind)} ready • -2h real mining time${testMode ? ' • TEST MODE' : ''}`
+                : `Preparing rewarded ad…${testMode ? ' • TEST MODE' : ''}`;
+    }
   }
 
   async function premiumMessage(title, text, icon = 'spark') {
     try {
       if (window.NexusNovaUI?.alert) {
         await window.NexusNovaUI.alert({
-          eyebrow: 'NEXUS PASS', title, text, icon, buttonText: 'OK'
+          eyebrow: 'MINING BOOST', title, text, icon, buttonText: 'OK'
         });
         return;
       }
     } catch (_) {}
-    console.info(`Nexus Pass — ${title}: ${text}`);
+    console.info(`NexusNova Mining Boost — ${title}: ${text}`);
   }
 
-  async function showRewarded() {
-    relabelButton();
-    if (!post('showRewardedAd')) {
+  async function firebaseModules() {
+    if (!firebasePromise) {
+      firebasePromise = Promise.all([
+        import('https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js'),
+        import('https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js'),
+        import('https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js')
+      ]);
+    }
+    return firebasePromise;
+  }
+
+  async function waitForUser(authMod, auth) {
+    if (auth.currentUser) return auth.currentUser;
+    return new Promise(resolve => {
+      let settled = false;
+      const unsubscribe = authMod.onAuthStateChanged(auth, user => {
+        if (settled) return;
+        settled = true;
+        unsubscribe();
+        resolve(user || null);
+      });
+      setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        unsubscribe();
+        resolve(auth.currentUser || null);
+      }, 3500);
+    });
+  }
+
+  async function getContext({ write = false } = {}) {
+    const [appMod, authMod, fsMod] = await firebaseModules();
+    const apps = appMod.getApps();
+    if (!apps.length) throw new Error('Firebase app is not initialized.');
+    const app = apps[0];
+    const auth = authMod.getAuth(app);
+    let user = await waitForUser(authMod, auth);
+    if (!user) throw new Error('Please sign in first.');
+
+    if (write) {
+      await user.reload();
+      user = auth.currentUser || user;
+      await user.getIdToken(true);
+      if (typeof window.nexusRequireAppCheck !== 'function') {
+        throw new Error('Firebase App Check is unavailable.');
+      }
+      await window.nexusRequireAppCheck();
+    }
+    if (!user.emailVerified) throw new Error('Verify your email before using mining boosts.');
+
+    return { auth, authMod, user, db: fsMod.getFirestore(app), fsMod };
+  }
+
+  function deriveBoost(raw = {}) {
+    if (raw.miningActive !== true) throw new Error('Start mining before using a boost.');
+    const startedAt = Number(raw.miningStartedAt) || 0;
+    const anchorAt = Number(raw.miningLastUpdate) || 0;
+    if (startedAt <= 0 || anchorAt <= 0 || startedAt > anchorAt) {
+      throw new Error('Mining session timestamps need repair before boosting.');
+    }
+    const reducedMs = anchorAt - startedAt;
+    const exactUses = reducedMs / BOOST_MS;
+    if (reducedMs < 0 || reducedMs > MAX_BOOST_MS || Math.abs(exactUses - Math.round(exactUses)) > 0.001) {
+      throw new Error('Mining boost state is inconsistent. Start a fresh session before boosting.');
+    }
+    const uses = Math.round(exactUses);
+    if (uses >= TOTAL_LIMIT) throw new Error('Maximum 12-hour mining reduction is already used for this session.');
+    if (Date.now() - startedAt >= DAY) throw new Error('This mining session is already complete. Claim it first.');
+    return { startedAt, anchorAt, uses, reducedMs };
+  }
+
+  async function applyBoost(kind = '') {
+    const context = await getContext({ write: true });
+    const ref = context.fsMod.doc(context.db, 'users', context.user.uid);
+    const requested = String(kind || '').toLowerCase();
+
+    const result = await context.fsMod.runTransaction(context.db, async tx => {
+      const snap = await tx.get(ref);
+      if (!snap.exists()) throw new Error('User profile not found.');
+      const raw = snap.data() || {};
+      const state = deriveBoost(raw);
+      const expected = state.uses < BOOSTER_LIMIT ? 'booster' : 'rain';
+      if (requested && requested !== expected) {
+        throw new Error(expected === 'booster'
+          ? 'Complete the two Nova Booster uses before Nova Rain.'
+          : 'Nova Booster is complete. Use Nova Rain for the remaining boosts.');
+      }
+
+      const nextStartedAt = state.startedAt - BOOST_MS;
+      tx.update(ref, { miningStartedAt: nextStartedAt });
+      return {
+        miningActive: true,
+        miningStartedAt: nextStartedAt,
+        miningLastUpdate: state.anchorAt,
+        appliedKind: expected,
+        uses: state.uses + 1,
+        reducedHours: (state.uses + 1) * 2
+      };
+    });
+
+    adoptMiningState(result);
+    try { await window.nexusSecureSyncMining?.(); } catch (_) {}
+    return result;
+  }
+
+  async function showRewarded(kind = '') {
+    installPanel();
+    const chosen = String(kind || expectedKind() || '').toLowerCase();
+    if (!miningState.known) {
+      await premiumMessage('Mining Is Syncing', 'Wait a moment while the secure mining session is checked.', 'security');
+      return { shown:false, reason:'mining-sync' };
+    }
+    if (!miningState.active) {
+      await premiumMessage('Start Mining First', 'A boost reduces the current mining session by 2 hours. Start a session first; no NVX is issued just for viewing an ad.', 'security');
+      return { shown:false, reason:'no-active-session' };
+    }
+    if (miningState.complete) {
+      await premiumMessage('Session Already Complete', 'Claim the completed mining session before using another boost.', 'spark');
+      return { shown:false, reason:'session-complete' };
+    }
+    const expected = expectedKind();
+    if (!expected) {
+      await premiumMessage('Boost Limit Reached', 'This session already has the maximum 12-hour reduction.', 'spark');
+      return { shown:false, reason:'limit' };
+    }
+    if (chosen && chosen !== expected) {
       await premiumMessage(
-        'Android App Required',
-        'Rewarded ads run through the secure native NexusNova Android app. No fake reward was issued.',
-        'security'
+        expected === 'booster' ? 'Nova Booster First' : 'Use Nova Rain',
+        expected === 'booster'
+          ? 'Use the two Nova Booster rewards first. Nova Rain unlocks after that.'
+          : 'The two Nova Booster rewards are complete. The remaining four rewards are Nova Rain.',
+        'spark'
       );
-      return {shown:false, native:false};
+      return { shown:false, reason:'wrong-kind' };
+    }
+    if (!hasNative()) {
+      await premiumMessage('Android App Required', 'Rewarded mining boosts run through the native NexusNova Android app. No fake boost was issued.', 'security');
+      return { shown:false, native:false };
+    }
+
+    pendingKind = expected;
+    if (!post('showRewardedAd', { rewardPurpose:'mining-boost', boostKind:expected })) {
+      pendingKind = '';
+      return { shown:false, native:false };
     }
     const node = statusNode();
-    if (node) {
-      node.textContent = rewardedReady ? 'Opening rewarded ad…' : 'Rewarded ad is still preparing…';
-      node.dataset.state = 'opening';
-    }
-    return {shown:true, native:true};
+    if (node) node.textContent = rewardedReady ? `Opening ${kindLabel(expected)} ad…` : 'Rewarded ad is still preparing…';
+    return { shown:true, native:true, kind:expected };
   }
 
   function showInterstitial(reason = 'natural-transition') {
-    if (!post('showInterstitialAd', {reason:String(reason).slice(0,80)})) {
-      return {shown:false, native:false};
+    if (!post('showInterstitialAd', { reason:String(reason).slice(0,80) })) {
+      return { shown:false, native:false };
     }
-    return {shown:true, native:true};
+    return { shown:true, native:true };
   }
 
-  function dispatchPassChanged(source = 'native') {
-    window.dispatchEvent(new CustomEvent('nexusnova:pass-changed', {
-      detail: {
-        active: passActive(),
-        expiresAt: passExpiresAt,
-        remainingMs: Math.max(0, passExpiresAt - Date.now()),
-        source
-      }
-    }));
+  async function handleEarned(detail) {
+    const purpose = String(detail.rewardPurpose || '');
+    if (purpose !== 'mining-boost' || Number(detail.boostHours || 0) !== 2) {
+      pendingKind = '';
+      await premiumMessage(
+        'App Update Required',
+        'This Android build uses the older reward contract. Install the current mining-boost test build before testing this reward.',
+        'security'
+      );
+      return;
+    }
+
+    const kind = pendingKind || expectedKind();
+    pendingKind = '';
+    if (!kind) {
+      await premiumMessage('Boost Not Applied', 'No eligible active mining boost was pending. No mining value was changed.', 'security');
+      return;
+    }
+
+    try {
+      const applier = window.NexusNovaMiningBoosters?.apply;
+      const result = typeof applier === 'function' ? await applier(kind) : await applyBoost(kind);
+      await premiumMessage(
+        `${kindLabel(result?.appliedKind || kind)} Applied`,
+        `Real mining time reduced by 2 hours. This session has now been reduced by ${Number(result?.reducedHours || 0)} hours in total.`,
+        'spark'
+      );
+    } catch (error) {
+      console.error('NexusNova mining boost apply:', error);
+      await premiumMessage('Boost Could Not Be Applied', String(error?.message || 'Secure mining rejected the boost.'), 'security');
+      try { await syncMiningState(); } catch (_) {}
+    }
   }
 
   function handleNativeEvent(event) {
@@ -149,15 +483,10 @@
     if (String(detail.provider || '') !== 'admob') return;
     testMode = detail.testMode !== false;
 
-    if (Number.isFinite(Number(detail.passExpiresAt))) {
-      passExpiresAt = Math.max(0, Number(detail.passExpiresAt));
-    }
-
     switch (String(detail.event || '')) {
       case 'status':
         rewardedReady = detail.rewardedReady === true;
         interstitialReady = detail.interstitialReady === true;
-        dispatchPassChanged('status');
         break;
       case 'rewarded-ready':
         rewardedReady = true;
@@ -168,22 +497,16 @@
         break;
       case 'rewarded-earned':
         rewardedReady = false;
-        dispatchPassChanged('rewarded-ad');
-        premiumMessage(
-          'Nexus Pass Unlocked',
-          `${Number(detail.passMinutes || PASS_MINUTES)} minutes of Nexus Pass access is now active. No advertiser click or install was required.`,
-          'spark'
-        );
+        void handleEarned(detail);
+        break;
+      case 'rewarded-dismissed':
         break;
       case 'rewarded-unavailable':
       case 'rewarded-load-failed':
       case 'rewarded-failed':
         rewardedReady = false;
-        premiumMessage(
-          'Ad Not Ready',
-          'A rewarded ad is not available right now. Try again shortly; no reward was issued.',
-          'security'
-        );
+        pendingKind = '';
+        void premiumMessage('Ad Not Ready', 'A rewarded ad is not available right now. Try again shortly; no mining boost was issued.', 'security');
         break;
       case 'interstitial-ready':
         interstitialReady = true;
@@ -198,6 +521,43 @@
     render();
   }
 
+  async function syncMiningState() {
+    const context = await getContext({ write:false });
+    const ref = context.fsMod.doc(context.db, 'users', context.user.uid);
+    const snap = await context.fsMod.getDoc(ref);
+    if (!snap.exists()) throw new Error('User profile not found.');
+    adoptMiningState(snap.data() || {});
+    return {...miningState};
+  }
+
+  async function subscribeMining() {
+    if (miningUnsubscribe || authUnsubscribe) return;
+    try {
+      const [appMod, authMod, fsMod] = await firebaseModules();
+      const apps = appMod.getApps();
+      if (!apps.length) return;
+      const auth = authMod.getAuth(apps[0]);
+      const db = fsMod.getFirestore(apps[0]);
+      authUnsubscribe = authMod.onAuthStateChanged(auth, user => {
+        try { miningUnsubscribe?.(); } catch (_) {}
+        miningUnsubscribe = null;
+        if (!user) {
+          miningState.known = true;
+          miningState.active = false;
+          render();
+          return;
+        }
+        const ref = fsMod.doc(db, 'users', user.uid);
+        miningUnsubscribe = fsMod.onSnapshot(ref, snap => {
+          if (!snap.exists()) return;
+          adoptMiningState(snap.data() || {});
+        }, error => console.warn('NexusNova mining boost state watch:', error));
+      });
+    } catch (error) {
+      console.warn('NexusNova mining boost subscription:', error);
+    }
+  }
+
   function status() {
     return {
       provider: 'admob-native',
@@ -205,9 +565,9 @@
       rewardedReady,
       interstitialReady,
       testMode,
-      passActive: passActive(),
-      passExpiresAt,
-      passRemainingMs: Math.max(0, passExpiresAt - Date.now())
+      rewardPurpose: 'mining-boost',
+      boostHours: 2,
+      mining: {...miningState}
     };
   }
 
@@ -222,29 +582,31 @@
     show: showInterstitial,
     status
   };
-  window.NexusNovaAccessPass = {
-    active: passActive,
-    expiresAt: () => passExpiresAt,
-    remainingMs: () => Math.max(0, passExpiresAt - Date.now())
+  window.NexusNovaMiningBoosters = {
+    show: showRewarded,
+    apply: applyBoost,
+    sync: syncMiningState,
+    status: () => ({...miningState}),
+    adoptDisplayState: adoptMiningState
   };
-  window.watchAdReward = showRewarded;
+  // Compatibility object: Nexus Pass is retired by this reward model.
+  window.NexusNovaAccessPass = {
+    active: () => false,
+    expiresAt: () => 0,
+    remainingMs: () => 0
+  };
+  window.watchAdReward = () => showRewarded();
 
   function install() {
-    relabelButton();
+    installPanel();
     render();
+    subscribeMining();
     if (hasNative()) post('adStatus');
-    if (!ticker) ticker = setInterval(() => {
-      const wasActive = passActive();
-      render();
-      if (!wasActive && passExpiresAt) {
-        passExpiresAt = 0;
-        dispatchPassChanged('expired');
-      }
-    }, 1000);
   }
 
   install();
-  window.addEventListener('load', install, {once:true});
+  window.addEventListener('load', install, { once:true });
   [250,700,1500,3000].forEach(ms => setTimeout(install, ms));
-  console.info('NexusNova ads loaded: admob-native-nexus-pass-v1');
+  if (!installTimer) installTimer = setInterval(render, 5000);
+  console.info('NexusNova ads loaded: admob-native-mining-boost-v1');
 })();
