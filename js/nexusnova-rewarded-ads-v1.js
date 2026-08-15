@@ -1,43 +1,48 @@
-/* NexusNova Rewarded Ads compatibility loader v2.
-   The active Android provider is native AdMob + Nexus Pass.
+/* NexusNova Rewarded Ads compatibility loader v3.
+   Active Android provider: native AdMob -> real 2-hour mining boost.
    Legacy ayeT server code remains dormant for historical compatibility only.
 */
 (() => {
   'use strict';
-  if (window.__nxRewardedAdsV2Loader) return;
-  window.__nxRewardedAdsV2Loader = true;
+  if (window.__nxRewardedAdsV3Loader) return;
+  window.__nxRewardedAdsV3Loader = true;
 
   let loaderPromise = null;
 
+  function bridgeReady() {
+    return window.__nxAdMobMiningBoostV1 === true &&
+      typeof window.NexusNovaRewardedAds?.show === 'function';
+  }
+
   function loadNativeBridge() {
-    if (window.__nxAdMobNexusPassV1 && window.NexusNovaRewardedAds?.show) {
-      return Promise.resolve(window.NexusNovaRewardedAds);
-    }
+    if (bridgeReady()) return Promise.resolve(window.NexusNovaRewardedAds);
     if (loaderPromise) return loaderPromise;
 
     loaderPromise = new Promise((resolve, reject) => {
-      const existing = document.querySelector('script[data-nx-admob-nexus-pass-v1]');
+      const existing = document.querySelector('script[data-nx-admob-mining-boost-v1]') ||
+        document.querySelector('script[data-nx-admob-nexus-pass-v1]');
       if (existing) {
         const started = Date.now();
         const timer = setInterval(() => {
-          if (window.__nxAdMobNexusPassV1 && window.NexusNovaRewardedAds?.show) {
+          if (bridgeReady()) {
             clearInterval(timer);
             resolve(window.NexusNovaRewardedAds);
           } else if (Date.now() - started > 8000) {
             clearInterval(timer);
-            reject(new Error('Native AdMob bridge timed out.'));
+            reject(new Error('Native AdMob mining-boost bridge timed out.'));
           }
         }, 50);
         return;
       }
 
       const script = document.createElement('script');
-      script.src = './js/nexusnova-admob-nexus-pass-v1.js?v=1';
-      script.dataset.nxAdmobNexusPassV1 = '1';
-      script.onload = () => window.NexusNovaRewardedAds?.show
+      // Compatibility filename retained; its implementation is Mining Boost v1.
+      script.src = './js/nexusnova-admob-nexus-pass-v1.js?v=mining-boost-1';
+      script.dataset.nxAdmobMiningBoostV1 = '1';
+      script.onload = () => bridgeReady()
         ? resolve(window.NexusNovaRewardedAds)
-        : reject(new Error('Native AdMob bridge did not initialize.'));
-      script.onerror = () => reject(new Error('Native AdMob bridge could not load.'));
+        : reject(new Error('Native AdMob mining-boost bridge did not initialize.'));
+      script.onerror = () => reject(new Error('Native AdMob mining-boost bridge could not load.'));
       document.body.appendChild(script);
     }).catch(error => {
       loaderPromise = null;
@@ -47,25 +52,24 @@
     return loaderPromise;
   }
 
-  async function show() {
+  async function show(kind) {
     try {
       const bridge = await loadNativeBridge();
-      return bridge.show();
+      return bridge.show(kind);
     } catch (error) {
       console.warn('NexusNova rewarded ads:', error);
       return {shown:false, native:false, error:String(error?.message || error)};
     }
   }
 
-  // Temporary surface used only while the same-origin native bridge script is
-  // loading. The bridge replaces this object as soon as it initializes.
+  // Temporary surface while the same-origin bridge script loads.
   window.NexusNovaRewardedAds = {
     show,
-    status: () => ({provider:'admob-native', configured:false, loading:true}),
+    status: () => ({provider:'admob-native', configured:false, loading:true, rewardPurpose:'mining-boost'}),
     configured: () => false
   };
-  window.watchAdReward = show;
+  window.watchAdReward = () => show();
 
   loadNativeBridge().catch(error => console.warn('NexusNova AdMob preload:', error));
-  console.info('NexusNova rewarded ads loader: admob-native-v2');
+  console.info('NexusNova rewarded ads loader: admob-native-mining-boost-v3');
 })();
