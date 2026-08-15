@@ -4,6 +4,7 @@ plugins {
 }
 
 // Build refresh: secure-session sync watchdog validation (2026-08-15).
+// Build refresh: Android blank-screen self-recovery validation (v74).
 android {
     namespace = "com.nexusnova.app"
     compileSdk = 35
