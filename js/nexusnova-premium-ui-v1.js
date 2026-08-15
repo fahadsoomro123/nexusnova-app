@@ -3,10 +3,33 @@
    No external image assets: all feature visuals are inline SVG so they stay fast and offline-friendly. */
 (() => {
   'use strict';
-  if (window.NexusNovaUI?.version === '1.0.0') return;
+  if (window.NexusNovaUI?.version === '1.0.2') return;
 
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]));
   const uid = () => 'nxui-' + Math.random().toString(36).slice(2,10) + Date.now().toString(36);
+
+  function hasVisibleBackdrop() {
+    return Array.from(document.querySelectorAll('.nxui-backdrop')).some(node => {
+      if (!node?.isConnected) return false;
+      const style = getComputedStyle(node);
+      return style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity || 1) > 0.01;
+    });
+  }
+
+  function unlockBodyIfSafe() {
+    if (!document.body || hasVisibleBackdrop()) return;
+    document.body.style.removeProperty('overflow');
+    document.documentElement.style.removeProperty('overflow');
+  }
+
+  function installUnlockSafety() {
+    if (!document.body || window.__nxuiUnlockSafetyV102) return;
+    window.__nxuiUnlockSafetyV102 = true;
+    const observer = new MutationObserver(() => queueMicrotask(unlockBodyIfSafe));
+    observer.observe(document.body, { childList:true });
+    window.addEventListener('pageshow', unlockBodyIfSafe);
+    queueMicrotask(unlockBodyIfSafe);
+  }
 
   const paths = {
     university:'<path d="M3 10 12 4l9 6-9 4-9-4Z"/><path d="M6 12v5M10 14v3M14 14v3M18 12v5M4 19h16"/>',
@@ -42,7 +65,7 @@
     style.id = 'nxPremiumUIStyles';
     style.textContent = `
       .nxui-backdrop{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:18px;background:radial-gradient(circle at 50% 15%,rgba(39,116,255,.18),transparent 38%),rgba(1,6,16,.82);backdrop-filter:blur(16px);animation:nxuiFade .18s ease}
-      .nxui-modal{position:relative;width:min(94vw,620px);max-height:min(88vh,820px);overflow:auto;border-radius:28px;padding:0;background:linear-gradient(145deg,rgba(14,31,55,.98),rgba(5,15,31,.98));border:1px solid rgba(115,176,255,.24);box-shadow:0 35px 90px rgba(0,0,0,.65),0 0 55px rgba(36,122,255,.14),inset 0 1px 0 rgba(255,255,255,.08);color:#f8fbff;animation:nxuiLift .22s cubic-bezier(.2,.8,.2,1);isolation:isolate}
+      .nxui-modal{position:relative;width:min(94vw,620px);max-height:min(88vh,820px);overflow:auto;overscroll-behavior:contain;border-radius:28px;padding:0;background:linear-gradient(145deg,rgba(14,31,55,.98),rgba(5,15,31,.98));border:1px solid rgba(115,176,255,.24);box-shadow:0 35px 90px rgba(0,0,0,.65),0 0 55px rgba(36,122,255,.14),inset 0 1px 0 rgba(255,255,255,.08);color:#f8fbff;animation:nxuiLift .22s cubic-bezier(.2,.8,.2,1);isolation:isolate}
       .nxui-modal:before{content:"";position:absolute;inset:0 0 auto;height:150px;background:radial-gradient(circle at 18% 8%,rgba(91,173,255,.23),transparent 45%),linear-gradient(120deg,rgba(32,105,255,.18),transparent 58%);pointer-events:none;z-index:-1}
       .nxui-close{position:absolute;right:16px;top:16px;width:38px;height:38px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(4,13,27,.56);color:#d6e8ff;font-size:20px;display:grid;place-items:center;z-index:3}
       .nxui-hero{display:grid;grid-template-columns:92px 1fr;gap:18px;align-items:center;padding:26px 26px 18px}
@@ -97,16 +120,23 @@
   }
 
   function closeBackdrop(backdrop, result, resolve) {
-    if (!backdrop?.isConnected) return;
-    backdrop.style.opacity = '0';
-    backdrop.style.transition = 'opacity .14s ease';
-    setTimeout(() => backdrop.remove(), 150);
-    document.body.style.removeProperty('overflow');
+    if (backdrop?.isConnected) {
+      backdrop.style.opacity = '0';
+      backdrop.style.transition = 'opacity .14s ease';
+      unlockBodyIfSafe();
+      setTimeout(() => {
+        backdrop.remove();
+        unlockBodyIfSafe();
+      }, 150);
+    } else {
+      unlockBodyIfSafe();
+    }
     resolve(result);
   }
 
   function form(config={}) {
     installStyles();
+    installUnlockSafety();
     return new Promise(resolve => {
       const backdrop = document.createElement('div');
       backdrop.className = 'nxui-backdrop';
@@ -146,6 +176,7 @@
 
   function message(config={}, confirmMode=false) {
     installStyles();
+    installUnlockSafety();
     return new Promise(resolve => {
       const backdrop = document.createElement('div');
       backdrop.className = 'nxui-backdrop';
@@ -181,8 +212,10 @@
   }
 
   installStyles();
+  installUnlockSafety();
+  unlockBodyIfSafe();
   window.NexusNovaUI = Object.freeze({
-    version:'1.0.0',
+    version:'1.0.2',
     icon,
     esc,
     form,
