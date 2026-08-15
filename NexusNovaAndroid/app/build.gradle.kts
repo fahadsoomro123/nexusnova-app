@@ -3,6 +3,7 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+// Build refresh: secure-session sync watchdog validation (2026-08-15).
 android {
     namespace = "com.nexusnova.app"
     compileSdk = 35
