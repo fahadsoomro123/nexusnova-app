@@ -37,10 +37,11 @@ try {
   console.warn('NexusNova Daily Reward ad test gate:', error);
 }
 
-// During AdMob TEST MODE expose Google's actual native load error instead of a
-// generic "Ad Not Ready" message. This module never grants rewards.
+// During AdMob TEST MODE keep background preload failures silent. If a rewarded
+// request was explicitly initiated by the user, expose Google's actual load
+// error for diagnosis. This module never grants rewards.
 try {
-  await import('./nexusnova-admob-diagnostics-v1.js?v=1');
+  await import('./nexusnova-admob-diagnostics-v1.js?v=2');
 } catch (error) {
   console.warn('NexusNova AdMob diagnostics:', error);
 }
