@@ -23,13 +23,14 @@
       menu.classList.remove("show");
       menu.style.removeProperty("display");
     }
+    document.body.classList.remove("nx-allapps-open");
 
     try { window.scrollTo({ top:0, behavior:"auto" }); } catch (_) { try { window.scrollTo(0,0); } catch (_) {} }
     return true;
   }
 
   // Install synchronous lifelines before Firebase imports. Canonical page2-core
-  // may replace these later; until then the visible UI is already tappable.
+  // may wrap these later; until then the visible UI is already tappable.
   if (typeof window.switchTab !== "function") {
     window.switchTab = function(name, button) {
       return showTabNow(name, button || null);
@@ -48,8 +49,10 @@
     window.toggleMore = function() {
       const menu = byId("moreMenu");
       if (!menu) return false;
+      menu.style.removeProperty("display");
       menu.classList.toggle("show");
       const opening = menu.classList.contains("show");
+      document.body.classList.toggle("nx-allapps-open", opening);
       document.querySelectorAll(".bottom-dock .dock-item").forEach(item => item.classList.remove("active"));
       byId("moreBtn")?.classList.toggle("active", opening);
       return opening;
@@ -147,10 +150,20 @@
       console.error("NexusNova Firebase bootstrap:", error);
     }
 
+    // Legacy core-failsafe-core still contains a universal recovery block that
+    // unconditionally overwrites toggleMore(). Preserve whichever modern handler
+    // is live at import time (basic lifeline or ALL APPS v2 wrapper) and restore it.
+    const protectedToggleMore = typeof window.toggleMore === "function" ? window.toggleMore : null;
+    const protectedSwitchTab = typeof window.switchTab === "function" ? window.switchTab : null;
+    const protectedOpenMoreTab = typeof window.openMoreTab === "function" ? window.openMoreTab : null;
     try {
-      await import("./core-failsafe-core.js?v=5");
+      await import("./core-failsafe-core.js?v=6");
     } catch (error) {
       console.error("NexusNova extended failsafe unavailable; critical UI lifeline remains active:", error);
+    } finally {
+      if (protectedToggleMore) window.toggleMore = protectedToggleMore;
+      if (protectedSwitchTab && typeof window.switchTab !== "function") window.switchTab = protectedSwitchTab;
+      if (protectedOpenMoreTab && typeof window.openMoreTab !== "function") window.openMoreTab = protectedOpenMoreTab;
     }
   })();
 })();
