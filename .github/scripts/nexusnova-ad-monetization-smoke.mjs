@@ -2,11 +2,14 @@ import fs from 'node:fs';
 
 const placements = fs.readFileSync('js/nexusnova-ad-placements-v1.js','utf8');
 const watchAd = fs.readFileSync('js/nexusnova-watch-ad-reward-v1.js','utf8');
+const adPrivacy = fs.readFileSync('js/nexusnova-ad-privacy-v1.js','utf8');
 const page2 = fs.readFileSync('js/page2.js','utf8');
 const ssv = fs.readFileSync('functions/admobRewardedSsv.js','utf8');
 const gradle = fs.readFileSync('NexusNovaAndroid/app/build.gradle.kts','utf8');
 const manifest = fs.readFileSync('NexusNovaAndroid/app/src/main/AndroidManifest.xml','utf8');
 const patch = fs.readFileSync('NexusNovaAndroid/patch_admob.py','utf8');
+const privacyPatch = fs.readFileSync('NexusNovaAndroid/patch_ad_privacy.py','utf8');
+const consent = fs.readFileSync('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdConsentManager.kt','utf8');
 const hosting = fs.readFileSync('firebase.json','utf8');
 const appAds = fs.readFileSync('firebase-public/app-ads.txt','utf8');
 
@@ -31,14 +34,17 @@ for (const sensitivePattern of ['payment','checkout','password','login','auth'])
   requireText(placements, sensitivePattern, `sensitive ad exclusion ${sensitivePattern}`);
 }
 requireText(placements, "maybeInterstitial('allapps-return'", 'natural-break interstitial trigger');
+requireText(placements, "maybeInterstitial('content-return'", 'outbound content-return interstitial trigger');
 requireText(placements, "noteEngagement('news','article-open')", 'news non-interrupting engagement');
 requireText(placements, "noteEngagement('entertainment','provider-open')", 'entertainment non-interrupting engagement');
 requireText(placements, "noteEngagement('browser','site-open')", 'browser non-interrupting engagement');
+requireText(placements, 'pendingReturnSawHidden', 'genuine app-background return gate');
 
 // Watch Ad must be SSV-only for value. The web controller may read Firestore
 // balance to confirm server credit, but it must never write balance/reward docs.
 requireText(watchAd, "const PURPOSE = 'task-watch-ad'", 'Watch Ad purpose');
 requireText(watchAd, 'ssvIdentityReady', 'old-APK SSV capability gate');
+requireText(watchAd, 'const PRODUCTION_SSV_ENABLED = false', 'SSV production kill switch before deployment');
 requireText(watchAd, 'getDoc(ref)', 'server-credit balance confirmation');
 requireText(watchAd, "NexusNovaAds.requestRewarded(PURPOSE, { userId: activeUid })", 'UID-bound rewarded request');
 forbid(watchAd, /\b(?:setDoc|updateDoc|addDoc|runTransaction|writeBatch)\s*\(/, 'Watch Ad web layer must never write Firestore value.');
@@ -46,6 +52,16 @@ forbid(watchAd, /balance\s*[:=]\s*(?:[^;\n]*\+\s*2\.5|[^;\n]*REWARD_NVX)/, 'Watc
 
 requireText(page2, "import('./nexusnova-ad-placements-v1.js?v=1')", 'central ad placement loader');
 requireText(page2, "import('./nexusnova-watch-ad-reward-v1.js?v=1')", 'secure Watch Ad loader');
+requireText(page2, "import('./nexusnova-ad-privacy-v1.js?v=1')", 'UMP privacy Settings loader');
+
+// UMP privacy options must be publisher-rendered only when Google reports REQUIRED.
+requireText(consent, 'privacyOptionsRequirementStatus', 'UMP privacy requirement status');
+requireText(consent, 'showPrivacyOptionsForm', 'UMP privacy options form');
+requireText(privacyPatch, 'ACTION_AD_PRIVACY_STATUS', 'native privacy status bridge');
+requireText(privacyPatch, 'ACTION_SHOW_AD_PRIVACY_OPTIONS', 'native privacy form bridge');
+requireText(privacyPatch, 'nexusnova:ad-privacy-event', 'native privacy status event');
+requireText(adPrivacy, 'card.hidden = !required || testMode', 'privacy control hidden unless required');
+requireText(adPrivacy, "postNative('showAdPrivacyOptions')", 'privacy form user-action trigger');
 
 // Server SSV signature, idempotency and fixed-reward invariants.
 requireText(ssv, 'https://www.gstatic.com/admob/reward/verifier-keys.json', 'Google SSV key source');
