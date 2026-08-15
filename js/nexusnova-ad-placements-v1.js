@@ -6,6 +6,7 @@
    - Interstitials only run at natural breaks, never on protected/sensitive screens.
    - Strong session/time frequency caps prevent ad spam.
    - Content opens can warm eligibility but NEVER show an ad immediately.
+   - Returning from outbound News/Entertainment/Browser content is a natural break.
    - This file never mints NVX or changes mining value.
 */
 (() => {
@@ -18,6 +19,7 @@
   const INTERSTITIAL_SESSION_MAX = 4;
   const ELIGIBLE_BREAKS_BEFORE_FIRST = 3;
   const ENGAGEMENT_MIN_GAP_MS = 12_000;
+  const CONTENT_RETURN_MAX_MS = 10 * 60_000;
 
   const MONETIZABLE_FEATURES = new Set([
     'tools','finance','news','learn','travel','smart','entertainment','browser',
@@ -39,6 +41,9 @@
   let sessionInterstitialCount = 0;
   let lastEngagementAt = 0;
   let lastEngagementKey = '';
+  let pendingReturnFeature = '';
+  let pendingReturnAt = 0;
+  let pendingReturnSawHidden = false;
   let sessionId = '';
 
   function readSession() {
@@ -109,6 +114,20 @@
     eligibleBreakCount = Math.min(ELIGIBLE_BREAKS_BEFORE_FIRST, eligibleBreakCount + 1);
     persist();
     return { counted:true, feature:name, eligibleBreakCount };
+  }
+
+  function armContentReturn(feature) {
+    const name = normalizeFeature(feature);
+    if (!isEligibleFeature(name)) return;
+    pendingReturnFeature = name;
+    pendingReturnAt = Date.now();
+    pendingReturnSawHidden = false;
+  }
+
+  function clearContentReturn() {
+    pendingReturnFeature = '';
+    pendingReturnAt = 0;
+    pendingReturnSawHidden = false;
   }
 
   function canShowInterstitial(feature) {
@@ -183,28 +202,49 @@
 
   // Outbound content actions only warm eligibility. No ad interrupts the user's
   // explicit content-open action; the actual interstitial can appear later at a
-  // safe return/break point.
+  // safe return/break point after the app was genuinely backgrounded/covered.
   document.addEventListener('click', event => {
     const target = event.target;
     if (!target?.closest) return;
     if (target.closest('#nxNewsRoot [data-v9-i]')) {
-      noteEngagement('news','article-open');
+      const result = noteEngagement('news','article-open');
+      if (result.counted) armContentReturn('news');
       return;
     }
     if (target.closest('#nxEntertainmentSearchBtn,.nx-ent-chip')) {
-      noteEngagement('entertainment','provider-open');
+      const result = noteEngagement('entertainment','provider-open');
+      if (result.counted) armContentReturn('entertainment');
       return;
     }
     if (target.closest('#tab-browser [data-nx-browser-go],#tab-browser .nx-speed,#tab-browser [data-nx-explicit-external]')) {
-      noteEngagement('browser','site-open');
+      const result = noteEngagement('browser','site-open');
+      if (result.counted) armContentReturn('browser');
     }
   }, true);
 
   document.addEventListener('submit', event => {
     if (event.target?.closest?.('#tab-browser [data-nx-home-search]')) {
-      noteEngagement('browser','search-open');
+      const result = noteEngagement('browser','search-open');
+      if (result.counted) armContentReturn('browser');
     }
   }, true);
+
+  document.addEventListener('visibilitychange', () => {
+    if (!pendingReturnFeature || !pendingReturnAt) return;
+    const age = Date.now() - pendingReturnAt;
+    if (age > CONTENT_RETURN_MAX_MS) {
+      clearContentReturn();
+      return;
+    }
+    if (document.hidden) {
+      pendingReturnSawHidden = true;
+      return;
+    }
+    if (!pendingReturnSawHidden || age < 700) return;
+    const feature = pendingReturnFeature;
+    clearContentReturn();
+    setTimeout(() => maybeInterstitial('content-return', { feature }), 500);
+  });
 
   // All Apps back/return is a natural break. Capture the feature on pointer-up
   // before legacy click handlers hide it, then let the normal navigation finish.
