@@ -47,10 +47,13 @@ jobs:
       - name: Defer Caller ID setup until feature use
         run: python3 NexusNovaAndroid/patch_deferred_caller_setup.py
 
+      - name: Reset stale WebView shell once
+        run: python3 NexusNovaAndroid/patch_web_shell_reset.py
+
       - name: Compile Android test and production variants
         run: gradle -p NexusNovaAndroid :app:assembleDebug :app:assembleRelease --stacktrace --no-daemon
 
-      - name: Verify ad build-mode separation
+      - name: Verify ad and recovery build separation
         run: |
           grep -q 'NEXUS_ADS_TEST_MODE' NexusNovaAndroid/app/build.gradle.kts
           grep -q 'ca-app-pub-3940256099942544~3347511713' NexusNovaAndroid/app/build.gradle.kts
@@ -59,6 +62,8 @@ jobs:
           grep -q 'ssvIdentityReady' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
           grep -q 'nexusnova:ad-privacy-event' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
           grep -q 'showAdPrivacyOptions' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -q 'WEB_SHELL_RECOVERY_EPOCH' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -q 'resetStaleWebShellOnce' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
 
       - name: Upload Android debug TEST APK
         uses: actions/upload-artifact@v4
