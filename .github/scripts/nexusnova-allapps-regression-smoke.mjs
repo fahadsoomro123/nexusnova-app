@@ -45,8 +45,10 @@ try {
   await page.addScriptTag({url:`${base}/js/nexusnova-allapps-experience-v2.js?v=3`});
   await page.addScriptTag({url:`${base}/js/nexusnova-allapps-visual-polish-v1.js?v=1`});
 
-  await page.waitForSelector('#tab-mega-teacher > .nx-allapps-back');
-  await page.waitForSelector('#tab-mega-teacher > .nx-app-hero');
+  // These controls are intentionally inside a hidden feature tab at startup.
+  // Verify that they were attached to the DOM, not that the unopened tab is visible.
+  await page.waitForSelector('#tab-mega-teacher > .nx-allapps-back', {state:'attached'});
+  await page.waitForSelector('#tab-mega-teacher > .nx-app-hero', {state:'attached'});
 
   await page.evaluate(() => window.toggleMore());
   assert.equal(await page.evaluate(() => document.body.classList.contains('nx-allapps-open')), true);
