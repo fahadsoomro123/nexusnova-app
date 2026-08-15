@@ -11,105 +11,101 @@ try {
   await page.evaluate(() => {
     document.body.innerHTML = `
       <section id="tab-tasks">
+        <div id="balance">42.0000</div>
         <button id="legacyWatchAd" onclick="watchAdReward()">WATCH AD (+2.5 NVX)</button>
       </section>`;
 
-    window.__NX_REWARDED_TEST_UID = 'firebase-test-user-123';
-    window.__nxBalanceMutationCalls = 0;
-    window.nexusApplySecureAccountState = () => { window.__nxBalanceMutationCalls += 1; };
-    window.NexusNovaUI = { alert: async () => true };
-
-    window.AyetVideoSdk = {
-      initCalls: [],
-      requestCalls: [],
-      playCalls: 0,
-      custom: {},
-      init(placementId, externalIdentifier, optionalParameter) {
-        this.initCalls.push({ placementId, externalIdentifier, optionalParameter });
-        return Promise.resolve();
-      },
-      setCustomParameter(key, value) { this.custom[key] = value; },
-      requestAd(name, success) {
-        this.requestCalls.push(name);
-        setTimeout(success, 0);
-      },
-      playFullsizeAd() {
-        this.playCalls += 1;
-        this.callbackPlaying?.();
-        this.callbackComplete?.();
+    window.__nativeAdMessages = [];
+    window.__premiumMessages = [];
+    window.NexusAndroid = {
+      postMessage(raw) {
+        window.__nativeAdMessages.push(JSON.parse(String(raw)));
+      }
+    };
+    window.NexusNovaUI = {
+      alert: async options => {
+        window.__premiumMessages.push(options);
+        return true;
       }
     };
   });
 
   await page.addScriptTag({ url: `${origin}/js/nexusnova-rewarded-ads-config-v1.js?v=test` });
-
-  await page.evaluate(() => {
-    document.querySelector('meta[name="nexusnova-ayet-placement-id"]').content = '321';
-    document.querySelector('meta[name="nexusnova-ayet-adslot-name"]').content = 'nexusnova_rewarded_test';
-  });
-
   await page.addScriptTag({ url: `${origin}/js/nexusnova-rewarded-ads-v1.js?v=test` });
   await page.addScriptTag({ url: `${origin}/js/nexusnova-rewarded-ads-button-guard-v1.js?v=test` });
 
-  await page.locator('#rewardedAdBtn').click();
-  await page.waitForFunction(() => window.AyetVideoSdk.playCalls === 1);
+  await page.waitForFunction(() => window.__nxAdMobNexusPassV1 === true);
+  await page.waitForFunction(() => /NEXUS PASS/i.test(document.getElementById('rewardedAdBtn')?.textContent || ''));
 
   let state = await page.evaluate(() => ({
-    mutations: window.__nxBalanceMutationCalls,
-    initCalls: window.AyetVideoSdk.initCalls,
-    requestCalls: window.AyetVideoSdk.requestCalls,
-    status: document.getElementById('rewardedAdStatus')?.textContent || ''
+    button: document.getElementById('rewardedAdBtn')?.textContent || '',
+    balance: document.getElementById('balance')?.textContent || '',
+    provider: window.NEXUSNOVA_REWARDED_ADS_PUBLIC_CONFIG?.provider,
+    native: window.__nativeAdMessages.slice()
   }));
 
-  assert.equal(state.mutations, 0, 'Ad playback/completion must never mutate balance client-side');
-  assert.equal(state.initCalls.length, 1, 'Rewarded SDK should initialize exactly once');
-  assert.equal(state.initCalls[0].placementId, 321);
-  assert.equal(state.initCalls[0].externalIdentifier, 'firebase-test-user-123');
-  assert.deepEqual(state.requestCalls, ['nexusnova_rewarded_test']);
-  assert.match(state.status, /checking reward verification/i);
+  assert.match(state.button, /UNLOCK 20 MIN NEXUS PASS/i);
+  assert.doesNotMatch(state.button, /\+2\.5\s*NVX/i);
+  assert.equal(state.balance, '42.0000');
+  assert.equal(state.provider, 'admob-native');
+  assert.ok(state.native.some(message => message.action === 'adStatus'), 'Bridge should request native ad status');
 
-  await page.evaluate(() => {
-    window.AyetVideoSdk.callbackRewarded?.({
-      status: 'success',
-      rewarded: true,
-      externalIdentifier: 'firebase-test-user-123',
-      currency: 2.5,
-      conversionId: 'conversion-test-001',
-      signature: 'client-signature-is-not-authoritative'
-    });
-  });
+  await page.evaluate(() => { window.__nativeAdMessages.length = 0; });
+  await page.locator('#rewardedAdBtn').click();
+  await page.waitForFunction(() => window.__nativeAdMessages.some(message => message.action === 'showRewardedAd'));
 
   state = await page.evaluate(() => ({
-    mutations: window.__nxBalanceMutationCalls,
-    grant: window.__nexusRewardedLastClientGrant,
-    status: document.getElementById('rewardedAdStatus')?.textContent || ''
+    balance: document.getElementById('balance')?.textContent || '',
+    native: window.__nativeAdMessages.slice()
+  }));
+  assert.equal(state.balance, '42.0000', 'Requesting an ad must never mint NVX');
+  assert.equal(state.native.filter(message => message.action === 'showRewardedAd').length, 1);
+
+  const expiry = Date.now() + 20 * 60 * 1000;
+  await page.evaluate(passExpiresAt => {
+    window.dispatchEvent(new CustomEvent('nexusnova:native-ad-event', {
+      detail: {
+        event: 'rewarded-earned',
+        provider: 'admob',
+        testMode: true,
+        passExpiresAt,
+        passMinutes: 20,
+        rewardType: 'Nexus Pass',
+        rewardAmount: 1
+      }
+    }));
+  }, expiry);
+
+  await page.waitForFunction(() => window.NexusNovaAccessPass?.active() === true);
+  state = await page.evaluate(() => ({
+    balance: document.getElementById('balance')?.textContent || '',
+    active: window.NexusNovaAccessPass?.active(),
+    remaining: window.NexusNovaAccessPass?.remainingMs(),
+    status: document.getElementById('rewardedAdStatus')?.textContent || '',
+    messages: window.__premiumMessages.slice()
   }));
 
-  assert.equal(state.mutations, 0, 'Client rewarded callback must not mint NVX');
-  assert.equal(state.grant?.conversionId, 'conversion-test-001');
-  assert.match(state.status, /pending secure server verification/i);
+  assert.equal(state.balance, '42.0000', 'Rewarded completion must unlock access, not mutate NVX');
+  assert.equal(state.active, true);
+  assert.ok(state.remaining > 19 * 60 * 1000, 'Nexus Pass should have close to 20 minutes remaining');
+  assert.match(state.status, /Nexus Pass ACTIVE/i);
+  assert.ok(state.messages.some(message => /Nexus Pass Unlocked/i.test(message.title || '')));
 
   await page.evaluate(() => {
-    window.AyetVideoSdk.callbackRewarded?.({
-      status: 'success',
-      rewarded: true,
-      externalIdentifier: 'different-user',
-      currency: 2.5,
-      conversionId: 'conversion-test-spoof'
-    });
+    window.__nativeAdMessages.length = 0;
+    window.NexusNovaInterstitialAds.show('test-natural-transition');
   });
+  await page.waitForFunction(() => window.__nativeAdMessages.some(message => message.action === 'showInterstitialAd'));
 
   state = await page.evaluate(() => ({
-    mutations: window.__nxBalanceMutationCalls,
-    grant: window.__nexusRewardedLastClientGrant,
-    status: document.getElementById('rewardedAdStatus')?.textContent || ''
+    native: window.__nativeAdMessages.slice(),
+    balance: document.getElementById('balance')?.textContent || ''
   }));
+  assert.equal(state.native[0].action, 'showInterstitialAd');
+  assert.equal(state.native[0].reason, 'test-natural-transition');
+  assert.equal(state.balance, '42.0000');
 
-  assert.equal(state.mutations, 0);
-  assert.equal(state.grant?.conversionId, 'conversion-test-001', 'Mismatched account callback must not replace accepted UX receipt');
-  assert.match(state.status, /could not be matched/i);
-
-  console.log('Rewarded ads runtime: PASS — no client-side NVX mint, provider identity and verification state enforced.');
+  console.log('Rewarded ads runtime: PASS — AdMob native bridge, Nexus Pass, interstitial routing, and zero NVX mutation verified.');
 } finally {
   await browser.close();
 }
