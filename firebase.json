@@ -6,17 +6,20 @@
     "rules": "firestore.rules"
   },
   "hosting": {
-    "public": ".",
+    "public": "firebase-public",
     "ignore": [
       "firebase.json",
       "**/.*",
-      "**/node_modules/**",
-      "functions/**",
-      "NexusNovaAndroid/**",
-      "**/*.txt",
-      "package.json",
-      "package-lock.json",
-      "firestore.rules"
+      "**/node_modules/**"
+    ],
+    "headers": [
+      {
+        "source": "/app-ads.txt",
+        "headers": [
+          { "key": "Content-Type", "value": "text/plain; charset=utf-8" },
+          { "key": "Cache-Control", "value": "public, max-age=3600" }
+        ]
+      }
     ]
   }
 }
