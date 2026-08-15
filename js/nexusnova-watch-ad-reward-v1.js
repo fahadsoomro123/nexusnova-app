@@ -1,4 +1,4 @@
-/* NexusNova Watch Ad Reward v1
+/* NexusNova Watch Ad Reward v1.1
    Secure +2.5 NVX rewarded-ad UX.
 
    Security contract:
@@ -8,11 +8,17 @@
    - Older APKs are blocked by the ssvIdentityReady capability handshake.
    - Debug/test ads prove UX but never credit +2.5 NVX.
    - Production +2.5 stays disabled until the signed SSV endpoint is deployed.
+
+   Android stability contract:
+   - No document-wide MutationObserver is used.
+   - Decoration writes are idempotent so status rendering cannot create a
+     self-triggering DOM mutation loop that starves WebView touch events.
 */
 (() => {
   'use strict';
   if (window.__nxWatchAdRewardV1) return;
   window.__nxWatchAdRewardV1 = true;
+  window.__nxWatchAdRewardVersion = 'watch-ad-reward-v1.1';
 
   const PURPOSE = 'task-watch-ad';
   const REWARD_NVX = 2.5;
@@ -34,7 +40,7 @@
     btn = [...document.querySelectorAll('button')].find(el =>
       /watchAdReward\s*\(/i.test(String(el.getAttribute('onclick') || ''))
     ) || null;
-    if (btn) btn.id = BUTTON_ID;
+    if (btn && btn.id !== BUTTON_ID) btn.id = BUTTON_ID;
     return btn;
   }
 
@@ -59,34 +65,49 @@
   function setHint(text, tone = 'normal') {
     const el = hint();
     if (!el) return;
-    el.textContent = String(text || '');
-    el.style.color = tone === 'error'
+    const nextText = String(text || '');
+    const nextColor = tone === 'error'
       ? '#ffb4b4'
       : tone === 'success'
         ? '#7ee7c4'
         : '#8fb8e8';
+
+    // Do not replace an identical text node. Repeated textContent writes were
+    // previously observable DOM mutations and could recursively retrigger the
+    // document-wide observer on Android WebView.
+    if (el.textContent !== nextText) el.textContent = nextText;
+    if (el.style.color !== nextColor) el.style.color = nextColor;
+  }
+
+  function setButtonDisabled(btn, disabled) {
+    const next = Boolean(disabled);
+    if (btn.disabled !== next) btn.disabled = next;
   }
 
   function decorate() {
     const btn = button();
     if (!btn) return;
-    btn.dataset.nxWatchAdSsv = capabilityReady ? 'ready' : 'waiting';
+    const nextCapability = capabilityReady ? 'ready' : 'waiting';
+    if (btn.dataset.nxWatchAdSsv !== nextCapability) {
+      btn.dataset.nxWatchAdSsv = nextCapability;
+    }
+
     if (pending) {
-      btn.disabled = true;
+      setButtonDisabled(btn, true);
       setHint('Rewarded ad in progress…');
       return;
     }
     if (!capabilityReady) {
-      btn.disabled = false;
+      setButtonDisabled(btn, false);
       setHint('Secure +2.5 NVX ad reward needs the latest NexusNova Android build.');
       return;
     }
     if (!nativeTestMode && !PRODUCTION_SSV_ENABLED) {
-      btn.disabled = true;
+      setButtonDisabled(btn, true);
       setHint('Secure +2.5 NVX reward activation is pending server deployment. No live ad will be requested yet.');
       return;
     }
-    btn.disabled = false;
+    setButtonDisabled(btn, false);
     setHint(nativeTestMode
       ? 'AdMob TEST MODE • test ads never add +2.5 NVX.'
       : 'Watch the full rewarded ad • Google server verification adds +2.5 NVX.');
@@ -260,25 +281,24 @@
 
   function decorateAfterResult() {
     const btn = button();
-    if (btn) btn.disabled = false;
+    if (btn) setButtonDisabled(btn, false);
     setTimeout(() => {
       if (!pending && !earned) decorate();
     }, 9000);
   }
 
-  const observer = new MutationObserver(() => {
-    if (button()) decorate();
-  });
-  observer.observe(document.documentElement, { childList:true, subtree:true });
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-      decorate();
-      postStatusRequest();
-    }, { once:true });
-  } else {
+  function boot() {
     decorate();
     postStatusRequest();
+    // Bounded retries cover late static-shell hydration without a permanent
+    // document observer. They stop naturally and cannot starve the event loop.
+    [250, 700, 1400, 2600, 4500].forEach(ms => setTimeout(decorate, ms));
+    setTimeout(postStatusRequest, 1200);
   }
-  setTimeout(postStatusRequest, 1200);
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot, { once:true });
+  } else {
+    boot();
+  }
 })();
