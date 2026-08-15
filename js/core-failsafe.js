@@ -59,18 +59,15 @@
     };
   }
 
-  // Capture-phase native click lifeline. This does not own mining/reward writes;
-  // it only guarantees the four core navigation buttons and ALL APPS respond.
+  // Capture-phase core-tab lifeline. ALL APPS intentionally uses its inline
+  // toggleMore() once, avoiding a double-toggle while the canonical core loads.
   if (!window.__nxCriticalTouchLifeline) {
     window.__nxCriticalTouchLifeline = true;
     document.addEventListener("click", event => {
       const item = event.target?.closest?.(".bottom-dock .dock-item");
       if (!item) return;
       const label = String(item.textContent || "").replace(/\s+/g, " ").trim().toLowerCase();
-      if (item.id === "moreBtn" || label.includes("all apps")) {
-        if (typeof window.toggleMore === "function") window.toggleMore();
-        return;
-      }
+      if (item.id === "moreBtn" || label.includes("all apps")) return;
       const map = { mine:"home", wallet:"wallet", tasks:"tasks", market:"market" };
       const name = Object.keys(map).find(key => label.includes(key));
       if (name) showTabNow(map[name], item);
