@@ -5,7 +5,7 @@ plugins {
 
 android {
     namespace = "com.nexusnova.app"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.nexusnova.app"
@@ -19,7 +19,7 @@ android {
         release {
             isMinifyEnabled = false
             proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
+                getDefaultProguardFile("proguard-optimize.txt"),
                 "proguard-rules.pro"
             )
         }
