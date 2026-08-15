@@ -1,14 +1,18 @@
-/* NexusNova FCM Web Push v1
+/* NexusNova FCM Web Push v2
    Real Firebase Cloud Messaging registration for the existing Notifications Center.
-   Notification permission is requested only after an explicit user click. */
+   Notification permission is requested only after an explicit user click.
+   Premium NexusNova dialogs replace legacy browser alerts.
+*/
 (() => {
   "use strict";
-  if (window.__nxFcmV1) return;
+  if (window.__nxFcmV2) return;
+  window.__nxFcmV2 = true;
   window.__nxFcmV1 = true;
 
   const TOKEN_KEY = "nexusnova_fcm_token_v1";
   const FIREBASE_VERSION = "12.1.0";
   let working = false;
+  let uiPromise = null;
 
   const $ = (id) => document.getElementById(id);
 
@@ -25,6 +29,43 @@
       window.NEXUSNOVA_PUBLIC_CONFIG?.fcmVapidKey ||
       ""
     ).trim();
+  }
+
+  function getUI() {
+    if (window.NexusNovaUI) return Promise.resolve(window.NexusNovaUI);
+    if (uiPromise) return uiPromise;
+    uiPromise = new Promise((resolve) => {
+      const existing = document.querySelector('script[data-nx-premium-ui],script[data-nx-experience-premium],script[data-nx-popup-premium]');
+      const done = () => resolve(window.NexusNovaUI || null);
+      if (existing) {
+        window.addEventListener('nexusnova:premium-ui-ready', done, {once:true});
+        setTimeout(done,1400);
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = './js/nexusnova-premium-ui-v1.js?v=1';
+      script.dataset.nxPremiumUi = '1';
+      script.onload = done;
+      script.onerror = done;
+      document.body.appendChild(script);
+    }).finally(() => { uiPromise = null; });
+    return uiPromise;
+  }
+
+  async function showError(title, error) {
+    const text = String(error?.message || error || 'Push notifications could not complete this action.');
+    status(text, false);
+    const ui = await getUI().catch(() => null);
+    if (ui?.alert) {
+      await ui.alert({
+        eyebrow:'NEXUSNOVA NOTIFICATIONS',
+        title,
+        subtitle:'Firebase Cloud Messaging',
+        text,
+        icon:'security',
+        buttonText:'OK'
+      });
+    }
   }
 
   async function firebaseParts() {
@@ -107,11 +148,12 @@
       await register({ token, userAgent: navigator.userAgent || "" });
       localStorage.setItem(TOKEN_KEY, token);
       status("Push notifications enabled for this device.", true);
+      window.NexusNovaUI?.toast?.('Push notifications enabled for this device.');
       return token;
     } catch (error) {
       console.warn("NexusNova FCM registration:", error);
       status(error?.message || "Push notifications could not be enabled.", false);
-      if (requestPermission) alert(error?.message || "Push notifications could not be enabled.");
+      if (requestPermission) await showError('Could Not Enable Push', error);
       throw error;
     } finally {
       working = false;
@@ -137,11 +179,12 @@
         "sendPushTest"
       );
       const result = (await test()).data || {};
-      status(`FCM test sent to ${Number(result.sent || 0)} device(s).`, Number(result.sent || 0) > 0);
+      const sent = Number(result.sent || 0);
+      status(`FCM test sent to ${sent} device(s).`, sent > 0);
+      if (sent > 0) window.NexusNovaUI?.toast?.(`Test push sent to ${sent} device(s).`);
     } catch (error) {
       console.warn("NexusNova FCM test:", error);
-      status(error?.message || "FCM test could not be sent.", false);
-      alert(error?.message || "FCM test could not be sent.");
+      await showError('FCM Test Could Not Be Sent', error);
     } finally {
       working = false;
     }
@@ -172,10 +215,10 @@
         localStorage.removeItem(TOKEN_KEY);
       }
       status("Push notifications disabled for this device.", true);
+      window.NexusNovaUI?.toast?.('Push notifications disabled for this device.');
     } catch (error) {
       console.warn("NexusNova FCM disable:", error);
-      status(error?.message || "Push notifications could not be disabled cleanly.", false);
-      alert(error?.message || "Push notifications could not be disabled cleanly.");
+      await showError('Could Not Disable Push Cleanly', error);
     } finally {
       working = false;
     }
@@ -185,6 +228,7 @@
     const tab = $("tab-mega-notifications");
     if (!tab) return false;
 
+    getUI().catch(() => {});
     const enable = $("nxMegaNotify");
     if (enable && enable.dataset.nxFcmReady !== "1") {
       enable.dataset.nxFcmReady = "1";
