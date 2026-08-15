@@ -1,5 +1,5 @@
 /* NexusNova Service Worker - fresh-code first, offline fallback + FCM web push */
-const CACHE = "nexusnova-shell-v13-admob-nexus-pass";
+const CACHE = "nexusnova-shell-v14-admob-mining-boost";
 
 const ASSETS = [
   "./",
@@ -33,6 +33,7 @@ const ASSETS = [
   "./js/nexusnova-rewarded-ads-config-v1.js",
   "./js/nexusnova-rewarded-ads-v1.js",
   "./js/nexusnova-rewarded-ads-button-guard-v1.js",
+  /* Compatibility filename; implementation is the AdMob Mining Boost bridge. */
   "./js/nexusnova-admob-nexus-pass-v1.js",
   "./js/nexusnova-natural-voice-v1.js",
   "./js/nexusnova-new-features-v1.js",
