@@ -7,6 +7,7 @@
    - The Firebase UID is attached as SSV user_id; task-watch-ad is custom_data.
    - Older APKs are blocked by the ssvIdentityReady capability handshake.
    - Debug/test ads prove UX but never credit +2.5 NVX.
+   - Production +2.5 stays disabled until the signed SSV endpoint is deployed.
 */
 (() => {
   'use strict';
@@ -15,6 +16,7 @@
 
   const PURPOSE = 'task-watch-ad';
   const REWARD_NVX = 2.5;
+  const PRODUCTION_SSV_ENABLED = false;
   const HINT_ID = 'nxWatchAdRewardHint';
   const BUTTON_ID = 'nxWatchAdRewardBtn';
 
@@ -74,11 +76,17 @@
       setHint('Rewarded ad in progress…');
       return;
     }
-    btn.disabled = false;
     if (!capabilityReady) {
+      btn.disabled = false;
       setHint('Secure +2.5 NVX ad reward needs the latest NexusNova Android build.');
       return;
     }
+    if (!nativeTestMode && !PRODUCTION_SSV_ENABLED) {
+      btn.disabled = true;
+      setHint('Secure +2.5 NVX reward activation is pending server deployment. No live ad will be requested yet.');
+      return;
+    }
+    btn.disabled = false;
     setHint(nativeTestMode
       ? 'AdMob TEST MODE • test ads never add +2.5 NVX.'
       : 'Watch the full rewarded ad • Google server verification adds +2.5 NVX.');
@@ -165,6 +173,11 @@
       }
     }
 
+    if (!nativeTestMode && !PRODUCTION_SSV_ENABLED) {
+      setHint('Secure +2.5 NVX reward is not live until the signed SSV server is deployed. No live ad was requested.', 'error');
+      return;
+    }
+
     if (!window.NexusNovaAds?.requestRewarded) {
       setHint('Rewarded ad service is still loading. Try again in a moment.', 'error');
       return;
@@ -218,7 +231,7 @@
       earned = true;
       if (nativeTestMode) {
         setHint('✓ TEST AD COMPLETED • +2.5 NVX was NOT credited in test mode.', 'success');
-      } else {
+      } else if (PRODUCTION_SSV_ENABLED) {
         setHint('Ad completed • verifying +2.5 NVX with Google server…');
         waitForServerCredit();
       }
