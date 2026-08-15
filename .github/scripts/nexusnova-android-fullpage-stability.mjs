@@ -1,6 +1,17 @@
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 
+process.on('uncaughtException', (error) => {
+  const message = String(error?.stack || error?.message || error || 'Unknown Android runtime failure').replace(/\r?\n/g, '%0A');
+  console.error(`::error file=.github/scripts/nexusnova-android-fullpage-stability.mjs,line=1,title=Android full-page stability failure::${message}`);
+  process.exit(1);
+});
+process.on('unhandledRejection', (error) => {
+  const message = String(error?.stack || error?.message || error || 'Unknown Android runtime rejection').replace(/\r?\n/g, '%0A');
+  console.error(`::error file=.github/scripts/nexusnova-android-fullpage-stability.mjs,line=1,title=Android full-page stability rejection::${message}`);
+  process.exit(1);
+});
+
 const base = 'http://127.0.0.1:4173';
 const nativePage = `${base}/NexusNovaAndroid/app/src/main/assets/www/page2.html?nxAndroid=1&stabilityTest=1`;
 const browser = await chromium.launch({ headless: true });
@@ -15,7 +26,8 @@ async function assertDockHitTarget(page, selector) {
       width: r.width,
       height: r.height,
       hitId: hit?.id || '',
-      hitClass: hit?.className || '',
+      hitClass: String(hit?.className || ''),
+      hitTag: hit?.tagName || '',
       contained: Boolean(hit && (hit === button || button.contains(hit))),
       x, y,
     };
@@ -62,7 +74,6 @@ async function assertCoreInteraction(page, label) {
     `${label}: ALL APPS did not open`,
   );
 
-  // Close ALL APPS and prove normal navigation is still alive afterwards.
   await page.locator('#moreBtn').click({ timeout: 2500 });
   await page.waitForTimeout(80);
   await clickTab(page, '.bottom-dock .dock-item:nth-child(1)', '#tab-home');
@@ -90,8 +101,6 @@ async function runScenario(name, externalDelayMs) {
 
   page.on('pageerror', (error) => {
     const message = String(error?.message || error || '');
-    // Firebase/CDN imports are deliberately unavailable in this test. Syntax,
-    // recursion, and local runtime failures remain fatal.
     if (/Failed to fetch dynamically imported module|Importing a module script failed|ERR_FAILED|fetch/i.test(message)) return;
     severeErrors.push(message);
   });
@@ -103,8 +112,6 @@ async function runScenario(name, externalDelayMs) {
     return route.abort('failed');
   });
 
-  // Commit is enough: the test intentionally checks that the native shell is
-  // usable even while remote Firebase/CDN work is still unresolved.
   await page.goto(nativePage, { waitUntil: 'commit', timeout: 10_000 });
   await page.locator('#moreBtn').waitFor({ state: 'visible', timeout: 5000 });
   await page.waitForTimeout(2800);
@@ -127,8 +134,14 @@ async function runScenario(name, externalDelayMs) {
   console.log(`PASS ${name}: full Android page remains touchable with the real NexusNova module stack.`);
 }
 
-await runScenario('external-network-blocked', 0);
-await runScenario('external-network-very-slow', 8000);
-
-await browser.close();
-console.log('PASS NexusNova Android full-page stability regression: Wallet, Tasks, Market and ALL APPS remain interactive under blocked/very-slow external network conditions.');
+try {
+  await runScenario('external-network-blocked', 0);
+  await runScenario('external-network-very-slow', 8000);
+  await browser.close();
+  console.log('PASS NexusNova Android full-page stability regression: Wallet, Tasks, Market and ALL APPS remain interactive under blocked/very-slow external network conditions.');
+} catch (error) {
+  try { await browser.close(); } catch (_) {}
+  const message = String(error?.stack || error?.message || error || 'Unknown Android runtime failure').replace(/\r?\n/g, '%0A');
+  console.error(`::error file=.github/scripts/nexusnova-android-fullpage-stability.mjs,line=1,title=Android full-page stability failure::${message}`);
+  process.exitCode = 1;
+}
