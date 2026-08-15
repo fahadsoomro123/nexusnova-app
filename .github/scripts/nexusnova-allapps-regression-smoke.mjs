@@ -59,7 +59,9 @@ try {
   assert.equal(await page.evaluate(() => document.body.classList.contains('nx-allapps-open')), false);
   assert.equal(await page.evaluate(() => getComputedStyle(document.getElementById('moreMenu')).display), 'none');
   assert.ok(await page.$('#tab-mega-teacher .nx-app-hero'));
-  await page.waitForSelector('#tab-mega-teacher label .nxv-field-icon');
+  // The first premium layer can attach .nx-semantic-badge before the additive
+  // visual-polish layer runs; either class is a valid semantic visual treatment.
+  await page.waitForSelector('#tab-mega-teacher label .nx-semantic-badge, #tab-mega-teacher label .nxv-field-icon');
 
   await page.click('#tab-mega-teacher .nx-allapps-back button');
   await page.waitForFunction(() => document.body.classList.contains('nx-allapps-open'));
