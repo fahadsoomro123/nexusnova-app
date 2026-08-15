@@ -27,7 +27,7 @@ try {
   });
   await page.addScriptTag({url:`${base}/js/nexusnova-onboarding-insights-v1.js?v=1`});
 
-  assert.equal(await page.evaluate(()=>window.nexusOnboardingVersion),'onboarding-insights-v1');
+  assert.equal(await page.evaluate(()=>window.nexusOnboardingVersion),'onboarding-insights-v1.1');
   assert.equal(await page.evaluate(()=>window.nexusProductInsights.version),'local-private-v1');
   await page.waitForSelector('#nxPrivateInsightsCard');
   assert.equal(await page.textContent('#nxInsightSessions'),'1');
@@ -68,7 +68,52 @@ try {
   console.log('PASS guided tour completes and remembers onboarding state');
 
   assert.equal(errors.length,0,errors.join('\n'));
-  console.log('\nOnboarding runtime complete: guided tour + privacy-safe local insights passed.');
+
+  // Android-specific regression: first launch must never auto-open the
+  // full-screen guided tour. It remains available only after an explicit tap.
+  const android=await browser.newPage();
+  const androidErrors=[];
+  android.on('pageerror',error=>androidErrors.push(error.message||String(error)));
+  await android.goto(base+'/.runtime-origin.html');
+  await android.setContent(`<!doctype html><html><head><meta charset="utf-8"></head><body>
+    <main class="main">
+      <section id="tab-home" class="tab active"><button id="mineBtn" type="button">START MINING</button></section>
+      <section id="tab-about" class="tab"></section>
+    </main>
+    <nav class="bottom-dock"><button class="dock-item" id="moreBtn" type="button">ALL APPS</button></nav>
+    <div id="moreMenu"><div class="more-inner"></div></div>
+  </body></html>`);
+  await android.evaluate(()=>{
+    localStorage.clear();
+    window.__nexusAndroidShell=true;
+    window.switchTab=()=>{};
+    window.openMoreTab=()=>{};
+  });
+  await android.addScriptTag({url:`${base}/js/nexusnova-onboarding-insights-v1.js?v=1`});
+  await android.waitForTimeout(3900);
+  const autoState=await android.evaluate(()=>{
+    const overlay=document.getElementById('nxOnboardingOverlay');
+    const style=overlay?getComputedStyle(overlay):null;
+    return {
+      hidden:overlay?.hidden===true,
+      pointerEvents:style?.pointerEvents||'',
+      visibility:style?.visibility||'',
+      stored:localStorage.getItem('nexusnova_onboarding_v1_state')
+    };
+  });
+  assert.equal(autoState.hidden,true,`Android onboarding auto-opened unexpectedly: ${JSON.stringify(autoState)}`);
+  assert.equal(autoState.pointerEvents,'none',`Android hidden onboarding can intercept touch: ${JSON.stringify(autoState)}`);
+  assert.equal(autoState.visibility,'hidden',`Android hidden onboarding is still visible: ${JSON.stringify(autoState)}`);
+  assert.equal(autoState.stored,null,'Android should not silently mark onboarding complete/skipped.');
+
+  await android.evaluate(()=>window.nexusOpenAppTour());
+  await android.waitForSelector('#nxOnboardingOverlay:not([hidden])');
+  assert.equal(await android.evaluate(()=>getComputedStyle(document.getElementById('nxOnboardingOverlay')).pointerEvents),'auto');
+  assert.equal(androidErrors.length,0,androidErrors.join('\n'));
+  await android.close();
+  console.log('PASS Android onboarding stays non-blocking at startup and remains manually accessible');
+
+  console.log('\nOnboarding runtime complete: guided tour + privacy-safe local insights + Android touch safety passed.');
 } finally {
   await browser.close();
 }
