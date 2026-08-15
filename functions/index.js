@@ -82,126 +82,206 @@ function requestNetwork(value){
   }
   return network;
 }
-function decimalToMinorUnits(value,decimals=8){
-  const raw=requestString(value,"amount",MAX_AMOUNT_LENGTH);
-  const match=raw.match(/^(\d+)(?:\.(\d+))?$/);
-  if(!match) throw new HttpsError("invalid-argument","Invalid amount.");
-  const integer=match[1].replace(/^0+(?=\d)/,"");
-  const fraction=match[2]||"";
-  if(fraction.length>decimals){
-    throw new HttpsError("invalid-argument",`Amount supports up to ${decimals} decimal places.`);
-  }
-  const padded=(fraction+"0".repeat(decimals)).slice(0,decimals);
-  const combined=(integer+padded).replace(/^0+(?=\d)/,"")||"0";
-  if(!DIGITS_PATTERN.test(combined)) throw new HttpsError("invalid-argument","Invalid amount.");
-  return BigInt(combined);
+function isPlainObject(value){
+  return value!==null&&typeof value==="object"&&!Array.isArray(value);
 }
-
-exports.getPolicyDocument=onCall(async req=>{
-  const name=requestString(req.data?.name,"policy name",64);
-  const allowed=new Set(["privacy","terms"]);
-  if(!allowed.has(name)) throw new HttpsError("invalid-argument","Unknown policy document.");
-  const snap=await db.collection("policies").doc(name).get();
-  if(!snap.exists) throw new HttpsError("not-found","Policy document not found.");
-  const data=snap.data()||{};
-  const body=String(data.body||"");
-  if(Buffer.byteLength(body,"utf8")>MAX_POLICY_BYTES){
-    throw new HttpsError("data-loss","Policy document is too large.");
+function configuredMinor(value,field){
+  if(
+    typeof value!=="string"||
+    value.length===0||
+    value.length>MAX_AMOUNT_LENGTH||
+    !DIGITS_PATTERN.test(value)
+  ){
+    throw new Error(`invalid ${field}`);
   }
-  return {name,title:String(data.title||name),body,updatedAt:data.updatedAt?.toMillis?.()||0};
+  return BigInt(value);
+}
+function parseWithdrawalEntry(entry){
+  const allowed=["decimals","minMinor","maxMinor","destinationType"];
+  if(
+    !isPlainObject(entry)||
+    !allowed.every(key=>Object.prototype.hasOwnProperty.call(entry,key))||
+    Object.keys(entry).some(key=>!allowed.includes(key))||
+    typeof entry.decimals!=="number"||
+    !Number.isInteger(entry.decimals)||
+    entry.decimals<0||
+    entry.decimals>18||
+    entry.destinationType!=="evm"
+  ){
+    throw new Error("invalid withdrawal policy entry");
+  }
+  const minMinor=configuredMinor(entry.minMinor,"minMinor");
+  const maxMinor=configuredMinor(entry.maxMinor,"maxMinor");
+  if(minMinor<=0n||maxMinor<minMinor){
+    throw new Error("invalid withdrawal policy limits");
+  }
+  return {decimals:entry.decimals,minMinor,maxMinor,destinationType:"evm"};
+}
+function parseWithdrawalPolicy(){
+  const raw=process.env.NEXUSNOVA_WITHDRAWAL_POLICY_JSON||"";
+  if(!raw){
+    throw new HttpsError("failed-precondition","Withdrawals are not configured for production yet.");
+  }
+  if(raw.length>MAX_POLICY_BYTES){
+    throw new HttpsError("internal","Withdrawal policy configuration is too large.");
+  }
+  try{
+    const policy=JSON.parse(raw);
+    if(!isPlainObject(policy)||Object.keys(policy).length===0) throw new Error("not an object");
+    const normalized=Object.create(null);
+    for(const [asset,networks] of Object.entries(policy)){
+      if(!ASSET_PATTERN.test(asset)||!isPlainObject(networks)||Object.keys(networks).length===0){
+        throw new Error("invalid asset policy");
+      }
+      normalized[asset]=Object.create(null);
+      for(const [network,entry] of Object.entries(networks)){
+        if(!NETWORK_PATTERN.test(network)) throw new Error("invalid network policy");
+        normalized[asset][network]=parseWithdrawalEntry(entry);
+      }
+    }
+    return normalized;
+  }catch(_){
+    throw new HttpsError("internal","Withdrawal policy configuration is invalid.");
+  }
+}
+function decimalToMinor(raw,decimals){
+  const amount=requestString(raw,"amount",MAX_AMOUNT_LENGTH);
+  if(!/^\d+(?:\.\d+)?$/.test(amount)){
+    throw new HttpsError("invalid-argument","Enter a decimal amount without exponent notation.");
+  }
+  const [whole,fraction=""]=amount.split(".");
+  if(fraction.length>decimals){
+    throw new HttpsError("invalid-argument",`Amount supports at most ${decimals} decimal places.`);
+  }
+  const minor=BigInt(whole)*10n**BigInt(decimals)+BigInt((fraction+"0".repeat(decimals)).slice(0,decimals)||"0");
+  if(minor<=0n) throw new HttpsError("invalid-argument","Amount must be greater than zero.");
+  const normalizedWhole=whole.replace(/^0+(?=\d)/,"");
+  return {amount:fraction?`${normalizedWhole}.${fraction}`:normalizedWhole,minor};
+}
+const ref=uid=>db.collection("users").doc(uid);
+
+exports.startMiningSession=protectedCallable(async req=>{
+  const uid=verifiedUidOf(req), now=Date.now();
+  return db.runTransaction(async tx=>{
+    const r=ref(uid), s=await tx.get(r);
+    if(!s.exists) throw new HttpsError("not-found","User profile not found.");
+    const d=s.data()||{};
+    const balance=profileNumber(d,"balance");
+    const miningActive=profileBoolean(d,"miningActive");
+    const startedAt=profileNumber(d,"miningStartedAt");
+    if(miningActive){
+      if(startedAt<=0||startedAt>now+5*60*1000){
+        invalidProfile("mining session");
+      }
+      return {started:false,alreadyActive:true,startedAt,balance,miningActive:true};
+    }
+    if(startedAt!==0) invalidProfile("mining session");
+    tx.update(r,{miningActive:true,miningStartedAt:now,miningLastUpdate:now});
+    return {started:true,startedAt:now,balance,miningActive:true};
+  });
+});
+
+exports.finishMiningSession=protectedCallable(async req=>{
+  const uid=verifiedUidOf(req), now=Date.now();
+  return db.runTransaction(async tx=>{
+    const r=ref(uid), s=await tx.get(r);
+    if(!s.exists) throw new HttpsError("not-found","User profile not found.");
+    const d=s.data()||{};
+    const miningActive=profileBoolean(d,"miningActive");
+    const start=profileNumber(d,"miningStartedAt");
+    const balance0=profileNumber(d,"balance");
+    if(!miningActive){
+      if(start!==0) invalidProfile("mining session");
+      return {finished:false,balance:balance0,earned:0,miningActive:false};
+    }
+    if(start<=0||start>now+5*60*1000) invalidProfile("mining session");
+    if(now-start<DAY){
+      throw new HttpsError("failed-precondition","Your 24-hour mining session is still active.");
+    }
+    const earned=DAY/3600000*RATE;
+    const balance=balance0+earned;
+    const totalMined=profileNumber(d,"totalMined")+earned;
+    tx.update(r,{balance,totalMined,miningActive:false,miningStartedAt:0,miningLastUpdate:now});
+    return {finished:true,balance,earned,totalMined,miningActive:false};
+  });
 });
 
 exports.claimDailyReward=protectedCallable(async req=>{
-  const uid=verifiedUidOf(req), now=Date.now(), ref=db.collection("users").doc(uid);
+  const uid=verifiedUidOf(req), now=Date.now();
   return db.runTransaction(async tx=>{
-    const snap=await tx.get(ref);
-    if(!snap.exists) throw new HttpsError("not-found","User profile not found.");
-    const data=snap.data()||{};
-    const last=Number(data.lastDailyReward||0);
-    if(last&&now-last<DAY){
-      throw new HttpsError("failed-precondition","Daily reward is still on cooldown.");
-    }
-    const balance=profileNumber(data,"balance");
-    const next=balance+DAILY;
-    if(!Number.isSafeInteger(Math.round(next*1e8))){
-      throw new HttpsError("out-of-range","Balance limit reached.");
-    }
-    const streak=Number.isFinite(Number(data.dailyRewardStreak))&&Number(data.dailyRewardStreak)>=0
-      ?Number(data.dailyRewardStreak)+1:1;
-    tx.update(ref,{balance:next,lastDailyReward:now,dailyRewardStreak:streak});
-    return {balance:next,reward:DAILY,streak,lastDailyReward:now};
+    const r=ref(uid), s=await tx.get(r);
+    if(!s.exists) throw new HttpsError("not-found","User profile not found.");
+    const d=s.data()||{}, last=profileNumber(d,"lastDailyReward");
+    if(now-last<DAY) throw new HttpsError("failed-precondition","Daily reward already claimed. Please try again after 24 hours.");
+    const streak0=profileNumber(d,"dailyRewardStreak");
+    const streak=last>0&&now-last<=DAY*2?streak0+1:1;
+    const balance=profileNumber(d,"balance")+DAILY;
+    tx.update(r,{balance,lastDailyReward:now,dailyRewardStreak:streak});
+    return {claimed:true,reward:DAILY,balance,streak,lastDailyReward:now};
   });
 });
 
-exports.startMining=protectedCallable(async req=>{
-  const uid=verifiedUidOf(req), now=Date.now(), ref=db.collection("users").doc(uid);
-  return db.runTransaction(async tx=>{
-    const snap=await tx.get(ref);
-    if(!snap.exists) throw new HttpsError("not-found","User profile not found.");
-    const data=snap.data()||{};
-    const active=profileBoolean(data,"miningActive");
-    const started=Number(data.miningStartedAt||0);
-    if(active&&started>0&&now-started<DAY){
-      throw new HttpsError("failed-precondition","Mining session is already active.");
-    }
-    let balance=profileNumber(data,"balance");
-    let total=profileNumber(data,"totalMined");
-    if(active&&started>0&&now-started>=DAY){
-      balance+=DAY/3600000*RATE;
-      total+=DAY/3600000*RATE;
-    }
-    tx.update(ref,{balance,totalMined:total,miningActive:true,miningStartedAt:now});
-    return {balance,totalMined:total,miningActive:true,miningStartedAt:now};
-  });
-});
-
-exports.completeTask=protectedCallable(async req=>{
+exports.completeTaskReward=protectedCallable(async req=>{
+  verifiedUidOf(req);
+  const taskId=String(req.data?.taskId||"");
+  if(taskId==="task1"){
+    throw new HttpsError("failed-precondition","Telegram membership verification is not configured yet. No reward was issued.");
+  }
+  throw new HttpsError("invalid-argument","Unknown task.");
+  /* Keep future task rewards behind a verified server-side campaign proof.
   const uid=verifiedUidOf(req);
-  const taskId=requestString(req.data?.taskId,"taskId",64);
-  const allowed={task1:10};
-  const reward=allowed[taskId];
-  if(!reward) throw new HttpsError("invalid-argument","Unknown task.");
-  const ref=db.collection("users").doc(uid);
   return db.runTransaction(async tx=>{
-    const snap=await tx.get(ref);
-    if(!snap.exists) throw new HttpsError("not-found","User profile not found.");
-    const data=snap.data()||{};
-    const completed=data.completedTasks&&typeof data.completedTasks==="object"
-      ?data.completedTasks:{};
-    if(completed[taskId]===true){
-      throw new HttpsError("already-exists","Task already completed.");
-    }
-    const balance=profileNumber(data,"balance");
-    const next=balance+reward;
-    tx.update(ref,{
-      balance:next,
-      tasksCompleted:FieldValue.increment(1),
-      [`completedTasks.${taskId}`]:true
-    });
-    return {balance:next,taskId,reward,tasksCompleted:Number(data.tasksCompleted||0)+1};
+    const r=ref(uid), s=await tx.get(r);
+    if(!s.exists) throw new HttpsError("not-found","User profile not found.");
+    const d=s.data()||{}, done={...(d.completedTasks||{})};
+    if(done[taskId]) throw new HttpsError("already-exists","Task already completed.");
+    done[taskId]=true;
+    const reward=TASKS[taskId], balance=Number(d.balance||0)+reward;
+    const tasksCompleted=Number(d.tasksCompleted||0)+1;
+    tx.update(r,{balance,completedTasks:done,tasksCompleted});
+    return {claimed:true,reward,balance,tasksCompleted,taskId};
   });
+  */
+});
+
+exports.getDepositAddress=protectedCallable(async req=>{
+  uidOf(req);
+  const asset=requestAsset(req.data?.asset);
+  const network=requestNetwork(req.data?.network);
+  const raw=process.env.NEXUSNOVA_DEPOSIT_ADDRESSES_JSON||"";
+  if(!raw) throw new HttpsError("failed-precondition","Deposit address service is not configured yet. No fake address will be generated.");
+  let map; try{map=JSON.parse(raw);}catch{throw new HttpsError("internal","Deposit address configuration is invalid.");}
+  const address=map?.[network]?.[asset]||"";
+  if(!address) throw new HttpsError("failed-precondition",`No real deposit address is configured for ${asset} on ${network}.`);
+  return {address,asset,network};
 });
 
 exports.requestWithdrawal=protectedCallable(async req=>{
-  const uid=verifiedUidOf(req);
+  const uid=verifiedUidOf(req), now=Date.now();
   const asset=requestAsset(req.data?.asset);
   const network=requestNetwork(req.data?.network);
-  const destination=requestString(req.data?.destination,"destination",MAX_DESTINATION_LENGTH);
-  const amount=requestString(req.data?.amount,"amount",MAX_AMOUNT_LENGTH);
-  const minor=decimalToMinorUnits(amount,8);
-  if(minor<=0n) throw new HttpsError("invalid-argument","Amount must be greater than zero.");
-  const now=Date.now();
-  const profile=db.collection("users").doc(uid);
-  const requests=db.collection("withdrawalRequests");
-  const request=requests.doc();
-  const throttle=db.collection("withdrawalRequestThrottle").doc(uid);
+  const policy=parseWithdrawalPolicy();
+  const networkPolicy=policy?.[asset]?.[network];
+  if(!networkPolicy){
+    throw new HttpsError("invalid-argument","That asset and network are not enabled for withdrawals.");
+  }
+  const {amount,minor}=decimalToMinor(req.data?.amount,networkPolicy.decimals);
+  if(minor<networkPolicy.minMinor||minor>networkPolicy.maxMinor){
+    throw new HttpsError("invalid-argument","Amount is outside this asset's configured withdrawal limits.");
+  }
+  const destination=requestString(req.data?.destination,"destination address",MAX_DESTINATION_LENGTH);
+  if(networkPolicy.destinationType!=="evm"||!/^0x[a-fA-F0-9]{40}$/.test(destination))
+    throw new HttpsError("invalid-argument","Invalid EVM destination address.");
+  const profile=ref(uid);
+  const throttle=db.collection("withdrawalRateLimits").doc(uid);
+  const request=db.collection("withdrawalRequests").doc();
   await db.runTransaction(async tx=>{
     const profileSnapshot=await tx.get(profile);
     if(!profileSnapshot.exists) throw new HttpsError("not-found","User profile not found.");
     const throttleSnapshot=await tx.get(throttle);
     const previous=throttleSnapshot.exists
-      ?profileNumber(throttleSnapshot.data(),"lastRequestAt")
-      :0;
+      ? profileNumber(throttleSnapshot.data(),"lastRequestAt")
+      : 0;
     if(now-previous<WITHDRAWAL_COOLDOWN){
       throw new HttpsError("resource-exhausted","Please wait before submitting another withdrawal request.");
     }
