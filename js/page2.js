@@ -93,11 +93,19 @@ try {
 }
 
 // Secure Watch Ad +2.5 NVX controller. Older APKs are capability-gated and
-// cannot accidentally route this new reward purpose into Mining Boost.
+// production is held until the signed SSV endpoint is actually deployed.
 try {
   await import('./nexusnova-watch-ad-reward-v1.js?v=1');
 } catch (error) {
   console.warn('NexusNova Watch Ad reward:', error);
+}
+
+// Google UMP privacy choices entry point. It stays hidden unless native UMP says
+// a publisher-rendered privacy-options control is required for this user.
+try {
+  await import('./nexusnova-ad-privacy-v1.js?v=1');
+} catch (error) {
+  console.warn('NexusNova ad privacy:', error);
 }
 
 // A secure account transaction must not be reported as failed merely because a
