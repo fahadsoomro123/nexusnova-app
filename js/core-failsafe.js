@@ -48,30 +48,12 @@
     window.toggleMore = function() {
       const menu = byId("moreMenu");
       if (!menu) return false;
-      const opening = !menu.classList.contains("show") && getComputedStyle(menu).display === "none";
-      menu.style.removeProperty("display");
-      menu.classList.toggle("show", opening);
-      if (opening && getComputedStyle(menu).display === "none") menu.style.display = "block";
-      if (!opening) menu.style.removeProperty("display");
+      menu.classList.toggle("show");
+      const opening = menu.classList.contains("show");
       document.querySelectorAll(".bottom-dock .dock-item").forEach(item => item.classList.remove("active"));
-      byId("moreBtn")?.classList.add("active");
+      byId("moreBtn")?.classList.toggle("active", opening);
       return opening;
     };
-  }
-
-  // Capture-phase core-tab lifeline. ALL APPS intentionally uses its inline
-  // toggleMore() once, avoiding a double-toggle while the canonical core loads.
-  if (!window.__nxCriticalTouchLifeline) {
-    window.__nxCriticalTouchLifeline = true;
-    document.addEventListener("click", event => {
-      const item = event.target?.closest?.(".bottom-dock .dock-item");
-      if (!item) return;
-      const label = String(item.textContent || "").replace(/\s+/g, " ").trim().toLowerCase();
-      if (item.id === "moreBtn" || label.includes("all apps")) return;
-      const map = { mine:"home", wallet:"wallet", tasks:"tasks", market:"market" };
-      const name = Object.keys(map).find(key => label.includes(key));
-      if (name) showTabNow(map[name], item);
-    }, true);
   }
 
   // Splash is presentation only. It must never retain an invisible touch shield.
