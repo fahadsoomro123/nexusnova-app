@@ -121,11 +121,109 @@
     });
   }
 
+  /* Android-only physical/system Back integration.
+     MainActivity already routes the phone Back button through WebView.goBack().
+     We add one same-document history entry only when a feature is opened from
+     ALL APPS. Popping that entry returns to the clean ALL APPS screen instead
+     of leaving the old feature hanging. Normal web/Chrome behavior is untouched. */
+  function installAndroidAllAppsBack(){
+    if (window.__nxAndroidAllAppsBackV1) return;
+    const bridge = window.NexusAndroid;
+    if (!bridge || typeof bridge.postMessage !== "function") return;
+    window.__nxAndroidAllAppsBackV1 = true;
+
+    let armed = false;
+    let suppressNextPop = false;
+
+    const arm = () => {
+      if (armed) return;
+      try {
+        const state = Object.assign({}, history.state || {}, { nxAndroidAllAppsBack: Date.now() });
+        history.pushState(state, "", location.href);
+        armed = true;
+      } catch (_) {}
+    };
+
+    const consumeArmWithoutReturn = () => {
+      if (!armed) return;
+      armed = false;
+      suppressNextPop = true;
+      try {
+        history.back();
+        setTimeout(() => { suppressNextPop = false; }, 450);
+      } catch (_) {
+        suppressNextPop = false;
+      }
+    };
+
+    const showAllApps = () => {
+      if (typeof window.nexusBackToAllApps === "function") {
+        window.nexusBackToAllApps();
+        return;
+      }
+      const menu = $("moreMenu");
+      if (!menu) return;
+      document.body.classList.add("nx-opened-from-allapps", "nx-allapps-open");
+      menu.style.removeProperty("display");
+      menu.classList.add("show");
+      document.querySelectorAll("main.main > .tab,main > .tab").forEach(tab => {
+        tab.setAttribute("aria-hidden", "true");
+      });
+    };
+
+    document.addEventListener("click", event => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (!target) return;
+
+      const launcher = target.closest("#moreMenu .more-item");
+      if (launcher && document.body.classList.contains("nx-allapps-open")) {
+        arm();
+        return;
+      }
+
+      const backToAllApps = target.closest(".nx-allapps-back button,.tools-main-back");
+      if (backToAllApps && armed) {
+        consumeArmWithoutReturn();
+        return;
+      }
+
+      const dock = target.closest(".bottom-dock .dock-item");
+      if (dock && dock.id !== "moreBtn" && armed) {
+        consumeArmWithoutReturn();
+      }
+    }, true);
+
+    window.addEventListener("popstate", () => {
+      if (suppressNextPop) {
+        suppressNextPop = false;
+        return;
+      }
+      if (!armed) return;
+      armed = false;
+      setTimeout(showAllApps, 0);
+    });
+
+    const wrapOpenMoreTab = () => {
+      const current = window.openMoreTab;
+      if (typeof current !== "function" || current.__nxAndroidAllAppsBackV1) return;
+      const wrapped = function(...args){
+        if (document.body.classList.contains("nx-allapps-open")) arm();
+        return current.apply(this, args);
+      };
+      wrapped.__nxAndroidAllAppsBackV1 = true;
+      window.openMoreTab = wrapped;
+    };
+
+    wrapOpenMoreTab();
+    [900, 2200, 4200].forEach(ms => setTimeout(wrapOpenMoreTab, ms));
+  }
+
   function install(){
     installStyles();
     moveWalletActionsAboveAssets();
     ensureZeroToggle();
     applyZeroFilter();
+    installAndroidAllAppsBack();
 
     const { list } = getWalletParts();
     if (list && !list.__nxPolishObserver) {
@@ -144,4 +242,5 @@
   else install();
   window.addEventListener("load", () => setTimeout(install, 250), { once:true });
   setTimeout(install, 1200);
+  setTimeout(installAndroidAllAppsBack, 2600);
 })();
