@@ -37,6 +37,14 @@ try {
   console.warn('NexusNova Daily Reward ad test gate:', error);
 }
 
+// During AdMob TEST MODE expose Google's actual native load error instead of a
+// generic "Ad Not Ready" message. This module never grants rewards.
+try {
+  await import('./nexusnova-admob-diagnostics-v1.js?v=1');
+} catch (error) {
+  console.warn('NexusNova AdMob diagnostics:', error);
+}
+
 // A secure account transaction must not be reported as failed merely because a
 // secondary/profile renderer throws afterwards.
 if (typeof window.nexusApplySecureAccountState === 'function') {
