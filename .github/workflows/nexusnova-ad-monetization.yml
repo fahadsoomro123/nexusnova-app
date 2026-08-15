@@ -39,5 +39,6 @@ jobs:
         with:
           node-version: '22'
 
+      # Keep this guard independently runnable after Android shell/stability work.
       - name: Run monetization security regression guard
         run: node .github/scripts/nexusnova-ad-monetization-smoke.mjs
