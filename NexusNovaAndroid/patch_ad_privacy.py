@@ -23,10 +23,10 @@ if 'adConsentManager = NexusAdConsentManager(this)' not in text:
     text = text.replace(old, new, 1)
 
 if 'ACTION_AD_PRIVACY_STATUS -> publishAdPrivacyStatus()' not in text:
-    old = '''            ACTION_SHOW_INTERSTITIAL_AD -> adManager.showInterstitial()\n            ACTION_AD_STATUS -> adManager.publishStatus()\n\n            ACTION_OPEN_EXTERNAL -> {'''
-    new = '''            ACTION_SHOW_INTERSTITIAL_AD -> adManager.showInterstitial()\n            ACTION_AD_STATUS -> {\n                adManager.publishStatus()\n                publishAdPrivacyStatus()\n            }\n            ACTION_AD_PRIVACY_STATUS -> publishAdPrivacyStatus()\n            ACTION_SHOW_AD_PRIVACY_OPTIONS -> {\n                if (BuildConfig.NEXUS_ADS_TEST_MODE || !adConsentManager.privacyOptionsRequired()) {\n                    publishAdPrivacyStatus()\n                } else {\n                    adConsentManager.showPrivacyOptions { error ->\n                        publishAdPrivacyStatus(error)\n                    }\n                }\n            }\n\n            ACTION_OPEN_EXTERNAL -> {'''
+    old = '''            ACTION_AD_STATUS -> adManager.publishStatus()\n\n            ACTION_OPEN_EXTERNAL -> {'''
+    new = '''            ACTION_AD_STATUS -> {\n                adManager.publishStatus()\n                publishAdPrivacyStatus()\n            }\n            ACTION_AD_PRIVACY_STATUS -> publishAdPrivacyStatus()\n            ACTION_SHOW_AD_PRIVACY_OPTIONS -> {\n                if (BuildConfig.NEXUS_ADS_TEST_MODE || !adConsentManager.privacyOptionsRequired()) {\n                    publishAdPrivacyStatus()\n                } else {\n                    adConsentManager.showPrivacyOptions { error ->\n                        publishAdPrivacyStatus(error)\n                    }\n                }\n            }\n\n            ACTION_OPEN_EXTERNAL -> {'''
     if old not in text:
-        raise SystemExit('Native ad action block not found for privacy insertion')
+        raise SystemExit('Ad status action block not found for privacy insertion')
     text = text.replace(old, new, 1)
 
 if 'private fun publishAdPrivacyStatus' not in text:
