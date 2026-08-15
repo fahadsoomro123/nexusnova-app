@@ -2,6 +2,53 @@
 const host = String(window.location.hostname || '').toLowerCase();
 const referrer = String(document.referrer || '').toLowerCase();
 
+// AdMob UX guard: background preload failures must never interrupt app startup.
+// Explicit rewarded requests still flow to their owning feature so it can show
+// an inline status or a deliberate user-facing result.
+let nxExplicitRewardedRequest = false;
+let nxExplicitRewardedStartedAt = 0;
+const NX_REWARDED_REQUEST_WINDOW_MS = 30_000;
+window.addEventListener('nexusnova:native-ad-event', event => {
+  const detail = event?.detail || {};
+  if (String(detail.provider || '') !== 'admob') return;
+  const type = String(detail.event || '');
+
+  if (type === 'rewarded-preparing' || type === 'rewarded-showing' || type === 'rewarded-opened') {
+    nxExplicitRewardedRequest = true;
+    nxExplicitRewardedStartedAt = Date.now();
+    return;
+  }
+
+  const terminalFailure =
+    type === 'rewarded-unavailable' ||
+    type === 'rewarded-load-failed' ||
+    type === 'rewarded-failed';
+
+  if (terminalFailure) {
+    const recentExplicitRequest = nxExplicitRewardedRequest &&
+      nxExplicitRewardedStartedAt > 0 &&
+      Date.now() - nxExplicitRewardedStartedAt <= NX_REWARDED_REQUEST_WINDOW_MS;
+
+    nxExplicitRewardedRequest = false;
+    nxExplicitRewardedStartedAt = 0;
+
+    if (!recentExplicitRequest) {
+      // Background preload/no-fill is expected to be retryable and must remain silent.
+      event.stopImmediatePropagation();
+      console.info('NexusNova AdMob preload unavailable; kept silent.', {
+        code: detail.code ?? null,
+        message: String(detail.message || detail.reason || '')
+      });
+    }
+    return;
+  }
+
+  if (type === 'rewarded-earned' || type === 'rewarded-dismissed') {
+    nxExplicitRewardedRequest = false;
+    nxExplicitRewardedStartedAt = 0;
+  }
+}, true);
+
 // Development-only App Check debug mode.
 // Never enable this on the production GitHub Pages host.
 const isNexusNovaDevHost =
@@ -32,18 +79,9 @@ await import('./page2-core.js?v=appcheck-debug-10');
 // still on its 24-hour cooldown, allow the same button to open a rewarded TEST
 // ad without calling the reward backend or applying a mining boost.
 try {
-  await import('./nexusnova-daily-ad-test-v1.js?v=2');
+  await import('./nexusnova-daily-ad-test-v1.js?v=3');
 } catch (error) {
   console.warn('NexusNova Daily Reward ad test gate:', error);
-}
-
-// During AdMob TEST MODE keep background preload failures silent. If a rewarded
-// request was explicitly initiated by the user, expose Google's actual load
-// error for diagnosis. This module never grants rewards.
-try {
-  await import('./nexusnova-admob-diagnostics-v1.js?v=2');
-} catch (error) {
-  console.warn('NexusNova AdMob diagnostics:', error);
 }
 
 // A secure account transaction must not be reported as failed merely because a
