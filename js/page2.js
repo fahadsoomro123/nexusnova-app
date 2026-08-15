@@ -7,7 +7,7 @@ const referrer = String(document.referrer || '').toLowerCase();
 // an inline status or a deliberate user-facing result.
 let nxExplicitRewardedRequest = false;
 let nxExplicitRewardedStartedAt = 0;
-const NX_REWARDED_REQUEST_WINDOW_MS = 30_000;
+const NX_REWARDED_REQUEST_WINDOW_MS = 70_000;
 window.addEventListener('nexusnova:native-ad-event', event => {
   const detail = event?.detail || {};
   if (String(detail.provider || '') !== 'admob') return;
@@ -73,16 +73,17 @@ if (meta) {
   meta.setAttribute('content', '6LfEc4QtAAAAAOohkqSv0p76iwPTeHI98hqVlwIs');
 }
 
-await import('./page2-core.js?v=appcheck-debug-10');
-
-// Temporary Android-only owner verification: while the real Daily Reward is
-// still on its 24-hour cooldown, allow the same button to open a rewarded TEST
-// ad without calling the reward backend or applying a mining boost.
+// Load the Android Daily Reward owner-test gate before page2-core. page2-core
+// loads the legacy rewarded/mining compatibility stack, so registering the Daily
+// capture listener first guarantees that a Daily test failure is consumed inline
+// before any legacy mining-boost popup can see the same native event.
 try {
-  await import('./nexusnova-daily-ad-test-v1.js?v=3');
+  await import('./nexusnova-daily-ad-test-v1.js?v=4');
 } catch (error) {
   console.warn('NexusNova Daily Reward ad test gate:', error);
 }
+
+await import('./page2-core.js?v=appcheck-debug-10');
 
 // A secure account transaction must not be reported as failed merely because a
 // secondary/profile renderer throws afterwards.
