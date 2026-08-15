@@ -3,17 +3,19 @@
    - Device-local, privacy-safe usage counters only.
    - Never records search text, input values, email, UID, wallet address,
      contacts, exact location, messages, or other personal content.
-   - No network analytics provider is contacted by this module. */
+   - No network analytics provider is contacted by this module.
+   - Android native shell never auto-opens a modal tour during startup. */
 (() => {
   'use strict';
   if (window.__nxOnboardingInsightsV1) return;
   window.__nxOnboardingInsightsV1 = true;
-  window.nexusOnboardingVersion = 'onboarding-insights-v1';
+  window.nexusOnboardingVersion = 'onboarding-insights-v1.1';
 
   const STATE_KEY = 'nexusnova_onboarding_v1_state';
   const EVENTS_KEY = 'nexusnova_product_events_v1';
   const MAX_EVENTS = 250;
   const MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+  const IS_ANDROID_NATIVE_SHELL = window.__nexusAndroidShell === true;
   const SAFE_EVENTS = new Set([
     'session_start','tour_open','tour_next','tour_back','tour_complete','tour_skip',
     'nav_open','mine_action','daily_reward_action','growth_action','referral_action',
@@ -22,44 +24,32 @@
 
   const STEPS = [
     {
-      icon:'✨',
-      kicker:'WELCOME',
-      title:'Meet NexusNova',
+      icon:'✨', kicker:'WELCOME', title:'Meet NexusNova',
       text:'Your daily utility grid brings mining, wallet, tasks, live tools, learning, finance and more into one place.',
       chips:['Mine','Wallet','Tasks','All Apps']
     },
     {
-      icon:'⛏️',
-      kicker:'STEP 1',
-      title:'Start your 24H mining session',
+      icon:'⛏️', kicker:'STEP 1', title:'Start your 24H mining session',
       text:'Use the Mine tab to start a secure 24-hour session. Your balance is protected by the app’s verified reward rules.',
       chips:['24H Session','NVX Balance','Secure Rules']
     },
     {
-      icon:'👛',
-      kicker:'STEP 2',
-      title:'Connect your wallet when you need it',
+      icon:'👛', kicker:'STEP 2', title:'Connect your wallet when you need it',
       text:'The Wallet tab keeps NVX separate while providing a foundation for supported external crypto wallets and portfolio tools.',
       chips:['Wallet','Portfolio','Deposit / Withdraw']
     },
     {
-      icon:'🎯',
-      kicker:'STEP 3',
-      title:'Build real progress',
+      icon:'🎯', kicker:'STEP 3', title:'Build real progress',
       text:'Tasks and Growth show daily rewards, missions, streaks and verified referral progress without inventing fake rewards.',
       chips:['Daily Reward','Missions','Growth']
     },
     {
-      icon:'🧭',
-      kicker:'STEP 4',
-      title:'Find anything from All Apps',
+      icon:'🧭', kicker:'STEP 4', title:'Find anything from All Apps',
       text:'Open All Apps and search naturally for tools such as Quran, weather, documents, teacher tools, finance or travel.',
       chips:['Smart Search','43+ Apps','Local First']
     },
     {
-      icon:'🔐',
-      kicker:'READY',
-      title:'Explore with privacy in mind',
+      icon:'🔐', kicker:'READY', title:'Explore with privacy in mind',
       text:'This onboarding module stores only simple usage counts on this device. It never records your searches, messages, email, wallet address or exact location.',
       chips:['Device Local','No Search Text','No Personal Content']
     }
@@ -70,11 +60,7 @@
   let insightsCard = null;
 
   function cleanFeature(value) {
-    return String(value || '')
-      .toLowerCase()
-      .replace(/[^a-z0-9_-]+/g,'-')
-      .replace(/^-+|-+$/g,'')
-      .slice(0,40);
+    return String(value || '').toLowerCase().replace(/[^a-z0-9_-]+/g,'-').replace(/^-+|-+$/g,'').slice(0,40);
   }
 
   function loadEvents() {
@@ -82,19 +68,12 @@
       const raw = JSON.parse(localStorage.getItem(EVENTS_KEY) || '[]');
       if (!Array.isArray(raw)) return [];
       const cutoff = Date.now() - MAX_AGE_MS;
-      return raw.filter(row =>
-        row && Number.isFinite(Number(row.t)) && Number(row.t) >= cutoff &&
-        SAFE_EVENTS.has(String(row.e || ''))
-      ).slice(-MAX_EVENTS);
-    } catch (_) {
-      return [];
-    }
+      return raw.filter(row => row && Number.isFinite(Number(row.t)) && Number(row.t) >= cutoff && SAFE_EVENTS.has(String(row.e || ''))).slice(-MAX_EVENTS);
+    } catch (_) { return []; }
   }
 
   function saveEvents(events) {
-    try {
-      localStorage.setItem(EVENTS_KEY, JSON.stringify(events.slice(-MAX_EVENTS)));
-    } catch (_) {}
+    try { localStorage.setItem(EVENTS_KEY, JSON.stringify(events.slice(-MAX_EVENTS))); } catch (_) {}
   }
 
   function track(eventName, feature='') {
@@ -121,13 +100,7 @@
     const featureCounts = new Map();
     navRows.forEach(row => featureCounts.set(row.f, (featureCounts.get(row.f) || 0) + 1));
     const top = [...featureCounts.entries()].sort((a,b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
-    return {
-      sessions,
-      activeDays,
-      featureOpens: navRows.length,
-      topFeature: top?.[0] || '—',
-      eventCount: events.length
-    };
+    return {sessions,activeDays,featureOpens:navRows.length,topFeature:top?.[0] || '—',eventCount:events.length};
   }
 
   function resetInsights() {
@@ -140,9 +113,7 @@
     try {
       const value = JSON.parse(localStorage.getItem(STATE_KEY) || 'null');
       return value && typeof value === 'object' ? value : null;
-    } catch (_) {
-      return null;
-    }
+    } catch (_) { return null; }
   }
 
   function saveOnboardingState(status) {
@@ -155,7 +126,8 @@
     style.id = 'nxOnboardingInsightsStyle';
     style.textContent = `
       #nxOnboardingOverlay{position:fixed;inset:0;z-index:2147482000;display:grid;place-items:center;padding:18px;background:rgba(2,6,23,.82);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
-      #nxOnboardingOverlay[hidden]{display:none!important}.nx-tour-shell{width:min(520px,100%);border-radius:24px;padding:1px;background:linear-gradient(145deg,rgba(34,211,238,.65),rgba(139,92,246,.6),rgba(15,23,42,.2));box-shadow:0 30px 90px rgba(0,0,0,.46)}
+      #nxOnboardingOverlay[hidden]{display:none!important;pointer-events:none!important;visibility:hidden!important}
+      .nx-tour-shell{width:min(520px,100%);border-radius:24px;padding:1px;background:linear-gradient(145deg,rgba(34,211,238,.65),rgba(139,92,246,.6),rgba(15,23,42,.2));box-shadow:0 30px 90px rgba(0,0,0,.46)}
       .nx-tour-card{border-radius:23px;padding:22px;background:radial-gradient(circle at 88% 0%,rgba(34,211,238,.13),transparent 35%),linear-gradient(160deg,#071522,#0b1220 58%,#090f1d);color:#eaf7ff;border:1px solid rgba(255,255,255,.05)}
       .nx-tour-top{display:flex;align-items:center;justify-content:space-between;gap:12px}.nx-tour-badge{font-size:10px;font-weight:950;letter-spacing:.14em;color:#67e8f9}.nx-tour-step{font-size:10px;color:#7890a4;font-weight:800}.nx-tour-icon{font-size:42px;margin-top:20px;filter:drop-shadow(0 10px 22px rgba(34,211,238,.16))}
       .nx-tour-title{font-size:25px;line-height:1.16;font-weight:950;margin-top:10px;color:#f8fafc}.nx-tour-text{font-size:12px;line-height:1.7;color:#91a6b9;margin-top:10px}.nx-tour-chips{display:flex;gap:7px;flex-wrap:wrap;margin-top:15px}.nx-tour-chip{font-size:9px;font-weight:850;padding:7px 9px;border-radius:999px;background:rgba(15,23,42,.72);border:1px solid rgba(34,211,238,.16);color:#b8d8e7}
@@ -173,6 +145,8 @@
     overlay = document.createElement('div');
     overlay.id = 'nxOnboardingOverlay';
     overlay.hidden = true;
+    overlay.style.pointerEvents = 'none';
+    overlay.style.visibility = 'hidden';
     overlay.setAttribute('role','dialog');
     overlay.setAttribute('aria-modal','true');
     overlay.setAttribute('aria-label','NexusNova guided app tour');
@@ -238,18 +212,26 @@
   }
 
   function openTour(manual=false) {
+    // In the native app, onboarding is deliberately opt-in from About/Settings.
+    // A startup modal can never own the entire Android touch surface again.
+    if (IS_ANDROID_NATIVE_SHELL && !manual) return false;
     const root = ensureOverlay();
     stepIndex = 0;
     renderStep();
     root.hidden = false;
+    root.style.pointerEvents = 'auto';
+    root.style.visibility = 'visible';
     document.documentElement.style.overflow = 'hidden';
     track('tour_open', manual ? 'manual' : 'auto');
     setTimeout(() => root.querySelector('#nxTourNext')?.focus(), 20);
+    return true;
   }
 
   function closeTour() {
     if (!overlay) return;
     overlay.hidden = true;
+    overlay.style.pointerEvents = 'none';
+    overlay.style.visibility = 'hidden';
     document.documentElement.style.overflow = '';
     renderInsights();
   }
@@ -313,10 +295,7 @@
   function renderInsights() {
     ensureInsightsCard();
     const s = summary();
-    const set = (id,value) => {
-      const node = document.getElementById(id);
-      if (node) node.textContent = String(value);
-    };
+    const set = (id,value) => { const node = document.getElementById(id); if (node) node.textContent = String(value); };
     set('nxInsightSessions',s.sessions);
     set('nxInsightDays',s.activeDays);
     set('nxInsightFeatureOpens',s.featureOpens);
@@ -331,7 +310,10 @@
     track('session_start');
     renderInsights();
     [500,1500,3000,6000].forEach(ms => setTimeout(renderInsights,ms));
-    if (!onboardingState()) {
+
+    // Web/PWA can keep the optional first-run tour. The Android app must start
+    // fully usable; its tour remains available manually from About/Settings.
+    if (!IS_ANDROID_NATIVE_SHELL && !onboardingState()) {
       setTimeout(() => {
         if (!onboardingState() && document.getElementById('tab-home')) openTour(false);
       }, 3500);
@@ -340,11 +322,7 @@
 
   window.nexusOpenAppTour = () => openTour(true);
   window.nexusProductInsights = Object.freeze({
-    version:'local-private-v1',
-    summary,
-    track,
-    reset:resetInsights,
-    openTour:() => openTour(true)
+    version:'local-private-v1.1', summary, track, reset:resetInsights, openTour:() => openTour(true)
   });
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded',boot,{once:true});
