@@ -281,7 +281,7 @@ class NexusAdManager(
         if (TEST_MODE) TEST_INTERSTITIAL_AD_UNIT_ID else PRODUCTION_INTERSTITIAL_AD_UNIT_ID
 
     private fun safeMessage(message: String?): String =
-        String(message ?: "Ad unavailable").take(MAX_ERROR_CHARS)
+        (message ?: "Ad unavailable").take(MAX_ERROR_CHARS)
 
     private companion object {
         const val TEST_MODE = true
