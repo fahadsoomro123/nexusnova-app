@@ -38,6 +38,9 @@ jobs:
       - name: Apply native AdMob bridge
         run: python3 NexusNovaAndroid/patch_admob.py
 
+      - name: Apply UMP privacy options bridge
+        run: python3 NexusNovaAndroid/patch_ad_privacy.py
+
       - name: Restore same-device session
         run: python3 NexusNovaAndroid/patch_session_restore.py
 
@@ -54,6 +57,8 @@ jobs:
           grep -q 'ca-app-pub-5070673529890078~1824799663' NexusNovaAndroid/app/build.gradle.kts
           grep -q 'NexusAdConsentManager' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
           grep -q 'ssvIdentityReady' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
+          grep -q 'nexusnova:ad-privacy-event' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -q 'showAdPrivacyOptions' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
 
       - name: Upload Android debug TEST APK
         uses: actions/upload-artifact@v4
