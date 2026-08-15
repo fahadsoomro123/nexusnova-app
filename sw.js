@@ -1,5 +1,5 @@
 /* NexusNova Service Worker - fresh-code first, offline fallback + FCM web push */
-const CACHE = "nexusnova-shell-v11-mining-single-owner";
+const CACHE = "nexusnova-shell-v12-current-premium";
 
 const ASSETS = [
   "./",
@@ -23,11 +23,16 @@ const ASSETS = [
   "./js/wallet-connect-fix-v2.js",
   "./js/wallet-onchain-sync-v3.js",
   "./js/final-integrity-fix.js",
+  "./js/final-integrity-fix-core.js",
   "./js/nexusnova-ultimate-upgrade.js",
   "./js/family-hub-v1.js",
   "./js/voice-commands-v1.js",
   "./js/wallet-actions-v2.js",
   "./js/rewards-security-v1.js",
+  "./js/nexusnova-rewards-spark-v1.js",
+  "./js/nexusnova-rewarded-ads-config-v1.js",
+  "./js/nexusnova-rewarded-ads-v1.js",
+  "./js/nexusnova-rewarded-ads-button-guard-v1.js",
   "./js/nexusnova-natural-voice-v1.js",
   "./js/nexusnova-new-features-v1.js",
   "./js/nexusnova-allinone-hub-v1.js",
@@ -38,8 +43,15 @@ const ASSETS = [
   "./js/nexusnova-mega-merge-v1.js",
   "./js/nexusnova-top100-live-fix-v3.js",
   "./js/nexusnova-final-user-fixes-v1.js",
-  "./js/nexusnova-allapps-order-guard-v4.js",
+  "./js/nexusnova-premium-ui-v1.js",
+  "./js/nexusnova-allapps-order-guard-v5.js",
+  "./js/nexusnova-allapps-experience-v2.js",
+  "./js/nexusnova-allapps-visual-polish-v1.js",
+  "./js/nexusnova-popup-modernizer-v1.js",
   "./js/nexusnova-scripture-source-guard-v2.js",
+  "./js/nexusnova-scripture-reader-polish-v1.js",
+  "./js/nexusnova-entertainment-live-v1.js",
+  "./js/nexusnova-settings-premium-dialogs-v1.js",
   "./js/nexusnova-fcm-v1.js"
 ];
 
