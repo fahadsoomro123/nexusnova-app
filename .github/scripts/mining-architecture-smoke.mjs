@@ -14,6 +14,7 @@ const page2 = read('js/page2.js');
 const integrity = read('js/final-integrity-fix.js');
 const page2Core = read('js/page2-core.js');
 const rules = read('firestore.rules');
+const boostBridge = read('js/nexusnova-admob-nexus-pass-v1.js');
 const androidOfflineRewards = read('NexusNovaAndroid/app/src/main/assets/www/js/rewards-security-v1.js');
 const androidMain = read('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt');
 
@@ -34,9 +35,19 @@ assert.match(page2Core, /window\.nexusSecureStartMining/, 'legacy page core must
 assert.match(page2Core, /window\.nexusSecureRenderMining/, 'legacy page core must delegate timer rendering to secure engine');
 
 assert.match(rules, /function validMiningStart\(\)/, 'Firestore rules must validate mining start');
+assert.match(rules, /function validMiningBoost\(\)/, 'Firestore rules must validate mining boosts');
+assert.match(rules, /request\.resource\.data\.miningStartedAt == resource\.data\.miningStartedAt - 7200000/, 'each mining boost must be exactly two hours');
+assert.match(rules, /request\.resource\.data\.miningStartedAt >= resource\.data\.miningLastUpdate - 43200000/, 'mining boost must cap at 12 hours per session');
 assert.match(rules, /function validMiningFinish\(\)/, 'Firestore rules must validate mining finish');
 assert.match(rules, /request\.resource\.data\.balance == resource\.data\.balance \+ 24/, 'Firestore rules must enforce exact +24 NVX reward');
 assert.match(rules, /request\.auth\.token\.email_verified == true/, 'verified email gate missing from mining rules');
+
+assert.match(boostBridge, /tx\.update\(ref, \{ miningStartedAt: nextStartedAt \}\)/, 'boost bridge may shift only the mining start timestamp');
+assert.match(boostBridge, /TOTAL_LIMIT = BOOSTER_LIMIT \+ RAIN_LIMIT/, 'combined boost limit missing');
+assert.match(boostBridge, /BOOSTER_LIMIT = 2/, 'Nova Booster limit must be two uses');
+assert.match(boostBridge, /RAIN_LIMIT = 4/, 'Nova Rain limit must be four uses');
+assert.doesNotMatch(boostBridge, /balance\s*:/, 'rewarded mining boost bridge must never write balance');
+assert.doesNotMatch(boostBridge, /totalMined\s*:/, 'rewarded mining boost bridge must never write totalMined');
 
 const executableWriters = [];
 for (const name of fs.readdirSync(jsDir).filter(name => name.endsWith('.js'))) {
@@ -55,4 +66,4 @@ assert.match(androidOfflineRewards, /android-offline-guard-v1/, 'Android offline
 assert.doesNotMatch(androidOfflineRewards, /runTransaction|updateDoc|httpsCallable|getFunctions|startMiningSession|finishMiningSession/, 'Android offline bundle must not write mining/rewards');
 assert.match(androidOfflineRewards, /ONLINE MINING REQUIRED/, 'Android offline mining must clearly require online production app');
 
-console.log('PASS mining architecture: one Firestore-authoritative web writer, Android offline value guard, no recovery/fetch competitors.');
+console.log('PASS mining architecture: one Firestore-authoritative mining owner plus capped timestamp-only AdMob boost bridge.');
