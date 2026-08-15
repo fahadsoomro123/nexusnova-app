@@ -1,25 +1,33 @@
-/* NexusNova Daily Reward Ad Test v3
-   Android-only owner verification layer.
+/* NexusNova Daily Reward Ad Gate v4
+   Production-flow wiring on top of the proven Android rewarded-ad owner.
 
-   Safety contract:
-   - While the real Daily Reward is on cooldown, the button may open a rewarded
-     TEST ad only.
-   - No backend Daily Reward call is made by this test layer.
-   - No NVX and no mining boost is granted by this test layer.
-   - Ad load failures are shown inline only; never as startup/debug popups.
+   Contract:
+   - A ready Daily Reward can only continue after a completed rewarded ad.
+   - The existing secure Firestore +5 NVX transaction remains the only reward writer.
+   - Cooldown buttons stay on cooldown; this layer no longer re-enables them for testing.
+   - Mining Boost events are ignored by this gate.
+   - Ad failures remain inline only; no startup/debug popups.
+
+   NOTE: Android v60 currently uses Google's direct-sold TEST creative so this
+   proves the reward flow without risking accidental live-ad traffic. Production
+   ad IDs can be enabled later without changing this Daily Reward logic.
 */
 (() => {
   'use strict';
-  if (window.__nxDailyRewardAdTestV3) return;
+  if (window.__nxDailyRewardAdGateV4) return;
+  window.__nxDailyRewardAdGateV4 = true;
   window.__nxDailyRewardAdTestV3 = true;
   window.__nxDailyRewardAdTestV2 = true;
   window.__nxDailyRewardAdTestV1 = true;
 
   const BUTTON_ID = 'dailyBtn';
   const HINT_ID = 'nxDailyAdTestHint';
-  const DEFAULT_HINT = 'TEST MODE • Tap Daily to verify the rewarded ad • +5 NVX remains on its real cooldown.';
+  const REWARD_PURPOSE = 'daily-reward-test';
+  const READY_HINT = 'Watch one rewarded ad to unlock today\'s +5 NVX Daily Reward.';
 
   let pending = false;
+  let earned = false;
+  let claimPromise = null;
   let noticeText = '';
   let noticeUntil = 0;
   let observedButton = null;
@@ -31,8 +39,21 @@
     typeof window.nexusPostNativeAction === 'function' ||
     typeof window.NexusAndroid?.postMessage === 'function';
 
+  function textOf(btn) {
+    return String(btn?.textContent || '').replace(/\s+/g, ' ').trim();
+  }
+
   function isCooldownButton(btn) {
-    return Boolean(btn && /NEXT\s+DAILY\s+BONUS/i.test(String(btn.textContent || '')));
+    return Boolean(btn && /NEXT\s+DAILY\s+BONUS/i.test(textOf(btn)));
+  }
+
+  function isReadyButton(btn) {
+    const text = textOf(btn);
+    return Boolean(
+      btn &&
+      !isCooldownButton(btn) &&
+      (/CLAIM\s+(?:DAILY\s+)?BONUS/i.test(text) || /CLAIM.*5\s*NVX/i.test(text) || /DAILY\s+REWARD.*CLAIM/i.test(text))
+    );
   }
 
   function clean(value, limit = 180) {
@@ -52,7 +73,7 @@
     };
     lastDiagnostic = diagnostic;
     window.__nxLastDailyAdDiagnostic = diagnostic;
-    console.warn('NexusNova Daily rewarded test diagnostic:', diagnostic);
+    console.warn('NexusNova Daily rewarded diagnostic:', diagnostic);
     return diagnostic;
   }
 
@@ -65,7 +86,7 @@
       window.NexusAndroid.postMessage(JSON.stringify({ action, ...payload }));
       return true;
     } catch (error) {
-      console.warn('NexusNova Daily Ad Test native bridge:', error);
+      console.warn('NexusNova Daily Reward native bridge:', error);
       return false;
     }
   }
@@ -87,7 +108,7 @@
   }
 
   function currentHint() {
-    return noticeText && Date.now() < noticeUntil ? noticeText : DEFAULT_HINT;
+    return noticeText && Date.now() < noticeUntil ? noticeText : READY_HINT;
   }
 
   function setNotice(text, duration = 9000, tone = 'normal') {
@@ -104,6 +125,12 @@
         decorate();
       }
     }, duration + 80);
+  }
+
+  function clearGateUi(btn) {
+    btn?.removeAttribute('data-nx-daily-ad-gate');
+    btn?.removeAttribute('data-nx-daily-ad-test');
+    document.getElementById(HINT_ID)?.remove();
   }
 
   function decorate() {
@@ -123,62 +150,109 @@
       });
     }
 
-    const cooldown = isCooldownButton(btn);
-    if (!cooldown || !hasNative()) {
-      btn.removeAttribute('data-nx-daily-ad-test');
-      document.getElementById(HINT_ID)?.remove();
+    if (isCooldownButton(btn)) {
+      clearGateUi(btn);
       return;
     }
 
+    if (!isReadyButton(btn)) {
+      clearGateUi(btn);
+      return;
+    }
+
+    btn.dataset.nxDailyAdGate = '1';
     btn.dataset.nxDailyAdTest = '1';
-    btn.title = 'Owner test: opens a rewarded test ad only. The real +5 NVX Daily Reward remains on its normal cooldown.';
-    if (!pending && btn.disabled) btn.disabled = false;
+    btn.title = 'Complete one rewarded ad, then NexusNova securely claims today\'s +5 NVX Daily Reward.';
+
+    if (!pending && !claimPromise && btn.disabled) btn.disabled = false;
 
     const hint = ensureHint(btn);
     if (hint) {
-      hint.textContent = pending ? 'Opening rewarded test ad…' : currentHint();
-      if (pending) hint.style.color = '#8fb8e8';
+      hint.textContent = pending
+        ? 'Preparing rewarded ad…'
+        : claimPromise
+          ? 'Ad completed • adding +5 NVX securely…'
+          : currentHint();
+      hint.style.color = earned || claimPromise ? '#7ee7c4' : '#8fb8e8';
     }
   }
 
-  async function showDailyAdTest() {
+  async function beginDailyRewardAd() {
     const btn = button();
-    if (!btn || pending) return { shown: false, reason: pending ? 'pending' : 'missing-button' };
-    if (!isCooldownButton(btn)) return { shown: false, reason: 'daily-ready' };
+    if (!btn || pending || claimPromise) {
+      return { shown:false, reason: pending ? 'pending' : claimPromise ? 'claiming' : 'missing-button' };
+    }
+    if (isCooldownButton(btn)) return { shown:false, reason:'daily-cooldown' };
+    if (!isReadyButton(btn)) return { shown:false, reason:'daily-not-ready' };
 
     if (!hasNative()) {
-      setNotice('Rewarded-ad testing is available inside the NexusNova Android app.', 7000);
-      return { shown: false, native: false };
+      setNotice('Daily +5 NVX requires the NexusNova Android app because the rewarded ad must complete first.', 9000, 'error');
+      return { shown:false, native:false };
     }
 
     pending = true;
+    earned = false;
     lastDiagnostic = null;
     btn.disabled = true;
     decorate();
 
     const posted = postNative('showRewardedAd', {
-      rewardPurpose: 'daily-reward-test',
+      rewardPurpose: REWARD_PURPOSE,
       testOnly: true
     });
 
     if (!posted) {
       pending = false;
       btn.disabled = false;
-      setNotice('Rewarded ad bridge is not ready yet. No reward was changed.', 9000, 'error');
+      setNotice('Rewarded ad bridge is not ready yet. +5 NVX was not claimed.', 9000, 'error');
       decorate();
-      return { shown: false, native: false };
+      return { shown:false, native:false };
     }
 
-    return { shown: true, native: true, testOnly: true };
+    return { shown:true, native:true, rewardPurpose:REWARD_PURPOSE };
+  }
+
+  async function claimAfterEarnedAd() {
+    if (claimPromise) return claimPromise;
+    if (!earned) throw new Error('Daily Reward ad proof is missing.');
+
+    claimPromise = (async () => {
+      const btn = button();
+      try {
+        setNotice('✅ Ad completed • securely adding +5 NVX…', 12000, 'success');
+        if (typeof window.nexusSecureClaimDaily !== 'function') {
+          throw new Error('Secure Daily Reward engine is still loading.');
+        }
+
+        const result = await window.nexusSecureClaimDaily();
+        earned = false;
+        setNotice('✅ Daily Reward complete • +5 NVX added securely.', 10000, 'success');
+        window.dispatchEvent(new CustomEvent('nexusnova:daily-reward-ad-claimed', {
+          detail: { provider:'admob', ok:true, reward:Number(result?.reward || 5) }
+        }));
+        return result;
+      } catch (error) {
+        earned = false;
+        console.warn('NexusNova ad-gated Daily Reward claim:', error);
+        setNotice(`Ad completed, but Daily Reward was not added: ${clean(error?.message || error, 160)}`, 12000, 'error');
+        throw error;
+      } finally {
+        claimPromise = null;
+        if (btn && !isCooldownButton(btn)) btn.disabled = false;
+        decorate();
+      }
+    })();
+
+    return claimPromise;
   }
 
   document.addEventListener('click', event => {
     const btn = event.target?.closest?.(`#${BUTTON_ID}`);
-    if (!btn || btn.dataset.nxDailyAdTest !== '1' || !isCooldownButton(btn)) return;
+    if (!btn || btn.dataset.nxDailyAdGate !== '1' || !isReadyButton(btn)) return;
     event.preventDefault();
     event.stopPropagation();
     event.stopImmediatePropagation();
-    void showDailyAdTest();
+    void beginDailyRewardAd();
   }, true);
 
   window.addEventListener('nexusnova:native-ad-event', event => {
@@ -186,7 +260,12 @@
     const detail = event?.detail || {};
     if (String(detail.provider || '') !== 'admob') return;
 
+    const purpose = String(detail.rewardPurpose || '');
     const type = String(detail.event || '');
+
+    // Never consume Mining Boost ad events.
+    if (purpose && purpose !== REWARD_PURPOSE) return;
+
     if (type === 'rewarded-retrying') {
       rememberDiagnostic(detail);
       setNotice('Rewarded ad is retrying…', 3500);
@@ -196,50 +275,53 @@
     if (type === 'rewarded-earned') {
       event.stopImmediatePropagation();
       pending = false;
+      earned = true;
       const btn = button();
-      if (btn) btn.disabled = false;
-      setNotice('✅ TEST AD COMPLETED • AdMob rewarded ad is working • no extra NVX or mining boost was applied.', 10000, 'success');
-      decorate();
-      window.dispatchEvent(new CustomEvent('nexusnova:daily-ad-test-complete', {
-        detail: { provider: 'admob', ok: true, testOnly: true }
-      }));
+      if (btn) btn.disabled = true;
+      void claimAfterEarnedAd();
       return;
     }
 
     if (type === 'rewarded-unavailable' || type === 'rewarded-load-failed' || type === 'rewarded-failed') {
       event.stopImmediatePropagation();
       pending = false;
+      earned = false;
       const btn = button();
       if (btn) btn.disabled = false;
 
       const terminal = rememberDiagnostic(detail);
       const useful = terminal.code !== null || terminal.message ? terminal : lastDiagnostic;
-      const code = useful?.code !== null && useful?.code !== undefined ? `Google ${useful.code}` : 'AdMob';
+      const code = useful?.code !== null && useful?.code !== undefined ? `Google ${useful.code}` : 'Ad provider';
       const message = useful?.message || useful?.reason || 'rewarded ad unavailable';
-      setNotice(`Ad unavailable • ${code}: ${message} • no NVX or mining value changed.`, 12000, 'error');
+      setNotice(`Ad unavailable • ${code}: ${message} • +5 NVX was not claimed.`, 12000, 'error');
       decorate();
       return;
     }
 
     if (type === 'rewarded-dismissed') {
       pending = false;
+      earned = false;
       const btn = button();
       if (btn) btn.disabled = false;
-      setNotice('Test ad closed before completion. No NVX or mining value was changed.', 8000);
+      setNotice('Ad closed before the reward completed. +5 NVX was not claimed.', 8000);
       decorate();
     }
   }, true);
 
-  window.NexusNovaDailyAdTest = Object.freeze({
-    show: showDailyAdTest,
-    active: () => Boolean(button()?.dataset.nxDailyAdTest === '1'),
+  window.NexusNovaDailyRewardAds = Object.freeze({
+    show: beginDailyRewardAd,
+    active: () => Boolean(button()?.dataset.nxDailyAdGate === '1'),
     pending: () => pending,
+    claiming: () => Boolean(claimPromise),
     lastError: () => lastDiagnostic ? { ...lastDiagnostic } : null
   });
 
-  decorate();
-  window.addEventListener('load', decorate, { once: true });
-  [250, 700, 1400, 2600, 4500, 7000].forEach(ms => setTimeout(decorate, ms));
+  // Compatibility alias retained for older diagnostics only.
+  window.NexusNovaDailyAdTest = window.NexusNovaDailyRewardAds;
 
-  console.info('NexusNova Daily Reward ad test gate loaded: v3 inline-only');
+  decorate();
+  window.addEventListener('load', decorate, { once:true });
+  [250,700,1400,2600,4500,7000].forEach(ms => setTimeout(decorate, ms));
+
+  console.info('NexusNova Daily Reward ad gate loaded: v4');
 })();
