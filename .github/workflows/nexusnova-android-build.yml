@@ -35,12 +35,15 @@ jobs:
       - name: Apply Android viewport lock
         run: python3 NexusNovaAndroid/patch_viewport.py
 
+      - name: Apply native AdMob bridge
+        run: python3 NexusNovaAndroid/patch_admob.py
+
       - name: Compile Android debug APK
         run: gradle -p NexusNovaAndroid :app:assembleDebug --stacktrace --no-daemon
 
       - name: Upload Android debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: NexusNova-hard-centered-no-horizontal-scroll-apk
+          name: NexusNova-AdMob-NexusPass-test-apk
           path: NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
