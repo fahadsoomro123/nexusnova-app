@@ -32,7 +32,7 @@ await import('./page2-core.js?v=appcheck-debug-10');
 // still on its 24-hour cooldown, allow the same button to open a rewarded TEST
 // ad without calling the reward backend or applying a mining boost.
 try {
-  await import('./nexusnova-daily-ad-test-v1.js?v=1');
+  await import('./nexusnova-daily-ad-test-v1.js?v=2');
 } catch (error) {
   console.warn('NexusNova Daily Reward ad test gate:', error);
 }
