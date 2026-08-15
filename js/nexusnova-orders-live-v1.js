@@ -1,15 +1,73 @@
-/* NexusNova Orders Live v1
+/* NexusNova Orders Live v2
    Real Firestore buy-request/order records shared between buyer and seller.
-   Statuses are user/seller workflow states, not fake courier or payment confirmations. */
+   Statuses are user/seller workflow states, not fake courier or payment confirmations.
+   Premium NexusNova dialogs replace browser confirm/alert UI.
+*/
 (() => {
   'use strict';
-  if (window.__nxOrdersLiveV1) return;
+  if (window.__nxOrdersLiveV2) return;
+  window.__nxOrdersLiveV2 = true;
   window.__nxOrdersLiveV1 = true;
 
   const $ = id => document.getElementById(id);
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
   let api = null;
   let currentRows = [];
+  let uiPromise = null;
+
+  function getUI() {
+    if (window.NexusNovaUI) return Promise.resolve(window.NexusNovaUI);
+    if (uiPromise) return uiPromise;
+    uiPromise = new Promise((resolve,reject) => {
+      const existing = document.querySelector('script[data-nx-premium-ui],script[data-nx-experience-premium],script[data-nx-popup-premium]');
+      const done = () => window.NexusNovaUI ? resolve(window.NexusNovaUI) : reject(new Error('Premium UI did not initialize.'));
+      if (existing) {
+        window.addEventListener('nexusnova:premium-ui-ready', done, {once:true});
+        setTimeout(done,1200);
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = './js/nexusnova-premium-ui-v1.js?v=1';
+      script.dataset.nxPremiumUi = '1';
+      script.onload = done;
+      script.onerror = () => reject(new Error('Premium UI could not be loaded.'));
+      document.body.appendChild(script);
+    }).finally(() => { uiPromise = null; });
+    return uiPromise;
+  }
+
+  async function confirmStatus(next) {
+    try {
+      const ui = await getUI();
+      return await ui.confirm({
+        eyebrow:'NEXUSNOVA ORDERS',
+        title:`Set order to ${label(next)}?`,
+        subtitle:'Order status update',
+        text:'This updates the real buyer/seller order record. It does not claim payment settlement or courier confirmation.',
+        icon:'security',
+        confirmText:`Set ${label(next)}`,
+        cancelText:'Keep Current'
+      });
+    } catch (_) {
+      return false;
+    }
+  }
+
+  async function orderMessage(title,text,danger=false) {
+    try {
+      const ui = await getUI();
+      await ui.alert({
+        eyebrow:'NEXUSNOVA ORDERS',
+        title,
+        subtitle:danger ? 'Order action needs attention' : 'Order update',
+        text,
+        icon:danger ? 'security' : 'spark',
+        buttonText:'OK'
+      });
+    } catch (_) {
+      status(text,danger);
+    }
+  }
 
   function output() {
     let el = $('nxOrdersLiveOut');
@@ -27,7 +85,18 @@
 
   function status(message, danger = false) {
     const el = output();
-    if (el) el.innerHTML = `<div class="nxmega-muted" style="${danger ? 'color:#f87171' : ''}">${esc(message)}</div>`;
+    if (!el) return;
+    const ui = window.NexusNovaUI;
+    if (ui?.resultShell) {
+      el.innerHTML = ui.resultShell({
+        title:danger ? 'Orders Need Attention' : 'NexusNova Orders',
+        subtitle:danger ? 'Could not complete the order action' : 'Live buyer and seller records',
+        icon:danger ? 'security' : 'spark',
+        bodyHtml:`<div style="${danger ? 'color:#ff9aac' : 'color:#b9cee5'}">${esc(message)}</div>`
+      });
+      return;
+    }
+    el.innerHTML = `<div class="nxmega-muted" style="${danger ? 'color:#f87171' : ''}">${esc(message)}</div>`;
   }
 
   async function firebase() {
@@ -127,13 +196,20 @@
   async function updateStatus(id,next) {
     const allowed = ['accepted','processing','shipped','out_for_delivery','delivered','cancelled','return_requested'];
     if (!allowed.includes(next)) return;
-    if (!confirm(`Update this order to “${label(next)}”?`)) return;
+    if (!(await confirmStatus(next))) return;
     try {
       const {f} = await required();
       await f.updateDoc(f.doc(f.db,'marketplaceOrders',id), {status:next,updatedAt:f.serverTimestamp()});
       await refresh('all');
+      await orderMessage('Order Updated',`Order status is now ${label(next)}.`);
     } catch (error) {
-      alert(error?.code === 'permission-denied' ? 'Order rules are not deployed or this status change is not allowed for your role.' : (error?.message || 'Could not update order.'));
+      await orderMessage(
+        'Could Not Update Order',
+        error?.code === 'permission-denied'
+          ? 'Order rules are not deployed or this status change is not allowed for your role.'
+          : (error?.message || 'Could not update order.'),
+        true
+      );
     }
   }
 
@@ -152,6 +228,7 @@
 
   function install() {
     if (!$('tab-mega-orders')) return;
+    getUI().catch(()=>{});
     claim('All Orders','nxOrdersAll','all');
     claim('Processing','nxOrdersProcessing','processing');
     claim('Shipped','nxOrdersShipped','shipped');
