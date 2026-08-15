@@ -155,6 +155,17 @@
     if (type === 'interstitial-showing' || type === 'interstitial-unavailable' || type === 'interstitial-failed') interstitialReady = false;
   });
 
+  // All Apps back/return is a natural break. Capture the feature on pointer-up
+  // before legacy click handlers hide it, then let the normal navigation finish.
+  // Only the safe allow-list above can ever trigger an interstitial.
+  document.addEventListener('pointerup', event => {
+    const back = event.target?.closest?.('.nx-allapps-back button,.tools-main-back');
+    if (!back) return;
+    const feature = normalizeFeature(document.querySelector('.tab.active')?.id || '');
+    if (!isEligibleFeature(feature)) return;
+    setTimeout(() => maybeInterstitial('allapps-return', { feature }), 450);
+  }, true);
+
   readSession();
   window.NexusNovaAds = Object.freeze({
     maybeInterstitial,
