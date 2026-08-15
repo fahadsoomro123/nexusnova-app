@@ -28,7 +28,7 @@ try {
   await page.addScriptTag({url:`${base}/js/nexusnova-onboarding-insights-v1.js?v=1`});
 
   assert.equal(await page.evaluate(()=>window.nexusOnboardingVersion),'onboarding-insights-v1.1');
-  assert.equal(await page.evaluate(()=>window.nexusProductInsights.version),'local-private-v1');
+  assert.equal(await page.evaluate(()=>window.nexusProductInsights.version),'local-private-v1.1');
   await page.waitForSelector('#nxPrivateInsightsCard');
   assert.equal(await page.textContent('#nxInsightSessions'),'1');
   console.log('PASS onboarding module boots and records a local session only');
