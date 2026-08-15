@@ -13,7 +13,7 @@ permissions:
 jobs:
   runtime:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -27,6 +27,9 @@ jobs:
         run: |
           npm install --no-save playwright@1.55.0
           npx playwright install --with-deps chromium
+
+      - name: Prepare deterministic Android web shell
+        run: python3 NexusNovaAndroid/prepare_native_web_shell.py
 
       - name: Start local NexusNova origin
         shell: bash
@@ -46,3 +49,4 @@ jobs:
           node .github/scripts/nexusnova-allapps-regression-smoke.mjs
           node .github/scripts/nexusnova-premium-features-smoke.mjs
           node .github/scripts/nexusnova-touch-lifeline-runtime.mjs
+          node .github/scripts/nexusnova-android-fullpage-stability.mjs
