@@ -17,7 +17,7 @@ const required = [
   'adslotId !== expectedAdslot',
   '!exactReward(amount)',
   "db.collection('rewardedAdTransactions').doc(rewardId)",
-  'tx.create(rewardRef',
+  'tx.set(rewardRef',
   'rewardedAdCount: FieldValue.increment(1)',
   'rewardedAdTotalNvx: FieldValue.increment(REWARD_NVX)',
   "reason: 'invalid_signature'",
