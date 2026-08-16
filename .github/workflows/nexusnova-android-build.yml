@@ -76,15 +76,25 @@ jobs:
           grep -q '!window.__nexusAndroidShell' NexusNovaAndroid/app/src/main/assets/www/page2.html
           grep -q 'android-mining-boost-sync-v1' NexusNovaAndroid/app/src/main/assets/www/js/rewards-security-v1.js
           grep -q 'nexusSecureAdoptMiningState' NexusNovaAndroid/app/src/main/assets/www/js/rewards-security-v1.js
-          grep -q 'nexusSecureAdoptMiningState(result)' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
-          grep -q 'nexusSecureSyncMining?.({ force:true })' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
-          grep -q 'nexusSecureClaimDaily' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-daily-secure-claim-v1.js
+          grep -q 'MINING_START_AD_PLACEMENT' NexusNovaAndroid/app/src/main/assets/www/js/rewards-security-v1.js
+          grep -q 'await requireMiningStartAd()' NexusNovaAndroid/app/src/main/assets/www/js/rewards-security-v1.js
+          grep -q "single-owner-v5-start-ad-nova-vault" NexusNovaAndroid/app/src/main/assets/www/js/rewards-security-v1.js
+          grep -q 'SERVER_VERIFIED_BOOST_ENABLED = false' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
+          grep -q 'window.NexusNovaVault.useBoost' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
+          grep -q 'TEST ads never reduce mining time or change NVX.' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
           grep -q 'boostKind:expected, testOnly:true' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
+          grep -q "window.nexusNovaVaultVersion = 'nova-vault-v1'" NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-nova-vault-v1.js
+          grep -q "secureCallable('openNovaVault')" NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-nova-vault-v1.js
+          grep -q 'serverVerifiedValueEnabled: false' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-rewarded-ads-config-v1.js
+          grep -q 'nexusnova-nova-vault-v1.js' NexusNovaAndroid/app/src/main/assets/www/js/final-integrity-fix.js
+          grep -q 'nexusSecureClaimDaily' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-daily-secure-claim-v1.js
           grep -q 'CURRENT_KDF_ITERATIONS = 600000' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-file-vault-v1.js
           grep -q "window.nexusSecurityLockVersion = 'browser-pin-v3'" NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-security-lock-v1.js
           grep -q 'AUTO_RELOCK_AFTER_HIDDEN_MS' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-security-lock-v1.js
           grep -q 'nx-rewarded-production-proof-guard-v1' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
           grep -q 'production-proof-not-enabled' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
+          grep -q 'val miningStartGate = safePlacement == "mining-start"' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
+          grep -q '!miningStartGate && now - lastInterstitialShownAt' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
           grep -q 'NATIVE_SHELL_PATH = "/nexusnova-native/"' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
           grep -q 'interceptNativeShell' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
           grep -q 'scheduleInteractiveShellCheck' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
@@ -96,6 +106,7 @@ jobs:
           node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
           node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-daily-ad-test-v1.js
           node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-watch-ad-reward-v1.js
+          node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-nova-vault-v1.js
           node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-file-vault-v1.js
           node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-security-lock-v1.js
 
