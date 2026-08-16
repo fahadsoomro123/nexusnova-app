@@ -1,0 +1,98 @@
+/* NexusNova Book Focus v1 — navigation/presentation only. */
+#tab-mega-islamic .nx-book-focus-bar{
+  position:sticky;
+  top:8px;
+  z-index:35;
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr) auto;
+  align-items:center;
+  gap:12px;
+  margin:8px 0 16px;
+  padding:10px 12px;
+  border:1px solid rgba(207,164,79,.28);
+  border-radius:18px;
+  background:linear-gradient(135deg,rgba(5,18,31,.97),rgba(10,32,52,.96));
+  box-shadow:0 16px 38px rgba(0,0,0,.28),inset 0 1px rgba(255,255,255,.05);
+  backdrop-filter:blur(16px);
+  -webkit-backdrop-filter:blur(16px);
+}
+#tab-mega-islamic .nx-book-focus-bar[hidden]{display:none!important}
+#tab-mega-islamic .nx-book-focus-back{
+  min-height:42px;
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  border:1px solid rgba(213,177,103,.30);
+  border-radius:13px;
+  padding:0 12px;
+  background:linear-gradient(145deg,rgba(148,102,35,.18),rgba(48,34,17,.32));
+  color:#f4e4bd;
+  font:800 11px/1 system-ui,-apple-system,sans-serif;
+  letter-spacing:.04em;
+  cursor:pointer;
+}
+#tab-mega-islamic .nx-book-focus-back span:first-child{font-size:17px;line-height:1}
+#tab-mega-islamic .nx-book-focus-title{min-width:0;display:flex;flex-direction:column;gap:2px}
+#tab-mega-islamic .nx-book-focus-title small{font:900 8px/1.1 system-ui,-apple-system,sans-serif;letter-spacing:.18em;color:#c7a865}
+#tab-mega-islamic .nx-book-focus-title strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#f8fbff;font:850 13px/1.25 system-ui,-apple-system,sans-serif}
+#tab-mega-islamic .nx-book-focus-mark{
+  width:34px;height:34px;border-radius:11px;display:grid;place-items:center;
+  color:#f5d889;border:1px solid rgba(224,185,96,.25);
+  background:radial-gradient(circle at 35% 25%,rgba(255,227,160,.18),rgba(126,88,34,.10));
+  box-shadow:inset 0 1px rgba(255,255,255,.07)
+}
+
+/* Once a shelf book is chosen, collapse the catalogue shelf. The selected
+   panel becomes the main screen instead of opening far below it. */
+#tab-mega-islamic .nxlib-islamic-hero.nx-book-focus-active>.nxlib-shell,
+#tab-mega-islamic .nxlib-islamic-hero.nx-book-focus-active>.nxlib-legacy-tabs{
+  display:none!important;
+}
+#tab-mega-islamic .nxlib-islamic-hero.nx-book-focus-active{
+  scroll-margin-top:110px;
+}
+#tab-mega-islamic .nx-book-focus-panel{
+  position:relative;
+  scroll-margin-top:112px;
+}
+#tab-mega-islamic .nx-book-focus-enter{
+  animation:nxBookOpenIn .48s cubic-bezier(.18,.82,.24,1) both;
+}
+
+/* Reader target treatment. It keeps the real reader DOM and data source,
+   merely brings it into view and gives a brief premium page-open cue. */
+.nx-book-reader-focus{
+  scroll-margin-top:112px!important;
+  position:relative;
+}
+.nx-book-reader-pop{
+  animation:nxBookPageReveal .52s cubic-bezier(.18,.82,.24,1) both;
+}
+
+/* Urdu Library already has a dedicated reader screen; make its transition feel
+   consistent with the same universal book-opening system. */
+#nxUrduReader.nx-book-reader-focus{
+  scroll-margin-top:100px!important;
+}
+
+@keyframes nxBookOpenIn{
+  from{opacity:.25;transform:translateY(18px) scale(.992);filter:saturate(.88)}
+  to{opacity:1;transform:translateY(0) scale(1);filter:saturate(1)}
+}
+@keyframes nxBookPageReveal{
+  0%{opacity:.55;transform:translateY(12px) scale(.994);box-shadow:0 0 0 rgba(0,0,0,0)}
+  55%{opacity:1;transform:translateY(0) scale(1.003);box-shadow:0 18px 44px rgba(0,0,0,.20)}
+  100%{opacity:1;transform:translateY(0) scale(1);box-shadow:inherit}
+}
+
+@media(max-width:640px){
+  #tab-mega-islamic .nx-book-focus-bar{top:6px;margin:6px 0 12px;padding:9px 10px;border-radius:16px;gap:9px}
+  #tab-mega-islamic .nx-book-focus-back{min-height:40px;padding:0 10px;border-radius:12px}
+  #tab-mega-islamic .nx-book-focus-title strong{font-size:12px}
+  #tab-mega-islamic .nx-book-focus-mark{width:31px;height:31px;border-radius:10px}
+  #tab-mega-islamic .nx-book-focus-panel,.nx-book-reader-focus{scroll-margin-top:96px!important}
+}
+@media(prefers-reduced-motion:reduce){
+  #tab-mega-islamic .nx-book-focus-enter,.nx-book-reader-pop{animation:none!important}
+  html{scroll-behavior:auto!important}
+}
