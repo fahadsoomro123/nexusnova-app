@@ -176,3 +176,27 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', load, {once:true});
   else load();
 })();
+
+/* Live utility redesign loader. Presentation/sensor/network utilities only. */
+(() => {
+  'use strict';
+  if (window.__nxLiveUtilityLoader20260817) return;
+  window.__nxLiveUtilityLoader20260817 = true;
+  const load = () => {
+    [
+      ['./js/nexusnova-qibla-live-v2.js?v=20260817','qibla-live-v2'],
+      ['./js/nexusnova-speed-meter-v3.js?v=20260817','speed-meter-v3'],
+      ['./js/nexusnova-weather-visual-v2.js?v=20260817','weather-visual-v2']
+    ].forEach(([src,key]) => {
+      if (document.querySelector(`script[data-nx-live-utility="${key}"]`)) return;
+      const script = document.createElement('script');
+      script.src = src;
+      script.defer = true;
+      script.dataset.nxLiveUtility = key;
+      script.onerror = () => console.warn('NexusNova live utility could not load:', key);
+      document.head.appendChild(script);
+    });
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded',()=>setTimeout(load,1700),{once:true});
+  else setTimeout(load,1700);
+})();
