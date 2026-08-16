@@ -1,0 +1,51 @@
+name: NexusNova Wallet Security Hardening
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/scripts/harden_wallet_send_context.py'
+      - '.github/scripts/wallet-security-readiness.py'
+      - '.github/workflows/wallet-security-hardening.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  harden-wallet:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Revalidate wallet account and chain before send
+        run: python3 .github/scripts/harden_wallet_send_context.py
+
+      - name: Check wallet JavaScript syntax
+        run: |
+          node --check js/wallet-connect-fix-v2.js
+          node --check js/wallet-onchain-sync-v3.js
+          node --check js/wallet-actions-v2.js
+
+      - name: Validate wallet financial security contract
+        run: python3 .github/scripts/wallet-security-readiness.py
+
+      - name: Verify clean patch
+        run: git diff --check
+
+      - name: Commit wallet hardening
+        run: |
+          if git diff --quiet -- js/wallet-actions-v2.js; then
+            echo 'Wallet send-context hardening already applied.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add js/wallet-actions-v2.js
+          git commit -m 'Revalidate wallet context before transfers'
+          git push origin HEAD:main
