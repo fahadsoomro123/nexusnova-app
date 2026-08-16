@@ -63,3 +63,8 @@ runpy.run_path('NexusNovaAndroid/patch_video_smoothness_v2_fix.py', run_name='__
 runpy.run_path('NexusNovaAndroid/patch_video_smoothness_v3_perf.py', run_name='__main__')
 runpy.run_path('NexusNovaAndroid/patch_video_smoothness_v4_runtime.py', run_name='__main__')
 runpy.run_path('NexusNovaAndroid/patch_video_smoothness_v5_timewarp_nav.py', run_name='__main__')
+
+# Auth/session hardening must be the final web-shell owner. Earlier UI/performance
+# patches intentionally work against the legacy layout; applying auth first made
+# those patches reject the modified structure and stopped Android builds.
+runpy.run_path('NexusNovaAndroid/patch_android_auth_handoff.py', run_name='__main__')
