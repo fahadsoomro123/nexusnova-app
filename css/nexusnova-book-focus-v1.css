@@ -1,7 +1,7 @@
 /* NexusNova Book Focus v1 — navigation/presentation only. */
 #tab-mega-islamic .nx-book-focus-bar{
-  position:sticky;
-  top:8px;
+  position:relative;
+  top:auto;
   z-index:35;
   display:grid;
   grid-template-columns:auto minmax(0,1fr) auto;
@@ -86,7 +86,7 @@
 }
 
 @media(max-width:640px){
-  #tab-mega-islamic .nx-book-focus-bar{top:6px;margin:6px 0 12px;padding:9px 10px;border-radius:16px;gap:9px}
+  #tab-mega-islamic .nx-book-focus-bar{top:auto;margin:6px 0 12px;padding:9px 10px;border-radius:16px;gap:9px}
   #tab-mega-islamic .nx-book-focus-back{min-height:40px;padding:0 10px;border-radius:12px}
   #tab-mega-islamic .nx-book-focus-title strong{font-size:12px}
   #tab-mega-islamic .nx-book-focus-mark{width:31px;height:31px;border-radius:10px}
