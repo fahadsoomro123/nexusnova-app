@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - '.github/scripts/harden_daily_reward_rules.py'
+      - '.github/scripts/harden_auth_appcheck.py'
       - '.github/workflows/firebase-security-hardening.yml'
   workflow_dispatch:
 
@@ -13,7 +14,7 @@ permissions:
   contents: write
 
 jobs:
-  harden-rules:
+  harden-security:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -25,7 +26,10 @@ jobs:
       - name: Remove direct Daily Reward value write
         run: python3 .github/scripts/harden_daily_reward_rules.py
 
-      - name: Verify only intended rule changed
+      - name: Configure login App Check key
+        run: python3 .github/scripts/harden_auth_appcheck.py
+
+      - name: Verify security contract
         run: |
           git diff --check
           if grep -A20 'match /users/{uid}' firestore.rules | grep -q 'validDailyReward()'; then
@@ -33,16 +37,19 @@ jobs:
             exit 1
           fi
           grep -q "exports.claimDailyReward=protectedCallable" functions/index.js
-          grep -q "window.nexusSecureClaimDaily" js/nexusnova-daily-secure-bridge-v1.js
+          grep -q "window.nexusSecureClaimDaily" js/nexusnova-daily-secure-claim-v1.js
+          grep -q 'initializeAppCheck' index.html
+          grep -q 'ReCaptchaEnterpriseProvider' index.html
+          grep -q '6LfEc4QtAAAAAOohkqSv0p76iwPTeHI98hqVlwIs' index.html
 
-      - name: Commit hardened Firestore rule
+      - name: Commit hardened Firebase security files
         run: |
-          if git diff --quiet -- firestore.rules; then
-            echo 'No Firestore rule change needed.'
+          if git diff --quiet -- firestore.rules index.html; then
+            echo 'No Firebase security changes needed.'
             exit 0
           fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add firestore.rules
-          git commit -m 'Block direct client Daily Reward writes'
+          git add firestore.rules index.html
+          git commit -m 'Harden Firebase reward and App Check paths'
           git push origin HEAD:main
