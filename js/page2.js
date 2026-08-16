@@ -184,3 +184,11 @@ try {
 } catch (error) {
   console.warn('NexusNova navigation stability:', error);
 }
+
+// ALL APPS uses several historical layout layers. Fit its visible menu between
+// the ticker/header area and the fixed dock so Android can pan it vertically.
+try {
+  await import('./nexusnova-allapps-scroll-fix-v1.js?v=1');
+} catch (error) {
+  console.warn('NexusNova ALL APPS scroll fix:', error);
+}
