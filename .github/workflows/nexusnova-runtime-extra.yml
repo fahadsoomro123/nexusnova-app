@@ -18,6 +18,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Validate privacy and security contracts
+        run: |
+          python3 .github/scripts/firebase-security-readiness.py
+          python3 .github/scripts/wallet-security-readiness.py
+          python3 .github/scripts/fcm-security-readiness.py
+          python3 .github/scripts/referral-security-readiness.py
+          python3 .github/scripts/marketplace-security-readiness.py
+          python3 .github/scripts/file-vault-security-readiness.py
+          python3 .github/scripts/app-lock-security-readiness.py
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
