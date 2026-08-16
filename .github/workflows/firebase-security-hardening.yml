@@ -10,6 +10,7 @@ on:
       - '.github/scripts/harden_auth_appcheck.py'
       - '.github/scripts/harden_verified_user_writes.py'
       - '.github/scripts/harden_signup_auth_ui.py'
+      - '.github/scripts/firebase-security-readiness.py'
       - '.github/workflows/firebase-security-hardening.yml'
   workflow_dispatch:
 
@@ -59,6 +60,16 @@ jobs:
           grep -q '!loginMode && password.length < 10' index.html
           grep -q 'Unable to create this account. Try Login' index.html
 
+      - name: Run full Firebase security readiness before bot commit
+        run: python3 .github/scripts/firebase-security-readiness.py
+
+      - name: Check security JavaScript syntax
+        run: |
+          node --check js/nexusnova-daily-secure-claim-v1.js
+          node --check js/rewards-security-v1.js
+          node --check sw.js
+          node --check functions/index.js
+
       - name: Commit hardened Firebase security files
         run: |
           if git diff --quiet -- firestore.rules index.html; then
@@ -68,5 +79,5 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add firestore.rules index.html
-          git commit -m 'Harden signup authentication defaults'
+          git commit -m 'Harden Firebase security defaults'
           git push origin HEAD:main
