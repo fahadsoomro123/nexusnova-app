@@ -62,3 +62,4 @@ runpy.run_path('NexusNovaAndroid/patch_video_smoothness_v1.py', run_name='__main
 runpy.run_path('NexusNovaAndroid/patch_video_smoothness_v2_fix.py', run_name='__main__')
 runpy.run_path('NexusNovaAndroid/patch_video_smoothness_v3_perf.py', run_name='__main__')
 runpy.run_path('NexusNovaAndroid/patch_video_smoothness_v4_runtime.py', run_name='__main__')
+runpy.run_path('NexusNovaAndroid/patch_video_smoothness_v5_timewarp_nav.py', run_name='__main__')
