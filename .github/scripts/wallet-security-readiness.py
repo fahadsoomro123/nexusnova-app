@@ -81,18 +81,20 @@ for chain_id, symbol in EXPECTED_NATIVE.items():
     if not re.search(rf'native:\s*"{re.escape(symbol)}"', sync_block):
         errors.append(f'{chain_id} native asset drifted in on-chain sync')
 
-# Lock exact issuer-verified token literals in BOTH the send and balance maps.
-# Exact literals are deliberate here: a typo in even one address must fail CI.
+# Lock issuer-verified token address + decimal pairs in BOTH send and balance maps.
+# EVM hex addresses are compared case-insensitively; structure and decimals stay strict.
 for chain_id in EXPECTED_NATIVE:
     action_block = action_blocks.get(chain_id, '')
     sync_block = sync_blocks.get(chain_id, '')
     expected = EXPECTED_TOKENS.get(chain_id, {})
+    action_lower = action_block.lower()
+    sync_lower = sync_block.lower()
     for symbol, (address, decimals) in expected.items():
-        action_literal = f'{symbol}: {{ contract: "{address}", decimals: {decimals} }}'
-        sync_literal = f'{symbol}: ["{address}", {decimals}]'
-        if action_literal not in action_block:
+        action_literal = f'{symbol}: {{ contract: "{address}", decimals: {decimals} }}'.lower()
+        sync_literal = f'{symbol}: ["{address}", {decimals}]'.lower()
+        if action_literal not in action_lower:
             errors.append(f'{chain_id} {symbol} issuer-verified contract/decimals missing from send map')
-        if sync_literal not in sync_block:
+        if sync_literal not in sync_lower:
             errors.append(f'{chain_id} {symbol} issuer-verified contract/decimals missing from balance map')
 
     configured_action_symbols = set(re.findall(r'\b(USDT|USDC)\s*:\s*\{\s*contract:', action_block))
