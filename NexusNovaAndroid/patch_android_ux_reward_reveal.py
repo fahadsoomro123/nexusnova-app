@@ -1,4 +1,5 @@
 from pathlib import Path
+import runpy
 
 ROOT = Path('NexusNovaAndroid/app/src/main/assets/www')
 PAGE = ROOT / 'page2.html'
@@ -107,3 +108,4 @@ for path, needle in checks:
         raise SystemExit(f'Android UX repair verification failed: {path} -> {needle}')
 
 print('Applied Android UX repair: fast splash, canonical mining label, and animated Nova Vault reward reveal.')
+runpy.run_path('NexusNovaAndroid/patch_test_boost_authoritative_timer.py', run_name='__main__')
