@@ -1,5 +1,6 @@
 /* NexusNova Nova Vault v1
-   One free Vault is granted after each natural 24-hour mining completion.
+   A Vault is granted after each natural 24-hour mining completion and after
+   every successful stored Nova Booster/Nova Rain use.
    Vault rewards are server-authoritative; this client never chooses or writes
    reward value. Nova Booster, Nova Rain, Nova Vault and Time Warp share one
    15-second cooldown enforced by the backend and mirrored in the UI. */
@@ -281,7 +282,7 @@
     if (!result) return null;
     await showMessage(
       '24H Time Warp Complete',
-      `Current mining session completed and +${Number(result.earned || 24).toFixed(0)} NVX was credited. Time Warp does not create another Vault. Tap START MINING next; NexusNova will show the required ad first, then activate the new session.`,
+      `Current mining session completed and +${Number(result.earned || 24).toFixed(0)} NVX was credited. Time Warp does not create another Vault. Tap START MINING next; mining activates immediately in the background while NexusNova also tries to show the start ad. If the ad is unavailable, mining stays active and no second tap is needed.`,
       'spark'
     );
     return result;

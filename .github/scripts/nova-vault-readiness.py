@@ -50,6 +50,8 @@ for marker in [
     'novaVaultEarned:0',
     'novaVaultPending=optionalProfileInt(d,"novaVaultPending",0)+1',
     'const nextVaultPending=inventory.pendingVaults+1;',
+    'novaVaultGifted:1',
+    'const nextVaultPending=inventory.pendingVaults+1;',
     'novaVaultGifted:1'
 ]:
     if marker not in functions: errors.append(f'Nova backend marker missing: {marker}')
