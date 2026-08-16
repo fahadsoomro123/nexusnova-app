@@ -7,6 +7,7 @@ on:
     paths:
       - '.github/scripts/harden_daily_reward_rules.py'
       - '.github/scripts/harden_auth_appcheck.py'
+      - '.github/scripts/harden_verified_user_writes.py'
       - '.github/workflows/firebase-security-hardening.yml'
   workflow_dispatch:
 
@@ -29,6 +30,9 @@ jobs:
       - name: Configure login App Check key
         run: python3 .github/scripts/harden_auth_appcheck.py
 
+      - name: Require verified email for chat and marketplace writes
+        run: python3 .github/scripts/harden_verified_user_writes.py
+
       - name: Verify security contract
         run: |
           git diff --check
@@ -41,6 +45,9 @@ jobs:
           grep -q 'initializeAppCheck' index.html
           grep -q 'ReCaptchaEnterpriseProvider' index.html
           grep -q '6LfEc4QtAAAAAOohkqSv0p76iwPTeHI98hqVlwIs' index.html
+          grep -q 'email_verified == true && validChatMessage()' firestore.rules
+          grep -q 'email_verified == true && validListingCreate()' firestore.rules
+          grep -q 'email_verified == true && validOrderCreate()' firestore.rules
 
       - name: Commit hardened Firebase security files
         run: |
@@ -51,5 +58,5 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add firestore.rules index.html
-          git commit -m 'Harden Firebase reward and App Check paths'
+          git commit -m 'Harden verified-user Firebase write paths'
           git push origin HEAD:main
