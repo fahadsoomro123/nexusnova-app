@@ -1,0 +1,35 @@
+name: NexusNova Referral Security Readiness
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'firestore.rules'
+      - 'referral.html'
+      - 'js/nexusnova-growth-center-v1.js'
+      - 'js/nexusnova-referral-capture-v1.js'
+      - 'js/nexusnova-growth-referral-link-v1.js'
+      - '.github/scripts/referral-security-readiness.py'
+      - '.github/workflows/referral-security-readiness.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  referral-security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate referral anti-abuse contract
+        run: python3 .github/scripts/referral-security-readiness.py
+
+      - name: Check referral JavaScript syntax
+        run: |
+          node --check js/nexusnova-growth-center-v1.js
+          node --check js/nexusnova-referral-capture-v1.js
+          node --check js/nexusnova-growth-referral-link-v1.js
