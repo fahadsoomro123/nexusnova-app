@@ -1,5 +1,5 @@
 /* NexusNova Service Worker - fresh-code first, bounded network + offline fallback + FCM web push */
-const CACHE = "nexusnova-shell-v16-touch-lifeline";
+const CACHE = "nexusnova-shell-v17-security-origin-lock";
 
 const ASSETS = [
   "./",
@@ -17,6 +17,7 @@ const ASSETS = [
   "./css/nexusnova-premium-blue-v1.css",
   "./css/nexusnova-final-user-fixes-v1.css",
   "./js/page2.js",
+  "./js/page2-core.js",
   "./js/core-failsafe.js",
   "./js/aux-v8.js",
   "./js/news-fix.js",
@@ -34,6 +35,10 @@ const ASSETS = [
   "./js/nexusnova-rewarded-ads-v1.js",
   "./js/nexusnova-rewarded-ads-button-guard-v1.js",
   "./js/nexusnova-daily-ad-test-v1.js?v=5",
+  "./js/nexusnova-daily-secure-claim-v1.js?v=1",
+  "./js/nexusnova-ad-placements-v1.js?v=3",
+  "./js/nexusnova-watch-ad-reward-v1.js?v=1",
+  "./js/nexusnova-ad-privacy-v1.js?v=1",
   "./js/nexusnova-admob-diagnostics-v1.js",
   /* Compatibility filename; implementation is the AdMob Mining Boost bridge. */
   "./js/nexusnova-admob-nexus-pass-v1.js",
@@ -82,16 +87,26 @@ try {
       body: data.body || "You have a new NexusNova update.",
       icon: "./icons/icon-192.png",
       badge: "./icons/icon-192.png",
-      data: { url: data.url || "./page2.html" }
+      data: { url: safeNotificationUrl(data.url) }
     });
   });
 } catch (error) {
   console.warn("NexusNova FCM service-worker bootstrap unavailable:", error);
 }
 
+function safeNotificationUrl(raw) {
+  try {
+    const target = new URL(String(raw || "./page2.html"), self.location.origin);
+    if (target.origin !== self.location.origin) return "./page2.html";
+    return `${target.pathname}${target.search}${target.hash}`;
+  } catch (_) {
+    return "./page2.html";
+  }
+}
+
 self.addEventListener("notificationclick", (event) => {
   event.notification?.close();
-  const target = String(event.notification?.data?.url || "./page2.html");
+  const target = safeNotificationUrl(event.notification?.data?.url);
   event.waitUntil((async () => {
     const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
     for (const client of windows) {
