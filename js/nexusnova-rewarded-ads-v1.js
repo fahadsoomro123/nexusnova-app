@@ -1,5 +1,6 @@
-/* NexusNova Rewarded Ads compatibility loader v3.
-   Active Android provider: native AdMob -> real 2-hour mining boost.
+/* NexusNova Rewarded Ads compatibility loader v3.1.
+   Native AdMob rewarded ads are TEST/value-free until server ad proof is live.
+   Real -2H Booster/Rain value comes only from server-owned Nova Vault inventory.
    Legacy ayeT server code remains dormant for historical compatibility only.
 */
 (() => {
@@ -71,5 +72,5 @@
   window.watchAdReward = () => show();
 
   loadNativeBridge().catch(error => console.warn('NexusNova AdMob preload:', error));
-  console.info('NexusNova rewarded ads loader: admob-native-mining-boost-v3');
+  console.info('NexusNova rewarded ads loader: admob-native-mining-boost-v3.1');
 })();
