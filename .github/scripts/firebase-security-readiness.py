@@ -59,6 +59,24 @@ withdrawal = re.search(r"match /withdrawalRequests/\{id\} \{(.*?)\n\s*\}", rules
 if not withdrawal or 'allow create, update, delete: if false;' not in withdrawal.group(1):
     errors.append('withdrawalRequests must remain server-write-only')
 
+# Public-facing write surfaces must require a verified Firebase Auth email.
+verified_write_markers = {
+    'chat create': 'request.auth.token.email_verified == true && validChatMessage()',
+    'marketplace listing create': 'request.auth.token.email_verified == true && validListingCreate()',
+    'marketplace listing update': 'request.auth.token.email_verified == true && validListingUpdate()',
+    'marketplace listing delete': 'request.auth.token.email_verified == true && request.auth.uid == resource.data.sellerUid',
+    'marketplace order create': 'request.auth.token.email_verified == true && validOrderCreate()',
+    'marketplace order update': 'request.auth.token.email_verified == true && validOrderUpdate()',
+}
+for label, marker in verified_write_markers.items():
+    if marker not in rules:
+        errors.append(f'{label} lost its verified-email requirement')
+
+# Login anti-bot checkbox still uses Google's public reCAPTCHA v2 test key.
+# Keep this visible as a deployment blocker rather than silently treating it as production protection.
+if '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI' in index:
+    warnings.append('Login/signup checkbox still uses Google reCAPTCHA v2 TEST site key; replace it with a real registered key before public production signup')
+
 # Mining remains a known migration item on the free/Spark architecture. Do not
 # pretend it is server-authoritative while rules still permit client transitions.
 if user_match:
@@ -85,7 +103,8 @@ if errors:
 print('NexusNova Firebase security readiness: PASS')
 print(' - Daily Reward: server-authoritative + App Check guarded')
 print(' - Login/dashboard App Check Enterprise key: consistent')
+print(' - Chat and marketplace writes: verified-email only')
 print(' - Withdrawal requests: client create/update/delete denied')
 print(' - Default Firestore policy: deny unknown collections')
 for item in warnings:
-    print(' - MIGRATION BLOCKER:', item)
+    print(' - MIGRATION/DEPLOYMENT BLOCKER:', item)
