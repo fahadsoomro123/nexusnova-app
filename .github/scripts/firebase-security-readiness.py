@@ -21,13 +21,16 @@ page2 = read('js/page2.js')
 functions = read('functions/index.js')
 daily_bridge = read('js/nexusnova-daily-secure-claim-v1.js')
 mining = read('js/rewards-security-v1.js')
+sw = read('sw.js')
 
 # Global deny must remain present so new collections are private by default.
 if 'match /{document=**}' not in rules or 'allow read, write: if false;' not in rules:
     errors.append('Firestore catch-all deny is missing')
 
-# Daily Reward must be server-authoritative. The helper may remain in the file
-# temporarily, but it must never be reachable from /users update permissions.
+# Daily Reward is server-authoritative. No direct client helper or /users update
+# permission may remain after migration to the protected callable.
+if 'function validDailyReward()' in rules:
+    errors.append('Legacy client-side Daily Reward rule helper still exists')
 user_match = re.search(r"match /users/\{uid\} \{(.*?)\n\s*\}", rules, re.S)
 if not user_match:
     errors.append('Could not locate /users/{uid} Firestore rule block')
@@ -72,6 +75,30 @@ for label, marker in verified_write_markers.items():
     if marker not in rules:
         errors.append(f'{label} lost its verified-email requirement')
 
+# Push notifications must never navigate a WebView/browser to a payload-provided
+# external origin. The same-origin sanitizer is applied both when storing and
+# when consuming notification data.
+for marker in [
+    'function safeNotificationUrl(raw)',
+    'target.origin !== self.location.origin',
+    'data: { url: safeNotificationUrl(data.url) }',
+    'const target = safeNotificationUrl(event.notification?.data?.url)',
+]:
+    if marker not in sw:
+        errors.append(f'Service worker push navigation origin lock missing: {marker}')
+
+# Critical dynamically imported security modules should be available to the
+# offline shell instead of silently disappearing when the network is down.
+for asset in [
+    './js/page2-core.js',
+    './js/nexusnova-daily-secure-claim-v1.js?v=1',
+    './js/nexusnova-ad-placements-v1.js?v=3',
+    './js/nexusnova-watch-ad-reward-v1.js?v=1',
+    './js/nexusnova-ad-privacy-v1.js?v=1',
+]:
+    if asset not in sw:
+        errors.append(f'Critical security module missing from service-worker shell: {asset}')
+
 # Login anti-bot checkbox still uses Google's public reCAPTCHA v2 test key.
 # Keep this visible as a deployment blocker rather than silently treating it as production protection.
 if '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI' in index:
@@ -101,10 +128,12 @@ if errors:
     sys.exit(1)
 
 print('NexusNova Firebase security readiness: PASS')
-print(' - Daily Reward: server-authoritative + App Check guarded')
+print(' - Daily Reward: server-authoritative + App Check guarded; legacy rule removed')
 print(' - Login/dashboard App Check Enterprise key: consistent')
 print(' - Chat and marketplace writes: verified-email only')
 print(' - Withdrawal requests: client create/update/delete denied')
+print(' - Push navigation: same-origin only')
+print(' - Critical security modules: offline-shell cached')
 print(' - Default Firestore policy: deny unknown collections')
 for item in warnings:
     print(' - MIGRATION/DEPLOYMENT BLOCKER:', item)
