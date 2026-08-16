@@ -118,7 +118,7 @@ try {
   assert.equal(state.balance, '42.0000');
   assert.equal(state.mining.startedAt, sessionAnchor, 'TEST rewarded completion must not shift mining time');
   assert.equal(state.mining.uses, 0);
-  assert.ok(state.messages.some(message => /TEST ads never reduce mining time or change NVX/i.test(message.message || '')));
+  assert.ok(state.messages.some(message => /TEST ads never reduce mining time or change NVX/i.test(message.text || message.message || '')));
 
   const directApply = await page.evaluate(async () => {
     try {
