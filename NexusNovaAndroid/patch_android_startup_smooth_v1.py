@@ -36,6 +36,9 @@ elif 'setTimeout(hide, 1150);' not in index:
 index = index.replace('<h1 id="title">Nexus<span>Nova</span></h1>', '<h1 id="title">Welcome Back</h1>', 1)
 index = index.replace('<p id="subtitle">Sign up to start mining</p>', '<p id="subtitle">Log in to your account</p>', 1)
 index = index.replace('<div class="captcha-box" id="captchaBox">', '<div class="captcha-box" id="captchaBox" style="display:none">', 1)
+# Mobile CSS previously forced the captcha visible with !important, defeating
+# login mode. Remove only that display override; JS can still set flex for signup.
+index = index.replace('display:block!important;overflow:hidden!important;', 'overflow:hidden!important;', 1)
 index = index.replace('        Sign up with Email\n', '        Log in with Email\n', 1)
 index = index.replace('            Already have an account? Log in\n', "            Don't have an account? Sign up\n", 1)
 index = index.replace(
@@ -121,6 +124,7 @@ checks = [
     (INDEX, "location.pathname.startsWith('/nexusnova-native/')"),
     (INDEX, './page2.html?nxAndroid=1'),
     (INDEX, '<h1 id="title">Welcome Back</h1>'),
+    (INDEX, '<div class="captcha-box" id="captchaBox" style="display:none">'),
     (PAGE, 'data-nx-android-startup-hydration="1"'),
     (PAGE, 'RESTORING SESSION'),
     (ANALYTICS, "location.pathname.startsWith('/nexusnova-native/')"),
@@ -128,5 +132,7 @@ checks = [
 for path, marker in checks:
     if marker not in path.read_text(encoding='utf-8'):
         raise SystemExit(f'Android startup smooth verification failed: {path} -> {marker}')
+if 'display:block!important;overflow:hidden!important;' in index:
+    raise SystemExit('Mobile captcha CSS still forces login captcha visible.')
 
-print('Applied smooth Android startup: no native-shell first-run reload, fast login splash, direct login mode, preserved Android route, hydration placeholders, and deferred analytics prompt.')
+print('Applied smooth Android startup: no native-shell first-run reload, fast login splash, direct login mode, working signup captcha toggle, preserved Android route, hydration placeholders, and deferred analytics prompt.')
