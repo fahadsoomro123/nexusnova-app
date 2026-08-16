@@ -63,6 +63,9 @@ jobs:
       - name: Enforce TEST cooldown across all boost entry points
         run: python3 NexusNovaAndroid/patch_test_boost_cooldown_gate.py
 
+      - name: Prevent wasted TEST boost ads in final two hours
+        run: python3 NexusNovaAndroid/patch_test_boost_final2h_guard.py
+
       - name: Apply UMP privacy options bridge
         run: python3 NexusNovaAndroid/patch_ad_privacy.py
 
@@ -95,12 +98,15 @@ jobs:
           grep -q 'nx-test-boost-reward-fx-v1' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
           grep -q 'nx-test-boost-reward-hardening-v2' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
           grep -q 'nx-test-boost-cooldown-gate-v3' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
+          grep -q 'nx-test-boost-final2h-guard-v4' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
           grep -q 'TEST_COOLDOWN_MS = 15_000' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
           grep -q 'const kind = pendingKind;' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
           grep -q "reason:'nova-cooldown'" NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
+          grep -q "reason:'test-final-2h'" NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
           grep -q 'pendingRewardFxKind' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
           grep -q 'function applyTestReward' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
           grep -q 'TEST AD • -2H +1 VAULT' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
+          grep -q 'TEST BOOST PAUSED • FINAL 2H' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
           grep -q 'window.NexusNovaBoostFX' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
           grep -q 'window.NexusNovaTestRewards' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
           grep -q 'boostKind:expected, testOnly:true' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
