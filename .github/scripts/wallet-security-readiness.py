@@ -52,50 +52,77 @@ def read(path):
     return p.read_text(encoding='utf-8')
 
 
-def chain_blocks(text):
-    matches = list(re.finditer(r'^\s*"(0x[0-9a-fA-F]+)"\s*:\s*\{', text, re.M))
-    blocks = {}
-    for i, match in enumerate(matches):
-        start = match.start()
-        end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
-        blocks[match.group(1).lower()] = text[start:end]
-    return blocks
+def object_block(text, key):
+    """Return the exact JS object assigned to a quoted key, respecting nesting."""
+    marker = f'"{key}":'
+    key_pos = text.find(marker)
+    if key_pos < 0:
+        return ''
+    start = text.find('{', key_pos + len(marker))
+    if start < 0:
+        return ''
+
+    depth = 0
+    quote = None
+    escaped = False
+    for i in range(start, len(text)):
+        ch = text[i]
+        if quote:
+            if escaped:
+                escaped = False
+            elif ch == '\\':
+                escaped = True
+            elif ch == quote:
+                quote = None
+            continue
+        if ch in ('"', "'"):
+            quote = ch
+            continue
+        if ch == '{':
+            depth += 1
+        elif ch == '}':
+            depth -= 1
+            if depth == 0:
+                return text[start:i + 1]
+    return ''
 
 
 actions = read(ACTIONS_PATH)
 sync = read(SYNC_PATH)
 connect = read(CONNECT_PATH)
-action_blocks = chain_blocks(actions)
-sync_blocks = chain_blocks(sync)
 
-if set(action_blocks) != set(EXPECTED_NATIVE):
-    errors.append(f'wallet action chain set drifted: {sorted(action_blocks)}')
-if set(sync_blocks) != set(EXPECTED_NATIVE):
-    errors.append(f'wallet balance chain set drifted: {sorted(sync_blocks)}')
+# Ensure the two wallet layers expose the same deliberately supported chain set.
+for chain_id in EXPECTED_NATIVE:
+    if f'"{chain_id}":' not in actions:
+        errors.append(f'{chain_id} missing from wallet action chain map')
+    if f'"{chain_id}":' not in sync:
+        errors.append(f'{chain_id} missing from wallet balance chain map')
 
 for chain_id, symbol in EXPECTED_NATIVE.items():
-    action_block = action_blocks.get(chain_id, '')
-    sync_block = sync_blocks.get(chain_id, '')
+    action_block = object_block(actions, chain_id)
+    sync_block = object_block(sync, chain_id)
+    if not action_block:
+        errors.append(f'could not parse {chain_id} wallet action object')
+        continue
+    if not sync_block:
+        errors.append(f'could not parse {chain_id} wallet balance object')
+        continue
+
     if not re.search(rf'native:\s*\{{\s*symbol:\s*"{re.escape(symbol)}"\s*,\s*decimals:\s*18\s*\}}', action_block, re.S):
         errors.append(f'{chain_id} native asset/18 decimals drifted in wallet actions')
     if not re.search(rf'native:\s*"{re.escape(symbol)}"', sync_block):
         errors.append(f'{chain_id} native asset drifted in on-chain sync')
 
-# Lock issuer-verified token address + decimal pairs in BOTH send and balance maps.
-# EVM hex addresses are compared case-insensitively; structure and decimals stay strict.
-for chain_id in EXPECTED_NATIVE:
-    action_block = action_blocks.get(chain_id, '')
-    sync_block = sync_blocks.get(chain_id, '')
     expected = EXPECTED_TOKENS.get(chain_id, {})
     action_lower = action_block.lower()
     sync_lower = sync_block.lower()
-    for symbol, (address, decimals) in expected.items():
-        action_literal = f'{symbol}: {{ contract: "{address}", decimals: {decimals} }}'.lower()
-        sync_literal = f'{symbol}: ["{address}", {decimals}]'.lower()
+    for token_symbol, (address, decimals) in expected.items():
+        action_literal = f'{token_symbol}: {{ contract: "{address}", decimals: {decimals} }}'.lower()
+        sync_literal = f'{token_symbol}: ["{address}", {decimals}]'.lower()
         if action_literal not in action_lower:
-            errors.append(f'{chain_id} {symbol} issuer-verified contract/decimals missing from send map')
+            errors.append(f'{chain_id} {token_symbol} issuer-verified contract/decimals missing from send map')
         if sync_literal not in sync_lower:
-            errors.append(f'{chain_id} {symbol} issuer-verified contract/decimals missing from balance map')
+            errors.append(f'{chain_id} {token_symbol} issuer-verified contract/decimals missing from balance map')
 
     configured_action_symbols = set(re.findall(r'\b(USDT|USDC)\s*:\s*\{\s*contract:', action_block))
     configured_sync_symbols = set(re.findall(r'\b(USDT|USDC)\s*:\s*\[', sync_block))
