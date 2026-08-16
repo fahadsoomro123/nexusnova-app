@@ -4,8 +4,9 @@ path = Path('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.k
 text = path.read_text()
 
 # v76 could retain an older GitHub Pages service worker/cache across APK updates.
-# Reset that stale web shell exactly once for this recovery epoch, then let the
-# normal bounded/fallback loading path own all future launches.
+# The current Android app serves /nexusnova-native/ directly from packaged APK
+# assets, outside the legacy service-worker scope, so that deterministic shell
+# must NEVER be cleared/reloaded on first launch.
 if 'private var webShellResetStarted = false' not in text:
     marker = '    private var webRecoveryAttempts = 0\n'
     if marker not in text:
@@ -21,7 +22,7 @@ if new_finished not in text:
 
 if 'private fun resetStaleWebShellOnce(view: WebView): Boolean' not in text:
     marker = '    private fun armMainFrameWatchdog(view: WebView) {\n'
-    method = '''    private fun resetStaleWebShellOnce(view: WebView): Boolean {\n        if (webShellResetStarted || usingOfflineFallback || isFinishing || isDestroyed) return false\n        val preferences = getSharedPreferences(WEB_SHELL_RECOVERY_PREFERENCES, MODE_PRIVATE)\n        if (preferences.getString(WEB_SHELL_RECOVERY_KEY, "") == WEB_SHELL_RECOVERY_EPOCH) return false\n\n        webShellResetStarted = true\n        // Record the epoch before reload so a partial/slow page can never loop forever.\n        preferences.edit().putString(WEB_SHELL_RECOVERY_KEY, WEB_SHELL_RECOVERY_EPOCH).apply()\n        view.clearCache(true)\n        view.evaluateJavascript(WEB_SHELL_RESET_SCRIPT) {\n            view.postDelayed({\n                if (!isFinishing && !isDestroyed && !usingOfflineFallback) {\n                    loadProductionApp(forceFresh = true)\n                }\n            }, WEB_SHELL_RESET_RELOAD_DELAY_MS)\n        }\n        return true\n    }\n\n'''
+    method = '''    private fun resetStaleWebShellOnce(view: WebView): Boolean {\n        if (webShellResetStarted || usingOfflineFallback || isFinishing || isDestroyed) return false\n        val currentPath = runCatching { Uri.parse(view.url ?: "").path.orEmpty() }.getOrDefault("")\n        // /nexusnova-native/ is intercepted from assets inside this APK. Reloading\n        // it only creates the visible login -> splash -> login flash seen on first launch.\n        if (currentPath.startsWith("/nexusnova-native/")) return false\n        val preferences = getSharedPreferences(WEB_SHELL_RECOVERY_PREFERENCES, MODE_PRIVATE)\n        if (preferences.getString(WEB_SHELL_RECOVERY_KEY, "") == WEB_SHELL_RECOVERY_EPOCH) return false\n\n        webShellResetStarted = true\n        preferences.edit().putString(WEB_SHELL_RECOVERY_KEY, WEB_SHELL_RECOVERY_EPOCH).apply()\n        view.clearCache(true)\n        view.evaluateJavascript(WEB_SHELL_RESET_SCRIPT) {\n            view.postDelayed({\n                if (!isFinishing && !isDestroyed && !usingOfflineFallback) {\n                    loadProductionApp(forceFresh = true)\n                }\n            }, WEB_SHELL_RESET_RELOAD_DELAY_MS)\n        }\n        return true\n    }\n\n'''
     if marker not in text:
         raise SystemExit('Web shell reset method insertion point not found')
     text = text.replace(marker, method + marker, 1)
@@ -34,4 +35,4 @@ if 'const val WEB_SHELL_RECOVERY_EPOCH = "touch-lifeline-v1"' not in text:
     text = text.replace(marker, constants + marker, 1)
 
 path.write_text(text)
-print('One-time stale WebView service-worker/cache reset patch applied.')
+print('Legacy web-shell reset retained for remote recovery, but packaged /nexusnova-native/ launches never reload.')
