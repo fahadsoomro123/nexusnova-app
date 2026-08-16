@@ -205,18 +205,21 @@ boost = boost.replace(needle, replacement, 1)
 
 old = """    if (testMode && active && !malformed) {
       const testOverlay = readTestRewardOverlay(anchorAt);
-      if (testOverlay.extraUses > 0) {
-        setTimeout(() => {
-          try { window.nexusSecureAdoptMiningState?.({ miningActive:true, miningStartedAt:startedAt }); } catch (_) {}
-        }, 0);
-      }
+      setTimeout(() => {
+        try { window.nexusSecureAdoptMiningState?.({ miningActive:true, miningStartedAt:startedAt }); } catch (_) {}
+      }, 0);
     }
 """
 new = """    if (testMode && active && !malformed) {
-      const testOverlay = readTestRewardOverlay(anchorAt);
-      setTimeout(() => {
-        try { window.nexusSecureSetMiningPreviewOffset?.(testOverlay.extraUses * BOOST_MS); } catch (_) {}
-      }, 0);
+      // Read the TEST overlay at execution time, not before queuing the task.
+      // A rewarded-earned event can land between snapshot adoption and this
+      // callback; capturing the old overlay would briefly reset a new -2H boost.
+      const syncTestPreviewOffset = () => {
+        const currentOverlay = readTestRewardOverlay(anchorAt);
+        try { window.nexusSecureSetMiningPreviewOffset?.(currentOverlay.extraUses * BOOST_MS); } catch (_) {}
+      };
+      syncTestPreviewOffset();
+      setTimeout(syncTestPreviewOffset, 0);
     } else if (!active) {
       setTimeout(() => {
         try { window.nexusSecureSetMiningPreviewOffset?.(0); } catch (_) {}
@@ -281,6 +284,8 @@ checks = [
     (MINING, 'TEST PREVIEW 00:00:00 • SECURE'),
     (MINING, 'projected = Number(miningState.balance) + Math.min(MINING_REWARD, authoritativeElapsed / HOUR)'),
     (BOOST, MARKER),
+    (BOOST, 'const syncTestPreviewOffset = () => {'),
+    (BOOST, 'const currentOverlay = readTestRewardOverlay(anchorAt);'),
     (BOOST, 'window.nexusSecureSetMiningPreviewOffset?.(overlay.extraUses * BOOST_MS)'),
     (BOOST, 'localStorage.removeItem(TEST_REWARD_OVERLAY_KEY)'),
 ]
@@ -291,4 +296,4 @@ for path, marker in checks:
 if "window.nexusSecureAdoptMiningState?.({\n        miningActive:true,\n        miningStartedAt:effectiveStartedAt" in boost:
     raise SystemExit('TEST boost still overwrites the authoritative mining timestamp')
 
-print('Applied TEST boost authoritative timer guard: local -2H preview stays separate from Firestore claim state and projected NVX.')
+print('Applied TEST boost authoritative timer guard: local -2H preview stays separate from Firestore claim state, projected NVX, and stale queued snapshot races.')
