@@ -2,6 +2,7 @@ from pathlib import Path
 import runpy
 
 MAIN = Path("NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt")
+BOOST = Path("NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js")
 
 src = MAIN.read_text(encoding="utf-8")
 
@@ -41,6 +42,32 @@ if "ACTION_REQUEST_CALLER_ROLE" not in src:
 
 MAIN.write_text(src, encoding="utf-8")
 print("Deferred Caller ID setup patch applied: startup is clean; setup is feature-triggered only.")
+
+# Reward patches build the status line from a single `text` variable. Normalize
+# that tiny render block into a branch form before the video-truth patch inserts
+# its transient no-reward message. This preserves the same existing text while
+# ensuring the transient message cannot be overwritten immediately afterwards.
+if BOOST.exists():
+    boost = BOOST.read_text(encoding="utf-8")
+    old_status = """    if (status) {
+      status.innerHTML = text;
+      status.classList.toggle('nx-boost-test', Boolean(testMode && miningState.active && !miningState.complete));
+    }
+"""
+    normalized_status = """    if (status) {
+      if (!miningState.known) {
+        status.innerHTML = text;
+      } else {
+        status.innerHTML = text;
+      }
+      status.classList.toggle('nx-boost-test', Boolean(testMode && miningState.active && !miningState.complete));
+    }
+"""
+    if old_status in boost:
+        boost = boost.replace(old_status, normalized_status, 1)
+        BOOST.write_text(boost, encoding="utf-8")
+    elif "if (!miningState.known) {\n        status.innerHTML = text;" not in boost and 'transientBoostNoteUntil > Date.now()' not in boost:
+        raise SystemExit('Boost status normalization point not found.')
 
 # This step runs after same-device session restore and after rewarded event-order
 # hardening. It is therefore the deterministic point to apply the fixes proven
