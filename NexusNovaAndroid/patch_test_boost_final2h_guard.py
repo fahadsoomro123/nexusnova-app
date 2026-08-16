@@ -1,4 +1,5 @@
 from pathlib import Path
+import runpy
 
 BOOST = Path('NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js')
 if not BOOST.exists():
@@ -7,6 +8,7 @@ boost = BOOST.read_text(encoding='utf-8')
 MARKER = 'nx-test-boost-final2h-guard-v4'
 if MARKER in boost:
     print('TEST final-2h guard already applied.')
+    runpy.run_path('NexusNovaAndroid/patch_android_ux_reward_reveal.py', run_name='__main__')
     raise SystemExit(0)
 if 'nx-test-boost-cooldown-gate-v3' not in boost:
     raise SystemExit('TEST cooldown gate v3 must run first.')
@@ -121,3 +123,5 @@ for marker in checks:
     if marker not in final:
         raise SystemExit(f'Final-2h guard verification failed: {marker}')
 print('TEST final-2h guard applied: no rewarded ad is wasted when a local preview cannot safely cross authoritative completion.')
+
+runpy.run_path('NexusNovaAndroid/patch_android_ux_reward_reveal.py', run_name='__main__')
