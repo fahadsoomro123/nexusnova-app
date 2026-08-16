@@ -1,0 +1,48 @@
+name: NexusNova Firebase Security Hardening
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/scripts/harden_daily_reward_rules.py'
+      - '.github/workflows/firebase-security-hardening.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  harden-rules:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Remove direct Daily Reward value write
+        run: python3 .github/scripts/harden_daily_reward_rules.py
+
+      - name: Verify only intended rule changed
+        run: |
+          git diff --check
+          if grep -A20 'match /users/{uid}' firestore.rules | grep -q 'validDailyReward()'; then
+            echo 'Direct Daily Reward write is still allowed.' >&2
+            exit 1
+          fi
+          grep -q "exports.claimDailyReward=protectedCallable" functions/index.js
+          grep -q "window.nexusSecureClaimDaily" js/nexusnova-daily-secure-bridge-v1.js
+
+      - name: Commit hardened Firestore rule
+        run: |
+          if git diff --quiet -- firestore.rules; then
+            echo 'No Firestore rule change needed.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add firestore.rules
+          git commit -m 'Block direct client Daily Reward writes'
+          git push origin HEAD:main
