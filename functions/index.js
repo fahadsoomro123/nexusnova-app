@@ -2,12 +2,19 @@ const {onCall,HttpsError}=require("firebase-functions/v2/https");
 const {setGlobalOptions}=require("firebase-functions/v2");
 const {initializeApp}=require("firebase-admin/app");
 const {getFirestore,FieldValue}=require("firebase-admin/firestore");
+const {randomInt}=require("node:crypto");
 
 initializeApp();
 const db=getFirestore();
 setGlobalOptions({region:"us-central1",maxInstances:10});
 
-const DAY=86400000, RATE=1, DAILY=5;
+const DAY=86400000, HOUR=3600000, RATE=1, DAILY=5;
+const NOVA_COOLDOWN=15*1000;
+const NOVA_BOOST_MS=2*HOUR;
+const NOVA_BOOSTER_LIMIT=2;
+const NOVA_RAIN_LIMIT=4;
+const NOVA_TOTAL_BOOST_LIMIT=NOVA_BOOSTER_LIMIT+NOVA_RAIN_LIMIT;
+const NOVA_MAX_BOOST_MS=NOVA_TOTAL_BOOST_LIMIT*NOVA_BOOST_MS;
 const WITHDRAWAL_COOLDOWN=5*60*1000;
 const MAX_POLICY_BYTES=64*1024;
 const MAX_AMOUNT_LENGTH=64;
@@ -57,6 +64,28 @@ function profileBoolean(data,field){
   const value=data?.[field];
   if(typeof value!=="boolean") invalidProfile(field);
   return value;
+}
+function optionalProfileInt(data,field,defaultValue=0){
+  const value=data?.[field];
+  if(value===undefined||value===null) return defaultValue;
+  if(typeof value!=="number"||!Number.isSafeInteger(value)||value<0){
+    invalidProfile(field);
+  }
+  return value;
+}
+function requireNovaCooldown(data,now){
+  const until=optionalProfileInt(data,"novaFeatureCooldownUntil",0);
+  if(now<until){
+    throw new HttpsError("resource-exhausted",`Nova cooldown active. Try again in ${Math.ceil((until-now)/1000)} seconds.`);
+  }
+}
+function novaInventorySnapshot(data){
+  return {
+    booster:optionalProfileInt(data,"novaBoosterInventory",0),
+    rain:optionalProfileInt(data,"novaRainInventory",0),
+    timeWarp:optionalProfileInt(data,"novaTimeWarpInventory",0),
+    pendingVaults:optionalProfileInt(data,"novaVaultPending",0)
+  };
 }
 function requestString(value,field,maxLength){
   if(typeof value!=="string"||value.length>maxLength){
@@ -201,8 +230,156 @@ exports.finishMiningSession=protectedCallable(async req=>{
     const earned=DAY/3600000*RATE;
     const balance=balance0+earned;
     const totalMined=profileNumber(d,"totalMined")+earned;
-    tx.update(r,{balance,totalMined,miningActive:false,miningStartedAt:0,miningLastUpdate:now});
-    return {finished:true,balance,earned,totalMined,miningActive:false};
+    const novaVaultPending=optionalProfileInt(d,"novaVaultPending",0)+1;
+    tx.update(r,{balance,totalMined,miningActive:false,miningStartedAt:0,miningLastUpdate:now,novaVaultPending});
+    return {finished:true,balance,earned,totalMined,miningActive:false,novaVaultPending,novaVaultEarned:1};
+  });
+});
+
+exports.openNovaVault=protectedCallable(async req=>{
+  const uid=verifiedUidOf(req), now=Date.now();
+  // Draw once per request with Node crypto so Firestore transaction retries do
+  // not let a caller reroll. Odds: NVX 60%, Booster 18%, Rain 17%, Warp 5%.
+  const roll=randomInt(10000);
+  const nvxAmount=randomInt(1,11);
+  const rewardType=roll<6000?"nvx":roll<7800?"booster":roll<9500?"rain":"time-warp";
+  return db.runTransaction(async tx=>{
+    const r=ref(uid), s=await tx.get(r);
+    if(!s.exists) throw new HttpsError("not-found","User profile not found.");
+    const d=s.data()||{};
+    requireNovaCooldown(d,now);
+    const inventory=novaInventorySnapshot(d);
+    if(inventory.pendingVaults<1){
+      throw new HttpsError("failed-precondition","No Nova Vault is ready. Complete a natural 24-hour mining session first.");
+    }
+    const cooldownUntil=now+NOVA_COOLDOWN;
+    const updates={
+      novaVaultPending:inventory.pendingVaults-1,
+      novaFeatureCooldownUntil:cooldownUntil,
+      novaLastVaultReward:rewardType,
+      novaLastVaultAmount:rewardType==="nvx"?nvxAmount:1,
+      novaLastVaultOpenedAt:now
+    };
+    let balance=profileNumber(d,"balance");
+    let booster=inventory.booster, rain=inventory.rain, timeWarp=inventory.timeWarp;
+    if(rewardType==="nvx"){
+      balance+=nvxAmount;
+      updates.balance=balance;
+    }else if(rewardType==="booster"){
+      booster+=1;
+      updates.novaBoosterInventory=booster;
+    }else if(rewardType==="rain"){
+      rain+=1;
+      updates.novaRainInventory=rain;
+    }else{
+      timeWarp+=1;
+      updates.novaTimeWarpInventory=timeWarp;
+    }
+    tx.update(r,updates);
+    return {
+      opened:true,
+      reward:{type:rewardType,amount:rewardType==="nvx"?nvxAmount:1},
+      balance,
+      cooldownUntil,
+      novaVaultPending:inventory.pendingVaults-1,
+      inventory:{booster,rain,timeWarp,pendingVaults:inventory.pendingVaults-1}
+    };
+  });
+});
+
+exports.useNovaBoost=protectedCallable(async req=>{
+  const uid=verifiedUidOf(req), now=Date.now();
+  const kind=String(req.data?.kind||"").toLowerCase();
+  if(kind!=="booster"&&kind!=="rain") throw new HttpsError("invalid-argument","Unknown Nova boost type.");
+  return db.runTransaction(async tx=>{
+    const r=ref(uid), s=await tx.get(r);
+    if(!s.exists) throw new HttpsError("not-found","User profile not found.");
+    const d=s.data()||{};
+    requireNovaCooldown(d,now);
+    if(profileBoolean(d,"miningActive")!==true) throw new HttpsError("failed-precondition","Start mining before using a Nova boost.");
+    const startedAt=optionalProfileInt(d,"miningStartedAt",0);
+    const anchorAt=optionalProfileInt(d,"miningLastUpdate",0);
+    if(startedAt<=0||anchorAt<=0||startedAt>anchorAt) invalidProfile("mining session");
+    if(now-startedAt>=DAY) throw new HttpsError("failed-precondition","Mining session is already complete. Claim it first.");
+    const reducedMs=anchorAt-startedAt;
+    if(reducedMs<0||reducedMs>NOVA_MAX_BOOST_MS||reducedMs%NOVA_BOOST_MS!==0) invalidProfile("mining boost state");
+    const uses=reducedMs/NOVA_BOOST_MS;
+    const expected=uses<NOVA_BOOSTER_LIMIT?"booster":"rain";
+    if(uses>=NOVA_TOTAL_BOOST_LIMIT) throw new HttpsError("failed-precondition","Maximum 12-hour reduction is already used for this session.");
+    if(kind!==expected){
+      throw new HttpsError("failed-precondition",expected==="booster"?"Use the two Nova Booster slots first.":"Nova Booster is complete. Use Nova Rain now.");
+    }
+    const inventory=novaInventorySnapshot(d);
+    const available=kind==="booster"?inventory.booster:inventory.rain;
+    if(available<1) throw new HttpsError("failed-precondition",`No stored Nova ${kind==="booster"?"Booster":"Rain"} is available.`);
+    const nextStartedAt=startedAt-NOVA_BOOST_MS;
+    if(anchorAt-nextStartedAt>NOVA_MAX_BOOST_MS) throw new HttpsError("failed-precondition","Maximum 12-hour reduction reached.");
+    const cooldownUntil=now+NOVA_COOLDOWN;
+    const updates={miningStartedAt:nextStartedAt,novaFeatureCooldownUntil:cooldownUntil};
+    if(kind==="booster") updates.novaBoosterInventory=inventory.booster-1;
+    else updates.novaRainInventory=inventory.rain-1;
+    tx.update(r,updates);
+    return {
+      applied:true,
+      appliedKind:kind,
+      miningActive:true,
+      miningStartedAt:nextStartedAt,
+      miningLastUpdate:anchorAt,
+      reducedHours:(uses+1)*2,
+      uses:uses+1,
+      cooldownUntil,
+      inventory:{
+        booster:kind==="booster"?inventory.booster-1:inventory.booster,
+        rain:kind==="rain"?inventory.rain-1:inventory.rain,
+        timeWarp:inventory.timeWarp,
+        pendingVaults:inventory.pendingVaults
+      }
+    };
+  });
+});
+
+exports.useNovaTimeWarp=protectedCallable(async req=>{
+  const uid=verifiedUidOf(req), now=Date.now();
+  return db.runTransaction(async tx=>{
+    const r=ref(uid), s=await tx.get(r);
+    if(!s.exists) throw new HttpsError("not-found","User profile not found.");
+    const d=s.data()||{};
+    requireNovaCooldown(d,now);
+    if(profileBoolean(d,"miningActive")!==true) throw new HttpsError("failed-precondition","Start mining before using a 24H Time Warp.");
+    const startedAt=optionalProfileInt(d,"miningStartedAt",0);
+    if(startedAt<=0) invalidProfile("mining session");
+    if(now-startedAt>=DAY) throw new HttpsError("failed-precondition","Mining session is already complete. Claim it normally instead.");
+    const inventory=novaInventorySnapshot(d);
+    if(inventory.timeWarp<1) throw new HttpsError("failed-precondition","No 24H Time Warp is stored in your Nova Vault.");
+    const earned=DAY/HOUR*RATE;
+    const balance=profileNumber(d,"balance")+earned;
+    const totalMined=profileNumber(d,"totalMined")+earned;
+    const cooldownUntil=now+NOVA_COOLDOWN;
+    // Deliberately NO novaVaultPending increment here: Time Warp completion
+    // cannot create another Vault, preventing an infinite Vault/Warp loop.
+    tx.update(r,{
+      balance,totalMined,
+      miningActive:false,
+      miningStartedAt:0,
+      miningLastUpdate:now,
+      novaTimeWarpInventory:inventory.timeWarp-1,
+      novaFeatureCooldownUntil:cooldownUntil
+    });
+    return {
+      completed:true,
+      earned,
+      balance,totalMined,
+      miningActive:false,
+      miningStartedAt:0,
+      novaVaultEarned:0,
+      cooldownUntil,
+      inventory:{
+        booster:inventory.booster,
+        rain:inventory.rain,
+        timeWarp:inventory.timeWarp-1,
+        pendingVaults:inventory.pendingVaults
+      }
+    };
   });
 });
 

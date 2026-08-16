@@ -1,9 +1,10 @@
-/* NexusNova AdMob Mining Boost bridge v1
+/* NexusNova AdMob Mining Boost bridge v1.2
    Compatibility filename retained so existing loaders do not break.
 
-   Reward flow (TEST MODE until production hardening is complete):
-   rewarded ad -> one 2-hour mining-time reduction -> Firestore rules cap the
-   session to six reductions / 12 hours total. No rewarded ad directly mints NVX.
+   Security contract:
+   - Debug/test ads prove the UX only and never change mining timestamps/value.
+   - Production mining boosts stay disabled until a server-verified ad proof exists.
+   - Normal 24-hour mining start/finish remains owned by the existing mining engine.
 */
 (() => {
   'use strict';
@@ -20,6 +21,7 @@
   const RAIN_LIMIT = 4;
   const TOTAL_LIMIT = BOOSTER_LIMIT + RAIN_LIMIT;
   const MAX_BOOST_MS = TOTAL_LIMIT * BOOST_MS;
+  const SERVER_VERIFIED_BOOST_ENABLED = false;
   const STYLE_ID = 'nx-mining-boost-style-v1';
   const PANEL_ID = 'nxMiningBoostPanel';
 
@@ -163,7 +165,7 @@
       <div class="nx-boost-head">
         <div>
           <div class="nx-boost-kicker">MINING ACCELERATOR</div>
-          <div class="nx-boost-title">Nova Time Boosts<small>Rewarded ad = real session time -2 hours</small></div>
+          <div class="nx-boost-title">Nova Time Boosts<small>TEST rewarded ad • no mining-time change</small></div>
         </div>
         <div class="nx-boost-cap">MAX -12H</div>
       </div>
@@ -187,8 +189,8 @@
       <div class="nx-boost-status" id="nxBoostStatus">Checking mining session…</div>`;
 
     timer.insertAdjacentElement('afterend', panel);
-    el('nxBoosterBtn')?.addEventListener('click', () => showRewarded('booster'));
-    el('nxRainBtn')?.addEventListener('click', () => showRewarded('rain'));
+    el('nxBoosterBtn')?.addEventListener('click', () => activateBoost('booster'));
+    el('nxRainBtn')?.addEventListener('click', () => activateBoost('rain'));
     return panel;
   }
 
@@ -202,10 +204,10 @@
     else if (!miningState.active) label = 'START MINING TO USE BOOST';
     else if (miningState.complete) label = 'CLAIM SESSION BEFORE BOOSTING';
     else if (!kind) label = 'SESSION BOOST LIMIT REACHED';
-    else label = `WATCH AD — ${kindLabel(kind).toUpperCase()} (-2H)`;
+    else label = testMode ? `TEST AD — ${kindLabel(kind).toUpperCase()} (NO TIME CHANGE)` : 'MINING BOOST NOT LIVE';
     setButtonText(button, label);
     button.disabled = Boolean(miningState.known && (!kind || !miningState.active || miningState.complete)) || (hasNative() && !rewardedReady);
-    button.title = 'Optional rewarded ad. Completion applies one 2-hour reduction to the current mining session; no advertiser click or install is required.';
+    button.title = 'TEST rewarded ad flow. No mining time or NVX changes until server-verified fulfillment is deployed.';
     return button;
   }
 
@@ -227,20 +229,30 @@
 
     const kind = expectedKind();
     const adReady = hasNative() && rewardedReady;
+    const boosterInventory = vaultInventory('booster');
+    const rainInventory = vaultInventory('rain');
+    const cooldownMs = novaCooldownMs();
+    const cooldownSeconds = Math.ceil(cooldownMs / 1000);
     if (boosterBtn) {
-      boosterBtn.disabled = kind !== 'booster' || !adReady || miningState.malformed;
+      const stored = boosterInventory > 0;
+      boosterBtn.disabled = kind !== 'booster' || miningState.malformed || (stored ? cooldownMs > 0 : !adReady);
       boosterBtn.textContent = miningState.boosterUses >= BOOSTER_LIMIT
         ? 'BOOSTER COMPLETE'
-        : !hasNative() ? 'ANDROID APP REQUIRED'
-        : rewardedReady ? 'WATCH AD • -2H' : 'PREPARING AD…';
+        : stored
+          ? cooldownMs > 0 ? `BOOSTER READY IN ${cooldownSeconds}s` : `USE VAULT BOOSTER • -2H (${boosterInventory})`
+          : !hasNative() ? 'NO VAULT BOOSTER'
+          : rewardedReady ? 'TEST AD • NO TIME CHANGE' : 'PREPARING TEST AD…';
     }
     if (rainBtn) {
-      rainBtn.disabled = kind !== 'rain' || !adReady || miningState.malformed;
+      const stored = rainInventory > 0;
+      rainBtn.disabled = kind !== 'rain' || miningState.malformed || (stored ? cooldownMs > 0 : !adReady);
       rainBtn.textContent = miningState.rainUses >= RAIN_LIMIT
         ? 'RAIN COMPLETE'
         : miningState.boosterUses < BOOSTER_LIMIT ? 'UNLOCK AFTER BOOSTER'
-        : !hasNative() ? 'ANDROID APP REQUIRED'
-        : rewardedReady ? 'WATCH AD • -2H' : 'PREPARING AD…';
+        : stored
+          ? cooldownMs > 0 ? `RAIN READY IN ${cooldownSeconds}s` : `USE VAULT RAIN • -2H (${rainInventory})`
+          : !hasNative() ? 'NO VAULT RAIN'
+          : rewardedReady ? 'TEST AD • NO TIME CHANGE' : 'PREPARING TEST AD…';
     }
 
     let text = 'Checking secure mining session…';
@@ -270,7 +282,7 @@
             : miningState.uses >= TOTAL_LIMIT
               ? 'Maximum 12-hour reduction reached for this session.'
               : rewardedReady
-                ? `${kindLabel(kind)} ready • -2h real mining time${testMode ? ' • TEST MODE' : ''}`
+                ? `${kindLabel(kind)} ready • TEST MODE • no mining-time change`
                 : `Preparing rewarded ad…${testMode ? ' • TEST MODE' : ''}`;
     }
   }
@@ -359,37 +371,25 @@
   }
 
   async function applyBoost(kind = '') {
-    const context = await getContext({ write: true });
-    const ref = context.fsMod.doc(context.db, 'users', context.user.uid);
-    const requested = String(kind || '').toLowerCase();
+    if (typeof window.NexusNovaVault?.useBoost !== 'function') {
+      throw new Error('Nova Vault secure boost service is still loading.');
+    }
+    return window.NexusNovaVault.useBoost(kind);
+  }
 
-    const result = await context.fsMod.runTransaction(context.db, async tx => {
-      const snap = await tx.get(ref);
-      if (!snap.exists()) throw new Error('User profile not found.');
-      const raw = snap.data() || {};
-      const state = deriveBoost(raw);
-      const expected = state.uses < BOOSTER_LIMIT ? 'booster' : 'rain';
-      if (requested && requested !== expected) {
-        throw new Error(expected === 'booster'
-          ? 'Complete the two Nova Booster uses before Nova Rain.'
-          : 'Nova Booster is complete. Use Nova Rain for the remaining boosts.');
-      }
+  function vaultInventory(kind) {
+    const snapshot = window.NexusNovaVault?.inventory?.() || {};
+    return Math.max(0, Number(kind === 'rain' ? snapshot.rain : snapshot.booster) || 0);
+  }
 
-      const nextStartedAt = state.startedAt - BOOST_MS;
-      tx.update(ref, { miningStartedAt: nextStartedAt });
-      return {
-        miningActive: true,
-        miningStartedAt: nextStartedAt,
-        miningLastUpdate: state.anchorAt,
-        appliedKind: expected,
-        uses: state.uses + 1,
-        reducedHours: (state.uses + 1) * 2
-      };
-    });
+  function novaCooldownMs() {
+    return Math.max(0, Number(window.NexusNovaVault?.cooldownRemainingMs?.()) || 0);
+  }
 
-    adoptMiningState(result);
-    try { await window.nexusSecureSyncMining?.(); } catch (_) {}
-    return result;
+  async function activateBoost(kind = '') {
+    const requested = String(kind || expectedKind() || '').toLowerCase();
+    if (vaultInventory(requested) > 0) return applyBoost(requested);
+    return showRewarded(requested);
   }
 
   async function showRewarded(kind = '') {
@@ -423,12 +423,20 @@
       return { shown:false, reason:'wrong-kind' };
     }
     if (!hasNative()) {
-      await premiumMessage('Android App Required', 'Rewarded mining boosts run through the native NexusNova Android app. No fake boost was issued.', 'security');
+      await premiumMessage('Android App Required', 'Rewarded mining boost testing runs through the native NexusNova Android app. No mining time was changed.', 'security');
       return { shown:false, native:false };
+    }
+    if (!testMode && !SERVER_VERIFIED_BOOST_ENABLED) {
+      await premiumMessage(
+        'Mining Boost Not Live Yet',
+        'Live mining-time rewards need server-verified ad proof. Normal mining continues unchanged.',
+        'security'
+      );
+      return { shown:false, reason:'server-proof-required' };
     }
 
     pendingKind = expected;
-    if (!post('showRewardedAd', { rewardPurpose:'mining-boost', boostKind:expected })) {
+    if (!post('showRewardedAd', { rewardPurpose:'mining-boost', boostKind:expected, testOnly:true })) {
       pendingKind = '';
       return { shown:false, native:false };
     }
@@ -446,11 +454,12 @@
 
   async function handleEarned(detail) {
     const purpose = String(detail.rewardPurpose || '');
-    if (purpose !== 'mining-boost' || Number(detail.boostHours || 0) !== 2) {
+    if (purpose !== 'mining-boost') return;
+    if (Number(detail.boostHours || 0) !== 2) {
       pendingKind = '';
       await premiumMessage(
         'App Update Required',
-        'This Android build uses the older reward contract. Install the current mining-boost test build before testing this reward.',
+        'This Android build uses an older mining-boost contract. No mining time was changed.',
         'security'
       );
       return;
@@ -463,19 +472,20 @@
       return;
     }
 
-    try {
-      const applier = window.NexusNovaMiningBoosters?.apply;
-      const result = typeof applier === 'function' ? await applier(kind) : await applyBoost(kind);
+    if (detail.testMode === true || testMode || !SERVER_VERIFIED_BOOST_ENABLED) {
       await premiumMessage(
-        `${kindLabel(result?.appliedKind || kind)} Applied`,
-        `Real mining time reduced by 2 hours. This session has now been reduced by ${Number(result?.reducedHours || 0)} hours in total.`,
+        'TEST Ad Completed',
+        `${kindLabel(kind)} ad flow is working. TEST ads never reduce mining time or change NVX.`,
         'spark'
       );
-    } catch (error) {
-      console.error('NexusNova mining boost apply:', error);
-      await premiumMessage('Boost Could Not Be Applied', String(error?.message || 'Secure mining rejected the boost.'), 'security');
-      try { await syncMiningState(); } catch (_) {}
+      return;
     }
+
+    await premiumMessage(
+      'Mining Boost Not Live Yet',
+      'Server-verified mining boost fulfillment is not enabled. No mining value was changed.',
+      'security'
+    );
   }
 
   function handleNativeEvent(event) {
@@ -572,6 +582,7 @@
   }
 
   window.addEventListener('nexusnova:native-ad-event', handleNativeEvent);
+  window.addEventListener('nexusnova:nova-vault-state', render);
 
   window.NexusNovaRewardedAds = {
     show: showRewarded,

@@ -21,6 +21,7 @@ page2 = read('js/page2.js')
 functions = read('functions/index.js')
 daily_bridge = read('js/nexusnova-daily-secure-claim-v1.js')
 mining = read('js/rewards-security-v1.js')
+mining_boost = read('js/nexusnova-admob-nexus-pass-v1.js')
 sw = read('sw.js')
 
 # index.html owns the live login module. A second js/index.js copy previously
@@ -118,12 +119,27 @@ for asset in [
 if '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI' in index:
     warnings.append('Login/signup checkbox still uses Google reCAPTCHA v2 TEST site key; replace it with a real registered key before public production signup')
 
+# Rewarded Mining Boost is never client-authoritative. TEST ads may prove UX,
+# but direct timestamp/value mutation stays denied until server proof exists.
+if 'validMiningBoost()' in rules:
+    errors.append('Direct client Mining Boost Firestore permission returned')
+for forbidden in ['runTransaction(context.db', 'tx.update(ref, { miningStartedAt:']:
+    if forbidden in mining_boost:
+        errors.append(f'Mining Boost client value writer returned: {forbidden}')
+for marker in [
+    'const SERVER_VERIFIED_BOOST_ENABLED = false;',
+    "boostKind:expected, testOnly:true",
+    'TEST ads never reduce mining time or change NVX.'
+]:
+    if marker not in mining_boost:
+        errors.append(f'Mining Boost server-proof safety marker missing: {marker}')
+
 # Mining remains a known migration item on the free/Spark architecture. Do not
 # pretend it is server-authoritative while rules still permit client transitions.
 if user_match:
     block = user_match.group(1)
     direct_mining = [name for name in [
-        'validMiningStart()', 'validMiningBoost()', 'validMiningFinish()',
+        'validMiningStart()', 'validMiningFinish()',
         'validMiningRollover()', 'validMiningRepair()'
     ] if name in block]
     if direct_mining:

@@ -23,12 +23,13 @@ if bridge_marker not in rewards:
         raise SystemExit('Secure mining sync insertion point not found.')
     rewards = rewards.replace(old, new, 1)
 
-old_boost = '''    adoptMiningState(result);\n    try { await window.nexusSecureSyncMining?.(); } catch (_) {}\n    return result;\n'''
-new_boost = '''    adoptMiningState(result);\n    try {\n      if (typeof window.nexusSecureAdoptMiningState === 'function') {\n        window.nexusSecureAdoptMiningState(result);\n      } else {\n        await window.nexusSecureSyncMining?.({ force:true });\n      }\n    } catch (_) {}\n    return result;\n'''
-if new_boost not in boost:
-    if old_boost not in boost:
-        raise SystemExit('Mining boost post-transaction sync insertion point not found.')
-    boost = boost.replace(old_boost, new_boost, 1)
+# Mining Boost value changes are disabled until server-verified fulfillment.
+# The prepared boost bridge must remain test-only and contain no direct Firestore
+# timestamp writer; there is therefore no post-transaction state to adopt.
+if 'SERVER_VERIFIED_BOOST_ENABLED = false' not in boost:
+    raise SystemExit('Prepared Mining Boost bridge lost its server-proof safety switch.')
+if 'runTransaction(context.db' in boost or 'tx.update(ref, { miningStartedAt:' in boost:
+    raise SystemExit('Prepared Mining Boost bridge still contains a direct value writer.')
 
 REWARDS.write_text(rewards, encoding='utf-8')
 BOOST.write_text(boost, encoding='utf-8')
@@ -37,8 +38,7 @@ checks = [
     (REWARDS, bridge_marker),
     (REWARDS, 'window.nexusSecureAdoptMiningState = state =>'),
     (REWARDS, 'window.nexusSecureSyncMining = async ({ force = false } = {}) =>'),
-    (BOOST, 'window.nexusSecureAdoptMiningState(result);'),
-    (BOOST, 'window.nexusSecureSyncMining?.({ force:true });'),
+    (BOOST, 'SERVER_VERIFIED_BOOST_ENABLED = false'),
 ]
 for path, needle in checks:
     if needle not in path.read_text(encoding='utf-8'):

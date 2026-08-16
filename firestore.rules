@@ -101,31 +101,9 @@ service cloud.firestore {
     // miningLastUpdate is the immutable session-start anchor until finish, so
     // the rule can enforce a hard six-use / 12-hour maximum without trusting
     // client-maintained counters.
-    function validMiningBoost() {
-      return request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['miningStartedAt'])
-        && resource.data.miningActive == true
-        && resource.data.miningStartedAt is int
-        && resource.data.miningStartedAt > 0
-        && resource.data.miningLastUpdate is int
-        && resource.data.miningLastUpdate > 0
-        && resource.data.miningStartedAt <= resource.data.miningLastUpdate
-        && (
-          resource.data.miningLastUpdate - resource.data.miningStartedAt == 0
-          || resource.data.miningLastUpdate - resource.data.miningStartedAt == 7200000
-          || resource.data.miningLastUpdate - resource.data.miningStartedAt == 14400000
-          || resource.data.miningLastUpdate - resource.data.miningStartedAt == 21600000
-          || resource.data.miningLastUpdate - resource.data.miningStartedAt == 28800000
-          || resource.data.miningLastUpdate - resource.data.miningStartedAt == 36000000
-        )
-        && request.time.toMillis() - resource.data.miningStartedAt < 86400000
-        && request.resource.data.miningStartedAt == resource.data.miningStartedAt - 7200000
-        && request.resource.data.miningStartedAt >= resource.data.miningLastUpdate - 43200000;
-    }
-
     function validMiningFinish() {
       return request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['balance', 'totalMined', 'miningActive', 'miningStartedAt', 'miningLastUpdate'])
+          .hasOnly(['balance', 'totalMined', 'miningActive', 'miningStartedAt', 'miningLastUpdate', 'novaVaultPending'])
         && resource.data.miningActive == true
         && resource.data.miningStartedAt is int
         && resource.data.miningStartedAt > 0
@@ -134,6 +112,7 @@ service cloud.firestore {
         && resource.data.totalMined is number
         && request.resource.data.balance == resource.data.balance + 24
         && request.resource.data.totalMined == resource.data.totalMined + 24
+        && request.resource.data.novaVaultPending == resource.data.get('novaVaultPending', 0) + 1
         && request.resource.data.miningActive == false
         && request.resource.data.miningStartedAt == 0
         && freshMiningMillis(request.resource.data.miningLastUpdate);
@@ -141,7 +120,7 @@ service cloud.firestore {
 
     function validMiningRollover() {
       return request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['balance', 'totalMined', 'miningActive', 'miningStartedAt', 'miningLastUpdate'])
+          .hasOnly(['balance', 'totalMined', 'miningActive', 'miningStartedAt', 'miningLastUpdate', 'novaVaultPending'])
         && resource.data.miningActive == true
         && resource.data.miningStartedAt is int
         && resource.data.miningStartedAt > 0
@@ -150,6 +129,7 @@ service cloud.firestore {
         && resource.data.totalMined is number
         && request.resource.data.balance == resource.data.balance + 24
         && request.resource.data.totalMined == resource.data.totalMined + 24
+        && request.resource.data.novaVaultPending == resource.data.get('novaVaultPending', 0) + 1
         && request.resource.data.miningActive == true
         && freshMiningMillis(request.resource.data.miningStartedAt)
         && request.resource.data.miningLastUpdate == request.resource.data.miningStartedAt;
@@ -408,7 +388,6 @@ service cloud.firestore {
       allow update: if (owns(uid) && (validProfileNameEdit() || validProfileDetailsEdit()))
         || (verifiedOwner(uid) && (
           validMiningStart()
-          || validMiningBoost()
           || validMiningFinish()
           || validMiningRollover()
           || validMiningRepair()

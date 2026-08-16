@@ -1,5 +1,5 @@
 /* NexusNova Service Worker - fresh-code first, bounded network + offline fallback + FCM web push */
-const CACHE = "nexusnova-shell-v17-security-origin-lock";
+const CACHE = "nexusnova-shell-v18-nova-vault";
 
 const ASSETS = [
   "./",
@@ -31,6 +31,7 @@ const ASSETS = [
   "./js/wallet-actions-v2.js",
   "./js/rewards-security-v1.js",
   "./js/nexusnova-rewards-spark-v1.js",
+  "./js/nexusnova-nova-vault-v1.js",
   "./js/nexusnova-rewarded-ads-config-v1.js",
   "./js/nexusnova-rewarded-ads-v1.js",
   "./js/nexusnova-rewarded-ads-button-guard-v1.js",

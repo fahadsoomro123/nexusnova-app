@@ -17,6 +17,9 @@
   const MINING_STYLE_ID = 'nx-future-mining-style';
   const SYNC_TIMEOUT_MS = 10_000;
   const SYNC_RETRY_DELAYS_MS = [2_500, 7_500, 15_000];
+  const MINING_START_AD_PLACEMENT = 'mining-start';
+  const MINING_START_AD_FEATURE = 'mining';
+  const MINING_START_AD_TIMEOUT_MS = 50_000;
 
   let uiPromise = null;
   let firebasePromise = null;
@@ -28,6 +31,7 @@
   let syncRetryTimers = [];
   let syncInFlight = null;
   let syncError = '';
+  let miningStartAdPending = false;
 
   const miningState = {
     known: false,
@@ -160,8 +164,8 @@
     if (!miningState.active) {
       button.dataset.state = 'ready';
       button.classList.remove('active');
-      text.textContent = 'START MINING';
-      timer.textContent = 'MINER OFFLINE';
+      text.textContent = miningStartAdPending ? 'START AD IN PROGRESS' : 'START MINING';
+      timer.textContent = miningStartAdPending ? 'AD REQUIRED • MINING STARTS AFTER DISMISS' : 'MINER OFFLINE';
       setVisibleBalance(miningState.balance);
       return;
     }
@@ -295,7 +299,8 @@
       miningActive: data.miningActive === true,
       miningStartedAt: Number(data.miningStartedAt) || 0,
       balance: Number.isFinite(balance) ? balance : NaN,
-      totalMined: Number.isFinite(totalMined) ? totalMined : NaN
+      totalMined: Number.isFinite(totalMined) ? totalMined : NaN,
+      novaVaultPending: Math.max(0, Math.floor(Number(data.novaVaultPending) || 0))
     };
   }
 
@@ -329,12 +334,14 @@
 
       const nextBalance = state.balance + MINING_REWARD;
       const nextTotal = state.totalMined + MINING_REWARD;
+      const nextVaultPending = state.novaVaultPending + 1;
       tx.update(ref, {
         balance: nextBalance,
         totalMined: nextTotal,
         miningActive: false,
         miningStartedAt: 0,
-        miningLastUpdate: now
+        miningLastUpdate: now,
+        novaVaultPending: nextVaultPending
       });
       return {
         finished:true,
@@ -342,7 +349,9 @@
         miningStartedAt:0,
         balance:nextBalance,
         totalMined:nextTotal,
-        earned:MINING_REWARD
+        novaVaultPending:nextVaultPending,
+        earned:MINING_REWARD,
+        novaVaultEarned:1
       };
     });
   }
@@ -437,6 +446,72 @@
     }
   }
 
+  function postNative(action, payload = {}) {
+    try {
+      if (typeof window.nexusPostNativeAction === 'function') {
+        return window.nexusPostNativeAction(action, payload);
+      }
+      if (typeof window.NexusAndroid?.postMessage !== 'function') return false;
+      window.NexusAndroid.postMessage(JSON.stringify({ action, ...payload }));
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  async function requireMiningStartAd() {
+    if (typeof window.NexusAndroid?.postMessage !== 'function' && typeof window.nexusPostNativeAction !== 'function') {
+      throw new Error('NexusNova Android app is required because every new mining session must show the start ad first.');
+    }
+    if (miningStartAdPending) throw new Error('Mining start ad is already in progress.');
+
+    miningStartAdPending = true;
+    renderMiningAuthoritative();
+    try {
+      return await new Promise((resolve, reject) => {
+        let settled = false;
+        let timeout = null;
+        const finish = (ok, error) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timeout);
+          window.removeEventListener('nexusnova:native-ad-event', onAdEvent);
+          if (ok) resolve(true);
+          else reject(error instanceof Error ? error : new Error(String(error || 'Mining start ad could not be shown.')));
+        };
+        const onAdEvent = event => {
+          const detail = event?.detail || {};
+          if (String(detail.provider || '') !== 'admob') return;
+          if (String(detail.placement || '') !== MINING_START_AD_PLACEMENT) return;
+          const type = String(detail.event || '');
+          if (type === 'interstitial-dismissed') {
+            finish(true);
+            return;
+          }
+          if ([
+            'interstitial-unavailable', 'interstitial-skipped',
+            'interstitial-failed', 'interstitial-load-failed'
+          ].includes(type)) {
+            const reason = String(detail.reason || detail.message || 'ad-not-ready');
+            finish(false, new Error(`Mining start ad is not ready (${reason}). Try again shortly.`));
+          }
+        };
+        window.addEventListener('nexusnova:native-ad-event', onAdEvent);
+        timeout = setTimeout(() => finish(false, new Error('Mining start ad timed out. Try again.')), MINING_START_AD_TIMEOUT_MS);
+        const posted = postNative('showInterstitialAd', {
+          placement: MINING_START_AD_PLACEMENT,
+          feature: MINING_START_AD_FEATURE,
+          reason: MINING_START_AD_PLACEMENT,
+          testOnly: false
+        });
+        if (!posted) finish(false, new Error('Mining start ad bridge is unavailable.'));
+      });
+    } finally {
+      miningStartAdPending = false;
+      renderMiningAuthoritative();
+    }
+  }
+
   async function startMining() {
     if (operationPromise) return operationPromise;
     operationPromise = (async () => {
@@ -466,6 +541,10 @@
           return state;
         }
 
+        // Every fresh mining activation is ad-gated. Natural completion and
+        // Time Warp both leave mining inactive, so the exact same gate runs
+        // before the next session. Mining starts only after ad dismissal.
+        await requireMiningStartAd();
         const started = await startFresh(context);
         adoptState(started);
         return started;
@@ -672,11 +751,16 @@
   window.nexusSecureStartMining = startMining;
   window.nexusSecureFinishMining = finishMining;
   window.nexusSecureRenderMining = () => renderMiningAuthoritative();
-  window.nexusSecureSyncMining = async () => {
-    if (miningState.known) return { ...miningState };
+  window.nexusSecureAdoptMiningState = state => {
+    if (state && typeof state === 'object') adoptState(state);
+    return { ...miningState };
+  };
+  window.nexusSecureMiningState = () => ({ ...miningState, startAdPending:miningStartAdPending });
+  window.nexusSecureSyncMining = async ({ force = false } = {}) => {
+    if (!force && miningState.known) return { ...miningState };
     return retrySecureSync({ userInitiated:false });
   };
-  window.nexusMiningEngineVersion = 'single-owner-v4-sync-watchdog';
+  window.nexusMiningEngineVersion = 'single-owner-v5-start-ad-nova-vault';
 
   installHandlers();
   renderMiningAuthoritative();

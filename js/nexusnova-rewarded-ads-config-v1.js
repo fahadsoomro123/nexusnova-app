@@ -9,10 +9,11 @@
     provider: 'admob-native',
     placementId: '',
     adslotName: '',
-    rewardLabel: '2h mining time reduction',
+    rewardLabel: 'TEST mining boost flow — no time change',
     rewardPurpose: 'mining-boost',
     boostHours: 2,
-    maxBoostHoursPerSession: 12
+    maxBoostHoursPerSession: 12,
+    serverVerifiedValueEnabled: false
   };
 
   function setMeta(name, value) {
