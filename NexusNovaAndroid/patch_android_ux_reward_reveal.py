@@ -109,8 +109,10 @@ for path, needle in checks:
 
 print('Applied Android UX repair: fast splash, canonical mining label, and animated Nova Vault reward reveal.')
 
-# Final Android presentation/safety chain. Both scripts operate only on the
-# prepared APK shell. The single-owner guard removes the legacy failsafe timer;
-# the modern layer is read-only UI polish and cannot mutate reward state.
+# Final Android presentation/safety chain. The compatibility pass normalizes
+# the legacy nested TEST snapshot hook so the next authoritative-timer step can
+# replace it atomically. The single-owner guard removes the legacy failsafe
+# timer; the modern layer is read-only UI polish and cannot mutate reward state.
+runpy.run_path('NexusNovaAndroid/patch_test_boost_authoritative_compat.py', run_name='__main__')
 runpy.run_path('NexusNovaAndroid/patch_single_mining_timer_owner.py', run_name='__main__')
 runpy.run_path('NexusNovaAndroid/patch_android_mining_modern_v2.py', run_name='__main__')
