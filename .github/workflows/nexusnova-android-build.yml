@@ -80,6 +80,9 @@ jobs:
           grep -q 'nexusSecureSyncMining?.({ force:true })' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
           grep -q 'nexusSecureClaimDaily' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-daily-secure-claim-v1.js
           grep -q 'boostKind:expected, testOnly:true' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
+          grep -q 'CURRENT_KDF_ITERATIONS = 600000' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-file-vault-v1.js
+          grep -q "window.nexusSecurityLockVersion = 'browser-pin-v3'" NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-security-lock-v1.js
+          grep -q 'AUTO_RELOCK_AFTER_HIDDEN_MS' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-security-lock-v1.js
           grep -q 'nx-rewarded-production-proof-guard-v1' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
           grep -q 'production-proof-not-enabled' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
           grep -q 'NATIVE_SHELL_PATH = "/nexusnova-native/"' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
@@ -87,12 +90,14 @@ jobs:
           grep -q 'scheduleInteractiveShellCheck' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
           grep -q 'scheduleNativeAdInitialization' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
 
-      - name: Check rewarded web bridge syntax
+      - name: Check native web security syntax
         run: |
           node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-daily-secure-claim-v1.js
           node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
           node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-daily-ad-test-v1.js
           node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-watch-ad-reward-v1.js
+          node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-file-vault-v1.js
+          node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-security-lock-v1.js
 
       - name: Compile Android test and production variants
         run: gradle -p NexusNovaAndroid :app:assembleDebug :app:assembleRelease --stacktrace --no-daemon
