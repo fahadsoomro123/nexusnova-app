@@ -74,6 +74,11 @@ jobs:
 
       - name: Commit tested Nova Vault system
         run: |
+          # The installer also adds Android CI assertions. GITHUB_TOKEN may write
+          # source files but cannot update another workflow without workflows
+          # permission, so restore that one generated workflow diff here. The
+          # verified Android gate is committed separately through the GitHub app.
+          git restore .github/workflows/nexusnova-android-build.yml
           git add \
             firestore.rules \
             functions/index.js \
@@ -87,8 +92,7 @@ jobs:
             NexusNovaAndroid/patch_mining_boost_sync.py \
             .github/scripts/mining-boost-rules-smoke.mjs \
             .github/scripts/nexusnova-rewarded-ads-runtime.mjs \
-            .github/scripts/firebase-security-readiness.py \
-            .github/workflows/nexusnova-android-build.yml
+            .github/scripts/firebase-security-readiness.py
           if git diff --cached --quiet; then
             echo 'Nova Vault system already installed.'
             exit 0
