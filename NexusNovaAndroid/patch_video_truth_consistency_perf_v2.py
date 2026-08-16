@@ -88,16 +88,20 @@ regional = regional.replace(
 )
 
 # 4) Lower GPU/compositor cost on modest Android devices. Keep the modern solid
-# gradients/borders but avoid full-screen real-time backdrop blurs.
-modern = modern.replace(
-    'backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);',
-    'backdrop-filter:none;-webkit-backdrop-filter:none;',
-    1
+# gradients/borders but avoid real-time backdrop blurs. Different UI revisions
+# used 10px, 12px and 20px blur values, so normalize every remaining blur in
+# this Android-only mining presentation layer instead of matching one revision.
+modern = re.sub(
+    r'(?<!-webkit-)backdrop-filter\s*:\s*blur\([^;]+\)(?:\s+saturate\([^;]+\))?(!important)?;',
+    lambda m: 'backdrop-filter:none' + ('!important' if m.group(1) else '') + ';',
+    modern,
+    flags=re.I,
 )
-modern = modern.replace(
-    'backdrop-filter:blur(20px) saturate(125%)!important;-webkit-backdrop-filter:blur(20px) saturate(125%)!important',
-    'backdrop-filter:none!important;-webkit-backdrop-filter:none!important',
-    1
+modern = re.sub(
+    r'-webkit-backdrop-filter\s*:\s*blur\([^;]+\)(?:\s+saturate\([^;]+\))?(!important)?;',
+    lambda m: '-webkit-backdrop-filter:none' + ('!important' if m.group(1) else '') + ';',
+    modern,
+    flags=re.I,
 )
 
 # Durable markers.
@@ -131,5 +135,7 @@ for path, needle in checks:
 
 if 'cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js' in PAGE.read_text(encoding='utf-8'):
     raise SystemExit('Parser-blocking jsQR CDN tag still exists in packaged page2.')
+if re.search(r'(?:-webkit-)?backdrop-filter\s*:\s*blur\(', MODERN.read_text(encoding='utf-8'), flags=re.I):
+    raise SystemExit('Android mining modern layer still contains a live backdrop blur.')
 
-print('Applied video consistency/performance v2: unified TEST Vault inventory, lazy QR/browser/news startup, and reduced Android blur cost.')
+print('Applied video consistency/performance v2: unified TEST Vault inventory, lazy QR/browser/news startup, and zero Android mining backdrop blur.')
