@@ -32,6 +32,18 @@ jobs:
           node --check js/wallet-onchain-sync-v3.js
           node --check js/wallet-actions-v2.js
 
+      - name: Diagnose configured USDT contracts
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          for path in ['js/wallet-actions-v2.js', 'js/wallet-onchain-sync-v3.js']:
+              text = Path(path).read_text(encoding='utf-8')
+              found = re.findall(r'USDT\s*:\s*(?:\{\s*contract:\s*)?\[?"([^"]+)"?', text)
+              print(path, [(value, len(value)) for value in found])
+          print('expected ethereum', '0xdAC17F958D2ee523a2206206994597C13D831ec7', len('0xdAC17F958D2ee523a2206206994597C13D831ec7'))
+          PY
+
       - name: Validate wallet financial security contract
         run: python3 .github/scripts/wallet-security-readiness.py
 
