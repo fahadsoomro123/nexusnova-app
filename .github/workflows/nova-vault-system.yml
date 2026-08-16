@@ -6,9 +6,11 @@ on:
       - main
     paths:
       - 'js/nexusnova-nova-vault-v1.js'
+      - 'js/nexusnova-rewarded-ads-v1.js'
       - '.github/scripts/install_nova_vault_system.py'
       - '.github/scripts/nova-vault-readiness.py'
       - '.github/scripts/nova-vault-rules-smoke.mjs'
+      - '.github/scripts/mining-boost-security-readiness.py'
       - '.github/workflows/nova-vault-system.yml'
   workflow_dispatch:
 
@@ -46,6 +48,7 @@ jobs:
           node --check js/nexusnova-nova-vault-v1.js
           node --check js/nexusnova-admob-nexus-pass-v1.js
           node --check js/nexusnova-rewarded-ads-config-v1.js
+          node --check js/nexusnova-rewarded-ads-v1.js
           node --check functions/index.js
           node --check .github/scripts/nova-vault-rules-smoke.mjs
           node --check .github/scripts/mining-boost-rules-smoke.mjs
