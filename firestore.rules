@@ -167,34 +167,6 @@ service cloud.firestore {
         && freshMiningMillis(request.resource.data.miningLastUpdate);
     }
 
-    function validDailyReward() {
-      return request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['balance', 'lastDailyReward', 'dailyRewardStreak'])
-        && resource.data.balance is number
-        && resource.data.balance >= 0
-        && resource.data.lastDailyReward is number
-        && resource.data.lastDailyReward >= 0
-        && resource.data.dailyRewardStreak is number
-        && resource.data.dailyRewardStreak >= 0
-        && request.time.toMillis() - resource.data.lastDailyReward >= 86400000
-        && request.resource.data.balance == resource.data.balance + 5
-        && freshMiningMillis(request.resource.data.lastDailyReward)
-        && (
-          (
-            resource.data.lastDailyReward > 0
-            && request.time.toMillis() - resource.data.lastDailyReward <= 172800000
-            && request.resource.data.dailyRewardStreak == resource.data.dailyRewardStreak + 1
-          )
-          || (
-            (
-              resource.data.lastDailyReward == 0
-              || request.time.toMillis() - resource.data.lastDailyReward > 172800000
-            )
-            && request.resource.data.dailyRewardStreak == 1
-          )
-        );
-    }
-
     function leaderboardSource(uid) {
       return get(/databases/$(database)/documents/users/$(uid)).data;
     }
