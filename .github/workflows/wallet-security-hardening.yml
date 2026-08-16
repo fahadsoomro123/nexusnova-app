@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - '.github/scripts/harden_wallet_send_context.py'
+      - '.github/scripts/harden_wallet_contracts.py'
       - '.github/scripts/wallet-security-readiness.py'
       - '.github/workflows/wallet-security-hardening.yml'
   workflow_dispatch:
@@ -23,6 +24,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Repair verified wallet contracts
+        run: python3 .github/scripts/harden_wallet_contracts.py
+
       - name: Revalidate wallet account and chain before send
         run: python3 .github/scripts/harden_wallet_send_context.py
 
@@ -32,18 +36,6 @@ jobs:
           node --check js/wallet-onchain-sync-v3.js
           node --check js/wallet-actions-v2.js
 
-      - name: Diagnose configured USDT contracts
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-          for path in ['js/wallet-actions-v2.js', 'js/wallet-onchain-sync-v3.js']:
-              text = Path(path).read_text(encoding='utf-8')
-              found = re.findall(r'USDT\s*:\s*(?:\{\s*contract:\s*)?\[?"([^"]+)"?', text)
-              print(path, [(value, len(value)) for value in found])
-          print('expected ethereum', '0xdAC17F958D2ee523a2206206994597C13D831ec7', len('0xdAC17F958D2ee523a2206206994597C13D831ec7'))
-          PY
-
       - name: Validate wallet financial security contract
         run: python3 .github/scripts/wallet-security-readiness.py
 
@@ -52,12 +44,12 @@ jobs:
 
       - name: Commit wallet hardening
         run: |
-          if git diff --quiet -- js/wallet-actions-v2.js; then
-            echo 'Wallet send-context hardening already applied.'
+          if git diff --quiet -- js/wallet-actions-v2.js js/wallet-onchain-sync-v3.js; then
+            echo 'Wallet security hardening already applied.'
             exit 0
           fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add js/wallet-actions-v2.js
-          git commit -m 'Revalidate wallet context before transfers'
+          git add js/wallet-actions-v2.js js/wallet-onchain-sync-v3.js
+          git commit -m 'Harden wallet transfers and verified contracts'
           git push origin HEAD:main
