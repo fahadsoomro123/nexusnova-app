@@ -333,3 +333,31 @@
   // Expose for debugging
   window.__nexusNewFeatures = { t, getAlerts, currentLang: () => currentLang };
 })();
+
+/* NexusNova Reader/Popup Polish bootstrap — additive only. */
+(function loadNexusReaderPolish(){
+  'use strict';
+  if (window.__nxReaderPopupPolishBootstrapV2) return;
+  window.__nxReaderPopupPolishBootstrapV2 = true;
+
+  if (!document.querySelector('link[data-nx-reader-popup-v2]')) {
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = './css/nexusnova-reader-popup-v2.css?v=20260816';
+    link.dataset.nxReaderPopupV2 = '1';
+    document.head.appendChild(link);
+  }
+
+  function loadScript(src, key) {
+    if (document.querySelector(`script[data-nx-addon="${key}"]`)) return;
+    const script = document.createElement('script');
+    script.src = src;
+    script.defer = true;
+    script.dataset.nxAddon = key;
+    script.onerror = () => console.warn('NexusNova additive UI file unavailable:', key);
+    document.head.appendChild(script);
+  }
+
+  loadScript('./js/nexusnova-scripture-reader-polish-v1.js?v=20260816', 'scripture-reader-polish');
+  loadScript('./js/nexusnova-quran-highlights-v1.js?v=20260816', 'quran-sacred-highlights');
+})();
