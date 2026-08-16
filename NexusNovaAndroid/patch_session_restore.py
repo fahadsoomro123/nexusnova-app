@@ -2,9 +2,11 @@ from pathlib import Path
 
 main_path = Path('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt')
 store_path = Path('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/PhonebookStore.kt')
+page_path = Path('NexusNovaAndroid/app/src/main/assets/www/page2.html')
 
 main = main_path.read_text()
 store = store_path.read_text()
+page = page_path.read_text(encoding='utf-8')
 
 # PhonebookStore already keeps the authenticated account marker in private app
 # SharedPreferences for caller-ID scoping. Expose only a boolean so Android can
@@ -73,17 +75,31 @@ if new_back not in main:
         raise SystemExit('MainActivity Back handling insertion point not found')
     main = main.replace(old_back, new_back, 1)
 
+# nx-android-balance-priority-v1
+# Firebase app/auth/firestore are the only remote modules required before the
+# first secure balance snapshot. Start those connections from <head> so they are
+# already in flight while the bundled UI is parsing instead of starting later.
+if 'nx-android-balance-priority-v1' not in page:
+    head = '<head>\n'
+    preload = '''<head>\n<!-- nx-android-balance-priority-v1 -->\n<link rel="preconnect" href="https://www.gstatic.com" crossorigin>\n<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js" crossorigin>\n<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js" crossorigin>\n<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js" crossorigin>\n'''
+    if head not in page:
+        raise SystemExit('Android dashboard head insertion point not found')
+    page = page.replace(head, preload, 1)
+
 store_path.write_text(store)
 main_path.write_text(main)
+page_path.write_text(page, encoding='utf-8')
 
-required = [
+required_main = [
     'nx-android-back-session-stability-v1',
     'webView.restoreState(state)',
     'webView.saveState(outState)',
     'moveTaskToBack(true)',
 ]
-missing = [item for item in required if item not in main]
+missing = [item for item in required_main if item not in main]
 if missing:
     raise SystemExit('Android session stability verification failed: ' + ', '.join(missing))
+if 'nx-android-balance-priority-v1' not in page or 'firebase-firestore.js' not in page:
+    raise SystemExit('Android secure balance preload verification failed')
 
-print('Same-device Firebase session restore + Back/activity state preservation applied safely.')
+print('Same-device session, Back/activity preservation, and fast secure-balance bootstrap applied safely.')
