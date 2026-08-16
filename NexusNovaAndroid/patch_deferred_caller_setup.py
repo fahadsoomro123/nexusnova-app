@@ -30,8 +30,6 @@ if old_action in src:
 elif "callerSetupLauncher.launch(Intent(this, CallerSetupActivity::class.java))" not in src:
     raise SystemExit("Caller role bridge marker not found; refusing unsafe patch")
 
-# Safety assertions: no automatic setup call may remain in onCreate, while the
-# on-demand bridge and setup activity must remain wired.
 on_create = src.split("override fun onCreate", 1)[1].split("private fun configureWebView", 1)[0]
 if "showCallerSetupOnce()" in on_create:
     raise SystemExit("Automatic Caller ID setup call still exists in onCreate")
@@ -43,10 +41,6 @@ if "ACTION_REQUEST_CALLER_ROLE" not in src:
 MAIN.write_text(src, encoding="utf-8")
 print("Deferred Caller ID setup patch applied: startup is clean; setup is feature-triggered only.")
 
-# Reward patches build the status line from a single `text` variable. Normalize
-# that tiny render block into a branch form before the video-truth patch inserts
-# its transient no-reward message. This preserves the same existing text while
-# ensuring the transient message cannot be overwritten immediately afterwards.
 if BOOST.exists():
     boost = BOOST.read_text(encoding="utf-8")
     old_status = """    if (status) {
@@ -72,3 +66,4 @@ if BOOST.exists():
 # These run after same-device session restore and rewarded event-order hardening.
 runpy.run_path('NexusNovaAndroid/patch_video_truth_final.py', run_name='__main__')
 runpy.run_path('NexusNovaAndroid/patch_video_truth_consistency_perf_v2.py', run_name='__main__')
+runpy.run_path('NexusNovaAndroid/patch_video_smoothness_v1.py', run_name='__main__')
