@@ -29,4 +29,5 @@ jobs:
         run: python3 .github/scripts/android-webview-security-readiness.py
 
       - name: Validate Android XML syntax
-        run: python3 -c "import xml.etree.ElementTree as ET; ET.parse('NexusNovaAndroid/app/src/main/res/xml/network_security_config.xml'); ET.parse('NexusNovaAndroid/app/src/main/AndroidManifest.xml'); print('Android XML syntax: PASS')"
+        run: |
+          python3 -c "import xml.etree.ElementTree as ET; ET.parse('NexusNovaAndroid/app/src/main/res/xml/network_security_config.xml'); ET.parse('NexusNovaAndroid/app/src/main/AndroidManifest.xml'); print('Android XML syntax PASS')"
