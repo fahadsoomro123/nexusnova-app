@@ -81,38 +81,28 @@ for chain_id, symbol in EXPECTED_NATIVE.items():
     if not re.search(rf'native:\s*"{re.escape(symbol)}"', sync_block):
         errors.append(f'{chain_id} native asset drifted in on-chain sync')
 
+# Lock exact issuer-verified token literals in BOTH the send and balance maps.
+# Exact literals are deliberate here: a typo in even one address must fail CI.
 for chain_id in EXPECTED_NATIVE:
-    expected = EXPECTED_TOKENS.get(chain_id, {})
     action_block = action_blocks.get(chain_id, '')
     sync_block = sync_blocks.get(chain_id, '')
+    expected = EXPECTED_TOKENS.get(chain_id, {})
+    for symbol, (address, decimals) in expected.items():
+        action_literal = f'{symbol}: {{ contract: "{address}", decimals: {decimals} }}'
+        sync_literal = f'{symbol}: ["{address}", {decimals}]'
+        if action_literal not in action_block:
+            errors.append(f'{chain_id} {symbol} issuer-verified contract/decimals missing from send map')
+        if sync_literal not in sync_block:
+            errors.append(f'{chain_id} {symbol} issuer-verified contract/decimals missing from balance map')
 
-    # Every configured token must be one of the issuer-verified entries below.
-    action_tokens = {
-        m.group(1): (m.group(2), int(m.group(3)))
-        for m in re.finditer(
-            r'\b(USDT|USDC)\s*:\s*\{\s*contract:\s*"(0x[a-fA-F0-9]{40})"\s*,\s*decimals:\s*(\d+)\s*\}',
-            action_block,
-            re.S,
-        )
-    }
-    sync_tokens = {
-        m.group(1): (m.group(2), int(m.group(3)))
-        for m in re.finditer(
-            r'\b(USDT|USDC)\s*:\s*\[\s*"(0x[a-fA-F0-9]{40})"\s*,\s*(\d+)\s*\]',
-            sync_block,
-            re.S,
-        )
-    }
-
-    normalized_expected = {k: (v[0].lower(), v[1]) for k, v in expected.items()}
-    normalized_actions = {k: (v[0].lower(), v[1]) for k, v in action_tokens.items()}
-    normalized_sync = {k: (v[0].lower(), v[1]) for k, v in sync_tokens.items()}
-    if normalized_actions != normalized_expected:
-        errors.append(f'{chain_id} action token map does not match issuer-verified matrix: {normalized_actions}')
-    if normalized_sync != normalized_expected:
-        errors.append(f'{chain_id} balance token map does not match issuer-verified matrix: {normalized_sync}')
-    if normalized_actions != normalized_sync:
-        errors.append(f'{chain_id} read/send token maps drifted from each other')
+    configured_action_symbols = set(re.findall(r'\b(USDT|USDC)\s*:\s*\{\s*contract:', action_block))
+    configured_sync_symbols = set(re.findall(r'\b(USDT|USDC)\s*:\s*\[', sync_block))
+    if configured_action_symbols != set(expected):
+        errors.append(f'{chain_id} send token set drifted: {sorted(configured_action_symbols)}')
+    if configured_sync_symbols != set(expected):
+        errors.append(f'{chain_id} balance token set drifted: {sorted(configured_sync_symbols)}')
+    if configured_action_symbols != configured_sync_symbols:
+        errors.append(f'{chain_id} read/send token symbol sets drifted from each other')
 
 # Connect is permission-only. It must never sign or send value.
 for forbidden in [
@@ -135,8 +125,9 @@ for required in ['eth_accounts', 'eth_chainId', 'eth_getBalance', 'eth_call']:
 
 # The action module can request only wallet-native transaction confirmation. It
 # must not request raw signatures/keys or mutate NexusNova's Firebase balance.
-if actions.count('eth_sendTransaction') != 1:
-    errors.append('wallet actions must contain exactly one wallet-confirmed eth_sendTransaction path')
+actual_send_calls = len(re.findall(r'method:\s*"eth_sendTransaction"', actions))
+if actual_send_calls != 1:
+    errors.append(f'wallet actions must contain exactly one actual eth_sendTransaction request; found {actual_send_calls}')
 for forbidden in [
     'eth_sendRawTransaction', 'eth_sign', 'personal_sign', 'eth_signTypedData',
     'wallet_sendCalls', 'privateKey', 'mnemonic', 'seedPhrase'
