@@ -13,6 +13,7 @@ def read(path):
 
 rules = read('firestore.rules')
 boost = read('js/nexusnova-admob-nexus-pass-v1.js')
+loader = read('js/nexusnova-rewarded-ads-v1.js')
 config = read('js/nexusnova-rewarded-ads-config-v1.js')
 sync_patch = read('NexusNovaAndroid/patch_mining_boost_sync.py')
 
@@ -47,6 +48,11 @@ for required in [
     if required not in config:
         errors.append(f'Rewarded ads public config overstates Mining Boost value: {required}')
 
+if 'real 2-hour mining boost' in loader:
+    errors.append('Rewarded compatibility loader still advertises a live 2-hour value reward')
+if 'Mining-time value changes remain OFF until server-verified ad proof exists.' not in loader:
+    errors.append('Rewarded compatibility loader is missing the server-proof value-off disclosure')
+
 if 'Prepared Mining Boost bridge still contains a direct value writer.' not in sync_patch:
     errors.append('Android mining sync patch does not reject a reintroduced client boost writer')
 if "(BOOST, 'SERVER_VERIFIED_BOOST_ENABLED = false')" not in sync_patch:
@@ -63,4 +69,4 @@ print(' - normal mining start/finish/rollover: preserved')
 print(' - direct client 2h timestamp boost: denied')
 print(' - debug rewarded ad: TEST UX only, no mining/NVX change')
 print(' - release/live boost: disabled until server-verified proof exists')
-print(' - public reward config: truthfully reports value OFF')
+print(' - public reward config/loader: truthfully report value OFF')
