@@ -43,10 +43,16 @@
     document.addEventListener("DOMContentLoaded",updateButton,{once:true});
   } else updateButton();
 
-  function syncActiveAccount() {
+  // Do not clear the native same-device account marker merely because Firebase
+  // has not finished restoring yet. That early clear caused a Back -> reopen
+  // cycle to start on the login page even though the Firebase session persisted.
+  function syncActiveAccount({allowClear=false} = {}) {
     const accountId = activeAccountId();
-    if (accountId) window.nexusPostNativeAction("setActiveAccount", { accountId });
-    else window.nexusPostNativeAction("clearActiveAccount");
+    if (accountId) {
+      window.nexusPostNativeAction("setActiveAccount", { accountId });
+    } else if (allowClear) {
+      window.nexusPostNativeAction("clearActiveAccount");
+    }
   }
 
   // page2 assigns its logout function on window. Wrapping that assignment lets
@@ -78,7 +84,9 @@
   }
 
   installLogoutClearHook();
-  window.addEventListener("nexusaccountready", syncActiveAccount);
-  window.addEventListener("nexusaccountcleared", syncActiveAccount);
+  window.addEventListener("nexusaccountready", () => syncActiveAccount());
+  window.addEventListener("nexusaccountcleared", () => syncActiveAccount({allowClear:true}));
+  // On initial page boot the auth state can still be unresolved. Set a marker
+  // only when a UID is already known; never erase a valid previous marker here.
   syncActiveAccount();
 })();
