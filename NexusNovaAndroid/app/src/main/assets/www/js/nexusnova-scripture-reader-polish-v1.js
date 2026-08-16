@@ -137,3 +137,21 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', load, {once:true});
   else load();
 })();
+
+/* Islamic library + high-contrast reader loader. */
+(() => {
+  'use strict';
+  if (window.__nxIslamicLibraryLoaderV2) return;
+  window.__nxIslamicLibraryLoaderV2 = true;
+  const load = () => {
+    if (window.__nxIslamicLibraryV2 || document.querySelector('script[data-nx-islamic-library-v2]')) return;
+    const script = document.createElement('script');
+    script.src = './js/nexusnova-islamic-library-v2.js?v=20260816-3';
+    script.defer = true;
+    script.dataset.nxIslamicLibraryV2 = '1';
+    script.onerror = () => console.warn('NexusNova Islamic Library v2 could not load.');
+    document.head.appendChild(script);
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', load, {once:true});
+  else load();
+})();
