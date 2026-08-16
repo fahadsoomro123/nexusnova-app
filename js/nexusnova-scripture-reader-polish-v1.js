@@ -156,3 +156,23 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', load, {once:true});
   else load();
 })();
+
+/* Universal book-focus loader. Quran, Hadith, Fiqh, Ja‘fari, Bible and Urdu
+   Library keep their own data/source logic; this addon only changes how an
+   opened book is brought into the user's viewport. */
+(() => {
+  'use strict';
+  if (window.__nxBookFocusLoaderV1) return;
+  window.__nxBookFocusLoaderV1 = true;
+  const load = () => {
+    if (window.__nxBookFocusV1 || document.querySelector('script[data-nx-book-focus-v1]')) return;
+    const script = document.createElement('script');
+    script.src = './js/nexusnova-book-focus-v1.js?v=20260816-1';
+    script.defer = true;
+    script.dataset.nxBookFocusV1 = '1';
+    script.onerror = () => console.warn('NexusNova Book Focus could not load.');
+    document.head.appendChild(script);
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', load, {once:true});
+  else load();
+})();
