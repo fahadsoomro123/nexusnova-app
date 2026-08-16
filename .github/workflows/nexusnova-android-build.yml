@@ -54,6 +54,9 @@ jobs:
       - name: Enforce rewarded test-only production guard
         run: python3 NexusNovaAndroid/patch_rewarded_test_contract.py
 
+      - name: Apply TEST mining reward preview and booster FX
+        run: python3 NexusNovaAndroid/patch_test_boost_reward_fx.py
+
       - name: Apply UMP privacy options bridge
         run: python3 NexusNovaAndroid/patch_ad_privacy.py
 
@@ -83,12 +86,18 @@ jobs:
           grep -q "single-owner-v6-start-first-ad-best-effort-nova-vault" NexusNovaAndroid/app/src/main/assets/www/js/rewards-security-v1.js
           grep -q 'SERVER_VERIFIED_BOOST_ENABLED = false' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
           grep -q 'window.NexusNovaVault.useBoost' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
-          grep -q 'TEST ads never reduce mining time or change NVX.' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
+          grep -q 'nx-test-boost-reward-fx-v1' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
+          grep -q 'function applyTestReward' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
+          grep -q 'TEST AD • -2H +1 VAULT' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
+          grep -q 'window.NexusNovaBoostFX' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
+          grep -q 'window.NexusNovaTestRewards' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
           grep -q 'boostKind:expected, testOnly:true' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
           grep -q "window.nexusNovaVaultVersion = 'nova-vault-v1'" NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-nova-vault-v1.js
           grep -q "secureCallable('openNovaVault')" NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-nova-vault-v1.js
-          grep -q '+1 Nova Vault gift added' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-nova-vault-v1.js
+          grep -q 'OPEN TEST NOVA VAULT' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-nova-vault-v1.js
+          grep -q 'window.NexusNovaBoostFX.play' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-nova-vault-v1.js
           grep -q 'Every successful Booster/Rain use gifts +1 Vault' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-nova-vault-v1.js
+          grep -q 'TEST mining boost preview — -2H +1 Vault locally' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-rewarded-ads-config-v1.js
           grep -q 'serverVerifiedValueEnabled: false' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-rewarded-ads-config-v1.js
           grep -q 'nexusnova-nova-vault-v1.js' NexusNovaAndroid/app/src/main/assets/www/js/final-integrity-fix.js
           grep -q 'nexusSecureClaimDaily' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-daily-secure-claim-v1.js
