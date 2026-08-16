@@ -200,7 +200,7 @@
 
   async function withdraw() {
     try {
-      const { p, address, chain } = await connection();
+      const { p, address, chainId, chain } = await connection();
       const assets = assetOptions(chain);
       modal("Send / Withdraw", `
         <div style="padding:11px 12px;border-radius:12px;background:#0b1220;margin-bottom:14px;font-size:12px;line-height:1.55;color:#cbd5e1;">
@@ -232,6 +232,19 @@
           return;
         }
         try {
+          // Re-check the injected wallet immediately before building/sending value.
+          // A user can change account or chain while this modal is open; using the
+          // stale token map after that would be a financial safety bug.
+          const current = await connection();
+          if (
+            current.address.toLowerCase() !== address.toLowerCase() ||
+            current.chainId !== chainId
+          ) {
+            throw new Error(
+              "Wallet account or network changed. Close this window and start the transfer again."
+            );
+          }
+
           let tx;
           if (asset === chain.native.symbol) {
             const units = decimalToUnits(amount, chain.native.decimals);
@@ -244,7 +257,7 @@
             tx = { from: address, to: token.contract, data, value: "0x0" };
           }
           result.textContent = "Waiting for wallet confirmation...";
-          const hash = await p.request({ method: "eth_sendTransaction", params: [tx] });
+          const hash = await current.p.request({ method: "eth_sendTransaction", params: [tx] });
           result.innerHTML = `<span style="color:#22c55e;">✓ Transaction submitted.</span><br><span style="word-break:break-all;font-family:monospace;">${esc(hash)}</span><br><small>Confirmation time depends on ${esc(chain.name)}.</small>`;
           status(`<strong>Transaction submitted</strong><br>${esc(asset)} • ${esc(chain.name)}`, true);
           setTimeout(() => window.refreshNexusOnchainWallet?.(), 1800);
