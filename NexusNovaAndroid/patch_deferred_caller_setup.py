@@ -6,8 +6,6 @@ BOOST = Path("NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-
 
 src = MAIN.read_text(encoding="utf-8")
 
-# Session-restore builds may choose either index.html or page2.html at startup,
-# so do not couple Caller ID deferral to a specific webView.loadUrl(...) line.
 startup_call = "        showCallerSetupOnce()\n"
 startup_comment = """        // Caller ID setup is intentionally deferred. Do not interrupt splash/auth.
         // The user sees setup only after explicitly choosing the Caller ID feature.
@@ -19,12 +17,8 @@ elif "Caller ID setup is intentionally deferred" not in src:
 
 old_action = "            ACTION_REQUEST_CALLER_ROLE -> requestCallerRole()"
 new_action = """            ACTION_REQUEST_CALLER_ROLE -> {
-                // Explicit user action from the Caller ID feature opens our explanation
-                // screen first. Android's role permission is requested only after the
-                // user taps ENABLE CALLER ID ROLE inside that screen.
                 callerSetupLauncher.launch(Intent(this, CallerSetupActivity::class.java))
             }"""
-
 if old_action in src:
     src = src.replace(old_action, new_action, 1)
 elif "callerSetupLauncher.launch(Intent(this, CallerSetupActivity::class.java))" not in src:
@@ -63,7 +57,7 @@ if BOOST.exists():
     elif "if (!miningState.known) {\n        status.innerHTML = text;" not in boost and 'transientBoostNoteUntil > Date.now()' not in boost:
         raise SystemExit('Boost status normalization point not found.')
 
-# These run after same-device session restore and rewarded event-order hardening.
 runpy.run_path('NexusNovaAndroid/patch_video_truth_final.py', run_name='__main__')
 runpy.run_path('NexusNovaAndroid/patch_video_truth_consistency_perf_v2.py', run_name='__main__')
 runpy.run_path('NexusNovaAndroid/patch_video_smoothness_v1.py', run_name='__main__')
+runpy.run_path('NexusNovaAndroid/patch_video_smoothness_v2_fix.py', run_name='__main__')
