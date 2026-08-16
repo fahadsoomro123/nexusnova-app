@@ -23,6 +23,11 @@ daily_bridge = read('js/nexusnova-daily-secure-claim-v1.js')
 mining = read('js/rewards-security-v1.js')
 sw = read('sw.js')
 
+# index.html owns the live login module. A second js/index.js copy previously
+# contained weaker, stale auth logic and must not return as an accidental merge target.
+if (ROOT / 'js/index.js').exists():
+    errors.append('Stale duplicate js/index.js auth implementation must remain removed')
+
 # Global deny must remain present so new collections are private by default.
 if 'match /{document=**}' not in rules or 'allow read, write: if false;' not in rules:
     errors.append('Firestore catch-all deny is missing')
@@ -137,6 +142,7 @@ if errors:
     sys.exit(1)
 
 print('NexusNova Firebase security readiness: PASS')
+print(' - Live login implementation: single-source index.html; stale duplicate removed')
 print(' - Daily Reward: server-authoritative + App Check guarded; legacy rule removed')
 print(' - Login/dashboard App Check Enterprise key: consistent')
 print(' - New signup passwords: 10+ chars; existing login compatibility preserved')
