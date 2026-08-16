@@ -38,7 +38,19 @@ index = index.replace('<p id="subtitle">Sign up to start mining</p>', '<p id="su
 index = index.replace('<div class="captcha-box" id="captchaBox">', '<div class="captcha-box" id="captchaBox" style="display:none">', 1)
 index = index.replace('        Sign up with Email\n', '        Log in with Email\n', 1)
 index = index.replace('            Already have an account? Log in\n', "            Don't have an account? Sign up\n", 1)
-index = index.replace('let loginMode = false;', "let loginMode = new URLSearchParams(location.search).get('nxAndroid') === '1';", 1)
+index = index.replace(
+    'let loginMode = false;',
+    "let loginMode = new URLSearchParams(location.search).get('nxAndroid') === '1' || location.pathname.startsWith('/nexusnova-native/');",
+    1
+)
+
+# Keep the native-shell marker across login navigation. Relative navigation
+# otherwise drops ?nxAndroid=1 even though the page is still packaged Android.
+index = index.replace(
+    '            "./page2.html"\n',
+    "            (location.pathname.startsWith('/nexusnova-native/') ? './page2.html?nxAndroid=1' : './page2.html')\n",
+    1
+)
 
 # 2) Dashboard should never advertise a false zero account while Firebase is
 # restoring. A tiny non-blocking hydration layer changes placeholders only;
@@ -47,7 +59,8 @@ hydration = '''
 <script data-nx-android-startup-hydration="1">
 (function(){
   'use strict';
-  if (new URLSearchParams(location.search).get('nxAndroid') !== '1') return;
+  var isAndroid = new URLSearchParams(location.search).get('nxAndroid') === '1' || location.pathname.startsWith('/nexusnova-native/');
+  if (!isAndroid) return;
   document.documentElement.classList.add('nx-android-hydrating');
   function prime(){
     var balance=document.getElementById('balance');
@@ -86,15 +99,14 @@ needle = '''  function maybePrompt() {
     const consent = readConsent();
 '''
 replacement = '''  function maybePrompt() {
-    if (new URLSearchParams(location.search).get('nxAndroid') === '1') return;
+    if (new URLSearchParams(location.search).get('nxAndroid') === '1' || location.pathname.startsWith('/nexusnova-native/')) return;
     const consent = readConsent();
 '''
 if needle in analytics:
     analytics = analytics.replace(needle, replacement, 1)
-elif "get('nxAndroid') === '1'" not in analytics:
+elif "location.pathname.startsWith('/nexusnova-native/')" not in analytics:
     raise SystemExit('Analytics prompt hook not found.')
 
-# Durable marker.
 if MARKER not in index:
     index = index.replace('<body>', f'<body>\n<!-- {MARKER} -->', 1)
 
@@ -106,14 +118,15 @@ checks = [
     (INDEX, MARKER),
     (INDEX, 'var minMs = 700;'),
     (INDEX, 'setTimeout(hide, 1150);'),
-    (INDEX, "get('nxAndroid') === '1';"),
+    (INDEX, "location.pathname.startsWith('/nexusnova-native/')"),
+    (INDEX, './page2.html?nxAndroid=1'),
     (INDEX, '<h1 id="title">Welcome Back</h1>'),
     (PAGE, 'data-nx-android-startup-hydration="1"'),
     (PAGE, 'RESTORING SESSION'),
-    (ANALYTICS, "get('nxAndroid') === '1') return;"),
+    (ANALYTICS, "location.pathname.startsWith('/nexusnova-native/')"),
 ]
 for path, marker in checks:
     if marker not in path.read_text(encoding='utf-8'):
         raise SystemExit(f'Android startup smooth verification failed: {path} -> {marker}')
 
-print('Applied smooth Android startup: no first-run shell flash, fast login splash, direct login mode, hydration placeholders, and deferred analytics prompt.')
+print('Applied smooth Android startup: no native-shell first-run reload, fast login splash, direct login mode, preserved Android route, hydration placeholders, and deferred analytics prompt.')
