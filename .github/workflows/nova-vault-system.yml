@@ -9,6 +9,7 @@ on:
       - 'js/nexusnova-nova-vault-v1.js'
       - 'functions/index.js'
       - '.github/scripts/apply_nova_engagement_v2.py'
+      - '.github/scripts/fix_nova_engagement_copy.py'
       - '.github/scripts/nova-vault-readiness.py'
       - '.github/scripts/nova-vault-rules-smoke.mjs'
       - '.github/scripts/mining-boost-rules-smoke.mjs'
@@ -30,7 +31,9 @@ jobs:
           fetch-depth: 0
 
       - name: Apply engagement v2
-        run: python3 .github/scripts/apply_nova_engagement_v2.py
+        run: |
+          python3 .github/scripts/apply_nova_engagement_v2.py
+          python3 .github/scripts/fix_nova_engagement_copy.py
 
       - name: Validate security and feature contracts
         run: |
@@ -48,6 +51,7 @@ jobs:
           node --check .github/scripts/nova-vault-rules-smoke.mjs
           node --check .github/scripts/mining-boost-rules-smoke.mjs
           python3 -m py_compile .github/scripts/apply_nova_engagement_v2.py
+          python3 -m py_compile .github/scripts/fix_nova_engagement_copy.py
           python3 -m py_compile NexusNovaAndroid/patch_admob.py
           python3 -m py_compile NexusNovaAndroid/patch_mining_boost_sync.py
 
@@ -81,7 +85,7 @@ jobs:
           fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -m 'Start mining before ads and gift Vaults on boosts'
+          git commit -m 'Align Nova copy with start-first mining behavior'
           git fetch origin main
           git rebase origin/main
           git push origin HEAD:main
