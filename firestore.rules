@@ -477,21 +477,21 @@ service cloud.firestore {
 
     match /chatMessages/{id} {
       allow read: if signedIn();
-      allow create: if signedIn() && validChatMessage();
+      allow create: if signedIn() && request.auth.token.email_verified == true && validChatMessage();
       allow update, delete: if false;
     }
 
     match /marketplaceListings/{id} {
       allow read: if signedIn();
-      allow create: if signedIn() && validListingCreate();
-      allow update: if signedIn() && validListingUpdate();
-      allow delete: if signedIn() && request.auth.uid == resource.data.sellerUid;
+      allow create: if signedIn() && request.auth.token.email_verified == true && validListingCreate();
+      allow update: if signedIn() && request.auth.token.email_verified == true && validListingUpdate();
+      allow delete: if signedIn() && request.auth.token.email_verified == true && request.auth.uid == resource.data.sellerUid;
     }
 
     match /marketplaceOrders/{id} {
       allow read: if signedIn() && (request.auth.uid == resource.data.buyerUid || request.auth.uid == resource.data.sellerUid);
-      allow create: if signedIn() && validOrderCreate();
-      allow update: if signedIn() && validOrderUpdate();
+      allow create: if signedIn() && request.auth.token.email_verified == true && validOrderCreate();
+      allow update: if signedIn() && request.auth.token.email_verified == true && validOrderUpdate();
       allow delete: if false;
     }
 
