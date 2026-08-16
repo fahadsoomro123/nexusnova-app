@@ -35,11 +35,11 @@ for required in [
     'const SERVER_VERIFIED_BOOST_ENABLED = false;',
     "boostKind:expected, testOnly:true",
     'TEST ads never reduce mining time or change NVX.',
-    'Mining Boost value changes are disabled until server-verified ad proof is deployed.',
+    'window.NexusNovaVault.useBoost',
     "reason:'server-proof-required'",
 ]:
     if required not in boost:
-        errors.append(f'Mining Boost proof-only marker missing: {required}')
+        errors.append(f'Mining Boost proof-only/Vault marker missing: {required}')
 
 for required in [
     "rewardLabel: 'TEST mining boost flow — no time change'",
@@ -49,9 +49,11 @@ for required in [
         errors.append(f'Rewarded ads public config overstates Mining Boost value: {required}')
 
 if 'real 2-hour mining boost' in loader:
-    errors.append('Rewarded compatibility loader still advertises a live 2-hour value reward')
-if 'Mining-time value changes remain OFF until server-verified ad proof exists.' not in loader:
-    errors.append('Rewarded compatibility loader is missing the server-proof value-off disclosure')
+    errors.append('Rewarded compatibility loader still advertises an ad-backed live 2-hour reward')
+if 'Native AdMob rewarded ads are TEST/value-free until server ad proof is live.' not in loader:
+    errors.append('Rewarded compatibility loader is missing the ad-value-off disclosure')
+if 'server-owned Nova Vault inventory' not in loader:
+    errors.append('Rewarded compatibility loader is missing the secure Vault inventory disclosure')
 
 if 'Prepared Mining Boost bridge still contains a direct value writer.' not in sync_patch:
     errors.append('Android mining sync patch does not reject a reintroduced client boost writer')
@@ -68,5 +70,6 @@ print('NexusNova Mining Boost security readiness: PASS')
 print(' - normal mining start/finish/rollover: preserved')
 print(' - direct client 2h timestamp boost: denied')
 print(' - debug rewarded ad: TEST UX only, no mining/NVX change')
-print(' - release/live boost: disabled until server-verified proof exists')
-print(' - public reward config/loader: truthfully report value OFF')
+print(' - rewarded-ad boost value: disabled until server-verified proof exists')
+print(' - stored Nova Vault Booster/Rain: server-authoritative real -2H path')
+print(' - public reward config/loader: distinguish test ads from Vault inventory value')
