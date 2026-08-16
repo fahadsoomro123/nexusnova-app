@@ -28,10 +28,5 @@ jobs:
       - name: Validate Android WebView security contract
         run: python3 .github/scripts/android-webview-security-readiness.py
 
-      - name: Validate network security XML
-        run: python3 - <<'PY'
-          import xml.etree.ElementTree as ET
-          ET.parse('NexusNovaAndroid/app/src/main/res/xml/network_security_config.xml')
-          ET.parse('NexusNovaAndroid/app/src/main/AndroidManifest.xml')
-          print('Android XML syntax: PASS')
-          PY
+      - name: Validate Android XML syntax
+        run: python3 -c "import xml.etree.ElementTree as ET; ET.parse('NexusNovaAndroid/app/src/main/res/xml/network_security_config.xml'); ET.parse('NexusNovaAndroid/app/src/main/AndroidManifest.xml'); print('Android XML syntax: PASS')"
