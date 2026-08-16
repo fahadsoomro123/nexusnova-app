@@ -47,12 +47,17 @@
     const active = state.active === true || state.miningActive === true;
     const startedAt = Number(state.startedAt ?? state.miningStartedAt) || 0;
     const elapsed = startedAt > 0 ? Math.max(0, Date.now() - startedAt) : 0;
+    const previewOffsetMs = Math.max(0, Number(state.previewOffsetMs) || 0);
+    const displayElapsed = elapsed + previewOffsetMs;
 
     let label = 'START MINING';
     let visualState = 'ready';
     if (active && startedAt > 0 && elapsed >= DAY) {
       label = 'CLAIM + START NEXT';
       visualState = 'complete';
+    } else if (active && startedAt > 0 && previewOffsetMs > 0 && displayElapsed >= DAY) {
+      label = 'TEST BOOST PREVIEW COMPLETE';
+      visualState = 'active';
     } else if (active && startedAt > 0) {
       label = 'MINING ACTIVE';
       visualState = 'active';
