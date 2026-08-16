@@ -1,19 +1,14 @@
 from pathlib import Path
+import runpy
 
 path = Path('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt')
 text = path.read_text()
 
-# This patch runs AFTER patch_admob.py. Keep privacy UI wiring separate from the
-# proven ad loading/showing owner so production consent work cannot disturb v60.
 if 'private lateinit var adConsentManager: NexusAdConsentManager' not in text:
     marker = '    private lateinit var adManager: NexusAdManager\n'
     if marker not in text:
         raise SystemExit('Ad manager field missing before privacy patch')
-    text = text.replace(
-        marker,
-        marker + '    private lateinit var adConsentManager: NexusAdConsentManager\n',
-        1
-    )
+    text = text.replace(marker, marker + '    private lateinit var adConsentManager: NexusAdConsentManager\n', 1)
 
 if 'adConsentManager = NexusAdConsentManager(this)' not in text:
     old = '''        adManager = NexusAdManager(this, webView) { view -> isTrustedAppPage(view) }\n        if (BuildConfig.NEXUS_ADS_TEST_MODE) {\n            // Debug/development APKs always use Google's test inventory.\n            adManager.initialize()\n        } else {\n            // Release APKs cannot initialize/request production ads until UMP\n            // has refreshed consent state and says ad requests are allowed.\n            NexusAdConsentManager(this).gather { canRequestAds ->\n                if (canRequestAds) adManager.initialize()\n            }\n        }\n'''
@@ -55,4 +50,8 @@ missing = [item for item in required if item not in text]
 if missing:
     raise SystemExit('Ad privacy patch verification failed: ' + ', '.join(missing))
 
-print('UMP privacy options bridge applied without modifying the ad owner.')
+# This workflow step runs immediately after the authoritative TEST timer patch,
+# so it is the safe point to harden native earned/dismiss event ordering.
+runpy.run_path('NexusNovaAndroid/patch_android_reward_event_order_v1.py', run_name='__main__')
+
+print('UMP privacy options bridge + rewarded event-order hardening applied.')
