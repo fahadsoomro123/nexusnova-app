@@ -164,8 +164,8 @@
     if (!miningState.active) {
       button.dataset.state = 'ready';
       button.classList.remove('active');
-      text.textContent = miningStartAdPending ? 'START AD IN PROGRESS' : 'START MINING';
-      timer.textContent = miningStartAdPending ? 'AD REQUIRED • MINING STARTS AFTER DISMISS' : 'MINER OFFLINE';
+      text.textContent = 'START MINING';
+      timer.textContent = 'MINER OFFLINE';
       setVisibleBalance(miningState.balance);
       return;
     }
@@ -459,57 +459,51 @@
     }
   }
 
-  async function requireMiningStartAd() {
-    if (typeof window.NexusAndroid?.postMessage !== 'function' && typeof window.nexusPostNativeAction !== 'function') {
-      throw new Error('NexusNova Android app is required because every new mining session must show the start ad first.');
-    }
-    if (miningStartAdPending) throw new Error('Mining start ad is already in progress.');
+  function requestMiningStartAdBestEffort() {
+    const hasBridge =
+      typeof window.NexusAndroid?.postMessage === 'function' ||
+      typeof window.nexusPostNativeAction === 'function';
+    if (!hasBridge || miningStartAdPending) return Promise.resolve(false);
 
     miningStartAdPending = true;
     renderMiningAuthoritative();
-    try {
-      return await new Promise((resolve, reject) => {
-        let settled = false;
-        let timeout = null;
-        const finish = (ok, error) => {
-          if (settled) return;
-          settled = true;
-          clearTimeout(timeout);
-          window.removeEventListener('nexusnova:native-ad-event', onAdEvent);
-          if (ok) resolve(true);
-          else reject(error instanceof Error ? error : new Error(String(error || 'Mining start ad could not be shown.')));
-        };
-        const onAdEvent = event => {
-          const detail = event?.detail || {};
-          if (String(detail.provider || '') !== 'admob') return;
-          if (String(detail.placement || '') !== MINING_START_AD_PLACEMENT) return;
-          const type = String(detail.event || '');
-          if (type === 'interstitial-dismissed') {
-            finish(true);
-            return;
-          }
-          if ([
-            'interstitial-unavailable', 'interstitial-skipped',
-            'interstitial-failed', 'interstitial-load-failed'
-          ].includes(type)) {
-            const reason = String(detail.reason || detail.message || 'ad-not-ready');
-            finish(false, new Error(`Mining start ad is not ready (${reason}). Try again shortly.`));
-          }
-        };
-        window.addEventListener('nexusnova:native-ad-event', onAdEvent);
-        timeout = setTimeout(() => finish(false, new Error('Mining start ad timed out. Try again.')), MINING_START_AD_TIMEOUT_MS);
-        const posted = postNative('showInterstitialAd', {
-          placement: MINING_START_AD_PLACEMENT,
-          feature: MINING_START_AD_FEATURE,
-          reason: MINING_START_AD_PLACEMENT,
-          testOnly: false
-        });
-        if (!posted) finish(false, new Error('Mining start ad bridge is unavailable.'));
+    return new Promise(resolve => {
+      let settled = false;
+      let timeout = null;
+      const finish = shown => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        window.removeEventListener('nexusnova:native-ad-event', onAdEvent);
+        resolve(Boolean(shown));
+      };
+      const onAdEvent = event => {
+        const detail = event?.detail || {};
+        if (String(detail.provider || '') !== 'admob') return;
+        if (String(detail.placement || '') !== MINING_START_AD_PLACEMENT) return;
+        const type = String(detail.event || '');
+        if (type === 'interstitial-dismissed') {
+          finish(true);
+          return;
+        }
+        if ([
+          'interstitial-unavailable', 'interstitial-skipped',
+          'interstitial-failed', 'interstitial-load-failed'
+        ].includes(type)) finish(false);
+      };
+      window.addEventListener('nexusnova:native-ad-event', onAdEvent);
+      timeout = setTimeout(() => finish(false), MINING_START_AD_TIMEOUT_MS);
+      const posted = postNative('showInterstitialAd', {
+        placement: MINING_START_AD_PLACEMENT,
+        feature: MINING_START_AD_FEATURE,
+        reason: MINING_START_AD_PLACEMENT,
+        testOnly: false
       });
-    } finally {
+      if (!posted) finish(false);
+    }).finally(() => {
       miningStartAdPending = false;
       renderMiningAuthoritative();
-    }
+    });
   }
 
   async function startMining() {
@@ -541,12 +535,13 @@
           return state;
         }
 
-        // Every fresh mining activation is ad-gated. Natural completion and
-        // Time Warp both leave mining inactive, so the exact same gate runs
-        // before the next session. Mining starts only after ad dismissal.
-        await requireMiningStartAd();
+        // User intent is authoritative: start the secure mining session first.
+        // The Android interstitial is attempted immediately afterwards, but ad
+        // no-fill/failure/timeout never turns mining back off or requires a
+        // second tap. This keeps monetization best-effort and UX frustration low.
         const started = await startFresh(context);
         adoptState(started);
+        void requestMiningStartAdBestEffort();
         return started;
       } catch (error) {
         console.error('NexusNova secure mining:', error);
@@ -760,7 +755,7 @@
     if (!force && miningState.known) return { ...miningState };
     return retrySecureSync({ userInitiated:false });
   };
-  window.nexusMiningEngineVersion = 'single-owner-v5-start-ad-nova-vault';
+  window.nexusMiningEngineVersion = 'single-owner-v6-start-first-ad-best-effort-nova-vault';
 
   installHandlers();
   renderMiningAuthoritative();

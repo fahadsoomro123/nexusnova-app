@@ -85,7 +85,7 @@
     panel.id = PANEL_ID;
     panel.innerHTML = `
       <div class="nx-vault-head">
-        <div><div class="nx-vault-kicker">NOVA REWARD SYSTEM</div><div class="nx-vault-title">🔐 Nova Vault<small>1 free Vault after every natural 24H mining completion</small></div></div>
+        <div><div class="nx-vault-kicker">NOVA REWARD SYSTEM</div><div class="nx-vault-title">🔐 Nova Vault<small>1 Vault after natural 24H completion • +1 gift after every Booster/Rain use</small></div></div>
         <div class="nx-vault-pending" id="nxVaultPending">0 VAULTS</div>
       </div>
       <div class="nx-vault-inventory">
@@ -100,7 +100,7 @@
         <button type="button" class="nx-vault-btn warp" id="nxVaultUseWarp">USE 24H TIME WARP</button>
       </div>
       <div class="nx-vault-status" id="nxVaultStatus">Syncing Nova Vault…</div>
-      <div class="nx-vault-odds">Vault odds: NVX 60% • Booster 18% • Nova Rain 17% • 24H Time Warp 5% • NVX reward is 1–10. Time Warp never creates another Vault.</div>`;
+      <div class="nx-vault-odds">Vault odds: NVX 60% • Booster 18% • Nova Rain 17% • 24H Time Warp 5% • NVX reward is 1–10. Every successful Booster/Rain use gifts +1 Vault; Time Warp never creates another Vault.</div>`;
 
     const boostPanel = $('nxMiningBoostPanel');
     if (boostPanel?.parentNode) boostPanel.insertAdjacentElement('afterend', panel);
@@ -153,7 +153,7 @@
       if (left > 0) statusNode.innerHTML = `<strong>15s shared cooldown active</strong> • next Nova action in ${seconds}s`;
       else if (busy) statusNode.textContent = 'Secure Nova action is processing…';
       else if (state.pending > 0) statusNode.innerHTML = `<strong>${state.pending} free Vault${state.pending === 1 ? '' : 's'} ready</strong> • no ad or payment required to open`;
-      else statusNode.textContent = 'Complete a natural 24-hour mining session to earn your next free Nova Vault.';
+      else statusNode.textContent = 'Complete a natural 24-hour mining session or use a stored Booster/Rain to earn your next Nova Vault.';
     }
   }
 
@@ -226,6 +226,15 @@
       const result = await action();
       if (Number.isFinite(Number(result.balance))) window.nexusApplySecureAccountState?.(result);
       if (Number.isFinite(Number(result.cooldownUntil))) state.cooldownUntil = Number(result.cooldownUntil);
+      const returnedInventory = result?.inventory;
+      if (returnedInventory && typeof returnedInventory === 'object') {
+        state.booster = cleanInt(returnedInventory.booster);
+        state.rain = cleanInt(returnedInventory.rain);
+        state.timeWarp = cleanInt(returnedInventory.timeWarp);
+        state.pending = cleanInt(returnedInventory.pendingVaults);
+      } else if (Number.isFinite(Number(result.novaVaultPending))) {
+        state.pending = cleanInt(result.novaVaultPending);
+      }
       await syncMining(result);
       return result;
     } catch (error) {
@@ -261,7 +270,7 @@
     if (!result) return null;
     await showMessage(
       requested === 'rain' ? 'Nova Rain Applied' : 'Nova Booster Applied',
-      `Mining time reduced by 2 hours. Total reduction this session: ${Number(result.reducedHours || 0)} hours. Next Nova action unlocks in 15 seconds.`,
+      `Mining time reduced by 2 hours and +1 Nova Vault gift added. Total reduction this session: ${Number(result.reducedHours || 0)} hours. Next Nova action unlocks in 15 seconds.`,
       'spark'
     );
     return result;

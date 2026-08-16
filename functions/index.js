@@ -315,7 +315,12 @@ exports.useNovaBoost=protectedCallable(async req=>{
     const nextStartedAt=startedAt-NOVA_BOOST_MS;
     if(anchorAt-nextStartedAt>NOVA_MAX_BOOST_MS) throw new HttpsError("failed-precondition","Maximum 12-hour reduction reached.");
     const cooldownUntil=now+NOVA_COOLDOWN;
-    const updates={miningStartedAt:nextStartedAt,novaFeatureCooldownUntil:cooldownUntil};
+    const nextVaultPending=inventory.pendingVaults+1;
+    const updates={
+      miningStartedAt:nextStartedAt,
+      novaFeatureCooldownUntil:cooldownUntil,
+      novaVaultPending:nextVaultPending
+    };
     if(kind==="booster") updates.novaBoosterInventory=inventory.booster-1;
     else updates.novaRainInventory=inventory.rain-1;
     tx.update(r,updates);
@@ -328,11 +333,13 @@ exports.useNovaBoost=protectedCallable(async req=>{
       reducedHours:(uses+1)*2,
       uses:uses+1,
       cooldownUntil,
+      novaVaultPending:nextVaultPending,
+      novaVaultGifted:1,
       inventory:{
         booster:kind==="booster"?inventory.booster-1:inventory.booster,
         rain:kind==="rain"?inventory.rain-1:inventory.rain,
         timeWarp:inventory.timeWarp,
-        pendingVaults:inventory.pendingVaults
+        pendingVaults:nextVaultPending
       }
     };
   });

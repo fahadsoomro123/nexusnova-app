@@ -34,9 +34,10 @@ for marker in [
     'const MINING_START_AD_PLACEMENT',
     "placement: MINING_START_AD_PLACEMENT",
     "type === 'interstitial-dismissed'",
-    'await requireMiningStartAd();',
+    'function requestMiningStartAdBestEffort()',
+    'void requestMiningStartAdBestEffort();',
     'novaVaultPending: nextVaultPending',
-    "single-owner-v5-start-ad-nova-vault"
+    "single-owner-v6-start-first-ad-best-effort-nova-vault"
 ]:
     if marker not in mining: errors.append(f'Mining gate/Vault marker missing: {marker}')
 
@@ -47,7 +48,9 @@ for marker in [
     'randomInt(10000)',
     'const NOVA_COOLDOWN=15*1000;',
     'novaVaultEarned:0',
-    'novaVaultPending=optionalProfileInt(d,"novaVaultPending",0)+1'
+    'novaVaultPending=optionalProfileInt(d,"novaVaultPending",0)+1',
+    'const nextVaultPending=inventory.pendingVaults+1;',
+    'novaVaultGifted:1'
 ]:
     if marker not in functions: errors.append(f'Nova backend marker missing: {marker}')
 
@@ -92,5 +95,13 @@ print(' - cryptographic server-side reward draw: 60/18/17/5')
 print(' - Booster/Rain/Time Warp inventory is server-owned')
 print(' - 15-second shared Nova cooldown is server-enforced')
 print(' - Time Warp credits one session but never creates another Vault')
-print(' - every fresh Android mining start waits for mining-start ad dismissal')
+start_first=mining.find('const started = await startFresh(context);')
+ad_after=mining.find('void requestMiningStartAdBestEffort();')
+if start_first < 0 or ad_after < 0 or start_first > ad_after:
+    print('NexusNova Nova Vault readiness: FAIL')
+    print(' - ERROR: mining must start before the best-effort ad request')
+    sys.exit(1)
+
+print(' - every fresh mining tap starts immediately; Android ad is best-effort and never blocks mining')
+print(' - every successful Booster/Rain use atomically gifts +1 Nova Vault')
 print(' - direct client mining-boost timestamp mutation remains denied')
