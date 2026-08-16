@@ -60,6 +60,9 @@ jobs:
       - name: Harden TEST reward cooldown, idempotence, FX timing and safe scroll
         run: python3 NexusNovaAndroid/patch_test_boost_reward_fx_hardening.py
 
+      - name: Enforce TEST cooldown across all boost entry points
+        run: python3 NexusNovaAndroid/patch_test_boost_cooldown_gate.py
+
       - name: Apply UMP privacy options bridge
         run: python3 NexusNovaAndroid/patch_ad_privacy.py
 
@@ -91,8 +94,10 @@ jobs:
           grep -q 'window.NexusNovaVault.useBoost' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
           grep -q 'nx-test-boost-reward-fx-v1' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
           grep -q 'nx-test-boost-reward-hardening-v2' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
+          grep -q 'nx-test-boost-cooldown-gate-v3' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
           grep -q 'TEST_COOLDOWN_MS = 15_000' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
           grep -q 'const kind = pendingKind;' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
+          grep -q "reason:'nova-cooldown'" NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
           grep -q 'pendingRewardFxKind' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
           grep -q 'function applyTestReward' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
           grep -q 'TEST AD • -2H +1 VAULT' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
@@ -103,6 +108,7 @@ jobs:
           grep -q "secureCallable('openNovaVault')" NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-nova-vault-v1.js
           grep -q 'OPEN TEST NOVA VAULT' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-nova-vault-v1.js
           grep -q 'window.NexusNovaTestRewards?.cooldownRemainingMs?.()' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-nova-vault-v1.js
+          grep -q 'if (cooldownRemainingMs() > 0) return null;' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-nova-vault-v1.js
           grep -q 'window.NexusNovaBoostFX.play' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-nova-vault-v1.js
           grep -q 'Every successful Booster/Rain use gifts +1 Vault' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-nova-vault-v1.js
           grep -q 'nx-android-bottom-dock-safe-scroll-v1' NexusNovaAndroid/app/src/main/assets/www/css/nexusnova-final-user-fixes-v1.css
