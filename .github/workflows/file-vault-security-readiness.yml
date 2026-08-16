@@ -1,0 +1,29 @@
+name: NexusNova File Vault Security Readiness
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'js/nexusnova-file-vault-v1.js'
+      - '.github/scripts/nexusnova-documents-vault-security-runtime.mjs'
+      - '.github/scripts/file-vault-security-readiness.py'
+      - '.github/workflows/file-vault-security-readiness.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  vault-security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate File Vault security contract
+        run: python3 .github/scripts/file-vault-security-readiness.py
+
+      - name: Check File Vault JavaScript syntax
+        run: node --check js/nexusnova-file-vault-v1.js
