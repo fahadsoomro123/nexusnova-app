@@ -1,0 +1,119 @@
+from pathlib import Path
+
+ROOT = Path('NexusNovaAndroid/app/src/main/assets/www')
+INDEX = ROOT / 'index.html'
+PAGE = ROOT / 'page2.html'
+ANALYTICS = ROOT / 'js/nexusnova-analytics-v1.js'
+MARKER = 'nx-android-startup-smooth-v1'
+
+for path in (INDEX, PAGE, ANALYTICS):
+    if not path.exists():
+        raise SystemExit(f'Missing Android startup input: {path}')
+
+index = INDEX.read_text(encoding='utf-8')
+page = PAGE.read_text(encoding='utf-8')
+analytics = ANALYTICS.read_text(encoding='utf-8')
+
+# 1) Login splash: never wait on external Firebase/reCAPTCHA window.load.
+index = index.replace('var minMs = 3200;', 'var minMs = 700;', 1)
+old_ready = '''  if(document.readyState === "complete") ready();
+  else window.addEventListener("load", ready);
+'''
+new_ready = '''  if(document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", ready, {once:true});
+  } else {
+    ready();
+  }
+  setTimeout(hide, 1150);
+'''
+if old_ready in index:
+    index = index.replace(old_ready, new_ready, 1)
+elif 'setTimeout(hide, 1150);' not in index:
+    raise SystemExit('Android login splash readiness block not found.')
+
+# Android native app opens as returning-user login by default. New users can
+# still switch to signup; this removes the signup -> login visual mode jump.
+index = index.replace('<h1 id="title">Nexus<span>Nova</span></h1>', '<h1 id="title">Welcome Back</h1>', 1)
+index = index.replace('<p id="subtitle">Sign up to start mining</p>', '<p id="subtitle">Log in to your account</p>', 1)
+index = index.replace('<div class="captcha-box" id="captchaBox">', '<div class="captcha-box" id="captchaBox" style="display:none">', 1)
+index = index.replace('        Sign up with Email\n', '        Log in with Email\n', 1)
+index = index.replace('            Already have an account? Log in\n', "            Don't have an account? Sign up\n", 1)
+index = index.replace('let loginMode = false;', "let loginMode = new URLSearchParams(location.search).get('nxAndroid') === '1';", 1)
+
+# 2) Dashboard should never advertise a false zero account while Firebase is
+# restoring. A tiny non-blocking hydration layer changes placeholders only;
+# the secure mining owner overwrites them as soon as the first snapshot lands.
+hydration = '''
+<script data-nx-android-startup-hydration="1">
+(function(){
+  'use strict';
+  if (new URLSearchParams(location.search).get('nxAndroid') !== '1') return;
+  document.documentElement.classList.add('nx-android-hydrating');
+  function prime(){
+    var balance=document.getElementById('balance');
+    var usd=document.getElementById('usdValue');
+    var timer=document.getElementById('timer');
+    var label=document.getElementById('btnText');
+    if(balance && /^0(?:\.0+)?$/.test(balance.textContent.trim())) balance.textContent='—';
+    if(usd && /\$\s*0(?:\.0+)?/.test(usd.textContent)) usd.textContent='Restoring secure balance…';
+    if(timer && /MINER OFFLINE/i.test(timer.textContent)) timer.textContent='RESTORING SESSION';
+    if(label && /START MINING/i.test(label.textContent)) label.textContent='RESTORING MINING';
+  }
+  function release(){
+    try {
+      var state=window.nexusSecureMiningState?.();
+      if(state && state.known===true){
+        document.documentElement.classList.remove('nx-android-hydrating');
+        return true;
+      }
+    }catch(_){}
+    return false;
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', prime,{once:true}); else prime();
+  var tries=0;
+  var id=setInterval(function(){ if(release() || ++tries>40) clearInterval(id); },125);
+})();
+</script>
+'''
+if 'data-nx-android-startup-hydration="1"' not in page:
+    if '</body>' not in page:
+        raise SystemExit('page2 closing body missing for hydration guard.')
+    page = page.replace('</body>', hydration + '\n</body>', 1)
+
+# 3) Analytics remains available in Settings/Profile, but no modal interrupts
+# the first seconds after login on Android. Consent is still explicit opt-in.
+needle = '''  function maybePrompt() {
+    const consent = readConsent();
+'''
+replacement = '''  function maybePrompt() {
+    if (new URLSearchParams(location.search).get('nxAndroid') === '1') return;
+    const consent = readConsent();
+'''
+if needle in analytics:
+    analytics = analytics.replace(needle, replacement, 1)
+elif "get('nxAndroid') === '1'" not in analytics:
+    raise SystemExit('Analytics prompt hook not found.')
+
+# Durable marker.
+if MARKER not in index:
+    index = index.replace('<body>', f'<body>\n<!-- {MARKER} -->', 1)
+
+INDEX.write_text(index, encoding='utf-8')
+PAGE.write_text(page, encoding='utf-8')
+ANALYTICS.write_text(analytics, encoding='utf-8')
+
+checks = [
+    (INDEX, MARKER),
+    (INDEX, 'var minMs = 700;'),
+    (INDEX, 'setTimeout(hide, 1150);'),
+    (INDEX, "get('nxAndroid') === '1';"),
+    (INDEX, '<h1 id="title">Welcome Back</h1>'),
+    (PAGE, 'data-nx-android-startup-hydration="1"'),
+    (PAGE, 'RESTORING SESSION'),
+    (ANALYTICS, "get('nxAndroid') === '1') return;"),
+]
+for path, marker in checks:
+    if marker not in path.read_text(encoding='utf-8'):
+        raise SystemExit(f'Android startup smooth verification failed: {path} -> {marker}')
+
+print('Applied smooth Android startup: no first-run shell flash, fast login splash, direct login mode, hydration placeholders, and deferred analytics prompt.')
