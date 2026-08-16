@@ -131,42 +131,75 @@ try {
   assert.equal(await page.inputValue('#nxVaultPass'),'');
   console.log('PASS File Vault decrypts with the correct passphrase and clears it immediately after use');
 
-  await page.addScriptTag({url:`${base}/js/nexusnova-security-lock-v1.js?v=2`});
+  await page.addScriptTag({url:`${base}/js/nexusnova-security-lock-v1.js?v=3`});
   await page.waitForFunction(()=>window.__nxSecurityLockV2===true && document.getElementById('nxSecurityAppLock'));
-  assert.equal(await page.evaluate(()=>window.nexusSecurityLockVersion),'browser-pin-v2');
+  assert.equal(await page.evaluate(()=>window.nexusSecurityLockVersion),'browser-pin-v3');
   await page.click('#nxSecurityAppLock');
   await page.waitForFunction(()=>document.getElementById('nxAppLockSetupOverlay')?.style.display==='flex');
-  await page.fill('#nxAppLockSetupPin','2468');
-  await page.fill('#nxAppLockSetupConfirm','2468');
+  await page.fill('#nxAppLockSetupPin','246810');
+  await page.fill('#nxAppLockSetupConfirm','246810');
   await page.click('#nxAppLockSetupSave');
   await page.waitForFunction(()=>document.getElementById('nxAppLockOverlay')?.style.display==='flex');
 
   const lockConfig=await page.evaluate(()=>localStorage.getItem('nexusnova_browser_app_lock_v1')||'');
   assert.ok(lockConfig.includes('"hash"'));
   assert.ok(lockConfig.includes('"salt"'));
-  assert.equal(lockConfig.includes('2468'),false);
+  assert.ok(lockConfig.includes('"version":3'));
+  assert.ok(lockConfig.includes('"kdfIterations":600000'));
+  assert.equal(lockConfig.includes('246810'),false);
   assert.equal(await page.evaluate(()=>window.__promptCalls),0);
   assert.equal((await page.textContent('#nxAppLockOverlay')).includes('device PIN'),false);
   assert.ok((await page.textContent('#nxAppLockOverlay')).includes('NexusNova browser App Lock PIN'));
-  console.log('PASS Security Lock V2 uses an in-app setup flow, stores only PBKDF2 material, and no longer mislabels the PIN as a device PIN');
+  console.log('PASS Security Lock V3 uses stronger versioned PBKDF2 material and never stores the raw PIN');
 
-  await page.fill('#nxAppLockPin','1111');
-  await page.click('#nxAppUnlockBtn');
-  await page.waitForFunction(()=>document.getElementById('nxAppLockStatus')?.textContent?.includes('Wrong NexusNova PIN'));
-  await page.fill('#nxAppLockPin','2468');
+  for (let attempt=0; attempt<3; attempt+=1) {
+    await page.fill('#nxAppLockPin','111111');
+    await page.click('#nxAppUnlockBtn');
+  }
+  await page.waitForFunction(()=>document.getElementById('nxAppLockStatus')?.textContent?.includes('Too many attempts'));
+  assert.equal(await page.inputValue('#nxAppLockPin'),'');
+  console.log('PASS Security Lock applies retry backoff and clears failed PIN input');
+
+  await page.waitForTimeout(2200);
+  await page.fill('#nxAppLockPin','246810');
   await page.click('#nxAppUnlockBtn');
   await page.waitForFunction(()=>document.getElementById('nxAppLockOverlay')?.style.display==='none');
 
   await page.click('#nxSecurityAppLock');
   await page.waitForFunction(()=>document.getElementById('nxAppLockOverlay')?.style.display==='flex');
-  await page.fill('#nxAppLockPin','2468');
+  await page.fill('#nxAppLockPin','246810');
   await page.click('#nxAppRemoveLockBtn');
   await page.waitForFunction(()=>document.getElementById('nxAppLockStatus')?.textContent?.includes('Tap “Remove App Lock” again'));
   await page.click('#nxAppRemoveLockBtn');
   await page.waitForFunction(()=>document.getElementById('nxAppLockOverlay')?.style.display==='none');
   assert.equal(await page.evaluate(()=>localStorage.getItem('nexusnova_browser_app_lock_v1')),null);
   assert.equal(await page.evaluate(()=>window.__comingCalls),0);
-  console.log('PASS Security Lock verifies wrong/correct PINs and removes lock with in-app double confirmation without legacy Coming Soon');
+  console.log('PASS Security Lock verifies the strong PIN and removes lock with in-app double confirmation');
+
+  // Existing v1/v2 4-digit records must remain unlockable after the v3 upgrade.
+  await page.evaluate(async()=>{
+    const pin='2468';
+    const salt=crypto.getRandomValues(new Uint8Array(16));
+    const material=await crypto.subtle.importKey('raw',new TextEncoder().encode(pin),'PBKDF2',false,['deriveBits']);
+    const bits=await crypto.subtle.deriveBits({name:'PBKDF2',salt,iterations:140000,hash:'SHA-256'},material,256);
+    let binary='';
+    new Uint8Array(bits).forEach(byte=>{binary+=String.fromCharCode(byte);});
+    let saltBinary='';
+    salt.forEach(byte=>{saltBinary+=String.fromCharCode(byte);});
+    localStorage.setItem('nexusnova_browser_app_lock_v1',JSON.stringify({
+      salt:btoa(saltBinary),
+      hash:btoa(binary),
+      createdAt:Date.now(),
+      version:2
+    }));
+    window.nexusLockAppNow();
+  });
+  await page.waitForFunction(()=>document.getElementById('nxAppLockOverlay')?.style.display==='flex');
+  await page.fill('#nxAppLockPin','2468');
+  await page.click('#nxAppUnlockBtn');
+  await page.waitForFunction(()=>document.getElementById('nxAppLockOverlay')?.style.display==='none');
+  console.log('PASS Security Lock V3 remains backward-compatible with legacy 4-digit v1/v2 lock records');
+  await page.evaluate(()=>localStorage.removeItem('nexusnova_browser_app_lock_v1'));
 
   assert.equal(errors.length,0,errors.join('\n'));
   console.log('\nDocuments + Vault + Security runtime complete: real document actions, encrypted local vault and browser PIN lock passed.');

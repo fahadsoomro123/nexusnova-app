@@ -1,19 +1,27 @@
-/* NexusNova Security Lock v2
+/* NexusNova Security Lock v3
    Genuine browser-side NexusNova PIN lock using Web Crypto PBKDF2.
    - No raw PIN is stored.
    - No browser prompt() setup flow.
-   - Existing v1 PIN records remain compatible (same PBKDF2 parameters).
+   - Existing v1/v2 PIN records remain compatible with the legacy KDF.
+   - New locks use a stronger KDF, retry backoff and background auto re-lock.
    Android biometric/device credential remains a native upgrade. */
 (() => {
   'use strict';
   if (window.__nxSecurityLockV2) return;
   window.__nxSecurityLockV2 = true;
   window.__nxSecurityLockV1 = true;
-  window.nexusSecurityLockVersion = 'browser-pin-v2';
+  window.nexusSecurityLockVersion = 'browser-pin-v3';
 
   const KEY = 'nexusnova_browser_app_lock_v1';
+  const LEGACY_KDF_ITERATIONS = 140000;
+  const CURRENT_KDF_ITERATIONS = 600000;
+  const AUTO_RELOCK_AFTER_HIDDEN_MS = 60 * 1000;
+  const MAX_BACKOFF_MS = 60 * 1000;
   const $ = id => document.getElementById(id);
   let setupPromise = null;
+  let failedAttempts = 0;
+  let blockedUntil = 0;
+  let hiddenAt = 0;
 
   function bytesToB64(bytes) {
     let text = '';
@@ -26,7 +34,11 @@
     return Uint8Array.from(text, c => c.charCodeAt(0));
   }
 
-  async function pinHash(pin, salt) {
+  async function pinHash(pin, salt, iterations) {
+    const rounds = Number(iterations);
+    if (![LEGACY_KDF_ITERATIONS, CURRENT_KDF_ITERATIONS].includes(rounds)) {
+      throw new Error('Unsupported App Lock security parameters.');
+    }
     const material = await crypto.subtle.importKey(
       'raw',
       new TextEncoder().encode(pin),
@@ -35,7 +47,7 @@
       ['deriveBits']
     );
     const bits = await crypto.subtle.deriveBits(
-      { name:'PBKDF2', salt, iterations:140000, hash:'SHA-256' },
+      { name:'PBKDF2', salt, iterations:rounds, hash:'SHA-256' },
       material,
       256
     );
@@ -52,17 +64,51 @@
     }
   }
 
-  function validPin(pin) {
+  function validLegacyPin(pin) {
     return /^\d{4,12}$/.test(String(pin || ''));
   }
 
+  function validNewPin(pin) {
+    return /^\d{6,12}$/.test(String(pin || ''));
+  }
+
+  function remainingBackoffMs() {
+    return Math.max(0, blockedUntil - Date.now());
+  }
+
+  function recordFailedAttempt() {
+    failedAttempts += 1;
+    if (failedAttempts < 3) return;
+    const exponent = Math.min(5, failedAttempts - 3);
+    const delay = Math.min(MAX_BACKOFF_MS, 2000 * (2 ** exponent));
+    blockedUntil = Date.now() + delay;
+  }
+
+  function resetAttemptState() {
+    failedAttempts = 0;
+    blockedUntil = 0;
+  }
+
   async function verify(pin) {
+    if (remainingBackoffMs() > 0) return false;
     const config = readConfig();
-    if (!config || !validPin(pin) || !crypto?.subtle) return false;
+    if (!config || !validLegacyPin(pin) || !crypto?.subtle) {
+      recordFailedAttempt();
+      return false;
+    }
     try {
-      const hash = await pinHash(pin, b64ToBytes(config.salt));
-      return hash === config.hash;
+      const salt = b64ToBytes(config.salt);
+      if (salt.length !== 16) throw new Error('Invalid App Lock salt.');
+      const iterations = config.kdfIterations == null
+        ? LEGACY_KDF_ITERATIONS
+        : Number(config.kdfIterations);
+      const hash = await pinHash(pin, salt, iterations);
+      const ok = hash === config.hash;
+      if (ok) resetAttemptState();
+      else recordFailedAttempt();
+      return ok;
     } catch (_) {
+      recordFailedAttempt();
       return false;
     }
   }
@@ -107,9 +153,9 @@
       <div class="nx-lock-card">
         <div class="nx-lock-orb">🔐</div>
         <h2>Enable NexusNova App Lock</h2>
-        <p>Create a 4–12 digit PIN for this browser. The raw PIN is never stored; only a PBKDF2 hash and random salt are saved locally.</p>
-        <input id="nxAppLockSetupPin" class="nx-lock-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="12" autocomplete="new-password" placeholder="New PIN">
-        <input id="nxAppLockSetupConfirm" class="nx-lock-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="12" autocomplete="new-password" placeholder="Confirm PIN">
+        <p>Create a 6–12 digit PIN for this browser. The raw PIN is never stored; only a PBKDF2 hash and random salt are saved locally.</p>
+        <input id="nxAppLockSetupPin" class="nx-lock-input" type="password" inputmode="numeric" pattern="[0-9]*" minlength="6" maxlength="12" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="New 6–12 digit PIN">
+        <input id="nxAppLockSetupConfirm" class="nx-lock-input" type="password" inputmode="numeric" pattern="[0-9]*" minlength="6" maxlength="12" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="Confirm PIN">
         <div class="nx-lock-actions"><button id="nxAppLockSetupCancel" class="nx-lock-btn" type="button">Cancel</button><button id="nxAppLockSetupSave" class="nx-lock-btn primary" type="button">Enable Lock</button></div>
         <div id="nxAppLockSetupStatus" class="nx-lock-status"></div>
         <div class="nx-lock-note">Keep this PIN safe. NexusNova cannot recover it. This is a browser-side app lock, not your phone's device PIN or biometric credential.</div>
@@ -162,8 +208,8 @@
       const submit = async () => {
         const first = String(pinInput?.value || '');
         const second = String(confirmInput?.value || '');
-        if (!validPin(first)) {
-          if (status) status.textContent = 'PIN must contain 4–12 digits.';
+        if (!validNewPin(first)) {
+          if (status) status.textContent = 'New PIN must contain 6–12 digits.';
           return;
         }
         if (second !== first) {
@@ -173,12 +219,13 @@
         if (save) save.disabled = true;
         try {
           const salt = crypto.getRandomValues(new Uint8Array(16));
-          const hash = await pinHash(first, salt);
+          const hash = await pinHash(first, salt, CURRENT_KDF_ITERATIONS);
           localStorage.setItem(KEY, JSON.stringify({
             salt:bytesToB64(salt),
             hash,
+            kdfIterations:CURRENT_KDF_ITERATIONS,
             createdAt:Date.now(),
-            version:2
+            version:3
           }));
           if (pinInput) pinInput.value = '';
           if (confirmInput) confirmInput.value = '';
@@ -213,7 +260,7 @@
         <div class="nx-lock-orb">🔐</div>
         <h2>NexusNova Locked</h2>
         <p>Enter your NexusNova browser App Lock PIN to unlock this session.</p>
-        <input id="nxAppLockPin" class="nx-lock-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="12" autocomplete="off" placeholder="NexusNova PIN">
+        <input id="nxAppLockPin" class="nx-lock-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="12" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="NexusNova PIN">
         <button id="nxAppUnlockBtn" class="nx-lock-btn primary" type="button" style="width:100%;margin-top:10px">Unlock</button>
         <button id="nxAppRemoveLockBtn" class="nx-lock-btn" type="button" style="width:100%;margin-top:8px">Remove App Lock</button>
         <div id="nxAppLockStatus" class="nx-lock-status"></div>
@@ -222,15 +269,22 @@
     document.body.appendChild(overlay);
 
     const unlock = async () => {
-      const pin = String($('nxAppLockPin')?.value || '');
+      const pinInput = $('nxAppLockPin');
+      const pin = String(pinInput?.value || '');
       const status = $('nxAppLockStatus');
       if (await verify(pin)) {
-        if ($('nxAppLockPin')) $('nxAppLockPin').value = '';
+        if (pinInput) pinInput.value = '';
         if (status) status.textContent = '';
         delete overlay.dataset.removeConfirmUntil;
         hideOverlay(overlay);
-      } else if (status) {
-        status.textContent = 'Wrong NexusNova PIN.';
+      } else {
+        if (pinInput) pinInput.value = '';
+        const waitMs = remainingBackoffMs();
+        if (status) {
+          status.textContent = waitMs > 0
+            ? `Too many attempts. Try again in ${Math.ceil(waitMs / 1000)} seconds.`
+            : 'Wrong NexusNova PIN.';
+        }
       }
     };
 
@@ -242,7 +296,13 @@
       const pin = String($('nxAppLockPin')?.value || '');
       const status = $('nxAppLockStatus');
       if (!(await verify(pin))) {
-        if (status) status.textContent = 'Enter the correct NexusNova PIN before removing App Lock.';
+        if ($('nxAppLockPin')) $('nxAppLockPin').value = '';
+        const waitMs = remainingBackoffMs();
+        if (status) {
+          status.textContent = waitMs > 0
+            ? `Too many attempts. Try again in ${Math.ceil(waitMs / 1000)} seconds.`
+            : 'Enter the correct NexusNova PIN before removing App Lock.';
+        }
         return;
       }
       const current = Date.now();
@@ -295,9 +355,25 @@
     return Boolean(button);
   }
 
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      hiddenAt = Date.now();
+      return;
+    }
+    const wasHiddenAt = hiddenAt;
+    hiddenAt = 0;
+    if (
+      readConfig() &&
+      wasHiddenAt > 0 &&
+      Date.now() - wasHiddenAt >= AUTO_RELOCK_AFTER_HIDDEN_MS
+    ) {
+      lock();
+    }
+  });
+
   window.nexusLockAppNow = lock;
   window.nexusSecurityLock = Object.freeze({
-    version:'browser-pin-v2',
+    version:'browser-pin-v3',
     install,
     setup,
     lock,
