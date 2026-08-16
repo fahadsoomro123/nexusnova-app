@@ -771,10 +771,12 @@ authBtn.addEventListener(
         }
 
 
-        if (password.length < 6) {
+        // Preserve compatibility with existing accounts while requiring a
+        // stronger password for every newly created NexusNova account.
+        if (!loginMode && password.length < 10) {
 
             showMessage(
-                "Password must contain at least 6 characters."
+                "New passwords must contain at least 10 characters."
             );
 
             return;
@@ -891,8 +893,9 @@ authBtn.addEventListener(
                 "auth/email-already-in-use"
             ) {
 
+                // Avoid turning signup errors into a precise account lookup.
                 errorText =
-                    "This email is already registered. Please use Login.";
+                    "Unable to create this account. Try Login if you may already have an account.";
 
             }
 
@@ -922,7 +925,7 @@ authBtn.addEventListener(
             ) {
 
                 errorText =
-                    "Password must contain at least 6 characters.";
+                    "New passwords must contain at least 10 characters.";
 
             }
 
