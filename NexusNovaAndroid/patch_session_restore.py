@@ -47,6 +47,43 @@ if 'const val PRODUCTION_DASHBOARD_URL' not in main:
         raise SystemExit('MainActivity production URL constant insertion point not found')
     main = main.replace(old, new, 1)
 
+# nx-android-back-session-stability-v1
+# Preserve the actual WebView/history when Android recreates the Activity. This
+# keeps the current screen and avoids an unnecessary auth/balance bootstrap.
+if 'nx-android-back-session-stability-v1' not in main:
+    launch_block = '''        val launchUrl = if (PhonebookStore.hasActiveAccount()) {\n            PRODUCTION_DASHBOARD_URL\n        } else {\n            PRODUCTION_APP_URL\n        }\n        loadProductionApp(launchUrl)\n'''
+    restored_block = '''        // nx-android-back-session-stability-v1\n        val restoredWebState = savedInstanceState?.let { state ->\n            runCatching { webView.restoreState(state) }.getOrNull()\n        } != null\n        if (!restoredWebState) {\n            val launchUrl = if (PhonebookStore.hasActiveAccount()) {\n                PRODUCTION_DASHBOARD_URL\n            } else {\n                PRODUCTION_APP_URL\n            }\n            loadProductionApp(launchUrl)\n        }\n'''
+    if launch_block not in main:
+        raise SystemExit('MainActivity saved-state launch insertion point not found')
+    main = main.replace(launch_block, restored_block, 1)
+
+if 'override fun onSaveInstanceState(outState: Bundle)' not in main:
+    marker = '    override fun onDestroy() {\n'
+    block = '''    override fun onSaveInstanceState(outState: Bundle) {\n        if (this::webView.isInitialized) {\n            runCatching { webView.saveState(outState) }\n        }\n        super.onSaveInstanceState(outState)\n    }\n\n'''
+    if marker not in main:
+        raise SystemExit('MainActivity onSaveInstanceState insertion point not found')
+    main = main.replace(marker, block + marker, 1)
+
+# At WebView root, Android Back should background NexusNova rather than destroy
+# the Activity. Reopening then resumes the same authenticated WebView instantly.
+old_back = '''    @Deprecated("Deprecated in Java")\n    override fun onBackPressed() {\n        if (this::webView.isInitialized && webView.canGoBack()) webView.goBack()\n        else super.onBackPressed()\n    }\n'''
+new_back = '''    @Deprecated("Deprecated in Java")\n    override fun onBackPressed() {\n        if (this::webView.isInitialized && webView.canGoBack()) {\n            webView.goBack()\n        } else {\n            moveTaskToBack(true)\n        }\n    }\n'''
+if new_back not in main:
+    if old_back not in main:
+        raise SystemExit('MainActivity Back handling insertion point not found')
+    main = main.replace(old_back, new_back, 1)
+
 store_path.write_text(store)
 main_path.write_text(main)
-print('Same-device Firebase session restore patch applied safely.')
+
+required = [
+    'nx-android-back-session-stability-v1',
+    'webView.restoreState(state)',
+    'webView.saveState(outState)',
+    'moveTaskToBack(true)',
+]
+missing = [item for item in required if item not in main]
+if missing:
+    raise SystemExit('Android session stability verification failed: ' + ', '.join(missing))
+
+print('Same-device Firebase session restore + Back/activity state preservation applied safely.')
