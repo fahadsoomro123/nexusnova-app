@@ -92,7 +92,14 @@
     if (!apps.length) throw new Error("Firebase app is not initialized.");
     const app = apps[0];
     const auth = parts.authMod.getAuth(app);
-    if (!auth.currentUser) throw new Error("Sign in before enabling push notifications.");
+    let user = auth.currentUser;
+    if (!user) throw new Error("Sign in before enabling push notifications.");
+    await user.reload();
+    user = auth.currentUser || user;
+    await user.getIdToken(true);
+    if (!user.emailVerified) {
+      throw new Error("Verify your email before enabling push notifications.");
+    }
 
     if (typeof window.nexusRequireAppCheck !== "function") {
       throw new Error("App Check is unavailable. Configure App Check before enabling secure push registration.");

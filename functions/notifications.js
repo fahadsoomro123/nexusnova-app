@@ -9,6 +9,7 @@ if (!getApps().length) initializeApp();
 const MAX_TOKEN_LENGTH = 4096;
 const MAX_USER_AGENT_LENGTH = 500;
 const MAX_TOKENS_PER_TEST = 20;
+const MAX_TOKENS_PER_USER = 20;
 const TEST_COOLDOWN_MS = 30 * 1000;
 
 const protectedCallable = (handler) => onCall({ enforceAppCheck: true }, handler);
@@ -18,6 +19,14 @@ function uidOf(req) {
     throw new HttpsError("unauthenticated", "Please sign in first.");
   }
   return req.auth.uid;
+}
+
+function verifiedUidOf(req) {
+  const uid = uidOf(req);
+  if (req.auth.token?.email_verified !== true) {
+    throw new HttpsError("failed-precondition", "Verify your email before enabling push notifications.");
+  }
+  return uid;
 }
 
 function cleanToken(value) {
@@ -45,12 +54,27 @@ function tokenRef(db, uid, token) {
 }
 
 exports.registerPushToken = protectedCallable(async (req) => {
-  const uid = uidOf(req);
+  const uid = verifiedUidOf(req);
   const token = cleanToken(req.data?.token);
   const userAgent = cleanUserAgent(req.data?.userAgent);
   const db = getFirestore();
   const ref = tokenRef(db, uid, token);
   const snapshot = await ref.get();
+
+  if (!snapshot.exists) {
+    const existing = await db
+      .collection("users")
+      .doc(uid)
+      .collection("pushTokens")
+      .limit(MAX_TOKENS_PER_USER)
+      .get();
+    if (existing.size >= MAX_TOKENS_PER_USER) {
+      throw new HttpsError(
+        "resource-exhausted",
+        "This account already has the maximum number of push-enabled devices."
+      );
+    }
+  }
 
   const data = {
     uid,
@@ -66,7 +90,7 @@ exports.registerPushToken = protectedCallable(async (req) => {
 });
 
 exports.removePushToken = protectedCallable(async (req) => {
-  const uid = uidOf(req);
+  const uid = verifiedUidOf(req);
   const token = cleanToken(req.data?.token);
   const db = getFirestore();
   await tokenRef(db, uid, token).delete();
@@ -74,7 +98,7 @@ exports.removePushToken = protectedCallable(async (req) => {
 });
 
 exports.sendPushTest = protectedCallable(async (req) => {
-  const uid = uidOf(req);
+  const uid = verifiedUidOf(req);
   const db = getFirestore();
   const now = Date.now();
   const throttle = db.collection("pushTestRateLimits").doc(uid);
