@@ -119,3 +119,21 @@
   else setTimeout(install,300);
   [1400,2800,5200,9000].forEach(ms=>setTimeout(install,ms));
 })();
+
+/* Urdu Library loader. Existing additive boot path keeps this isolated from core app logic. */
+(() => {
+  'use strict';
+  if (window.__nxUrduLibraryLoaderV1) return;
+  window.__nxUrduLibraryLoaderV1 = true;
+  const load = () => {
+    if (window.__nxUrduLibraryV1 || document.querySelector('script[data-nx-urdu-library-v1]')) return;
+    const script = document.createElement('script');
+    script.src = './js/nexusnova-urdu-library-v1.js?v=20260816';
+    script.defer = true;
+    script.dataset.nxUrduLibraryV1 = '1';
+    script.onerror = () => console.warn('NexusNova Urdu Library could not load.');
+    document.head.appendChild(script);
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', load, {once:true});
+  else load();
+})();
