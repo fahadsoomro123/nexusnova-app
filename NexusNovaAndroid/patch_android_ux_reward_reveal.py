@@ -15,14 +15,9 @@ for path in (PAGE, VAULT, UX_SOURCE):
 page = PAGE.read_text(encoding='utf-8')
 vault = VAULT.read_text(encoding='utf-8')
 
-# Always copy the canonical UX helper into the deterministic APK web shell.
 UX_TARGET.parent.mkdir(parents=True, exist_ok=True)
 UX_TARGET.write_text(UX_SOURCE.read_text(encoding='utf-8'), encoding='utf-8')
 
-# ---------------------------------------------------------------------------
-# 1) Startup splash: branding stays visible briefly, but app interactivity must
-#    not wait for window.load/network APIs. Android already serves local assets.
-# ---------------------------------------------------------------------------
 page = page.replace('var minMs = 2800;', 'var minMs = 850;', 1)
 legacy_ready = '''  if(document.readyState === "complete") ready();
   else window.addEventListener("load", ready);
@@ -37,19 +32,12 @@ fast_ready = '''  if(document.readyState === "loading") {
 if legacy_ready in page:
     page = page.replace(legacy_ready, fast_ready, 1)
 
-# Load the Android-only visual guard at the end of the local shell. It is
-# presentation-only and cannot write mining/reward state.
 script_tag = '<script src="./js/nexusnova-android-ux-repair-v1.js?v=1" data-nx-android-ux-repair="1"></script>'
 if script_tag not in page:
     if '</body>' not in page:
         raise SystemExit('page2.html closing body not found for Android UX guard.')
     page = page.replace('</body>', f'  {script_tag}\n</body>', 1)
 
-# ---------------------------------------------------------------------------
-# 2) TEST Vault: remove the placeholder debug modal. A TEST Vault still never
-#    mints production value, but now shows a clearly-labelled weighted preview
-#    so the complete opening/reveal interaction can be tested.
-# ---------------------------------------------------------------------------
 old_test = """        await showMessage('TEST Nova Vault Opened', 'Debug Vault flow confirmed. No production NVX or inventory was minted from this TEST Vault.', 'spark');
         return { testOnly:true };
 """
@@ -66,10 +54,6 @@ if old_test in vault:
 elif 'NexusNovaVaultReveal?.testReward' not in vault:
     raise SystemExit('TEST Vault placeholder popup patch point not found.')
 
-# ---------------------------------------------------------------------------
-# 3) Production Vault: server remains authoritative. Only after the server has
-#    returned the actual type/amount do we animate the exact reward received.
-# ---------------------------------------------------------------------------
 old_prod = """    await showMessage('Nova Vault Opened', `${copy} A 15-second cooldown is now active.`, type === 'time-warp' ? 'spark' : 'security');
     return result;
 """
@@ -85,7 +69,6 @@ if old_prod in vault:
 elif 'NexusNovaVaultReveal?.play' not in vault:
     raise SystemExit('Production Vault reward reveal patch point not found.')
 
-# Durable markers make the generated shell easy to verify/debug.
 if MARKER not in page:
     page = page.replace(script_tag, f'<!-- {MARKER} -->\n  {script_tag}', 1)
 
@@ -109,10 +92,8 @@ for path, needle in checks:
 
 print('Applied Android UX repair: fast splash, canonical mining label, and animated Nova Vault reward reveal.')
 
-# Final Android presentation/safety chain. The compatibility pass normalizes
-# the legacy nested TEST snapshot hook so the next authoritative-timer step can
-# replace it atomically. The single-owner guard removes the legacy failsafe
-# timer; the modern layer is read-only UI polish and cannot mutate reward state.
+# Final Android presentation/safety chain.
+runpy.run_path('NexusNovaAndroid/patch_android_startup_smooth_v1.py', run_name='__main__')
 runpy.run_path('NexusNovaAndroid/patch_test_boost_authoritative_compat.py', run_name='__main__')
 runpy.run_path('NexusNovaAndroid/patch_single_mining_timer_owner.py', run_name='__main__')
 runpy.run_path('NexusNovaAndroid/patch_android_mining_modern_v2.py', run_name='__main__')
