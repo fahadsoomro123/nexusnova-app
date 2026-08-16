@@ -19,11 +19,9 @@ old = """    if (testMode && active && !malformed) {
       }
     }
 """
-new = """    if (testMode && active && !malformed) {
+new = """    // nx-test-boost-authoritative-compat-v1
+    if (testMode && active && !malformed) {
       const testOverlay = readTestRewardOverlay(anchorAt);
-      // nx-test-boost-authoritative-compat-v1
-      // Normalize the legacy nested hook so the following authoritative timer
-      // patch can replace it atomically with a latest-overlay read.
       setTimeout(() => {
         try { window.nexusSecureAdoptMiningState?.({ miningActive:true, miningStartedAt:startedAt }); } catch (_) {}
       }, 0);
