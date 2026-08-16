@@ -7,6 +7,7 @@ on:
     paths:
       - 'firestore.rules'
       - 'index.html'
+      - 'sw.js'
       - 'js/page2.js'
       - 'js/page2-core.js'
       - 'js/rewards-security-v1.js'
@@ -35,6 +36,9 @@ jobs:
 
       - name: Check rewards security syntax
         run: node --check js/rewards-security-v1.js
+
+      - name: Check service-worker security syntax
+        run: node --check sw.js
 
       - name: Check Functions syntax
         run: node --check functions/index.js
