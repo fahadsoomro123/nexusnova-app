@@ -8,6 +8,7 @@ on:
       - 'js/nexusnova-nova-vault-v1.js'
       - 'js/nexusnova-rewarded-ads-v1.js'
       - '.github/scripts/install_nova_vault_system.py'
+      - '.github/scripts/fix_nova_admob_patcher.py'
       - '.github/scripts/nova-vault-readiness.py'
       - '.github/scripts/nova-vault-rules-smoke.mjs'
       - '.github/scripts/mining-boost-security-readiness.py'
@@ -32,6 +33,9 @@ jobs:
           python3 .github/scripts/harden_mining_boost_value.py
           python3 .github/scripts/harden_mining_boost_tests.py
 
+      - name: Repair current Android AdMob patcher
+        run: python3 .github/scripts/fix_nova_admob_patcher.py
+
       - name: Install Nova Vault and mining-start ad gate
         run: python3 .github/scripts/install_nova_vault_system.py
 
@@ -52,6 +56,7 @@ jobs:
           node --check functions/index.js
           node --check .github/scripts/nova-vault-rules-smoke.mjs
           node --check .github/scripts/mining-boost-rules-smoke.mjs
+          python3 -m py_compile .github/scripts/fix_nova_admob_patcher.py
           python3 -m py_compile NexusNovaAndroid/patch_admob.py
           python3 -m py_compile NexusNovaAndroid/patch_mining_boost_sync.py
 
