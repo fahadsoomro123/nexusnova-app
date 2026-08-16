@@ -12,7 +12,7 @@ markers = [
     # Listing ownership/value bounds.
     "request.resource.data.sellerUid == request.auth.uid",
     "request.resource.data.status == 'active'",
-    "request.resource.data.price is number && request.resource.data.price >= 0 && request.resource.data.price <= 1000000000",
+    "data.price is number && data.price >= 0 && data.price <= 1000000000",
     "request.resource.data.createdAt == request.time",
     "request.resource.data.updatedAt == request.time",
     "request.auth.uid == resource.data.sellerUid",
