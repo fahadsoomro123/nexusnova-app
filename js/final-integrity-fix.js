@@ -58,6 +58,7 @@
   loadCritical({flag:'__nxRewardedAdsConfigV1',marker:'data-nx-rewarded-config',src:'./js/nexusnova-rewarded-ads-config-v1.js?v=1',error:'NexusNova rewarded ads public config failed to load.'});
   loadCritical({flag:'__nxRewardedAdsV1',marker:'data-nx-rewarded-ads',src:'./js/nexusnova-rewarded-ads-v1.js?v=1',error:'NexusNova rewarded ads bridge failed to load.'});
   loadCritical({flag:'__nxRewardedAdsButtonGuardV1',marker:'data-nx-rewarded-guard',src:'./js/nexusnova-rewarded-ads-button-guard-v1.js?v=1',error:'NexusNova rewarded ads button guard failed to load.'});
+  loadCritical({flag:'__nxAdSettingsV2',marker:'data-nx-ad-settings-v2',src:'./js/nexusnova-ad-settings-v2.js?v=20260817-test',error:'NexusNova TEST ad settings failed to load.'});
   loadCritical({flag:'__nxRewardsSparkV1',marker:'data-nx-rewards-spark',src:'./js/nexusnova-rewards-spark-v1.js?v=2',error:'NexusNova Spark rewards module failed to load.'});
   loadCritical({flag:'__nxAllAppsSmartSearchV2',marker:'data-nx-allapps-smart-search',src:'./js/nexusnova-allapps-smart-search-v1.js?v=4',error:'NexusNova ALL APPS smart search failed to load.'});
   loadCritical({flag:'__nxCommunityProgressV1',marker:'data-nx-community-progress',src:'./js/nexusnova-community-progress-v1.js?v=1',error:'NexusNova Community League failed to load.'});
