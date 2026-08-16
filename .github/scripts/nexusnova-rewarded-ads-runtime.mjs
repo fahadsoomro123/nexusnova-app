@@ -129,7 +129,7 @@ try {
     }
   });
   assert.equal(directApply.ok, false);
-  assert.match(directApply.message, /server-verified ad proof/i);
+  assert.match(directApply.message, /Nova Vault secure boost service|server-verified ad proof/i);
 
   await page.evaluate(() => {
     window.__nativeAdMessages.length = 0;
@@ -144,7 +144,7 @@ try {
   assert.equal(state.native[0].reason, 'test-natural-transition');
   assert.equal(state.balance, '42.0000');
 
-  console.log('Rewarded ads runtime: PASS — Mining Boost TEST routing works and all mining/NVX value changes stay disabled without server proof.');
+  console.log('Rewarded ads runtime: PASS — TEST ads remain value-free and real Booster/Rain value stays owned by secure Nova Vault inventory.');
 } finally {
   await browser.close();
 }
