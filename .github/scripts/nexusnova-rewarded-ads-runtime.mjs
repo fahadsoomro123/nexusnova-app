@@ -118,8 +118,10 @@ try {
   assert.equal(state.balance, '42.0000');
   assert.equal(state.mining.startedAt, sessionAnchor, 'TEST rewarded completion must not shift mining time');
   assert.equal(state.mining.uses, 0);
-  assert.ok(state.messages.some(message => /TEST ads never reduce mining time or change NVX/i.test(message.message || '')));
+  assert.ok(state.messages.some(message => /TEST ads never reduce mining time or change NVX/i.test(message.text || '')));
 
+  // The old public apply hook must no longer contain its own Firestore writer.
+  // Without the Nova Vault module it must fail closed rather than changing time.
   const directApply = await page.evaluate(async () => {
     try {
       await window.NexusNovaMiningBoosters.apply('booster');
@@ -129,7 +131,35 @@ try {
     }
   });
   assert.equal(directApply.ok, false);
-  assert.match(directApply.message, /server-verified ad proof/i);
+  assert.match(directApply.message, /Nova Vault secure boost service is still loading/i);
+
+  // When a stored Vault Booster exists, the button must route to the Vault
+  // server owner instead of requesting a rewarded ad. This mock represents the
+  // already-tested callable boundary; it never mutates local mining state.
+  await page.evaluate(() => {
+    window.__vaultCalls = [];
+    window.NexusNovaVault = {
+      inventory: () => ({booster:1, rain:0, timeWarp:0, pendingVaults:0}),
+      cooldownRemainingMs: () => 0,
+      useBoost: async kind => {
+        window.__vaultCalls.push(kind);
+        return {applied:true, appliedKind:kind, reducedHours:2};
+      }
+    };
+    window.__nativeAdMessages.length = 0;
+    window.dispatchEvent(new CustomEvent('nexusnova:nova-vault-state'));
+  });
+  await page.waitForFunction(() => /USE VAULT BOOSTER/i.test(document.getElementById('nxBoosterBtn')?.textContent || ''));
+  await page.locator('#nxBoosterBtn').click();
+  await page.waitForFunction(() => window.__vaultCalls.length === 1);
+  state = await page.evaluate(() => ({
+    vaultCalls: window.__vaultCalls.slice(),
+    native: window.__nativeAdMessages.slice(),
+    mining: window.NexusNovaMiningBoosters.status()
+  }));
+  assert.deepEqual(state.vaultCalls, ['booster']);
+  assert.equal(state.native.some(message => message.action === 'showRewardedAd'), false, 'stored Vault Booster must not request an ad');
+  assert.equal(state.mining.startedAt, sessionAnchor, 'client bridge must not self-mutate mining state');
 
   await page.evaluate(() => {
     window.__nativeAdMessages.length = 0;
@@ -144,7 +174,7 @@ try {
   assert.equal(state.native[0].reason, 'test-natural-transition');
   assert.equal(state.balance, '42.0000');
 
-  console.log('Rewarded ads runtime: PASS — Mining Boost TEST routing works and all mining/NVX value changes stay disabled without server proof.');
+  console.log('Rewarded ads runtime: PASS — TEST ads stay value-free and stored Nova Vault Booster routes only to the server-authoritative Vault owner.');
 } finally {
   await browser.close();
 }
