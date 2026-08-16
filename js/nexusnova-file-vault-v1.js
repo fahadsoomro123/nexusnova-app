@@ -10,9 +10,23 @@
   const DB_NAME = 'NexusNovaEncryptedVaultV1';
   const STORE = 'files';
   const MAX_FILE = 25 * 1024 * 1024;
+  const MAX_FILES_PER_BATCH = 10;
+  const LEGACY_KDF_ITERATIONS = 150000;
+  const CURRENT_KDF_ITERATIONS = 600000;
 
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
-  const owner = () => String(window.nexusAccountId || 'guest');
+  const owner = () => String(window.nexusAccountId || '').trim();
+
+  function requireOwner() {
+    const id = owner();
+    if (!id) throw new Error('Sign in and wait for your NexusNova account to finish loading before using File Vault.');
+    return id;
+  }
+
+  function clearPassphrase() {
+    const input = $('nxVaultPass');
+    if (input) input.value = '';
+  }
 
   function status(message, ok = true) {
     const el = $('nxVaultStatus');
@@ -43,12 +57,15 @@
     });
   }
 
-  async function deriveKey(passphrase, salt) {
+  async function deriveKey(passphrase, salt, iterations) {
+    if (![LEGACY_KDF_ITERATIONS, CURRENT_KDF_ITERATIONS].includes(Number(iterations))) {
+      throw new Error('Unsupported vault encryption parameters.');
+    }
     const material = await crypto.subtle.importKey(
       'raw', new TextEncoder().encode(passphrase), 'PBKDF2', false, ['deriveKey']
     );
     return crypto.subtle.deriveKey(
-      {name:'PBKDF2', salt, iterations:150000, hash:'SHA-256'},
+      {name:'PBKDF2', salt, iterations:Number(iterations), hash:'SHA-256'},
       material,
       {name:'AES-GCM', length:256},
       false,
@@ -59,16 +76,26 @@
   async function encryptFile(file, passphrase) {
     const salt = crypto.getRandomValues(new Uint8Array(16));
     const iv = crypto.getRandomValues(new Uint8Array(12));
-    const key = await deriveKey(passphrase, salt);
+    const key = await deriveKey(passphrase, salt, CURRENT_KDF_ITERATIONS);
     const plain = await file.arrayBuffer();
     const encrypted = await crypto.subtle.encrypt({name:'AES-GCM', iv}, key, plain);
-    return {salt:Array.from(salt), iv:Array.from(iv), encrypted};
+    return {
+      cryptoVersion:2,
+      kdfIterations:CURRENT_KDF_ITERATIONS,
+      salt:Array.from(salt),
+      iv:Array.from(iv),
+      encrypted
+    };
   }
 
   async function decryptRecord(record, passphrase) {
     const salt = new Uint8Array(record.salt || []);
     const iv = new Uint8Array(record.iv || []);
-    const key = await deriveKey(passphrase, salt);
+    if (salt.length !== 16 || iv.length !== 12) throw new Error('Invalid vault encryption parameters.');
+    const iterations = record.kdfIterations == null
+      ? LEGACY_KDF_ITERATIONS
+      : Number(record.kdfIterations);
+    const key = await deriveKey(passphrase, salt, iterations);
     return crypto.subtle.decrypt({name:'AES-GCM', iv}, key, record.encrypted);
   }
 
@@ -95,14 +122,15 @@
   }
 
   async function listRecords() {
+    const accountId = requireOwner();
     const db = await openDb();
     try {
       const store = db.transaction(STORE, 'readonly').objectStore(STORE);
       let rows = [];
       if (store.indexNames.contains('owner')) {
-        rows = await requestResult(store.index('owner').getAll(owner()));
+        rows = await requestResult(store.index('owner').getAll(accountId));
       } else {
-        rows = (await requestResult(store.getAll())).filter(row => row.owner === owner());
+        rows = (await requestResult(store.getAll())).filter(row => row.owner === accountId);
       }
       return rows.sort((a,b) => Number(b.createdAt) - Number(a.createdAt));
     } finally { db.close(); }
@@ -145,8 +173,12 @@
     const files = Array.from($('nxMegaFiles')?.files || []);
     const passphrase = String($('nxVaultPass')?.value || '');
     if (!files.length) return status('Choose one or more files first.', false);
-    if (passphrase.length < 6) return status('Use a passphrase with at least 6 characters.', false);
+    if (files.length > MAX_FILES_PER_BATCH) return status(`Choose at most ${MAX_FILES_PER_BATCH} files at a time.`, false);
+    if (passphrase.length < 12) return status('Use a vault passphrase with at least 12 characters for new files.', false);
     if (!crypto?.subtle || !window.indexedDB) return status('Encrypted vault is not supported in this browser.', false);
+    let accountId;
+    try { accountId = requireOwner(); }
+    catch (error) { return status(error.message, false); }
 
     const invalid = files.find(file => file.size > MAX_FILE);
     if (invalid) return status(`${invalid.name} is larger than the 25 MB local-vault limit.`, false);
@@ -160,11 +192,13 @@
         const payload = await encryptFile(file, passphrase);
         await putRecord({
           id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-          owner: owner(),
+          owner: accountId,
           name: file.name,
           type: file.type || 'application/octet-stream',
           size: file.size,
           createdAt: Date.now(),
+          cryptoVersion: payload.cryptoVersion,
+          kdfIterations: payload.kdfIterations,
           salt: payload.salt,
           iv: payload.iv,
           encrypted: payload.encrypted
@@ -177,6 +211,7 @@
       console.error('NexusNova vault save:', error);
       status('Could not encrypt/save the selected file(s).', false);
     } finally {
+      clearPassphrase();
       if (button) button.disabled = false;
     }
   }
@@ -186,8 +221,9 @@
     if (!passphrase) return status('Enter the vault passphrase before downloading.', false);
     try {
       status('Decrypting file…');
+      const accountId = requireOwner();
       const record = await getRecord(id);
-      if (!record || record.owner !== owner()) throw new Error('File not found.');
+      if (!record || record.owner !== accountId) throw new Error('File not found.');
       const plain = await decryptRecord(record, passphrase);
       const blob = new Blob([plain], {type:record.type || 'application/octet-stream'});
       const url = URL.createObjectURL(blob);
@@ -202,14 +238,17 @@
     } catch (error) {
       console.warn('NexusNova vault decrypt:', error);
       status('Could not decrypt. Check the passphrase.', false);
+    } finally {
+      clearPassphrase();
     }
   }
 
   async function remove(id) {
     if (!confirm('Delete this encrypted file from this browser?')) return;
     try {
+      const accountId = requireOwner();
       const record = await getRecord(id);
-      if (!record || record.owner !== owner()) return;
+      if (!record || record.owner !== accountId) return;
       await deleteRecord(id);
       status('Encrypted file deleted.');
       await render();
@@ -227,7 +266,7 @@
     panel.id = 'nxVaultPanel';
     panel.innerHTML = `
       <div style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(148,163,184,.16)">
-        <input id="nxVaultPass" type="password" class="tool-input" autocomplete="new-password" placeholder="Vault passphrase (not stored)">
+        <input id="nxVaultPass" type="password" class="tool-input" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="Vault passphrase (12+ chars; not stored)">
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
           <button id="nxVaultSave" type="button" class="tool-btn primary">Encrypt & Save Selected Files</button>
           <button id="nxVaultRefresh" type="button" class="tool-btn">Refresh Vault</button>

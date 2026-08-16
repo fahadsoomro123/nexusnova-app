@@ -80,7 +80,7 @@ try {
   await page.addScriptTag({url:`${base}/js/nexusnova-file-vault-v1.js?v=1`});
   await page.waitForFunction(()=>window.__nxFileVaultV1===true && document.getElementById('nxVaultPanel'));
   await page.setInputFiles('#nxMegaFiles',{name:'secret.txt',mimeType:'text/plain',buffer:Buffer.from('TOP SECRET LOCAL VAULT DATA')});
-  await page.fill('#nxVaultPass','vault-2468');
+  await page.fill('#nxVaultPass','vault-2468-safe');
   await page.click('#nxVaultSave');
   await page.waitForFunction(()=>document.getElementById('nxVaultStatus')?.textContent?.includes('encrypted and saved locally'));
 
@@ -103,8 +103,11 @@ try {
       name:row?.name,
       hasSalt:Array.isArray(row?.salt)&&row.salt.length===16,
       hasIv:Array.isArray(row?.iv)&&row.iv.length===12,
+      cryptoVersion:row?.cryptoVersion,
+      kdfIterations:row?.kdfIterations,
       cipherContainsPlain:cipherText.includes('TOP SECRET LOCAL VAULT DATA'),
-      localStorage:JSON.stringify({...localStorage})
+      localStorage:JSON.stringify({...localStorage}),
+      passphraseField:document.getElementById('nxVaultPass')?.value||''
     };
   });
   assert.equal(vaultState.count,1);
@@ -112,16 +115,21 @@ try {
   assert.equal(vaultState.name,'secret.txt');
   assert.equal(vaultState.hasSalt,true);
   assert.equal(vaultState.hasIv,true);
+  assert.equal(vaultState.cryptoVersion,2);
+  assert.equal(vaultState.kdfIterations,600000);
   assert.equal(vaultState.cipherContainsPlain,false);
-  assert.equal(vaultState.localStorage.includes('vault-2468'),false);
-  console.log('PASS File Vault stores ciphertext in IndexedDB with salt/IV and never stores the passphrase');
+  assert.equal(vaultState.localStorage.includes('vault-2468-safe'),false);
+  assert.equal(vaultState.passphraseField,'');
+  console.log('PASS File Vault stores versioned ciphertext and clears the passphrase after encryption');
 
+  await page.fill('#nxVaultPass','vault-2468-safe');
   const vaultDownloadPromise=page.waitForEvent('download');
   await page.click('[data-vault-download]');
   const vaultDownload=await vaultDownloadPromise;
   assert.equal(vaultDownload.suggestedFilename(),'secret.txt');
   await page.waitForFunction(()=>document.getElementById('nxVaultStatus')?.textContent?.includes('decrypted and downloaded'));
-  console.log('PASS File Vault decrypts the selected local record only when the correct passphrase is supplied');
+  assert.equal(await page.inputValue('#nxVaultPass'),'');
+  console.log('PASS File Vault decrypts with the correct passphrase and clears it immediately after use');
 
   await page.addScriptTag({url:`${base}/js/nexusnova-security-lock-v1.js?v=2`});
   await page.waitForFunction(()=>window.__nxSecurityLockV2===true && document.getElementById('nxSecurityAppLock'));
