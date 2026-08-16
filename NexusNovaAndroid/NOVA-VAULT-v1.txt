@@ -1,0 +1,8 @@
+NexusNova Android Nova Vault v1 build contract
+
+- Every fresh mining start is gated by the native mining-start interstitial and starts only after dismissal.
+- Natural 24-hour mining completion grants exactly one pending Nova Vault.
+- Stored Nova Booster / Nova Rain / 24H Time Warp value is server-authoritative.
+- Nova Vault open, Booster, Rain and Time Warp share a 15-second cooldown.
+- Time Warp completes one session but never grants another Vault.
+- Rewarded TEST ads never change mining time or NVX.
