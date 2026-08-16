@@ -1,4 +1,5 @@
 from pathlib import Path
+import runpy
 
 MAIN = Path("NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt")
 
@@ -40,3 +41,8 @@ if "ACTION_REQUEST_CALLER_ROLE" not in src:
 
 MAIN.write_text(src, encoding="utf-8")
 print("Deferred Caller ID setup patch applied: startup is clean; setup is feature-triggered only.")
+
+# This step runs after same-device session restore and after rewarded event-order
+# hardening. It is therefore the deterministic point to apply the fixes proven
+# by the user's real-device screen recording.
+runpy.run_path('NexusNovaAndroid/patch_video_truth_final.py', run_name='__main__')
