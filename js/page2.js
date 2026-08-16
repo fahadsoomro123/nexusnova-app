@@ -175,3 +175,12 @@ window.nexusAuthFreshReady = (async () => {
     return null;
   }
 })();
+
+// Load the final navigation owner last. Android/WebView can finish older classic
+// scripts and module imports in different orders; this module owns the escape
+// path from ALL APPS and restores every feature's Back to ALL APPS control.
+try {
+  await import('./nexusnova-navigation-stability-v1.js?v=1');
+} catch (error) {
+  console.warn('NexusNova navigation stability:', error);
+}
