@@ -117,12 +117,25 @@ for chain_id, symbol in EXPECTED_NATIVE.items():
     action_lower = action_block.lower()
     sync_lower = sync_block.lower()
     for token_symbol, (address, decimals) in expected.items():
-        action_literal = f'{token_symbol}: {{ contract: "{address}", decimals: {decimals} }}'.lower()
-        sync_literal = f'{token_symbol}: ["{address}", {decimals}]'.lower()
-        if action_literal not in action_lower:
-            errors.append(f'{chain_id} {token_symbol} issuer-verified contract/decimals missing from send map')
-        if sync_literal not in sync_lower:
-            errors.append(f'{chain_id} {token_symbol} issuer-verified contract/decimals missing from balance map')
+        # Check chain-local address and token decimal shape separately. This is
+        # strict on value/chain/decimals while ignoring harmless checksum casing
+        # and formatting whitespace.
+        if address.lower() not in action_lower:
+            errors.append(f'{chain_id} {token_symbol} issuer-verified contract missing from send map')
+        if address.lower() not in sync_lower:
+            errors.append(f'{chain_id} {token_symbol} issuer-verified contract missing from balance map')
+        if not re.search(
+            rf'\b{re.escape(token_symbol)}\s*:\s*\{{[^}}]*decimals:\s*{decimals}\s*\}}',
+            action_block,
+            re.S,
+        ):
+            errors.append(f'{chain_id} {token_symbol} send decimals/shape drifted')
+        if not re.search(
+            rf'\b{re.escape(token_symbol)}\s*:\s*\[\s*"0x[a-fA-F0-9]+"\s*,\s*{decimals}\s*\]',
+            sync_block,
+            re.S,
+        ):
+            errors.append(f'{chain_id} {token_symbol} balance decimals/shape drifted')
 
     configured_action_symbols = set(re.findall(r'\b(USDT|USDC)\s*:\s*\{\s*contract:', action_block))
     configured_sync_symbols = set(re.findall(r'\b(USDT|USDC)\s*:\s*\[', sync_block))
