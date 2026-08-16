@@ -1,0 +1,51 @@
+name: NexusNova FCM Security Hardening
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/scripts/harden_fcm_security.py'
+      - '.github/scripts/fcm-security-readiness.py'
+      - '.github/workflows/fcm-security-hardening.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  harden-fcm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply FCM security hardening
+        run: python3 .github/scripts/harden_fcm_security.py
+
+      - name: Check notification code syntax
+        run: |
+          node --check functions/notifications.js
+          node --check js/nexusnova-fcm-v1.js
+          node --check sw.js
+
+      - name: Validate FCM security contract
+        run: python3 .github/scripts/fcm-security-readiness.py
+
+      - name: Verify clean patch
+        run: git diff --check
+
+      - name: Commit FCM hardening
+        run: |
+          if git diff --quiet -- functions/notifications.js js/nexusnova-fcm-v1.js; then
+            echo 'FCM security hardening already applied.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add functions/notifications.js js/nexusnova-fcm-v1.js
+          git commit -m 'Harden push notification registration and abuse controls'
+          git push origin HEAD:main
