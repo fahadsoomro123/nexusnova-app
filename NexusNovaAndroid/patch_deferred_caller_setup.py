@@ -69,7 +69,6 @@ if BOOST.exists():
     elif "if (!miningState.known) {\n        status.innerHTML = text;" not in boost and 'transientBoostNoteUntil > Date.now()' not in boost:
         raise SystemExit('Boost status normalization point not found.')
 
-# This step runs after same-device session restore and after rewarded event-order
-# hardening. It is therefore the deterministic point to apply the fixes proven
-# by the user's real-device screen recording.
+# These run after same-device session restore and rewarded event-order hardening.
 runpy.run_path('NexusNovaAndroid/patch_video_truth_final.py', run_name='__main__')
+runpy.run_path('NexusNovaAndroid/patch_video_truth_consistency_perf_v2.py', run_name='__main__')
