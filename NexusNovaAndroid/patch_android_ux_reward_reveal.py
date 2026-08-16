@@ -108,4 +108,9 @@ for path, needle in checks:
         raise SystemExit(f'Android UX repair verification failed: {path} -> {needle}')
 
 print('Applied Android UX repair: fast splash, canonical mining label, and animated Nova Vault reward reveal.')
-runpy.run_path('NexusNovaAndroid/patch_test_boost_authoritative_timer.py', run_name='__main__')
+
+# Final Android presentation/safety chain. Both scripts operate only on the
+# prepared APK shell. The single-owner guard removes the legacy failsafe timer;
+# the modern layer is read-only UI polish and cannot mutate reward state.
+runpy.run_path('NexusNovaAndroid/patch_single_mining_timer_owner.py', run_name='__main__')
+runpy.run_path('NexusNovaAndroid/patch_android_mining_modern_v2.py', run_name='__main__')
