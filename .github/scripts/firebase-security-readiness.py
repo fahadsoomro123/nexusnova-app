@@ -57,6 +57,15 @@ if SITE_KEY not in index:
 if SITE_KEY not in page2:
     errors.append('Dashboard App Check site key is blank or mismatched')
 
+# New signups should be stronger without changing the credentials accepted for
+# existing accounts. Keep signup failures from becoming an exact account lookup.
+if '!loginMode && password.length < 10' not in index:
+    errors.append('New-account password minimum is no longer 10 characters')
+if 'Unable to create this account. Try Login if you may already have an account.' not in index:
+    errors.append('Signup email-already-in-use response exposes too much account detail')
+if 'if (password.length < 6)' in index:
+    errors.append('Legacy global 6-character password gate would block future login compatibility changes')
+
 # Sensitive backend-owned collections must not be client writable.
 withdrawal = re.search(r"match /withdrawalRequests/\{id\} \{(.*?)\n\s*\}", rules, re.S)
 if not withdrawal or 'allow create, update, delete: if false;' not in withdrawal.group(1):
@@ -130,6 +139,8 @@ if errors:
 print('NexusNova Firebase security readiness: PASS')
 print(' - Daily Reward: server-authoritative + App Check guarded; legacy rule removed')
 print(' - Login/dashboard App Check Enterprise key: consistent')
+print(' - New signup passwords: 10+ chars; existing login compatibility preserved')
+print(' - Signup account-existence detail: reduced')
 print(' - Chat and marketplace writes: verified-email only')
 print(' - Withdrawal requests: client create/update/delete denied')
 print(' - Push navigation: same-origin only')
