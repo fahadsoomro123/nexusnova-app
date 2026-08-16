@@ -1,0 +1,70 @@
+/* =========================================================
+   SPEED TEST V3 — clean live network cockpit
+   ========================================================= */
+html body #tab-tools #tool-speed.nx-speed-v3{
+  --nx-speed-accent:#29d5ff;
+  --nx-speed-accent-soft:rgba(41,213,255,.22);
+  overflow:hidden!important;
+  padding-bottom:24px!important;
+  border:1px solid rgba(61,178,234,.22)!important;
+  background:radial-gradient(circle at 80% 8%,rgba(20,164,221,.13),transparent 30%),linear-gradient(165deg,#071a2a,#050f1b 58%,#050b13)!important;
+  box-shadow:0 24px 60px rgba(0,0,0,.34),inset 0 1px 0 rgba(255,255,255,.045)!important;
+}
+html body #tab-tools #tool-speed.nx-speed-v3[data-speed-phase="upload"]{--nx-speed-accent:#9c8cff;--nx-speed-accent-soft:rgba(156,140,255,.22)}
+html body #tab-tools #tool-speed.nx-speed-v3[data-speed-phase="complete"]{--nx-speed-accent:#3de2a2;--nx-speed-accent-soft:rgba(61,226,162,.22)}
+html body #tab-tools #tool-speed.nx-speed-v3 h3{display:flex!important;align-items:center!important;gap:12px!important;margin-bottom:7px!important;color:#f6fbff!important;font-size:24px!important;line-height:1.05!important}
+html body #tab-tools #tool-speed.nx-speed-v3 h3>span:last-child{display:flex;flex-direction:column;gap:3px}
+html body #tab-tools #tool-speed.nx-speed-v3 h3 small{font:900 7px/1 system-ui,sans-serif;letter-spacing:.18em;color:#6cb2d3}
+html body #tab-tools #tool-speed.nx-speed-v3 .nx-speed-brand-mark{width:45px;height:45px;display:grid;place-items:center;border:1px solid rgba(90,216,255,.32);border-radius:15px;background:linear-gradient(145deg,rgba(36,187,234,.24),rgba(9,51,80,.58));color:#aaf2ff;font:900 25px/1 system-ui;box-shadow:0 10px 24px rgba(0,0,0,.24),inset 0 1px rgba(255,255,255,.08)}
+html body #tab-tools #tool-speed.nx-speed-v3>p{margin-bottom:16px!important;color:#789ab1!important;font-size:11px!important;line-height:1.45!important}
+html body #tab-tools #tool-speed.nx-speed-v3 #nxSpeedStart{position:relative;overflow:hidden;min-height:54px!important;border:1px solid rgba(80,216,255,.30)!important;border-radius:17px!important;background:linear-gradient(110deg,#087adf,#10b6dc)!important;color:#fff!important;font:900 11px/1 system-ui,sans-serif!important;letter-spacing:.16em!important;box-shadow:0 14px 32px rgba(9,130,211,.24),inset 0 1px rgba(255,255,255,.22)!important}
+html body #tab-tools #tool-speed.nx-speed-v3 #nxSpeedStart::after{content:"";position:absolute;top:-50%;left:-30%;width:35%;height:200%;transform:rotate(18deg);background:linear-gradient(90deg,transparent,rgba(255,255,255,.25),transparent);transition:left .5s ease}
+html body #tab-tools #tool-speed.nx-speed-v3 #nxSpeedStart:not(:disabled):active{transform:scale(.99)}
+html body #tab-tools #tool-speed.nx-speed-v3 #nxSpeedStart:disabled{opacity:.82}
+html body #tab-tools #tool-speed.nx-speed-v3 #nxSpeedStart:disabled::after{animation:nxSpeedButtonSweep 1.35s linear infinite}
+html body #tab-tools #tool-speed.nx-speed-v3 .nx-speed-progress{height:5px!important;margin:16px 8px 8px!important;border-radius:999px!important;overflow:hidden!important;border:0!important;background:#03101c!important;box-shadow:inset 0 1px 4px rgba(0,0,0,.7)!important}
+html body #tab-tools #tool-speed.nx-speed-v3 .nx-speed-progress i{height:100%!important;border-radius:inherit!important;background:linear-gradient(90deg,#1597ec,var(--nx-speed-accent))!important;box-shadow:0 0 16px var(--nx-speed-accent-soft)!important;transition:width .16s linear!important}
+html body #tab-tools #tool-speed.nx-speed-v3 #nxSpeedStatus{width:max-content;max-width:94%;margin:9px auto 0!important;padding:7px 12px!important;border:1px solid rgba(84,171,213,.16)!important;border-radius:999px!important;background:rgba(7,26,42,.75)!important;color:#91b5ca!important;font:800 9px/1.25 system-ui,sans-serif!important;letter-spacing:.04em!important;text-align:center!important}
+html body #tab-tools #tool-speed.nx-speed-v3 .nx-speed-gauge{position:relative!important;min-height:405px!important;padding:286px 0 0!important;margin-top:7px!important;overflow:visible!important;background:none!important}
+html body #tab-tools #tool-speed.nx-speed-v3 .nx-speed-gauge::before,
+html body #tab-tools #tool-speed.nx-speed-v3 .nx-speed-gauge::after,
+html body #tab-tools #tool-speed.nx-speed-v3 .nx-speed-dial-v2{display:none!important;content:none!important}
+html body #tab-tools #tool-speed.nx-speed-v3 .nx-speed-cockpit{position:absolute;z-index:2;top:4px;left:50%;width:min(315px,84vw);aspect-ratio:1;transform:translateX(-50%);border-radius:50%;background:radial-gradient(circle at 50% 54%,#0a2236 0 8%,#061725 9% 45%,#04101c 46% 66%,#020811 67%);border:1px solid rgba(105,202,237,.20);box-shadow:0 28px 55px rgba(0,0,0,.48),0 0 0 7px rgba(64,184,229,.025),inset 0 0 45px rgba(38,167,217,.07)}
+html body #tab-tools #tool-speed.nx-speed-v3 .nx-speed-cockpit::before{content:"";position:absolute;inset:6%;border-radius:50%;background:conic-gradient(from 217deg,rgba(34,204,255,.20) 0deg,rgba(34,204,255,.03) 90deg,transparent 135deg 225deg,rgba(34,204,255,.03) 270deg,rgba(34,204,255,.18) 315deg,transparent 316deg);-webkit-mask:radial-gradient(circle,transparent 0 82%,#000 83% 86%,transparent 87%);mask:radial-gradient(circle,transparent 0 82%,#000 83% 86%,transparent 87%);opacity:.8}
+html body #tab-tools #tool-speed.nx-speed-v3 .nx-speed-arc{position:absolute;inset:9%;border-radius:50%;transform:rotate(45deg);background:conic-gradient(transparent 0 44deg,currentColor 45deg 315deg,transparent 316deg 360deg);-webkit-mask:radial-gradient(circle,transparent 0 84%,#000 85% 91%,transparent 92%);mask:radial-gradient(circle,transparent 0 84%,#000 85% 91%,transparent 92%)}
+html body #tab-tools #tool-speed.nx-speed-v3 .nx-speed-arc-base{color:rgba(114,154,178,.22)}
+html body #tab-tools #tool-speed.nx-speed-v3 .nx-speed-arc-glow{color:var(--nx-speed-accent);opacity:.32;filter:drop-shadow(0 0 8px var(--nx-speed-accent-soft))}
+html body #tab-tools #tool-speed.nx-speed-v3 .nx-speed-ticks{position:absolute;inset:11%;border-radius:50%;background:repeating-conic-gradient(from 225deg,rgba(217,244,255,.70) 0 1deg,transparent 1deg 7.5deg);-webkit-mask:radial-gradient(circle,transparent 0 88%,#000 89% 92%,transparent 93%);mask:radial-gradient(circle,transparent 0 88%,#000 89% 92%,transparent 93%);opacity:.52}
+html body #tab-tools #tool-speed.nx-speed-v3 .nx-speed-scale-labels{position:absolute;inset:0;pointer-events:none}
+html body #tab-tools #tool-speed.nx-speed-v3 .nx-speed-scale-labels span{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) rotate(calc(-126deg + (252deg * var(--p)))) translateY(-116px) rotate(calc(126deg - (252deg * var(--p))));color:#7e9daf;font:850 8px/1 system-ui,sans-serif;text-shadow:0 1px 4px #000}
+html body #tab-tools #tool-speed.nx-speed-v3 .nx-speed-needle-v3{position:absolute;z-index:8;left:50%;top:50%;width:4px;height:35%;transform:translateX(-50%) rotate(-126deg);transform-origin:50% 100%;will-change:transform;filter:drop-shadow(0 0 6px var(--nx-speed-accent));}
+html body #tab-tools #tool-speed.nx-speed-v3 .nx-speed-needle-v3 i{position:absolute;inset:0;border-radius:99px 99px 3px 3px;background:linear-gradient(to top,rgba(255,255,255,.15),var(--nx-speed-accent) 35%,#eefdff);box-shadow:0 0 10px var(--nx-speed-accent-soft)}
+html body #tab-tools #tool-speed.nx-speed-v3 .nx-speed-needle-v3 i::before{content:"";position:absolute;top:-6px;left:50%;width:9px;height:15px;transform:translateX(-50%);clip-path:polygon(50% 0,100% 100%,0 100%);background:#eefdff}
+html body #tab-tools #tool-speed.nx-speed-v3 .nx-speed-live-dot{--nx-speed-load:0;position:absolute;z-index:10;left:50%;top:50%;width:39px;height:39px;transform:translate(-50%,-50%);border-radius:50%;display:grid;place-items:center;border:2px solid rgba(211,247,255,.80);background:radial-gradient(circle at 35% 30%,#e9fdff 0 8%,var(--nx-speed-accent) 9% 25%,#073b58 26% 58%,#03101c 59%);box-shadow:0 0 calc(13px + (20px * var(--nx-speed-load))) var(--nx-speed-accent-soft),0 0 0 6px rgba(45,190,239,.06)}
+html body #tab-tools #tool-speed.nx-speed-v3 .nx-speed-live-dot i{width:7px;height:7px;border-radius:50%;background:#fff;box-shadow:0 0 10px #fff}
+html body #tab-tools #tool-speed.nx-speed-v3 .nx-speed-phase-label{position:absolute;left:50%;top:68%;transform:translateX(-50%);color:#5f879e;font:900 7px/1 system-ui,sans-serif;letter-spacing:.19em;white-space:nowrap}
+html body #tab-tools #tool-speed.nx-speed-v3 .nx-speed-main{position:absolute!important;z-index:7!important;left:50%!important;top:54%!important;width:180px!important;min-height:65px!important;transform:translate(-50%,-50%)!important;padding:0!important;display:flex!important;align-items:baseline!important;justify-content:center!important;gap:6px!important;background:none!important;border:0!important;color:#eefbff!important;text-shadow:0 0 20px var(--nx-speed-accent-soft)!important;line-height:1!important}
+html body #tab-tools #tool-speed.nx-speed-v3 .nx-speed-main::before{content:none!important}
+html body #tab-tools #tool-speed.nx-speed-v3 .nx-speed-main b{font:950 39px/.9 system-ui,sans-serif;letter-spacing:-.055em}
+html body #tab-tools #tool-speed.nx-speed-v3 .nx-speed-main span{font:800 10px/1 system-ui,sans-serif;color:#7fa9bd;letter-spacing:.04em}
+html body #tab-tools #tool-speed.nx-speed-v3 .nx-speed-grid-v3{position:relative!important;z-index:5!important;display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:8px!important;margin:0!important;padding:0!important}
+html body #tab-tools #tool-speed.nx-speed-v3 .nx-speed-stat{min-width:0!important;min-height:94px!important;padding:12px 8px!important;border:1px solid rgba(88,165,202,.17)!important;border-radius:17px!important;background:linear-gradient(155deg,rgba(11,38,58,.90),rgba(5,19,32,.95))!important;box-shadow:inset 0 1px rgba(255,255,255,.04)!important;text-align:center!important}
+html body #tab-tools #tool-speed.nx-speed-v3 .nx-speed-stat small{display:block!important;color:#6d91a7!important;font:850 7px/1.2 system-ui,sans-serif!important;letter-spacing:.13em!important}
+html body #tab-tools #tool-speed.nx-speed-v3 .nx-speed-stat b{display:block!important;margin:10px 0 4px!important;color:#f2fbff!important;font:900 19px/1 system-ui,sans-serif!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+html body #tab-tools #tool-speed.nx-speed-v3 .nx-speed-stat span{color:#668da4!important;font:700 8px/1 system-ui,sans-serif!important}
+html body #tab-tools #tool-speed.nx-speed-v3[data-speed-phase="download"] .nx-speed-stat[data-metric="download"],
+html body #tab-tools #tool-speed.nx-speed-v3[data-speed-phase="upload"] .nx-speed-stat[data-metric="upload"],
+html body #tab-tools #tool-speed.nx-speed-v3[data-speed-phase="ping"] .nx-speed-stat[data-metric="ping"]{border-color:var(--nx-speed-accent)!important;box-shadow:0 0 22px var(--nx-speed-accent-soft),inset 0 1px rgba(255,255,255,.05)!important}
+html body #tab-tools #tool-speed.nx-speed-v3.nx-speed-error{--nx-speed-accent:#ff657c;--nx-speed-accent-soft:rgba(255,101,124,.20)}
+@keyframes nxSpeedButtonSweep{from{left:-35%}to{left:115%}}
+
+/* Responsive */
+@media(max-width:560px){html body #tab-tools #tool-speed.nx-speed-v3 .nx-speed-gauge{min-height:375px!important;padding-top:268px!important}html body #tab-tools #tool-speed.nx-speed-v3 .nx-speed-cockpit{width:min(292px,86vw)}html body #tab-tools #tool-speed.nx-speed-v3 .nx-speed-scale-labels span{transform:translate(-50%,-50%) rotate(calc(-126deg + (252deg * var(--p)))) translateY(-107px) rotate(calc(126deg - (252deg * var(--p))))}}
+@media(max-width:390px){html body #tab-tools #tool-speed.nx-speed-v3 .nx-speed-cockpit{width:min(270px,84vw)}html body #tab-tools #tool-speed.nx-speed-v3 .nx-speed-scale-labels span{transform:translate(-50%,-50%) rotate(calc(-126deg + (252deg * var(--p)))) translateY(-99px) rotate(calc(126deg - (252deg * var(--p))))}html body #tab-tools #tool-speed.nx-speed-v3 .nx-speed-main b{font-size:34px}}
+@media(prefers-reduced-motion:reduce){html body #tab-tools #tool-speed #nxSpeedStart::after{animation:none!important}}
+/* If the legacy V2 observer wakes after V3, V3 remains the visual owner. */
+html body #tab-tools #tool-speed.nx-speed-v3.nx-speed-v2 .nx-speed-gauge{min-height:405px!important;padding:286px 0 0!important;background:none!important}
+html body #tab-tools #tool-speed.nx-speed-v3.nx-speed-v2 .nx-speed-main{top:54%!important;padding:0!important;width:180px!important;min-height:65px!important;font-size:inherit!important}
+html body #tab-tools #tool-speed.nx-speed-v3.nx-speed-v2 .nx-speed-main::before{content:none!important}
+html body #tab-tools #tool-speed.nx-speed-v3.nx-speed-v2 .nx-speed-dial-v2{display:none!important}
+@media(max-width:560px){html body #tab-tools #tool-speed.nx-speed-v3.nx-speed-v2 .nx-speed-gauge{min-height:375px!important;padding-top:268px!important}}
