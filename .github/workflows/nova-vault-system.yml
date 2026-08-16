@@ -5,12 +5,13 @@ on:
     branches:
       - main
     paths:
+      - 'js/rewards-security-v1.js'
       - 'js/nexusnova-nova-vault-v1.js'
-      - 'js/nexusnova-rewarded-ads-v1.js'
-      - '.github/scripts/install_nova_vault_system.py'
-      - '.github/scripts/fix_nova_admob_patcher.py'
+      - 'functions/index.js'
+      - '.github/scripts/apply_nova_engagement_v2.py'
       - '.github/scripts/nova-vault-readiness.py'
       - '.github/scripts/nova-vault-rules-smoke.mjs'
+      - '.github/scripts/mining-boost-rules-smoke.mjs'
       - '.github/scripts/mining-boost-security-readiness.py'
       - '.github/workflows/nova-vault-system.yml'
   workflow_dispatch:
@@ -28,16 +29,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Close legacy client Mining Boost value path
-        run: |
-          python3 .github/scripts/harden_mining_boost_value.py
-          python3 .github/scripts/harden_mining_boost_tests.py
-
-      - name: Repair current Android AdMob patcher
-        run: python3 .github/scripts/fix_nova_admob_patcher.py
-
-      - name: Install Nova Vault and mining-start ad gate
-        run: python3 .github/scripts/install_nova_vault_system.py
+      - name: Apply engagement v2
+        run: python3 .github/scripts/apply_nova_engagement_v2.py
 
       - name: Validate security and feature contracts
         run: |
@@ -51,12 +44,10 @@ jobs:
           node --check js/rewards-security-v1.js
           node --check js/nexusnova-nova-vault-v1.js
           node --check js/nexusnova-admob-nexus-pass-v1.js
-          node --check js/nexusnova-rewarded-ads-config-v1.js
-          node --check js/nexusnova-rewarded-ads-v1.js
           node --check functions/index.js
           node --check .github/scripts/nova-vault-rules-smoke.mjs
           node --check .github/scripts/mining-boost-rules-smoke.mjs
-          python3 -m py_compile .github/scripts/fix_nova_admob_patcher.py
+          python3 -m py_compile .github/scripts/apply_nova_engagement_v2.py
           python3 -m py_compile NexusNovaAndroid/patch_admob.py
           python3 -m py_compile NexusNovaAndroid/patch_mining_boost_sync.py
 
@@ -77,34 +68,20 @@ jobs:
       - name: Run Nova Vault and Mining Boost Firestore attack tests
         run: npx firebase emulators:exec --only firestore --project demo-nexusnova-nova-vault "node .github/scripts/nova-vault-rules-smoke.mjs && node .github/scripts/mining-boost-rules-smoke.mjs"
 
-      - name: Commit tested Nova Vault system
+      - name: Commit tested engagement v2
         run: |
-          # The installer also adds Android CI assertions. GITHUB_TOKEN may write
-          # source files but cannot update another workflow without workflows
-          # permission, so restore that one generated workflow diff here. The
-          # verified Android gate is committed separately through the GitHub app.
-          git restore .github/workflows/nexusnova-android-build.yml
           git add \
-            firestore.rules \
             functions/index.js \
-            sw.js \
             js/rewards-security-v1.js \
             js/nexusnova-nova-vault-v1.js \
-            js/nexusnova-admob-nexus-pass-v1.js \
-            js/nexusnova-rewarded-ads-config-v1.js \
-            js/final-integrity-fix.js \
-            NexusNovaAndroid/patch_admob.py \
-            NexusNovaAndroid/patch_mining_boost_sync.py \
-            .github/scripts/mining-boost-rules-smoke.mjs \
-            .github/scripts/nexusnova-rewarded-ads-runtime.mjs \
-            .github/scripts/firebase-security-readiness.py
+            .github/scripts/nova-vault-readiness.py
           if git diff --cached --quiet; then
-            echo 'Nova Vault system already installed.'
+            echo 'Engagement v2 already installed.'
             exit 0
           fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -m 'Add Nova Vault rewards and ad-gated mining starts'
+          git commit -m 'Start mining before ads and gift Vaults on boosts'
           git fetch origin main
           git rebase origin/main
           git push origin HEAD:main
