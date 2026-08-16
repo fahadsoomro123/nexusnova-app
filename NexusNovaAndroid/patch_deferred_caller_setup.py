@@ -5,7 +5,6 @@ MAIN = Path("NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.k
 BOOST = Path("NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js")
 
 src = MAIN.read_text(encoding="utf-8")
-
 startup_call = "        showCallerSetupOnce()\n"
 startup_comment = """        // Caller ID setup is intentionally deferred. Do not interrupt splash/auth.
         // The user sees setup only after explicitly choosing the Caller ID feature.
@@ -61,3 +60,4 @@ runpy.run_path('NexusNovaAndroid/patch_video_truth_final.py', run_name='__main__
 runpy.run_path('NexusNovaAndroid/patch_video_truth_consistency_perf_v2.py', run_name='__main__')
 runpy.run_path('NexusNovaAndroid/patch_video_smoothness_v1.py', run_name='__main__')
 runpy.run_path('NexusNovaAndroid/patch_video_smoothness_v2_fix.py', run_name='__main__')
+runpy.run_path('NexusNovaAndroid/patch_video_smoothness_v3_perf.py', run_name='__main__')
