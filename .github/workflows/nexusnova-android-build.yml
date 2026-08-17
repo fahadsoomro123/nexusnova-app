@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - codex-final-audit
+      - 'agent/**'
     paths:
       - 'NexusNovaAndroid/**'
       - 'index.html'
@@ -81,10 +82,10 @@ jobs:
       - name: Reset stale WebView shell once
         run: python3 NexusNovaAndroid/patch_web_shell_reset.py
 
-      - name: Apply deterministic native shell and startup stabilization
+      - name: Preserve approved production dashboard and stabilize startup
         run: python3 NexusNovaAndroid/patch_native_shell.py
 
-      - name: Verify native shell before compile
+      - name: Verify approved production shell before compile
         run: |
           grep -q 'nxAndroidNativeShellBootstrap' NexusNovaAndroid/app/src/main/assets/www/page2.html
           grep -q 'window.__nexusInteractiveReady = true' NexusNovaAndroid/app/src/main/assets/www/page2.html
@@ -139,10 +140,15 @@ jobs:
           grep -q 'production-proof-not-enabled' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
           grep -q 'val miningStartGate = safePlacement == "mining-start"' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
           grep -q '!miningStartGate && now - lastInterstitialShownAt' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
-          grep -q 'NATIVE_SHELL_PATH = "/nexusnova-native/"' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
-          grep -q 'interceptNativeShell' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
-          grep -q 'scheduleInteractiveShellCheck' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -q 'PRODUCTION_PATH = "/nexusnova-app/"' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -q 'PRODUCTION_APP_URL = "https://fahadsoomro123.github.io/nexusnova-app/"' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -q 'PRODUCTION_DASHBOARD_URL = "https://fahadsoomro123.github.io/nexusnova-app/page2.html"' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
           grep -q 'scheduleNativeAdInitialization' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -q 'WEB_SHELL_RECOVERY_EPOCH = "approved-live-dashboard-v1"' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          ! grep -q 'NATIVE_SHELL_PATH' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          ! grep -q 'interceptNativeShell' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          ! grep -q 'scheduleInteractiveShellCheck' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          ! grep -q 'INTERACTIVE_SHELL_PROBE' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
 
       - name: Check native web security syntax
         run: |
