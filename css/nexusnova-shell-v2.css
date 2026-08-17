@@ -84,6 +84,8 @@ body.nx-two-tab-shell .bottom-dock .nx-two-tab-dock>.dock-item.active .mi-icon{
 /* Nova Hub: force a real bounded touch scroller on Android/WebView. */
 body #moreMenu.more-menu,
 body.nx-allapps-open #moreMenu.more-menu.show{
+  height:min(76vh,660px)!important;
+  max-height:min(76vh,660px)!important;
   height:min(76dvh,660px)!important;
   max-height:min(76dvh,660px)!important;
   min-height:0!important;
@@ -93,7 +95,6 @@ body.nx-allapps-open #moreMenu.more-menu.show{
   -webkit-overflow-scrolling:touch!important;
   touch-action:pan-y!important;
   scrollbar-width:none!important;
-  contain:layout paint!important;
 }
 body #moreMenu.more-menu::-webkit-scrollbar{width:0!important;height:0!important;display:none!important}
 body #moreMenu.more-menu .more-inner{
@@ -172,6 +173,7 @@ body #moreMenu.more-menu #nxNovaHubHeader{
   #nxHomeCoreAccess .nx-core-icon svg{width:15px!important;height:15px!important}
   #nxHomeCoreAccess .nx-core-copy b{font-size:8.2px!important}
   body #moreMenu.more-menu,body.nx-allapps-open #moreMenu.more-menu.show{
+    height:min(74vh,620px)!important;max-height:min(74vh,620px)!important;
     height:min(74dvh,620px)!important;max-height:min(74dvh,620px)!important;
   }
 }
