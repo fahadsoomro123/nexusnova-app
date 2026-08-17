@@ -2,8 +2,22 @@ from pathlib import Path
 
 main_path = Path('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt')
 manager_path = Path('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt')
+page_path = Path('NexusNovaAndroid/app/src/main/assets/www/page2.html')
 main = main_path.read_text(encoding='utf-8')
 manager = manager_path.read_text(encoding='utf-8')
+page = page_path.read_text(encoding='utf-8')
+
+# 0) The visual splash must never depend on window.load. On a real phone a
+# remote Firebase/CDN request can keep load pending long after the local shell
+# is already rendered. The root page's splash script sits immediately after
+# #nxSplash, so this unconditional timer always has a real element to release.
+splash_marker = 'nx-android-splash-hard-failsafe-v1'
+if splash_marker not in page:
+    old_splash = '''  var minMs = 2800;\n  var start = Date.now();\n'''
+    new_splash = '''  var minMs = 2800;\n  var start = Date.now();\n  // nx-android-splash-hard-failsafe-v1\n  // Do not wait forever for window.load when optional remote services are slow.\n  setTimeout(hide, 3600);\n'''
+    if old_splash not in page:
+        raise SystemExit('Android splash failsafe insertion point not found')
+    page = page.replace(old_splash, new_splash, 1)
 
 # 1) Serve the Android web shell from APK assets while retaining the trusted
 # github.io document origin. This removes GitHub/network/service-worker shell
@@ -131,6 +145,7 @@ if 'const val INTERSTITIAL_STARTUP_STAGGER_MS' not in manager:
         raise SystemExit('Ad stagger constant insertion point not found')
     manager = manager.replace(marker, constants + marker, 1)
 
+page_path.write_text(page, encoding='utf-8')
 main_path.write_text(main, encoding='utf-8')
 manager_path.write_text(manager, encoding='utf-8')
 
@@ -148,7 +163,9 @@ required_manager = [
     'fun publishStatus()',
 ]
 missing = [x for x in required_main if x not in main] + [x for x in required_manager if x not in manager]
+if splash_marker not in page:
+    missing.append(splash_marker)
 if missing:
     raise SystemExit('Native shell stabilization verification failed: ' + ', '.join(missing))
 
-print('Applied deterministic native shell, interaction watchdog, and staggered Android ad startup.')
+print('Applied deterministic native shell, hard splash release, interaction watchdog, and staggered Android ad startup.')
