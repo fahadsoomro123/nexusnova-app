@@ -120,14 +120,15 @@ async function runScenario(name, slowProbeDelayMs) {
       await new Promise((resolve) => setTimeout(resolve, slowProbeDelayMs));
       return route.abort('failed');
     }
-    // Real optional/CDN/Firebase traffic is unavailable in this deterministic
-    // shell test. Immediate failure is stricter than a healthy remote network
-    // and proves navigation does not depend on those responses.
     return route.abort('failed');
   });
 
-  await page.goto(nativePage, { waitUntil: 'commit', timeout: 10_000 });
-  await page.locator('#moreBtn').waitFor({ state: 'attached', timeout: 10_000 });
+  // The navigation must return the actual prepared Android HTML and finish
+  // parsing the document before we measure touch targets. `commit` only proves
+  // response headers arrived; it can fire before the late bottom dock exists.
+  const response = await page.goto(nativePage, { waitUntil: 'domcontentloaded', timeout: 20_000 });
+  assert.equal(response?.status(), 200, `${name}: prepared Android shell returned HTTP ${response?.status()}`);
+  await page.locator('#moreBtn').waitFor({ state: 'attached', timeout: 5_000 });
 
   if (slowProbeDelayMs > 0) {
     await page.evaluate((src) => {
