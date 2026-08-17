@@ -1,4 +1,4 @@
-/* NexusNova UX Simplify v2.0.1
+/* NexusNova UX Simplify v2.0.0 stable
    Compact, contextual navigation for NexusNova.
    - No giant generic Back strip.
    - Small inline Back control inside sub-apps.
@@ -246,7 +246,7 @@
   [250,700,1500,3000,6000].forEach(ms => setTimeout(scheduleRender,ms));
 
   window.NexusNovaUxSimplify = Object.freeze({
-    version:'2.0.1',
+    version:'2.0.0',
     refresh:scheduleRender,
     back:goBackContextually,
     systemBack:handleSystemBack
