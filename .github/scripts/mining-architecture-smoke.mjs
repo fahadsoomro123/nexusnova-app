@@ -37,21 +37,28 @@ assert.match(page2Core, /window\.nexusSecureStartMining/, 'legacy page core must
 assert.match(page2Core, /window\.nexusSecureRenderMining/, 'legacy page core must delegate timer rendering to secure engine');
 
 assert.match(rules, /function validMiningStart\(\)/, 'Firestore rules must validate mining start');
-assert.match(rules, /function validMiningBoost\(\)/, 'Firestore rules must validate mining boosts');
-assert.match(rules, /request\.resource\.data\.miningStartedAt == resource\.data\.miningStartedAt - 7200000/, 'each mining boost must be exactly two hours');
-assert.match(rules, /request\.resource\.data\.miningStartedAt >= resource\.data\.miningLastUpdate - 43200000/, 'mining boost must cap at 12 hours per session');
 assert.match(rules, /function validMiningFinish\(\)/, 'Firestore rules must validate mining finish');
 assert.match(rules, /request\.resource\.data\.balance == resource\.data\.balance \+ 24/, 'Firestore rules must enforce exact +24 NVX reward');
-assert.match(rules, /request\.auth\.token\.email_verified == true/, 'verified email gate missing from mining rules');
+assert.match(rules, /request\.auth\.token\.email_verified == true/, 'verified email gate missing from value-bearing rules');
 
-// The boost bridge is intentionally a narrow second transaction surface: it
-// may shift only miningStartedAt and can never start sessions or write value.
-// Validate it explicitly rather than letting the broad legacy regex below
-// misclassify a nearby return object's `miningActive: true` as a DB write.
-assert.match(boostBridge, /tx\.update\(ref, \{ miningStartedAt: nextStartedAt \}\)/, 'boost bridge may shift only the mining start timestamp');
+// Current production security deliberately has NO direct client mining-boost
+// rule. TEST Booster/Nova Rain preview stays local/non-value-bearing, while any
+// future production boost must be reintroduced only with a server-verified
+// proof path. Keeping this assertion prevents a stale client timestamp mutation
+// from silently becoming writable again.
+assert.doesNotMatch(rules, /function validMiningBoost\(\)/, 'direct client mining boost rule must remain disabled');
+assert.doesNotMatch(rules, /validMiningBoost\(\)/, 'users update path must not authorize direct client mining boosts');
+assert.match(rules, /validMiningStart\(\)[\s\S]*validMiningFinish\(\)[\s\S]*validMiningRollover\(\)[\s\S]*validMiningRepair\(\)/,
+  'verified mining update allow-list must contain only start/finish/rollover/repair transitions');
+
+// The AdMob/Nexus Pass bridge can retain the future timestamp-only transaction
+// implementation, but production proof is disabled elsewhere. It must never
+// mint NVX or change totalMined, and its use limits remain explicit.
+assert.match(boostBridge, /tx\.update\(ref, \{ miningStartedAt: nextStartedAt \}\)/, 'boost bridge may shift only the mining start timestamp when a verified production path is enabled');
 assert.match(boostBridge, /TOTAL_LIMIT = BOOSTER_LIMIT \+ RAIN_LIMIT/, 'combined boost limit missing');
 assert.match(boostBridge, /BOOSTER_LIMIT = 2/, 'Nova Booster limit must be two uses');
 assert.match(boostBridge, /RAIN_LIMIT = 4/, 'Nova Rain limit must be four uses');
+assert.match(boostBridge, /SERVER_VERIFIED_BOOST_ENABLED = false/, 'production server-verified boost gate must remain disabled in current TEST edition');
 assert.doesNotMatch(boostBridge, /tx\.update\([^\n]*balance|tx\.update\([^\n]*totalMined/, 'rewarded boost bridge must never write NVX value fields');
 
 const executableWriters = [];
@@ -72,4 +79,4 @@ assert.match(androidOfflineRewards, /android-offline-guard-v1/, 'Android offline
 assert.doesNotMatch(androidOfflineRewards, /runTransaction|updateDoc|httpsCallable|getFunctions|startMiningSession|finishMiningSession/, 'Android offline bundle must not write mining/rewards');
 assert.match(androidOfflineRewards, /ONLINE MINING REQUIRED/, 'Android offline mining must clearly require online production app');
 
-console.log('PASS mining architecture: one Firestore-authoritative mining session owner plus bounded secure-session recovery and capped timestamp-only AdMob boost bridge.');
+console.log('PASS mining architecture: one Firestore-authoritative session owner, direct client boosts locked, TEST boost preview non-value-bearing, and future boost bridge value-safe.');
