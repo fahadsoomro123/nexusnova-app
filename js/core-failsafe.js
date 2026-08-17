@@ -61,11 +61,12 @@
 
   // Splash is branding only. Never add a startup-hold class and never override
   // Element.remove(): those mechanisms can turn a cosmetic splash into a full-screen
-  // blocker when WebView/Firebase work is delayed. CSS and JS each have independent
-  // release paths so the dashboard becomes usable even if one mechanism is delayed.
+  // blocker when WebView/Firebase work is delayed. Keep the branded splash visible
+  // for its normal presentation window, then force-release it independently of
+  // window.load, Firebase, market, ads, fonts, or any other network dependency.
   const splash = byId("nxSplash");
   if (splash) {
-    splash.dataset.nxFastExit = "2";
+    splash.dataset.nxFastExit = "3";
     splash.classList.remove("nx-startup-hold");
 
     const releaseSplash = () => {
@@ -79,12 +80,13 @@
       setTimeout(() => { try { splash.remove(); } catch (_) {} }, 80);
     };
 
-    // The stylesheet already contains a compositor-side hard exit. These timers
-    // are additional JS fallbacks and do not wait for window.load/Firebase/market/ads.
-    setTimeout(releaseSplash, 0);
-    setTimeout(releaseSplash, 450);
-    setTimeout(releaseSplash, 1200);
-    window.addEventListener("pageshow", releaseSplash, { once:true });
+    // Normal branded presentation is ~2.8s. 3.2s is the deterministic hard
+    // release; 5s is a redundant fallback. Neither waits for window.load.
+    setTimeout(releaseSplash, 3200);
+    setTimeout(releaseSplash, 5000);
+    window.addEventListener("pageshow", (event) => {
+      if (event.persisted) releaseSplash();
+    }, { once:true });
   }
 
   if (!byId("nxStartupTimingGuard")) {
