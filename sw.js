@@ -1,5 +1,5 @@
 /* NexusNova Service Worker - fresh-code first, bounded network + offline fallback + FCM web push */
-const CACHE = "nexusnova-shell-v20-ux-simplify";
+const CACHE = "nexusnova-shell-v21-ux-simplify";
 
 const ASSETS = [
   "./",
@@ -40,7 +40,7 @@ const ASSETS = [
   "./js/nexusnova-ad-placements-v1.js?v=3",
   "./js/nexusnova-watch-ad-reward-v1.js?v=1",
   "./js/nexusnova-existing-app-ad-hotfix-v2.js?v=20260817-0926",
-  "./js/nexusnova-ux-simplify-v1.js?v=20260817-1013",
+  "./js/nexusnova-ux-simplify-v1.js?v=20260817-1014",
   "./js/nexusnova-ad-privacy-v1.js?v=1",
   "./js/nexusnova-admob-diagnostics-v1.js",
   /* Compatibility filename; implementation is the AdMob Mining Boost bridge. */
