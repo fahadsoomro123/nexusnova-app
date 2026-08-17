@@ -1,5 +1,4 @@
 from pathlib import Path
-import runpy
 
 path = Path('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt')
 text = path.read_text()
@@ -50,8 +49,4 @@ missing = [item for item in required if item not in text]
 if missing:
     raise SystemExit('Ad privacy patch verification failed: ' + ', '.join(missing))
 
-# This workflow step runs immediately after the authoritative TEST timer patch,
-# so it is the safe point to harden native earned/dismiss event ordering.
-runpy.run_path('NexusNovaAndroid/patch_android_reward_event_order_v1.py', run_name='__main__')
-
-print('UMP privacy options bridge + rewarded event-order hardening applied.')
+print('UMP privacy options bridge applied without TEST reward-overlay dependencies.')
