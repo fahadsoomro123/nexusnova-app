@@ -1,9 +1,11 @@
-/* NexusNova two-tab render guard v1.2
-   Navigation presentation only.
-   Ensures the bottom dock physically renders Mining + Nova Hub and nothing else.
-   Keeps the integrated Wallet/Rewards/Market strip clear of the fixed dock.
-   Also guarantees DOM-hidden Nova Hub duplicates stay physically hidden even
-   when older launcher CSS declares display:flex!important.
+/* NexusNova two-tab render guard v1.3
+   Final presentation guard only.
+   - Physically renders exactly Mining + Nova Hub in the dock.
+   - Keeps Wallet/Rewards/Market as one compact integrated Mining strip.
+   - Removes over-branding from Mining while retaining one subtle section chip.
+   - Normalizes the Speed Test launcher to the same clean Nova Hub icon family.
+   - Keeps hidden/duplicate Nova Hub tiles physically hidden.
+   No mining/reward/wallet/auth/Firebase value mutation.
 */
 (() => {
   'use strict';
@@ -29,6 +31,7 @@
     style = document.createElement('style');
     style.id = STYLE_ID;
     style.textContent = `
+      /* ----- Hard two-tab dock contract ----- */
       body.nx-two-tab-shell .bottom-dock .dock-inner.nx-two-tab-dock
       > .dock-item[data-nx-dock-hidden="1"]{
         display:none!important;
@@ -47,11 +50,77 @@
         visibility:visible!important;
         pointer-events:auto!important;
       }
+
+      /* Old launcher CSS must never resurrect hidden duplicate tiles. */
       body #moreMenu .more-item[hidden],
       body #moreMenu .more-item[aria-hidden="true"]{
         display:none!important;
         visibility:hidden!important;
         pointer-events:none!important;
+      }
+
+      /* ----- Mining: one calm identity, no branding clutter ----- */
+      body #tab-home > .nx-brand-chip{
+        margin:0 0 9px!important;
+        padding:4px 8px 4px 5px!important;
+        gap:6px!important;
+        box-shadow:none!important;
+        background:rgba(7,16,29,.72)!important;
+        border-color:rgba(78,153,235,.19)!important;
+      }
+      body #tab-home > .nx-brand-chip .nx-brand-chip-logo{
+        width:17px!important;height:17px!important;flex-basis:17px!important;
+        border-radius:6px!important;font-size:8px!important;animation:none!important;box-shadow:none!important;
+      }
+      body #tab-home .nx-brand-mining-seal,
+      body #tab-home .nx-brand-corner-watermark,
+      body #tab-home > .nx-brand-footer{
+        display:none!important;
+      }
+      body #mineBtn.nx-brand-mining-button::before,
+      body #timer.nx-brand-mining-readout::before,
+      body #tab-home .stat-card.nx-brand-mining-stat::before{
+        content:none!important;
+        display:none!important;
+      }
+
+      /* Mining essentials stay one slim integrated control strip. */
+      body #nxHomeCoreAccess{margin:8px 0 10px!important;}
+      body #nxHomeCoreAccess .nx-core-grid{padding:3px!important;border-radius:16px!important;}
+      body #nxHomeCoreAccess .nx-core-card{
+        min-height:48px!important;padding:3px 2px!important;gap:3px!important;
+      }
+      body #nxHomeCoreAccess .nx-core-icon{
+        width:25px!important;height:25px!important;border-radius:8px!important;
+      }
+      body #nxHomeCoreAccess .nx-core-icon svg{width:14px!important;height:14px!important;}
+      body #nxHomeCoreAccess .nx-core-copy b{font-size:8px!important;}
+      body #nxHomeCoreAccess .nx-core-card:not(:last-child)::after{top:8px!important;bottom:8px!important;}
+
+      /* ----- Speed Test launcher: premium but consistent, not oversized ----- */
+      body #moreMenu .more-item[data-nx-speedtest-v4="1"] .mi-icon{
+        width:38px!important;
+        height:38px!important;
+        border-radius:12px!important;
+        overflow:hidden!important;
+        color:#68d8e6!important;
+        background:linear-gradient(145deg,#0d1d2b,#0a1624)!important;
+        border:1px solid rgba(88,204,224,.25)!important;
+        box-shadow:none!important;
+        animation:none!important;
+        transform:none!important;
+      }
+      body #moreMenu .more-item[data-nx-speedtest-v4="1"] .mi-icon::before,
+      body #moreMenu .more-item[data-nx-speedtest-v4="1"] .mi-icon::after{
+        content:none!important;
+        display:none!important;
+      }
+      body #moreMenu .more-item[data-nx-speedtest-v4="1"] .mi-icon svg{
+        width:20px!important;
+        height:20px!important;
+        stroke:currentColor!important;
+        stroke-width:1.8!important;
+        filter:none!important;
       }
     `;
     document.head.appendChild(style);
@@ -85,11 +154,12 @@
   function positionCoreStrip() {
     const home = document.getElementById('tab-home');
     const panel = document.getElementById('nxHomeCoreAccess');
-    const stats = home?.querySelector('.stats-grid');
-    if (!home || !panel || !stats || panel.parentElement !== home) return false;
-    /* Keep essentials after the miner status but before stats. This keeps all
-       three labels visible above the fixed two-tab dock on normal phone sizes. */
-    if (panel.nextElementSibling !== stats) home.insertBefore(panel, stats);
+    const mineButton = document.getElementById('mineBtn');
+    if (!home || !panel || !mineButton || panel.parentElement !== home || mineButton.parentElement !== home) return false;
+    /* A balance dashboard convention: essentials directly below the balance,
+       then the primary Mining action. This guarantees the strip is never
+       obscured by the fixed dock and keeps Mining visually dominant. */
+    if (panel.nextElementSibling !== mineButton) home.insertBefore(panel, mineButton);
     return true;
   }
 
@@ -147,5 +217,5 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded',install,{once:true});
   else install();
 
-  window.NexusNovaTwoTabGuard = Object.freeze({version:'1.2.0',enforce,visibleTargets,positionCoreStrip});
+  window.NexusNovaTwoTabGuard = Object.freeze({version:'1.3.0',enforce,visibleTargets,positionCoreStrip});
 })();
