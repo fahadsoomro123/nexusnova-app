@@ -59,29 +59,32 @@
     };
   }
 
-  // Splash is presentation only. It must never retain an invisible touch shield.
+  // Splash is branding only. Never add a startup-hold class and never override
+  // Element.remove(): those mechanisms can turn a cosmetic splash into a full-screen
+  // blocker when WebView/Firebase work is delayed. CSS and JS each have independent
+  // release paths so the dashboard becomes usable even if one mechanism is delayed.
   const splash = byId("nxSplash");
   if (splash) {
-    splash.dataset.nxFastExit = "1";
-    splash.classList.add("nx-startup-hold");
-    const originalRemove = splash.remove.bind(splash);
-    splash.remove = function(){
-      if (splash.classList.contains("nx-startup-hold")) return;
-      originalRemove();
-    };
+    splash.dataset.nxFastExit = "2";
+    splash.classList.remove("nx-startup-hold");
 
     const releaseSplash = () => {
       if (!splash.isConnected) return;
       splash.classList.remove("nx-startup-hold");
       splash.classList.add("hide");
-      splash.style.pointerEvents = "none";
-      splash.style.visibility = "hidden";
-      setTimeout(() => { try { originalRemove(); } catch (_) {} }, 260);
+      splash.style.setProperty("pointer-events", "none", "important");
+      splash.style.setProperty("visibility", "hidden", "important");
+      splash.style.setProperty("opacity", "0", "important");
+      splash.style.setProperty("display", "none", "important");
+      setTimeout(() => { try { splash.remove(); } catch (_) {} }, 80);
     };
-    const elapsed = Number(performance?.now?.() || 0);
-    setTimeout(releaseSplash, Math.max(0, 1900 - elapsed));
-    // Independent belt-and-braces release in case another script mutates classes.
-    setTimeout(releaseSplash, 2600);
+
+    // The stylesheet already contains a compositor-side hard exit. These timers
+    // are additional JS fallbacks and do not wait for window.load/Firebase/market/ads.
+    setTimeout(releaseSplash, 0);
+    setTimeout(releaseSplash, 450);
+    setTimeout(releaseSplash, 1200);
+    window.addEventListener("pageshow", releaseSplash, { once:true });
   }
 
   if (!byId("nxStartupTimingGuard")) {
@@ -89,8 +92,8 @@
     startupStyle.id = "nxStartupTimingGuard";
     startupStyle.textContent = `
       #nxSplash{min-height:100dvh!important;height:100dvh!important}
-      #nxSplash.nx-startup-hold.hide{opacity:1!important;visibility:visible!important;pointer-events:auto!important}
-      #nxSplash:not(.nx-startup-hold),#nxSplash.hide:not(.nx-startup-hold){pointer-events:none!important}
+      #nxSplash.hide{opacity:0!important;visibility:hidden!important;pointer-events:none!important;display:none!important}
+      #nxSplash:not(.nx-startup-hold){pointer-events:none}
       @media(max-width:700px){#nxSplash{padding:max(12px,env(safe-area-inset-top)) 16px calc(4vh + max(18px,env(safe-area-inset-bottom)))!important}}
     `;
     document.head.appendChild(startupStyle);
