@@ -2,6 +2,7 @@
    Compact, contextual navigation for NexusNova.
    - No giant generic Back strip.
    - Small inline Back control inside sub-apps.
+   - Wallet, Rewards and Market now belong to the Mining home family.
    - Compact Previous / Hub / Next bar only while reading books.
    - Android systemBack() remains the native back-stack hook.
    - No mining, rewards, ads, wallet, auth or Firebase value changes.
@@ -11,7 +12,8 @@
   if (window.__nxUxSimplifyV1) return;
   window.__nxUxSimplifyV1 = true;
 
-  const CORE = new Set(['home','wallet','tasks','market']);
+  const CORE = new Set(['home']);
+  const HOME_AUX = new Set(['wallet','tasks','market']);
   const BAR_ID = 'nxUxBottomNav';
   const STYLE_ID = 'nxUxSimplifyStylesV2';
   const BACK_CLASS = 'nx-compact-back';
@@ -66,7 +68,7 @@
     return bar;
   }
 
-  function ensureInlineBack(tab) {
+  function ensureInlineBack(tab, destination = 'hub') {
     if (!(tab instanceof HTMLElement)) return null;
     let button = tab.querySelector(`:scope > .${BACK_CLASS}`);
     if (!button) {
@@ -74,12 +76,13 @@
       button.type = 'button';
       button.className = BACK_CLASS;
       button.hidden = true;
-      button.setAttribute('aria-label','Back to Nova Hub');
-      button.title = 'Back to Nova Hub';
       button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>';
       button.addEventListener('click', goBackContextually);
       tab.insertBefore(button, tab.firstElementChild || null);
     }
+    const text = destination === 'mining' ? 'Back to Mining' : 'Back to Nova Hub';
+    if (button.getAttribute('aria-label') !== text) button.setAttribute('aria-label',text);
+    if (button.title !== text) button.title = text;
     return button;
   }
 
@@ -149,6 +152,22 @@
     try { target.click(); return true; } catch (_) { return false; }
   }
 
+  function backToMining() {
+    const homeButton = qsa('.bottom-dock .dock-item').find(button =>
+      /switchTab\(\s*['"]home['"]/.test(String(button.getAttribute('onclick') || ''))
+    );
+    if (homeButton) {
+      try { homeButton.click(); return true; } catch (_) {}
+    }
+    try {
+      if (typeof window.switchTab === 'function') {
+        window.switchTab('home',null);
+        return true;
+      }
+    } catch (_) {}
+    return false;
+  }
+
   function goBackContextually() {
     const reader = visibleReader();
     const tab = activeTab();
@@ -156,6 +175,7 @@
 
     if (reader?.kind === 'urdu' && clickFirstExisting('#nxUrduReaderBack')) return true;
     if (tabName === 'mega-islamic' && clickFirstExisting('#nxBookFocusBack')) return true;
+    if (HOME_AUX.has(tabName)) return backToMining();
     if (tab && clickFirstExisting('.nx-allapps-back button,.tools-main-back,[data-nx-back-allapps]',tab)) return true;
 
     if (!CORE.has(tabName)) {
@@ -183,13 +203,13 @@
     if (label && button.textContent !== label) button.textContent = label;
   }
 
-  function syncInlineBacks(active, shouldShow) {
+  function syncInlineBacks(active, shouldShow, destination) {
     qsa(`main .tab > .${BACK_CLASS}, main.main .tab > .${BACK_CLASS}`).forEach(button => {
       const show = shouldShow && button.parentElement === active;
       setHidden(button,!show);
     });
     if (shouldShow && active) {
-      const button = ensureInlineBack(active);
+      const button = ensureInlineBack(active,destination);
       setHidden(button,false);
     }
   }
@@ -205,7 +225,7 @@
     const next = document.getElementById('nxUxNext');
 
     if (reader) {
-      syncInlineBacks(tab,false);
+      syncInlineBacks(tab,false,'hub');
       const controls = readerControls(reader);
       bar.classList.add('show','reader');
       setButton(prev,Boolean(controls.prev),'← PREV');
@@ -218,7 +238,8 @@
     if (next) next.disabled = true;
 
     const shouldShowInline = Boolean(!menuOpen() && tab && tabName && !CORE.has(tabName));
-    syncInlineBacks(tab,shouldShowInline);
+    const destination = HOME_AUX.has(tabName) ? 'mining' : 'hub';
+    syncInlineBacks(tab,shouldShowInline,destination);
   }
 
   function scheduleRender() {
