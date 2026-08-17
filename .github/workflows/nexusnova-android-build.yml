@@ -1,10 +1,11 @@
-name: NexusNova Android Build Check
+name: NexusNova V60 Rescue Android Build
 
 on:
   push:
     branches:
       - main
       - codex-final-audit
+      - 'agent/**'
     paths:
       - 'NexusNovaAndroid/**'
       - '.github/workflows/nexusnova-android-build.yml'
@@ -32,24 +33,49 @@ jobs:
         with:
           gradle-version: '8.13'
 
-      - name: Apply Android viewport lock
+      - name: Apply proven Android viewport lock
         run: python3 NexusNovaAndroid/patch_viewport.py
 
-      - name: Apply native AdMob bridge
+      - name: Apply proven v60 native AdMob bridge
         run: python3 NexusNovaAndroid/patch_admob.py
 
-      - name: Restore same-device session
+      - name: Restore proven same-device session behavior
         run: python3 NexusNovaAndroid/patch_session_restore.py
 
       - name: Defer Caller ID setup until feature use
         run: python3 NexusNovaAndroid/patch_deferred_caller_setup.py
 
-      - name: Compile Android debug APK
+      - name: Freeze confirmed v60 login and dashboard inside APK
+        run: python3 NexusNovaAndroid/patch_v60_rescue_shell.py
+
+      - name: Verify rescue shell before compile
+        run: |
+          grep -q 'nxV60AndroidRescueBootstrap' NexusNovaAndroid/app/src/main/assets/www/index.html
+          grep -q 'nxV60AndroidRescueBootstrap' NexusNovaAndroid/app/src/main/assets/www/page2.html
+          grep -q 'setTimeout(releaseSplash, 4500)' NexusNovaAndroid/app/src/main/assets/www/index.html
+          grep -q 'setTimeout(releaseSplash, 4500)' NexusNovaAndroid/app/src/main/assets/www/page2.html
+          grep -q 'Sign up to start mining' NexusNovaAndroid/app/src/main/assets/www/index.html
+          grep -q 'NVX Token Balance' NexusNovaAndroid/app/src/main/assets/www/page2.html
+          grep -q 'MINER OFFLINE' NexusNovaAndroid/app/src/main/assets/www/page2.html
+          grep -q 'interceptV60Rescue' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -q 'PRODUCTION_PATH = "/nexusnova-rescue-v60/"' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -q 'PRODUCTION_DASHBOARD_URL = "https://fahadsoomro123.github.io/nexusnova-rescue-v60/page2.html"' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -q 'PhonebookStore.hasActiveAccount()' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          ! grep -q 'nexusnova-native' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          ! grep -q 'scheduleInteractiveShellCheck' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+
+      - name: Check frozen v60 web JavaScript syntax
+        run: |
+          node --check NexusNovaAndroid/app/src/main/assets/www/js/page2.js
+          node --check NexusNovaAndroid/app/src/main/assets/www/js/page2-core.js
+          node --check NexusNovaAndroid/app/src/main/assets/www/js/final-integrity-fix.js
+
+      - name: Compile Android rescue APK
         run: gradle -p NexusNovaAndroid :app:assembleDebug --stacktrace --no-daemon
 
-      - name: Upload Android debug APK
+      - name: Upload frozen v60 rescue APK
         uses: actions/upload-artifact@v4
         with:
-          name: NexusNova-Android-ModernToolchain-AdMob-test-apk
+          name: NexusNova-V60-RESCUE-WORKING-apk
           path: NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
