@@ -1,6 +1,7 @@
-/* NexusNova two-tab render guard v1
+/* NexusNova two-tab render guard v1.1
    Navigation presentation only.
    Ensures the bottom dock physically renders Mining + Nova Hub and nothing else.
+   Keeps the integrated Wallet/Rewards/Market strip clear of the fixed dock.
    Hidden legacy Wallet/Rewards/Market buttons remain DOM navigation targets only.
 */
 (() => {
@@ -74,6 +75,17 @@
     button.style.removeProperty('pointer-events');
   }
 
+  function positionCoreStrip() {
+    const home = document.getElementById('tab-home');
+    const panel = document.getElementById('nxHomeCoreAccess');
+    const stats = home?.querySelector('.stats-grid');
+    if (!home || !panel || !stats || panel.parentElement !== home) return false;
+    /* Keep essentials after the miner status but before stats. This keeps all
+       three labels visible above the fixed two-tab dock on normal phone sizes. */
+    if (panel.nextElementSibling !== stats) home.insertBefore(panel, stats);
+    return true;
+  }
+
   function enforce() {
     ensureStyle();
     const inner = $('.bottom-dock .dock-inner');
@@ -94,6 +106,7 @@
 
     showPrimary(mining,'mining');
     showPrimary(hub,'hub');
+    positionCoreStrip();
     return Boolean(mining && hub);
   }
 
@@ -127,5 +140,5 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded',install,{once:true});
   else install();
 
-  window.NexusNovaTwoTabGuard = Object.freeze({version:'1.0.0',enforce,visibleTargets});
+  window.NexusNovaTwoTabGuard = Object.freeze({version:'1.1.0',enforce,visibleTargets,positionCoreStrip});
 })();
