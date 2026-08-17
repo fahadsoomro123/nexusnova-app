@@ -7,9 +7,13 @@ const projectId='demo-nexusnova-rules';
 const rules=await fs.readFile('firestore.rules','utf8');
 const env=await initializeTestEnvironment({projectId,firestore:{rules}});
 
-const seller=env.authenticatedContext('seller-1',{email:'seller@example.com'}).firestore();
-const buyer=env.authenticatedContext('buyer-1',{email:'buyer@example.com'}).firestore();
-const stranger=env.authenticatedContext('stranger-1',{email:'stranger@example.com'}).firestore();
+// Marketplace writes are intentionally verified-email-only in production.
+// Keep the main happy-path actors verified so this smoke tests the workflow,
+// not a missing Auth claim. Separate unverified mining/reward contexts below
+// continue to prove value-bearing operations are rejected for unverified users.
+const seller=env.authenticatedContext('seller-1',{email:'seller@example.com',email_verified:true}).firestore();
+const buyer=env.authenticatedContext('buyer-1',{email:'buyer@example.com',email_verified:true}).firestore();
+const stranger=env.authenticatedContext('stranger-1',{email:'stranger@example.com',email_verified:true}).firestore();
 const miner=env.authenticatedContext('miner-1',{email:'miner@example.com',email_verified:true}).firestore();
 const unverifiedMiner=env.authenticatedContext('miner-2',{email:'miner2@example.com',email_verified:false}).firestore();
 const rewarder=env.authenticatedContext('rewarder-1',{email:'rewarder@example.com',email_verified:true}).firestore();
@@ -34,7 +38,7 @@ try {
   console.log('PASS unauthenticated marketplace read denied');
 
   await assertSucceeds(setDoc(listingRef,validListing));
-  console.log('PASS seller valid listing create allowed');
+  console.log('PASS verified seller valid listing create allowed');
 
   await assertFails(setDoc(doc(buyer,'marketplaceListings/forged'),{...validListing,sellerUid:'seller-1'}));
   console.log('PASS buyer cannot forge seller listing');
@@ -45,7 +49,7 @@ try {
   const orderRef=doc(buyer,'marketplaceOrders/order-1');
   const order={listingId:'listing-1',buyerUid:'buyer-1',sellerUid:'seller-1',title:'Runtime Bicycle',amount:25000,currency:'PKR',status:'requested',createdAt:serverTimestamp(),updatedAt:serverTimestamp()};
   await assertSucceeds(setDoc(orderRef,order));
-  console.log('PASS buyer valid order request allowed');
+  console.log('PASS verified buyer valid order request allowed');
 
   await assertFails(setDoc(doc(buyer,'marketplaceOrders/order-forged-price'),{...order,amount:1}));
   console.log('PASS forged order price denied');
