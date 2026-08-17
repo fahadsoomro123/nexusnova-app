@@ -15,6 +15,7 @@ const integrity = read('js/final-integrity-fix.js');
 const page2Core = read('js/page2-core.js');
 const rules = read('firestore.rules');
 const boostBridge = read('js/nexusnova-admob-nexus-pass-v1.js');
+const executableBoostBridge = stripComments(boostBridge);
 const androidOfflineRewards = read('NexusNovaAndroid/app/src/main/assets/www/js/rewards-security-v1.js');
 const androidMain = read('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt');
 
@@ -41,25 +42,26 @@ assert.match(rules, /function validMiningFinish\(\)/, 'Firestore rules must vali
 assert.match(rules, /request\.resource\.data\.balance == resource\.data\.balance \+ 24/, 'Firestore rules must enforce exact +24 NVX reward');
 assert.match(rules, /request\.auth\.token\.email_verified == true/, 'verified email gate missing from value-bearing rules');
 
-// Current production security deliberately has NO direct client mining-boost
-// rule. TEST Booster/Nova Rain preview stays local/non-value-bearing, while any
-// future production boost must be reintroduced only with a server-verified
-// proof path. Keeping this assertion prevents a stale client timestamp mutation
-// from silently becoming writable again.
+// Current security deliberately has NO direct client mining-boost transition.
+// TEST Booster/Nova Rain is local/non-value-bearing until a server-verified
+// fulfillment path is designed and deployed.
 assert.doesNotMatch(rules, /function validMiningBoost\(\)/, 'direct client mining boost rule must remain disabled');
 assert.doesNotMatch(rules, /validMiningBoost\(\)/, 'users update path must not authorize direct client mining boosts');
 assert.match(rules, /validMiningStart\(\)[\s\S]*validMiningFinish\(\)[\s\S]*validMiningRollover\(\)[\s\S]*validMiningRepair\(\)/,
   'verified mining update allow-list must contain only start/finish/rollover/repair transitions');
 
-// The AdMob/Nexus Pass bridge can retain the future timestamp-only transaction
-// implementation, but production proof is disabled elsewhere. It must never
-// mint NVX or change totalMined, and its use limits remain explicit.
-assert.match(boostBridge, /tx\.update\(ref, \{ miningStartedAt: nextStartedAt \}\)/, 'boost bridge may shift only the mining start timestamp when a verified production path is enabled');
+// The compatibility bridge is UI/read-state only in this TEST edition. It may
+// display proposed -2h Booster/Rain UX, but it must contain no executable
+// Firestore writer or callable that changes timestamps/value while the server
+// verification switch is disabled.
+assert.match(boostBridge, /SERVER_VERIFIED_BOOST_ENABLED = false/, 'production server-verified boost gate must remain disabled in current TEST edition');
 assert.match(boostBridge, /TOTAL_LIMIT = BOOSTER_LIMIT \+ RAIN_LIMIT/, 'combined boost limit missing');
 assert.match(boostBridge, /BOOSTER_LIMIT = 2/, 'Nova Booster limit must be two uses');
 assert.match(boostBridge, /RAIN_LIMIT = 4/, 'Nova Rain limit must be four uses');
-assert.match(boostBridge, /SERVER_VERIFIED_BOOST_ENABLED = false/, 'production server-verified boost gate must remain disabled in current TEST edition');
-assert.doesNotMatch(boostBridge, /tx\.update\([^\n]*balance|tx\.update\([^\n]*totalMined/, 'rewarded boost bridge must never write NVX value fields');
+assert.doesNotMatch(executableBoostBridge, /\brunTransaction\b|\bupdateDoc\b|(?:tx|transaction)\.update\s*\(/,
+  'locked TEST boost bridge must not contain an executable Firestore mutation path');
+assert.doesNotMatch(executableBoostBridge, /httpsCallable\s*\(/,
+  'locked TEST boost bridge must not call an undeployed server fulfillment path');
 
 const executableWriters = [];
 for (const name of fs.readdirSync(jsDir).filter(name => name.endsWith('.js'))) {
@@ -79,4 +81,4 @@ assert.match(androidOfflineRewards, /android-offline-guard-v1/, 'Android offline
 assert.doesNotMatch(androidOfflineRewards, /runTransaction|updateDoc|httpsCallable|getFunctions|startMiningSession|finishMiningSession/, 'Android offline bundle must not write mining/rewards');
 assert.match(androidOfflineRewards, /ONLINE MINING REQUIRED/, 'Android offline mining must clearly require online production app');
 
-console.log('PASS mining architecture: one Firestore-authoritative session owner, direct client boosts locked, TEST boost preview non-value-bearing, and future boost bridge value-safe.');
+console.log('PASS mining architecture: one Firestore-authoritative session owner; direct client boosts locked; TEST boost bridge is non-value-bearing and write-free.');
