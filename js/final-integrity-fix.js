@@ -59,6 +59,7 @@
   loadCritical({flag:'__nxRewardedAdsV1',marker:'data-nx-rewarded-ads',src:'./js/nexusnova-rewarded-ads-v1.js?v=1',error:'NexusNova rewarded ads bridge failed to load.'});
   loadCritical({flag:'__nxRewardedAdsButtonGuardV1',marker:'data-nx-rewarded-guard',src:'./js/nexusnova-rewarded-ads-button-guard-v1.js?v=1',error:'NexusNova rewarded ads button guard failed to load.'});
   loadCritical({flag:'__nxAdSettingsV2',marker:'data-nx-ad-settings-v2',src:'./js/nexusnova-ad-settings-v2.js?v=20260817-test',error:'NexusNova TEST ad settings failed to load.'});
+  loadCritical({flag:'__nxNetworkGuardianV1',marker:'data-nx-network-guardian-v1-script',src:'./js/nexusnova-network-guardian-v1.js?v=20260817-final-audit',error:'NexusNova live network status guardian failed to load.'});
   loadCritical({flag:'__nxUxSimplifyV1',marker:'data-nx-ux-simplify-v1',src:'./js/nexusnova-ux-simplify-v1.js?v=20260817-ux-only',error:'NexusNova contextual Back/reader navigation failed to load.'});
   loadCritical({flag:'__nxSpeedTestAppV4',marker:'data-nx-speedtest-app-v4',src:'./js/nexusnova-speedtest-app-v4.js?v=20260817-ux-only',error:'NexusNova standalone Speed Test failed to load.'});
   loadCritical({flag:'__nxBrandingV1',marker:'data-nx-branding-v1-script',src:'./js/nexusnova-branding-v1.js?v=20260817-branding-v1',error:'NexusNova app-wide branding layer failed to load.'});
