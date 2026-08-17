@@ -181,13 +181,14 @@ async function testDocuments() {
 async function testFileVault() {
   const html = `<section id="tab-mega-vault"><div class="card"><input id="nxMegaFiles" type="file" multiple></div></section>`;
   const {page,pageErrors} = await makePage(html);
+  const vaultPassphrase='NexusVault#123';
   await page.evaluate(() => { window.nexusAccountId='runtime-vault-user'; });
   await add(page, 'js/nexusnova-file-vault-v1.js?v=1');
   await page.waitForSelector('#nxVaultPanel');
   await page.locator('#nxMegaFiles').setInputFiles({name:'secret.txt',mimeType:'text/plain',buffer:Buffer.from('NexusNova runtime encrypted file')});
-  await page.fill('#nxVaultPass','secret123');
+  await page.fill('#nxVaultPass',vaultPassphrase);
   await page.click('#nxVaultSave');
-  await page.waitForFunction(() => /encrypted and saved locally/i.test(document.getElementById('nxVaultStatus')?.textContent || ''), null, {timeout:15000});
+  await page.waitForFunction(() => /encrypted and saved locally/i.test(document.getElementById('nxVaultStatus')?.textContent || ''), null, {timeout:25000});
   assert.match(await page.textContent('#nxVaultList'),/secret\.txt/i);
   const recordMeta = await page.evaluate(async () => {
     const req=indexedDB.open('NexusNovaEncryptedVaultV1',1);
@@ -196,17 +197,21 @@ async function testFileVault() {
     const rows=await new Promise((resolve,reject)=>{const r=tx.objectStore('files').getAll();r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});
     db.close();
     const row=rows.find(x=>x.owner==='runtime-vault-user');
-    return row ? {name:row.name, encryptedBytes:row.encrypted?.byteLength || 0, hasSalt:Array.isArray(row.salt)&&row.salt.length===16} : null;
+    return row ? {name:row.name, encryptedBytes:row.encrypted?.byteLength || 0, hasSalt:Array.isArray(row.salt)&&row.salt.length===16, kdfIterations:Number(row.kdfIterations||0)} : null;
   });
   assert.equal(recordMeta?.name,'secret.txt');
   assert.ok(recordMeta?.encryptedBytes > 0);
   assert.equal(recordMeta?.hasSalt,true);
-  const downloadPromise=page.waitForEvent('download');
+  assert.equal(recordMeta?.kdfIterations,600000);
+  // Save intentionally clears the passphrase; a real user must re-enter it
+  // before decryption/download.
+  await page.fill('#nxVaultPass',vaultPassphrase);
+  const downloadPromise=page.waitForEvent('download',{timeout:25000});
   await page.click('[data-vault-download]');
   const download=await downloadPromise;
   assert.equal(download.suggestedFilename(),'secret.txt');
   assert.equal(pageErrors.length,0,pageErrors.join('\n'));
-  ok('File Vault', 'AES-GCM IndexedDB save + decrypt download passed');
+  ok('File Vault', 'AES-GCM + 600k PBKDF2 IndexedDB save + explicit-passphrase decrypt download passed');
   await page.close();
 }
 
@@ -215,24 +220,25 @@ async function testSecurityLock() {
   const {page,pageErrors} = await makePage(html);
   await add(page, 'js/nexusnova-security-lock-v1.js?v=2');
   await page.waitForSelector('#nxSecurityAppLock');
-  assert.equal(await page.evaluate(() => window.nexusSecurityLockVersion),'browser-pin-v2');
+  assert.equal(await page.evaluate(() => window.nexusSecurityLockVersion),'browser-pin-v3');
 
   await page.click('#nxSecurityAppLock');
-  await page.waitForFunction(() => document.getElementById('nxAppLockSetupOverlay')?.style.display === 'flex', null, {timeout:12000});
-  await page.fill('#nxAppLockSetupPin','1234');
-  await page.fill('#nxAppLockSetupConfirm','1234');
+  await page.waitForFunction(() => document.getElementById('nxAppLockSetupOverlay')?.style.display === 'flex', null, {timeout:20000});
+  await page.fill('#nxAppLockSetupPin','123456');
+  await page.fill('#nxAppLockSetupConfirm','123456');
   await page.click('#nxAppLockSetupSave');
-  await page.waitForFunction(() => document.getElementById('nxAppLockOverlay')?.style.display === 'flex', null, {timeout:12000});
+  await page.waitForFunction(() => document.getElementById('nxAppLockOverlay')?.style.display === 'flex', null, {timeout:25000});
 
   const config = await page.evaluate(() => JSON.parse(localStorage.getItem('nexusnova_browser_app_lock_v1') || 'null'));
   assert.ok(config?.hash && config?.salt);
-  assert.equal(JSON.stringify(config).includes('1234'),false);
+  assert.equal(Number(config?.kdfIterations),600000);
+  assert.equal(JSON.stringify(config).includes('123456'),false);
 
-  await page.fill('#nxAppLockPin','1234');
+  await page.fill('#nxAppLockPin','123456');
   await page.click('#nxAppUnlockBtn');
-  await page.waitForFunction(() => document.getElementById('nxAppLockOverlay')?.style.display === 'none');
+  await page.waitForFunction(() => document.getElementById('nxAppLockOverlay')?.style.display === 'none', null, {timeout:25000});
   assert.equal(pageErrors.length,0,pageErrors.join('\n'));
-  ok('Security App Lock', 'in-app PIN setup + PBKDF2 storage + unlock passed');
+  ok('Security App Lock', '6-digit PIN + 600k PBKDF2 storage + unlock passed');
   await page.close();
 }
 
