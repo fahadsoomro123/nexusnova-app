@@ -52,6 +52,7 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
           p = Path('NexusNovaAndroid/app/src/main/assets/www/js/page2-core.js')
           s = p.read_text(encoding='utf-8')
           auth = s.find('/* =========================================================\n   AUTH\n========================================================= */')
@@ -60,14 +61,17 @@ jobs:
 
           # Full-page stability models the state immediately after a successful
           # login. Auth itself is exercised by a separate browser regression.
-          # Turn only the stabilityTest callback's initial null user into a small
-          # deterministic authenticated fixture; production APK code is untouched.
-          needle = 'onAuthStateChanged(auth, async user => {'
-          pos = s.find(needle, auth)
-          if pos < 0:
+          # Use the same callback matcher as the production Android auth patch.
+          tail = s[auth:]
+          callback = re.search(
+              r'onAuthStateChanged\s*\(\s*auth\s*,\s*async\s+user\s*=>\s*\{',
+              tail,
+              re.S,
+          )
+          if not callback:
               raise SystemExit('Android dashboard auth-state callback missing')
-          insert = '''\n        if(!user && new URLSearchParams(window.location.search).has("stabilityTest")){\n            user = {\n                uid: "ci-stability-user",\n                email: "ci-stability@nexusnova.test",\n                displayName: "NexusNova Stability",\n                emailVerified: true\n            };\n        }\n'''
-          at = pos + len(needle)
+          insert = '''\n\n        if(!user && new URLSearchParams(window.location.search).has("stabilityTest")){\n            user = {\n                uid: "ci-stability-user",\n                email: "ci-stability@nexusnova.test",\n                displayName: "NexusNova Stability",\n                emailVerified: true\n            };\n        }\n'''
+          at = auth + callback.end()
           s = s[:at] + insert + s[at:]
           p.write_text(s, encoding='utf-8')
           print('Prepared CI-only authenticated post-login dashboard fixture; production auth remains unchanged.')
