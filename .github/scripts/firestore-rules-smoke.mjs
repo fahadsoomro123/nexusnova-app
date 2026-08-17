@@ -5,6 +5,8 @@ import fs from 'node:fs/promises';
 
 const projectId='demo-nexusnova-rules';
 const rules=await fs.readFile('firestore.rules','utf8');
+const functionsSource=await fs.readFile('functions/index.js','utf8');
+const dailyBridge=await fs.readFile('js/nexusnova-daily-secure-claim-v1.js','utf8');
 const env=await initializeTestEnvironment({projectId,firestore:{rules}});
 
 // Marketplace writes are intentionally verified-email-only in production.
@@ -112,37 +114,28 @@ try {
   await assertFails(setDoc(doc(unverifiedMiner,'leaderboardPublic/miner-2'),leagueZero));
   console.log('PASS unverified miner cannot publish leaderboard position');
 
-  // Daily Reward: first verified claim is exactly +5 and starts streak 1.
-  const dailyNow=Date.now();
-  await assertSucceeds(updateDoc(rewarderRef,{balance:15,lastDailyReward:dailyNow,dailyRewardStreak:1}));
-  let dailyDoc=await getDoc(rewarderRef);
-  assert.equal(dailyDoc.data().balance,15);
-  assert.equal(dailyDoc.data().dailyRewardStreak,1);
-  console.log('PASS verified user can claim exact +5 daily reward after cooldown');
+  // Daily Reward is server-authoritative. Browser/Android JavaScript must never
+  // mint +5 NVX by directly updating /users/{uid}; the protected callable uses
+  // Firebase Admin after verified Auth + App Check instead.
+  assert.match(functionsSource,/exports\.claimDailyReward=protectedCallable\(/,'protected claimDailyReward callable missing');
+  assert.match(functionsSource,/tx\.update\(r,\{balance,lastDailyReward:now,dailyRewardStreak:streak\}\)/,'server daily reward transaction missing');
+  assert.match(dailyBridge,/httpsCallable[\s\S]*claimDailyReward/,'client daily reward bridge must call the secure server');
+  assert.doesNotMatch(dailyBridge,/updateDoc\s*\(|runTransaction\s*\(/,'client daily reward bridge must not write Firestore value directly');
 
-  await assertFails(updateDoc(rewarderRef,{balance:20,lastDailyReward:Date.now(),dailyRewardStreak:2}));
-  console.log('PASS immediate repeat daily reward denied');
+  await assertFails(updateDoc(rewarderRef,{balance:15,lastDailyReward:Date.now(),dailyRewardStreak:1}));
+  console.log('PASS verified client cannot mint +5 Daily Reward directly');
 
-  await env.withSecurityRulesDisabled(async ctx=>{
-    await updateDoc(doc(ctx.firestore(),'users/rewarder-1'),{
-      balance:15,
-      lastDailyReward:Date.now()-25*60*60*1000,
-      dailyRewardStreak:1
-    });
-  });
-
-  await assertFails(updateDoc(rewarderRef,{balance:21,lastDailyReward:Date.now(),dailyRewardStreak:2}));
-  console.log('PASS daily reward cannot mint +6 or arbitrary value');
-
-  const continuationNow=Date.now();
-  await assertSucceeds(updateDoc(rewarderRef,{balance:20,lastDailyReward:continuationNow,dailyRewardStreak:2}));
-  dailyDoc=await getDoc(rewarderRef);
-  assert.equal(dailyDoc.data().balance,20);
-  assert.equal(dailyDoc.data().dailyRewardStreak,2);
-  console.log('PASS 24-48h daily claim continues streak by exactly one');
+  await assertFails(updateDoc(rewarderRef,{balance:16,lastDailyReward:Date.now(),dailyRewardStreak:1}));
+  console.log('PASS verified client cannot mint an arbitrary Daily Reward value');
 
   await assertFails(updateDoc(unverifiedRewarderRef,{balance:5,lastDailyReward:Date.now(),dailyRewardStreak:1}));
-  console.log('PASS unverified user cannot claim daily NVX');
+  console.log('PASS unverified client cannot mint Daily Reward directly');
+
+  const rewardSnapshot=await getDoc(rewarderRef);
+  assert.equal(Number(rewardSnapshot.data().balance),10);
+  assert.equal(Number(rewardSnapshot.data().lastDailyReward),0);
+  assert.equal(Number(rewardSnapshot.data().dailyRewardStreak),0);
+  console.log('PASS rejected direct Daily Reward attempts leave account value unchanged');
 
   const startNow=Date.now();
   await assertSucceeds(updateDoc(minerRef,{miningActive:true,miningStartedAt:startNow,miningLastUpdate:startNow}));
@@ -220,7 +213,7 @@ try {
   await assertFails(updateDoc(minerRef,{balance:111,totalMined:96,miningLastUpdate:Date.now()}));
   console.log('PASS active new session cannot replay another +24 reward');
 
-  console.log('\nFirestore rules smoke complete: leaderboard + daily reward + mining + marketplace security passed.');
+  console.log('\nFirestore rules smoke complete: leaderboard + server-authoritative daily reward boundary + mining + marketplace security passed.');
 } finally {
   await env.cleanup();
 }
