@@ -51,6 +51,12 @@ require(core, 'setTimeout(releaseSplash, 3200)', 'Independent branded dashboard 
 require(core, 'display", "none", "important"', 'Dashboard splash force-hide fallback')
 forbid(core, 'splash.classList.add("nx-startup-hold")', 'No blocking startup hold reintroduced')
 forbid(core, 'splash.remove = function', 'Native splash remove is never overridden')
+require(main, 'scheduleNativeSplashRelease(target) // nx-native-splash-release-v4', 'Native WebView splash release scheduled')
+require(main, 'private fun scheduleNativeSplashRelease(view: WebView)', 'Native WebView splash release method')
+require(main, 'releaseAfter(2_600L)', 'Native splash 2.6s release')
+require(main, 'releaseAfter(4_800L)', 'Native splash 4.8s backup release')
+require(main, 'releaseAfter(8_000L)', 'Native splash 8s final backup release')
+require(main, 'NATIVE_SPLASH_RELEASE_SCRIPT', 'Native splash force-hide script')
 
 # 2) Android navigation Back + exit confirmation.
 require(main, 'Exit NexusNova?', 'Android exit dialog title')
@@ -89,4 +95,4 @@ require(final_fix, 'nexusnova-existing-app-ad-hotfix-v2.js', 'Existing-app inter
 require(watch, 'PRODUCTION_SSV_ENABLED = false', 'Watch Ad production value disabled')
 require(watch, 'TEST', 'Watch Ad TEST contract present')
 
-print('PASS NexusNova user-command regression gate: splash, Back/exit, books, Speed Test and TEST ads are integrated in the final prepared Android shell.')
+print('PASS NexusNova user-command regression gate: splash, native WebView release, Back/exit, books, Speed Test and TEST ads are integrated in the final prepared Android shell.')
