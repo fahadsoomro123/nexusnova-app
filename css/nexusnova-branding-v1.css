@@ -92,7 +92,111 @@
   user-select:none;
 }
 
-/* Faint, etched signet inside utility panels. */
+/* Every core section receives a faint NexusNova signet without changing layout/logic. */
+.nx-brand-surface{position:relative!important;isolation:isolate;}
+.nx-brand-corner-watermark{
+  position:absolute;
+  right:11px;
+  bottom:6px;
+  z-index:0;
+  color:#65b8ff;
+  font-size:44px;
+  line-height:1;
+  font-weight:1000;
+  letter-spacing:-.08em;
+  opacity:.026;
+  transform:rotate(-7deg);
+  pointer-events:none;
+  user-select:none;
+}
+.nx-brand-surface > :not(.nx-brand-corner-watermark){position:relative;z-index:1;}
+
+/* Mining gets an explicit identity seal but the balance/timer/values remain untouched. */
+#tab-home .nx-brand-mining-card{position:relative!important;overflow:hidden;}
+.nx-brand-mining-seal{
+  position:absolute;
+  top:10px;
+  right:10px;
+  z-index:4;
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  padding:4px 7px 4px 4px;
+  border-radius:999px;
+  border:1px solid rgba(79,163,255,.22);
+  background:linear-gradient(135deg,rgba(10,31,56,.78),rgba(4,16,31,.66));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 5px 16px rgba(0,0,0,.16);
+  pointer-events:none;
+  user-select:none;
+}
+.nx-brand-mining-seal span{
+  width:18px;
+  height:18px;
+  display:grid;
+  place-items:center;
+  border-radius:6px;
+  background:linear-gradient(145deg,#83d3ff,#258fff 44%,#0b56d8 100%);
+  color:#fff;
+  font-size:9px;
+  font-weight:1000;
+  border:1px solid rgba(255,255,255,.45);
+  box-shadow:0 0 10px rgba(43,145,255,.22),inset 0 1px 0 rgba(255,255,255,.46);
+}
+.nx-brand-mining-seal b,
+.nx-brand-mining-seal i{
+  font-style:normal;
+  font-size:7.6px;
+  line-height:1;
+  letter-spacing:.09em;
+}
+.nx-brand-mining-seal b{color:#eaf6ff;font-weight:900;}
+.nx-brand-mining-seal i{color:#65b7ff;font-weight:850;}
+
+#mineBtn.nx-brand-mining-button{position:relative!important;overflow:hidden;}
+#mineBtn.nx-brand-mining-button::before{
+  content:"N";
+  position:absolute;
+  left:12px;
+  top:50%;
+  transform:translateY(-50%);
+  width:24px;
+  height:24px;
+  display:grid;
+  place-items:center;
+  border-radius:8px;
+  background:rgba(5,22,45,.24);
+  border:1px solid rgba(255,255,255,.30);
+  color:#fff;
+  font-size:11px;
+  font-weight:1000;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.16),0 0 12px rgba(70,161,255,.16);
+  pointer-events:none;
+}
+#timer.nx-brand-mining-readout{position:relative;}
+#timer.nx-brand-mining-readout::before{
+  content:"NEXUSNOVA MINER";
+  display:block;
+  margin-bottom:4px;
+  color:#5baeff;
+  font-size:7px;
+  font-weight:900;
+  letter-spacing:.14em;
+  opacity:.58;
+}
+#tab-home .stat-card.nx-brand-mining-stat{position:relative!important;overflow:hidden;}
+#tab-home .stat-card.nx-brand-mining-stat::before{
+  content:"N";
+  position:absolute;
+  right:8px;
+  top:7px;
+  color:#4c9cf1;
+  font-size:8px;
+  font-weight:1000;
+  opacity:.34;
+  pointer-events:none;
+}
+
+/* Faint, etched signet inside lazily-created utility panels. */
 .nexus-tool-panel,
 .nxui-hero,
 .nx-speed4-shell,
@@ -186,11 +290,17 @@ body.nexus-light .nx-brand-chip{
 body.nexus-light .nx-brand-chip-name{color:#08284a;}
 body.nexus-light .nx-brand-chip-context{color:#4678ab;}
 body.nexus-light .nx-brand-footer{color:#56799e;}
+body.nexus-light .nx-brand-mining-seal{background:rgba(255,255,255,.84);}
+body.nexus-light .nx-brand-mining-seal b{color:#12385e;}
 
 @media(max-width:620px){
   .nx-brand-chip{margin-bottom:10px;font-size:8.2px;letter-spacing:.09em;}
   .nx-brand-chip-context{max-width:120px;}
   .nx-brand-app-badge{top:6px;right:6px;width:16px;height:16px;}
+  .nx-brand-corner-watermark{font-size:38px;right:8px;bottom:5px;}
+  .nx-brand-mining-seal{top:8px;right:8px;padding-right:6px;}
+  .nx-brand-mining-seal b{display:none;}
+  #mineBtn.nx-brand-mining-button::before{left:9px;width:22px;height:22px;}
   .nexus-tool-panel.nx-brand-watermarked::after,
   .nxui-hero.nx-brand-watermarked::after,
   .nx-speed4-shell.nx-brand-watermarked::after{font-size:46px;}
