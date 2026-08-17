@@ -39,6 +39,7 @@ jobs:
               .github/workflows/nexusnova-android-build.yml|\
               NexusNovaAndroid/patch_ux_only_friend_bugs.py|\
               NexusNovaAndroid/patch_speedtest_observer_guard.py|\
+              NexusNovaAndroid/patch_modern_back_dispatcher.py|\
               js/final-integrity-fix.js|\
               js/nexusnova-ux-simplify-v1.js|\
               js/nexusnova-speedtest-app-v4.js|\
@@ -113,6 +114,9 @@ jobs:
       - name: Apply isolated white-flash splash-exit premium-speed UX patch
         run: python3 NexusNovaAndroid/patch_ux_only_friend_bugs.py
 
+      - name: Migrate app and browser Back to Android dispatcher
+        run: python3 NexusNovaAndroid/patch_modern_back_dispatcher.py
+
       - name: Keep existing deferred Caller ID setup
         run: python3 NexusNovaAndroid/patch_deferred_caller_setup.py
 
@@ -125,6 +129,8 @@ jobs:
       - name: Verify final UX and network contract before compile
         run: |
           WEB=NexusNovaAndroid/app/src/main/assets/www
+          MAIN=NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          BROWSER=NexusNovaAndroid/app/src/main/java/com/nexusnova/app/BrowserActivity.kt
           grep -q 'nexusnova-ux-simplify-v1.js' "$WEB/js/final-integrity-fix.js"
           grep -q 'nexusnova-speedtest-app-v4.js' "$WEB/js/final-integrity-fix.js"
           grep -q 'nexusnova-branding-v1.js' "$WEB/js/final-integrity-fix.js"
@@ -150,17 +156,22 @@ jobs:
           grep -q '.nx-speed4-gauge' "$WEB/css/nexusnova-speedtest-app-v4.css"
           grep -q 'nx-speed4-premium-launcher-v5' "$WEB/css/nexusnova-speedtest-app-v4.css"
           grep -q 'nxSpeedLauncherGlow' "$WEB/css/nexusnova-speedtest-app-v4.css"
-          grep -q 'webView.setBackgroundColor(android.graphics.Color.rgb(0, 18, 25))' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
-          grep -q 'showNexusExitDialog()' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
-          grep -q 'NEXUSNOVA OS' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
-          grep -q 'SUPER APP • SECURE • CONNECTED' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
-          grep -q 'STAY IN NEXUSNOVA' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
-          grep -q 'EXIT APP' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
-          grep -q 'startOrbit(orbitA, 360f, 10000L)' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
-          grep -q 'startOrbit(orbitB, -360f, 8000L)' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
-          grep -q 'startPulse(halo)' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
-          grep -q 'NEXUS_SYSTEM_BACK_SCRIPT' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
-          ! grep -q 'moveTaskToBack(true)' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -q 'webView.setBackgroundColor(android.graphics.Color.rgb(0, 18, 25))' "$MAIN"
+          grep -q 'showNexusExitDialog()' "$MAIN"
+          grep -q 'NEXUSNOVA OS' "$MAIN"
+          grep -q 'SUPER APP • SECURE • CONNECTED' "$MAIN"
+          grep -q 'STAY IN NEXUSNOVA' "$MAIN"
+          grep -q 'EXIT APP' "$MAIN"
+          grep -q 'startOrbit(orbitA, 360f, 10000L)' "$MAIN"
+          grep -q 'startOrbit(orbitB, -360f, 8000L)' "$MAIN"
+          grep -q 'startPulse(halo)' "$MAIN"
+          grep -q 'NEXUS_SYSTEM_BACK_SCRIPT' "$MAIN"
+          grep -q 'onBackPressedDispatcher.addCallback' "$MAIN"
+          grep -q 'handleNexusBackPressed()' "$MAIN"
+          grep -q 'onBackPressedDispatcher.addCallback' "$BROWSER"
+          ! grep -q 'override fun onBackPressed()' "$MAIN"
+          ! grep -q 'override fun onBackPressed()' "$BROWSER"
+          ! grep -q 'moveTaskToBack(true)' "$MAIN"
 
       - name: Check every bundled JavaScript file
         shell: bash
