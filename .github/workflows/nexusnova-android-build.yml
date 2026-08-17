@@ -1,4 +1,4 @@
-name: NexusNova Android UX-Only Build Check
+name: NexusNova Deep-Audit Final Candidate
 
 on:
   push:
@@ -10,8 +10,10 @@ on:
       - 'js/nexusnova-ux-simplify-v1.js'
       - 'js/nexusnova-speedtest-app-v4.js'
       - 'js/nexusnova-branding-v1.js'
+      - 'js/nexusnova-network-guardian-v1.js'
       - 'css/nexusnova-speedtest-app-v4.css'
       - 'css/nexusnova-branding-v1.css'
+      - 'css/nexusnova-network-guardian-v1.css'
       - '.github/workflows/nexusnova-android-build.yml'
   workflow_dispatch:
 
@@ -21,7 +23,7 @@ permissions:
 jobs:
   android-build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -40,8 +42,10 @@ jobs:
               js/nexusnova-ux-simplify-v1.js|\
               js/nexusnova-speedtest-app-v4.js|\
               js/nexusnova-branding-v1.js|\
+              js/nexusnova-network-guardian-v1.js|\
               css/nexusnova-speedtest-app-v4.css|\
-              css/nexusnova-branding-v1.css) ;;
+              css/nexusnova-branding-v1.css|\
+              css/nexusnova-network-guardian-v1.css) ;;
               *) echo "UNAPPROVED CHANGE: $file"; exit 1 ;;
             esac
           done < /tmp/nx_changed.txt
@@ -114,28 +118,33 @@ jobs:
       - name: Keep historical native shell startup path
         run: python3 NexusNovaAndroid/patch_native_shell.py
 
-      - name: Verify UX-only contract before compile
+      - name: Verify final UX and network contract before compile
         run: |
-          grep -q 'nexusnova-ux-simplify-v1.js' NexusNovaAndroid/app/src/main/assets/www/js/final-integrity-fix.js
-          grep -q 'nexusnova-speedtest-app-v4.js' NexusNovaAndroid/app/src/main/assets/www/js/final-integrity-fix.js
-          grep -q 'nexusnova-branding-v1.js' NexusNovaAndroid/app/src/main/assets/www/js/final-integrity-fix.js
-          grep -q '__nxBrandingV1' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-branding-v1.js
-          grep -q 'NEXUSNOVA • SECURE UTILITY GRID' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-branding-v1.js
-          grep -q 'nx-brand-app-badge' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-branding-v1.js
-          grep -q '.nx-brand-chip' NexusNovaAndroid/app/src/main/assets/www/css/nexusnova-branding-v1.css
-          grep -q '.nx-brand-app-badge' NexusNovaAndroid/app/src/main/assets/www/css/nexusnova-branding-v1.css
-          grep -q '.nx-brand-watermarked' NexusNovaAndroid/app/src/main/assets/www/css/nexusnova-branding-v1.css
-          grep -q 'id="nxUxBack"' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ux-simplify-v1.js
-          grep -q '← PREVIOUS' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ux-simplify-v1.js
-          grep -q 'NEXT PAGE →' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ux-simplify-v1.js
-          grep -q 'systemBack:handleSystemBack' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ux-simplify-v1.js
-          grep -q "TAB_ID = 'tab-speed-test'" NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-speedtest-app-v4.js
-          grep -q 'data-nx-speedtest-v4' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-speedtest-app-v4.js
-          grep -q '#tab-tools .nexus-tool-chip\[data-tool="speed"\]' NexusNovaAndroid/app/src/main/assets/www/css/nexusnova-speedtest-app-v4.css
-          grep -q '.nx-speed4-gauge' NexusNovaAndroid/app/src/main/assets/www/css/nexusnova-speedtest-app-v4.css
-          grep -q 'nx-speed4-premium-launcher-v5' NexusNovaAndroid/app/src/main/assets/www/css/nexusnova-speedtest-app-v4.css
-          grep -q 'nxSpeedLauncherGlow' NexusNovaAndroid/app/src/main/assets/www/css/nexusnova-speedtest-app-v4.css
-          grep -q 'content:"N"' NexusNovaAndroid/app/src/main/assets/www/css/nexusnova-speedtest-app-v4.css
+          WEB=NexusNovaAndroid/app/src/main/assets/www
+          grep -q 'nexusnova-ux-simplify-v1.js' "$WEB/js/final-integrity-fix.js"
+          grep -q 'nexusnova-speedtest-app-v4.js' "$WEB/js/final-integrity-fix.js"
+          grep -q 'nexusnova-branding-v1.js' "$WEB/js/final-integrity-fix.js"
+          grep -q 'nexusnova-network-guardian-v1.js' "$WEB/js/final-integrity-fix.js"
+          grep -q '__nxNetworkGuardianV1' "$WEB/js/nexusnova-network-guardian-v1.js"
+          grep -q 'Offline • live features will resume when internet returns' "$WEB/js/nexusnova-network-guardian-v1.js"
+          grep -q '.nx-network-guardian-toast' "$WEB/css/nexusnova-network-guardian-v1.css"
+          grep -q '__nxBrandingV1' "$WEB/js/nexusnova-branding-v1.js"
+          grep -q 'NEXUSNOVA • SECURE UTILITY GRID' "$WEB/js/nexusnova-branding-v1.js"
+          grep -q 'nx-brand-mining-seal' "$WEB/js/nexusnova-branding-v1.js"
+          grep -q 'brandCoreCards' "$WEB/js/nexusnova-branding-v1.js"
+          grep -q 'nx-brand-app-badge' "$WEB/js/nexusnova-branding-v1.js"
+          grep -q '.nx-brand-chip' "$WEB/css/nexusnova-branding-v1.css"
+          grep -q '.nx-brand-app-badge' "$WEB/css/nexusnova-branding-v1.css"
+          grep -q 'id="nxUxBack"' "$WEB/js/nexusnova-ux-simplify-v1.js"
+          grep -q '← PREVIOUS' "$WEB/js/nexusnova-ux-simplify-v1.js"
+          grep -q 'NEXT PAGE →' "$WEB/js/nexusnova-ux-simplify-v1.js"
+          grep -q 'systemBack:handleSystemBack' "$WEB/js/nexusnova-ux-simplify-v1.js"
+          grep -q "TAB_ID = 'tab-speed-test'" "$WEB/js/nexusnova-speedtest-app-v4.js"
+          grep -q 'data-nx-speedtest-v4' "$WEB/js/nexusnova-speedtest-app-v4.js"
+          grep -q '#tab-tools .nexus-tool-chip\[data-tool="speed"\]' "$WEB/css/nexusnova-speedtest-app-v4.css"
+          grep -q '.nx-speed4-gauge' "$WEB/css/nexusnova-speedtest-app-v4.css"
+          grep -q 'nx-speed4-premium-launcher-v5' "$WEB/css/nexusnova-speedtest-app-v4.css"
+          grep -q 'nxSpeedLauncherGlow' "$WEB/css/nexusnova-speedtest-app-v4.css"
           grep -q 'webView.setBackgroundColor(android.graphics.Color.rgb(0, 18, 25))' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
           grep -q 'showNexusExitDialog()' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
           grep -q 'NEXUSNOVA OS' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
@@ -148,19 +157,79 @@ jobs:
           grep -q 'NEXUS_SYSTEM_BACK_SCRIPT' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
           ! grep -q 'moveTaskToBack(true)' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
 
-      - name: Check UX JavaScript syntax
+      - name: Check every bundled JavaScript file
+        shell: bash
         run: |
-          node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ux-simplify-v1.js
-          node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-speedtest-app-v4.js
-          node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-branding-v1.js
-          node --check NexusNovaAndroid/app/src/main/assets/www/js/final-integrity-fix.js
+          set -euo pipefail
+          WEB=NexusNovaAndroid/app/src/main/assets/www
+          while IFS= read -r -d '' file; do
+            echo "node --check $file"
+            node --check "$file"
+          done < <(find "$WEB/js" -type f -name '*.js' -print0)
 
-      - name: Compile Android TEST APK
+      - name: Deep static HTML and local-reference audit
+        run: |
+          python3 - <<'PY'
+          from html.parser import HTMLParser
+          from pathlib import Path
+          from urllib.parse import urlsplit
+          from collections import Counter
+
+          root = Path('NexusNovaAndroid/app/src/main/assets/www').resolve()
+          targets = [root/'index.html', root/'page2.html', root/'referral.html']
+
+          class AuditParser(HTMLParser):
+              def __init__(self):
+                  super().__init__(convert_charrefs=True)
+                  self.ids=[]; self.refs=[]
+              def handle_starttag(self, tag, attrs):
+                  data=dict(attrs)
+                  if data.get('id'): self.ids.append(data['id'])
+                  attr = 'src' if tag in {'script','img'} else 'href' if tag == 'link' else None
+                  if attr and data.get(attr): self.refs.append(data[attr])
+
+          for html in targets:
+              parser=AuditParser(); parser.feed(html.read_text(encoding='utf-8', errors='replace'))
+              dup=[key for key,count in Counter(parser.ids).items() if count > 1]
+              if dup: raise SystemExit(f'{html.name}: duplicate ids: {dup[:20]}')
+              seen=Counter(parser.refs)
+              duplicate_refs=[ref for ref,count in seen.items() if count > 1]
+              if duplicate_refs: raise SystemExit(f'{html.name}: duplicate local/script references: {duplicate_refs[:20]}')
+              for raw in parser.refs:
+                  value=raw.strip()
+                  if not value or value.startswith(('#','data:','blob:','javascript:','mailto:','tel:')): continue
+                  parts=urlsplit(value)
+                  if parts.scheme or parts.netloc: continue
+                  rel=parts.path
+                  if not rel: continue
+                  candidate=(html.parent/rel).resolve()
+                  try: candidate.relative_to(root)
+                  except ValueError: raise SystemExit(f'{html.name}: reference escapes bundle: {value}')
+                  if not candidate.exists(): raise SystemExit(f'{html.name}: missing local reference: {value}')
+              print(f'{html.name}: {len(parser.ids)} ids, {len(parser.refs)} local/resource refs — PASS')
+          PY
+
+      - name: Android lint
+        run: gradle -p NexusNovaAndroid :app:lintDebug --stacktrace --no-daemon
+
+      - name: Compile Android final candidate APK
         run: gradle -p NexusNovaAndroid :app:assembleDebug --stacktrace --no-daemon
 
-      - name: Upload UX-only branded TEST APK
+      - name: Verify compiled APK contains final modules
+        run: |
+          APK=NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk
+          unzip -l "$APK" > /tmp/nx_apk_files.txt
+          grep -q 'assets/www/js/nexusnova-network-guardian-v1.js' /tmp/nx_apk_files.txt
+          grep -q 'assets/www/css/nexusnova-network-guardian-v1.css' /tmp/nx_apk_files.txt
+          grep -q 'assets/www/js/nexusnova-branding-v1.js' /tmp/nx_apk_files.txt
+          grep -q 'assets/www/js/nexusnova-speedtest-app-v4.js' /tmp/nx_apk_files.txt
+          grep -q 'assets/www/js/nexusnova-ux-simplify-v1.js' /tmp/nx_apk_files.txt
+          unzip -t "$APK"
+          sha256sum "$APK"
+
+      - name: Upload deep-audited final candidate APK
         uses: actions/upload-artifact@v4
         with:
-          name: NexusNova-UX-ONLY-BRANDED-CANDIDATE-apk
+          name: NexusNova-DEEP-AUDITED-FINAL-CANDIDATE-apk
           path: NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
