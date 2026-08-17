@@ -36,33 +36,79 @@ body.nx-two-tab-shell .bottom-dock .nx-two-tab-dock>.dock-item.active .mi-icon{
   box-shadow:0 5px 14px rgba(36,123,222,.22)!important;
 }
 
-/* Mining quick access */
-#nxHomeCoreAccess{margin:14px 0 4px;padding:0}
-#nxHomeCoreAccess .nx-core-head{display:flex;align-items:end;justify-content:space-between;gap:10px;margin:0 2px 8px}
-#nxHomeCoreAccess .nx-core-head>div{min-width:0}
-#nxHomeCoreAccess .nx-core-head span{display:block;margin-bottom:2px;color:#4f96d8;font-size:7px;font-weight:850;letter-spacing:.14em}
-#nxHomeCoreAccess .nx-core-head strong{display:block;color:#e4edf8;font-size:12px;font-weight:850;letter-spacing:-.01em}
-#nxHomeCoreAccess .nx-core-head>small{color:#60758c;font-size:8px;font-weight:700}
-#nxHomeCoreAccess .nx-core-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+/* Mining essentials: one integrated strip, not three visual cards. */
+#nxHomeCoreAccess{margin:12px 0 4px!important;padding:0!important}
+#nxHomeCoreAccess .nx-core-head{display:none!important}
+#nxHomeCoreAccess .nx-core-grid{
+  display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:0!important;
+  padding:5px!important;border-radius:18px!important;overflow:hidden!important;
+  background:linear-gradient(180deg,rgba(10,19,33,.96),rgba(6,12,22,.98))!important;
+  border:1px solid rgba(110,157,214,.14)!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.025),0 10px 26px rgba(0,0,0,.18)!important;
+}
 #nxHomeCoreAccess .nx-core-card{
-  min-width:0;min-height:78px;margin:0!important;padding:9px 8px!important;border-radius:15px!important;
-  display:grid!important;grid-template-columns:32px minmax(0,1fr) 10px!important;align-items:center!important;gap:7px!important;
-  background:linear-gradient(180deg,rgba(17,29,47,.82),rgba(8,15,27,.92))!important;
-  border:1px solid rgba(119,158,207,.13)!important;color:#cbd9e8!important;
-  box-shadow:inset 0 1px rgba(255,255,255,.025)!important;text-align:left!important;
+  position:relative!important;min-width:0!important;min-height:58px!important;margin:0!important;padding:6px 3px!important;
+  display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;gap:4px!important;
+  background:transparent!important;border:0!important;border-radius:12px!important;color:#aebfd1!important;
+  box-shadow:none!important;text-align:center!important;transform:none!important;
 }
-#nxHomeCoreAccess .nx-core-card:active{transform:scale(.97)!important;background:#101c2d!important}
+#nxHomeCoreAccess .nx-core-card:not(:last-child)::after{
+  content:""!important;position:absolute!important;right:0!important;top:11px!important;bottom:11px!important;width:1px!important;
+  background:rgba(119,158,207,.11)!important;
+}
+#nxHomeCoreAccess .nx-core-card:active{
+  transform:scale(.96)!important;background:rgba(55,126,216,.08)!important;
+}
 #nxHomeCoreAccess .nx-core-icon{
-  width:32px;height:32px;display:grid;place-items:center;border-radius:10px;background:#0e1b2c;
-  border:1px solid rgba(93,151,218,.18);color:#6bb2ff
+  width:29px!important;height:29px!important;display:grid!important;place-items:center!important;border-radius:10px!important;
+  background:rgba(77,147,226,.08)!important;border:1px solid rgba(93,151,218,.15)!important;color:#6bb2ff!important;
+  box-shadow:none!important;
 }
-#nxHomeCoreAccess .nx-core-card[data-nx-core-target="tasks"] .nx-core-icon{color:#65d4b9;background:#0d1c1d;border-color:rgba(101,212,185,.15)}
-#nxHomeCoreAccess .nx-core-card[data-nx-core-target="market"] .nx-core-icon{color:#b293ff;background:#151427;border-color:rgba(178,147,255,.15)}
-#nxHomeCoreAccess .nx-core-icon svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-#nxHomeCoreAccess .nx-core-copy{min-width:0}
-#nxHomeCoreAccess .nx-core-copy b{display:block;color:#e7eef8;font-size:9.5px;line-height:1.05;font-weight:820;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#nxHomeCoreAccess .nx-core-copy small{display:block;margin-top:3px;color:#657a91;font-size:6.9px;line-height:1.05;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#nxHomeCoreAccess .nx-core-card>i{color:#53677f;font-size:15px;font-style:normal;font-weight:400}
+#nxHomeCoreAccess .nx-core-card[data-nx-core-target="tasks"] .nx-core-icon{
+  color:#67ceb7!important;background:rgba(74,175,150,.07)!important;border-color:rgba(101,212,185,.13)!important;
+}
+#nxHomeCoreAccess .nx-core-card[data-nx-core-target="market"] .nx-core-icon{
+  color:#aa91ee!important;background:rgba(145,115,225,.07)!important;border-color:rgba(178,147,255,.13)!important;
+}
+#nxHomeCoreAccess .nx-core-icon svg{
+  width:16px!important;height:16px!important;fill:none!important;stroke:currentColor!important;stroke-width:1.8!important;
+  stroke-linecap:round!important;stroke-linejoin:round!important;
+}
+#nxHomeCoreAccess .nx-core-copy{display:block!important;min-width:0!important}
+#nxHomeCoreAccess .nx-core-copy b{
+  display:block!important;color:#dbe7f4!important;font-size:8.7px!important;line-height:1!important;font-weight:790!important;
+  white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;
+}
+#nxHomeCoreAccess .nx-core-copy small,#nxHomeCoreAccess .nx-core-card>i{display:none!important}
+
+/* Nova Hub: force a real bounded touch scroller on Android/WebView. */
+body #moreMenu.more-menu,
+body.nx-allapps-open #moreMenu.more-menu.show{
+  height:min(76dvh,660px)!important;
+  max-height:min(76dvh,660px)!important;
+  min-height:0!important;
+  overflow-y:scroll!important;
+  overflow-x:hidden!important;
+  overscroll-behavior-y:contain!important;
+  -webkit-overflow-scrolling:touch!important;
+  touch-action:pan-y!important;
+  scrollbar-width:none!important;
+  contain:layout paint!important;
+}
+body #moreMenu.more-menu::-webkit-scrollbar{width:0!important;height:0!important;display:none!important}
+body #moreMenu.more-menu .more-inner{
+  min-height:max-content!important;
+  touch-action:pan-y!important;
+  overscroll-behavior-y:auto!important;
+  padding-bottom:10px!important;
+}
+body #moreMenu.more-menu .more-item{touch-action:manipulation!important}
+body #moreMenu.more-menu #nxNovaHubHeader{
+  position:sticky!important;top:-2px!important;z-index:40!important;
+  margin:-2px -2px 3px!important;padding:7px 5px 10px!important;
+  background:linear-gradient(180deg,rgba(6,11,21,.995) 0%,rgba(6,11,21,.96) 76%,rgba(6,11,21,0) 100%)!important;
+  backdrop-filter:blur(16px)!important;-webkit-backdrop-filter:blur(16px)!important;
+}
 
 /* Settings: short first screen, advanced collapsed */
 #tab-about.nx-settings-compact{padding-bottom:108px!important}
@@ -120,10 +166,12 @@ body.nx-two-tab-shell .bottom-dock .nx-two-tab-dock>.dock-item.active .mi-icon{
 
 @media(max-width:390px){
   body.nx-two-tab-shell .bottom-dock{left:9px!important;right:9px!important}
-  #nxHomeCoreAccess .nx-core-grid{gap:5px}
-  #nxHomeCoreAccess .nx-core-card{min-height:72px;padding:7px 5px!important;grid-template-columns:28px minmax(0,1fr) 8px!important;gap:5px!important}
-  #nxHomeCoreAccess .nx-core-icon{width:28px;height:28px;border-radius:9px}
-  #nxHomeCoreAccess .nx-core-icon svg{width:15px;height:15px}
-  #nxHomeCoreAccess .nx-core-copy b{font-size:8.8px}
-  #nxHomeCoreAccess .nx-core-copy small{font-size:6.3px}
+  #nxHomeCoreAccess .nx-core-grid{padding:4px!important}
+  #nxHomeCoreAccess .nx-core-card{min-height:55px!important;padding:5px 2px!important}
+  #nxHomeCoreAccess .nx-core-icon{width:27px!important;height:27px!important;border-radius:9px!important}
+  #nxHomeCoreAccess .nx-core-icon svg{width:15px!important;height:15px!important}
+  #nxHomeCoreAccess .nx-core-copy b{font-size:8.2px!important}
+  body #moreMenu.more-menu,body.nx-allapps-open #moreMenu.more-menu.show{
+    height:min(74dvh,620px)!important;max-height:min(74dvh,620px)!important;
+  }
 }
