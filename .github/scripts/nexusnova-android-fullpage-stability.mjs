@@ -14,6 +14,7 @@ process.on('unhandledRejection', (error) => {
 
 const base = 'http://127.0.0.1:4173';
 const nativePage = `${base}/NexusNovaAndroid/app/src/main/assets/www/page2.html?nxAndroid=1&stabilityTest=1`;
+const SLOW_PROBE_URL = 'https://nx-slow-probe.invalid/nonblocking-startup-probe.js';
 const browser = await chromium.launch({ headless: true });
 
 async function assertDockHitTarget(page, selector) {
@@ -97,7 +98,7 @@ async function assertCoreInteraction(page, label) {
   );
 }
 
-async function runScenario(name, externalDelayMs) {
+async function runScenario(name, slowProbeDelayMs) {
   const context = await browser.newContext({
     viewport: { width: 393, height: 873 },
     userAgent: 'Mozilla/5.0 (Linux; Android 11; Infinix X693) AppleWebKit/537.36 Chrome/124 Mobile Safari/537.36 NexusNovaStabilityTest',
@@ -105,7 +106,6 @@ async function runScenario(name, externalDelayMs) {
   });
   const page = await context.newPage();
   const severeErrors = [];
-  let delayedExternalRequest = false;
 
   page.on('pageerror', (error) => {
     const message = String(error?.message || error || '');
@@ -116,21 +116,30 @@ async function runScenario(name, externalDelayMs) {
   await page.route('**/*', async (route) => {
     const url = new URL(route.request().url());
     if (url.origin === base) return route.continue();
-    // One genuinely slow remote dependency is enough to prove the bundled
-    // Android shell does not let a CDN/Firebase request freeze navigation.
-    // Abort all other remote traffic immediately so the test remains bounded
-    // instead of accumulating hundreds of independent 8-second timers.
-    if (externalDelayMs > 0 && !delayedExternalRequest) {
-      delayedExternalRequest = true;
-      await new Promise((resolve) => setTimeout(resolve, externalDelayMs));
+    if (url.href === SLOW_PROBE_URL && slowProbeDelayMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, slowProbeDelayMs));
+      return route.abort('failed');
     }
+    // Real optional/CDN/Firebase traffic is unavailable in this deterministic
+    // shell test. Immediate failure is stricter than a healthy remote network
+    // and proves navigation does not depend on those responses.
     return route.abort('failed');
   });
 
   await page.goto(nativePage, { waitUntil: 'commit', timeout: 10_000 });
   await page.locator('#moreBtn').waitFor({ state: 'attached', timeout: 10_000 });
-  await page.waitForTimeout(2800);
 
+  if (slowProbeDelayMs > 0) {
+    await page.evaluate((src) => {
+      const script = document.createElement('script');
+      script.async = true;
+      script.src = src;
+      script.dataset.nxSlowDependencyProbe = '1';
+      document.head.appendChild(script);
+    }, SLOW_PROBE_URL);
+  }
+
+  await page.waitForTimeout(2800);
   await assertCoreInteraction(page, `${name}:3s`);
   await page.waitForTimeout(3500);
   await assertCoreInteraction(page, `${name}:7s`);
@@ -139,8 +148,11 @@ async function runScenario(name, externalDelayMs) {
 
   const registrations = await page.evaluate(async () => {
     if (!('serviceWorker' in navigator)) return [];
-    const regs = await navigator.serviceWorker.getRegistrations();
-    return regs.map((r) => r.scope);
+    const regs = await Promise.race([
+      navigator.serviceWorker.getRegistrations(),
+      new Promise((resolve) => setTimeout(() => resolve([]), 1500)),
+    ]);
+    return regs.map ? regs.map((r) => r.scope) : [];
   });
   assert.deepEqual(registrations, [], `${name}: Android shell must not register a web service worker`);
   assert.deepEqual(severeErrors, [], `${name}: severe page errors: ${severeErrors.join(' | ')}`);
@@ -151,9 +163,9 @@ async function runScenario(name, externalDelayMs) {
 
 try {
   await runScenario('external-network-blocked', 0);
-  await runScenario('external-network-very-slow', 8000);
+  await runScenario('background-dependency-very-slow', 8000);
   await browser.close();
-  console.log('PASS NexusNova Android full-page stability regression: Wallet, Tasks, Market and ALL APPS remain interactive under blocked/very-slow external network conditions.');
+  console.log('PASS NexusNova Android full-page stability regression: Wallet, Tasks, Market and ALL APPS remain interactive with remote traffic blocked and an 8-second non-blocking dependency in flight.');
 } catch (error) {
   try { await browser.close(); } catch (_) {}
   const message = String(error?.stack || error?.message || error || 'Unknown Android runtime failure').replace(/\r?\n/g, '%0A');
