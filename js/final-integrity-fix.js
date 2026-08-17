@@ -79,6 +79,7 @@
   loadCritical({flag:'__nxNexusBrowserV1',marker:'data-nx-browser',src:'./js/nexusnova-browser-v1.js?v=1',error:'NexusNova Browser failed to load.'});
   loadCritical({flag:'__nxNexusBrowserGuardV1',marker:'data-nx-browser-guard',src:'./js/nexusnova-browser-guard-v1.js?v=1',error:'NexusNova Browser guard failed to load.'});
   loadCritical({flag:'__nxModernUiV1',marker:'data-nx-modern-ui-v1-script',src:'./js/nexusnova-modern-ui-v1.js?v=20260817-modern2',error:'NexusNova modern Nova Hub UI failed to load.'});
+  loadCritical({flag:'__nxShellV2',marker:'data-nx-shell-v2-script',src:'./js/nexusnova-shell-v2.js?v=20260817-shell2',error:'NexusNova two-tab shell failed to load.'});
 
   await import('./final-integrity-fix-core.js?v=3');
 
