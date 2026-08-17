@@ -8,7 +8,7 @@ def ensure_import(text: str, import_line: str, anchor: str) -> str:
     if import_line in text:
         return text
     if anchor not in text:
-        raise SystemExit(f'Import anchor missing for {import_line}')
+        raise SystemExit(f'Import anchor missing for {import_line}: expected {anchor.strip()}')
     return text.replace(anchor, anchor + import_line + '\n', 1)
 
 
@@ -91,7 +91,7 @@ browser = BROWSER.read_text(encoding='utf-8')
 browser = ensure_import(
     browser,
     'import androidx.activity.OnBackPressedCallback',
-    'import androidx.activity.result.contract.ActivityResultContracts\n',
+    'import androidx.appcompat.app.AppCompatActivity\n',
 )
 
 old_browser_back = '''    @Deprecated("Deprecated in Java")
