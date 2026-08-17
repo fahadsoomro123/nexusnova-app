@@ -8,6 +8,7 @@ on:
       - '.github/workflows/nexusnova-final-polish-v2-build.yml'
       - 'js/final-integrity-fix.js'
       - 'js/nexusnova-nova-hub-language-v1.js'
+      - 'js/nexusnova-two-tab-guard-v1.js'
       - 'css/nexusnova-shell-v2.css'
   workflow_dispatch:
 
@@ -44,6 +45,7 @@ jobs:
               .github/workflows/nexusnova-final-polish-v2-build.yml|\
               js/final-integrity-fix.js|\
               js/nexusnova-nova-hub-language-v1.js|\
+              js/nexusnova-two-tab-guard-v1.js|\
               css/nexusnova-shell-v2.css) ;;
               *) echo "UNAPPROVED POLISH CHANGE: $file"; exit 1 ;;
             esac
@@ -117,11 +119,16 @@ jobs:
           BROWSER=NexusNovaAndroid/app/src/main/java/com/nexusnova/app/BrowserActivity.kt
           MANIFEST=NexusNovaAndroid/app/src/main/AndroidManifest.xml
 
-          # Two-tab shell remains intact.
+          # Two-tab shell remains intact and is physically enforced after legacy CSS.
           grep -q "setText(labelNode(mining),'Mining')" "$WEB/js/nexusnova-shell-v2.js"
           grep -q "setText(labelNode(hub),'Nova Hub')" "$WEB/js/nexusnova-shell-v2.js"
           grep -q 'grid-template-columns:repeat(2,minmax(0,1fr))' "$WEB/css/nexusnova-shell-v2.css"
-          grep -q 'data-nx-dock-hidden="1"' "$WEB/css/nexusnova-shell-v2.css"
+          test -f "$WEB/js/nexusnova-two-tab-guard-v1.js"
+          grep -q '__nxTwoTabGuardV1' "$WEB/js/nexusnova-two-tab-guard-v1.js"
+          grep -q "AUX = new Set(\['wallet','tasks','market'\])" "$WEB/js/nexusnova-two-tab-guard-v1.js"
+          grep -q "button.style.setProperty('display','none','important')" "$WEB/js/nexusnova-two-tab-guard-v1.js"
+          grep -q 'visibility:hidden!important' "$WEB/js/nexusnova-two-tab-guard-v1.js"
+          grep -q 'nexusnova-two-tab-guard-v1.js' "$WEB/js/final-integrity-fix.js"
 
           # Mining essentials are one integrated strip, not three visual cards.
           grep -q 'Mining essentials: one integrated strip' "$WEB/css/nexusnova-shell-v2.css"
@@ -229,8 +236,10 @@ jobs:
           grep -q 'assets/www/css/nexusnova-shell-v2.css' /tmp/nx_apk_files.txt
           grep -q 'assets/www/js/nexusnova-allapps-scroll-fix-v1.js' /tmp/nx_apk_files.txt
           grep -q 'assets/www/js/nexusnova-nova-hub-language-v1.js' /tmp/nx_apk_files.txt
+          grep -q 'assets/www/js/nexusnova-two-tab-guard-v1.js' /tmp/nx_apk_files.txt
           unzip -p "$APK" assets/www/js/final-integrity-fix.js | grep -q 'nexusnova-allapps-scroll-fix-v1.js'
           unzip -p "$APK" assets/www/js/final-integrity-fix.js | grep -q 'nexusnova-nova-hub-language-v1.js'
+          unzip -p "$APK" assets/www/js/final-integrity-fix.js | grep -q 'nexusnova-two-tab-guard-v1.js'
           unzip -p "$APK" assets/www/css/nexusnova-shell-v2.css | grep -q 'Mining essentials: one integrated strip'
           unzip -p "$APK" assets/www/css/nexusnova-shell-v2.css | grep -q 'overflow-y:scroll!important'
           sha256sum "$APK"
@@ -238,6 +247,6 @@ jobs:
       - name: Upload final polished APK
         uses: actions/upload-artifact@v4
         with:
-          name: NexusNova-FINAL-POLISH-V2-apk
+          name: NexusNova-FINAL-CLEAN-TWO-TAB-apk
           path: NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
