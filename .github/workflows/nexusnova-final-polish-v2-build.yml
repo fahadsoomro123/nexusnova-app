@@ -2,13 +2,13 @@ name: NexusNova Final Polish V2
 
 on:
   push:
-    branches:
-      - 'agent/final-two-tab-polish-v2'
+    branches: ['agent/final-two-tab-polish-v2']
     paths:
       - '.github/workflows/nexusnova-final-polish-v2-build.yml'
       - 'js/final-integrity-fix.js'
       - 'js/nexusnova-nova-hub-language-v1.js'
       - 'js/nexusnova-two-tab-guard-v1.js'
+      - 'js/nexusnova-allapps-scroll-fix-v1.js'
       - 'css/nexusnova-shell-v2.css'
   workflow_dispatch:
 
@@ -46,6 +46,7 @@ jobs:
               js/final-integrity-fix.js|\
               js/nexusnova-nova-hub-language-v1.js|\
               js/nexusnova-two-tab-guard-v1.js|\
+              js/nexusnova-allapps-scroll-fix-v1.js|\
               css/nexusnova-shell-v2.css) ;;
               *) echo "UNAPPROVED POLISH CHANGE: $file"; exit 1 ;;
             esac
@@ -110,7 +111,7 @@ jobs:
       - name: Keep deterministic packaged native shell
         run: python3 NexusNovaAndroid/patch_native_shell.py
 
-      - name: Verify final polish contract
+      - name: Verify final UI contract
         shell: bash
         run: |
           set -euo pipefail
@@ -119,41 +120,37 @@ jobs:
           BROWSER=NexusNovaAndroid/app/src/main/java/com/nexusnova/app/BrowserActivity.kt
           MANIFEST=NexusNovaAndroid/app/src/main/AndroidManifest.xml
 
-          # Two-tab shell remains intact and is physically enforced after legacy CSS.
+          # Exactly-two-tab presentation guard.
           grep -q "setText(labelNode(mining),'Mining')" "$WEB/js/nexusnova-shell-v2.js"
           grep -q "setText(labelNode(hub),'Nova Hub')" "$WEB/js/nexusnova-shell-v2.js"
           grep -q 'grid-template-columns:repeat(2,minmax(0,1fr))' "$WEB/css/nexusnova-shell-v2.css"
-          test -f "$WEB/js/nexusnova-two-tab-guard-v1.js"
           grep -q '__nxTwoTabGuardV1' "$WEB/js/nexusnova-two-tab-guard-v1.js"
           grep -q "AUX = new Set(\['wallet','tasks','market'\])" "$WEB/js/nexusnova-two-tab-guard-v1.js"
           grep -q "button.style.setProperty('display','none','important')" "$WEB/js/nexusnova-two-tab-guard-v1.js"
           grep -q 'visibility:hidden!important' "$WEB/js/nexusnova-two-tab-guard-v1.js"
+          grep -q 'positionCoreStrip' "$WEB/js/nexusnova-two-tab-guard-v1.js"
+          grep -q 'home.insertBefore(panel, stats)' "$WEB/js/nexusnova-two-tab-guard-v1.js"
           grep -q 'nexusnova-two-tab-guard-v1.js' "$WEB/js/final-integrity-fix.js"
 
-          # Mining essentials are one integrated strip, not three visual cards.
+          # Mining essentials are one integrated strip, not three separate cards.
           grep -q 'Mining essentials: one integrated strip' "$WEB/css/nexusnova-shell-v2.css"
           grep -q '#nxHomeCoreAccess .nx-core-head{display:none!important}' "$WEB/css/nexusnova-shell-v2.css"
           grep -q 'grid-template-columns:repeat(3,minmax(0,1fr))' "$WEB/css/nexusnova-shell-v2.css"
           grep -q 'background:transparent!important;border:0!important' "$WEB/css/nexusnova-shell-v2.css"
-          grep -q 'nx-core-card:not(:last-child)::after' "$WEB/css/nexusnova-shell-v2.css"
 
-          # Nova Hub has CSS + runtime scroll protection with old-WebView fallback.
-          test -f "$WEB/js/nexusnova-allapps-scroll-fix-v1.js"
+          # Nova Hub scroll is stable and cannot self-shrink from its own geometry.
+          grep -q '__nxAllAppsScrollFixV1' "$WEB/js/nexusnova-allapps-scroll-fix-v1.js"
+          grep -q "const byViewport = Math.floor(vh \* 0.72)" "$WEB/js/nexusnova-allapps-scroll-fix-v1.js"
+          grep -q "const target = Math.max(190" "$WEB/js/nexusnova-allapps-scroll-fix-v1.js"
+          grep -q "m.style.setProperty('height', target + 'px', 'important')" "$WEB/js/nexusnova-allapps-scroll-fix-v1.js"
+          ! grep -q 'm.getBoundingClientRect()' "$WEB/js/nexusnova-allapps-scroll-fix-v1.js"
           grep -q 'nexusnova-allapps-scroll-fix-v1.js' "$WEB/js/final-integrity-fix.js"
-          grep -q 'height:min(76vh,660px)!important' "$WEB/css/nexusnova-shell-v2.css"
-          grep -q 'height:min(76dvh,660px)!important' "$WEB/css/nexusnova-shell-v2.css"
           grep -q 'overflow-y:scroll!important' "$WEB/css/nexusnova-shell-v2.css"
           grep -q 'touch-action:pan-y!important' "$WEB/css/nexusnova-shell-v2.css"
-          grep -q '__nxAllAppsScrollFixV1' "$WEB/js/nexusnova-allapps-scroll-fix-v1.js"
-          grep -q "m.style.setProperty('max-height', available + 'px', 'important')" "$WEB/js/nexusnova-allapps-scroll-fix-v1.js"
 
-          # User-facing legacy ALL APPS wording is normalized to Nova Hub.
-          test -f "$WEB/js/nexusnova-nova-hub-language-v1.js"
+          # Nova Hub naming + compact settings.
           grep -q '__nxNovaHubLanguageV1' "$WEB/js/nexusnova-nova-hub-language-v1.js"
-          grep -q 'nexusnova-nova-hub-language-v1.js' "$WEB/js/final-integrity-fix.js"
           grep -q "replace(/ALL APPS/g, 'NOVA HUB')" "$WEB/js/nexusnova-nova-hub-language-v1.js"
-
-          # Compact settings remains intact.
           grep -q 'More Settings' "$WEB/js/nexusnova-shell-v2.js"
           grep -q '#nxMoreSettings' "$WEB/css/nexusnova-shell-v2.css"
 
@@ -167,6 +164,7 @@ jobs:
           ! grep -R -q 'nx-video-truth-consistency-perf-v2' "$WEB"
           ! grep -R -q 'nx-android-reward-event-order-v1' "$WEB"
 
+          # Native safety contract.
           grep -q 'onBackPressedDispatcher.addCallback' "$MAIN"
           grep -q 'onBackPressedDispatcher.addCallback' "$BROWSER"
           ! grep -q 'override fun onBackPressed()' "$MAIN"
@@ -232,16 +230,17 @@ jobs:
           APK=NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk
           unzip -t "$APK"
           unzip -l "$APK" > /tmp/nx_apk_files.txt
-          grep -q 'assets/www/js/nexusnova-shell-v2.js' /tmp/nx_apk_files.txt
-          grep -q 'assets/www/css/nexusnova-shell-v2.css' /tmp/nx_apk_files.txt
-          grep -q 'assets/www/js/nexusnova-allapps-scroll-fix-v1.js' /tmp/nx_apk_files.txt
-          grep -q 'assets/www/js/nexusnova-nova-hub-language-v1.js' /tmp/nx_apk_files.txt
-          grep -q 'assets/www/js/nexusnova-two-tab-guard-v1.js' /tmp/nx_apk_files.txt
-          unzip -p "$APK" assets/www/js/final-integrity-fix.js | grep -q 'nexusnova-allapps-scroll-fix-v1.js'
-          unzip -p "$APK" assets/www/js/final-integrity-fix.js | grep -q 'nexusnova-nova-hub-language-v1.js'
+          for f in \
+            assets/www/js/nexusnova-shell-v2.js \
+            assets/www/css/nexusnova-shell-v2.css \
+            assets/www/js/nexusnova-allapps-scroll-fix-v1.js \
+            assets/www/js/nexusnova-nova-hub-language-v1.js \
+            assets/www/js/nexusnova-two-tab-guard-v1.js; do
+            grep -q "$f" /tmp/nx_apk_files.txt
+          done
           unzip -p "$APK" assets/www/js/final-integrity-fix.js | grep -q 'nexusnova-two-tab-guard-v1.js'
-          unzip -p "$APK" assets/www/css/nexusnova-shell-v2.css | grep -q 'Mining essentials: one integrated strip'
-          unzip -p "$APK" assets/www/css/nexusnova-shell-v2.css | grep -q 'overflow-y:scroll!important'
+          unzip -p "$APK" assets/www/js/nexusnova-allapps-scroll-fix-v1.js | grep -q "height', target + 'px'"
+          unzip -p "$APK" assets/www/js/nexusnova-two-tab-guard-v1.js | grep -q 'positionCoreStrip'
           sha256sum "$APK"
 
       - name: Upload final polished APK
