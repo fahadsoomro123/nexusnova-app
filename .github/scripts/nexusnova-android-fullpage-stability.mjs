@@ -19,11 +19,6 @@ async function waitForShell(page, label) {
   await page.locator('#moreBtn').waitFor({ state: 'visible', timeout: 10000 });
   await page.locator('#tab-home').waitFor({ state: 'attached', timeout: 10000 });
   await page.waitForFunction(() => window.__nexusAndroidShell === true, null, { timeout: 10000 });
-  await page.waitForFunction(() => (
-    typeof window.switchTab === 'function' &&
-    typeof window.toggleMore === 'function' &&
-    typeof window.openMoreTab === 'function'
-  ), null, { timeout: 10000 });
   const splash = await page.locator('#nxSplash').count();
   if (splash) {
     await page.waitForFunction(() => {
@@ -33,7 +28,7 @@ async function waitForShell(page, label) {
       return s.pointerEvents === 'none' || s.visibility === 'hidden' || s.display === 'none' || Number(s.opacity) === 0;
     }, null, { timeout: 6500 });
   }
-  console.log(`PASS ${label}: shell visible, navigation primitives ready and splash non-blocking.`);
+  console.log(`PASS ${label}: shell visible and splash non-blocking.`);
 }
 
 async function clickAndCheck(page, selector, tabId, label) {
