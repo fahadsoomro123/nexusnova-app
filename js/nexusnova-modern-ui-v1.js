@@ -8,16 +8,33 @@
   window.__nxModernUiV1 = true;
 
   const CSS_MARKER = 'data-nx-modern-ui-v1';
+  const COMPAT_STYLE_ID = 'nxModernUiCompatV1';
   const $ = (s, root = document) => root.querySelector(s);
   const qsa = (s, root = document) => Array.from(root.querySelectorAll(s));
 
   function ensureCss() {
-    if ($(`link[${CSS_MARKER}]`)) return;
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = './css/nexusnova-modern-ui-v1.css?v=20260817-modern2';
-    link.setAttribute(CSS_MARKER, '1');
-    document.head.appendChild(link);
+    if (!$(`link[${CSS_MARKER}]`)) {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = './css/nexusnova-modern-ui-v1.css?v=20260817-modern3';
+      link.setAttribute(CSS_MARKER, '1');
+      document.head.appendChild(link);
+    }
+    if (!document.getElementById(COMPAT_STYLE_ID)) {
+      const style = document.createElement('style');
+      style.id = COMPAT_STYLE_ID;
+      style.textContent = `
+        /* Android/WebView fallback: do not depend on color-mix() for the core launcher look. */
+        #moreMenu .more-item .mi-icon{
+          color:var(--mi-a,#66adff)!important;
+          background:#0d1727!important;
+          border-color:rgba(96,145,204,.20)!important;
+        }
+        #moreMenu .more-item[data-nx-speedtest-v4="1"] .mi-icon{color:#62d6e5!important;background:#0b1925!important;border-color:rgba(98,214,229,.22)!important}
+        #moreMenu .more-item[data-nxmega="productivity"] .mi-icon{color:#82adff!important;background:#10182a!important;border-color:rgba(130,173,255,.22)!important}
+      `;
+      document.head.appendChild(style);
+    }
   }
 
   function targetOf(button) {
@@ -185,5 +202,5 @@
   if (document.body) start(); else document.addEventListener('DOMContentLoaded',start,{once:true});
   [200,600,1200,2400,5000].forEach(ms => setTimeout(apply,ms));
 
-  window.NexusNovaModernUI = Object.freeze({version:'1.0.1',refresh:apply});
+  window.NexusNovaModernUI = Object.freeze({version:'1.0.2',refresh:apply});
 })();
