@@ -1,0 +1,201 @@
+/* NexusNova Branding v1
+   App-wide visual identity only. No feature, auth, mining, wallet, reward or backend logic.
+   Goal: visible premium branding without repetitive banners or intrusive overlays.
+*/
+
+:root{
+  --nx-brand-blue:#2f8cff;
+  --nx-brand-cyan:#63caff;
+  --nx-brand-ink:#06101d;
+  --nx-brand-line:rgba(80,164,255,.30);
+  --nx-brand-glow:rgba(47,140,255,.20);
+}
+
+.nx-brand-chip{
+  width:max-content;
+  max-width:100%;
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  margin:0 0 12px;
+  padding:5px 9px 5px 6px;
+  border:1px solid var(--nx-brand-line);
+  border-radius:999px;
+  background:linear-gradient(135deg,rgba(9,23,42,.88),rgba(5,12,23,.78));
+  color:#cfe6ff;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 7px 20px rgba(0,0,0,.18);
+  backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+  font-size:9px;
+  line-height:1;
+  font-weight:850;
+  letter-spacing:.115em;
+  text-transform:uppercase;
+  pointer-events:none;
+  user-select:none;
+}
+.nx-brand-chip-logo{
+  position:relative;
+  width:19px;
+  height:19px;
+  flex:0 0 19px;
+  display:grid;
+  place-items:center;
+  border-radius:7px;
+  background:linear-gradient(145deg,#87d3ff 0%,#2b98ff 33%,#0b5ce8 68%,#072d88 100%);
+  border:1px solid rgba(255,255,255,.55);
+  color:#fff;
+  font-size:10px;
+  font-weight:1000;
+  letter-spacing:-.04em;
+  text-shadow:0 1px 4px rgba(0,0,0,.35);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.60),0 0 0 3px rgba(47,140,255,.05),0 0 12px rgba(47,140,255,.22);
+  animation:nxBrandBreath 3.8s ease-in-out infinite;
+}
+.nx-brand-chip-logo::after{
+  content:"";
+  position:absolute;
+  inset:-4px;
+  border:1px solid rgba(87,178,255,.15);
+  border-radius:10px;
+}
+.nx-brand-chip-name{color:#fff;}
+.nx-brand-chip-dot{width:3px;height:3px;border-radius:50%;background:#58b5ff;box-shadow:0 0 8px #2f8cff;}
+.nx-brand-chip-context{color:#86b9ef;font-weight:760;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:170px;}
+
+@keyframes nxBrandBreath{
+  0%,100%{transform:translateY(0);filter:brightness(1)}
+  50%{transform:translateY(-1px);filter:brightness(1.12)}
+}
+
+/* A tiny brand seal on ALL APPS tiles. It deliberately stays secondary to each app icon. */
+.more-item{position:relative!important;}
+.nx-brand-app-badge{
+  position:absolute;
+  top:7px;
+  right:7px;
+  z-index:5;
+  width:17px;
+  height:17px;
+  display:grid;
+  place-items:center;
+  border-radius:6px;
+  background:linear-gradient(145deg,rgba(94,193,255,.95),rgba(18,91,220,.96));
+  border:1px solid rgba(255,255,255,.46);
+  color:#fff;
+  font-size:8px;
+  line-height:1;
+  font-weight:1000;
+  box-shadow:0 3px 10px rgba(0,0,0,.34),inset 0 1px 0 rgba(255,255,255,.46);
+  text-shadow:0 1px 3px rgba(0,0,0,.35);
+  pointer-events:none;
+  user-select:none;
+}
+
+/* Faint, etched signet inside utility panels. */
+.nexus-tool-panel,
+.nxui-hero,
+.nx-speed4-shell,
+.nx-scripture-reader,
+.nx-bible-reader,
+.nx-browser-shell,
+[data-nx-standalone-app]{position:relative;isolation:isolate;}
+.nexus-tool-panel.nx-brand-watermarked::after,
+.nxui-hero.nx-brand-watermarked::after,
+.nx-speed4-shell.nx-brand-watermarked::after,
+.nx-scripture-reader.nx-brand-watermarked::after,
+.nx-bible-reader.nx-brand-watermarked::after,
+.nx-browser-shell.nx-brand-watermarked::after,
+[data-nx-standalone-app].nx-brand-watermarked::after{
+  content:"N";
+  position:absolute;
+  right:13px;
+  bottom:8px;
+  z-index:-1;
+  color:#62b7ff;
+  font-size:56px;
+  line-height:1;
+  font-weight:1000;
+  letter-spacing:-.08em;
+  opacity:.035;
+  transform:rotate(-7deg);
+  pointer-events:none;
+  user-select:none;
+}
+
+.nx-brand-footer{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+  min-height:28px;
+  margin:16px auto 5px;
+  padding:5px 10px;
+  color:#7294bb;
+  font-size:8.5px;
+  line-height:1.2;
+  font-weight:800;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  opacity:.72;
+  pointer-events:none;
+  user-select:none;
+}
+.nx-brand-footer::before{
+  content:"N";
+  width:16px;
+  height:16px;
+  display:grid;
+  place-items:center;
+  border-radius:5px;
+  background:rgba(47,140,255,.10);
+  border:1px solid rgba(78,158,255,.20);
+  color:#6cbaff;
+  font-size:8px;
+  font-weight:1000;
+}
+.nx-brand-footer::after{
+  content:"";
+  width:3px;
+  height:3px;
+  border-radius:50%;
+  background:#3e91e8;
+  box-shadow:0 0 7px rgba(62,145,232,.55);
+}
+
+/* Status text gets only a tiny brand accent, not extra words. */
+.status.nx-brand-status{position:relative;padding-left:13px;}
+.status.nx-brand-status::before{
+  content:"";
+  position:absolute;
+  left:1px;
+  top:.58em;
+  width:5px;
+  height:5px;
+  border-radius:50%;
+  background:#3f9cff;
+  box-shadow:0 0 8px rgba(63,156,255,.5);
+}
+
+body.nexus-light .nx-brand-chip{
+  background:rgba(255,255,255,.92);
+  border-color:#c6ddf7;
+  color:#365f8b;
+  box-shadow:0 6px 18px rgba(31,83,139,.08);
+}
+body.nexus-light .nx-brand-chip-name{color:#08284a;}
+body.nexus-light .nx-brand-chip-context{color:#4678ab;}
+body.nexus-light .nx-brand-footer{color:#56799e;}
+
+@media(max-width:620px){
+  .nx-brand-chip{margin-bottom:10px;font-size:8.2px;letter-spacing:.09em;}
+  .nx-brand-chip-context{max-width:120px;}
+  .nx-brand-app-badge{top:6px;right:6px;width:16px;height:16px;}
+  .nexus-tool-panel.nx-brand-watermarked::after,
+  .nxui-hero.nx-brand-watermarked::after,
+  .nx-speed4-shell.nx-brand-watermarked::after{font-size:46px;}
+}
+
+@media(prefers-reduced-motion:reduce){
+  .nx-brand-chip-logo{animation:none!important;}
+}
