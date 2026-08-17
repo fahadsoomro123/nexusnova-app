@@ -12,9 +12,6 @@ def ensure_import(text: str, import_line: str, anchor: str) -> str:
     return text.replace(anchor, anchor + import_line + '\n', 1)
 
 
-# MainActivity: replace the legacy override inserted by the UX patch with a
-# dispatcher-backed private handler. This preserves the exact contextual web
-# Back + premium Exit modal behavior without fighting Android's @CallSuper lint.
 main = MAIN.read_text(encoding='utf-8')
 main = ensure_import(
     main,
@@ -84,9 +81,6 @@ if 'onBackPressedDispatcher.addCallback' not in main or 'handleNexusBackPressed(
 MAIN.write_text(main, encoding='utf-8')
 
 
-# BrowserActivity: WebView history remains first priority. When there is no
-# browser history, finish only the BrowserActivity and reveal the NexusNova app
-# underneath. No app exit and no deprecated Activity Back override.
 browser = BROWSER.read_text(encoding='utf-8')
 browser = ensure_import(
     browser,
@@ -116,9 +110,7 @@ browser_callback = '''        onBackPressedDispatcher.addCallback(this, object :
         })
 
 '''
-# BrowserActivity creates the root UI and calls setContentView(root). Put the
-# dispatcher registration immediately after that stable point.
-browser_anchor = '        setContentView(root)\n\n'
+browser_anchor = '        setContentView(root)\n'
 if browser_callback not in browser:
     if browser_anchor not in browser:
         raise SystemExit('BrowserActivity dispatcher insertion point not found')
