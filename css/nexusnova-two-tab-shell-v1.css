@@ -1,0 +1,338 @@
+/* NexusNova Two-Tab Shell v1
+   Scope: navigation + compact settings presentation only.
+   No mining/reward/wallet/market value logic.
+*/
+
+/* =========================
+   TWO-TAB BOTTOM NAV
+========================= */
+body.nx-two-tab-shell .bottom-dock{
+  left:14px!important;
+  right:14px!important;
+  bottom:10px!important;
+  padding:5px!important;
+  border-radius:22px!important;
+}
+body.nx-two-tab-shell .bottom-dock .dock-inner{
+  width:min(100%,420px)!important;
+  max-width:420px!important;
+  margin:0 auto!important;
+  display:grid!important;
+  grid-template-columns:1fr 1fr!important;
+  gap:7px!important;
+}
+body.nx-two-tab-shell .bottom-dock .dock-item[data-nx-shell-hidden="1"]{
+  display:none!important;
+}
+body.nx-two-tab-shell .bottom-dock .dock-item[data-nx-shell-primary="1"]{
+  min-height:54px!important;
+  padding:8px 12px!important;
+  display:flex!important;
+  flex-direction:row!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:9px!important;
+  border-radius:16px!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  color:#7f93aa!important;
+}
+body.nx-two-tab-shell .bottom-dock .dock-item[data-nx-shell-primary="1"] .mi-icon{
+  width:29px!important;
+  height:29px!important;
+  margin:0!important;
+  flex:0 0 29px!important;
+  border-radius:9px!important;
+  background:transparent!important;
+  border:0!important;
+  box-shadow:none!important;
+  color:currentColor!important;
+}
+body.nx-two-tab-shell .bottom-dock .dock-item[data-nx-shell-primary="1"] .mi-icon svg{
+  width:20px!important;
+  height:20px!important;
+}
+body.nx-two-tab-shell .bottom-dock .dock-item[data-nx-shell-primary="1"]>span:last-child{
+  font-size:10.5px!important;
+  line-height:1!important;
+  font-weight:820!important;
+  letter-spacing:.01em!important;
+  text-transform:none!important;
+  color:currentColor!important;
+}
+body.nx-two-tab-shell .bottom-dock .dock-item[data-nx-shell-primary="1"].active{
+  color:#f2f8ff!important;
+  background:linear-gradient(145deg,rgba(35,116,218,.23),rgba(47,151,240,.14))!important;
+  box-shadow:inset 0 0 0 1px rgba(83,160,248,.20)!important;
+}
+body.nx-two-tab-shell .bottom-dock .dock-item[data-nx-shell-primary="1"].active .mi-icon{
+  background:linear-gradient(145deg,#267bd8,#52a8f4)!important;
+  color:#fff!important;
+  box-shadow:0 6px 16px rgba(32,118,220,.20)!important;
+}
+
+/* =========================
+   MINE QUICK ACCESS
+========================= */
+#nxMineQuickAccess{
+  margin:14px 0 2px;
+  padding:0;
+}
+#nxMineQuickAccess .nx-mine-quick-head{
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:12px;
+  margin:0 2px 8px;
+}
+#nxMineQuickAccess .nx-mine-quick-head strong{
+  color:#e4eefb;
+  font-size:11px;
+  font-weight:850;
+  letter-spacing:.02em;
+}
+#nxMineQuickAccess .nx-mine-quick-head span{
+  color:#61768e;
+  font-size:8px;
+  font-weight:700;
+}
+#nxMineQuickAccess .nx-mine-quick-grid{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:7px;
+}
+#nxMineQuickAccess .nx-mine-quick-card{
+  min-width:0;
+  min-height:74px;
+  margin:0!important;
+  padding:9px 5px!important;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:5px;
+  border-radius:15px!important;
+  border:1px solid rgba(120,160,210,.14)!important;
+  background:linear-gradient(180deg,rgba(17,29,47,.80),rgba(8,15,27,.90))!important;
+  color:#cbd9e7!important;
+  box-shadow:inset 0 1px rgba(255,255,255,.025)!important;
+}
+#nxMineQuickAccess .nx-mine-quick-card:active{
+  transform:scale(.97)!important;
+  background:#101c2c!important;
+}
+#nxMineQuickAccess .nx-mine-quick-icon{
+  width:32px;
+  height:32px;
+  display:grid;
+  place-items:center;
+  border-radius:10px;
+  background:#0e1b2c;
+  border:1px solid rgba(90,151,222,.18);
+  color:#67afff;
+}
+#nxMineQuickAccess .nx-mine-quick-card[data-nx-mine-target="tasks"] .nx-mine-quick-icon{color:#63d3b8}
+#nxMineQuickAccess .nx-mine-quick-card[data-nx-mine-target="market"] .nx-mine-quick-icon{color:#b597ff}
+#nxMineQuickAccess .nx-mine-quick-icon svg{
+  width:18px;
+  height:18px;
+  fill:none;
+  stroke:currentColor;
+  stroke-width:1.8;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
+#nxMineQuickAccess .nx-mine-quick-card b{
+  max-width:100%;
+  color:#e7eef7;
+  font-size:9.5px;
+  line-height:1.05;
+  font-weight:820;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+#nxMineQuickAccess .nx-mine-quick-card small{
+  max-width:100%;
+  color:#657a91;
+  font-size:7px;
+  line-height:1;
+  font-weight:700;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+/* Hide duplicate Rewards tile from Nova Hub because Rewards now lives under Mine. */
+#moreMenu .more-item[data-nx-shell-mine-owned="1"]{display:none!important}
+
+/* =========================
+   COMPACT SETTINGS
+========================= */
+body.nx-compact-settings #tab-about{
+  padding-bottom:105px!important;
+}
+body.nx-compact-settings #tab-about>.settings-hero{
+  padding:12px 13px!important;
+  margin-bottom:10px!important;
+  border-radius:17px!important;
+  background:linear-gradient(145deg,#0a1323,#070d18)!important;
+  border:1px solid rgba(114,163,221,.14)!important;
+  box-shadow:none!important;
+}
+body.nx-compact-settings #tab-about>.settings-hero h2{
+  margin:0!important;
+  font-size:16px!important;
+  line-height:1.1!important;
+}
+body.nx-compact-settings #tab-about>.settings-hero .settings-muted{
+  margin-top:3px!important;
+  font-size:9px!important;
+  line-height:1.3!important;
+  color:#7489a1!important;
+}
+body.nx-compact-settings #tab-about>.settings-hero .settings-version{
+  padding:5px 8px!important;
+  border-radius:10px!important;
+  font-size:8px!important;
+}
+body.nx-compact-settings #tab-about>.settings-card[data-nx-settings-source="1"]{
+  display:none!important;
+}
+#nxCompactSettings{
+  display:grid;
+  gap:7px;
+}
+#nxCompactSettings .nx-settings-group{
+  overflow:hidden;
+  margin:0!important;
+  border-radius:15px!important;
+  border:1px solid rgba(119,160,211,.14)!important;
+  background:linear-gradient(180deg,rgba(13,23,39,.92),rgba(8,15,27,.94))!important;
+  box-shadow:none!important;
+}
+#nxCompactSettings .nx-settings-group>summary{
+  list-style:none;
+  cursor:pointer;
+  user-select:none;
+  min-height:51px;
+  padding:10px 12px;
+  display:grid;
+  grid-template-columns:34px minmax(0,1fr) 20px;
+  gap:9px;
+  align-items:center;
+}
+#nxCompactSettings .nx-settings-group>summary::-webkit-details-marker{display:none}
+#nxCompactSettings .nx-settings-group>summary .nx-settings-icon{
+  width:32px;
+  height:32px;
+  display:grid;
+  place-items:center;
+  border-radius:10px;
+  background:#0d1a2a;
+  border:1px solid rgba(91,151,220,.18);
+  color:#6aaff8;
+}
+#nxCompactSettings .nx-settings-group>summary .nx-settings-icon svg{
+  width:17px;
+  height:17px;
+  fill:none;
+  stroke:currentColor;
+  stroke-width:1.8;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
+#nxCompactSettings .nx-settings-group>summary strong{
+  display:block;
+  color:#e3edf8;
+  font-size:10.5px;
+  line-height:1.1;
+  font-weight:820;
+}
+#nxCompactSettings .nx-settings-group>summary small{
+  display:block;
+  margin-top:2px;
+  color:#687d94;
+  font-size:7.5px;
+  line-height:1.2;
+}
+#nxCompactSettings .nx-settings-chevron{
+  color:#61778f;
+  font-size:18px;
+  line-height:1;
+  transform:rotate(0deg);
+  transition:transform .14s ease;
+}
+#nxCompactSettings .nx-settings-group[open] .nx-settings-chevron{transform:rotate(90deg)}
+#nxCompactSettings .nx-settings-body{
+  padding:0 9px 9px;
+  display:grid;
+  gap:6px;
+}
+#nxCompactSettings .settings-row,
+#nxCompactSettings .info-row{
+  min-height:47px!important;
+  margin:0!important;
+  padding:8px 9px!important;
+  border-radius:11px!important;
+  background:rgba(255,255,255,.025)!important;
+  border:1px solid rgba(118,157,207,.09)!important;
+}
+#nxCompactSettings .settings-row strong,
+#nxCompactSettings .info-row span:first-child{
+  font-size:9.5px!important;
+  font-weight:800!important;
+}
+#nxCompactSettings .settings-row small{
+  margin-top:2px!important;
+  font-size:7.5px!important;
+  line-height:1.25!important;
+  color:#687d93!important;
+}
+#nxCompactSettings .settings-btn{
+  min-height:32px!important;
+  padding:6px 9px!important;
+  border-radius:10px!important;
+  font-size:8px!important;
+  box-shadow:none!important;
+}
+#nxCompactSettings .settings-select{
+  min-width:82px!important;
+  min-height:32px!important;
+  padding:4px 7px!important;
+  border-radius:9px!important;
+  font-size:8px!important;
+}
+#nxCompactSettings .settings-actions{
+  display:flex!important;
+  flex-wrap:wrap!important;
+  gap:6px!important;
+}
+#nxCompactSettings .nx-settings-about-copy{
+  margin:0;
+  padding:9px 10px;
+  border-radius:11px;
+  background:rgba(255,255,255,.02);
+  border:1px solid rgba(120,160,208,.08);
+  color:#6f849b;
+  font-size:8px;
+  line-height:1.45;
+}
+#nxCompactSettings .nx-settings-logout{
+  width:100%!important;
+  min-height:39px!important;
+  margin:0!important;
+  border-radius:11px!important;
+}
+
+@media(max-width:360px){
+  body.nx-two-tab-shell .bottom-dock{left:8px!important;right:8px!important}
+  #nxMineQuickAccess .nx-mine-quick-grid{gap:5px}
+  #nxMineQuickAccess .nx-mine-quick-card{min-height:69px;padding-left:3px!important;padding-right:3px!important}
+  #nxMineQuickAccess .nx-mine-quick-card b{font-size:8.8px}
+  #nxMineQuickAccess .nx-mine-quick-card small{font-size:6.5px}
+}
+
+@media(prefers-reduced-motion:reduce){
+  #nxCompactSettings .nx-settings-chevron{transition:none}
+}
