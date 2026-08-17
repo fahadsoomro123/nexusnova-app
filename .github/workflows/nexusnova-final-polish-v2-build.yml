@@ -7,6 +7,7 @@ on:
     paths:
       - '.github/workflows/nexusnova-final-polish-v2-build.yml'
       - 'js/final-integrity-fix.js'
+      - 'js/nexusnova-nova-hub-language-v1.js'
       - 'css/nexusnova-shell-v2.css'
   workflow_dispatch:
 
@@ -42,6 +43,7 @@ jobs:
             case "$file" in
               .github/workflows/nexusnova-final-polish-v2-build.yml|\
               js/final-integrity-fix.js|\
+              js/nexusnova-nova-hub-language-v1.js|\
               css/nexusnova-shell-v2.css) ;;
               *) echo "UNAPPROVED POLISH CHANGE: $file"; exit 1 ;;
             esac
@@ -128,13 +130,21 @@ jobs:
           grep -q 'background:transparent!important;border:0!important' "$WEB/css/nexusnova-shell-v2.css"
           grep -q 'nx-core-card:not(:last-child)::after' "$WEB/css/nexusnova-shell-v2.css"
 
-          # Nova Hub has both CSS scroller hardening and the proven runtime fit guard loaded.
+          # Nova Hub has CSS + runtime scroll protection with old-WebView fallback.
           test -f "$WEB/js/nexusnova-allapps-scroll-fix-v1.js"
           grep -q 'nexusnova-allapps-scroll-fix-v1.js' "$WEB/js/final-integrity-fix.js"
+          grep -q 'height:min(76vh,660px)!important' "$WEB/css/nexusnova-shell-v2.css"
+          grep -q 'height:min(76dvh,660px)!important' "$WEB/css/nexusnova-shell-v2.css"
           grep -q 'overflow-y:scroll!important' "$WEB/css/nexusnova-shell-v2.css"
           grep -q 'touch-action:pan-y!important' "$WEB/css/nexusnova-shell-v2.css"
           grep -q '__nxAllAppsScrollFixV1' "$WEB/js/nexusnova-allapps-scroll-fix-v1.js"
           grep -q "m.style.setProperty('max-height', available + 'px', 'important')" "$WEB/js/nexusnova-allapps-scroll-fix-v1.js"
+
+          # User-facing legacy ALL APPS wording is normalized to Nova Hub.
+          test -f "$WEB/js/nexusnova-nova-hub-language-v1.js"
+          grep -q '__nxNovaHubLanguageV1' "$WEB/js/nexusnova-nova-hub-language-v1.js"
+          grep -q 'nexusnova-nova-hub-language-v1.js' "$WEB/js/final-integrity-fix.js"
+          grep -q "replace(/ALL APPS/g, 'NOVA HUB')" "$WEB/js/nexusnova-nova-hub-language-v1.js"
 
           # Compact settings remains intact.
           grep -q 'More Settings' "$WEB/js/nexusnova-shell-v2.js"
@@ -218,7 +228,9 @@ jobs:
           grep -q 'assets/www/js/nexusnova-shell-v2.js' /tmp/nx_apk_files.txt
           grep -q 'assets/www/css/nexusnova-shell-v2.css' /tmp/nx_apk_files.txt
           grep -q 'assets/www/js/nexusnova-allapps-scroll-fix-v1.js' /tmp/nx_apk_files.txt
+          grep -q 'assets/www/js/nexusnova-nova-hub-language-v1.js' /tmp/nx_apk_files.txt
           unzip -p "$APK" assets/www/js/final-integrity-fix.js | grep -q 'nexusnova-allapps-scroll-fix-v1.js'
+          unzip -p "$APK" assets/www/js/final-integrity-fix.js | grep -q 'nexusnova-nova-hub-language-v1.js'
           unzip -p "$APK" assets/www/css/nexusnova-shell-v2.css | grep -q 'Mining essentials: one integrated strip'
           unzip -p "$APK" assets/www/css/nexusnova-shell-v2.css | grep -q 'overflow-y:scroll!important'
           sha256sum "$APK"
