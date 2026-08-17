@@ -52,23 +52,24 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          import re
           p = Path('NexusNovaAndroid/app/src/main/assets/www/js/page2-core.js')
           s = p.read_text(encoding='utf-8')
           auth = s.find('/* =========================================================\n   AUTH\n========================================================= */')
           if auth < 0:
               raise SystemExit('AUTH section missing from prepared dashboard')
-          tail = s[auth:]
-          pattern = re.compile(r'(?:window\.)?location\.replace\s*\(\s*["\']\./index\.html["\']\s*\)\s*;', re.S)
-          m = pattern.search(tail)
-          if m:
-              guard = 'if(new URLSearchParams(window.location.search).has("stabilityTest")) return;\n            '
-              pos = auth + m.start()
-              s = s[:pos] + guard + s[pos:]
-              p.write_text(s, encoding='utf-8')
-              print('Prepared CI-only post-login dashboard stability fixture.')
-          else:
-              print('Prepared shell has no direct signed-out redirect expression; no CI auth guard needed.')
+          # The final Android auth hardening deliberately schedules a signed-out
+          # redirect after a grace period. Full-page stability models the state
+          # immediately after a successful login, while auth redirect behavior is
+          # covered by a separate auth regression. Suppress only that redirect in
+          # the CI-only stabilityTest fixture; production APK code is untouched.
+          needle = '''        if(!user){\n            if (nxAuthNullRedirectTimer) clearTimeout(nxAuthNullRedirectTimer);'''
+          pos = s.find(needle, auth)
+          if pos < 0:
+              raise SystemExit('Current Android signed-out auth gate missing from prepared dashboard')
+          replacement = '''        if(!user){\n            if(new URLSearchParams(window.location.search).has("stabilityTest")) return;\n            if (nxAuthNullRedirectTimer) clearTimeout(nxAuthNullRedirectTimer);'''
+          s = s[:pos] + s[pos:].replace(needle, replacement, 1)
+          p.write_text(s, encoding='utf-8')
+          print('Prepared CI-only post-login dashboard stability fixture; production auth redirect remains unchanged.')
           PY
 
       - name: Start local NexusNova origin
