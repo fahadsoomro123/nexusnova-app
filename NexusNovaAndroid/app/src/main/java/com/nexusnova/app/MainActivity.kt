@@ -651,8 +651,30 @@ class MainActivity : AppCompatActivity() {
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
-        if (this::webView.isInitialized && webView.canGoBack()) webView.goBack()
-        else super.onBackPressed()
+        if (!this::webView.isInitialized) {
+            showExitConfirmation()
+            return
+        }
+
+        webView.evaluateJavascript(SYSTEM_BACK_SCRIPT) { raw ->
+            if (isFinishing || isDestroyed) return@evaluateJavascript
+            val result = raw?.trim()?.trim('"')
+            if (result != "handled") showExitConfirmation()
+        }
+    }
+
+    private fun showExitConfirmation() {
+        if (isFinishing || isDestroyed) return
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Exit NexusNova?")
+            .setMessage("Do you want to exit NexusNova?")
+            .setNegativeButton("NO") { dialog, _ -> dialog.dismiss() }
+            .setPositiveButton("YES") { dialog, _ ->
+                dialog.dismiss()
+                finishAndRemoveTask()
+            }
+            .setCancelable(true)
+            .show()
     }
 
     private companion object {
@@ -693,6 +715,17 @@ class MainActivity : AppCompatActivity() {
         const val BLANK_SCREEN_GRACE_MS = 3_500L
         const val WEB_RECOVERY_RELOAD_DELAY_MS = 350L
         const val MAX_WEB_RECOVERY_ATTEMPTS = 1
+        const val SYSTEM_BACK_SCRIPT = """
+            (function(){
+              try {
+                var ux = window.NexusNovaUxSimplify;
+                if (ux && typeof ux.systemBack === 'function') {
+                  return ux.systemBack() ? 'handled' : 'root';
+                }
+              } catch (_) {}
+              return 'root';
+            })();
+        """
         const val BLANK_SCREEN_PROBE = """
             (function(){
               try {
