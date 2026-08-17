@@ -17,7 +17,23 @@ const browser = await chromium.launch({ headless: true });
 
 async function waitForShell(page, label) {
   await page.locator('#moreBtn').waitFor({ state: 'visible', timeout: 10000 });
-  await page.locator('#tab-home').waitFor({ state: 'attached', timeout: 10000 });
+  const diag = await page.evaluate(() => ({
+    href: location.href,
+    readyState: document.readyState,
+    title: document.title,
+    more: Boolean(document.getElementById('moreBtn')),
+    home: Boolean(document.getElementById('tab-home')),
+    wallet: Boolean(document.getElementById('tab-wallet')),
+    tasks: Boolean(document.getElementById('tab-tasks')),
+    market: Boolean(document.getElementById('tab-market')),
+    dock: Boolean(document.querySelector('.bottom-dock')),
+    tabs: document.querySelectorAll('.tab').length,
+    splash: Boolean(document.getElementById('nxSplash')),
+    native: window.__nexusAndroidShell === true,
+    bodyStart: (document.body?.innerText || '').slice(0, 220)
+  }));
+  console.log(`DIAG ${label} ${JSON.stringify(diag)}`);
+  assert.equal(diag.home, true, `${label}: tab-home missing immediately after moreBtn became visible: ${JSON.stringify(diag)}`);
   await page.waitForFunction(() => window.__nexusAndroidShell === true, null, { timeout: 10000 });
   const splash = await page.locator('#nxSplash').count();
   if (splash) {
@@ -61,6 +77,7 @@ async function scenario(name, delayedProbe = false) {
     const page = await context.newPage();
     page.setDefaultTimeout(6000);
     const severe = [];
+    page.on('framenavigated', frame => { if (frame === page.mainFrame()) console.log(`NAV ${name} -> ${frame.url()}`); });
     page.on('pageerror', error => {
       const text = String(error?.message || error || '');
       if (/Failed to fetch|ERR_FAILED|dynamically imported module/i.test(text)) return;
