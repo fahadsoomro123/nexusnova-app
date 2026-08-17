@@ -18,12 +18,11 @@ jobs:
     steps:
       - name: Checkout exact checkpoint branch
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
 
       - name: Prove application source is unchanged from 0b6b856
         run: |
-          git diff --exit-code 0b6b856e25204d40b7172482cd2886ff30e80325 -- \
+          git fetch --no-tags --depth=1 origin 0b6b856e25204d40b7172482cd2886ff30e80325
+          git diff --exit-code FETCH_HEAD -- \
             index.html page2.html referral.html styles.css manifest.webmanifest css js \
             NexusNovaAndroid \
             ':!NexusNovaAndroid/app/build/**'
