@@ -90,6 +90,40 @@ NATIVE_HEAD = '''<script id="nxAndroidNativeShellBootstrap">
 </script>
 '''
 
+# Login/referral pages keep the exact same visual splash. This bootstrap only
+# guarantees that the overlay releases even when window.load is delayed by
+# reCAPTCHA, fonts, Firebase, or another optional network request.
+NATIVE_SIMPLE_HEAD = '''<script id="nxAndroidNativeShellBootstrap">
+(function(){
+  'use strict';
+  window.__nexusAndroidShell = true;
+  window.__nexusEmergencyAppassets = location.origin === 'https://appassets.androidplatform.net';
+  function releaseSplash(){
+    try {
+      var splash = document.getElementById('nxSplash');
+      if(!splash) return false;
+      splash.style.setProperty('pointer-events','none','important');
+      splash.style.setProperty('opacity','0','important');
+      splash.style.setProperty('visibility','hidden','important');
+      splash.classList.add('hide');
+      setTimeout(function(){ try { splash.remove(); } catch (_) {} }, 450);
+      return true;
+    } catch (_) { return false; }
+  }
+  // Keep the branded splash visible normally, but never let it wait forever
+  // for window.load on a slow/blocked mobile connection.
+  setTimeout(releaseSplash, 3200);
+  setTimeout(releaseSplash, 5200);
+  if(document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function(){
+      setTimeout(releaseSplash, 3000);
+    }, {once:true});
+  }
+  window.__nexusAndroidReleaseSplash = releaseSplash;
+})();
+</script>
+'''
+
 
 def patch_android_startup_assets():
     """Remove remote resources from the Android critical-render path.
@@ -124,7 +158,7 @@ def patch_html(path: Path, dashboard: bool):
         marker = '<head>'
         if marker not in text:
             raise SystemExit(f'{path}: <head> marker missing')
-        injection = NATIVE_HEAD if dashboard else '''<script id="nxAndroidNativeShellBootstrap">window.__nexusAndroidShell=true;window.__nexusEmergencyAppassets=location.origin==='https://appassets.androidplatform.net';</script>\n'''
+        injection = NATIVE_HEAD if dashboard else NATIVE_SIMPLE_HEAD
         text = text.replace(marker, marker + '\n' + injection, 1)
 
     text = text.replace(
@@ -204,13 +238,18 @@ missing = [str(path) for path in required if not path.exists()]
 if missing:
     raise SystemExit('Android shell sync missing: ' + ', '.join(missing))
 
+index = (ASSETS / 'index.html').read_text(encoding='utf-8')
 page2 = (ASSETS / 'page2.html').read_text(encoding='utf-8')
 styles = (ASSETS / 'styles.css').read_text(encoding='utf-8')
 rewards = (ASSETS / 'js/rewards-security-v1.js').read_text(encoding='utf-8')
 if 'window.__nexusAndroidShell = true' not in page2 or 'window.__nexusInteractiveReady = true' not in page2:
     raise SystemExit('Android interactive bootstrap was not embedded')
 if 'window.__nexusAndroidReleaseSplash = releaseSplash' not in page2:
-    raise SystemExit('Android startup splash safety release was not embedded')
+    raise SystemExit('Android dashboard splash safety release was not embedded')
+if 'window.__nexusAndroidReleaseSplash = releaseSplash' not in index:
+    raise SystemExit('Android login splash safety release was not embedded')
+if 'setTimeout(releaseSplash, 3200)' not in index:
+    raise SystemExit('Android login hard splash timeout was not embedded')
 if 'if (!window.__nexusAndroidShell && "serviceWorker" in navigator)' not in page2:
     raise SystemExit('Android service-worker bypass was not embedded')
 if '@import url("https://fonts.googleapis.com/' in styles:
@@ -220,4 +259,4 @@ if '<script async src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"' no
 if 'android-appassets-readonly-guard-v2' not in rewards or 'ONLINE MINING REQUIRED' not in rewards:
     raise SystemExit('Android emergency appassets rewards guard was not embedded')
 
-print('Prepared deterministic NexusNova Android web shell with network-independent startup and read-only emergency fallback.')
+print('Prepared deterministic NexusNova Android web shell with preserved UI, login/dashboard splash safety, and read-only emergency fallback.')
