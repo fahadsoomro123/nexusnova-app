@@ -15,7 +15,7 @@
     if ($(`link[${CSS_MARKER}]`)) return;
     const link = document.createElement('link');
     link.rel = 'stylesheet';
-    link.href = './css/nexusnova-modern-ui-v1.css?v=20260817-modern1';
+    link.href = './css/nexusnova-modern-ui-v1.css?v=20260817-modern2';
     link.setAttribute(CSS_MARKER, '1');
     document.head.appendChild(link);
   }
@@ -29,31 +29,36 @@
   }
 
   function labelNode(button) {
-    const spans = qsa(':scope > span', button);
-    return spans[spans.length - 1] || null;
+    return qsa(':scope > span', button)
+      .filter(node => !node.classList.contains('mi-icon') && !node.classList.contains('nx-brand-app-badge'))
+      .pop() || null;
+  }
+
+  function setText(node, value) {
+    if (node && String(node.textContent || '').trim() !== value) node.textContent = value;
   }
 
   function renameHubLanguage() {
     const moreBtn = $('#moreBtn');
     const label = moreBtn ? labelNode(moreBtn) : null;
-    if (label && label.textContent.trim() !== 'Nova Hub') label.textContent = 'Nova Hub';
+    setText(label,'Nova Hub');
     if (moreBtn) {
-      moreBtn.setAttribute('aria-label', 'Open Nova Hub');
-      moreBtn.title = 'Nova Hub';
+      if (moreBtn.getAttribute('aria-label') !== 'Open Nova Hub') moreBtn.setAttribute('aria-label','Open Nova Hub');
+      if (moreBtn.title !== 'Nova Hub') moreBtn.title = 'Nova Hub';
     }
 
     qsa('[aria-label*="ALL APPS" i],[title*="ALL APPS" i]').forEach(node => {
-      if (node.hasAttribute('aria-label')) node.setAttribute('aria-label', node.getAttribute('aria-label').replace(/ALL APPS/gi,'Nova Hub'));
-      if (node.hasAttribute('title')) node.setAttribute('title', node.getAttribute('title').replace(/ALL APPS/gi,'Nova Hub'));
+      if (node.hasAttribute('aria-label')) node.setAttribute('aria-label',node.getAttribute('aria-label').replace(/ALL APPS/gi,'Nova Hub'));
+      if (node.hasAttribute('title')) node.setAttribute('title',node.getAttribute('title').replace(/ALL APPS/gi,'Nova Hub'));
     });
 
-    qsa('#nxUxBackHint').forEach(node => { if (/all apps/i.test(node.textContent || '')) node.textContent = 'NOVA HUB'; });
+    qsa('#nxUxBackHint').forEach(node => { if (/all apps/i.test(node.textContent || '')) setText(node,'NOVA HUB'); });
   }
 
   function ensureHeader() {
     const inner = $('#moreMenu .more-inner');
     if (!inner) return null;
-    let header = $('#nxNovaHubHeader', inner);
+    let header = $('#nxNovaHubHeader',inner);
     if (!header) {
       header = document.createElement('div');
       header.id = 'nxNovaHubHeader';
@@ -64,7 +69,7 @@
         </div>
         <button id="nxNovaHubClose" type="button" aria-label="Close Nova Hub">×</button>`;
       inner.prepend(header);
-      $('#nxNovaHubClose', header)?.addEventListener('click', () => {
+      $('#nxNovaHubClose',header)?.addEventListener('click',() => {
         try { $('#moreBtn')?.click(); } catch (_) { $('#moreMenu')?.classList.remove('show'); }
       });
     }
@@ -74,40 +79,22 @@
   function ensureSectionLabel() {
     const inner = $('#moreMenu .more-inner');
     if (!inner) return;
-    let node = $('#nxNovaHubSection', inner);
+    let node = $('#nxNovaHubSection',inner);
     if (!node) {
       node = document.createElement('div');
       node.id = 'nxNovaHubSection';
       node.innerHTML = '<b>Apps & tools</b><span>Tap an icon to open</span>';
-      const search = $('#nxAllAppsSmartSearch', inner);
-      if (search?.nextSibling) inner.insertBefore(node, search.nextSibling);
+      const search = $('#nxAllAppsSmartSearch',inner);
+      if (search?.nextSibling) inner.insertBefore(node,search.nextSibling);
       else inner.appendChild(node);
     }
   }
 
   const LABELS = Object.freeze({
-    'tools':'Tools',
-    'speed-test':'Speed Test',
-    'productivity':'Nova Desk',
-    'ai':'AI Assistant',
-    'browser':'Browser',
-    'finance':'Gold & FX',
-    'news':'News',
-    'chat':'Chat',
-    'location':'Location',
-    'emergency':'SOS',
-    'family':'Family',
-    'profile':'Profile',
-    'tasks':'Rewards',
-    'money':'Budget',
-    'learn':'Learn',
-    'travel':'Travel',
-    'health':'Health',
-    'smart':'Smart Tools',
-    'qibla':'Qibla',
-    'entertainment':'Entertainment',
-    'caller-id':'Caller ID',
-    'about':'Settings'
+    'tools':'Tools','speed-test':'Speed Test','productivity':'Nova Desk','ai':'AI Assistant','browser':'Browser',
+    'finance':'Gold & FX','news':'News','chat':'Chat','location':'Location','emergency':'SOS','family':'Family',
+    'profile':'Profile','tasks':'Rewards','money':'Budget','learn':'Learn','travel':'Travel','health':'Health',
+    'smart':'Smart Tools','qibla':'Qibla','entertainment':'Entertainment','caller-id':'Caller ID','about':'Settings'
   });
 
   const PRIORITY = [
@@ -119,18 +106,21 @@
     const inner = $('#moreMenu .more-inner');
     if (!inner) return;
     const seen = new Set();
-    qsa('.more-item', inner).forEach((tile, index) => {
+    qsa('.more-item',inner).forEach((tile,index) => {
       const target = targetOf(tile);
-      if (target) tile.dataset.nxHubTarget = target;
+      if (target && tile.dataset.nxHubTarget !== target) tile.dataset.nxHubTarget = target;
       const label = labelNode(tile);
-      if (label && LABELS[target]) label.textContent = LABELS[target];
+      if (label && LABELS[target]) setText(label,LABELS[target]);
       const priority = PRIORITY.indexOf(target);
-      tile.style.setProperty('order', String(priority >= 0 ? priority : 80 + index), 'important');
+      const order = String(priority >= 0 ? priority : 80 + index);
+      if (tile.style.getPropertyValue('order') !== order || tile.style.getPropertyPriority('order') !== 'important') {
+        tile.style.setProperty('order',order,'important');
+      }
       if (target) {
         const key = `${target}:${String(label?.textContent || '').trim().toLowerCase()}`;
         if (seen.has(key)) {
-          tile.hidden = true;
-          tile.setAttribute('aria-hidden','true');
+          if (!tile.hidden) tile.hidden = true;
+          if (tile.getAttribute('aria-hidden') !== 'true') tile.setAttribute('aria-hidden','true');
         } else {
           seen.add(key);
           if (tile.hidden && tile.getAttribute('aria-hidden') === 'true') {
@@ -144,19 +134,28 @@
 
   function promoteNovaDesk() {
     const tile = $('#moreMenu .more-item[data-nxmega="productivity"]');
-    if (!tile) return;
-    const label = labelNode(tile);
-    if (label) label.textContent = 'Nova Desk';
-    tile.setAttribute('aria-label','Open Nova Desk');
+    if (tile) {
+      setText(labelNode(tile),'Nova Desk');
+      if (tile.getAttribute('aria-label') !== 'Open Nova Desk') tile.setAttribute('aria-label','Open Nova Desk');
+    }
+    const tab = $('#tab-productivity');
+    if (!tab) return;
+    setText($('.nxpd-hero h2',tab),'Nova Desk');
+    const kicker = $('.nxpd-kicker',tab);
+    if (kicker && !/NOVA DESK/i.test(kicker.textContent || '')) setText(kicker,'NEXUSNOVA • NOVA DESK');
+    const copy = $('.nxpd-hero p',tab);
+    if (copy && !/text, dates and quick office tasks/i.test(copy.textContent || '')) {
+      setText(copy,'Private text, dates and quick office tasks — saved locally on your device.');
+    }
   }
 
   function polishSearchCopy() {
     const panel = $('#nxAllAppsSmartSearch');
     if (!panel) return;
-    const input = $('[data-smart-input]', panel);
-    if (input) input.placeholder = 'Search Nova Hub…';
-    const status = $('[data-smart-status]', panel);
-    if (status && /Type what you need/i.test(status.textContent || '')) status.textContent = 'Find any NexusNova tool instantly.';
+    const input = $('[data-smart-input]',panel);
+    if (input && input.placeholder !== 'Search Nova Hub…') input.placeholder = 'Search Nova Hub…';
+    const status = $('[data-smart-status]',panel);
+    if (status && /Type what you need/i.test(status.textContent || '')) setText(status,'Find any NexusNova tool instantly.');
   }
 
   function apply() {
@@ -169,7 +168,6 @@
     normalizeTiles();
     polishSearchCopy();
     try { window.NexusNovaUxSimplify?.refresh?.(); } catch (_) {}
-    try { window.NexusNovaBranding?.refresh?.(); } catch (_) {}
   }
 
   let queued = false;
@@ -179,7 +177,7 @@
     requestAnimationFrame(() => { queued = false; apply(); });
   }
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', apply, {once:true});
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded',apply,{once:true});
   else apply();
 
   const observer = new MutationObserver(queue);
@@ -187,5 +185,5 @@
   if (document.body) start(); else document.addEventListener('DOMContentLoaded',start,{once:true});
   [200,600,1200,2400,5000].forEach(ms => setTimeout(apply,ms));
 
-  window.NexusNovaModernUI = Object.freeze({version:'1.0.0',refresh:apply});
+  window.NexusNovaModernUI = Object.freeze({version:'1.0.1',refresh:apply});
 })();
