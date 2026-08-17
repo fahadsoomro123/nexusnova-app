@@ -1,5 +1,5 @@
 /* NexusNova Service Worker - fresh-code first, bounded network + offline fallback + FCM web push */
-const CACHE = "nexusnova-shell-v18-nova-vault";
+const CACHE = "nexusnova-shell-v19-existing-app-adfix";
 
 const ASSETS = [
   "./",
@@ -39,6 +39,7 @@ const ASSETS = [
   "./js/nexusnova-daily-secure-claim-v1.js?v=1",
   "./js/nexusnova-ad-placements-v1.js?v=3",
   "./js/nexusnova-watch-ad-reward-v1.js?v=1",
+  "./js/nexusnova-existing-app-ad-hotfix-v2.js?v=20260817-0926",
   "./js/nexusnova-ad-privacy-v1.js?v=1",
   "./js/nexusnova-admob-diagnostics-v1.js",
   /* Compatibility filename; implementation is the AdMob Mining Boost bridge. */
