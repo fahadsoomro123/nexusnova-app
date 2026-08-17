@@ -1,4 +1,4 @@
-/* NexusNova UX Simplify v2.0.0
+/* NexusNova UX Simplify v2.0.1
    Compact, contextual navigation for NexusNova.
    - No giant generic Back strip.
    - Small inline Back control inside sub-apps.
@@ -73,6 +73,7 @@
       button = document.createElement('button');
       button.type = 'button';
       button.className = BACK_CLASS;
+      button.hidden = true;
       button.setAttribute('aria-label','Back to Nova Hub');
       button.title = 'Back to Nova Hub';
       button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>';
@@ -80,6 +81,10 @@
       tab.insertBefore(button, tab.firstElementChild || null);
     }
     return button;
+  }
+
+  function setHidden(node, hidden) {
+    if (node && node.hidden !== hidden) node.hidden = hidden;
   }
 
   function visibleReader() {
@@ -175,7 +180,18 @@
   function setButton(button, enabled, label) {
     if (!button) return;
     button.disabled = !enabled;
-    if (label) button.textContent = label;
+    if (label && button.textContent !== label) button.textContent = label;
+  }
+
+  function syncInlineBacks(active, shouldShow) {
+    qsa(`main .tab > .${BACK_CLASS}, main.main .tab > .${BACK_CLASS}`).forEach(button => {
+      const show = shouldShow && button.parentElement === active;
+      setHidden(button,!show);
+    });
+    if (shouldShow && active) {
+      const button = ensureInlineBack(active);
+      setHidden(button,false);
+    }
   }
 
   function render() {
@@ -188,9 +204,8 @@
     const prev = document.getElementById('nxUxPrev');
     const next = document.getElementById('nxUxNext');
 
-    qsa(`main .tab > .${BACK_CLASS}, main.main .tab > .${BACK_CLASS}`).forEach(button => { button.hidden = true; });
-
     if (reader) {
+      syncInlineBacks(tab,false);
       const controls = readerControls(reader);
       bar.classList.add('show','reader');
       setButton(prev,Boolean(controls.prev),'← PREV');
@@ -202,10 +217,8 @@
     if (prev) prev.disabled = true;
     if (next) next.disabled = true;
 
-    if (!menuOpen() && tab && tabName && !CORE.has(tabName)) {
-      const button = ensureInlineBack(tab);
-      if (button) button.hidden = false;
-    }
+    const shouldShowInline = Boolean(!menuOpen() && tab && tabName && !CORE.has(tabName));
+    syncInlineBacks(tab,shouldShowInline);
   }
 
   function scheduleRender() {
@@ -233,7 +246,7 @@
   [250,700,1500,3000,6000].forEach(ms => setTimeout(scheduleRender,ms));
 
   window.NexusNovaUxSimplify = Object.freeze({
-    version:'2.0.0',
+    version:'2.0.1',
     refresh:scheduleRender,
     back:goBackContextually,
     systemBack:handleSystemBack
