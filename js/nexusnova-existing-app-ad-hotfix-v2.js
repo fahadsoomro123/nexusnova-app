@@ -5,6 +5,7 @@
    - Keep Tasks > Watch Ad completely independent from Mining Booster/Nova Rain.
    - Show capped TEST interstitials after meaningful utility use, not only after
      pressing an in-app Back button.
+   - Provide a TEST rewarded preview even while Daily Reward is on cooldown.
    - Preserve the 3-minute native cooldown, max 4 interstitials per session and
      all protected/ad-free NexusNova areas.
    - No APK/native rebuild and no NVX/mining value mutation.
@@ -17,6 +18,7 @@
   const WATCH_BUTTON_ID = 'nxWatchAdRewardBtn';
   const WATCH_LABEL = 'WATCH REWARDED AD (+2.5 NVX)';
   const TASKS_ID = 'tab-tasks';
+  const PREVIEW_BUTTON_ID = 'nxAdRewardedPreviewV2';
   let taskObserver = null;
   let repairQueued = false;
   let lastInterstitialAttemptAt = 0;
@@ -92,6 +94,34 @@
     taskObserver.observe(tasks, { childList:true, subtree:true, attributes:true, attributeFilter:['id','disabled','onclick'] });
   }
 
+  function ensureRewardedPreviewButton() {
+    const card = document.getElementById('nxAdTestSettingsCard');
+    if (!card || document.getElementById(PREVIEW_BUTTON_ID)) return;
+    const refresh = card.querySelector('#nxAdRefreshStatus');
+    if (!refresh) return;
+
+    const button = document.createElement('button');
+    button.id = PREVIEW_BUTTON_ID;
+    button.type = 'button';
+    button.className = 'action-btn primary';
+    button.style.width = '100%';
+    button.style.marginTop = '8px';
+    button.textContent = 'TEST REWARDED AD PREVIEW • NO NVX';
+    button.addEventListener('click', () => {
+      const status = document.getElementById('nxAdTestSettingsStatus');
+      const ads = window.NexusNovaAds;
+      if (!ads?.requestRewarded) {
+        if (status) status.textContent = 'Rewarded TEST service is still loading. Try again in a moment.';
+        return;
+      }
+      const result = ads.requestRewarded('daily-reward-test', { previewOnly:true, testOnly:true });
+      if (status) status.textContent = result?.shown
+        ? 'Opening Google TEST rewarded preview • this never adds NVX.'
+        : 'TEST rewarded ad is not ready yet. Try Refresh Test Ad Status.';
+    });
+    refresh.insertAdjacentElement('beforebegin', button);
+  }
+
   function featureFromElement(element) {
     const tab = element?.closest?.('.tab[id^="tab-"]');
     return String(tab?.id || '').replace(/^tab-/, '').trim().toLowerCase();
@@ -153,7 +183,7 @@
       return;
     }
 
-    if (action.closest('.nx-allapps-back,.tools-main-back,.bottom-dock,#moreMenu')) return;
+    if (action.closest('.nx-allapps-back,.tools-main-back,.bottom-dock,#moreMenu,#nxAdTestSettingsCard')) return;
     scheduleUtilityInterstitial(action, 'utility-result');
   }, false);
 
@@ -167,14 +197,19 @@
   }, false);
 
   // Keep the task separation intact after every native ad status/reward event.
-  window.addEventListener('nexusnova:native-ad-event', queueRepair);
+  window.addEventListener('nexusnova:native-ad-event', () => {
+    queueRepair();
+    ensureRewardedPreviewButton();
+  });
 
   function boot() {
     repairTaskWatchAd();
     installTaskGuard();
+    ensureRewardedPreviewButton();
     [200,500,1000,1800,3000,5000,8000,12000,18000].forEach(ms => setTimeout(() => {
       repairTaskWatchAd();
       installTaskGuard();
+      ensureRewardedPreviewButton();
     }, ms));
   }
 
