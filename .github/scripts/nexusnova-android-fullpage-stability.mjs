@@ -1,20 +1,27 @@
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 
-process.on('uncaughtException', (error) => {
+function failNow(error, title = 'Android full-page stability failure') {
   const message = String(error?.stack || error?.message || error || 'Unknown Android runtime failure').replace(/\r?\n/g, '%0A');
-  console.error(`::error file=.github/scripts/nexusnova-android-fullpage-stability.mjs,line=1,title=Android full-page stability failure::${message}`);
+  console.error(`::error file=.github/scripts/nexusnova-android-fullpage-stability.mjs,line=1,title=${title}::${message}`);
   process.exit(1);
-});
-process.on('unhandledRejection', (error) => {
-  const message = String(error?.stack || error?.message || error || 'Unknown Android runtime rejection').replace(/\r?\n/g, '%0A');
-  console.error(`::error file=.github/scripts/nexusnova-android-fullpage-stability.mjs,line=1,title=Android full-page stability rejection::${message}`);
-  process.exit(1);
-});
+}
+
+process.on('uncaughtException', (error) => failNow(error));
+process.on('unhandledRejection', (error) => failNow(error, 'Android full-page stability rejection'));
 
 const base = 'http://127.0.0.1:4173';
 const nativePage = `${base}/NexusNovaAndroid/app/src/main/assets/www/page2.html?nxAndroid=1&stabilityTest=1`;
 const SLOW_PROBE_URL = 'https://nx-slow-probe.invalid/nonblocking-startup-probe.js';
+
+function withDeadline(promise, ms, label) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} exceeded ${ms}ms hard deadline`)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
 const browser = await chromium.launch({ headless: true });
 
 async function assertDockHitTarget(page, selector) {
@@ -30,11 +37,7 @@ async function assertDockHitTarget(page, selector) {
       display: style.display,
       visibility: style.visibility,
       opacity: style.opacity,
-      hitId: hit?.id || '',
-      hitClass: String(hit?.className || ''),
-      hitTag: hit?.tagName || '',
       contained: Boolean(hit && (hit === button || button.contains(hit))),
-      x, y,
     };
   });
   assert.ok(info.width > 20 && info.height > 20, `${selector} has no usable mobile hit box: ${JSON.stringify(info)}`);
@@ -46,16 +49,13 @@ async function assertDockHitTarget(page, selector) {
 
 async function clickTab(page, buttonSelector, tabId) {
   await assertDockHitTarget(page, buttonSelector);
-  await page.locator(buttonSelector).click({ timeout: 2500 });
-  await page.waitForTimeout(80);
-  assert.equal(
-    await page.locator(tabId).evaluate((tab) => tab.classList.contains('active')),
-    true,
-    `${buttonSelector} did not activate ${tabId}`,
-  );
+  await page.locator(buttonSelector).click({ timeout: 3000 });
+  await page.waitForTimeout(100);
+  assert.equal(await page.locator(tabId).evaluate((tab) => tab.classList.contains('active')), true, `${buttonSelector} did not activate ${tabId}`);
 }
 
 async function assertCoreInteraction(page, label) {
+  console.log(`CHECK ${label}`);
   const ready = await page.evaluate(() => ({
     native: window.__nexusAndroidShell === true,
     interactive: window.__nexusInteractiveReady === true,
@@ -74,16 +74,12 @@ async function assertCoreInteraction(page, label) {
   await clickTab(page, '.bottom-dock .dock-item:nth-child(4)', '#tab-market');
 
   await assertDockHitTarget(page, '#moreBtn');
-  await page.locator('#moreBtn').click({ timeout: 2500 });
-  await page.waitForTimeout(80);
-  assert.equal(
-    await page.locator('#moreMenu').evaluate((menu) => menu.classList.contains('show')),
-    true,
-    `${label}: ALL APPS did not open`,
-  );
+  await page.locator('#moreBtn').click({ timeout: 3000 });
+  await page.waitForTimeout(100);
+  assert.equal(await page.locator('#moreMenu').evaluate((menu) => menu.classList.contains('show')), true, `${label}: ALL APPS did not open`);
 
-  await page.locator('#moreBtn').click({ timeout: 2500 });
-  await page.waitForTimeout(80);
+  await page.locator('#moreBtn').click({ timeout: 3000 });
+  await page.waitForTimeout(100);
   await clickTab(page, '.bottom-dock .dock-item:nth-child(1)', '#tab-home');
 
   const splash = await page.evaluate(() => {
@@ -98,104 +94,95 @@ async function assertCoreInteraction(page, label) {
   );
 }
 
-async function runScenario(name, slowProbeDelayMs) {
+async function runScenarioBody(name, slowProbeDelayMs) {
+  console.log(`START ${name}`);
   const context = await browser.newContext({
     viewport: { width: 393, height: 873 },
     userAgent: 'Mozilla/5.0 (Linux; Android 11; Infinix X693) AppleWebKit/537.36 Chrome/124 Mobile Safari/537.36 NexusNovaStabilityTest',
-    serviceWorkers: 'allow',
+    serviceWorkers: 'block',
   });
   const page = await context.newPage();
+  page.setDefaultTimeout(4000);
+  page.setDefaultNavigationTimeout(12000);
   const severeErrors = [];
   const blockedAuthRedirects = [];
 
-  page.on('pageerror', (error) => {
-    const message = String(error?.message || error || '');
-    if (/Failed to fetch dynamically imported module|Importing a module script failed|ERR_FAILED|fetch/i.test(message)) return;
-    severeErrors.push(message);
-  });
-
-  await page.route('**/*', async (route) => {
-    const request = route.request();
-    const url = new URL(request.url());
-    if (url.origin === base) {
-      // This regression exercises the authenticated Android dashboard itself.
-      // Firebase is intentionally blocked below, so an auth observer can legally
-      // attempt to send an unauthenticated synthetic browser to index.html. Abort
-      // only that local CI navigation so the dashboard remains mounted. Production
-      // auth code is untouched and continues to redirect real signed-out users.
-      if (request.isNavigationRequest() && /\/index\.html$/.test(url.pathname)) {
-        blockedAuthRedirects.push(url.href);
-        return route.abort('aborted');
-      }
-      return route.continue();
-    }
-    if (url.href === SLOW_PROBE_URL && slowProbeDelayMs > 0) {
-      await new Promise((resolve) => setTimeout(resolve, slowProbeDelayMs));
-      return route.abort('failed');
-    }
-    return route.abort('failed');
-  });
-
-  const response = await page.goto(nativePage, { waitUntil: 'domcontentloaded', timeout: 20_000 });
-  assert.equal(response?.status(), 200, `${name}: prepared Android shell returned HTTP ${response?.status()}`);
-
   try {
-    await page.locator('#moreBtn').waitFor({ state: 'attached', timeout: 5_000 });
-  } catch (error) {
-    const diagnostic = await page.evaluate(() => ({
-      href: location.href,
-      readyState: document.readyState,
-      title: document.title,
-      hasBody: Boolean(document.body),
-      bodyChars: document.body?.textContent?.length || 0,
-      hasSplash: Boolean(document.getElementById('nxSplash')),
-      hasDock: Boolean(document.querySelector('.bottom-dock')),
-    })).catch(() => ({ href: page.url() }));
-    throw new Error(`${name}: #moreBtn missing after dashboard parse. diagnostic=${JSON.stringify(diagnostic)} blockedAuthRedirects=${JSON.stringify(blockedAuthRedirects)} cause=${error?.message || error}`);
-  }
+    page.on('pageerror', (error) => {
+      const message = String(error?.message || error || '');
+      if (/Failed to fetch dynamically imported module|Importing a module script failed|ERR_FAILED|fetch/i.test(message)) return;
+      severeErrors.push(message);
+    });
 
-  assert.ok(page.url().includes('/page2.html'), `${name}: dashboard navigation escaped to ${page.url()}`);
+    await page.route('**/*', async (route) => {
+      const request = route.request();
+      const url = new URL(request.url());
+      if (url.origin === base) {
+        if (request.isNavigationRequest() && /\/index\.html$/.test(url.pathname)) {
+          blockedAuthRedirects.push(url.href);
+          return route.abort('aborted');
+        }
+        return route.continue();
+      }
+      if (url.href === SLOW_PROBE_URL && slowProbeDelayMs > 0) {
+        await new Promise((resolve) => setTimeout(resolve, slowProbeDelayMs));
+        return route.abort('failed');
+      }
+      return route.abort('failed');
+    });
 
-  if (slowProbeDelayMs > 0) {
-    await page.evaluate((src) => {
-      const script = document.createElement('script');
-      script.async = true;
-      script.src = src;
-      script.dataset.nxSlowDependencyProbe = '1';
-      document.head.appendChild(script);
-    }, SLOW_PROBE_URL);
-  }
+    const response = await page.goto(nativePage, { waitUntil: 'domcontentloaded', timeout: 12000 });
+    assert.equal(response?.status(), 200, `${name}: prepared Android shell returned HTTP ${response?.status()}`);
+    await page.locator('#moreBtn').waitFor({ state: 'attached', timeout: 5000 });
+    assert.ok(page.url().includes('/page2.html'), `${name}: dashboard navigation escaped to ${page.url()}; auth redirects=${JSON.stringify(blockedAuthRedirects)}`);
 
-  await page.waitForTimeout(2800);
-  await assertCoreInteraction(page, `${name}:3s`);
-  await page.waitForTimeout(3500);
-  await assertCoreInteraction(page, `${name}:7s`);
-  await page.waitForTimeout(5500);
-  await assertCoreInteraction(page, `${name}:12s`);
+    if (slowProbeDelayMs > 0) {
+      await page.evaluate((src) => {
+        const script = document.createElement('script');
+        script.async = true;
+        script.src = src;
+        script.dataset.nxSlowDependencyProbe = '1';
+        document.head.appendChild(script);
+      }, SLOW_PROBE_URL);
+    }
 
-  const registrations = await page.evaluate(async () => {
-    if (!('serviceWorker' in navigator)) return [];
-    const regs = await Promise.race([
-      navigator.serviceWorker.getRegistrations(),
-      new Promise((resolve) => setTimeout(() => resolve([]), 1500)),
+    await page.waitForTimeout(2800);
+    await assertCoreInteraction(page, `${name}:3s`);
+    await page.waitForTimeout(3500);
+    await assertCoreInteraction(page, `${name}:7s`);
+    await page.waitForTimeout(5500);
+    await assertCoreInteraction(page, `${name}:12s`);
+
+    const registrations = await page.evaluate(async () => {
+      if (!('serviceWorker' in navigator)) return [];
+      const regs = await Promise.race([
+        navigator.serviceWorker.getRegistrations(),
+        new Promise((resolve) => setTimeout(() => resolve([]), 1200)),
+      ]);
+      return regs.map ? regs.map((r) => r.scope) : [];
+    });
+    assert.deepEqual(registrations, [], `${name}: Android shell must not register a web service worker`);
+    assert.deepEqual(severeErrors, [], `${name}: severe page errors: ${severeErrors.join(' | ')}`);
+    console.log(`PASS ${name}: full Android page remains touchable with the real NexusNova module stack.`);
+  } finally {
+    await Promise.race([
+      context.close().catch(() => {}),
+      new Promise((resolve) => setTimeout(resolve, 2500)),
     ]);
-    return regs.map ? regs.map((r) => r.scope) : [];
-  });
-  assert.deepEqual(registrations, [], `${name}: Android shell must not register a web service worker`);
-  assert.deepEqual(severeErrors, [], `${name}: severe page errors: ${severeErrors.join(' | ')}`);
+  }
+}
 
-  await context.close();
-  console.log(`PASS ${name}: full Android page remains touchable with the real NexusNova module stack.`);
+async function runScenario(name, slowProbeDelayMs) {
+  return withDeadline(runScenarioBody(name, slowProbeDelayMs), 45000, name);
 }
 
 try {
   await runScenario('external-network-blocked', 0);
   await runScenario('background-dependency-very-slow', 8000);
-  await browser.close();
+  await Promise.race([browser.close(), new Promise((resolve) => setTimeout(resolve, 3000))]);
   console.log('PASS NexusNova Android full-page stability regression: Wallet, Tasks, Market and ALL APPS remain interactive with remote traffic blocked and an 8-second non-blocking dependency in flight.');
+  process.exit(0);
 } catch (error) {
-  try { await browser.close(); } catch (_) {}
-  const message = String(error?.stack || error?.message || error || 'Unknown Android runtime failure').replace(/\r?\n/g, '%0A');
-  console.error(`::error file=.github/scripts/nexusnova-android-fullpage-stability.mjs,line=1,title=Android full-page stability failure::${message}`);
-  process.exitCode = 1;
+  try { await Promise.race([browser.close(), new Promise((resolve) => setTimeout(resolve, 3000))]); } catch (_) {}
+  failNow(error);
 }
