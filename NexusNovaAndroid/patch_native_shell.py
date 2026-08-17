@@ -7,17 +7,20 @@ main = main_path.read_text(encoding='utf-8')
 manager = manager_path.read_text(encoding='utf-8')
 page = page_path.read_text(encoding='utf-8')
 
-# 0) The visual splash must never depend on window.load. On a real phone a
-# remote Firebase/CDN request can keep load pending long after the local shell
-# is already rendered. The root page's splash script sits immediately after
-# #nxSplash, so this unconditional timer always has a real element to release.
-splash_marker = 'nx-android-splash-hard-failsafe-v1'
+# 0) The visual dashboard splash must never remain above the app because an
+# optional network request is slow. Earlier Android patches may legitimately
+# change the branding duration, so this guard does not match a specific minMs.
+# It inserts an independent DOM-ready + timer failsafe into the existing splash
+# IIFE and force-hides the element with inline !important styles.
+splash_marker = 'nx-android-splash-hard-failsafe-v2'
 if splash_marker not in page:
-    old_splash = '''  var minMs = 2800;\n  var start = Date.now();\n'''
-    new_splash = '''  var minMs = 2800;\n  var start = Date.now();\n  // nx-android-splash-hard-failsafe-v1\n  // Do not wait forever for window.load when optional remote services are slow.\n  setTimeout(hide, 3600);\n'''
-    if old_splash not in page:
-        raise SystemExit('Android splash failsafe insertion point not found')
-    page = page.replace(old_splash, new_splash, 1)
+    anchor = '(function(){\n'
+    at = page.find(anchor)
+    if at < 0:
+        raise SystemExit('Android splash IIFE insertion point not found')
+    insert_at = at + len(anchor)
+    failsafe = '''  // nx-android-splash-hard-failsafe-v2\n  function nxForceReleaseSplash(){\n    try {\n      var forcedSplash = document.getElementById("nxSplash");\n      if(!forcedSplash) return false;\n      forcedSplash.style.setProperty("pointer-events","none","important");\n      forcedSplash.style.setProperty("opacity","0","important");\n      forcedSplash.style.setProperty("visibility","hidden","important");\n      forcedSplash.style.setProperty("display","none","important");\n      setTimeout(function(){ try{ forcedSplash.remove(); }catch(_){} }, 80);\n      return true;\n    } catch (_) { return false; }\n  }\n  if(document.readyState === "loading") {\n    document.addEventListener("DOMContentLoaded", function(){\n      setTimeout(nxForceReleaseSplash, 450);\n    }, {once:true});\n  }\n  setTimeout(nxForceReleaseSplash, 2200);\n  setTimeout(nxForceReleaseSplash, 4200);\n'''
+    page = page[:insert_at] + failsafe + page[insert_at:]
 
 # 1) Serve the Android web shell from APK assets while retaining the trusted
 # github.io document origin. This removes GitHub/network/service-worker shell
