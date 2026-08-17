@@ -1,0 +1,82 @@
+name: NexusNova User Command Regression
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'NexusNovaAndroid/**'
+      - 'index.html'
+      - 'page2.html'
+      - 'styles.css'
+      - 'css/**'
+      - 'js/**'
+      - '.github/workflows/nexusnova-user-command-regression.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-user-commands:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare deterministic Android web shell
+        run: python3 NexusNovaAndroid/prepare_native_web_shell.py
+
+      - name: Synchronize mining boost countdown state
+        run: python3 NexusNovaAndroid/patch_mining_boost_sync.py
+
+      - name: Apply Android viewport lock
+        run: python3 NexusNovaAndroid/patch_viewport.py
+
+      - name: Apply native AdMob bridge
+        run: python3 NexusNovaAndroid/patch_admob.py
+
+      - name: Enforce rewarded test-only production guard
+        run: python3 NexusNovaAndroid/patch_rewarded_test_contract.py
+
+      - name: Apply TEST mining reward preview and booster FX
+        run: python3 NexusNovaAndroid/patch_test_boost_reward_fx.py
+
+      - name: Harden TEST reward cooldown, idempotence, FX timing and safe scroll
+        run: python3 NexusNovaAndroid/patch_test_boost_reward_fx_hardening.py
+
+      - name: Enforce TEST cooldown across all boost entry points
+        run: python3 NexusNovaAndroid/patch_test_boost_cooldown_gate.py
+
+      - name: Prevent wasted TEST boost ads in final two hours
+        run: python3 NexusNovaAndroid/patch_test_boost_final2h_guard.py
+
+      - name: Enforce single-owner authoritative TEST mining timer
+        run: python3 NexusNovaAndroid/patch_test_boost_authoritative_timer.py
+
+      - name: Apply UMP privacy options bridge
+        run: python3 NexusNovaAndroid/patch_ad_privacy.py
+
+      - name: Restore same-device session and native Back/exit behavior
+        run: python3 NexusNovaAndroid/patch_session_restore.py
+
+      - name: Defer Caller ID setup until feature use
+        run: python3 NexusNovaAndroid/patch_deferred_caller_setup.py
+
+      - name: Reset stale WebView shell once
+        run: python3 NexusNovaAndroid/patch_web_shell_reset.py
+
+      - name: Apply deterministic native shell and startup stabilization
+        run: python3 NexusNovaAndroid/patch_native_shell.py
+
+      - name: Verify all latest user commands in final prepared shell
+        run: python3 NexusNovaAndroid/verify_user_commands.py
+
+      - name: Syntax-check critical modified web modules
+        run: |
+          node --check NexusNovaAndroid/app/src/main/assets/www/js/core-failsafe.js
+          node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ux-simplify-v1.js
+          node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-speedtest-app-v4.js
+          node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ad-settings-v2.js
+          node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-watch-ad-reward-v1.js
