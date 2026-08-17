@@ -16,7 +16,7 @@
     if (!$(`link[${CSS_MARKER}]`)) {
       const link = document.createElement('link');
       link.rel = 'stylesheet';
-      link.href = './css/nexusnova-modern-ui-v1.css?v=20260817-modern3';
+      link.href = './css/nexusnova-modern-ui-v1.css?v=20260817-modern4';
       link.setAttribute(CSS_MARKER, '1');
       document.head.appendChild(link);
     }
@@ -24,7 +24,8 @@
       const style = document.createElement('style');
       style.id = COMPAT_STYLE_ID;
       style.textContent = `
-        /* Android/WebView fallback: do not depend on color-mix() for the core launcher look. */
+        /* Android/WebView fallback + legacy launcher override guard. */
+        body #moreMenu #nxAllAppsSmartSearch{order:-30!important}
         #moreMenu .more-item .mi-icon{
           color:var(--mi-a,#66adff)!important;
           background:#0d1727!important;
@@ -32,6 +33,11 @@
         }
         #moreMenu .more-item[data-nx-speedtest-v4="1"] .mi-icon{color:#62d6e5!important;background:#0b1925!important;border-color:rgba(98,214,229,.22)!important}
         #moreMenu .more-item[data-nxmega="productivity"] .mi-icon{color:#82adff!important;background:#10182a!important;border-color:rgba(130,173,255,.22)!important}
+        #moreMenu .more-item > span:not(.mi-icon):not(.nx-brand-app-badge){
+          margin:0!important;padding:0 2px!important;color:#c9d7e8!important;text-shadow:none!important;
+          font-size:9px!important;line-height:1.15!important;font-weight:720!important;letter-spacing:0!important;
+          text-transform:none!important;text-align:center!important;white-space:normal!important;overflow-wrap:anywhere!important;
+        }
       `;
       document.head.appendChild(style);
     }
@@ -202,5 +208,5 @@
   if (document.body) start(); else document.addEventListener('DOMContentLoaded',start,{once:true});
   [200,600,1200,2400,5000].forEach(ms => setTimeout(apply,ms));
 
-  window.NexusNovaModernUI = Object.freeze({version:'1.0.2',refresh:apply});
+  window.NexusNovaModernUI = Object.freeze({version:'1.0.3',refresh:apply});
 })();
