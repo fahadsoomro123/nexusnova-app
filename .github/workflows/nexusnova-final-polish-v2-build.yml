@@ -65,49 +65,34 @@ jobs:
 
       - name: Prepare deterministic Android shell
         run: python3 NexusNovaAndroid/prepare_native_web_shell.py
-
       - name: Fix Speed Test observer loop
         run: python3 NexusNovaAndroid/patch_speedtest_observer_guard.py
-
       - name: Keep authoritative mining countdown sync
         run: python3 NexusNovaAndroid/patch_mining_boost_sync.py
-
       - name: Apply viewport safety
         run: python3 NexusNovaAndroid/patch_viewport.py
-
       - name: Apply native AdMob bridge
         run: python3 NexusNovaAndroid/patch_admob.py
-
       - name: Block unsafe live-value rewarded fallback
         run: python3 NexusNovaAndroid/patch_rewarded_test_contract.py
-
       - name: Apply UMP privacy without reward simulation
         run: python3 NexusNovaAndroid/patch_ad_privacy.py
-
       - name: Restore same-device session
         run: python3 NexusNovaAndroid/patch_session_restore.py
-
       - name: Apply splash exit and Speed Test UX repairs
         run: python3 NexusNovaAndroid/patch_ux_only_friend_bugs.py
-
       - name: Use modern Android Back dispatcher
         run: python3 NexusNovaAndroid/patch_modern_back_dispatcher.py
-
       - name: Keep camera hardware optional
         run: python3 NexusNovaAndroid/patch_optional_camera_feature.py
-
       - name: Defer Caller ID without hidden TEST chain
         run: python3 NexusNovaAndroid/patch_deferred_caller_setup_stable.py
-
       - name: Harden Firebase auth handoff
         run: python3 NexusNovaAndroid/patch_android_auth_handoff.py
-
       - name: Remove TEST-shell wording from stable auth UI
         run: python3 NexusNovaAndroid/patch_stable_auth_wording.py
-
       - name: Keep stale WebView reset safety
         run: python3 NexusNovaAndroid/patch_web_shell_reset.py
-
       - name: Keep deterministic packaged native shell
         run: python3 NexusNovaAndroid/patch_native_shell.py
 
@@ -120,35 +105,42 @@ jobs:
           BROWSER=NexusNovaAndroid/app/src/main/java/com/nexusnova/app/BrowserActivity.kt
           MANIFEST=NexusNovaAndroid/app/src/main/AndroidManifest.xml
 
-          # Exactly-two-tab presentation guard.
+          # Exactly two physical dock tabs.
           grep -q "setText(labelNode(mining),'Mining')" "$WEB/js/nexusnova-shell-v2.js"
           grep -q "setText(labelNode(hub),'Nova Hub')" "$WEB/js/nexusnova-shell-v2.js"
           grep -q 'grid-template-columns:repeat(2,minmax(0,1fr))' "$WEB/css/nexusnova-shell-v2.css"
-          grep -q '__nxTwoTabGuardV1' "$WEB/js/nexusnova-two-tab-guard-v1.js"
+          grep -q "version:'1.3.0'" "$WEB/js/nexusnova-two-tab-guard-v1.js"
           grep -q "AUX = new Set(\['wallet','tasks','market'\])" "$WEB/js/nexusnova-two-tab-guard-v1.js"
           grep -q "button.style.setProperty('display','none','important')" "$WEB/js/nexusnova-two-tab-guard-v1.js"
-          grep -q 'visibility:hidden!important' "$WEB/js/nexusnova-two-tab-guard-v1.js"
-          grep -q 'positionCoreStrip' "$WEB/js/nexusnova-two-tab-guard-v1.js"
-          grep -q 'home.insertBefore(panel, stats)' "$WEB/js/nexusnova-two-tab-guard-v1.js"
+          grep -q 'more-item\[hidden\]' "$WEB/js/nexusnova-two-tab-guard-v1.js"
           grep -q 'nexusnova-two-tab-guard-v1.js' "$WEB/js/final-integrity-fix.js"
 
-          # Mining essentials are one integrated strip, not three separate cards.
+          # Mining strip is integrated, compact and positioned under balance before Mining CTA.
           grep -q 'Mining essentials: one integrated strip' "$WEB/css/nexusnova-shell-v2.css"
-          grep -q '#nxHomeCoreAccess .nx-core-head{display:none!important}' "$WEB/css/nexusnova-shell-v2.css"
-          grep -q 'grid-template-columns:repeat(3,minmax(0,1fr))' "$WEB/css/nexusnova-shell-v2.css"
+          grep -q 'home.insertBefore(panel, mineButton)' "$WEB/js/nexusnova-two-tab-guard-v1.js"
+          grep -q 'min-height:48px!important' "$WEB/js/nexusnova-two-tab-guard-v1.js"
           grep -q 'background:transparent!important;border:0!important' "$WEB/css/nexusnova-shell-v2.css"
 
-          # Nova Hub scroll is stable and cannot self-shrink from its own geometry.
+          # Mining branding is restrained to one section identity; noisy marks are suppressed.
+          grep -q 'nx-brand-mining-seal' "$WEB/js/nexusnova-two-tab-guard-v1.js"
+          grep -q '#mineBtn.nx-brand-mining-button::before' "$WEB/js/nexusnova-two-tab-guard-v1.js"
+          grep -q '#timer.nx-brand-mining-readout::before' "$WEB/js/nexusnova-two-tab-guard-v1.js"
+          grep -q 'content:none!important' "$WEB/js/nexusnova-two-tab-guard-v1.js"
+
+          # Speed Test launcher is compact and has no floating N badge.
+          grep -q 'data-nx-speedtest-v4="1"' "$WEB/js/nexusnova-two-tab-guard-v1.js"
+          grep -q 'width:38px!important' "$WEB/js/nexusnova-two-tab-guard-v1.js"
+          grep -q 'animation:none!important' "$WEB/js/nexusnova-two-tab-guard-v1.js"
+
+          # Stable Nova Hub touch scroller cannot self-shrink from its own geometry.
           grep -q '__nxAllAppsScrollFixV1' "$WEB/js/nexusnova-allapps-scroll-fix-v1.js"
           grep -q "const byViewport = Math.floor(vh \* 0.72)" "$WEB/js/nexusnova-allapps-scroll-fix-v1.js"
-          grep -q "const target = Math.max(190" "$WEB/js/nexusnova-allapps-scroll-fix-v1.js"
           grep -q "m.style.setProperty('height', target + 'px', 'important')" "$WEB/js/nexusnova-allapps-scroll-fix-v1.js"
           ! grep -q 'm.getBoundingClientRect()' "$WEB/js/nexusnova-allapps-scroll-fix-v1.js"
-          grep -q 'nexusnova-allapps-scroll-fix-v1.js' "$WEB/js/final-integrity-fix.js"
           grep -q 'overflow-y:scroll!important' "$WEB/css/nexusnova-shell-v2.css"
           grep -q 'touch-action:pan-y!important' "$WEB/css/nexusnova-shell-v2.css"
 
-          # Nova Hub naming + compact settings.
+          # Nova Hub naming and compact Settings.
           grep -q '__nxNovaHubLanguageV1' "$WEB/js/nexusnova-nova-hub-language-v1.js"
           grep -q "replace(/ALL APPS/g, 'NOVA HUB')" "$WEB/js/nexusnova-nova-hub-language-v1.js"
           grep -q 'More Settings' "$WEB/js/nexusnova-shell-v2.js"
@@ -164,7 +156,6 @@ jobs:
           ! grep -R -q 'nx-video-truth-consistency-perf-v2' "$WEB"
           ! grep -R -q 'nx-android-reward-event-order-v1' "$WEB"
 
-          # Native safety contract.
           grep -q 'onBackPressedDispatcher.addCallback' "$MAIN"
           grep -q 'onBackPressedDispatcher.addCallback' "$BROWSER"
           ! grep -q 'override fun onBackPressed()' "$MAIN"
@@ -197,10 +188,10 @@ jobs:
               def __init__(self):
                   super().__init__(convert_charrefs=True); self.ids=[]; self.refs=[]
               def handle_starttag(self, tag, attrs):
-                  data=dict(attrs)
-                  if data.get('id'): self.ids.append(data['id'])
+                  d=dict(attrs)
+                  if d.get('id'): self.ids.append(d['id'])
                   attr='src' if tag in {'script','img'} else 'href' if tag=='link' else None
-                  if attr and data.get(attr): self.refs.append(data[attr])
+                  if attr and d.get(attr): self.refs.append(d[attr])
           for html in targets:
               p=AuditParser(); p.feed(html.read_text(encoding='utf-8',errors='replace'))
               dup=[k for k,c in Counter(p.ids).items() if c>1]
@@ -238,9 +229,9 @@ jobs:
             assets/www/js/nexusnova-two-tab-guard-v1.js; do
             grep -q "$f" /tmp/nx_apk_files.txt
           done
-          unzip -p "$APK" assets/www/js/final-integrity-fix.js | grep -q 'nexusnova-two-tab-guard-v1.js'
+          unzip -p "$APK" assets/www/js/nexusnova-two-tab-guard-v1.js | grep -q "version:'1.3.0'"
+          unzip -p "$APK" assets/www/js/nexusnova-two-tab-guard-v1.js | grep -q 'home.insertBefore(panel, mineButton)'
           unzip -p "$APK" assets/www/js/nexusnova-allapps-scroll-fix-v1.js | grep -q "height', target + 'px'"
-          unzip -p "$APK" assets/www/js/nexusnova-two-tab-guard-v1.js | grep -q 'positionCoreStrip'
           sha256sum "$APK"
 
       - name: Upload final polished APK
