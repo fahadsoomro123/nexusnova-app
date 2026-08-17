@@ -66,6 +66,7 @@
   loadCritical({flag:'__nxProductivityDeskV1',marker:'data-nx-productivity-desk-v1',src:'./js/nexusnova-productivity-desk-v1.js?v=20260817-stable',error:'NexusNova offline Nova Desk failed to load.'});
   loadCritical({flag:'__nxRewardsSparkV1',marker:'data-nx-rewards-spark',src:'./js/nexusnova-rewards-spark-v1.js?v=2',error:'NexusNova Spark rewards module failed to load.'});
   loadCritical({flag:'__nxAllAppsSmartSearchV2',marker:'data-nx-allapps-smart-search',src:'./js/nexusnova-allapps-smart-search-v1.js?v=4',error:'NexusNova Nova Hub smart search failed to load.'});
+  loadCritical({flag:'__nxAllAppsScrollFixV1',marker:'data-nx-nova-hub-scroll-fix',src:'./js/nexusnova-allapps-scroll-fix-v1.js?v=20260817-nova-hub',error:'NexusNova Nova Hub scrolling guard failed to load.'});
   loadCritical({flag:'__nxCommunityProgressV1',marker:'data-nx-community-progress',src:'./js/nexusnova-community-progress-v1.js?v=1',error:'NexusNova Community League failed to load.'});
   loadCritical({flag:'__nxCompleteProfileV1',marker:'data-nx-complete-profile',src:'./js/nexusnova-complete-profile-v1.js?v=1',error:'NexusNova Complete Profile failed to load.'});
   loadCritical({flag:'__nxGrowthCenterV1',marker:'data-nx-growth-center',src:'./js/nexusnova-growth-center-v1.js?v=1',error:'NexusNova Growth Center failed to load.'});
@@ -79,7 +80,7 @@
   loadCritical({flag:'__nxNexusBrowserV1',marker:'data-nx-browser',src:'./js/nexusnova-browser-v1.js?v=1',error:'NexusNova Browser failed to load.'});
   loadCritical({flag:'__nxNexusBrowserGuardV1',marker:'data-nx-browser-guard',src:'./js/nexusnova-browser-guard-v1.js?v=1',error:'NexusNova Browser guard failed to load.'});
   loadCritical({flag:'__nxModernUiV1',marker:'data-nx-modern-ui-v1-script',src:'./js/nexusnova-modern-ui-v1.js?v=20260817-modern2',error:'NexusNova modern Nova Hub UI failed to load.'});
-  loadCritical({flag:'__nxShellV2',marker:'data-nx-shell-v2-script',src:'./js/nexusnova-shell-v2.js?v=20260817-shell2',error:'NexusNova two-tab shell failed to load.'});
+  loadCritical({flag:'__nxShellV2',marker:'data-nx-shell-v2-script',src:'./js/nexusnova-shell-v2.js?v=20260817-shell3',error:'NexusNova two-tab shell failed to load.'});
 
   await import('./final-integrity-fix-core.js?v=3');
 
