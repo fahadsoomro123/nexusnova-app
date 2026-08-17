@@ -1,19 +1,15 @@
-name: NexusNova Android Build Check
+name: NexusNova Android UX-Only Build Check
 
 on:
   push:
     branches:
-      - main
-      - codex-final-audit
+      - 'agent/ux-only-friend-bugs'
     paths:
       - 'NexusNovaAndroid/**'
-      - 'index.html'
-      - 'page2.html'
-      - 'referral.html'
-      - 'styles.css'
-      - 'manifest.webmanifest'
-      - 'css/**'
-      - 'js/**'
+      - 'js/final-integrity-fix.js'
+      - 'js/nexusnova-ux-simplify-v1.js'
+      - 'js/nexusnova-speedtest-app-v4.js'
+      - 'css/nexusnova-speedtest-app-v4.css'
       - '.github/workflows/nexusnova-android-build.yml'
   workflow_dispatch:
 
@@ -27,6 +23,33 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prove branch changed only approved UX files
+        run: |
+          git diff --name-only 0b6b856e25204d40b7172482cd2886ff30e80325...HEAD > /tmp/nx_changed.txt
+          cat /tmp/nx_changed.txt
+          while IFS= read -r file; do
+            case "$file" in
+              .github/workflows/nexusnova-android-build.yml|\
+              NexusNovaAndroid/patch_ux_only_friend_bugs.py|\
+              js/final-integrity-fix.js|\
+              js/nexusnova-ux-simplify-v1.js|\
+              js/nexusnova-speedtest-app-v4.js|\
+              css/nexusnova-speedtest-app-v4.css) ;;
+              *) echo "UNAPPROVED CHANGE: $file"; exit 1 ;;
+            esac
+          done < /tmp/nx_changed.txt
+
+      - name: Prove mining reward wallet auth and backend sources are unchanged
+        run: |
+          git diff --exit-code 0b6b856e25204d40b7172482cd2886ff30e80325 -- \
+            js/rewards-security-v1.js \
+            js/nexusnova-admob-nexus-pass-v1.js \
+            js/page2-core.js \
+            js/wallet-actions-v2.js \
+            firestore.rules functions page2.html index.html
 
       - name: Setup Java 17
         uses: actions/setup-java@v4
@@ -42,146 +65,83 @@ jobs:
       - name: Prepare deterministic Android web shell
         run: python3 NexusNovaAndroid/prepare_native_web_shell.py
 
-      - name: Synchronize mining boost countdown state
+      - name: Synchronize existing mining boost countdown state
         run: python3 NexusNovaAndroid/patch_mining_boost_sync.py
 
-      - name: Apply Android viewport lock
+      - name: Apply existing Android viewport lock
         run: python3 NexusNovaAndroid/patch_viewport.py
 
-      - name: Apply native AdMob bridge
+      - name: Apply existing native AdMob bridge
         run: python3 NexusNovaAndroid/patch_admob.py
 
-      - name: Enforce rewarded test-only production guard
+      - name: Enforce existing rewarded TEST contract
         run: python3 NexusNovaAndroid/patch_rewarded_test_contract.py
 
-      - name: Apply TEST mining reward preview and booster FX
+      - name: Apply existing TEST mining reward preview and booster FX
         run: python3 NexusNovaAndroid/patch_test_boost_reward_fx.py
 
-      - name: Harden TEST reward cooldown, idempotence, FX timing and safe scroll
+      - name: Apply existing TEST reward hardening
         run: python3 NexusNovaAndroid/patch_test_boost_reward_fx_hardening.py
 
-      - name: Enforce TEST cooldown across all boost entry points
+      - name: Apply existing TEST cooldown gate
         run: python3 NexusNovaAndroid/patch_test_boost_cooldown_gate.py
 
-      - name: Prevent wasted TEST boost ads in final two hours
+      - name: Apply existing final-two-hours guard
         run: python3 NexusNovaAndroid/patch_test_boost_final2h_guard.py
 
-      - name: Enforce single-owner authoritative TEST mining timer
+      - name: Apply existing authoritative TEST mining timer
         run: python3 NexusNovaAndroid/patch_test_boost_authoritative_timer.py
 
-      - name: Apply UMP privacy options bridge
+      - name: Apply existing UMP privacy bridge
         run: python3 NexusNovaAndroid/patch_ad_privacy.py
 
-      - name: Restore same-device session
+      - name: Restore existing same-device session
         run: python3 NexusNovaAndroid/patch_session_restore.py
 
-      - name: Defer Caller ID setup until feature use
+      - name: Apply isolated white-flash premium-exit UX patch
+        run: python3 NexusNovaAndroid/patch_ux_only_friend_bugs.py
+
+      - name: Keep existing deferred Caller ID setup
         run: python3 NexusNovaAndroid/patch_deferred_caller_setup.py
 
-      - name: Reset stale WebView shell once
+      - name: Keep existing stale WebView reset
         run: python3 NexusNovaAndroid/patch_web_shell_reset.py
 
-      - name: Apply deterministic native shell and startup stabilization
+      - name: Keep historical native shell startup path
         run: python3 NexusNovaAndroid/patch_native_shell.py
 
-      - name: Verify native shell before compile
+      - name: Verify UX-only contract before compile
         run: |
-          grep -q 'nxAndroidNativeShellBootstrap' NexusNovaAndroid/app/src/main/assets/www/page2.html
-          grep -q 'window.__nexusInteractiveReady = true' NexusNovaAndroid/app/src/main/assets/www/page2.html
-          grep -q '!window.__nexusAndroidShell' NexusNovaAndroid/app/src/main/assets/www/page2.html
-          grep -q 'android-mining-boost-sync-v1' NexusNovaAndroid/app/src/main/assets/www/js/rewards-security-v1.js
-          grep -q 'nexusSecureAdoptMiningState' NexusNovaAndroid/app/src/main/assets/www/js/rewards-security-v1.js
-          grep -q 'MINING_START_AD_PLACEMENT' NexusNovaAndroid/app/src/main/assets/www/js/rewards-security-v1.js
-          grep -q 'function requestMiningStartAdBestEffort()' NexusNovaAndroid/app/src/main/assets/www/js/rewards-security-v1.js
-          grep -q 'void requestMiningStartAdBestEffort();' NexusNovaAndroid/app/src/main/assets/www/js/rewards-security-v1.js
-          ! grep -q 'await requireMiningStartAd()' NexusNovaAndroid/app/src/main/assets/www/js/rewards-security-v1.js
-          grep -q "single-owner-v6-start-first-ad-best-effort-nova-vault" NexusNovaAndroid/app/src/main/assets/www/js/rewards-security-v1.js
-          grep -q 'nx-test-boost-authoritative-timer-v5' NexusNovaAndroid/app/src/main/assets/www/js/rewards-security-v1.js
-          grep -q 'MAX_TEST_PREVIEW_OFFSET_MS = 12 \* HOUR' NexusNovaAndroid/app/src/main/assets/www/js/rewards-security-v1.js
-          grep -q 'window.nexusSecureSetMiningPreviewOffset' NexusNovaAndroid/app/src/main/assets/www/js/rewards-security-v1.js
-          grep -q 'TEST BOOST PREVIEW COMPLETE' NexusNovaAndroid/app/src/main/assets/www/js/rewards-security-v1.js
-          grep -q 'TEST PREVIEW 00:00:00 • SECURE' NexusNovaAndroid/app/src/main/assets/www/js/rewards-security-v1.js
-          grep -q 'SERVER_VERIFIED_BOOST_ENABLED = false' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
-          grep -q 'window.NexusNovaVault.useBoost' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
-          grep -q 'nx-test-boost-reward-fx-v1' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
-          grep -q 'nx-test-boost-reward-hardening-v2' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
-          grep -q 'nx-test-boost-cooldown-gate-v3' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
-          grep -q 'nx-test-boost-final2h-guard-v4' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
-          grep -q 'nx-test-boost-authoritative-timer-v5' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
-          ! grep -q 'window.nexusSecureAdoptMiningState?.({' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
-          grep -q 'TEST_COOLDOWN_MS = 15_000' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
-          grep -q 'const kind = pendingKind;' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
-          grep -q "reason:'nova-cooldown'" NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
-          grep -q "reason:'test-final-2h'" NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
-          grep -q 'pendingRewardFxKind' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
-          grep -q 'function applyTestReward' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
-          grep -q 'TEST AD • -2H +1 VAULT' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
-          grep -q 'TEST BOOST PAUSED • FINAL 2H' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
-          grep -q 'window.NexusNovaBoostFX' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
-          grep -q 'window.NexusNovaTestRewards' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
-          grep -q 'boostKind:expected, testOnly:true' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
-          grep -q "window.nexusNovaVaultVersion = 'nova-vault-v1'" NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-nova-vault-v1.js
-          grep -q "secureCallable('openNovaVault')" NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-nova-vault-v1.js
-          grep -q 'OPEN TEST NOVA VAULT' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-nova-vault-v1.js
-          grep -q 'window.NexusNovaTestRewards?.cooldownRemainingMs?.()' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-nova-vault-v1.js
-          grep -q 'if (cooldownRemainingMs() > 0) return null;' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-nova-vault-v1.js
-          grep -q 'window.NexusNovaBoostFX.play' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-nova-vault-v1.js
-          grep -q 'Every successful Booster/Rain use gifts +1 Vault' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-nova-vault-v1.js
-          grep -q 'nx-android-bottom-dock-safe-scroll-v1' NexusNovaAndroid/app/src/main/assets/www/css/nexusnova-final-user-fixes-v1.css
-          grep -q 'TEST mining boost preview — -2H +1 Vault locally' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-rewarded-ads-config-v1.js
-          grep -q 'serverVerifiedValueEnabled: false' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-rewarded-ads-config-v1.js
-          grep -q 'nexusnova-nova-vault-v1.js' NexusNovaAndroid/app/src/main/assets/www/js/final-integrity-fix.js
-          grep -q 'nexusSecureClaimDaily' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-daily-secure-claim-v1.js
-          grep -q 'CURRENT_KDF_ITERATIONS = 600000' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-file-vault-v1.js
-          grep -q "window.nexusSecurityLockVersion = 'browser-pin-v3'" NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-security-lock-v1.js
-          grep -q 'AUTO_RELOCK_AFTER_HIDDEN_MS' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-security-lock-v1.js
-          grep -q 'nx-rewarded-production-proof-guard-v1' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
-          grep -q 'production-proof-not-enabled' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
-          grep -q 'val miningStartGate = safePlacement == "mining-start"' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
-          grep -q '!miningStartGate && now - lastInterstitialShownAt' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
-          grep -q 'NATIVE_SHELL_PATH = "/nexusnova-native/"' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
-          grep -q 'interceptNativeShell' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
-          grep -q 'scheduleInteractiveShellCheck' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
-          grep -q 'scheduleNativeAdInitialization' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -q 'nexusnova-ux-simplify-v1.js' NexusNovaAndroid/app/src/main/assets/www/js/final-integrity-fix.js
+          grep -q 'nexusnova-speedtest-app-v4.js' NexusNovaAndroid/app/src/main/assets/www/js/final-integrity-fix.js
+          grep -q 'id="nxUxBack"' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ux-simplify-v1.js
+          grep -q '← PREVIOUS' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ux-simplify-v1.js
+          grep -q 'NEXT PAGE →' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ux-simplify-v1.js
+          grep -q 'systemBack:handleSystemBack' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ux-simplify-v1.js
+          grep -q "TAB_ID = 'tab-speed-test'" NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-speedtest-app-v4.js
+          grep -q 'data-nx-speedtest-v4' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-speedtest-app-v4.js
+          grep -q '#tab-tools .nexus-tool-chip\[data-tool="speed"\]' NexusNovaAndroid/app/src/main/assets/www/css/nexusnova-speedtest-app-v4.css
+          grep -q '.nx-speed4-gauge' NexusNovaAndroid/app/src/main/assets/www/css/nexusnova-speedtest-app-v4.css
+          grep -q 'webView.setBackgroundColor(android.graphics.Color.rgb(0, 18, 25))' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -q 'showNexusExitDialog()' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -q 'NEXUSNOVA SYSTEM' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -q 'STAY IN NEXUSNOVA' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -q 'EXIT APP' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -q 'NEXUS_SYSTEM_BACK_SCRIPT' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          ! grep -q 'moveTaskToBack(true)' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
 
-      - name: Check native web security syntax
+      - name: Check UX JavaScript syntax
         run: |
-          node --check NexusNovaAndroid/app/src/main/assets/www/js/rewards-security-v1.js
-          node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-daily-secure-claim-v1.js
-          node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
-          node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-daily-ad-test-v1.js
-          node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-watch-ad-reward-v1.js
-          node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-nova-vault-v1.js
-          node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-file-vault-v1.js
-          node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-security-lock-v1.js
+          node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ux-simplify-v1.js
+          node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-speedtest-app-v4.js
+          node --check NexusNovaAndroid/app/src/main/assets/www/js/final-integrity-fix.js
 
-      - name: Compile Android test and production variants
-        run: gradle -p NexusNovaAndroid :app:assembleDebug :app:assembleRelease --stacktrace --no-daemon
+      - name: Compile Android TEST APK
+        run: gradle -p NexusNovaAndroid :app:assembleDebug --stacktrace --no-daemon
 
-      - name: Verify ad, privacy, and recovery build separation
-        run: |
-          grep -q 'NEXUS_ADS_TEST_MODE' NexusNovaAndroid/app/build.gradle.kts
-          grep -q 'ca-app-pub-3940256099942544~3347511713' NexusNovaAndroid/app/build.gradle.kts
-          grep -q 'ca-app-pub-5070673529890078~1824799663' NexusNovaAndroid/app/build.gradle.kts
-          grep -q 'NexusAdConsentManager' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
-          grep -q 'ssvIdentityReady' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
-          grep -q 'nexusnova:ad-privacy-event' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
-          grep -q 'showAdPrivacyOptions' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
-          grep -q 'WEB_SHELL_RECOVERY_EPOCH' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
-          grep -q 'resetStaleWebShellOnce' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
-          grep -q 'REWARDED_FALLBACK_STAGGER_MS' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
-          grep -q 'INTERSTITIAL_STARTUP_STAGGER_MS' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
-
-      - name: Upload Android debug TEST APK
+      - name: Upload UX-only TEST APK
         uses: actions/upload-artifact@v4
         with:
-          name: NexusNova-Android-Stability-TEST-apk
+          name: NexusNova-UX-ONLY-FRIEND-BUGS-TEST-apk
           path: NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
-
-      - name: Upload unsigned production release candidate
-        uses: actions/upload-artifact@v4
-        with:
-          name: NexusNova-Android-PRODUCTION-unsigned-apk
-          path: NexusNovaAndroid/app/build/outputs/apk/release/app-release-unsigned.apk
           if-no-files-found: error
