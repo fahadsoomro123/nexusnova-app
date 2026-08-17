@@ -28,8 +28,24 @@ jobs:
           npm install --no-save playwright@1.55.0
           npx playwright install --with-deps chromium
 
-      - name: Prepare deterministic Android web shell
-        run: python3 NexusNovaAndroid/prepare_native_web_shell.py
+      - name: Prepare exact final Android web shell
+        run: |
+          python3 NexusNovaAndroid/prepare_native_web_shell.py
+          python3 NexusNovaAndroid/patch_mining_boost_sync.py
+          python3 NexusNovaAndroid/patch_viewport.py
+          python3 NexusNovaAndroid/patch_admob.py
+          python3 NexusNovaAndroid/patch_rewarded_test_contract.py
+          python3 NexusNovaAndroid/patch_test_boost_reward_fx.py
+          python3 NexusNovaAndroid/patch_test_boost_reward_fx_hardening.py
+          python3 NexusNovaAndroid/patch_test_boost_cooldown_gate.py
+          python3 NexusNovaAndroid/patch_test_boost_final2h_guard.py
+          python3 NexusNovaAndroid/patch_test_boost_authoritative_timer.py
+          python3 NexusNovaAndroid/patch_ad_privacy.py
+          python3 NexusNovaAndroid/patch_session_restore.py
+          python3 NexusNovaAndroid/patch_deferred_caller_setup.py
+          python3 NexusNovaAndroid/patch_web_shell_reset.py
+          python3 NexusNovaAndroid/patch_native_shell.py
+          python3 NexusNovaAndroid/verify_user_commands.py
 
       - name: Start local NexusNova origin
         shell: bash
