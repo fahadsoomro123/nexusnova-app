@@ -24,7 +24,17 @@ def copy_required_shell():
             shutil.copytree(source, ASSETS / directory)
 
 
-NATIVE_HEAD = '''<script id="nxAndroidNativeShellBootstrap">
+CRITICAL_ANDROID_STARTUP_CSS = '''<style id="nxAndroidCriticalStartupV3">
+@keyframes nxAndroidGuaranteedSplashExit {
+  to { opacity:0; visibility:hidden; pointer-events:none; }
+}
+#nxSplash { animation:nxAndroidGuaranteedSplashExit .28s ease 2.45s forwards !important; }
+.bottom-dock { display:block !important; visibility:visible !important; opacity:1 !important; pointer-events:auto !important; }
+.bottom-dock .dock-inner { display:flex !important; }
+.bottom-dock .dock-item { visibility:visible !important; opacity:1 !important; pointer-events:auto !important; }
+</style>'''
+
+NATIVE_HEAD = CRITICAL_ANDROID_STARTUP_CSS + '''<script id="nxAndroidNativeShellBootstrap">
 (function(){
   'use strict';
   window.__nexusAndroidShell = true;
@@ -33,17 +43,28 @@ NATIVE_HEAD = '''<script id="nxAndroidNativeShellBootstrap">
 
   function byId(id){ return document.getElementById(id); }
   function releaseSplash(){
-    var splash = byId('nxSplash');
-    if(!splash) return;
-    splash.style.pointerEvents = 'none';
-    splash.classList.add('hide');
-    setTimeout(function(){ try { splash.remove(); } catch (_) {} }, 450);
+    try {
+      var splash = byId('nxSplash');
+      if(!splash) return false;
+      splash.style.setProperty('pointer-events','none','important');
+      splash.style.setProperty('opacity','0','important');
+      splash.style.setProperty('visibility','hidden','important');
+      splash.style.setProperty('display','none','important');
+      splash.classList.add('hide');
+      setTimeout(function(){ try { splash.remove(); } catch (_) {} }, 80);
+      return true;
+    } catch (_) { return false; }
   }
 
-  // Android must never leave a full-screen startup layer above the dock just
-  // because a remote CDN/Firebase request is slow. The normal splash animation
-  // can finish earlier; this is only a deterministic hard safety release.
-  setTimeout(releaseSplash, 2400);
+  // Poll instead of relying on a one-shot timer. If parsing/CSS/network work
+  // delays creation of #nxSplash, the next tick still releases it.
+  var splashBorn = Date.now();
+  function releaseTick(){
+    if (Date.now() - splashBorn >= 2200 && releaseSplash()) return;
+    if (Date.now() - splashBorn < 9000) setTimeout(releaseTick, 120);
+  }
+  setTimeout(releaseTick, 2200);
+  setTimeout(releaseSplash, 4200);
   window.__nexusAndroidReleaseSplash = releaseSplash;
 
   function activate(name, button){
@@ -78,22 +99,23 @@ NATIVE_HEAD = '''<script id="nxAndroidNativeShellBootstrap">
   function markReady(){
     var dock = document.querySelector('.bottom-dock');
     var home = byId('tab-home');
-    if (!dock || !home || typeof window.switchTab !== 'function' || typeof window.toggleMore !== 'function') return;
+    if (!dock || !home || typeof window.switchTab !== 'function' || typeof window.toggleMore !== 'function') return false;
     window.__nexusInteractiveReady = true;
     document.documentElement.dataset.nxInteractiveReady = '1';
+    return true;
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', markReady, {once:true});
   else markReady();
-  setTimeout(markReady, 250);
-  setTimeout(markReady, 1000);
+  var readyTries = 0;
+  (function readyTick(){
+    if (markReady()) return;
+    if (++readyTries < 80) setTimeout(readyTick, 100);
+  })();
 })();
 </script>
 '''
 
-# Login/referral pages keep the exact same visual splash. This bootstrap only
-# guarantees that the overlay releases even when window.load is delayed by
-# reCAPTCHA, fonts, Firebase, or another optional network request.
-NATIVE_SIMPLE_HEAD = '''<script id="nxAndroidNativeShellBootstrap">
+NATIVE_SIMPLE_HEAD = CRITICAL_ANDROID_STARTUP_CSS + '''<script id="nxAndroidNativeShellBootstrap">
 (function(){
   'use strict';
   window.__nexusAndroidShell = true;
@@ -105,19 +127,21 @@ NATIVE_SIMPLE_HEAD = '''<script id="nxAndroidNativeShellBootstrap">
       splash.style.setProperty('pointer-events','none','important');
       splash.style.setProperty('opacity','0','important');
       splash.style.setProperty('visibility','hidden','important');
+      splash.style.setProperty('display','none','important');
       splash.classList.add('hide');
-      setTimeout(function(){ try { splash.remove(); } catch (_) {} }, 450);
+      setTimeout(function(){ try { splash.remove(); } catch (_) {} }, 80);
       return true;
     } catch (_) { return false; }
   }
-  // Keep the branded splash visible normally, but never let it wait forever
-  // for window.load on a slow/blocked mobile connection.
-  setTimeout(releaseSplash, 3200);
-  setTimeout(releaseSplash, 5200);
+  var born = Date.now();
+  function tick(){
+    if (Date.now() - born >= 2200 && releaseSplash()) return;
+    if (Date.now() - born < 9000) setTimeout(tick, 120);
+  }
+  setTimeout(tick, 2200);
+  setTimeout(releaseSplash, 4200);
   if(document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function(){
-      setTimeout(releaseSplash, 3000);
-    }, {once:true});
+    document.addEventListener('DOMContentLoaded', function(){ setTimeout(releaseSplash, 450); }, {once:true});
   }
   window.__nexusAndroidReleaseSplash = releaseSplash;
 })();
@@ -126,11 +150,6 @@ NATIVE_SIMPLE_HEAD = '''<script id="nxAndroidNativeShellBootstrap">
 
 
 def patch_android_startup_assets():
-    """Remove remote resources from the Android critical-render path.
-
-    The APK already ships its HTML/CSS/JS. A font CDN or optional QR decoder
-    must never delay the first usable frame on a slow mobile connection.
-    """
     styles = ASSETS / 'styles.css'
     if styles.exists():
         text = styles.read_text(encoding='utf-8')
@@ -199,9 +218,6 @@ def patch_fcm():
 
 
 def patch_emergency_rewards_guard():
-    """Keep synthetic github.io native shell fully functional, but make the
-    last-resort appassets origin explicitly read-only for all NVX mining.
-    This prevents emergency fallback from becoming a second value owner."""
     path = ASSETS / 'js/rewards-security-v1.js'
     if not path.exists():
         return
@@ -248,8 +264,10 @@ if 'window.__nexusAndroidReleaseSplash = releaseSplash' not in page2:
     raise SystemExit('Android dashboard splash safety release was not embedded')
 if 'window.__nexusAndroidReleaseSplash = releaseSplash' not in index:
     raise SystemExit('Android login splash safety release was not embedded')
-if 'setTimeout(releaseSplash, 3200)' not in index:
-    raise SystemExit('Android login hard splash timeout was not embedded')
+if 'nxAndroidGuaranteedSplashExit' not in page2 or 'releaseTick' not in page2:
+    raise SystemExit('Android dashboard deterministic splash release v3 was not embedded')
+if 'nxAndroidGuaranteedSplashExit' not in index or 'function tick()' not in index:
+    raise SystemExit('Android login deterministic splash release v3 was not embedded')
 if 'if (!window.__nexusAndroidShell && "serviceWorker" in navigator)' not in page2:
     raise SystemExit('Android service-worker bypass was not embedded')
 if '@import url("https://fonts.googleapis.com/' in styles:
@@ -259,4 +277,4 @@ if '<script async src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"' no
 if 'android-appassets-readonly-guard-v2' not in rewards or 'ONLINE MINING REQUIRED' not in rewards:
     raise SystemExit('Android emergency appassets rewards guard was not embedded')
 
-print('Prepared deterministic NexusNova Android web shell with preserved UI, login/dashboard splash safety, and read-only emergency fallback.')
+print('Prepared deterministic NexusNova Android web shell with preserved UI, polling splash release v3, critical dock visibility, and read-only emergency fallback.')
