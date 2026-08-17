@@ -74,7 +74,7 @@ async function runScenarioBody(name, slowProbeDelayMs) {
   const context = await browser.newContext({ viewport:{width:393,height:873}, userAgent:'Mozilla/5.0 (Linux; Android 11; Infinix X693) AppleWebKit/537.36 Chrome/124 Mobile Safari/537.36 NexusNovaStabilityTest', serviceWorkers:'block' });
   const page = await context.newPage();
   page.setDefaultTimeout(4000);
-  page.setDefaultNavigationTimeout(12000);
+  page.setDefaultNavigationTimeout(6000);
   const severeErrors = [];
   const blockedAuthRedirects = [];
   try {
@@ -88,10 +88,12 @@ async function runScenarioBody(name, slowProbeDelayMs) {
       if(url.href === SLOW_PROBE_URL && slowProbeDelayMs > 0){ await new Promise((resolve)=>setTimeout(resolve,slowProbeDelayMs)); return route.abort('failed'); }
       return route.abort('failed');
     });
-    const response = await page.goto(nativePage, { waitUntil:'domcontentloaded', timeout:12000 });
+    console.log(`NAVIGATE ${name}`);
+    const response = await page.goto(nativePage, { waitUntil:'commit', timeout:6000 });
+    console.log(`COMMITTED ${name} ${page.url()}`);
     assert.equal(response?.status(), 200, `${name}: prepared Android shell returned HTTP ${response?.status()}`);
     try {
-      await page.locator('#moreBtn').waitFor({ state:'attached', timeout:5000 });
+      await page.locator('#moreBtn').waitFor({ state:'attached', timeout:8000 });
     } catch (error) {
       const diagnostic = await page.evaluate(() => ({ href:location.href, readyState:document.readyState, title:document.title, hasBody:Boolean(document.body), bodyChars:document.body?.textContent?.length || 0, bodyStart:(document.body?.innerText || '').slice(0,160), hasSplash:Boolean(document.getElementById('nxSplash')), hasDock:Boolean(document.querySelector('.bottom-dock')), hasMore:Boolean(document.getElementById('moreBtn')), native:window.__nexusAndroidShell === true, interactive:window.__nexusInteractiveReady === true })).catch(() => ({href:page.url()}));
       throw new Error(`${name}: #moreBtn missing. diagnostic=${JSON.stringify(diagnostic)} blockedAuthRedirects=${JSON.stringify(blockedAuthRedirects)} cause=${error?.message || error}`);
@@ -110,7 +112,7 @@ async function runScenarioBody(name, slowProbeDelayMs) {
   }
 }
 
-async function runScenario(name, slowProbeDelayMs){ return withDeadline(runScenarioBody(name,slowProbeDelayMs),45000,name); }
+async function runScenario(name, slowProbeDelayMs){ return withDeadline(runScenarioBody(name,slowProbeDelayMs),40000,name); }
 
 try {
   await runScenario('external-network-blocked',0);
