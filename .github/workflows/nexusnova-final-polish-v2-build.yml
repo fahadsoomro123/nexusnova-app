@@ -1,0 +1,231 @@
+name: NexusNova Final Polish V2
+
+on:
+  push:
+    branches:
+      - 'agent/final-two-tab-polish-v2'
+    paths:
+      - '.github/workflows/nexusnova-final-polish-v2-build.yml'
+      - 'js/final-integrity-fix.js'
+      - 'css/nexusnova-shell-v2.css'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  final-polish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prove value-bearing core source is unchanged
+        run: |
+          git diff --exit-code 0b6b856e25204d40b7172482cd2886ff30e80325 -- \
+            js/rewards-security-v1.js \
+            js/nexusnova-admob-nexus-pass-v1.js \
+            js/page2-core.js \
+            js/wallet-actions-v2.js \
+            firestore.rules functions page2.html index.html
+
+      - name: Prove this polish batch is UI-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --name-only 7b8201ee26aedb458ce3b1dab306535973835f55...HEAD > /tmp/nx-polish-files.txt
+          cat /tmp/nx-polish-files.txt
+          while IFS= read -r file; do
+            case "$file" in
+              .github/workflows/nexusnova-final-polish-v2-build.yml|\
+              js/final-integrity-fix.js|\
+              css/nexusnova-shell-v2.css) ;;
+              *) echo "UNAPPROVED POLISH CHANGE: $file"; exit 1 ;;
+            esac
+          done < /tmp/nx-polish-files.txt
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Prepare deterministic Android shell
+        run: python3 NexusNovaAndroid/prepare_native_web_shell.py
+
+      - name: Fix Speed Test observer loop
+        run: python3 NexusNovaAndroid/patch_speedtest_observer_guard.py
+
+      - name: Keep authoritative mining countdown sync
+        run: python3 NexusNovaAndroid/patch_mining_boost_sync.py
+
+      - name: Apply viewport safety
+        run: python3 NexusNovaAndroid/patch_viewport.py
+
+      - name: Apply native AdMob bridge
+        run: python3 NexusNovaAndroid/patch_admob.py
+
+      - name: Block unsafe live-value rewarded fallback
+        run: python3 NexusNovaAndroid/patch_rewarded_test_contract.py
+
+      - name: Apply UMP privacy without reward simulation
+        run: python3 NexusNovaAndroid/patch_ad_privacy.py
+
+      - name: Restore same-device session
+        run: python3 NexusNovaAndroid/patch_session_restore.py
+
+      - name: Apply splash exit and Speed Test UX repairs
+        run: python3 NexusNovaAndroid/patch_ux_only_friend_bugs.py
+
+      - name: Use modern Android Back dispatcher
+        run: python3 NexusNovaAndroid/patch_modern_back_dispatcher.py
+
+      - name: Keep camera hardware optional
+        run: python3 NexusNovaAndroid/patch_optional_camera_feature.py
+
+      - name: Defer Caller ID without hidden TEST chain
+        run: python3 NexusNovaAndroid/patch_deferred_caller_setup_stable.py
+
+      - name: Harden Firebase auth handoff
+        run: python3 NexusNovaAndroid/patch_android_auth_handoff.py
+
+      - name: Remove TEST-shell wording from stable auth UI
+        run: python3 NexusNovaAndroid/patch_stable_auth_wording.py
+
+      - name: Keep stale WebView reset safety
+        run: python3 NexusNovaAndroid/patch_web_shell_reset.py
+
+      - name: Keep deterministic packaged native shell
+        run: python3 NexusNovaAndroid/patch_native_shell.py
+
+      - name: Verify final polish contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          WEB=NexusNovaAndroid/app/src/main/assets/www
+          MAIN=NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          BROWSER=NexusNovaAndroid/app/src/main/java/com/nexusnova/app/BrowserActivity.kt
+          MANIFEST=NexusNovaAndroid/app/src/main/AndroidManifest.xml
+
+          # Two-tab shell remains intact.
+          grep -q "setText(labelNode(mining),'Mining')" "$WEB/js/nexusnova-shell-v2.js"
+          grep -q "setText(labelNode(hub),'Nova Hub')" "$WEB/js/nexusnova-shell-v2.js"
+          grep -q 'grid-template-columns:repeat(2,minmax(0,1fr))' "$WEB/css/nexusnova-shell-v2.css"
+          grep -q 'data-nx-dock-hidden="1"' "$WEB/css/nexusnova-shell-v2.css"
+
+          # Mining essentials are one integrated strip, not three visual cards.
+          grep -q 'Mining essentials: one integrated strip' "$WEB/css/nexusnova-shell-v2.css"
+          grep -q '#nxHomeCoreAccess .nx-core-head{display:none!important}' "$WEB/css/nexusnova-shell-v2.css"
+          grep -q 'grid-template-columns:repeat(3,minmax(0,1fr))' "$WEB/css/nexusnova-shell-v2.css"
+          grep -q 'background:transparent!important;border:0!important' "$WEB/css/nexusnova-shell-v2.css"
+          grep -q 'nx-core-card:not(:last-child)::after' "$WEB/css/nexusnova-shell-v2.css"
+
+          # Nova Hub has both CSS scroller hardening and the proven runtime fit guard loaded.
+          test -f "$WEB/js/nexusnova-allapps-scroll-fix-v1.js"
+          grep -q 'nexusnova-allapps-scroll-fix-v1.js' "$WEB/js/final-integrity-fix.js"
+          grep -q 'overflow-y:scroll!important' "$WEB/css/nexusnova-shell-v2.css"
+          grep -q 'touch-action:pan-y!important' "$WEB/css/nexusnova-shell-v2.css"
+          grep -q '__nxAllAppsScrollFixV1' "$WEB/js/nexusnova-allapps-scroll-fix-v1.js"
+          grep -q "m.style.setProperty('max-height', available + 'px', 'important')" "$WEB/js/nexusnova-allapps-scroll-fix-v1.js"
+
+          # Compact settings remains intact.
+          grep -q 'More Settings' "$WEB/js/nexusnova-shell-v2.js"
+          grep -q '#nxMoreSettings' "$WEB/css/nexusnova-shell-v2.css"
+
+          # No discarded reward/time-warp simulations.
+          grep -q 'SERVER_VERIFIED_BOOST_ENABLED = false' "$WEB/js/nexusnova-admob-nexus-pass-v1.js"
+          ! grep -R -q 'nx-test-boost-reward-fx-v1' "$WEB"
+          ! grep -R -q 'TEST REWARD PREVIEW' "$WEB"
+          ! grep -R -q 'nx:nova-test-boost-overlay' "$WEB"
+          ! grep -R -q 'testNvxPreview' "$WEB"
+          ! grep -R -q 'nx-video-truth-final-v1' "$WEB"
+          ! grep -R -q 'nx-video-truth-consistency-perf-v2' "$WEB"
+          ! grep -R -q 'nx-android-reward-event-order-v1' "$WEB"
+
+          grep -q 'onBackPressedDispatcher.addCallback' "$MAIN"
+          grep -q 'onBackPressedDispatcher.addCallback' "$BROWSER"
+          ! grep -q 'override fun onBackPressed()' "$MAIN"
+          ! grep -q 'override fun onBackPressed()' "$BROWSER"
+          grep -q '<uses-feature android:name="android.hardware.camera" android:required="false" />' "$MANIFEST"
+
+      - name: Check every bundled JavaScript file
+        shell: bash
+        run: |
+          set -euo pipefail
+          WEB=NexusNovaAndroid/app/src/main/assets/www
+          count=0
+          while IFS= read -r -d '' file; do
+            node --check "$file"
+            count=$((count+1))
+          done < <(find "$WEB/js" -type f -name '*.js' -print0)
+          echo "Verified $count bundled JavaScript files."
+          test "$count" -ge 90
+
+      - name: Deep static HTML and local-reference audit
+        run: |
+          python3 - <<'PY'
+          from html.parser import HTMLParser
+          from pathlib import Path
+          from urllib.parse import urlsplit
+          from collections import Counter
+          root = Path('NexusNovaAndroid/app/src/main/assets/www').resolve()
+          targets = [root/'index.html', root/'page2.html', root/'referral.html']
+          class AuditParser(HTMLParser):
+              def __init__(self):
+                  super().__init__(convert_charrefs=True); self.ids=[]; self.refs=[]
+              def handle_starttag(self, tag, attrs):
+                  data=dict(attrs)
+                  if data.get('id'): self.ids.append(data['id'])
+                  attr='src' if tag in {'script','img'} else 'href' if tag=='link' else None
+                  if attr and data.get(attr): self.refs.append(data[attr])
+          for html in targets:
+              p=AuditParser(); p.feed(html.read_text(encoding='utf-8',errors='replace'))
+              dup=[k for k,c in Counter(p.ids).items() if c>1]
+              if dup: raise SystemExit(f'{html.name}: duplicate ids: {dup[:20]}')
+              for raw in p.refs:
+                  value=raw.strip()
+                  if not value or value.startswith(('#','data:','blob:','javascript:','mailto:','tel:')): continue
+                  parts=urlsplit(value)
+                  if parts.scheme or parts.netloc or not parts.path: continue
+                  candidate=(html.parent/parts.path).resolve()
+                  try: candidate.relative_to(root)
+                  except ValueError: raise SystemExit(f'{html.name}: reference escapes bundle: {value}')
+                  if not candidate.exists(): raise SystemExit(f'{html.name}: missing local reference: {value}')
+              print(f'{html.name}: PASS — {len(p.ids)} ids, {len(p.refs)} refs')
+          PY
+
+      - name: Android lint
+        run: gradle -p NexusNovaAndroid :app:lintDebug --stacktrace --no-daemon
+
+      - name: Compile final polished APK
+        run: gradle -p NexusNovaAndroid :app:assembleDebug --stacktrace --no-daemon
+
+      - name: Verify compiled APK contents and integrity
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK=NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk
+          unzip -t "$APK"
+          unzip -l "$APK" > /tmp/nx_apk_files.txt
+          grep -q 'assets/www/js/nexusnova-shell-v2.js' /tmp/nx_apk_files.txt
+          grep -q 'assets/www/css/nexusnova-shell-v2.css' /tmp/nx_apk_files.txt
+          grep -q 'assets/www/js/nexusnova-allapps-scroll-fix-v1.js' /tmp/nx_apk_files.txt
+          unzip -p "$APK" assets/www/js/final-integrity-fix.js | grep -q 'nexusnova-allapps-scroll-fix-v1.js'
+          unzip -p "$APK" assets/www/css/nexusnova-shell-v2.css | grep -q 'Mining essentials: one integrated strip'
+          unzip -p "$APK" assets/www/css/nexusnova-shell-v2.css | grep -q 'overflow-y:scroll!important'
+          sha256sum "$APK"
+
+      - name: Upload final polished APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: NexusNova-FINAL-POLISH-V2-apk
+          path: NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
