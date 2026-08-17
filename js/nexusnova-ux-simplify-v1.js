@@ -1,4 +1,4 @@
-/* NexusNova UX Simplify v1.0.1
+/* NexusNova UX Simplify v1.0.2
    Web-only usability layer for the already-installed app.
 
    Goals:
@@ -7,6 +7,7 @@
    - Give book readers obvious Previous/Next controls by proxying their existing
      reader buttons. Urdu Library gets a clear Next Page action using the
      already-authorized in-reader Wikisource links.
+   - Expose a safe systemBack() hook for a future native Android back callback.
    - Never touch mining, rewards, ads, wallet balances, auth or Firebase values.
 */
 (() => {
@@ -28,6 +29,11 @@
 
   function activeTabName() {
     return String(activeTab()?.id || '').replace(/^tab-/, '') || 'home';
+  }
+
+  function menuOpen() {
+    const menu = document.getElementById('moreMenu');
+    return Boolean(menu && menu.classList.contains('show') && getComputedStyle(menu).display !== 'none');
   }
 
   function ensureStyles() {
@@ -110,11 +116,7 @@
   function readerControls(reader) {
     if (!reader) return { prev:null, next:null, backHint:'ALL APPS' };
     if (reader.kind === 'urdu') {
-      return {
-        prev: null,
-        next: findUrduNextLink(),
-        backHint: 'URDU LIBRARY'
-      };
+      return { prev:null, next:findUrduNextLink(), backHint:'URDU LIBRARY' };
     }
     if (reader.kind === 'quran') return { prev:buttonVisible('nxQuranPrevPolish'), next:buttonVisible('nxQuranNextPolish'), backHint:'QURAN LIBRARY' };
     if (reader.kind === 'hadith') return { prev:buttonVisible('nxHadithPrev'), next:buttonVisible('nxHadithNext'), backHint:'HADITH LIBRARY' };
@@ -127,10 +129,11 @@
     const reader = visibleReader();
     const controls = readerControls(reader);
     const target = direction < 0 ? controls.prev : controls.next;
-    if (!target) return;
-    try { target.click(); } catch (_) {}
+    if (!target) return false;
+    try { target.click(); } catch (_) { return false; }
     setTimeout(scheduleRender, 80);
     setTimeout(scheduleRender, 700);
+    return true;
   }
 
   /* The old back controls are deliberately hidden by this layer, but their
@@ -144,18 +147,43 @@
 
   function goBackContextually() {
     const reader = visibleReader();
-    if (reader?.kind === 'urdu' && clickFirstExisting('#nxUrduReaderBack')) return;
-    if (clickFirstExisting('#nxBookFocusBack')) return;
-
     const tab = activeTab();
-    if (tab && clickFirstExisting('.nx-allapps-back button,.tools-main-back,[data-nx-back-allapps]', tab)) return;
+    const tabName = activeTabName();
 
-    try {
-      if (typeof window.nexusBackToAllApps === 'function' && window.nexusBackToAllApps() !== false) return;
-    } catch (_) {}
+    if (reader?.kind === 'urdu' && clickFirstExisting('#nxUrduReaderBack')) return true;
 
-    const more = document.getElementById('moreBtn');
-    try { more?.click(); } catch (_) {}
+    // Book Focus belongs only to the Islamic library. Do not let a hidden
+    // Islamic back control consume Back presses while Bible/Urdu is active.
+    if (tabName === 'mega-islamic' && clickFirstExisting('#nxBookFocusBack')) return true;
+
+    if (tab && clickFirstExisting('.nx-allapps-back button,.tools-main-back,[data-nx-back-allapps]', tab)) return true;
+
+    if (!CORE.has(tabName)) {
+      try {
+        if (typeof window.nexusBackToAllApps === 'function' && window.nexusBackToAllApps() !== false) return true;
+      } catch (_) {}
+
+      const more = document.getElementById('moreBtn');
+      try {
+        more?.click();
+        return Boolean(more);
+      } catch (_) {}
+    }
+    return false;
+  }
+
+  /* Native Android can call this in a future APK. It intentionally returns
+     false on a core/root screen so Android can show a Yes/No exit dialog. */
+  function handleSystemBack() {
+    if (menuOpen()) {
+      try {
+        document.getElementById('moreBtn')?.click();
+        return true;
+      } catch (_) {}
+    }
+    if (visibleReader()) return goBackContextually();
+    if (!CORE.has(activeTabName())) return goBackContextually();
+    return false;
   }
 
   function setButton(button, enabled, label) {
@@ -173,7 +201,6 @@
     const next = document.getElementById('nxUxNext');
     const hint = document.getElementById('nxUxBackHint');
     const reader = visibleReader();
-    const menuOpen = document.body.classList.contains('nx-allapps-open') || visible(document.querySelector('#moreMenu.show'));
     const tabName = activeTabName();
 
     if (reader) {
@@ -189,7 +216,7 @@
     if (prev) prev.disabled = true;
     if (next) next.disabled = true;
 
-    if (!menuOpen && tabName && !CORE.has(tabName)) {
+    if (!menuOpen() && tabName && !CORE.has(tabName)) {
       bar.classList.add('show');
       if (hint) hint.textContent = 'ALL APPS';
       return;
@@ -227,8 +254,9 @@
   [250,700,1500,3000,6000,10000].forEach(ms => setTimeout(scheduleRender, ms));
 
   window.NexusNovaUxSimplify = Object.freeze({
-    version:'1.0.1',
+    version:'1.0.2',
     refresh:scheduleRender,
-    back:goBackContextually
+    back:goBackContextually,
+    systemBack:handleSystemBack
   });
 })();
