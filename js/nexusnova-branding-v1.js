@@ -64,14 +64,12 @@
 
   function brandTab(tab) {
     if (!(tab instanceof HTMLElement) || !tab.classList.contains('tab')) return;
-
     if (!tab.querySelector(`:scope > .${CHIP_CLASS}`)) {
       const chip = makeChip(labelForTab(tab));
       const anchor = tab.firstElementChild;
       if (anchor) tab.insertBefore(chip, anchor);
       else tab.appendChild(chip);
     }
-
     if (!tab.querySelector(`:scope > .${FOOTER_CLASS}`)) {
       const footer = document.createElement('div');
       footer.className = FOOTER_CLASS;
@@ -93,22 +91,12 @@
   }
 
   function brandCoreCards() {
-    document.querySelectorAll([
-      '.tab > .card',
-      '.tab .stat-card',
-      '.tab .gold-box',
-      '.tab .news-card',
-      '.tab .profile-card',
-      '.tab .settings-card',
-      '.tab .market-card',
-      '.tab .wallet-card'
-    ].join(',')).forEach(addWatermark);
+    document.querySelectorAll(['.tab > .card','.tab .stat-card','.tab .gold-box','.tab .news-card','.tab .profile-card','.tab .settings-card','.tab .market-card','.tab .wallet-card'].join(',')).forEach(addWatermark);
   }
 
   function brandMining() {
     const home = document.getElementById('tab-home');
     if (!home) return;
-
     const balanceCard = home.querySelector(':scope > .card');
     if (balanceCard instanceof HTMLElement) {
       balanceCard.classList.add('nx-brand-mining-card');
@@ -120,14 +108,31 @@
         balanceCard.appendChild(seal);
       }
     }
-
     const mineButton = document.getElementById('mineBtn');
     if (mineButton instanceof HTMLElement) mineButton.classList.add('nx-brand-mining-button');
-
     const timer = document.getElementById('timer');
     if (timer instanceof HTMLElement) timer.classList.add('nx-brand-mining-readout');
-
     home.querySelectorAll('.stat-card').forEach(card => card.classList.add('nx-brand-mining-stat'));
+  }
+
+  function renameAllApps() {
+    const moreButton = document.getElementById('moreBtn');
+    if (moreButton) {
+      const label = Array.from(moreButton.querySelectorAll('span')).find(node => !node.classList.contains('mi-icon'));
+      if (label && label.textContent !== 'NOVA HUB') label.textContent = 'NOVA HUB';
+      moreButton.setAttribute('aria-label', 'Nova Hub');
+      moreButton.title = 'Nova Hub';
+    }
+    document.querySelectorAll('#moreMenu h1, #moreMenu h2, #moreMenu h3, #moreMenu .more-title, #moreMenu .menu-title').forEach(node => {
+      const text = clean(node.textContent);
+      if (/^all apps$/i.test(text)) node.textContent = 'NOVA HUB';
+    });
+    document.querySelectorAll('input[placeholder], [aria-label], [title]').forEach(node => {
+      for (const attr of ['placeholder', 'aria-label', 'title']) {
+        const value = node.getAttribute?.(attr);
+        if (value && /all apps/i.test(value)) node.setAttribute(attr, value.replace(/all apps/ig, 'Nova Hub'));
+      }
+    });
   }
 
   function brandAllApps() {
@@ -143,16 +148,7 @@
   }
 
   function brandPanels() {
-    document.querySelectorAll([
-      '.nexus-tool-panel',
-      '.nxui-hero',
-      '.nx-speed4-shell',
-      '.nx-scripture-reader',
-      '.nx-bible-reader',
-      '.nx-browser-shell',
-      '[data-nx-standalone-app]'
-    ].join(',')).forEach(node => node.classList?.add('nx-brand-watermarked'));
-
+    document.querySelectorAll(['.nexus-tool-panel','.nxui-hero','.nx-speed4-shell','.nx-scripture-reader','.nx-bible-reader','.nx-browser-shell','[data-nx-standalone-app]'].join(',')).forEach(node => node.classList?.add('nx-brand-watermarked'));
     document.querySelectorAll('.tab .status').forEach(node => {
       if (node instanceof HTMLElement) node.classList.add('nx-brand-status');
     });
@@ -161,6 +157,7 @@
   function applyBranding() {
     ensureCss();
     document.body?.classList.add('nx-branding-v1');
+    renameAllApps();
     document.querySelectorAll('main .tab, main.main .tab').forEach(brandTab);
     brandCoreCards();
     brandMining();
@@ -178,14 +175,9 @@
     });
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', applyBranding, { once:true });
-  } else {
-    applyBranding();
-  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', applyBranding, { once:true });
+  else applyBranding();
 
-  // Many NexusNova utilities are inserted lazily after ALL APPS opens.
-  // Re-apply only visual markers when those nodes appear.
   const observer = new MutationObserver(queueApply);
   const startObserver = () => {
     if (!document.body) return;
@@ -195,6 +187,5 @@
   else document.addEventListener('DOMContentLoaded', startObserver, { once:true });
 
   [300, 900, 1800, 3500].forEach(ms => setTimeout(applyBranding, ms));
-
   window.NexusNovaBranding = Object.freeze({ refresh: applyBranding });
 })();
