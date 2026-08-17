@@ -1,4 +1,5 @@
 from pathlib import Path
+import subprocess
 
 path = Path('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt')
 text = path.read_text()
@@ -66,3 +67,8 @@ if old_client not in text:
     raise SystemExit('WebViewClient insertion point not found')
 text = text.replace(old_client, callback, 1)
 path.write_text(text)
+
+# Android owns the final splash escape as well as the web CSS/JS failsafes.
+# Running this here keeps every existing Android build/runtime pipeline on the
+# same native v4 release contract without changing the user's established UI.
+subprocess.run(['python3', 'NexusNovaAndroid/patch_native_splash_release_v4.py'], check=True)
