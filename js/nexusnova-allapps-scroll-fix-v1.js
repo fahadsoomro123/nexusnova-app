@@ -1,7 +1,8 @@
-/* NexusNova ALL APPS Scroll Fix v1
-   Resolves the Android/WebView conflict where older regional ALL APPS CSS
-   expands #moreMenu while the navigation layer expects it to be a bounded
-   scroll container. This file touches scrolling only; no feature logic.
+/* NexusNova Nova Hub Scroll Fix v2
+   Keeps Nova Hub a stable, bounded Android/WebView touch scroller.
+   Uses viewport/dock geometry only — never the menu's own current top/height,
+   avoiding the feedback loop that could progressively shrink the sheet.
+   Scrolling/UI only; no feature, mining, wallet, reward, auth or Firebase logic.
 */
 (() => {
   'use strict';
@@ -13,6 +14,12 @@
     document.body?.classList.contains('nx-allapps-open') &&
     menu()?.classList.contains('show')
   );
+
+  function viewportHeight() {
+    const visual = Number(window.visualViewport?.height || 0);
+    const inner = Number(window.innerHeight || document.documentElement.clientHeight || 0);
+    return Math.max(1, visual || inner || 640);
+  }
 
   function installStyles() {
     if (document.getElementById('nxAllAppsScrollFixStylesV1')) return;
@@ -31,7 +38,7 @@
         overscroll-behavior-y:auto!important;
       }
       body.nx-allapps-open #moreMenu .more-item{
-        touch-action:pan-y!important;
+        touch-action:manipulation!important;
       }
     `;
     document.head.appendChild(style);
@@ -42,20 +49,21 @@
     const m = menu();
     if (!m) return;
 
+    const vh = viewportHeight();
     const dock = document.querySelector('.bottom-dock');
-    const rect = m.getBoundingClientRect();
     const dockRect = dock?.getBoundingClientRect();
-    const viewportBottom = Math.min(
-      window.innerHeight || document.documentElement.clientHeight || 0,
-      dockRect?.top || Number.POSITIVE_INFINITY
-    );
-    const available = Math.max(160, Math.floor(viewportBottom - Math.max(0, rect.top) - 8));
+    const dockTop = Number.isFinite(dockRect?.top) ? dockRect.top : (vh - 76);
 
-    /* Inline !important intentionally wins over the legacy regional rule that
-       sets min-height/max-height/overflow for ALL APPS. */
+    /* Stable target: about 72% of the visible viewport, while leaving a clean
+       top breathing area and never covering the bottom dock. Critically this
+       does NOT use m.getBoundingClientRect(), so repeated fits cannot shrink it. */
+    const byViewport = Math.floor(vh * 0.72);
+    const byDock = Math.floor(dockTop - 84);
+    const target = Math.max(190, Math.min(620, byViewport, Math.max(190, byDock)));
+
     m.style.setProperty('min-height', '0px', 'important');
-    m.style.setProperty('height', 'auto', 'important');
-    m.style.setProperty('max-height', available + 'px', 'important');
+    m.style.setProperty('height', target + 'px', 'important');
+    m.style.setProperty('max-height', target + 'px', 'important');
     m.style.setProperty('overflow-y', 'auto', 'important');
     m.style.setProperty('overflow-x', 'hidden', 'important');
     m.style.setProperty('overscroll-behavior-y', 'contain', 'important');
@@ -69,7 +77,7 @@
     raf = requestAnimationFrame(() => {
       raf = 0;
       fitScroller();
-      setTimeout(fitScroller, 60);
+      setTimeout(fitScroller, 80);
     });
   }
 
@@ -92,8 +100,10 @@
 
     window.addEventListener('resize', scheduleFit, { passive: true });
     window.visualViewport?.addEventListener('resize', scheduleFit, { passive: true });
+    window.visualViewport?.addEventListener('scroll', scheduleFit, { passive: true });
+    window.addEventListener('orientationchange', scheduleFit, { passive: true });
     window.addEventListener('nexusnova:tab-changed', event => {
-      if (String(event?.detail?.name || '') === 'allapps') scheduleFit();
+      if (/^(allapps|nova-hub)$/i.test(String(event?.detail?.name || ''))) scheduleFit();
     });
 
     scheduleFit();
@@ -104,4 +114,6 @@
   } else {
     install();
   }
+
+  window.NexusNovaHubScroll = Object.freeze({version:'2.0.0',fit:fitScroller});
 })();
