@@ -52,16 +52,19 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
           p = Path('NexusNovaAndroid/app/src/main/assets/www/js/page2-core.js')
           s = p.read_text(encoding='utf-8')
           auth = s.find('/* =========================================================\n   AUTH\n========================================================= */')
           if auth < 0:
               raise SystemExit('AUTH section missing from prepared dashboard')
-          needle = 'window.location.replace("./index.html");'
-          pos = s.find(needle, auth)
-          if pos < 0:
-              raise SystemExit('Signed-out dashboard redirect line missing')
+          tail = s[auth:]
+          pattern = re.compile(r'(?:window\.)?location\.replace\s*\(\s*["\']\./index\.html["\']\s*\)\s*;', re.S)
+          m = pattern.search(tail)
+          if not m:
+              raise SystemExit('Signed-out dashboard redirect expression missing')
           guard = 'if(new URLSearchParams(window.location.search).has("stabilityTest")) return;\n            '
+          pos = auth + m.start()
           s = s[:pos] + guard + s[pos:]
           p.write_text(s, encoding='utf-8')
           print('Prepared CI-only post-login dashboard stability fixture.')
