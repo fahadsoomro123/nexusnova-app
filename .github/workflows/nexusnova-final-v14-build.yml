@@ -1,0 +1,192 @@
+name: NexusNova Final UI v1.4 Locked
+
+on:
+  push:
+    branches: ['agent/final-two-tab-polish-v2']
+    paths:
+      - '.github/workflows/nexusnova-final-v14-build.yml'
+      - 'js/nexusnova-two-tab-guard-v1.js'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  final-v14:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prove core and v1.4 scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --exit-code 0b6b856e25204d40b7172482cd2886ff30e80325 -- \
+            js/rewards-security-v1.js js/nexusnova-admob-nexus-pass-v1.js \
+            js/page2-core.js js/wallet-actions-v2.js firestore.rules functions page2.html index.html
+          git diff --name-only 82208039ddef87fd6ff580034b204867bcfdc0ca...HEAD > /tmp/v14-files.txt
+          cat /tmp/v14-files.txt
+          while IFS= read -r file; do
+            case "$file" in
+              js/nexusnova-two-tab-guard-v1.js|.github/workflows/nexusnova-final-v14-build.yml) ;;
+              *) echo "UNAPPROVED V1.4 CHANGE: $file"; exit 1 ;;
+            esac
+          done < /tmp/v14-files.txt
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Prepare Android shell
+        run: python3 NexusNovaAndroid/prepare_native_web_shell.py
+      - name: Speed Test observer guard
+        run: python3 NexusNovaAndroid/patch_speedtest_observer_guard.py
+      - name: Mining countdown sync
+        run: python3 NexusNovaAndroid/patch_mining_boost_sync.py
+      - name: Viewport safety
+        run: python3 NexusNovaAndroid/patch_viewport.py
+      - name: Native AdMob bridge
+        run: python3 NexusNovaAndroid/patch_admob.py
+      - name: Safe rewarded contract
+        run: python3 NexusNovaAndroid/patch_rewarded_test_contract.py
+      - name: UMP privacy without simulation
+        run: python3 NexusNovaAndroid/patch_ad_privacy.py
+      - name: Same-device session restore
+        run: python3 NexusNovaAndroid/patch_session_restore.py
+      - name: Exit and Speed UX repairs
+        run: python3 NexusNovaAndroid/patch_ux_only_friend_bugs.py
+      - name: Modern Back dispatcher
+        run: python3 NexusNovaAndroid/patch_modern_back_dispatcher.py
+      - name: Optional camera compatibility
+        run: python3 NexusNovaAndroid/patch_optional_camera_feature.py
+      - name: Stable deferred Caller ID
+        run: python3 NexusNovaAndroid/patch_deferred_caller_setup_stable.py
+      - name: Firebase auth handoff
+        run: python3 NexusNovaAndroid/patch_android_auth_handoff.py
+      - name: Stable auth wording
+        run: python3 NexusNovaAndroid/patch_stable_auth_wording.py
+      - name: Stale WebView safety
+        run: python3 NexusNovaAndroid/patch_web_shell_reset.py
+      - name: Deterministic native shell
+        run: python3 NexusNovaAndroid/patch_native_shell.py
+
+      - name: Verify v1.4 UI contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          WEB=NexusNovaAndroid/app/src/main/assets/www
+          GUARD="$WEB/js/nexusnova-two-tab-guard-v1.js"
+          SCROLL="$WEB/js/nexusnova-allapps-scroll-fix-v1.js"
+          SHELL="$WEB/js/nexusnova-shell-v2.js"
+          CSS="$WEB/css/nexusnova-shell-v2.css"
+          MAIN=NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          BROWSER=NexusNovaAndroid/app/src/main/java/com/nexusnova/app/BrowserActivity.kt
+
+          grep -q "version:'1.4.0'" "$GUARD"
+          grep -q "AUX = new Set(\['wallet','tasks','market'\])" "$GUARD"
+          grep -q "button.style.setProperty('display','none','important')" "$GUARD"
+          grep -q 'more-item\[hidden\]' "$GUARD"
+          grep -q 'home.insertBefore(panel, mineButton)' "$GUARD"
+          grep -q 'min-height:48px!important' "$GUARD"
+          grep -q 'nx-brand-mining-seal' "$GUARD"
+          grep -q '#mineBtn.nx-brand-mining-button::before' "$GUARD"
+          grep -q 'data-nx-speedtest-v4="1"' "$GUARD"
+          grep -q 'width:38px!important' "$GUARD"
+          grep -q 'nxAccountSecurity' "$GUARD"
+          grep -q 'email verification|change password' "$GUARD"
+          grep -q 'trimDefaultSettings' "$GUARD"
+
+          grep -q "setText(labelNode(mining),'Mining')" "$SHELL"
+          grep -q "setText(labelNode(hub),'Nova Hub')" "$SHELL"
+          grep -q 'More Settings' "$SHELL"
+          grep -q 'grid-template-columns:repeat(2,minmax(0,1fr))' "$CSS"
+          grep -q 'overflow-y:scroll!important' "$CSS"
+          grep -q '__nxAllAppsScrollFixV1' "$SCROLL"
+          grep -q "m.style.setProperty('height', target + 'px', 'important')" "$SCROLL"
+          ! grep -q 'm.getBoundingClientRect()' "$SCROLL"
+
+          grep -q 'SERVER_VERIFIED_BOOST_ENABLED = false' "$WEB/js/nexusnova-admob-nexus-pass-v1.js"
+          ! grep -R -q 'nx-test-boost-reward-fx-v1' "$WEB"
+          ! grep -R -q 'TEST REWARD PREVIEW' "$WEB"
+          ! grep -R -q 'nx:nova-test-boost-overlay' "$WEB"
+          ! grep -R -q 'testNvxPreview' "$WEB"
+          ! grep -R -q 'nx-video-truth-final-v1' "$WEB"
+          ! grep -R -q 'nx-video-truth-consistency-perf-v2' "$WEB"
+          ! grep -R -q 'nx-android-reward-event-order-v1' "$WEB"
+
+          grep -q 'onBackPressedDispatcher.addCallback' "$MAIN"
+          grep -q 'onBackPressedDispatcher.addCallback' "$BROWSER"
+          ! grep -q 'override fun onBackPressed()' "$MAIN"
+          ! grep -q 'override fun onBackPressed()' "$BROWSER"
+
+      - name: Check every bundled JavaScript file
+        shell: bash
+        run: |
+          set -euo pipefail
+          WEB=NexusNovaAndroid/app/src/main/assets/www
+          count=0
+          while IFS= read -r -d '' file; do node --check "$file"; count=$((count+1)); done < <(find "$WEB/js" -type f -name '*.js' -print0)
+          echo "Verified $count JavaScript files"
+          test "$count" -ge 100
+
+      - name: HTML local-reference audit
+        run: |
+          python3 - <<'PY'
+          from html.parser import HTMLParser
+          from pathlib import Path
+          from urllib.parse import urlsplit
+          from collections import Counter
+          root=Path('NexusNovaAndroid/app/src/main/assets/www').resolve()
+          class P(HTMLParser):
+            def __init__(self): super().__init__(convert_charrefs=True); self.ids=[]; self.refs=[]
+            def handle_starttag(self,tag,attrs):
+              d=dict(attrs)
+              if d.get('id'): self.ids.append(d['id'])
+              a='src' if tag in {'script','img'} else 'href' if tag=='link' else None
+              if a and d.get(a): self.refs.append(d[a])
+          for name in ['index.html','page2.html','referral.html']:
+            f=root/name; p=P(); p.feed(f.read_text(encoding='utf-8',errors='replace'))
+            dup=[x for x,c in Counter(p.ids).items() if c>1]
+            if dup: raise SystemExit(f'{name}: duplicate ids {dup[:10]}')
+            for raw in p.refs:
+              v=raw.strip()
+              if not v or v.startswith(('#','data:','blob:','javascript:','mailto:','tel:')): continue
+              u=urlsplit(v)
+              if u.scheme or u.netloc or not u.path: continue
+              c=(f.parent/u.path).resolve(); c.relative_to(root)
+              if not c.exists(): raise SystemExit(f'{name}: missing {v}')
+            print(name,'PASS')
+          PY
+
+      - name: Android lint
+        run: gradle -p NexusNovaAndroid :app:lintDebug --stacktrace --no-daemon
+      - name: Compile APK
+        run: gradle -p NexusNovaAndroid :app:assembleDebug --stacktrace --no-daemon
+
+      - name: Verify final APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK=NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk
+          unzip -t "$APK"
+          unzip -p "$APK" assets/www/js/nexusnova-two-tab-guard-v1.js | grep -q "version:'1.4.0'"
+          unzip -p "$APK" assets/www/js/nexusnova-two-tab-guard-v1.js | grep -q 'nxAccountSecurity'
+          unzip -p "$APK" assets/www/js/nexusnova-allapps-scroll-fix-v1.js | grep -q "height', target + 'px'"
+          sha256sum "$APK"
+
+      - name: Upload locked final APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: NexusNova-FINAL-CLEAN-v14-apk
+          path: NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
