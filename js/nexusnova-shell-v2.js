@@ -14,6 +14,7 @@
   const CSS_MARKER = 'data-nx-shell-v2-css';
   const $ = (selector, root = document) => root.querySelector(selector);
   const qsa = (selector, root = document) => Array.from(root.querySelectorAll(selector));
+  let wrappedUx = null;
 
   function ensureCss() {
     if ($(`link[${CSS_MARKER}]`)) return;
@@ -98,6 +99,39 @@
 
     if (mining) mining.classList.toggle('active',miningFamily && !hubOpen);
     if (hub) hub.classList.toggle('active',hubOpen || !miningFamily);
+  }
+
+  function backToMining() {
+    const mining = dockButton('home');
+    if (!mining) return false;
+    try {
+      mining.click();
+      setTimeout(syncDockState,0);
+      return true;
+    } catch (_) { return false; }
+  }
+
+  function installBackBridge() {
+    const ux = window.NexusNovaUxSimplify;
+    if (!ux || ux === wrappedUx || ux.__nxShellV2Wrapped) return false;
+
+    const originalSystemBack = typeof ux.systemBack === 'function' ? ux.systemBack.bind(ux) : null;
+    const originalBack = typeof ux.back === 'function' ? ux.back.bind(ux) : null;
+    wrappedUx = Object.freeze({
+      ...ux,
+      __nxShellV2Wrapped:true,
+      back() {
+        if (HOME_AUX.has(activeTabName())) return backToMining();
+        return originalBack ? originalBack() : false;
+      },
+      systemBack() {
+        const menuOpen = Boolean($('#moreMenu')?.classList.contains('show'));
+        if (!menuOpen && HOME_AUX.has(activeTabName())) return backToMining();
+        return originalSystemBack ? originalSystemBack() : false;
+      }
+    });
+    window.NexusNovaUxSimplify = wrappedUx;
+    return true;
   }
 
   function openCore(target) {
@@ -228,20 +262,11 @@
       if (!keepVisible && child.parentElement !== body) body.appendChild(child);
     });
 
-    /* If dynamically added cards appear later (Ads etc.), keep the default Settings screen short. */
     Array.from(tab.children).forEach(child => {
       if (!(child instanceof HTMLElement) || !child.classList.contains('settings-card')) return;
       const title = cardTitle(child);
       if (!Array.from(keep).some(key => title.includes(key))) body.appendChild(child);
     });
-
-    /* Keep initial choices intentionally limited. */
-    const marketRow = rowByControl(tab,'notifyMarket');
-    if (marketRow && marketRow.parentElement !== advancedPrefs) advancedPrefs.appendChild(marketRow);
-    const compactRow = rowByControl(tab,'compactSetting');
-    if (compactRow && compactRow.parentElement !== advancedPrefs) advancedPrefs.appendChild(compactRow);
-    const currencyRow = rowByControl(tab,'currencySetting');
-    if (currencyRow && currencyRow.parentElement !== advancedPrefs) advancedPrefs.appendChild(currencyRow);
 
     return true;
   }
@@ -254,9 +279,10 @@
 
     const settings = $('#tab-about');
     if (settings) {
+      let settingsTimer = 0;
       const settingsObserver = new MutationObserver(() => {
-        clearTimeout(settingsObserver._timer);
-        settingsObserver._timer = setTimeout(compactSettings,40);
+        clearTimeout(settingsTimer);
+        settingsTimer = setTimeout(compactSettings,40);
       });
       settingsObserver.observe(settings,{childList:true});
     }
@@ -267,13 +293,14 @@
     setupDock();
     ensureHomeQuickAccess();
     compactSettings();
+    installBackBridge();
     syncDockState();
   }
 
   function install() {
     apply();
     installObservers();
-    document.addEventListener('click',() => setTimeout(syncDockState,0),true);
+    document.addEventListener('click',() => setTimeout(() => { installBackBridge(); syncDockState(); },0),true);
     [180,500,1100,2200,4500].forEach(ms => setTimeout(apply,ms));
   }
 
@@ -281,8 +308,9 @@
   else install();
 
   window.NexusNovaShellV2 = Object.freeze({
-    version:'2.0.0',
+    version:'2.0.1',
     refresh:apply,
-    openCore
+    openCore,
+    backToMining
   });
 })();
