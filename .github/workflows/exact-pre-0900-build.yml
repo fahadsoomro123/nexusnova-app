@@ -18,6 +18,8 @@ jobs:
     steps:
       - name: Checkout exact checkpoint branch
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
 
       - name: Prove application source is unchanged from 0b6b856
         run: |
