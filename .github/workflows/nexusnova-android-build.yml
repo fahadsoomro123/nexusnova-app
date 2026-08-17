@@ -38,6 +38,7 @@ jobs:
             case "$file" in
               .github/workflows/nexusnova-android-build.yml|\
               NexusNovaAndroid/patch_ux_only_friend_bugs.py|\
+              NexusNovaAndroid/patch_speedtest_observer_guard.py|\
               js/final-integrity-fix.js|\
               js/nexusnova-ux-simplify-v1.js|\
               js/nexusnova-speedtest-app-v4.js|\
@@ -72,6 +73,9 @@ jobs:
 
       - name: Prepare deterministic Android web shell
         run: python3 NexusNovaAndroid/prepare_native_web_shell.py
+
+      - name: Fix Speed Test observer self-trigger loop
+        run: python3 NexusNovaAndroid/patch_speedtest_observer_guard.py
 
       - name: Synchronize existing mining boost countdown state
         run: python3 NexusNovaAndroid/patch_mining_boost_sync.py
@@ -141,6 +145,7 @@ jobs:
           grep -q 'systemBack:handleSystemBack' "$WEB/js/nexusnova-ux-simplify-v1.js"
           grep -q "TAB_ID = 'tab-speed-test'" "$WEB/js/nexusnova-speedtest-app-v4.js"
           grep -q 'data-nx-speedtest-v4' "$WEB/js/nexusnova-speedtest-app-v4.js"
+          grep -q "if (label.textContent !== nextLabel) label.textContent = nextLabel;" "$WEB/js/nexusnova-speedtest-app-v4.js"
           grep -q '#tab-tools .nexus-tool-chip\[data-tool="speed"\]' "$WEB/css/nexusnova-speedtest-app-v4.css"
           grep -q '.nx-speed4-gauge' "$WEB/css/nexusnova-speedtest-app-v4.css"
           grep -q 'nx-speed4-premium-launcher-v5' "$WEB/css/nexusnova-speedtest-app-v4.css"
