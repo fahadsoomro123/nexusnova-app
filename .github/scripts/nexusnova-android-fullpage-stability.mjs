@@ -90,10 +90,10 @@ async function assertCoreInteraction(page, label) {
     const el = document.getElementById('nxSplash');
     if (!el) return { removed: true };
     const s = getComputedStyle(el);
-    return { removed: false, pointerEvents: s.pointerEvents, visibility: s.visibility, opacity: s.opacity };
+    return { removed: false, pointerEvents: s.pointerEvents, visibility: s.visibility, opacity: s.opacity, display: s.display };
   });
   assert.ok(
-    splash.removed || splash.pointerEvents === 'none' || splash.visibility === 'hidden' || Number(splash.opacity) === 0,
+    splash.removed || splash.pointerEvents === 'none' || splash.visibility === 'hidden' || splash.display === 'none' || Number(splash.opacity) === 0,
     `${label}: splash still blocks touch: ${JSON.stringify(splash)}`,
   );
 }
@@ -106,6 +106,7 @@ async function runScenario(name, slowProbeDelayMs) {
   });
   const page = await context.newPage();
   const severeErrors = [];
+  const blockedAuthRedirects = [];
 
   page.on('pageerror', (error) => {
     const message = String(error?.message || error || '');
@@ -114,8 +115,20 @@ async function runScenario(name, slowProbeDelayMs) {
   });
 
   await page.route('**/*', async (route) => {
-    const url = new URL(route.request().url());
-    if (url.origin === base) return route.continue();
+    const request = route.request();
+    const url = new URL(request.url());
+    if (url.origin === base) {
+      // This regression exercises the authenticated Android dashboard itself.
+      // Firebase is intentionally blocked below, so an auth observer can legally
+      // attempt to send an unauthenticated synthetic browser to index.html. Abort
+      // only that local CI navigation so the dashboard remains mounted. Production
+      // auth code is untouched and continues to redirect real signed-out users.
+      if (request.isNavigationRequest() && /\/index\.html$/.test(url.pathname)) {
+        blockedAuthRedirects.push(url.href);
+        return route.abort('aborted');
+      }
+      return route.continue();
+    }
     if (url.href === SLOW_PROBE_URL && slowProbeDelayMs > 0) {
       await new Promise((resolve) => setTimeout(resolve, slowProbeDelayMs));
       return route.abort('failed');
@@ -123,12 +136,25 @@ async function runScenario(name, slowProbeDelayMs) {
     return route.abort('failed');
   });
 
-  // The navigation must return the actual prepared Android HTML and finish
-  // parsing the document before we measure touch targets. `commit` only proves
-  // response headers arrived; it can fire before the late bottom dock exists.
   const response = await page.goto(nativePage, { waitUntil: 'domcontentloaded', timeout: 20_000 });
   assert.equal(response?.status(), 200, `${name}: prepared Android shell returned HTTP ${response?.status()}`);
-  await page.locator('#moreBtn').waitFor({ state: 'attached', timeout: 5_000 });
+
+  try {
+    await page.locator('#moreBtn').waitFor({ state: 'attached', timeout: 5_000 });
+  } catch (error) {
+    const diagnostic = await page.evaluate(() => ({
+      href: location.href,
+      readyState: document.readyState,
+      title: document.title,
+      hasBody: Boolean(document.body),
+      bodyChars: document.body?.textContent?.length || 0,
+      hasSplash: Boolean(document.getElementById('nxSplash')),
+      hasDock: Boolean(document.querySelector('.bottom-dock')),
+    })).catch(() => ({ href: page.url() }));
+    throw new Error(`${name}: #moreBtn missing after dashboard parse. diagnostic=${JSON.stringify(diagnostic)} blockedAuthRedirects=${JSON.stringify(blockedAuthRedirects)} cause=${error?.message || error}`);
+  }
+
+  assert.ok(page.url().includes('/page2.html'), `${name}: dashboard navigation escaped to ${page.url()}`);
 
   if (slowProbeDelayMs > 0) {
     await page.evaluate((src) => {
