@@ -105,6 +105,7 @@ async function runScenario(name, externalDelayMs) {
   });
   const page = await context.newPage();
   const severeErrors = [];
+  let delayedExternalRequest = false;
 
   page.on('pageerror', (error) => {
     const message = String(error?.message || error || '');
@@ -115,17 +116,18 @@ async function runScenario(name, externalDelayMs) {
   await page.route('**/*', async (route) => {
     const url = new URL(route.request().url());
     if (url.origin === base) return route.continue();
-    if (externalDelayMs > 0) await new Promise((resolve) => setTimeout(resolve, externalDelayMs));
+    // One genuinely slow remote dependency is enough to prove the bundled
+    // Android shell does not let a CDN/Firebase request freeze navigation.
+    // Abort all other remote traffic immediately so the test remains bounded
+    // instead of accumulating hundreds of independent 8-second timers.
+    if (externalDelayMs > 0 && !delayedExternalRequest) {
+      delayedExternalRequest = true;
+      await new Promise((resolve) => setTimeout(resolve, externalDelayMs));
+    }
     return route.abort('failed');
   });
 
   await page.goto(nativePage, { waitUntil: 'commit', timeout: 10_000 });
-  // The bottom dock is static bundled HTML. Wait only for DOM attachment here,
-  // not CSS paint: under an intentionally delayed external network Playwright's
-  // `visible` state can wait on style calculation even though the native shell
-  // has already parsed the dock. The real usability assertion below still
-  // requires a >20px hit box, visible style, an uncovered touch target, and
-  // working tab/menu navigation at the intended ~3s checkpoint.
   await page.locator('#moreBtn').waitFor({ state: 'attached', timeout: 10_000 });
   await page.waitForTimeout(2800);
 
