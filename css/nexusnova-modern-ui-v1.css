@@ -1,0 +1,296 @@
+/* NexusNova Modern UI v1
+   Publish-level visual cleanup for Nova Hub, navigation and Speed Test.
+   Visual/navigation-only: no mining, reward, wallet, auth or Firebase value logic.
+*/
+:root{
+  --nxm-bg:#050814;
+  --nxm-surface:#0a1020;
+  --nxm-surface-2:#10192b;
+  --nxm-line:rgba(132,170,225,.16);
+  --nxm-line-strong:rgba(103,171,255,.30);
+  --nxm-text:#f6f9ff;
+  --nxm-sub:#8da3bd;
+  --nxm-blue:#4b9cff;
+  --nxm-cyan:#56d5e7;
+  --nxm-shadow:0 20px 58px rgba(0,0,0,.46);
+}
+
+/* ---------- Bottom dock: quieter, cleaner, less toy-like ---------- */
+.bottom-dock{
+  left:10px!important;right:10px!important;bottom:10px!important;
+  padding:5px!important;border-radius:22px!important;
+  background:rgba(4,8,16,.94)!important;
+  border:1px solid rgba(107,160,225,.17)!important;
+  box-shadow:0 18px 50px rgba(0,0,0,.55)!important;
+  backdrop-filter:blur(18px)!important;-webkit-backdrop-filter:blur(18px)!important;
+}
+.bottom-dock .dock-inner{gap:3px!important}
+.bottom-dock .dock-item{
+  min-height:54px!important;padding:7px 3px 6px!important;border-radius:16px!important;
+  color:#71839b!important;background:transparent!important;box-shadow:none!important;
+}
+.bottom-dock .dock-item .mi-icon{width:27px!important;height:27px!important;border-radius:9px!important}
+.bottom-dock .dock-item .mi-icon svg{width:20px!important;height:20px!important}
+.bottom-dock .dock-item>span:last-child{font-size:8px!important;letter-spacing:.035em!important;text-transform:none!important;font-weight:720!important}
+.bottom-dock .dock-item.active{
+  color:#dff0ff!important;background:rgba(52,132,239,.13)!important;
+  box-shadow:inset 0 0 0 1px rgba(86,160,255,.18)!important;
+}
+.bottom-dock .dock-item.active .mi-icon{
+  color:#fff!important;background:linear-gradient(145deg,#267fe9,#50a9ff)!important;
+  box-shadow:0 5px 14px rgba(35,127,239,.25)!important;
+}
+.bottom-dock .dock-item.active span{color:#dff0ff!important}
+
+/* ---------- NOVA HUB bottom sheet ---------- */
+#moreMenu.more-menu{
+  left:7px!important;right:7px!important;bottom:78px!important;
+  max-height:min(78vh,690px)!important;padding:10px 10px 14px!important;
+  border-radius:28px 28px 22px 22px!important;
+  background:
+    radial-gradient(420px 180px at 50% -40px,rgba(55,137,255,.13),transparent 68%),
+    linear-gradient(180deg,rgba(7,12,24,.985),rgba(3,7,14,.99))!important;
+  border:1px solid rgba(112,163,225,.18)!important;
+  box-shadow:0 -20px 70px rgba(0,0,0,.66)!important;
+  backdrop-filter:blur(24px) saturate(115%)!important;
+  -webkit-backdrop-filter:blur(24px) saturate(115%)!important;
+  overscroll-behavior:contain;
+}
+#moreMenu.more-menu.show{animation:nxmHubIn .22s cubic-bezier(.2,.78,.2,1)}
+@keyframes nxmHubIn{from{opacity:.3;transform:translateY(18px) scale(.985)}to{opacity:1;transform:none}}
+#moreMenu .more-inner{
+  width:100%;max-width:620px!important;margin:0 auto!important;
+  display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;
+  gap:8px!important;align-items:stretch!important;
+}
+
+#nxNovaHubHeader{
+  grid-column:1/-1!important;order:-40!important;
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:5px 3px 10px;
+}
+#nxNovaHubHeader .nxm-hub-title{display:flex;align-items:center;gap:10px;min-width:0}
+#nxNovaHubHeader .nxm-hub-mark{
+  width:34px;height:34px;flex:0 0 34px;display:grid;place-items:center;border-radius:11px;
+  background:linear-gradient(145deg,#56bfff,#2f7de5 62%,#1853a7);color:#fff;font-weight:950;font-size:16px;
+  border:1px solid rgba(255,255,255,.26);box-shadow:0 7px 18px rgba(39,119,227,.20),inset 0 1px rgba(255,255,255,.28);
+}
+#nxNovaHubHeader strong{display:block;color:#f8fbff;font-size:17px;line-height:1.05;letter-spacing:-.02em}
+#nxNovaHubHeader small{display:block;margin-top:3px;color:#8094ad;font-size:9.5px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:235px}
+#nxNovaHubClose{
+  width:36px;height:36px;flex:0 0 36px;display:grid;place-items:center;border-radius:50%;
+  border:1px solid rgba(124,166,220,.16)!important;background:rgba(255,255,255,.035)!important;color:#b5c5d8!important;
+  font-size:20px!important;font-weight:400!important;box-shadow:none!important;padding:0!important;margin:0!important;
+}
+#nxNovaHubClose:active{transform:scale(.94)}
+
+/* Smart search becomes a clean search field instead of a large promotional card. */
+#nxAllAppsSmartSearch{
+  grid-column:1/-1!important;order:-30!important;
+  margin:0 0 7px!important;padding:0!important;border:0!important;border-radius:0!important;
+  background:transparent!important;box-shadow:none!important;
+}
+#nxAllAppsSmartSearch .nx-smart-head{display:none!important}
+#nxAllAppsSmartSearch .nx-smart-row{gap:7px!important}
+#nxAllAppsSmartSearch .nx-smart-row input{
+  min-height:43px!important;margin:0!important;padding:0 14px!important;border-radius:14px!important;
+  background:#0b1322!important;border:1px solid rgba(121,164,219,.16)!important;color:#eef6ff!important;
+  font-size:11px!important;box-shadow:inset 0 1px rgba(255,255,255,.025)!important;
+}
+#nxAllAppsSmartSearch .nx-smart-row input:focus{border-color:rgba(73,151,255,.46)!important;box-shadow:0 0 0 3px rgba(47,140,255,.08)!important}
+#nxAllAppsSmartSearch .nx-smart-row button{
+  min-width:72px!important;min-height:43px!important;margin:0!important;padding:0 12px!important;border-radius:14px!important;
+  background:#17243a!important;border:1px solid rgba(91,155,234,.22)!important;color:#dcecff!important;
+  box-shadow:none!important;font-size:10px!important;font-weight:800!important;
+}
+#nxAllAppsSmartSearch .nx-smart-status{margin:6px 2px 0!important;color:#60758e!important;font-size:8.5px!important;line-height:1.35!important}
+#nxAllAppsSmartSearch .nx-smart-results{margin-top:6px!important}
+
+#nxNovaHubSection{
+  grid-column:1/-1!important;order:-20!important;
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:3px 2px 2px;color:#6f839a;font-size:9px;font-weight:800;letter-spacing:.10em;text-transform:uppercase;
+}
+#nxNovaHubSection b{color:#b8cadc;font-size:9px}
+#nxNovaHubSection span{letter-spacing:.02em;text-transform:none;font-weight:650;color:#61758d}
+
+/* App tiles: compact, calm, uniform, no glossy toy treatment. */
+#moreMenu .more-item{
+  position:relative!important;isolation:isolate!important;
+  min-height:72px!important;padding:8px 4px 7px!important;gap:5px!important;
+  overflow:visible!important;border-radius:16px!important;
+  background:linear-gradient(180deg,rgba(18,29,47,.78),rgba(8,15,27,.86))!important;
+  border:1px solid rgba(127,164,210,.13)!important;
+  box-shadow:inset 0 1px rgba(255,255,255,.025)!important;
+  transition:transform .14s ease,background .14s ease,border-color .14s ease!important;
+}
+#moreMenu .more-item::before,#moreMenu .more-item::after{display:none!important;content:none!important}
+#moreMenu .more-item:hover{transform:none!important;border-color:rgba(83,154,240,.25)!important;box-shadow:inset 0 1px rgba(255,255,255,.03)!important}
+#moreMenu .more-item:active{transform:scale(.965)!important;background:#101b2c!important}
+#moreMenu .more-item .mi-icon{
+  position:relative!important;width:36px!important;height:36px!important;margin:0!important;border-radius:11px!important;
+  color:color-mix(in srgb,var(--mi-a,#5da8ff) 82%,white 18%)!important;
+  background:color-mix(in srgb,var(--mi-a,#4f9dff) 17%,#0c1525 83%)!important;
+  border:1px solid color-mix(in srgb,var(--mi-a,#4f9dff) 26%,transparent)!important;
+  box-shadow:none!important;transform:none!important;
+}
+#moreMenu .more-item .mi-icon::before,#moreMenu .more-item .mi-icon::after{display:none!important;content:none!important}
+#moreMenu .more-item .mi-icon svg{
+  position:relative!important;width:19px!important;height:19px!important;margin:0!important;
+  stroke:currentColor!important;stroke-width:1.75!important;filter:none!important;
+}
+#moreMenu .more-item>span:last-child{
+  margin:0!important;padding:0 2px!important;color:#c9d7e8!important;text-shadow:none!important;
+  font-size:9px!important;line-height:1.15!important;font-weight:720!important;letter-spacing:0!important;text-transform:none!important;
+  white-space:normal!important;overflow-wrap:anywhere!important;
+}
+#moreMenu .nx-brand-app-badge{display:none!important}
+
+/* Preserve identity without rainbow overload: use only gentle tonal families. */
+#moreMenu .more-item:nth-of-type(4n+1){--mi-a:#5aa8ff!important}
+#moreMenu .more-item:nth-of-type(4n+2){--mi-a:#56d1c1!important}
+#moreMenu .more-item:nth-of-type(4n+3){--mi-a:#b18cff!important}
+#moreMenu .more-item:nth-of-type(4n){--mi-a:#ffad67!important}
+#moreMenu .more-item[data-nx-speedtest-v4="1"]{--mi-a:#59d8e9!important}
+#moreMenu .more-item[data-nxmega="productivity"]{--mi-a:#77a7ff!important}
+
+/* Nova Hub is the destination name everywhere; old oversized return controls stay hidden. */
+body.nx-modern-ui-ready .nx-allapps-back,
+body.nx-modern-ui-ready .tools-main-back,
+body.nx-modern-ui-ready #nxUrduReaderBack,
+body.nx-modern-ui-ready #nxBookFocusBack{display:none!important}
+
+/* ---------- Compact contextual back ---------- */
+.nx-compact-back{
+  position:relative;z-index:35;width:38px;height:38px;display:grid;place-items:center;
+  margin:0 0 10px;padding:0!important;border-radius:50%!important;
+  background:rgba(8,16,29,.82)!important;border:1px solid rgba(126,169,222,.18)!important;
+  color:#b9c9db!important;box-shadow:0 5px 16px rgba(0,0,0,.14)!important;
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+}
+.nx-compact-back svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.nx-compact-back:active{transform:scale(.94)!important;background:#111d2e!important}
+
+/* Books/readers: compact navigation strip only when reading. */
+#nxUxBottomNav{
+  position:fixed!important;left:50%!important;bottom:calc(78px + env(safe-area-inset-bottom,0px))!important;
+  z-index:2147482500!important;width:min(calc(100vw - 24px),430px)!important;
+  transform:translateX(-50%) translateY(8px)!important;
+  display:grid!important;grid-template-columns:1fr 1fr 1fr!important;gap:6px!important;
+  padding:6px!important;border-radius:18px!important;
+  background:rgba(5,10,19,.94)!important;border:1px solid rgba(118,163,219,.17)!important;
+  box-shadow:0 14px 42px rgba(0,0,0,.48)!important;
+  backdrop-filter:blur(16px)!important;-webkit-backdrop-filter:blur(16px)!important;
+  opacity:0!important;pointer-events:none!important;
+}
+#nxUxBottomNav.show.reader{opacity:1!important;pointer-events:auto!important;transform:translateX(-50%)!important}
+#nxUxBottomNav.show:not(.reader){opacity:0!important;pointer-events:none!important}
+#nxUxBottomNav button{
+  min-height:42px!important;padding:6px 5px!important;border-radius:12px!important;
+  background:rgba(255,255,255,.035)!important;border:1px solid rgba(125,166,215,.13)!important;
+  color:#c8d8e9!important;box-shadow:none!important;font-size:9px!important;letter-spacing:.02em!important;
+}
+#nxUxBottomNav .nx-ux-back{background:rgba(52,128,225,.10)!important;border-color:rgba(72,152,246,.20)!important;color:#e4f1ff!important;box-shadow:none!important}
+#nxUxBottomNav small{display:none!important}
+
+/* ---------- Speed Test: digital arc, no hand-drawn needle ---------- */
+#tab-speed-test{padding-bottom:102px!important}
+#tab-speed-test>.nx-speed4-hero.nxui-hero{
+  grid-template-columns:42px minmax(0,1fr)!important;gap:11px!important;margin-bottom:10px!important;padding:11px 12px!important;
+  border-radius:17px!important;background:linear-gradient(145deg,#0a1221,#070c17)!important;
+  border:1px solid rgba(111,163,225,.14)!important;box-shadow:none!important;
+}
+#tab-speed-test>.nx-speed4-hero.nxui-hero:after{opacity:.45!important}
+.nx-speed4-hero-icon{width:41px!important;height:41px!important;border-radius:12px!important;background:rgba(52,143,230,.14)!important;border:1px solid rgba(82,175,244,.24)!important;box-shadow:none!important;color:#68d8e6!important}
+.nx-speed4-hero-icon svg{width:22px!important;height:22px!important}
+.nx-speed4-kicker{font-size:7.5px!important;letter-spacing:.14em!important;color:#61aee6!important}
+.nx-speed4-hero h2{font-size:16px!important;font-weight:820!important;letter-spacing:-.015em!important}
+.nx-speed4-hero p{font-size:9.5px!important;color:#7d91aa!important;margin-top:3px!important}
+
+.nx-speed4-shell{
+  padding:13px!important;border-radius:22px!important;
+  background:linear-gradient(180deg,#070d19,#050913)!important;
+  border:1px solid rgba(111,160,220,.13)!important;box-shadow:0 16px 48px rgba(0,0,0,.28)!important;
+}
+.nx-speed4-shell:before{background:radial-gradient(circle at 50% 40%,rgba(36,121,221,.08),transparent 40%)!important}
+.nx-speed4-metrics{gap:8px!important}
+.nx-speed4-metric{
+  min-height:82px!important;padding:10px 11px!important;border-radius:14px!important;
+  background:#0b1321!important;border:1px solid rgba(131,169,217,.13)!important;box-shadow:none!important;
+}
+.nx-speed4-metric-head{font-size:10px!important;color:#91a5bb!important;gap:5px!important}
+.nx-speed4-metric-head svg{width:15px!important;height:15px!important}
+.nx-speed4-metric-value{min-height:35px!important;margin-top:5px!important;justify-content:flex-start!important;gap:4px!important}
+.nx-speed4-metric-value b{font-size:22px!important;font-weight:700!important;letter-spacing:-.035em!important}
+.nx-speed4-metric-value span{font-size:8.5px!important;padding-bottom:2px!important;color:#6f8298!important}
+.nx-speed4-latency{margin:8px 0 0!important;gap:4px!important}
+.nx-speed4-mini{min-height:27px!important;font-size:8.5px!important;color:#71859d!important;gap:4px!important}
+.nx-speed4-mini i{width:16px!important;height:16px!important;flex-basis:16px!important;font-size:9px!important;border-color:rgba(86,206,222,.25)!important;color:#58c9d7!important}
+.nx-speed4-mini b{font-size:10px!important;color:#cbd8e7!important}
+.nx-speed4-mini small{font-size:7px!important}
+
+.nx-speed4-gauge{
+  --nx-speed-sweep:0deg!important;
+  width:min(100%,330px)!important;aspect-ratio:1/1!important;min-height:0!important;margin:4px auto -2px!important;
+}
+.nx-speed4-ring,.nx-speed4-progress-ring{
+  left:9%!important;top:9%!important;width:82%!important;height:82%!important;
+  -webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 15px),#000 calc(100% - 14px))!important;
+  mask:radial-gradient(farthest-side,transparent calc(100% - 15px),#000 calc(100% - 14px))!important;
+}
+.nx-speed4-ring{
+  background:
+    repeating-conic-gradient(from 225deg,rgba(128,158,196,.25) 0 1.2deg,transparent 1.2deg 9deg),
+    conic-gradient(from 225deg,rgba(41,59,88,.62) 0 270deg,transparent 270deg)!important;
+  filter:none!important;box-shadow:none!important;
+}
+.nx-speed4-progress-ring{
+  background:conic-gradient(from 225deg,#57d4e4 0deg,#4d9eff var(--nx-speed-sweep),transparent var(--nx-speed-sweep) 360deg)!important;
+  filter:drop-shadow(0 0 7px rgba(75,169,255,.24))!important;
+}
+.nx-speed4-gauge:after{
+  left:23%!important;top:23%!important;width:54%!important;height:54%!important;
+  background:radial-gradient(circle,rgba(15,24,42,.96),rgba(7,11,21,.82) 68%,transparent 70%)!important;
+  box-shadow:inset 0 0 0 1px rgba(114,157,210,.08)!important;
+}
+.nx-speed4-needle-wrap{display:none!important}
+.nx-speed4-scale-label{display:none!important}
+.nx-speed4-scale-label.major{display:block!important;color:#62758e!important;font-size:8px!important;font-weight:700!important;text-shadow:none!important}
+.nx-speed4-live{top:49%!important;width:180px!important}
+.nx-speed4-live:before{
+  content:"LIVE SPEED";display:block;margin-bottom:4px;color:#5d7793;font-size:7px;font-weight:800;letter-spacing:.16em;
+}
+#tab-speed-test[data-speed-phase="upload"] .nx-speed4-live:before{content:"UPLOAD"}
+#tab-speed-test[data-speed-phase="download"] .nx-speed4-live:before{content:"DOWNLOAD"}
+#tab-speed-test[data-speed-phase="ping"] .nx-speed4-live:before{content:"LATENCY"}
+.nx-speed4-live b{font-size:45px!important;font-weight:720!important;letter-spacing:-.055em!important;color:#f5f9ff!important}
+.nx-speed4-live span{font-size:9px!important;color:#6e8299!important;margin-top:2px!important}
+.nx-speed4-live span:before{width:15px!important;height:15px!important;font-size:9px!important;border-color:rgba(84,207,220,.26)!important;color:#5bd1df!important}
+.nx-speed4-status{min-height:28px!important;margin:0 4px 6px!important;color:#72879f!important;font-size:9px!important}
+.nx-speed4-progress{height:3px!important;margin:0 3px 9px!important;background:rgba(93,120,157,.12)!important}
+.nx-speed4-start{
+  min-height:46px!important;border-radius:14px!important;border:1px solid rgba(86,166,255,.24)!important;
+  background:linear-gradient(135deg,#1d72d8,#3195ee)!important;font-size:10px!important;letter-spacing:.055em!important;
+  box-shadow:0 8px 20px rgba(27,113,211,.18)!important;
+}
+.nx-speed4-foot{margin-top:8px!important;color:#53677f!important;font-size:7.5px!important}
+
+/* Nova Desk should read as a first-class NexusNova utility, not a hidden dev tool. */
+#tab-productivity .nxpd-hero{border-radius:18px!important;padding:14px!important;background:linear-gradient(145deg,#0b1425,#070d19)!important;border-color:rgba(111,164,225,.15)!important;box-shadow:none!important}
+#tab-productivity .nxpd-kicker{color:#68aef3!important;font-size:8px!important}
+#tab-productivity .nxpd-hero h2{font-size:18px!important}
+#tab-productivity .nxpd-card{border-radius:17px!important;background:#091220!important;border-color:rgba(110,160,220,.13)!important;box-shadow:none!important}
+
+@media(min-width:620px){#moreMenu .more-inner{grid-template-columns:repeat(5,minmax(0,1fr))!important}}
+@media(max-width:390px){
+  #moreMenu.more-menu{left:5px!important;right:5px!important;padding-left:8px!important;padding-right:8px!important}
+  #moreMenu .more-inner{gap:6px!important}
+  #moreMenu .more-item{min-height:68px!important;border-radius:14px!important}
+  #moreMenu .more-item .mi-icon{width:33px!important;height:33px!important;border-radius:10px!important}
+  #moreMenu .more-item .mi-icon svg{width:18px!important;height:18px!important}
+  #moreMenu .more-item>span:last-child{font-size:8.3px!important}
+  #nxNovaHubHeader small{max-width:190px}
+  .nx-speed4-gauge{width:min(100%,300px)!important}
+  .nx-speed4-live b{font-size:40px!important}
+}
+@media(prefers-reduced-motion:reduce){#moreMenu.more-menu.show{animation:none!important}.more-item,.nx-compact-back{transition:none!important}}
