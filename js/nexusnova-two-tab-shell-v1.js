@@ -19,7 +19,7 @@
     if ($(`link[${CSS_MARKER}]`)) return;
     const link = document.createElement('link');
     link.rel = 'stylesheet';
-    link.href = './css/nexusnova-two-tab-shell-v1.css?v=20260817-shell1';
+    link.href = './css/nexusnova-two-tab-shell-v1.css?v=20260817-shell2';
     link.setAttribute(CSS_MARKER,'1');
     document.head.appendChild(link);
   }
@@ -43,7 +43,8 @@
   }
 
   function activeTabName() {
-    return String($('main.main > .tab.active,main > .tab.active,.tab.active')?.id || '').replace(/^tab-/,'') || 'home';
+    const active = $('main.main > .tab.active,main > .tab.active,.tab.active');
+    return String(active ? active.id : '').replace(/^tab-/,'') || 'home';
   }
 
   function menuOpen() {
@@ -57,7 +58,7 @@
     const more = $('#moreBtn');
     if (!dock || !home || !more) return;
 
-    document.body?.classList.add('nx-two-tab-shell');
+    if (document.body) document.body.classList.add('nx-two-tab-shell');
 
     [home,more].forEach(button => {
       if (button.dataset.nxShellPrimary !== '1') button.dataset.nxShellPrimary = '1';
@@ -86,11 +87,11 @@
 
   function targetOfHubTile(button) {
     if (!button) return '';
-    if (button.dataset?.nxHubTarget) return String(button.dataset.nxHubTarget);
-    if (button.dataset?.nxmega) return String(button.dataset.nxmega);
+    if (button.dataset && button.dataset.nxHubTarget) return String(button.dataset.nxHubTarget);
+    if (button.dataset && button.dataset.nxmega) return String(button.dataset.nxmega);
     if (button.hasAttribute('data-nx-speedtest-v4')) return 'speed-test';
     const match = String(button.getAttribute('onclick') || '').match(/openMoreTab\(\s*['"]([^'"]+)['"]\s*\)/);
-    return match?.[1] || '';
+    return match ? match[1] : '';
   }
 
   function hideMineOwnedHubItems() {
@@ -111,14 +112,22 @@
 
     home.classList.toggle('active',homeFamily && !hubIsOpen);
     more.classList.toggle('active',hubIsOpen || hubFamily);
-    ['wallet','tasks','market'].forEach(target => dockButtonFor(target)?.classList.remove('active'));
+    ['wallet','tasks','market'].forEach(target => {
+      const button = dockButtonFor(target);
+      if (button) button.classList.remove('active');
+    });
   }
 
   function openMineTarget(target) {
     if (!HOME_AUX.has(target)) return false;
     const menu = $('#moreMenu');
-    if (menu?.classList.contains('show')) {
-      try { $('#moreBtn')?.click(); } catch (_) { menu.classList.remove('show'); }
+    if (menu && menu.classList.contains('show')) {
+      try {
+        const more = $('#moreBtn');
+        if (more) more.click();
+      } catch (_) {
+        menu.classList.remove('show');
+      }
     }
 
     const button = dockButtonFor(target);
@@ -156,7 +165,7 @@
           <b>Wallet</b><small>Assets & transfers</small>
         </button>
         <button type="button" class="nx-mine-quick-card" data-nx-mine-target="tasks" aria-label="Open Rewards">
-          <span class="nx-mine-quick-icon"><rect></rect><svg viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8v12M4 12h16M8 8c0-2 1.4-3 3-3 1.2 0 1.8.5 2.5 1.7C14.2 5.5 15 5 16.2 5 18 5 19 6.2 19 8"/></svg></span>
+          <span class="nx-mine-quick-icon"><svg viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8v12M4 12h16M8 8c0-2 1.4-3 3-3 1.2 0 1.8.5 2.5 1.7C14.2 5.5 15 5 16.2 5 18 5 19 6.2 19 8"/></svg></span>
           <b>Rewards</b><small>Daily NVX & tasks</small>
         </button>
         <button type="button" class="nx-mine-quick-card" data-nx-mine-target="market" aria-label="Open Market">
@@ -170,12 +179,13 @@
     });
 
     const stats = $('.stats-grid',home);
-    if (stats?.nextSibling) home.insertBefore(panel,stats.nextSibling);
+    if (stats && stats.nextSibling) home.insertBefore(panel,stats.nextSibling);
     else home.appendChild(panel);
   }
 
   function cardTitle(card) {
-    return String(card?.querySelector('h3')?.textContent || '').replace(/\s+/g,' ').trim().toLowerCase();
+    const heading = card ? card.querySelector('h3') : null;
+    return String(heading ? heading.textContent : '').replace(/\s+/g,' ').trim().toLowerCase();
   }
 
   function settingsCard(tab,matcher) {
@@ -187,7 +197,7 @@
     const wanted = label.toLowerCase();
     return qsa('.settings-row',card).find(row => {
       const strong = row.querySelector('strong');
-      return String(strong?.textContent || '').trim().toLowerCase() === wanted;
+      return String(strong ? strong.textContent : '').trim().toLowerCase() === wanted;
     }) || null;
   }
 
@@ -219,7 +229,7 @@
     const tab = $('#tab-about');
     if (!tab || $('#nxCompactSettings',tab)) return;
 
-    document.body?.classList.add('nx-compact-settings');
+    if (document.body) document.body.classList.add('nx-compact-settings');
     const hero = $(':scope > .settings-hero',tab);
     if (hero) {
       setText($('h2',hero),'Settings');
@@ -253,14 +263,15 @@
     const privacyBody = $('.nx-settings-body',privacyGroup);
     const aboutBody = $('.nx-settings-body',aboutGroup);
 
-    const accountProfile = account?.querySelector('.settings-row:has(#settingsName)') || account?.querySelector('.settings-row');
+    const accountRows = account ? qsa('.settings-row',account) : [];
+    const accountProfile = accountRows.find(row => Boolean(row.querySelector('#settingsName'))) || accountRows[0] || null;
     const password = settingsRowByLabel(account,'Change password');
     const logout = settingsRowByLabel(account,'Sign out');
     appendIf(accountBody,accountProfile);
     appendIf(accountBody,password);
     if (logout) {
       const button = logout.querySelector('button');
-      button?.classList.add('nx-settings-logout');
+      if (button) button.classList.add('nx-settings-logout');
       appendIf(accountBody,logout);
     }
 
@@ -268,23 +279,25 @@
     appendIf(appBody,settingsRowByLabel(general,'Language'));
     appendIf(appBody,settingsRowByLabel(general,'Currency'));
 
-    qsa('.settings-row',privacy || document.createElement('div')).forEach(row => appendIf(privacyBody,row));
+    const privacyRows = privacy ? qsa('.settings-row',privacy) : [];
+    privacyRows.forEach(row => appendIf(privacyBody,row));
 
-    const appVersion = qsa('.info-row',system || document.createElement('div')).find(row => /app version/i.test(row.textContent || ''));
-    const network = qsa('.info-row',system || document.createElement('div')).find(row => /^\s*Network/i.test(row.textContent || ''));
+    const systemRows = system ? qsa('.info-row',system) : [];
+    const appVersion = systemRows.find(row => /app version/i.test(row.textContent || '')) || null;
+    const network = systemRows.find(row => /^\s*Network/i.test(row.textContent || '')) || null;
     appendIf(aboutBody,appVersion);
     appendIf(aboutBody,network);
 
-    const aboutCopy = support?.querySelector('.settings-muted');
+    const aboutCopy = support ? support.querySelector('.settings-muted') : null;
     if (aboutCopy) {
       aboutCopy.classList.add('nx-settings-about-copy');
       appendIf(aboutBody,aboutCopy);
     }
-    appendIf(aboutBody,support?.querySelector('.settings-actions'));
+    appendIf(aboutBody,support ? support.querySelector('.settings-actions') : null);
 
     [accountGroup,appGroup,privacyGroup,aboutGroup].forEach(group => shell.appendChild(group));
 
-    if (hero?.nextSibling) tab.insertBefore(shell,hero.nextSibling);
+    if (hero && hero.nextSibling) tab.insertBefore(shell,hero.nextSibling);
     else tab.appendChild(shell);
   }
 
@@ -311,7 +324,11 @@
     compactSettings();
     installStateObservers();
     reflectDockState();
-    try { window.NexusNovaUxSimplify?.refresh?.(); } catch (_) {}
+    try {
+      if (window.NexusNovaUxSimplify && typeof window.NexusNovaUxSimplify.refresh === 'function') {
+        window.NexusNovaUxSimplify.refresh();
+      }
+    } catch (_) {}
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded',apply,{once:true});
@@ -321,7 +338,7 @@
   [150,400,800,1500,3000,6000].forEach(ms => setTimeout(apply,ms));
 
   window.NexusNovaTwoTabShell = Object.freeze({
-    version:'1.0.0',
+    version:'1.0.1',
     refresh:apply,
     openMine:openMineTarget
   });
