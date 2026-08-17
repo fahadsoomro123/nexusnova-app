@@ -1,10 +1,14 @@
 from pathlib import Path
+import subprocess
 
 main_path = Path('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt')
 store_path = Path('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/PhonebookStore.kt')
 page_path = Path('NexusNovaAndroid/app/src/main/assets/www/page2.html')
 ux_path = Path('NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ux-simplify-v1.js')
 integrity_path = Path('NexusNovaAndroid/app/src/main/assets/www/js/final-integrity-fix.js')
+speed_path = Path('NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-speedtest-app-v4.js')
+speed_css_path = Path('NexusNovaAndroid/app/src/main/assets/www/css/nexusnova-speedtest-app-v4.css')
+speed_legacy_path = Path('NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-speed-meter-v3.js')
 
 main = main_path.read_text()
 store = store_path.read_text()
@@ -116,6 +120,8 @@ required_main = [
 missing = [item for item in required_main if item not in main]
 if missing:
     raise SystemExit('Android session/back UX verification failed: ' + ', '.join(missing))
+if 'moveTaskToBack(true)' in main:
+    raise SystemExit('Old immediate-background Back behavior is still present')
 if 'nx-android-balance-priority-v1' not in page or 'firebase-firestore.js' not in page:
     raise SystemExit('Android secure balance preload verification failed')
 
@@ -134,8 +140,37 @@ for token in [
     'nexusnova-existing-app-ad-hotfix-v2.js',
     'nexusnova-ad-placements-v1.js',
     'nexusnova-watch-ad-reward-v1.js',
+    'nexusnova-speedtest-app-v4.js',
 ]:
     if token not in integrity:
         raise SystemExit('Android recent loader missing: ' + token)
 
-print('Same-device session, explicit exit confirmation, bottom Back/book navigation, recent ad loaders, and secure-balance bootstrap verified.')
+if not speed_path.exists() or not speed_css_path.exists():
+    raise SystemExit('Standalone Internet Speed Test v4 assets missing from Android bundle')
+speed = speed_path.read_text(encoding='utf-8')
+for token in [
+    "TAB_ID = 'tab-speed-test'",
+    'data-nx-speedtest-v4',
+    'nxSpeed4Down',
+    'nxSpeed4Up',
+    'nxSpeed4Ping',
+    'nxSpeed4Jitter',
+    'Cloudflare Edge',
+    "openMoreTab('speed-test')",
+    "#tab-tools .nexus-tool-chip[data-tool=\"speed\"]",
+]:
+    if token not in speed:
+        raise SystemExit('Standalone Speed Test command missing: ' + token)
+
+speed_css = speed_css_path.read_text(encoding='utf-8')
+for token in ['#tab-speed-test', '.nx-speed4-gauge', '.nx-speed4-needle', '#moreMenu .more-item[data-nx-speedtest-v4="1"]']:
+    if token not in speed_css:
+        raise SystemExit('Standalone Speed Test visual contract missing: ' + token)
+
+if not speed_legacy_path.exists() or 'standalone ALL APPS utility in v4' not in speed_legacy_path.read_text(encoding='utf-8'):
+    raise SystemExit('Legacy Tools speed meter has not been retired safely')
+
+subprocess.run(['node', '--check', str(speed_path)], check=True)
+subprocess.run(['node', '--check', str(speed_legacy_path)], check=True)
+
+print('Same-device session, explicit exit confirmation, bottom Back/book navigation, recent ad loaders, standalone ALL APPS Speed Test v4, and secure-balance bootstrap verified.')
