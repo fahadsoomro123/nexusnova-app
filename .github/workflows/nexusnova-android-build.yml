@@ -9,7 +9,9 @@ on:
       - 'js/final-integrity-fix.js'
       - 'js/nexusnova-ux-simplify-v1.js'
       - 'js/nexusnova-speedtest-app-v4.js'
+      - 'js/nexusnova-branding-v1.js'
       - 'css/nexusnova-speedtest-app-v4.css'
+      - 'css/nexusnova-branding-v1.css'
       - '.github/workflows/nexusnova-android-build.yml'
   workflow_dispatch:
 
@@ -37,7 +39,9 @@ jobs:
               js/final-integrity-fix.js|\
               js/nexusnova-ux-simplify-v1.js|\
               js/nexusnova-speedtest-app-v4.js|\
-              css/nexusnova-speedtest-app-v4.css) ;;
+              js/nexusnova-branding-v1.js|\
+              css/nexusnova-speedtest-app-v4.css|\
+              css/nexusnova-branding-v1.css) ;;
               *) echo "UNAPPROVED CHANGE: $file"; exit 1 ;;
             esac
           done < /tmp/nx_changed.txt
@@ -114,6 +118,13 @@ jobs:
         run: |
           grep -q 'nexusnova-ux-simplify-v1.js' NexusNovaAndroid/app/src/main/assets/www/js/final-integrity-fix.js
           grep -q 'nexusnova-speedtest-app-v4.js' NexusNovaAndroid/app/src/main/assets/www/js/final-integrity-fix.js
+          grep -q 'nexusnova-branding-v1.js' NexusNovaAndroid/app/src/main/assets/www/js/final-integrity-fix.js
+          grep -q '__nxBrandingV1' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-branding-v1.js
+          grep -q 'NEXUSNOVA • SECURE UTILITY GRID' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-branding-v1.js
+          grep -q 'nx-brand-app-badge' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-branding-v1.js
+          grep -q '.nx-brand-chip' NexusNovaAndroid/app/src/main/assets/www/css/nexusnova-branding-v1.css
+          grep -q '.nx-brand-app-badge' NexusNovaAndroid/app/src/main/assets/www/css/nexusnova-branding-v1.css
+          grep -q '.nx-brand-watermarked' NexusNovaAndroid/app/src/main/assets/www/css/nexusnova-branding-v1.css
           grep -q 'id="nxUxBack"' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ux-simplify-v1.js
           grep -q '← PREVIOUS' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ux-simplify-v1.js
           grep -q 'NEXT PAGE →' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ux-simplify-v1.js
@@ -141,14 +152,15 @@ jobs:
         run: |
           node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ux-simplify-v1.js
           node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-speedtest-app-v4.js
+          node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-branding-v1.js
           node --check NexusNovaAndroid/app/src/main/assets/www/js/final-integrity-fix.js
 
       - name: Compile Android TEST APK
         run: gradle -p NexusNovaAndroid :app:assembleDebug --stacktrace --no-daemon
 
-      - name: Upload UX-only TEST APK
+      - name: Upload UX-only branded TEST APK
         uses: actions/upload-artifact@v4
         with:
-          name: NexusNova-UX-ONLY-FRIEND-BUGS-TEST-apk
+          name: NexusNova-UX-ONLY-BRANDED-CANDIDATE-apk
           path: NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
