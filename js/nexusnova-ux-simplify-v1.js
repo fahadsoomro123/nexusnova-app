@@ -1,4 +1,4 @@
-/* NexusNova UX Simplify v1
+/* NexusNova UX Simplify v1.0.1
    Web-only usability layer for the already-installed app.
 
    Goals:
@@ -133,20 +133,22 @@
     setTimeout(scheduleRender, 700);
   }
 
-  function clickFirstVisible(selector, root = document) {
-    const nodes = Array.from(root.querySelectorAll(selector));
-    const target = nodes.find(visible);
+  /* The old back controls are deliberately hidden by this layer, but their
+     established click handlers remain the safest navigation owners. Find them
+     even while hidden and proxy the new bottom Back button to them. */
+  function clickFirstExisting(selector, root = document) {
+    const target = root.querySelector(selector);
     if (!target) return false;
     try { target.click(); return true; } catch (_) { return false; }
   }
 
   function goBackContextually() {
     const reader = visibleReader();
-    if (reader?.kind === 'urdu' && clickFirstVisible('#nxUrduReaderBack')) return;
-    if (clickFirstVisible('#nxBookFocusBack')) return;
+    if (reader?.kind === 'urdu' && clickFirstExisting('#nxUrduReaderBack')) return;
+    if (clickFirstExisting('#nxBookFocusBack')) return;
 
     const tab = activeTab();
-    if (tab && clickFirstVisible('.nx-allapps-back button,.tools-main-back,[data-nx-back-allapps]', tab)) return;
+    if (tab && clickFirstExisting('.nx-allapps-back button,.tools-main-back,[data-nx-back-allapps]', tab)) return;
 
     try {
       if (typeof window.nexusBackToAllApps === 'function' && window.nexusBackToAllApps() !== false) return;
@@ -225,7 +227,7 @@
   [250,700,1500,3000,6000,10000].forEach(ms => setTimeout(scheduleRender, ms));
 
   window.NexusNovaUxSimplify = Object.freeze({
-    version:'1.0.0',
+    version:'1.0.1',
     refresh:scheduleRender,
     back:goBackContextually
   });
