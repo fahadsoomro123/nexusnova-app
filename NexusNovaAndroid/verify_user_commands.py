@@ -35,12 +35,14 @@ main = read(JAVA / 'MainActivity.kt')
 
 # 1) Preserve the branded NexusNova splash but guarantee it cannot become a blocker.
 require(page2, 'id="nxSplash"', 'Branded dashboard splash preserved')
-require(page2, 'INITIALIZING SECURE WORKSPACE'.title().lower().replace('initializing secure workspace','Initializing secure workspace') if False else 'Initializing secure workspace', 'Branded splash status preserved')
+require(page2, 'Initializing secure workspace', 'Branded splash status preserved')
 require(page2, 'nx-android-splash-hard-failsafe-v2', 'Android dashboard splash hard failsafe embedded')
-require(index, 'nxAndroidEntrySplashFailsafe', 'Android login splash hard failsafe embedded')
+require(index, 'id="nxAndroidNativeShellBootstrap"', 'Android login bootstrap embedded')
+require(index, 'window.__nexusAndroidReleaseSplash = releaseSplash', 'Android login splash hard release embedded')
+require(index, 'setTimeout(releaseSplash, 3200)', 'Android login splash independent release timer')
 require(core, 'splash.classList.remove("nx-startup-hold")', 'Stale startup hold removed')
-require(core, 'setTimeout(releaseSplash, 3200)', 'Independent branded splash release timer')
-require(core, 'display", "none", "important"', 'Splash force-hide fallback')
+require(core, 'setTimeout(releaseSplash, 3200)', 'Independent branded dashboard splash release timer')
+require(core, 'display", "none", "important"', 'Dashboard splash force-hide fallback')
 forbid(core, 'splash.classList.add("nx-startup-hold")', 'No blocking startup hold reintroduced')
 forbid(core, 'splash.remove = function', 'Native splash remove is never overridden')
 
