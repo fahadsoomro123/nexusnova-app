@@ -19,12 +19,16 @@ const browser = await chromium.launch({ headless: true });
 async function assertDockHitTarget(page, selector) {
   const info = await page.locator(selector).evaluate((button) => {
     const r = button.getBoundingClientRect();
+    const style = getComputedStyle(button);
     const x = Math.max(r.left + 2, Math.min(innerWidth - 2, r.left + r.width / 2));
     const y = Math.max(r.top + 2, Math.min(innerHeight - 2, r.top + r.height / 2));
     const hit = document.elementFromPoint(x, y);
     return {
       width: r.width,
       height: r.height,
+      display: style.display,
+      visibility: style.visibility,
+      opacity: style.opacity,
       hitId: hit?.id || '',
       hitClass: String(hit?.className || ''),
       hitTag: hit?.tagName || '',
@@ -33,6 +37,9 @@ async function assertDockHitTarget(page, selector) {
     };
   });
   assert.ok(info.width > 20 && info.height > 20, `${selector} has no usable mobile hit box: ${JSON.stringify(info)}`);
+  assert.notEqual(info.display, 'none', `${selector} is display:none: ${JSON.stringify(info)}`);
+  assert.notEqual(info.visibility, 'hidden', `${selector} is hidden: ${JSON.stringify(info)}`);
+  assert.ok(Number(info.opacity || 1) > 0, `${selector} is transparent: ${JSON.stringify(info)}`);
   assert.equal(info.contained, true, `${selector} is covered by another element: ${JSON.stringify(info)}`);
 }
 
@@ -113,7 +120,13 @@ async function runScenario(name, externalDelayMs) {
   });
 
   await page.goto(nativePage, { waitUntil: 'commit', timeout: 10_000 });
-  await page.locator('#moreBtn').waitFor({ state: 'visible', timeout: 5000 });
+  // The bottom dock is static bundled HTML. Wait only for DOM attachment here,
+  // not CSS paint: under an intentionally delayed external network Playwright's
+  // `visible` state can wait on style calculation even though the native shell
+  // has already parsed the dock. The real usability assertion below still
+  // requires a >20px hit box, visible style, an uncovered touch target, and
+  // working tab/menu navigation at the intended ~3s checkpoint.
+  await page.locator('#moreBtn').waitFor({ state: 'attached', timeout: 10_000 });
   await page.waitForTimeout(2800);
 
   await assertCoreInteraction(page, `${name}:3s`);
