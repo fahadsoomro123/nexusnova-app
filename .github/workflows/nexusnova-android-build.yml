@@ -40,6 +40,7 @@ jobs:
               NexusNovaAndroid/patch_ux_only_friend_bugs.py|\
               NexusNovaAndroid/patch_speedtest_observer_guard.py|\
               NexusNovaAndroid/patch_modern_back_dispatcher.py|\
+              NexusNovaAndroid/patch_optional_camera_feature.py|\
               js/final-integrity-fix.js|\
               js/nexusnova-ux-simplify-v1.js|\
               js/nexusnova-speedtest-app-v4.js|\
@@ -117,6 +118,9 @@ jobs:
       - name: Migrate app and browser Back to Android dispatcher
         run: python3 NexusNovaAndroid/patch_modern_back_dispatcher.py
 
+      - name: Declare camera hardware optional
+        run: python3 NexusNovaAndroid/patch_optional_camera_feature.py
+
       - name: Keep existing deferred Caller ID setup
         run: python3 NexusNovaAndroid/patch_deferred_caller_setup.py
 
@@ -126,11 +130,12 @@ jobs:
       - name: Keep historical native shell startup path
         run: python3 NexusNovaAndroid/patch_native_shell.py
 
-      - name: Verify final UX and network contract before compile
+      - name: Verify final UX network and manifest contract before compile
         run: |
           WEB=NexusNovaAndroid/app/src/main/assets/www
           MAIN=NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
           BROWSER=NexusNovaAndroid/app/src/main/java/com/nexusnova/app/BrowserActivity.kt
+          MANIFEST=NexusNovaAndroid/app/src/main/AndroidManifest.xml
           grep -q 'nexusnova-ux-simplify-v1.js' "$WEB/js/final-integrity-fix.js"
           grep -q 'nexusnova-speedtest-app-v4.js' "$WEB/js/final-integrity-fix.js"
           grep -q 'nexusnova-branding-v1.js' "$WEB/js/final-integrity-fix.js"
@@ -169,6 +174,8 @@ jobs:
           grep -q 'onBackPressedDispatcher.addCallback' "$MAIN"
           grep -q 'handleNexusBackPressed()' "$MAIN"
           grep -q 'onBackPressedDispatcher.addCallback' "$BROWSER"
+          grep -q '<uses-permission android:name="android.permission.CAMERA" />' "$MANIFEST"
+          grep -q '<uses-feature android:name="android.hardware.camera" android:required="false" />' "$MANIFEST"
           ! grep -q 'override fun onBackPressed()' "$MAIN"
           ! grep -q 'override fun onBackPressed()' "$BROWSER"
           ! grep -q 'moveTaskToBack(true)' "$MAIN"
