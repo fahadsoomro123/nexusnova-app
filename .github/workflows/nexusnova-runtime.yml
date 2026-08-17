@@ -57,19 +57,20 @@ jobs:
           auth = s.find('/* =========================================================\n   AUTH\n========================================================= */')
           if auth < 0:
               raise SystemExit('AUTH section missing from prepared dashboard')
-          # The final Android auth hardening deliberately schedules a signed-out
-          # redirect after a grace period. Full-page stability models the state
-          # immediately after a successful login, while auth redirect behavior is
-          # covered by a separate auth regression. Suppress only that redirect in
-          # the CI-only stabilityTest fixture; production APK code is untouched.
-          needle = '''        if(!user){\n            if (nxAuthNullRedirectTimer) clearTimeout(nxAuthNullRedirectTimer);'''
+
+          # Full-page stability models the state immediately after a successful
+          # login. Auth itself is exercised by a separate browser regression.
+          # Turn only the stabilityTest callback's initial null user into a small
+          # deterministic authenticated fixture; production APK code is untouched.
+          needle = 'onAuthStateChanged(auth, async user => {'
           pos = s.find(needle, auth)
           if pos < 0:
-              raise SystemExit('Current Android signed-out auth gate missing from prepared dashboard')
-          replacement = '''        if(!user){\n            if(new URLSearchParams(window.location.search).has("stabilityTest")) return;\n            if (nxAuthNullRedirectTimer) clearTimeout(nxAuthNullRedirectTimer);'''
-          s = s[:pos] + s[pos:].replace(needle, replacement, 1)
+              raise SystemExit('Android dashboard auth-state callback missing')
+          insert = '''\n        if(!user && new URLSearchParams(window.location.search).has("stabilityTest")){\n            user = {\n                uid: "ci-stability-user",\n                email: "ci-stability@nexusnova.test",\n                displayName: "NexusNova Stability",\n                emailVerified: true\n            };\n        }\n'''
+          at = pos + len(needle)
+          s = s[:at] + insert + s[at:]
           p.write_text(s, encoding='utf-8')
-          print('Prepared CI-only post-login dashboard stability fixture; production auth redirect remains unchanged.')
+          print('Prepared CI-only authenticated post-login dashboard fixture; production auth remains unchanged.')
           PY
 
       - name: Start local NexusNova origin
