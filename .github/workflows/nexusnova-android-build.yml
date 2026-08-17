@@ -1,4 +1,4 @@
-name: NexusNova Deep-Audit Final Candidate
+name: NexusNova Stable Deep-Audit Candidate
 
 on:
   push:
@@ -11,6 +11,7 @@ on:
       - 'js/nexusnova-speedtest-app-v4.js'
       - 'js/nexusnova-branding-v1.js'
       - 'js/nexusnova-network-guardian-v1.js'
+      - 'js/nexusnova-productivity-desk-v1.js'
       - 'css/nexusnova-speedtest-app-v4.css'
       - 'css/nexusnova-branding-v1.css'
       - 'css/nexusnova-network-guardian-v1.css'
@@ -30,7 +31,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Prove branch changed only approved UX files
+      - name: Prove branch changed only approved UX and local utility files
         run: |
           git diff --name-only 0b6b856e25204d40b7172482cd2886ff30e80325...HEAD > /tmp/nx_changed.txt
           cat /tmp/nx_changed.txt
@@ -46,6 +47,7 @@ jobs:
               js/nexusnova-speedtest-app-v4.js|\
               js/nexusnova-branding-v1.js|\
               js/nexusnova-network-guardian-v1.js|\
+              js/nexusnova-productivity-desk-v1.js|\
               css/nexusnova-speedtest-app-v4.css|\
               css/nexusnova-branding-v1.css|\
               css/nexusnova-network-guardian-v1.css) ;;
@@ -88,23 +90,8 @@ jobs:
       - name: Apply existing native AdMob bridge
         run: python3 NexusNovaAndroid/patch_admob.py
 
-      - name: Enforce existing rewarded TEST contract
+      - name: Keep rewarded ads protected from unsafe live-value fallback
         run: python3 NexusNovaAndroid/patch_rewarded_test_contract.py
-
-      - name: Apply existing TEST mining reward preview and booster FX
-        run: python3 NexusNovaAndroid/patch_test_boost_reward_fx.py
-
-      - name: Apply existing TEST reward hardening
-        run: python3 NexusNovaAndroid/patch_test_boost_reward_fx_hardening.py
-
-      - name: Apply existing TEST cooldown gate
-        run: python3 NexusNovaAndroid/patch_test_boost_cooldown_gate.py
-
-      - name: Apply existing final-two-hours guard
-        run: python3 NexusNovaAndroid/patch_test_boost_final2h_guard.py
-
-      - name: Apply existing authoritative TEST mining timer
-        run: python3 NexusNovaAndroid/patch_test_boost_authoritative_timer.py
 
       - name: Apply existing UMP privacy bridge
         run: python3 NexusNovaAndroid/patch_ad_privacy.py
@@ -127,10 +114,10 @@ jobs:
       - name: Keep existing stale WebView reset
         run: python3 NexusNovaAndroid/patch_web_shell_reset.py
 
-      - name: Keep historical native shell startup path
+      - name: Keep deterministic native shell startup path
         run: python3 NexusNovaAndroid/patch_native_shell.py
 
-      - name: Verify final UX network and manifest contract before compile
+      - name: Verify stable UX network productivity and manifest contract
         run: |
           WEB=NexusNovaAndroid/app/src/main/assets/www
           MAIN=NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
@@ -140,6 +127,10 @@ jobs:
           grep -q 'nexusnova-speedtest-app-v4.js' "$WEB/js/final-integrity-fix.js"
           grep -q 'nexusnova-branding-v1.js' "$WEB/js/final-integrity-fix.js"
           grep -q 'nexusnova-network-guardian-v1.js' "$WEB/js/final-integrity-fix.js"
+          grep -q 'nexusnova-productivity-desk-v1.js' "$WEB/js/final-integrity-fix.js"
+          grep -q '__nxProductivityDeskV1' "$WEB/js/nexusnova-productivity-desk-v1.js"
+          grep -q 'Productivity Desk' "$WEB/js/nexusnova-productivity-desk-v1.js"
+          grep -q 'data-nxmega = .productivity.' "$WEB/js/nexusnova-productivity-desk-v1.js" || grep -q "dataset.nxmega = 'productivity'" "$WEB/js/nexusnova-productivity-desk-v1.js"
           grep -q '__nxNetworkGuardianV1' "$WEB/js/nexusnova-network-guardian-v1.js"
           grep -q 'Offline • live features will resume when internet returns' "$WEB/js/nexusnova-network-guardian-v1.js"
           grep -q '.nx-network-guardian-toast' "$WEB/css/nexusnova-network-guardian-v1.css"
@@ -179,16 +170,22 @@ jobs:
           ! grep -q 'override fun onBackPressed()' "$MAIN"
           ! grep -q 'override fun onBackPressed()' "$BROWSER"
           ! grep -q 'moveTaskToBack(true)' "$MAIN"
+          ! grep -q 'nx-test-boost-reward-fx-v1' "$WEB/js/nexusnova-admob-nexus-pass-v1.js"
+          ! grep -q 'TEST REWARD PREVIEW' "$WEB/js/nexusnova-admob-nexus-pass-v1.js"
 
       - name: Check every bundled JavaScript file
         shell: bash
         run: |
           set -euo pipefail
           WEB=NexusNovaAndroid/app/src/main/assets/www
+          count=0
           while IFS= read -r -d '' file; do
             echo "node --check $file"
             node --check "$file"
+            count=$((count+1))
           done < <(find "$WEB/js" -type f -name '*.js' -print0)
+          echo "Verified $count bundled JavaScript files."
+          test "$count" -ge 90
 
       - name: Deep static HTML and local-reference audit
         run: |
@@ -235,10 +232,10 @@ jobs:
       - name: Android lint
         run: gradle -p NexusNovaAndroid :app:lintDebug --stacktrace --no-daemon
 
-      - name: Compile Android final candidate APK
+      - name: Compile Android stable candidate APK
         run: gradle -p NexusNovaAndroid :app:assembleDebug --stacktrace --no-daemon
 
-      - name: Verify compiled APK contains final modules
+      - name: Verify compiled APK contains stable modules
         run: |
           APK=NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk
           unzip -l "$APK" > /tmp/nx_apk_files.txt
@@ -247,12 +244,14 @@ jobs:
           grep -q 'assets/www/js/nexusnova-branding-v1.js' /tmp/nx_apk_files.txt
           grep -q 'assets/www/js/nexusnova-speedtest-app-v4.js' /tmp/nx_apk_files.txt
           grep -q 'assets/www/js/nexusnova-ux-simplify-v1.js' /tmp/nx_apk_files.txt
+          grep -q 'assets/www/js/nexusnova-productivity-desk-v1.js' /tmp/nx_apk_files.txt
+          unzip -p "$APK" assets/www/js/nexusnova-admob-nexus-pass-v1.js | grep -qv 'nx-test-boost-reward-fx-v1'
           unzip -t "$APK"
           sha256sum "$APK"
 
-      - name: Upload deep-audited final candidate APK
+      - name: Upload stable deep-audited APK
         uses: actions/upload-artifact@v4
         with:
-          name: NexusNova-DEEP-AUDITED-FINAL-CANDIDATE-apk
+          name: NexusNova-STABLE-DEEP-AUDITED-apk
           path: NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
