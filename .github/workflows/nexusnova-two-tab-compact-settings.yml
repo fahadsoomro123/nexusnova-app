@@ -1,0 +1,239 @@
+name: NexusNova Two Tab Compact Settings
+
+on:
+  push:
+    branches:
+      - 'agent/two-tab-compact-settings-final'
+    paths:
+      - '.github/workflows/nexusnova-two-tab-compact-settings.yml'
+      - 'js/final-integrity-fix.js'
+      - 'js/nexusnova-ux-simplify-v1.js'
+      - 'js/nexusnova-two-tab-shell-v1.js'
+      - 'css/nexusnova-two-tab-shell-v1.css'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  two-tab-compact:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prove value-bearing core source is unchanged
+        run: |
+          git diff --exit-code 0b6b856e25204d40b7172482cd2886ff30e80325 -- \
+            js/rewards-security-v1.js \
+            js/nexusnova-admob-nexus-pass-v1.js \
+            js/page2-core.js \
+            js/wallet-actions-v2.js \
+            firestore.rules functions page2.html index.html
+
+      - name: Prove requested shell change is isolated
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --name-only c18b36c77caf62cfd3ecdc21c04076f191aa7721...HEAD > /tmp/nx_changed.txt
+          cat /tmp/nx_changed.txt
+          while IFS= read -r file; do
+            case "$file" in
+              .github/workflows/nexusnova-two-tab-compact-settings.yml|\
+              js/final-integrity-fix.js|\
+              js/nexusnova-ux-simplify-v1.js|\
+              js/nexusnova-two-tab-shell-v1.js|\
+              css/nexusnova-two-tab-shell-v1.css) ;;
+              *) echo "UNAPPROVED SHELL CHANGE: $file"; exit 1 ;;
+            esac
+          done < /tmp/nx_changed.txt
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Prepare deterministic Android shell
+        run: python3 NexusNovaAndroid/prepare_native_web_shell.py
+
+      - name: Fix Speed Test observer loop
+        run: python3 NexusNovaAndroid/patch_speedtest_observer_guard.py
+
+      - name: Keep authoritative mining countdown sync
+        run: python3 NexusNovaAndroid/patch_mining_boost_sync.py
+
+      - name: Apply viewport safety
+        run: python3 NexusNovaAndroid/patch_viewport.py
+
+      - name: Apply native AdMob bridge
+        run: python3 NexusNovaAndroid/patch_admob.py
+
+      - name: Block unsafe live-value rewarded fallback
+        run: python3 NexusNovaAndroid/patch_rewarded_test_contract.py
+
+      - name: Apply UMP privacy without reward simulation
+        run: python3 NexusNovaAndroid/patch_ad_privacy.py
+
+      - name: Restore same-device session
+        run: python3 NexusNovaAndroid/patch_session_restore.py
+
+      - name: Apply splash exit and Speed Test UX repairs
+        run: python3 NexusNovaAndroid/patch_ux_only_friend_bugs.py
+
+      - name: Use modern Android Back dispatcher
+        run: python3 NexusNovaAndroid/patch_modern_back_dispatcher.py
+
+      - name: Keep camera hardware optional
+        run: python3 NexusNovaAndroid/patch_optional_camera_feature.py
+
+      - name: Defer Caller ID without hidden TEST chain
+        run: python3 NexusNovaAndroid/patch_deferred_caller_setup_stable.py
+
+      - name: Harden Firebase auth handoff
+        run: python3 NexusNovaAndroid/patch_android_auth_handoff.py
+
+      - name: Remove TEST-shell wording from stable auth UI
+        run: python3 NexusNovaAndroid/patch_stable_auth_wording.py
+
+      - name: Keep stale WebView reset safety
+        run: python3 NexusNovaAndroid/patch_web_shell_reset.py
+
+      - name: Keep deterministic packaged native shell
+        run: python3 NexusNovaAndroid/patch_native_shell.py
+
+      - name: Verify two-tab and compact-settings contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          WEB=NexusNovaAndroid/app/src/main/assets/www
+          MAIN=NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          BROWSER=NexusNovaAndroid/app/src/main/java/com/nexusnova/app/BrowserActivity.kt
+
+          test -f "$WEB/js/nexusnova-two-tab-shell-v1.js"
+          test -f "$WEB/css/nexusnova-two-tab-shell-v1.css"
+          grep -q '__nxTwoTabShellV1' "$WEB/js/nexusnova-two-tab-shell-v1.js"
+          grep -q 'bottom navigation = Mine + Nova Hub' "$WEB/js/nexusnova-two-tab-shell-v1.js"
+          grep -q "\['wallet','tasks','market'\]" "$WEB/js/nexusnova-two-tab-shell-v1.js"
+          grep -q 'nxMineQuickAccess' "$WEB/js/nexusnova-two-tab-shell-v1.js"
+          grep -q 'Wallet • Rewards • Market' "$WEB/js/nexusnova-two-tab-shell-v1.js"
+          grep -q "createSettingsGroup('Account'" "$WEB/js/nexusnova-two-tab-shell-v1.js"
+          grep -q "createSettingsGroup('App'" "$WEB/js/nexusnova-two-tab-shell-v1.js"
+          grep -q "createSettingsGroup('Permissions'" "$WEB/js/nexusnova-two-tab-shell-v1.js"
+          grep -q "createSettingsGroup('About'" "$WEB/js/nexusnova-two-tab-shell-v1.js"
+          grep -q 'data-nx-shell-hidden' "$WEB/css/nexusnova-two-tab-shell-v1.css"
+          grep -q 'grid-template-columns:1fr 1fr' "$WEB/css/nexusnova-two-tab-shell-v1.css"
+          grep -q 'nxCompactSettings' "$WEB/css/nexusnova-two-tab-shell-v1.css"
+          grep -q 'nexusnova-two-tab-shell-v1.js' "$WEB/js/final-integrity-fix.js"
+          grep -q "version:'2.1.0'" "$WEB/js/nexusnova-ux-simplify-v1.js"
+          grep -q "HOME_AUX = new Set(\['wallet','tasks','market'\])" "$WEB/js/nexusnova-ux-simplify-v1.js"
+          grep -q 'Back to Mine' "$WEB/js/nexusnova-ux-simplify-v1.js"
+
+          # Existing stable reward contract stays value-safe.
+          grep -q 'SERVER_VERIFIED_BOOST_ENABLED = false' "$WEB/js/nexusnova-admob-nexus-pass-v1.js"
+          ! grep -q 'runTransaction(context.db' "$WEB/js/nexusnova-admob-nexus-pass-v1.js"
+          ! grep -q 'tx.update(ref, { miningStartedAt:' "$WEB/js/nexusnova-admob-nexus-pass-v1.js"
+          ! grep -R -q 'nx-test-boost-reward-fx-v1' "$WEB"
+          ! grep -R -q 'TEST REWARD PREVIEW' "$WEB"
+          ! grep -R -q 'nx:nova-test-boost-overlay' "$WEB"
+          ! grep -R -q 'testNvxPreview' "$WEB"
+          ! grep -R -q 'nx-video-truth-final-v1' "$WEB"
+          ! grep -R -q 'nx-video-truth-consistency-perf-v2' "$WEB"
+          ! grep -R -q 'nx-android-reward-event-order-v1' "$WEB"
+
+          grep -q 'onBackPressedDispatcher.addCallback' "$MAIN"
+          grep -q 'onBackPressedDispatcher.addCallback' "$BROWSER"
+          ! grep -q 'override fun onBackPressed()' "$MAIN"
+          ! grep -q 'override fun onBackPressed()' "$BROWSER"
+
+      - name: Check every bundled JavaScript file
+        shell: bash
+        run: |
+          set -euo pipefail
+          WEB=NexusNovaAndroid/app/src/main/assets/www
+          count=0
+          while IFS= read -r -d '' file; do
+            node --check "$file"
+            count=$((count+1))
+          done < <(find "$WEB/js" -type f -name '*.js' -print0)
+          echo "Verified $count bundled JavaScript files."
+          test "$count" -ge 90
+
+      - name: Deep static HTML and local-reference audit
+        run: |
+          python3 - <<'PY'
+          from html.parser import HTMLParser
+          from pathlib import Path
+          from urllib.parse import urlsplit
+          from collections import Counter
+
+          root = Path('NexusNovaAndroid/app/src/main/assets/www').resolve()
+          targets = [root/'index.html', root/'page2.html', root/'referral.html']
+
+          class AuditParser(HTMLParser):
+              def __init__(self):
+                  super().__init__(convert_charrefs=True)
+                  self.ids=[]; self.refs=[]
+              def handle_starttag(self, tag, attrs):
+                  data=dict(attrs)
+                  if data.get('id'): self.ids.append(data['id'])
+                  attr = 'src' if tag in {'script','img'} else 'href' if tag == 'link' else None
+                  if attr and data.get(attr): self.refs.append(data[attr])
+
+          for html in targets:
+              parser=AuditParser(); parser.feed(html.read_text(encoding='utf-8', errors='replace'))
+              dup=[key for key,count in Counter(parser.ids).items() if count > 1]
+              if dup: raise SystemExit(f'{html.name}: duplicate ids: {dup[:20]}')
+              duplicate_refs=[ref for ref,count in Counter(parser.refs).items() if count > 1]
+              if duplicate_refs: raise SystemExit(f'{html.name}: duplicate resource refs: {duplicate_refs[:20]}')
+              for raw in parser.refs:
+                  value=raw.strip()
+                  if not value or value.startswith(('#','data:','blob:','javascript:','mailto:','tel:')): continue
+                  parts=urlsplit(value)
+                  if parts.scheme or parts.netloc: continue
+                  rel=parts.path
+                  if not rel: continue
+                  candidate=(html.parent/rel).resolve()
+                  try: candidate.relative_to(root)
+                  except ValueError: raise SystemExit(f'{html.name}: reference escapes bundle: {value}')
+                  if not candidate.exists(): raise SystemExit(f'{html.name}: missing local reference: {value}')
+              print(f'{html.name}: PASS — {len(parser.ids)} ids, {len(parser.refs)} refs')
+          PY
+
+      - name: Android lint
+        run: gradle -p NexusNovaAndroid :app:lintDebug --stacktrace --no-daemon
+
+      - name: Compile APK
+        run: gradle -p NexusNovaAndroid :app:assembleDebug --stacktrace --no-daemon
+
+      - name: Verify final APK contents and integrity
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK=NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk
+          unzip -t "$APK"
+          unzip -l "$APK" > /tmp/nx_apk_files.txt
+          grep -q 'assets/www/js/nexusnova-two-tab-shell-v1.js' /tmp/nx_apk_files.txt
+          grep -q 'assets/www/css/nexusnova-two-tab-shell-v1.css' /tmp/nx_apk_files.txt
+          grep -q 'assets/www/js/nexusnova-ux-simplify-v1.js' /tmp/nx_apk_files.txt
+          unzip -p "$APK" assets/www/js/nexusnova-two-tab-shell-v1.js | grep -q 'Mine + Nova Hub'
+          unzip -p "$APK" assets/www/js/nexusnova-two-tab-shell-v1.js | grep -q 'nxCompactSettings'
+          unzip -p "$APK" assets/www/js/nexusnova-admob-nexus-pass-v1.js > /tmp/nx_boost.js
+          ! grep -q 'nx-test-boost-reward-fx-v1' /tmp/nx_boost.js
+          grep -q 'SERVER_VERIFIED_BOOST_ENABLED = false' /tmp/nx_boost.js
+          sha256sum "$APK"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: NexusNova-TWO-TAB-COMPACT-SETTINGS-apk
+          path: NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
