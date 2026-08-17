@@ -47,6 +47,43 @@ jobs:
           python3 NexusNovaAndroid/patch_native_shell.py
           python3 NexusNovaAndroid/verify_user_commands.py
 
+      - name: Prepare post-login stability fixture
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path('NexusNovaAndroid/app/src/main/assets/www/js/page2-core.js')
+          s = p.read_text(encoding='utf-8')
+          auth = s.find('/* =========================================================\n   AUTH\n========================================================= */')
+          if auth < 0:
+              raise SystemExit('AUTH section missing from prepared dashboard')
+          tail = s[auth:]
+          pattern = re.compile(
+              r'(?P<i>\s*)if\(!user\)\{\s*delete window\.nexusAccountId;\s*window\.dispatchEvent\(new Event\("nexusaccountcleared"\)\);\s*window\.location\.replace\("\./index\.html"\);\s*return;\s*\}',
+              re.S,
+          )
+          m = pattern.search(tail)
+          if not m:
+              raise SystemExit('Signed-out dashboard redirect block missing')
+          i = m.group('i')
+          replacement = (
+              f'{i}if(!user){{\n'
+              f'{i}    // CI-only post-login fixture: the auth flow itself is tested separately.\n'
+              f'{i}    if(new URLSearchParams(window.location.search).has("stabilityTest")) return;\n'
+              f'{i}    delete window.nexusAccountId;\n'
+              f'{i}    window.dispatchEvent(new Event("nexusaccountcleared"));\n'
+              f'{i}    window.location.replace("./index.html");\n'
+              f'{i}    return;\n'
+              f'{i}}}'
+          )
+          start = auth + m.start()
+          end = auth + m.end()
+          s = s[:start] + replacement + s[end:]
+          p.write_text(s, encoding='utf-8')
+          print('Prepared CI-only post-login dashboard stability fixture.')
+          PY
+
       - name: Start local NexusNova origin
         shell: bash
         run: |
