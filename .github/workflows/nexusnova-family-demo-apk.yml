@@ -44,6 +44,10 @@ jobs:
         id: family_patch
         run: python3 NexusNovaAndroid/patch_family_demo_web_v1.py
 
+      - name: Correct auth profile helper
+        id: auth_helper
+        run: python3 NexusNovaAndroid/patch_family_auth_recursion_fix.py
+
       - name: Synchronize mining boost countdown state
         id: mining_sync
         run: python3 NexusNovaAndroid/patch_mining_boost_sync.py
@@ -110,7 +114,7 @@ jobs:
       - name: Verify family demo regression fixes
         id: verify
         run: |
-          python3 -m py_compile NexusNovaAndroid/patch_family_demo_web_v1.py NexusNovaAndroid/patch_native_no_bounce_v1.py
+          python3 -m py_compile NexusNovaAndroid/patch_family_demo_web_v1.py NexusNovaAndroid/patch_family_auth_recursion_fix.py NexusNovaAndroid/patch_native_no_bounce_v1.py
           node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-auth-page-v2.js
           node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-page2-core-launch-v2.js
           node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-page2-after-core-v2.js
@@ -118,6 +122,7 @@ jobs:
           node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-account-deletion-settings-v1.js
           node --check NexusNovaAndroid/app/src/main/assets/www/js/rewards-security-v1.js
           grep -q 'nx-family-auth-persistence-v1' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-auth-page-v2.js
+          grep -q 'await createUserProfile(user);' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-auth-page-v2.js
           grep -q 'nx-family-dashboard-persistence-v1' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-page2-core-launch-v2.js
           grep -q 'nx-family-presentation-first-v1' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-page2-after-core-v2.js
           grep -q 'nx-family-single-startup-surface-v1' NexusNovaAndroid/app/src/main/assets/www/js/page2.js
@@ -168,6 +173,7 @@ jobs:
           apk=${APK_STATE}
           prepare=${{ steps.prepare.outcome }}
           family_patch=${{ steps.family_patch.outcome }}
+          auth_helper=${{ steps.auth_helper.outcome }}
           mining_sync=${{ steps.mining_sync.outcome }}
           viewport=${{ steps.viewport.outcome }}
           admob=${{ steps.admob.outcome }}
