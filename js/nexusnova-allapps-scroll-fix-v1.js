@@ -105,3 +105,10 @@
     install();
   }
 })();
+
+// Final web-only branding layer: turns the fixed dock into Mine + Nova Hub and
+// keeps Wallet/Market accessible inside the Hub. Loaded here because this module
+// already runs last in page2.js after the navigation stability owner.
+import('./nexusnova-nova-hub-nav-v1.js?v=1').catch(error => {
+  console.warn('NexusNova Nova Hub navigation:', error);
+});
