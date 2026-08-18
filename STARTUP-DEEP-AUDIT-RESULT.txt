@@ -1,0 +1,8 @@
+source_commit=c486b8c3ff53a57404430b9afa578ccf54143789
+job_status=cancelled
+runtime=cancelled
+target_patch=dashboard-only
+sign_in_target_patch=untouched
+apk_built=no
+test_rule=no_test_helper_may_hide_or_remove_splash
+checked_at=2026-08-18T19:55:18Z
