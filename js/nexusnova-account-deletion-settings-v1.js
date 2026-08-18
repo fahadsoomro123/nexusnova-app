@@ -1,19 +1,39 @@
-/* NexusNova Essential Settings v2
-   Web-only Settings cleanup. Keeps only useful account/preferences controls,
+/* NexusNova Essential Settings v3
+   Compact Settings cleanup. Keeps only useful account/preferences controls,
    plus Privacy Policy and account deletion. No mining, Nova Hub, rewards,
-   navigation, ads, wallet, market, or native APK logic is changed.
+   wallet, market, or sign-in logic is changed.
 */
 (() => {
   'use strict';
-  if (window.__nxEssentialSettingsV2) return;
-  window.__nxEssentialSettingsV2 = true;
+  if (window.__nxEssentialSettingsV3) return;
+  window.__nxEssentialSettingsV3 = true;
 
   const DELETE_ROW_ID = 'nxAccountDeletionSettingsRow';
   const PRIVACY_ROW_ID = 'nxPrivacyPolicySettingsRow';
-  const STYLE_ID = 'nxEssentialSettingsStyleV2';
+  const STYLE_ID = 'nxEssentialSettingsStyleV3';
+  const PRODUCTION_ROOT = 'https://fahadsoomro123.github.io/nexusnova-app/';
 
-  function openSameOriginPage(path) {
-    const url = new URL(path, window.location.href).href;
+  function legalUrl(path) {
+    const file = String(path || '').replace(/^\.\//, '').replace(/^\/+/, '');
+    try {
+      const current = new URL(window.location.href);
+      // The packaged Android shell keeps the github.io origin but uses the
+      // synthetic /nexusnova-native/ path. BrowserActivity does not serve that
+      // synthetic path, so bridge opens must use the real public Pages URL.
+      if (
+        current.hostname.toLowerCase() === 'fahadsoomro123.github.io' &&
+        current.pathname.startsWith('/nexusnova-native/')
+      ) {
+        return new URL(file, PRODUCTION_ROOT).href;
+      }
+      return new URL(file, current.href).href;
+    } catch (_) {
+      return new URL(file, PRODUCTION_ROOT).href;
+    }
+  }
+
+  function openLegalPage(path) {
+    const url = legalUrl(path);
     try {
       if (typeof window.NexusBrowserAndroid?.postMessage === 'function') {
         window.NexusBrowserAndroid.postMessage(JSON.stringify({ action: 'open', url }));
@@ -28,11 +48,13 @@
       if (opened) return;
     } catch (_) {}
 
+    // In the packaged Android WebView this same-document fallback is also safe
+    // because the legal pages are copied into the APK shell.
     window.location.href = url;
   }
 
-  window.openNexusAccountDeletion = () => openSameOriginPage('./account-deletion.html');
-  window.openNexusPrivacyPolicy = () => openSameOriginPage('./privacy-policy.html');
+  window.openNexusAccountDeletion = () => openLegalPage('./account-deletion.html');
+  window.openNexusPrivacyPolicy = () => openLegalPage('./privacy-policy.html');
 
   function installStyle() {
     if (document.getElementById(STYLE_ID)) return;
@@ -131,7 +153,6 @@
       addPrivacyRow(accountCard);
       addDeletionRow(accountCard);
 
-      // Keep Sign out as the final normal account action.
       const signOutRow = findRow(accountCard, 'Sign out');
       if (signOutRow) accountCard.appendChild(signOutRow);
     }
@@ -139,11 +160,8 @@
     if (appearanceCard) {
       const heading = appearanceCard.querySelector('h3');
       if (heading) heading.textContent = 'Preferences';
-
-      // Compact mode created extra layout variation without being essential.
       findRow(appearanceCard, 'Compact mode')?.remove();
 
-      // Keep the two useful AI preferences but merge them into one small card.
       if (aiCard) {
         const aiLanguage = findRow(aiCard, 'AI language');
         const voiceReplies = findRow(aiCard, 'Voice replies');
@@ -152,12 +170,9 @@
         aiCard.remove();
       }
     } else if (aiCard) {
-      // If the appearance card is missing, leave AI intact rather than losing controls.
       findRow(aiCard, 'Clear saved AI data')?.remove();
     }
 
-    // These built-in cards are either informational, duplicated by feature-level
-    // permission prompts, or preferences that are not essential to daily use.
     [
       'notifications',
       'privacy & permissions',
@@ -167,6 +182,7 @@
     ].forEach(label => findCard(settings, label)?.remove());
 
     document.documentElement.dataset.nxSettingsSimple = '1';
+    document.documentElement.dataset.nxSettingsVersion = '3';
     return Boolean(accountCard);
   }
 
