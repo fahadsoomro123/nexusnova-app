@@ -1,0 +1,126 @@
+name: NexusNova Family Demo Stability APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - 'page2.html'
+      - 'styles.css'
+      - 'manifest.webmanifest'
+      - 'css/**'
+      - 'js/**'
+      - 'NexusNovaAndroid/**'
+      - '.github/workflows/nexusnova-family-demo-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  stability-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Prepare deterministic Android web shell
+        run: python3 NexusNovaAndroid/prepare_native_web_shell.py
+
+      - name: Apply family demo web stability fixes
+        run: python3 NexusNovaAndroid/patch_family_demo_web_v1.py
+
+      - name: Synchronize mining boost countdown state
+        run: python3 NexusNovaAndroid/patch_mining_boost_sync.py
+
+      - name: Apply Android viewport lock
+        run: python3 NexusNovaAndroid/patch_viewport.py
+
+      - name: Apply native AdMob bridge
+        run: python3 NexusNovaAndroid/patch_admob.py
+
+      - name: Enforce rewarded test-only production guard
+        run: python3 NexusNovaAndroid/patch_rewarded_test_contract.py
+
+      - name: Apply TEST mining reward preview and booster FX
+        run: python3 NexusNovaAndroid/patch_test_boost_reward_fx.py
+
+      - name: Harden TEST reward cooldown, idempotence, FX timing and safe scroll
+        run: python3 NexusNovaAndroid/patch_test_boost_reward_fx_hardening.py
+
+      - name: Enforce TEST cooldown across all boost entry points
+        run: python3 NexusNovaAndroid/patch_test_boost_cooldown_gate.py
+
+      - name: Prevent wasted TEST boost ads in final two hours
+        run: python3 NexusNovaAndroid/patch_test_boost_final2h_guard.py
+
+      - name: Enforce single-owner authoritative TEST mining timer
+        run: python3 NexusNovaAndroid/patch_test_boost_authoritative_timer.py
+
+      - name: Apply UMP privacy options bridge
+        run: python3 NexusNovaAndroid/patch_ad_privacy.py
+
+      - name: Restore same-device session
+        run: python3 NexusNovaAndroid/patch_session_restore.py
+
+      - name: Defer Caller ID setup until feature use
+        run: python3 NexusNovaAndroid/patch_deferred_caller_setup.py
+
+      - name: Reset stale remote WebView shell once
+        run: python3 NexusNovaAndroid/patch_web_shell_reset.py
+
+      - name: Apply deterministic native shell
+        run: python3 NexusNovaAndroid/patch_native_shell.py
+
+      - name: Disable reload/fallback bounce for packaged native shell
+        run: python3 NexusNovaAndroid/patch_native_no_bounce_v1.py
+
+      - name: Verify family demo regression fixes
+        run: |
+          python3 -m py_compile NexusNovaAndroid/patch_family_demo_web_v1.py NexusNovaAndroid/patch_native_no_bounce_v1.py
+          node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-auth-page-v2.js
+          node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-page2-core-launch-v2.js
+          node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-page2-after-core-v2.js
+          node --check NexusNovaAndroid/app/src/main/assets/www/js/page2.js
+          node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-account-deletion-settings-v1.js
+          node --check NexusNovaAndroid/app/src/main/assets/www/js/rewards-security-v1.js
+          grep -q 'nx-family-auth-persistence-v1' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-auth-page-v2.js
+          grep -q 'nx-family-dashboard-persistence-v1' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-page2-core-launch-v2.js
+          grep -q 'nx-family-presentation-first-v1' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-page2-after-core-v2.js
+          grep -q 'nx-family-single-startup-surface-v1' NexusNovaAndroid/app/src/main/assets/www/js/page2.js
+          grep -q 'NexusNova Essential Settings v3' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-account-deletion-settings-v1.js
+          grep -q 'account-deletion.html' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-account-deletion-settings-v1.js
+          grep -q 'privacy-policy.html' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-account-deletion-settings-v1.js
+          grep -q 'nx-native-no-bounce-v1' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -q 'Suppressed native-shell recovery' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -q 'NATIVE_SHELL_PATH = "/nexusnova-native/"' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -q 'versionCode = 2' NexusNovaAndroid/app/build.gradle.kts
+          grep -q 'versionName = "1.1.0-stability"' NexusNovaAndroid/app/build.gradle.kts
+
+      - name: Compile signed TEST APK
+        run: gradle -p NexusNovaAndroid :app:assembleDebug --stacktrace --no-daemon
+
+      - name: Prepare named APK
+        run: |
+          cp NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk NexusNova-v1.1.0-Stability-TEST.apk
+          test -s NexusNova-v1.1.0-Stability-TEST.apk
+
+      - name: Upload stability TEST APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: NexusNova-v1.1.0-Stability-TEST
+          path: NexusNova-v1.1.0-Stability-TEST.apk
+          if-no-files-found: error
+          retention-days: 14
