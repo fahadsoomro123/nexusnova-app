@@ -51,12 +51,15 @@ jobs:
           cmp /tmp/nx-signin-before.sha /tmp/nx-signin-after.sha
           echo 'PASS sign-in document byte-for-byte unchanged.'
 
-      - name: Static security and syntax contract
-        id: static
+      - name: Python syntax contract
+        id: py_syntax
+        run: python3 -m py_compile .github/scripts/install_nova_vault_10x_ads_v1.py NexusNovaAndroid/patch_admob.py NexusNovaAndroid/patch_nova_vault_10x_ads.py NexusNovaAndroid/patch_dashboard_startup_lockfix_v1.py
+
+      - name: JavaScript syntax contract
+        id: js_syntax
         shell: bash
         run: |
           set -euo pipefail
-          python3 -m py_compile .github/scripts/install_nova_vault_10x_ads_v1.py NexusNovaAndroid/patch_admob.py NexusNovaAndroid/patch_nova_vault_10x_ads.py NexusNovaAndroid/patch_dashboard_startup_lockfix_v1.py
           node --check functions/index.js
           node --check functions/novaVault10x.js
           node --check functions/admobRewardedSsvV2.js
@@ -67,19 +70,25 @@ jobs:
           node --check .github/scripts/nova-vault-10x-runtime.mjs
           node --check .github/scripts/nova-vault-10x-rules-smoke.mjs
           node --check .github/scripts/nexusnova-settings-essential-runtime.mjs
-          grep -q 'require("./novaVault10x")' functions/index.js
-          grep -q 'require("./admobRewardedSsvV2")' functions/index.js
-          grep -q 'nova-vault-10x' functions/novaVault10x.js
-          grep -q 'nova-vault-10x' functions/admobRewardedSsvV2.js
-          grep -q 'TEST ads only show a clearly labeled local preview' js/nexusnova-nova-vault-10x-v1.js
-          grep -q 'nexusnova-hub-ad-gate-v1.js?v=1' js/nexusnova-page2-after-core-v2.js
-          grep -q 'nexusnova-nova-vault-10x-v1.js?v=1' js/nexusnova-page2-after-core-v2.js
-          grep -q 'REWARD_PURPOSE_VAULT_10X' NexusNovaAndroid/patch_nova_vault_10x_ads.py
-          grep -q 'nova-vault-10x' NexusNovaAndroid/patch_nova_vault_10x_ads.py
-          grep -q 'nexusnova-shell-v25-vault10x-ads' sw.js
-          grep -q 'nxAccountDeletionSettingsRow' js/nexusnova-account-deletion-settings-v1.js
-          grep -q 'Privacy Policy' js/nexusnova-account-deletion-settings-v1.js
-          echo 'PASS static Vault10x/ad/settings contract.'
+
+      - name: Static feature wiring contract
+        id: wiring
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'require("./novaVault10x")' functions/index.js
+          grep -Fq 'require("./admobRewardedSsvV2")' functions/index.js
+          grep -Fq 'nova-vault-10x' functions/novaVault10x.js
+          grep -Fq 'nova-vault-10x' functions/admobRewardedSsvV2.js
+          grep -Fq 'TEST ads only show a clearly labeled local preview' js/nexusnova-nova-vault-10x-v1.js
+          grep -Fq 'nexusnova-hub-ad-gate-v1.js?v=1' js/nexusnova-page2-after-core-v2.js
+          grep -Fq 'nexusnova-nova-vault-10x-v1.js?v=1' js/nexusnova-page2-after-core-v2.js
+          grep -Fq 'REWARD_PURPOSE_VAULT_10X' NexusNovaAndroid/patch_nova_vault_10x_ads.py
+          grep -Fq 'nova-vault-10x' NexusNovaAndroid/patch_nova_vault_10x_ads.py
+          grep -Fq 'nexusnova-shell-v25-vault10x-ads' sw.js
+          grep -Fq 'nxAccountDeletionSettingsRow' js/nexusnova-account-deletion-settings-v1.js
+          grep -Fq 'Privacy Policy' js/nexusnova-account-deletion-settings-v1.js
+          echo 'PASS static Vault10x/ad/settings wiring contract.'
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -156,14 +165,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -q 'REWARD_PURPOSE_VAULT_10X' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
-          grep -q 'nova-vault-10x' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
-          grep -q 'ssvIdentityReady' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
-          grep -q 'INTERSTITIAL_ALLOWED_FEATURES' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
-          grep -q 'nx-android-dashboard-startup-lockfix-v1' NexusNovaAndroid/app/src/main/assets/www/page2.html
-          grep -q 'nx-android-dashboard-no-secondary-shield-v1' NexusNovaAndroid/app/src/main/assets/www/js/page2.js
-          grep -q 'nexusnova-nova-vault-10x-v1.js?v=1' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-page2-after-core-v2.js
-          grep -q 'nexusnova-hub-ad-gate-v1.js?v=1' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-page2-after-core-v2.js
+          grep -Fq 'REWARD_PURPOSE_VAULT_10X' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
+          grep -Fq 'nova-vault-10x' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
+          grep -Fq 'ssvIdentityReady' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
+          grep -Fq 'INTERSTITIAL_ALLOWED_FEATURES' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
+          grep -Fq 'nx-android-dashboard-startup-lockfix-v1' NexusNovaAndroid/app/src/main/assets/www/page2.html
+          grep -Fq 'nx-android-dashboard-no-secondary-shield-v1' NexusNovaAndroid/app/src/main/assets/www/js/page2.js
+          grep -Fq 'nexusnova-nova-vault-10x-v1.js?v=1' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-page2-after-core-v2.js
+          grep -Fq 'nexusnova-hub-ad-gate-v1.js?v=1' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-page2-after-core-v2.js
           echo 'PASS generated native/static integration.'
 
       - name: Deep Android startup - no helper may hide splash
@@ -201,17 +210,15 @@ jobs:
           git config user.email 'actions@users.noreply.github.com'
           git fetch origin nova-vault-10x-audit || true
           rm -rf /tmp/nx-vault10x-audit
-          if git show-ref --verify --quiet refs/remotes/origin/nova-vault-10x-audit; then
-            git worktree add /tmp/nx-vault10x-audit origin/nova-vault-10x-audit
-          else
-            git worktree add --detach /tmp/nx-vault10x-audit HEAD
-          fi
+          git worktree add /tmp/nx-vault10x-audit origin/nova-vault-10x-audit
           cat > /tmp/nx-vault10x-audit/NOVA-VAULT-10X-INTEGRATION-RESULT.txt <<EOF
           source_commit=${GITHUB_SHA}
           job_status=${{ job.status }}
           install=${{ steps.install.outcome }}
           signin=${{ steps.signin.outcome }}
-          static=${{ steps.static.outcome }}
+          py_syntax=${{ steps.py_syntax.outcome }}
+          js_syntax=${{ steps.js_syntax.outcome }}
+          wiring=${{ steps.wiring.outcome }}
           server=${{ steps.server.outcome }}
           vault_runtime=${{ steps.vault_runtime.outcome }}
           settings_runtime=${{ steps.settings_runtime.outcome }}
