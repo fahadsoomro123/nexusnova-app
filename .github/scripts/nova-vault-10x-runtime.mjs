@@ -25,11 +25,16 @@ await page.route('https://www.gstatic.com/firebasejs/12.1.0/*', async route => {
   const name = new URL(route.request().url()).pathname.split('/').pop();
   const body = fakeModules[name];
   if (!body) return route.abort('failed');
-  return route.fulfill({status:200,contentType:'application/javascript',body});
+  return route.fulfill({
+    status:200,
+    contentType:'application/javascript',
+    headers:{'access-control-allow-origin':'*','cache-control':'no-store'},
+    body
+  });
 });
 
 try {
-  await page.goto(`${origin}/.runtime-origin.html`, {waitUntil:'domcontentloaded'});
+  await page.goto(`${origin}/.github/fixtures/runtime-origin.html`, {waitUntil:'domcontentloaded'});
   await page.evaluate(() => {
     document.body.innerHTML = `
       <section id="nxNovaVaultPanel">
