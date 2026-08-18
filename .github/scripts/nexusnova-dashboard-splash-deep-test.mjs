@@ -30,11 +30,19 @@ try {
   });
 
   const errors = [];
+  const navigations = [];
   page.on('pageerror', error => errors.push(String(error?.message || error || '')));
+  page.on('framenavigated', frame => {
+    if (frame === page.mainFrame()) navigations.push(frame.url());
+  });
 
   const response = await page.goto(pageUrl, { waitUntil: 'commit', timeout: 10000 });
   assert.equal(response?.status(), 200, `dashboard HTTP status was ${response?.status()}`);
-  await page.waitForSelector('#mineBtn', { state: 'attached', timeout: 7000 });
+
+  // Use a DOM predicate rather than locator stability: if code keeps navigating
+  // or replacing the document, the next snapshot reports the exact URL/history
+  // instead of producing an ambiguous "resolved but timed out" locator error.
+  await page.waitForFunction(() => Boolean(document.getElementById('mineBtn')), null, { timeout: 7000 });
   await page.waitForFunction(() => Boolean(document.getElementById('mineBtn')?.closest('.tab')), null, { timeout: 7000 });
 
   async function snapshot(label) {
@@ -61,8 +69,8 @@ try {
         balance: String(document.getElementById('balance')?.textContent || '').trim(),
       };
     });
-    console.log(`SNAPSHOT ${label} ${JSON.stringify(state)}`);
-    assert.match(state.href, /\/page2\.html(?:\?|$)/, `${label}: dashboard unexpectedly navigated away`);
+    console.log(`SNAPSHOT ${label} ${JSON.stringify({...state,navigations})}`);
+    assert.match(state.href, /\/page2\.html(?:\?|$)/, `${label}: dashboard unexpectedly navigated away; history=${navigations.join(' -> ')}`);
     assert.equal(state.android, true, `${label}: Android shell marker missing`);
     assert.equal(state.splashBlocking, false, `${label}: HTML splash is blocking`);
     assert.equal(state.shieldBlocking, false, `${label}: secondary shield is blocking`);
