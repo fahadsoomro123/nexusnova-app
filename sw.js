@@ -1,5 +1,5 @@
 /* NexusNova Service Worker - fresh-code first, bounded network + offline fallback + FCM web push */
-const CACHE = "nexusnova-shell-v23-startup-recovery";
+const CACHE = "nexusnova-shell-v24-auth-startup-recovery";
 
 const ASSETS = [
   "./",
@@ -17,6 +17,7 @@ const ASSETS = [
   "./css/nexusnova-button-safety-v1.css",
   "./css/nexusnova-premium-blue-v1.css",
   "./css/nexusnova-final-user-fixes-v1.css",
+  "./js/nexusnova-auth-page-v2.js",
   "./js/page2.js",
   "./js/nexusnova-page2-core-launch-v2.js",
   "./js/nexusnova-page2-after-core-v2.js",
