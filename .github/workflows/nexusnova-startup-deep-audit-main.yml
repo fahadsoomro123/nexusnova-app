@@ -1,0 +1,151 @@
+name: NexusNova Startup Deep Audit - NO APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/nexusnova-startup-deep-audit-main.yml'
+      - '.github/scripts/nexusnova-dashboard-splash-deep-test.mjs'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  startup-deep-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Playwright Chromium
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Prepare exact family Android shell
+        run: |
+          python3 NexusNovaAndroid/prepare_native_web_shell.py
+          python3 NexusNovaAndroid/patch_family_demo_web_v1.py
+          python3 NexusNovaAndroid/patch_family_auth_recursion_fix.py
+          python3 NexusNovaAndroid/patch_startup_reveal_v2.py
+          python3 NexusNovaAndroid/patch_native_startup_escape_v3.py
+          python3 NexusNovaAndroid/patch_mining_boost_sync.py
+          python3 NexusNovaAndroid/patch_viewport.py
+          python3 NexusNovaAndroid/patch_admob.py
+          python3 NexusNovaAndroid/patch_rewarded_test_contract.py
+          python3 NexusNovaAndroid/patch_test_boost_reward_fx.py
+          python3 NexusNovaAndroid/patch_test_boost_reward_fx_hardening.py
+          python3 NexusNovaAndroid/patch_test_boost_cooldown_gate.py
+          python3 NexusNovaAndroid/patch_ad_privacy.py
+          python3 NexusNovaAndroid/patch_session_restore.py
+          python3 NexusNovaAndroid/patch_web_shell_reset.py
+          python3 NexusNovaAndroid/patch_native_shell.py
+          python3 NexusNovaAndroid/patch_native_splash_release_v4.py
+          python3 NexusNovaAndroid/patch_native_no_bounce_v1.py
+
+      - name: Apply dashboard-only audit fix in staged APK assets
+        id: target
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum NexusNovaAndroid/app/src/main/assets/www/index.html | awk '{print $1}' > /tmp/index-before.sha
+          python3 - <<'PY'
+          from pathlib import Path
+          root = Path('NexusNovaAndroid/app/src/main/assets/www')
+          page_path = root / 'page2.html'
+          launcher_path = root / 'js/page2.js'
+          page = page_path.read_text(encoding='utf-8')
+          launcher = launcher_path.read_text(encoding='utf-8')
+
+          old = '<div id="nxSplash" aria-hidden="false">'
+          new = '<!-- nx-android-dashboard-startup-lockfix-v1 -->\n<div id="nxSplash" aria-hidden="true" style="display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important">'
+          if old not in page:
+              old = '<div id="nxSplash" aria-hidden="true">'
+          if old not in page:
+              raise SystemExit('dashboard splash markup not found')
+          page = page.replace(old, new, 1)
+          page = page.replace('<div class="balance-amount" id="balance">0.0000</div>', '<div class="balance-amount" id="balance">—</div>', 1)
+          page = page.replace('<div class="balance-usd" id="usdValue">$ 0.00 USD</div>', '<div class="balance-usd" id="usdValue">SYNCING SECURE BALANCE</div>', 1)
+          page = page.replace('<span id="btnText">START MINING</span>', '<span id="btnText">SYNCING MINING</span>', 1)
+          page = page.replace('        MINER OFFLINE\n', '        CHECKING SECURE SESSION\n', 1)
+
+          anchor = '  function installShield() {\n'
+          block = '''  function installShield() {\n    // nx-android-dashboard-no-secondary-shield-v1\n    const androidDashboard = window.__nexusAndroidShell === true || location.pathname.startsWith('/nexusnova-native/') || new URLSearchParams(location.search).get('nxAndroid') === '1';\n    if (androidDashboard) {\n      const oldSplash = document.getElementById('nxSplash');\n      if (oldSplash) {\n        oldSplash.style.setProperty('display','none','important');\n        oldSplash.style.setProperty('visibility','hidden','important');\n        oldSplash.style.setProperty('opacity','0','important');\n        oldSplash.style.setProperty('pointer-events','none','important');\n      }\n      return;\n    }\n'''
+          if 'nx-android-dashboard-no-secondary-shield-v1' not in launcher:
+              if anchor not in launcher:
+                  raise SystemExit('secondary shield anchor missing')
+              launcher = launcher.replace(anchor, block, 1)
+
+          page_path.write_text(page, encoding='utf-8')
+          launcher_path.write_text(launcher, encoding='utf-8')
+          PY
+          sha256sum NexusNovaAndroid/app/src/main/assets/www/index.html | awk '{print $1}' > /tmp/index-after.sha
+          cmp /tmp/index-before.sha /tmp/index-after.sha
+
+      - name: Static no-regression contract
+        id: static
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'nx-android-dashboard-startup-lockfix-v1' NexusNovaAndroid/app/src/main/assets/www/page2.html
+          grep -q 'id="nxSplash" aria-hidden="true" style="display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important"' NexusNovaAndroid/app/src/main/assets/www/page2.html
+          grep -q 'nx-android-dashboard-no-secondary-shield-v1' NexusNovaAndroid/app/src/main/assets/www/js/page2.js
+          grep -q 'id="balance">—</div>' NexusNovaAndroid/app/src/main/assets/www/page2.html
+          grep -q 'SYNCING SECURE BALANCE' NexusNovaAndroid/app/src/main/assets/www/page2.html
+          grep -q 'SYNCING MINING' NexusNovaAndroid/app/src/main/assets/www/page2.html
+          grep -q 'CHECKING SECURE SESSION' NexusNovaAndroid/app/src/main/assets/www/page2.html
+          grep -q 'scheduleNativeSplashRelease(target) // nx-native-splash-release-v4' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -q 'releaseAfter(2_600L)' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -q 'releaseAfter(4_800L)' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -q 'releaseAfter(8_000L)' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          node --check NexusNovaAndroid/app/src/main/assets/www/js/page2.js
+          echo 'PASS static startup contract'
+
+      - name: Start local final prepared shell
+        shell: bash
+        run: |
+          python3 -m http.server 4173 > /tmp/nx-deep-audit-http.log 2>&1 &
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:4173/NexusNovaAndroid/app/src/main/assets/www/page2.html >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/nx-deep-audit-http.log || true
+          exit 1
+
+      - name: Runtime test without manually releasing splash
+        id: runtime
+        run: node .github/scripts/nexusnova-dashboard-splash-deep-test.mjs
+
+      - name: Record result on isolated audit branch
+        if: always()
+        shell: bash
+        run: |
+          git fetch origin startup-deep-fix-audit
+          rm -rf /tmp/nx-audit-status
+          git worktree add /tmp/nx-audit-status origin/startup-deep-fix-audit
+          cat > /tmp/nx-audit-status/STARTUP-DEEP-AUDIT-RESULT.txt <<EOF
+          source_commit=${GITHUB_SHA}
+          job_status=${{ job.status }}
+          target=${{ steps.target.outcome }}
+          static=${{ steps.static.outcome }}
+          runtime=${{ steps.runtime.outcome }}
+          sign_in_target_patch=untouched-by-hash
+          apk_built=no
+          external_network_during_runtime=blocked
+          test_manually_hides_splash=no
+          checked_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          EOF
+          sed -i 's/^          //' /tmp/nx-audit-status/STARTUP-DEEP-AUDIT-RESULT.txt
+          cd /tmp/nx-audit-status
+          git config user.name 'NexusNova Startup Audit Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add STARTUP-DEEP-AUDIT-RESULT.txt
+          git commit -m 'Record startup deep audit result' || true
+          git push origin HEAD:startup-deep-fix-audit
