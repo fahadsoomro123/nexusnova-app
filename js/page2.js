@@ -1,240 +1,108 @@
-/* NexusNova App Check bootstrap */
-const host = String(window.location.hostname || '').toLowerCase();
-const referrer = String(document.referrer || '').toLowerCase();
+/* NexusNova fast dashboard launcher v2
+   Keep the static module tiny so Android WebView can finish the main document
+   quickly. The real Firebase/Auth dashboard bootstrap runs in a detached dynamic
+   import and no longer keeps the native main-frame watchdog waiting.
+*/
+(() => {
+  'use strict';
+  if (window.__nxFastDashboardLauncherV2) return;
+  window.__nxFastDashboardLauncherV2 = true;
 
-// AdMob UX guard: background preload failures must never interrupt app startup.
-// Explicit rewarded requests still flow to their owning feature so it can show
-// an inline status or a deliberate user-facing result.
-let nxExplicitRewardedRequest = false;
-let nxExplicitRewardedStartedAt = 0;
-const NX_REWARDED_REQUEST_WINDOW_MS = 70_000;
-window.addEventListener('nexusnova:native-ad-event', event => {
-  const detail = event?.detail || {};
-  if (String(detail.provider || '') !== 'admob') return;
-  const type = String(detail.event || '');
+  const SHIELD_ID = 'nxSecureStartupShieldV2';
+  const STYLE_ID = 'nxSecureStartupShieldStyleV2';
+  let released = false;
+  let pollTimer = 0;
 
-  if (type === 'rewarded-preparing' || type === 'rewarded-showing' || type === 'rewarded-opened') {
-    nxExplicitRewardedRequest = true;
-    nxExplicitRewardedStartedAt = Date.now();
-    return;
-  }
-
-  const terminalFailure =
-    type === 'rewarded-unavailable' ||
-    type === 'rewarded-load-failed' ||
-    type === 'rewarded-failed';
-
-  if (terminalFailure) {
-    const recentExplicitRequest = nxExplicitRewardedRequest &&
-      nxExplicitRewardedStartedAt > 0 &&
-      Date.now() - nxExplicitRewardedStartedAt <= NX_REWARDED_REQUEST_WINDOW_MS;
-
-    nxExplicitRewardedRequest = false;
-    nxExplicitRewardedStartedAt = 0;
-
-    if (!recentExplicitRequest) {
-      // Background preload/no-fill is expected to be retryable and must remain silent.
-      event.stopImmediatePropagation();
-      console.info('NexusNova AdMob preload unavailable; kept silent.', {
-        code: detail.code ?? null,
-        message: String(detail.message || detail.reason || '')
-      });
-    }
-    return;
-  }
-
-  if (type === 'rewarded-earned' || type === 'rewarded-dismissed') {
-    nxExplicitRewardedRequest = false;
-    nxExplicitRewardedStartedAt = 0;
-  }
-}, true);
-
-// Development-only App Check debug mode.
-// Never enable this on the production GitHub Pages host.
-const isNexusNovaDevHost =
-  host === 'localhost' ||
-  host === '127.0.0.1' ||
-  host.includes('--3000--') ||
-  host.includes('webcontainer') ||
-  host.endsWith('.webcontainer.io') ||
-  host.endsWith('.webcontainer-api.io') ||
-  host.endsWith('.stackblitz.io') ||
-  host === 'stackblitz.com' ||
-  host.endsWith('.stackblitz.com') ||
-  referrer.includes('stackblitz.com');
-
-if (isNexusNovaDevHost) {
-  self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
-  console.info('NexusNova App Check: development debug provider enabled.');
-}
-
-const meta = document.querySelector('meta[name="nexusnova-app-check-site-key"]');
-if (meta) {
-  meta.setAttribute('content', '6LfEc4QtAAAAAOohkqSv0p76iwPTeHI98hqVlwIs');
-}
-
-// Android resume guard: the native WebView can resume page2 before Firebase has
-// restored the persisted Auth user. page2-core treats an initial null user as a
-// real logout and redirects to index.html, which creates the login/splash bounce
-// seen on resume. Wait only in the native shell, behind the existing splash, for
-// Firebase Auth persistence to settle before page2-core installs that redirect.
-// This changes no navigation/UI/mining logic once the authoritative Auth state is ready.
-const nxNativeShell = typeof window.NexusAndroid?.postMessage === 'function';
-if (nxNativeShell) {
-  try {
-    const [appMod, authMod] = await Promise.all([
-      import('https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js'),
-      import('https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js')
-    ]);
-    const firebaseConfig = {
-      apiKey: 'AIzaSyBU75WYp5ioaMD1LrNcDyAvROFW2wrTil0',
-      authDomain: 'nexusnova-6ade2.firebaseapp.com',
-      projectId: 'nexusnova-6ade2',
-      storageBucket: 'nexusnova-6ade2.firebasestorage.app',
-      messagingSenderId: '49791194817',
-      appId: '1:49791194817:web:07f28326e0f15979536640',
-      measurementId: 'G-YLPFKWSS12'
-    };
-    const app = appMod.getApps().find(item => item?.name === '[DEFAULT]') || appMod.initializeApp(firebaseConfig);
-    const auth = authMod.getAuth(app);
-    const timeout = new Promise(resolve => setTimeout(resolve, 3000));
-
-    if (typeof auth.authStateReady === 'function') {
-      await Promise.race([auth.authStateReady(), timeout]);
-    } else if (!auth.currentUser) {
-      await Promise.race([
-        new Promise(resolve => {
-          let stop = () => {};
-          stop = authMod.onAuthStateChanged(auth, () => {
-            try { stop(); } catch (_) {}
-            resolve();
-          });
-        }),
-        timeout
-      ]);
-    }
-  } catch (error) {
-    // Never block startup because this guard is only a resume stabilization aid.
-    console.warn('NexusNova Android Auth resume guard:', error);
-  }
-}
-
-// Load the Android Daily Reward ad gate before page2-core. page2-core loads the
-// legacy rewarded/mining compatibility stack, so registering the Daily capture
-// listener first guarantees that a Daily ad result belongs only to Daily Reward.
-try {
-  await import('./nexusnova-daily-ad-test-v1.js?v=5');
-} catch (error) {
-  console.warn('NexusNova Daily Reward ad gate:', error);
-}
-
-await import('./page2-core.js?v=appcheck-debug-10');
-
-// The Daily Ad gate deliberately does not write NVX itself. This bridge exposes
-// one protected callable that returns/rethrows the authoritative +5 NVX result.
-try {
-  await import('./nexusnova-daily-secure-claim-v1.js?v=1');
-} catch (error) {
-  console.warn('NexusNova Daily Reward secure claim bridge:', error);
-}
-
-// Central monetization controller. It owns frequency caps and protected-screen
-// exclusions while the proven native v60+ ad owner remains unchanged.
-try {
-  await import('./nexusnova-ad-placements-v1.js?v=3');
-} catch (error) {
-  console.warn('NexusNova ad placements:', error);
-}
-
-// Secure Watch Ad +2.5 NVX controller. Older APKs are capability-gated and
-// production is held until the signed SSV endpoint is actually deployed.
-try {
-  await import('./nexusnova-watch-ad-reward-v1.js?v=1');
-} catch (error) {
-  console.warn('NexusNova Watch Ad reward:', error);
-}
-
-// Google UMP privacy choices entry point. It stays hidden unless native UMP says
-// a publisher-rendered privacy-options control is required for this user.
-try {
-  await import('./nexusnova-ad-privacy-v1.js?v=1');
-} catch (error) {
-  console.warn('NexusNova ad privacy:', error);
-}
-
-// A secure account transaction must not be reported as failed merely because a
-// secondary/profile renderer throws afterwards.
-if (typeof window.nexusApplySecureAccountState === 'function') {
-  const applySecureAccountState = window.nexusApplySecureAccountState;
-  window.nexusApplySecureAccountState = function safeNexusApplySecureAccountState(state = {}) {
-    try {
-      return applySecureAccountState(state);
-    } catch (error) {
-      console.warn('NexusNova account UI sync was non-fatal:', error);
-      return undefined;
-    }
-  };
-}
-
-// Keep Auth verification claims fresh for all value-bearing features. The
-// mining engine also refreshes again immediately before every mining write, so
-// there is no race with a token minted before email verification.
-window.nexusAuthFreshReady = (async () => {
-  try {
-    const [appMod, authMod] = await Promise.all([
-      import('https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js'),
-      import('https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js')
-    ]);
-    const apps = appMod.getApps();
-    if (!apps.length) return null;
-    const auth = authMod.getAuth(apps[0]);
-
-    let user = auth.currentUser;
-    if (!user) {
-      user = await new Promise(resolve => {
-        let settled = false;
-        const unsubscribe = authMod.onAuthStateChanged(auth, value => {
-          if (settled) return;
-          settled = true;
-          unsubscribe();
-          resolve(value || null);
-        });
-        setTimeout(() => {
-          if (settled) return;
-          settled = true;
-          unsubscribe();
-          resolve(auth.currentUser || null);
-        }, 2500);
-      });
+  function installShield() {
+    if (!document.getElementById(STYLE_ID)) {
+      const style = document.createElement('style');
+      style.id = STYLE_ID;
+      style.textContent = `
+        #${SHIELD_ID}{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:24px;background:radial-gradient(900px 520px at 50% 15%,rgba(25,105,255,.22),transparent 62%),#020711;color:#eef7ff;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;transition:opacity .28s ease,visibility .28s ease}
+        #${SHIELD_ID}.nx-release{opacity:0;visibility:hidden;pointer-events:none}
+        #${SHIELD_ID} .nx-start-box{text-align:center;max-width:360px;width:100%}
+        #${SHIELD_ID} .nx-start-logo{width:72px;height:72px;margin:0 auto 16px;border-radius:22px;display:grid;place-items:center;font-size:34px;font-weight:950;color:#fff;background:linear-gradient(145deg,#1687ff,#4fc8ff);box-shadow:0 0 0 1px rgba(151,222,255,.58),0 18px 45px rgba(0,112,255,.32),inset 0 1px 0 rgba(255,255,255,.45)}
+        #${SHIELD_ID} .nx-start-name{font-size:25px;font-weight:900;letter-spacing:-.03em}
+        #${SHIELD_ID} .nx-start-name span{color:#55a8ff}
+        #${SHIELD_ID} .nx-start-status{margin-top:9px;color:#9fb4cc;font-size:12px;font-weight:700;letter-spacing:.04em}
+        #${SHIELD_ID} .nx-start-line{width:150px;height:3px;margin:18px auto 0;border-radius:999px;background:rgba(91,168,255,.14);overflow:hidden}
+        #${SHIELD_ID} .nx-start-line i{display:block;width:45%;height:100%;border-radius:inherit;background:linear-gradient(90deg,#238cff,#61d8ff);animation:nxSecureStartupMove 1.2s ease-in-out infinite alternate}
+        #${SHIELD_ID} .nx-start-retry{display:none;width:100%;margin-top:18px;padding:12px 14px;border-radius:13px;border:1px solid rgba(94,177,255,.34);background:rgba(11,49,89,.88);color:#fff;font-weight:850}
+        #${SHIELD_ID}.nx-delayed .nx-start-retry{display:block}
+        @keyframes nxSecureStartupMove{from{transform:translateX(-15%)}to{transform:translateX(135%)}}
+      `;
+      document.head.appendChild(style);
     }
 
-    if (!user) return null;
-    await user.reload();
-    user = auth.currentUser || user;
-    await user.getIdToken(true);
-    console.info('NexusNova Auth: verification claims refreshed.', {
-      emailVerified: Boolean(user.emailVerified)
-    });
-    return user;
-  } catch (error) {
-    console.warn('NexusNova Auth refresh:', error);
-    return null;
+    if (document.getElementById(SHIELD_ID)) return;
+    const shield = document.createElement('div');
+    shield.id = SHIELD_ID;
+    shield.innerHTML = `
+      <div class="nx-start-box">
+        <div class="nx-start-logo">N</div>
+        <div class="nx-start-name">Nexus<span>Nova</span></div>
+        <div class="nx-start-status" id="nxSecureStartupStatusV2">Restoring your secure mining session…</div>
+        <div class="nx-start-line"><i></i></div>
+        <button type="button" class="nx-start-retry" id="nxSecureStartupRetryV2">RETRY CONNECTION</button>
+      </div>`;
+    document.body.appendChild(shield);
+    shield.querySelector('#nxSecureStartupRetryV2')?.addEventListener('click', () => window.location.reload());
   }
+
+  function miningIsAuthoritative() {
+    const button = document.getElementById('mineBtn');
+    const text = String(document.getElementById('btnText')?.textContent || '').trim().toUpperCase();
+    const timer = String(document.getElementById('timer')?.textContent || '').trim().toUpperCase();
+    if (window.__nexusSecureRewardsSingleOwner !== true) return false;
+    if (!button?.classList.contains('nx-future-miner')) return false;
+    if (!text) return false;
+    if (text.includes('SYNCING MINING')) return false;
+    if (timer.includes('CHECKING SECURE SESSION')) return false;
+    return true;
+  }
+
+  function releaseShield() {
+    if (released) return;
+    released = true;
+    if (pollTimer) clearInterval(pollTimer);
+    const shield = document.getElementById(SHIELD_ID);
+    if (!shield) return;
+    shield.classList.add('nx-release');
+    setTimeout(() => shield.remove(), 360);
+  }
+
+  function checkReady() {
+    if (released) return;
+    if (miningIsAuthoritative()) releaseShield();
+  }
+
+  function showDelayed(message) {
+    if (released) return;
+    const shield = document.getElementById(SHIELD_ID);
+    const status = document.getElementById('nxSecureStartupStatusV2');
+    if (status) status.textContent = message || 'Secure session is taking longer than expected.';
+    shield?.classList.add('nx-delayed');
+  }
+
+  function bootShield() {
+    installShield();
+    checkReady();
+    pollTimer = window.setInterval(checkReady, 140);
+    window.setTimeout(() => showDelayed('Still connecting securely… your mining data has not been replaced.'), 12000);
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bootShield, { once: true });
+  else bootShield();
+
+  window.addEventListener('nexusaccountready', checkReady);
+  window.addEventListener('nexusnova:dashboard-bootstrap-failed', event => {
+    showDelayed(String(event?.detail?.message || 'Secure dashboard could not finish loading.'));
+  });
+
+  // Important: deliberately NOT awaited. Static module evaluation finishes now,
+  // allowing Android onPageFinished to fire before its 12-second recovery timer.
+  void import('./nexusnova-page2-bootstrap-v2.js?v=2').catch(error => {
+    console.error('NexusNova detached dashboard bootstrap:', error);
+    showDelayed('Secure dashboard failed to load. Tap Retry Connection.');
+  });
 })();
-
-// Load the final navigation owner last. Android/WebView can finish older classic
-// scripts and module imports in different orders; this module owns the escape
-// path from ALL APPS and restores every feature's Back to ALL APPS control.
-try {
-  await import('./nexusnova-navigation-stability-v1.js?v=1');
-} catch (error) {
-  console.warn('NexusNova navigation stability:', error);
-}
-
-// ALL APPS uses several historical layout layers. Fit its visible menu between
-// the ticker/header area and the fixed dock so Android can pan it vertically.
-try {
-  await import('./nexusnova-allapps-scroll-fix-v1.js?v=1');
-} catch (error) {
-  console.warn('NexusNova ALL APPS scroll fix:', error);
-}
