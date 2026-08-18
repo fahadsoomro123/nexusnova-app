@@ -15,7 +15,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   stability-apk:
@@ -124,3 +124,16 @@ jobs:
           path: NexusNova-v1.1.0-Stability-TEST.apk
           if-no-files-found: error
           retention-days: 14
+
+      - name: Publish APK to apk-builds branch
+        run: |
+          git config user.name "NexusNova Build Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git fetch origin apk-builds
+          git worktree add /tmp/nexusnova-apk-publish origin/apk-builds
+          cp NexusNova-v1.1.0-Stability-TEST.apk /tmp/nexusnova-apk-publish/NexusNova-v1.1.0-Stability-TEST.apk
+          printf '%s\n' "source_commit=${GITHUB_SHA}" "built_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" > /tmp/nexusnova-apk-publish/NexusNova-v1.1.0-Stability-TEST.txt
+          cd /tmp/nexusnova-apk-publish
+          git add NexusNova-v1.1.0-Stability-TEST.apk NexusNova-v1.1.0-Stability-TEST.txt
+          git commit -m "Publish NexusNova v1.1.0 stability APK ${GITHUB_SHA}" || true
+          git push origin HEAD:apk-builds
