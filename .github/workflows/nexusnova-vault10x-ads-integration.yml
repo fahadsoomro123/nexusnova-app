@@ -202,7 +202,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git reset --hard HEAD -- NexusNovaAndroid/app/src/main/assets/www NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt NexusNovaAndroid/app/build.gradle.kts || true
+          git restore --source=HEAD --worktree --staged -- NexusNovaAndroid/app/src/main/assets/www NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt NexusNovaAndroid/app/build.gradle.kts || true
           git clean -fd NexusNovaAndroid/app/src/main/assets/www || true
           git add functions/index.js js/nexusnova-page2-after-core-v2.js sw.js
           if git diff --cached --quiet; then
