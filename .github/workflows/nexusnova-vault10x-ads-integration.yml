@@ -76,8 +76,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -Fq 'require("./novaVault10x")' functions/index.js
-          grep -Fq 'require("./admobRewardedSsvV2")' functions/index.js
+          grep -Fq 'require("./novaVault10x")' functions/index.js || grep -Fq 'require("./novaVault10x")' functions/index.js
+          grep -Fq 'require("./admobRewardedSsvV2")' functions/index.js || grep -Fq 'require("./admobRewardedSsvV2")' functions/index.js
           grep -Fq 'nova-vault-10x' functions/novaVault10x.js
           grep -Fq 'nova-vault-10x' functions/admobRewardedSsvV2.js
           grep -Fq 'TEST ads only show a clearly labeled local preview' js/nexusnova-nova-vault-10x-v1.js
