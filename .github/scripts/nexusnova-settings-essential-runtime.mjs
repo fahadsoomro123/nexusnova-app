@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 
 const origin='http://127.0.0.1:4173';
+const scriptPath=String(process.env.NX_SETTINGS_SCRIPT_PATH||'/js/nexusnova-account-deletion-settings-v1.js').replace(/^\/+/, '');
+const expectedLabel=process.env.NX_SETTINGS_LABEL||'source';
 const browser=await chromium.launch({headless:true});
 const page=await browser.newPage({viewport:{width:393,height:873}});
 
@@ -36,7 +38,7 @@ try{
     window.NexusBrowserAndroid={postMessage(raw){window.__openedSettingsUrls.push(JSON.parse(String(raw)).url)}};
   });
 
-  await page.addScriptTag({url:`${origin}/js/nexusnova-account-deletion-settings-v1.js?v=essential-runtime`});
+  await page.addScriptTag({url:`${origin}/${scriptPath}?v=essential-runtime`});
   await page.waitForFunction(()=>document.documentElement.dataset.nxSettingsSimple==='1');
 
   const state=await page.evaluate(()=>({
@@ -46,7 +48,8 @@ try{
     deleteText:document.getElementById('nxAccountDeletionSettingsRow')?.textContent||'',
     privacyText:document.getElementById('nxPrivacyPolicySettingsRow')?.textContent||'',
     compact:[...document.querySelectorAll('#tab-about .settings-row strong')].some(el=>el.textContent.trim()==='Compact mode'),
-    clearAi:[...document.querySelectorAll('#tab-about .settings-row strong')].some(el=>el.textContent.trim()==='Clear saved AI data')
+    clearAi:[...document.querySelectorAll('#tab-about .settings-row strong')].some(el=>el.textContent.trim()==='Clear saved AI data'),
+    settingsVersion:document.documentElement.dataset.nxSettingsVersion||''
   }));
 
   assert.equal(state.title,'⚙️ Settings');
@@ -56,6 +59,7 @@ try{
   assert.match(state.privacyText,/Privacy Policy/);
   assert.equal(state.compact,false);
   assert.equal(state.clearAi,false);
+  assert.equal(state.settingsVersion,'3');
 
   await page.locator('#nxPrivacyPolicyBtn').click();
   await page.locator('#nxAccountDeletionBtn').click();
@@ -64,7 +68,7 @@ try{
   assert.match(urls[0],/privacy-policy\.html$/);
   assert.match(urls[1],/account-deletion\.html$/);
 
-  console.log('PASS Settings: compact Account + Preferences only, Privacy Policy and Delete Account visible and routed.');
+  console.log(`PASS Settings (${expectedLabel}): compact Account + Preferences only, Privacy Policy and Delete Account visible and routed.`);
 }finally{
   await browser.close();
 }
