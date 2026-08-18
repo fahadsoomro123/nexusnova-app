@@ -1,4 +1,4 @@
-source_commit=0e5f5740bfb0aba7f1dbd08e57473ef89c9408c2
+source_commit=134b52705d356508231f94989d895f2d96aedee0
 job_status=failure
 target=success
 static=success
@@ -7,4 +7,4 @@ sign_in_target_patch=untouched-by-hash
 apk_built=no
 external_network_during_runtime=blocked
 test_manually_hides_splash=no
-checked_at=2026-08-18T21:46:52Z
+checked_at=2026-08-18T21:51:40Z
