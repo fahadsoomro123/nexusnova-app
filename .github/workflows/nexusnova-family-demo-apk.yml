@@ -37,57 +37,75 @@ jobs:
           gradle-version: '8.13'
 
       - name: Prepare deterministic Android web shell
+        id: prepare
         run: python3 NexusNovaAndroid/prepare_native_web_shell.py
 
       - name: Apply family demo web stability fixes
+        id: family_patch
         run: python3 NexusNovaAndroid/patch_family_demo_web_v1.py
 
       - name: Synchronize mining boost countdown state
+        id: mining_sync
         run: python3 NexusNovaAndroid/patch_mining_boost_sync.py
 
       - name: Apply Android viewport lock
+        id: viewport
         run: python3 NexusNovaAndroid/patch_viewport.py
 
       - name: Apply native AdMob bridge
+        id: admob
         run: python3 NexusNovaAndroid/patch_admob.py
 
       - name: Enforce rewarded test-only production guard
+        id: reward_contract
         run: python3 NexusNovaAndroid/patch_rewarded_test_contract.py
 
       - name: Apply TEST mining reward preview and booster FX
+        id: boost_fx
         run: python3 NexusNovaAndroid/patch_test_boost_reward_fx.py
 
       - name: Harden TEST reward cooldown, idempotence, FX timing and safe scroll
+        id: boost_hardening
         run: python3 NexusNovaAndroid/patch_test_boost_reward_fx_hardening.py
 
       - name: Enforce TEST cooldown across all boost entry points
+        id: boost_cooldown
         run: python3 NexusNovaAndroid/patch_test_boost_cooldown_gate.py
 
       - name: Prevent wasted TEST boost ads in final two hours
+        id: boost_final2h
         run: python3 NexusNovaAndroid/patch_test_boost_final2h_guard.py
 
       - name: Enforce single-owner authoritative TEST mining timer
+        id: boost_timer
         run: python3 NexusNovaAndroid/patch_test_boost_authoritative_timer.py
 
       - name: Apply UMP privacy options bridge
+        id: privacy
         run: python3 NexusNovaAndroid/patch_ad_privacy.py
 
       - name: Restore same-device session
+        id: session
         run: python3 NexusNovaAndroid/patch_session_restore.py
 
       - name: Defer Caller ID setup until feature use
+        id: caller
         run: python3 NexusNovaAndroid/patch_deferred_caller_setup.py
 
       - name: Reset stale remote WebView shell once
+        id: reset_shell
         run: python3 NexusNovaAndroid/patch_web_shell_reset.py
 
       - name: Apply deterministic native shell
+        id: native_shell
         run: python3 NexusNovaAndroid/patch_native_shell.py
 
       - name: Disable reload/fallback bounce for packaged native shell
+        id: no_bounce
         run: python3 NexusNovaAndroid/patch_native_no_bounce_v1.py
 
       - name: Verify family demo regression fixes
+        id: verify
         run: |
           python3 -m py_compile NexusNovaAndroid/patch_family_demo_web_v1.py NexusNovaAndroid/patch_native_no_bounce_v1.py
           node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-auth-page-v2.js
@@ -110,14 +128,17 @@ jobs:
           grep -q 'versionName = "1.1.0-stability"' NexusNovaAndroid/app/build.gradle.kts
 
       - name: Compile signed TEST APK
+        id: compile
         run: gradle -p NexusNovaAndroid :app:assembleDebug --stacktrace --no-daemon
 
       - name: Prepare named APK
+        id: name_apk
         run: |
           cp NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk NexusNova-v1.1.0-Stability-TEST.apk
           test -s NexusNova-v1.1.0-Stability-TEST.apk
 
       - name: Upload stability TEST APK
+        id: upload
         uses: actions/upload-artifact@v4
         with:
           name: NexusNova-v1.1.0-Stability-TEST
@@ -138,7 +159,34 @@ jobs:
           else
             APK_STATE=missing
           fi
-          printf '%s\n' "source_commit=${GITHUB_SHA}" "job_status=${{ job.status }}" "apk=${APK_STATE}" "built_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" > /tmp/nexusnova-apk-publish/NexusNova-v1.1.0-Stability-TEST.txt
+          cat > /tmp/nexusnova-apk-publish/NexusNova-v1.1.0-Stability-TEST.txt <<EOF
+          source_commit=${GITHUB_SHA}
+          job_status=${{ job.status }}
+          apk=${APK_STATE}
+          prepare=${{ steps.prepare.outcome }}
+          family_patch=${{ steps.family_patch.outcome }}
+          mining_sync=${{ steps.mining_sync.outcome }}
+          viewport=${{ steps.viewport.outcome }}
+          admob=${{ steps.admob.outcome }}
+          reward_contract=${{ steps.reward_contract.outcome }}
+          boost_fx=${{ steps.boost_fx.outcome }}
+          boost_hardening=${{ steps.boost_hardening.outcome }}
+          boost_cooldown=${{ steps.boost_cooldown.outcome }}
+          boost_final2h=${{ steps.boost_final2h.outcome }}
+          boost_timer=${{ steps.boost_timer.outcome }}
+          privacy=${{ steps.privacy.outcome }}
+          session=${{ steps.session.outcome }}
+          caller=${{ steps.caller.outcome }}
+          reset_shell=${{ steps.reset_shell.outcome }}
+          native_shell=${{ steps.native_shell.outcome }}
+          no_bounce=${{ steps.no_bounce.outcome }}
+          verify=${{ steps.verify.outcome }}
+          compile=${{ steps.compile.outcome }}
+          name_apk=${{ steps.name_apk.outcome }}
+          upload=${{ steps.upload.outcome }}
+          built_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          EOF
+          sed -i 's/^          //' /tmp/nexusnova-apk-publish/NexusNova-v1.1.0-Stability-TEST.txt
           cd /tmp/nexusnova-apk-publish
           git add NexusNova-v1.1.0-Stability-TEST.txt
           if [ -f NexusNova-v1.1.0-Stability-TEST.apk ]; then git add NexusNova-v1.1.0-Stability-TEST.apk; fi
