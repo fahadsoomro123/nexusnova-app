@@ -1,0 +1,235 @@
+name: NexusNova Vault10x + Ads Deep Integration - NO APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'functions/novaVault10x.js'
+      - 'functions/admobRewardedSsvV2.js'
+      - 'functions/index.js'
+      - 'js/nexusnova-nova-vault-10x-v1.js'
+      - 'js/nexusnova-hub-ad-gate-v1.js'
+      - 'js/nexusnova-page2-after-core-v2.js'
+      - 'js/nexusnova-account-deletion-settings-v1.js'
+      - 'NexusNovaAndroid/patch_admob.py'
+      - 'NexusNovaAndroid/patch_dashboard_startup_lockfix_v1.py'
+      - '.github/scripts/install_nova_vault_10x_ads_v1.py'
+      - '.github/scripts/nova-vault-10x-runtime.mjs'
+      - '.github/scripts/nova-vault-10x-rules-smoke.mjs'
+      - '.github/scripts/nexusnova-settings-essential-runtime.mjs'
+      - '.github/scripts/nexusnova-dashboard-splash-deep-test.mjs'
+      - '.github/workflows/nexusnova-vault10x-ads-integration.yml'
+      - 'sw.js'
+      - 'firestore.rules'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  integrate-and-prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Preserve approved sign-in hash
+        run: sha256sum index.html | awk '{print $1}' > /tmp/nx-signin-before.sha
+
+      - name: Install Vault10x and ad routing
+        id: install
+        run: python3 .github/scripts/install_nova_vault_10x_ads_v1.py
+
+      - name: Prove sign-in UI untouched by integration
+        id: signin
+        run: |
+          sha256sum index.html | awk '{print $1}' > /tmp/nx-signin-after.sha
+          cmp /tmp/nx-signin-before.sha /tmp/nx-signin-after.sha
+          echo 'PASS sign-in document byte-for-byte unchanged.'
+
+      - name: Static security and syntax contract
+        id: static
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile .github/scripts/install_nova_vault_10x_ads_v1.py NexusNovaAndroid/patch_admob.py NexusNovaAndroid/patch_dashboard_startup_lockfix_v1.py
+          node --check functions/index.js
+          node --check functions/novaVault10x.js
+          node --check functions/admobRewardedSsvV2.js
+          node --check js/nexusnova-nova-vault-10x-v1.js
+          node --check js/nexusnova-hub-ad-gate-v1.js
+          node --check js/nexusnova-page2-after-core-v2.js
+          node --check js/nexusnova-account-deletion-settings-v1.js
+          node --check .github/scripts/nova-vault-10x-runtime.mjs
+          node --check .github/scripts/nova-vault-10x-rules-smoke.mjs
+          node --check .github/scripts/nexusnova-settings-essential-runtime.mjs
+          grep -q 'require("./novaVault10x")' functions/index.js
+          grep -q 'require("./admobRewardedSsvV2")' functions/index.js
+          grep -q 'nova-vault-10x' functions/novaVault10x.js
+          grep -q 'nova-vault-10x' functions/admobRewardedSsvV2.js
+          grep -q 'TEST ads only show a clearly labeled local preview' js/nexusnova-nova-vault-10x-v1.js
+          grep -q 'nexusnova-hub-ad-gate-v1.js?v=1' js/nexusnova-page2-after-core-v2.js
+          grep -q 'nexusnova-nova-vault-10x-v1.js?v=1' js/nexusnova-page2-after-core-v2.js
+          grep -q 'REWARD_PURPOSE_VAULT_10X' NexusNovaAndroid/patch_admob.py
+          grep -q 'nova-vault-10x' NexusNovaAndroid/patch_admob.py
+          grep -q 'nexusnova-shell-v25-vault10x-ads' sw.js
+          grep -q 'nxAccountDeletionSettingsRow' js/nexusnova-account-deletion-settings-v1.js
+          grep -q 'Privacy Policy' js/nexusnova-account-deletion-settings-v1.js
+          echo 'PASS static Vault10x/ad/settings contract.'
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Install runtime test dependencies
+        run: |
+          npm install --no-save playwright@1.55.0 firebase@12.1.0 @firebase/rules-unit-testing@5.0.0 firebase-tools@14.12.1
+          npx playwright install --with-deps chromium
+
+      - name: Start local web server
+        id: server
+        run: |
+          python3 -m http.server 4173 > /tmp/nx-vault10x-http.log 2>&1 &
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:4173/page2.html >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/nx-vault10x-http.log || true
+          exit 1
+
+      - name: Runtime - Nova Vault10x and Hub ad gate
+        id: vault_runtime
+        run: node .github/scripts/nova-vault-10x-runtime.mjs
+
+      - name: Runtime - essential Settings and Delete Account
+        id: settings_runtime
+        run: node .github/scripts/nexusnova-settings-essential-runtime.mjs
+
+      - name: Firestore attack tests for 10x credits
+        id: rules
+        run: npx firebase emulators:exec --only firestore --project demo-nexusnova-vault10x "node .github/scripts/nova-vault-10x-rules-smoke.mjs"
+
+      - name: Prepare exact Android shell without building APK
+        id: prepare_android
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 NexusNovaAndroid/prepare_native_web_shell.py
+          python3 NexusNovaAndroid/patch_family_demo_web_v1.py
+          python3 NexusNovaAndroid/patch_family_auth_recursion_fix.py
+          python3 NexusNovaAndroid/patch_startup_reveal_v2.py
+          python3 NexusNovaAndroid/patch_native_startup_escape_v3.py
+          python3 NexusNovaAndroid/patch_mining_boost_sync.py
+          python3 NexusNovaAndroid/patch_viewport.py
+          python3 NexusNovaAndroid/patch_admob.py
+          python3 NexusNovaAndroid/patch_rewarded_test_contract.py
+          python3 NexusNovaAndroid/patch_test_boost_reward_fx.py
+          python3 NexusNovaAndroid/patch_test_boost_reward_fx_hardening.py
+          python3 NexusNovaAndroid/patch_test_boost_cooldown_gate.py
+          python3 NexusNovaAndroid/patch_ad_privacy.py
+          python3 NexusNovaAndroid/patch_session_restore.py
+          python3 NexusNovaAndroid/patch_web_shell_reset.py
+          python3 NexusNovaAndroid/patch_native_shell.py
+          python3 NexusNovaAndroid/patch_native_splash_release_v4.py
+          python3 NexusNovaAndroid/patch_native_no_bounce_v1.py
+          python3 NexusNovaAndroid/patch_dashboard_startup_lockfix_v1.py
+
+      - name: Verify generated native ad purpose + startup contracts
+        id: native_static
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'REWARD_PURPOSE_VAULT_10X' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
+          grep -q 'nova-vault-10x' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
+          grep -q 'ssvIdentityReady' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
+          grep -q 'INTERSTITIAL_ALLOWED_FEATURES' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
+          grep -q 'nx-android-dashboard-startup-lockfix-v1' NexusNovaAndroid/app/src/main/assets/www/page2.html
+          grep -q 'nx-android-dashboard-no-secondary-shield-v1' NexusNovaAndroid/app/src/main/assets/www/js/page2.js
+          grep -q 'nexusnova-nova-vault-10x-v1.js?v=1' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-page2-after-core-v2.js
+          grep -q 'nexusnova-hub-ad-gate-v1.js?v=1' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-page2-after-core-v2.js
+          echo 'PASS generated native/static integration.'
+
+      - name: Deep Android startup - no helper may hide splash
+        id: startup_runtime
+        run: node .github/scripts/nexusnova-dashboard-splash-deep-test.mjs
+
+      - name: Compile native Kotlin only - NO APK assembly
+        id: kotlin
+        run: gradle -p NexusNovaAndroid :app:compileDebugKotlin --stacktrace --no-daemon
+
+      - name: Commit only integration wiring after every gate passes
+        id: commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard HEAD -- NexusNovaAndroid/app/src/main/assets/www NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt NexusNovaAndroid/app/build.gradle.kts || true
+          git clean -fd NexusNovaAndroid/app/src/main/assets/www || true
+          git add functions/index.js js/nexusnova-page2-after-core-v2.js NexusNovaAndroid/patch_admob.py sw.js
+          if git diff --cached --quiet; then
+            echo 'Integration wiring already committed.'
+            exit 0
+          fi
+          git config user.name 'NexusNova Integration Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git commit -m 'Wire secure Nova Vault 10x and capped Hub ads'
+          git fetch origin main
+          git rebase origin/main
+          git push origin HEAD:main
+
+      - name: Publish audit result
+        if: always()
+        shell: bash
+        run: |
+          git config user.name 'NexusNova Integration Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git fetch origin nova-vault-10x-audit || true
+          rm -rf /tmp/nx-vault10x-audit
+          if git show-ref --verify --quiet refs/remotes/origin/nova-vault-10x-audit; then
+            git worktree add /tmp/nx-vault10x-audit origin/nova-vault-10x-audit
+          else
+            git worktree add --detach /tmp/nx-vault10x-audit HEAD
+          fi
+          cat > /tmp/nx-vault10x-audit/NOVA-VAULT-10X-INTEGRATION-RESULT.txt <<EOF
+          source_commit=${GITHUB_SHA}
+          job_status=${{ job.status }}
+          install=${{ steps.install.outcome }}
+          signin=${{ steps.signin.outcome }}
+          static=${{ steps.static.outcome }}
+          server=${{ steps.server.outcome }}
+          vault_runtime=${{ steps.vault_runtime.outcome }}
+          settings_runtime=${{ steps.settings_runtime.outcome }}
+          rules=${{ steps.rules.outcome }}
+          prepare_android=${{ steps.prepare_android.outcome }}
+          native_static=${{ steps.native_static.outcome }}
+          startup_runtime=${{ steps.startup_runtime.outcome }}
+          kotlin=${{ steps.kotlin.outcome }}
+          commit=${{ steps.commit.outcome }}
+          apk_built=no
+          sign_in_target_patch=untouched-by-hash
+          test_rewarded_value_changes=forbidden
+          checked_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          EOF
+          sed -i 's/^          //' /tmp/nx-vault10x-audit/NOVA-VAULT-10X-INTEGRATION-RESULT.txt
+          cd /tmp/nx-vault10x-audit
+          git add NOVA-VAULT-10X-INTEGRATION-RESULT.txt
+          git commit -m 'Record Vault10x integration result' || true
+          if git show-ref --verify --quiet refs/remotes/origin/nova-vault-10x-audit; then
+            git push origin HEAD:nova-vault-10x-audit
+          else
+            git push origin HEAD:refs/heads/nova-vault-10x-audit
+          fi
