@@ -1,10 +1,11 @@
 /* NexusNova Service Worker - fresh-code first, bounded network + offline fallback + FCM web push */
-const CACHE = "nexusnova-shell-v22-ux-simplify";
+const CACHE = "nexusnova-shell-v23-startup-recovery";
 
 const ASSETS = [
   "./",
   "./index.html",
   "./page2.html",
+  "./account-deletion.html",
   "./styles.css",
   "./manifest.webmanifest",
   "./icons/icon-192.png",
@@ -17,6 +18,9 @@ const ASSETS = [
   "./css/nexusnova-premium-blue-v1.css",
   "./css/nexusnova-final-user-fixes-v1.css",
   "./js/page2.js",
+  "./js/nexusnova-page2-core-launch-v2.js",
+  "./js/nexusnova-page2-after-core-v2.js",
+  "./js/nexusnova-account-deletion-settings-v1.js",
   "./js/page2-core.js",
   "./js/core-failsafe.js",
   "./js/aux-v8.js",
