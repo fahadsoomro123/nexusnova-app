@@ -145,7 +145,12 @@ try {
   assert.ok(state.alerts.some(item => /10× Nova Vault Opened/i.test(item.title || '')));
 
   // Hub: eligible feature waits for an actual interstitial terminal event.
-  await page.evaluate(() => { window.__openedFeatures.length=0; window.__interstitialMode='pending'; });
+  await page.evaluate(() => {
+    window.__openedFeatures.length=0;
+    window.__interstitialMode='pending';
+    const menu=document.getElementById('moreMenu');
+    if(menu){menu.style.display='block';menu.classList.add('show');}
+  });
   await page.locator('#hubTools').click();
   await page.waitForTimeout(100);
   state = await page.evaluate(() => ({opened:window.__openedFeatures.slice(),interstitial:window.__lastInterstitial}));
@@ -158,13 +163,24 @@ try {
   });
   await page.waitForFunction(() => window.__openedFeatures.includes('tools'));
 
-  // Protected destination must bypass the ad gate and keep original navigation.
-  await page.evaluate(() => { window.__openedFeatures.length=0; });
+  // Product navigation intentionally closes Nova Hub after opening an app. The
+  // next click in this fixture must simulate the user reopening Nova Hub first.
+  await page.evaluate(() => {
+    window.__openedFeatures.length=0;
+    const menu=document.getElementById('moreMenu');
+    if(menu){menu.style.display='block';menu.classList.add('show');}
+  });
   await page.locator('#hubWallet').click();
   await page.waitForFunction(() => window.__openedFeatures.includes('wallet'));
 
-  // Eligible destination with no-fill/frequency block opens immediately.
-  await page.evaluate(() => { window.__openedFeatures.length=0; window.__interstitialMode='none'; });
+  // Eligible destination with no-fill/frequency block opens immediately after
+  // the user has reopened Nova Hub.
+  await page.evaluate(() => {
+    window.__openedFeatures.length=0;
+    window.__interstitialMode='none';
+    const menu=document.getElementById('moreMenu');
+    if(menu){menu.style.display='block';menu.classList.add('show');}
+  });
   await page.locator('#hubNews').click();
   await page.waitForFunction(() => window.__openedFeatures.includes('news'));
 
