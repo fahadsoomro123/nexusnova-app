@@ -1,4 +1,4 @@
-source_commit=6cd5e1c65e5b644c07f9bf8b964d8234c21458ac
+source_commit=5209ece9273362712b835b36a45d262f176faebc
 job_status=failure
 install=success
 signin=success
@@ -17,4 +17,4 @@ commit=skipped
 apk_built=no
 sign_in_target_patch=untouched-by-hash
 test_rewarded_value_changes=forbidden
-checked_at=2026-08-18T21:16:28Z
+checked_at=2026-08-18T21:18:15Z
