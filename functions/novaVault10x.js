@@ -4,6 +4,7 @@ const {randomInt}=require("node:crypto");
 
 /*
   Nova Vault 10x secure opener.
+  Rewarded purpose contract: nova-vault-10x
 
   Security model:
   - The rewarded ad itself never writes NVX or inventory from the WebView.
