@@ -112,3 +112,9 @@
 import('./nexusnova-nova-hub-nav-v1.js?v=1').catch(error => {
   console.warn('NexusNova Nova Hub navigation:', error);
 });
+
+// Web-only Play-readiness Settings option. This opens the same-origin account
+// deletion request page without changing auth or deleting anything client-side.
+import('./nexusnova-account-deletion-settings-v1.js?v=1').catch(error => {
+  console.warn('NexusNova account deletion Settings option:', error);
+});
