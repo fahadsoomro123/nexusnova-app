@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 
+// Deep-audit trigger: workflow already exists on this branch before this push.
 const base = 'http://127.0.0.1:4173';
 const pageUrl = `${base}/NexusNovaAndroid/app/src/main/assets/www/page2.html?nxAndroid=1&deepSplashTest=1`;
 
