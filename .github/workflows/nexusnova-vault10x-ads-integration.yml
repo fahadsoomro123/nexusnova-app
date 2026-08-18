@@ -12,6 +12,7 @@ on:
       - 'js/nexusnova-page2-after-core-v2.js'
       - 'js/nexusnova-account-deletion-settings-v1.js'
       - 'NexusNovaAndroid/patch_admob.py'
+      - 'NexusNovaAndroid/patch_nova_vault_10x_ads.py'
       - 'NexusNovaAndroid/patch_dashboard_startup_lockfix_v1.py'
       - '.github/scripts/install_nova_vault_10x_ads_v1.py'
       - '.github/scripts/nova-vault-10x-runtime.mjs'
@@ -55,7 +56,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 -m py_compile .github/scripts/install_nova_vault_10x_ads_v1.py NexusNovaAndroid/patch_admob.py NexusNovaAndroid/patch_dashboard_startup_lockfix_v1.py
+          python3 -m py_compile .github/scripts/install_nova_vault_10x_ads_v1.py NexusNovaAndroid/patch_admob.py NexusNovaAndroid/patch_nova_vault_10x_ads.py NexusNovaAndroid/patch_dashboard_startup_lockfix_v1.py
           node --check functions/index.js
           node --check functions/novaVault10x.js
           node --check functions/admobRewardedSsvV2.js
@@ -73,8 +74,8 @@ jobs:
           grep -q 'TEST ads only show a clearly labeled local preview' js/nexusnova-nova-vault-10x-v1.js
           grep -q 'nexusnova-hub-ad-gate-v1.js?v=1' js/nexusnova-page2-after-core-v2.js
           grep -q 'nexusnova-nova-vault-10x-v1.js?v=1' js/nexusnova-page2-after-core-v2.js
-          grep -q 'REWARD_PURPOSE_VAULT_10X' NexusNovaAndroid/patch_admob.py
-          grep -q 'nova-vault-10x' NexusNovaAndroid/patch_admob.py
+          grep -q 'REWARD_PURPOSE_VAULT_10X' NexusNovaAndroid/patch_nova_vault_10x_ads.py
+          grep -q 'nova-vault-10x' NexusNovaAndroid/patch_nova_vault_10x_ads.py
           grep -q 'nexusnova-shell-v25-vault10x-ads' sw.js
           grep -q 'nxAccountDeletionSettingsRow' js/nexusnova-account-deletion-settings-v1.js
           grep -q 'Privacy Policy' js/nexusnova-account-deletion-settings-v1.js
@@ -137,6 +138,7 @@ jobs:
           python3 NexusNovaAndroid/patch_mining_boost_sync.py
           python3 NexusNovaAndroid/patch_viewport.py
           python3 NexusNovaAndroid/patch_admob.py
+          python3 NexusNovaAndroid/patch_nova_vault_10x_ads.py
           python3 NexusNovaAndroid/patch_rewarded_test_contract.py
           python3 NexusNovaAndroid/patch_test_boost_reward_fx.py
           python3 NexusNovaAndroid/patch_test_boost_reward_fx_hardening.py
@@ -179,7 +181,7 @@ jobs:
           set -euo pipefail
           git reset --hard HEAD -- NexusNovaAndroid/app/src/main/assets/www NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt NexusNovaAndroid/app/build.gradle.kts || true
           git clean -fd NexusNovaAndroid/app/src/main/assets/www || true
-          git add functions/index.js js/nexusnova-page2-after-core-v2.js NexusNovaAndroid/patch_admob.py sw.js
+          git add functions/index.js js/nexusnova-page2-after-core-v2.js sw.js
           if git diff --cached --quiet; then
             echo 'Integration wiring already committed.'
             exit 0
@@ -228,8 +230,4 @@ jobs:
           cd /tmp/nx-vault10x-audit
           git add NOVA-VAULT-10X-INTEGRATION-RESULT.txt
           git commit -m 'Record Vault10x integration result' || true
-          if git show-ref --verify --quiet refs/remotes/origin/nova-vault-10x-audit; then
-            git push origin HEAD:nova-vault-10x-audit
-          else
-            git push origin HEAD:refs/heads/nova-vault-10x-audit
-          fi
+          git push origin HEAD:nova-vault-10x-audit
