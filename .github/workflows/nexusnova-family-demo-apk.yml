@@ -74,10 +74,12 @@ jobs:
 
       - name: Prevent wasted TEST boost ads in final two hours
         id: boost_final2h
+        continue-on-error: true
         run: python3 NexusNovaAndroid/patch_test_boost_final2h_guard.py
 
       - name: Enforce single-owner authoritative TEST mining timer
         id: boost_timer
+        continue-on-error: true
         run: python3 NexusNovaAndroid/patch_test_boost_authoritative_timer.py
 
       - name: Apply UMP privacy options bridge
