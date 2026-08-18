@@ -48,6 +48,10 @@ jobs:
         id: auth_helper
         run: python3 NexusNovaAndroid/patch_family_auth_recursion_fix.py
 
+      - name: Fix infinite startup splash and stale mining reveal
+        id: startup_v2
+        run: python3 NexusNovaAndroid/patch_startup_reveal_v2.py
+
       - name: Synchronize mining boost countdown state
         id: mining_sync
         run: python3 NexusNovaAndroid/patch_mining_boost_sync.py
@@ -111,10 +115,10 @@ jobs:
         id: no_bounce
         run: python3 NexusNovaAndroid/patch_native_no_bounce_v1.py
 
-      - name: Verify family demo regression fixes
+      - name: Verify startup regression fixes
         id: verify
         run: |
-          python3 -m py_compile NexusNovaAndroid/patch_family_demo_web_v1.py NexusNovaAndroid/patch_family_auth_recursion_fix.py NexusNovaAndroid/patch_native_no_bounce_v1.py
+          python3 -m py_compile NexusNovaAndroid/patch_family_demo_web_v1.py NexusNovaAndroid/patch_family_auth_recursion_fix.py NexusNovaAndroid/patch_startup_reveal_v2.py NexusNovaAndroid/patch_native_no_bounce_v1.py
           node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-auth-page-v2.js
           node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-page2-core-launch-v2.js
           node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-page2-after-core-v2.js
@@ -126,14 +130,17 @@ jobs:
           grep -q 'nx-family-dashboard-persistence-v1' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-page2-core-launch-v2.js
           grep -q 'nx-family-presentation-first-v1' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-page2-after-core-v2.js
           grep -q 'nx-family-single-startup-surface-v1' NexusNovaAndroid/app/src/main/assets/www/js/page2.js
+          grep -q 'nx-startup-reveal-v2' NexusNovaAndroid/app/src/main/assets/www/js/page2.js
+          grep -q "if (!window.nexusAccountId) return false;" NexusNovaAndroid/app/src/main/assets/www/js/page2.js
+          grep -q 'nx-startup-reveal-v2: hide stale HTML defaults' NexusNovaAndroid/app/src/main/assets/www/js/rewards-security-v1.js
           grep -q 'NexusNova Essential Settings v3' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-account-deletion-settings-v1.js
           grep -q 'account-deletion.html' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-account-deletion-settings-v1.js
           grep -q 'privacy-policy.html' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-account-deletion-settings-v1.js
           grep -q 'nx-native-no-bounce-v1' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
           grep -q 'Suppressed native-shell recovery' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
           grep -q 'NATIVE_SHELL_PATH = "/nexusnova-native/"' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
-          grep -q 'versionCode = 2' NexusNovaAndroid/app/build.gradle.kts
-          grep -q 'versionName = "1.1.0-stability"' NexusNovaAndroid/app/build.gradle.kts
+          grep -q 'versionCode = 3' NexusNovaAndroid/app/build.gradle.kts
+          grep -q 'versionName = "1.1.1-startup-fix"' NexusNovaAndroid/app/build.gradle.kts
 
       - name: Compile signed TEST APK
         id: compile
@@ -142,15 +149,15 @@ jobs:
       - name: Prepare named APK
         id: name_apk
         run: |
-          cp NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk NexusNova-v1.1.0-Stability-TEST.apk
-          test -s NexusNova-v1.1.0-Stability-TEST.apk
+          cp NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk NexusNova-v1.1.1-StartupFix-TEST.apk
+          test -s NexusNova-v1.1.1-StartupFix-TEST.apk
 
-      - name: Upload stability TEST APK
+      - name: Upload startup-fix TEST APK
         id: upload
         uses: actions/upload-artifact@v4
         with:
-          name: NexusNova-v1.1.0-Stability-TEST
-          path: NexusNova-v1.1.0-Stability-TEST.apk
+          name: NexusNova-v1.1.1-StartupFix-TEST
+          path: NexusNova-v1.1.1-StartupFix-TEST.apk
           if-no-files-found: error
           retention-days: 14
 
@@ -161,19 +168,20 @@ jobs:
           git config user.email "actions@users.noreply.github.com"
           git fetch origin apk-builds
           git worktree add /tmp/nexusnova-apk-publish origin/apk-builds
-          if [ -s NexusNova-v1.1.0-Stability-TEST.apk ]; then
-            cp NexusNova-v1.1.0-Stability-TEST.apk /tmp/nexusnova-apk-publish/NexusNova-v1.1.0-Stability-TEST.apk
+          if [ -s NexusNova-v1.1.1-StartupFix-TEST.apk ]; then
+            cp NexusNova-v1.1.1-StartupFix-TEST.apk /tmp/nexusnova-apk-publish/NexusNova-v1.1.1-StartupFix-TEST.apk
             APK_STATE=present
           else
             APK_STATE=missing
           fi
-          cat > /tmp/nexusnova-apk-publish/NexusNova-v1.1.0-Stability-TEST.txt <<EOF
+          cat > /tmp/nexusnova-apk-publish/NexusNova-v1.1.1-StartupFix-TEST.txt <<EOF
           source_commit=${GITHUB_SHA}
           job_status=${{ job.status }}
           apk=${APK_STATE}
           prepare=${{ steps.prepare.outcome }}
           family_patch=${{ steps.family_patch.outcome }}
           auth_helper=${{ steps.auth_helper.outcome }}
+          startup_v2=${{ steps.startup_v2.outcome }}
           mining_sync=${{ steps.mining_sync.outcome }}
           viewport=${{ steps.viewport.outcome }}
           admob=${{ steps.admob.outcome }}
@@ -195,9 +203,9 @@ jobs:
           upload=${{ steps.upload.outcome }}
           built_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           EOF
-          sed -i 's/^          //' /tmp/nexusnova-apk-publish/NexusNova-v1.1.0-Stability-TEST.txt
+          sed -i 's/^          //' /tmp/nexusnova-apk-publish/NexusNova-v1.1.1-StartupFix-TEST.txt
           cd /tmp/nexusnova-apk-publish
-          git add NexusNova-v1.1.0-Stability-TEST.txt
-          if [ -f NexusNova-v1.1.0-Stability-TEST.apk ]; then git add NexusNova-v1.1.0-Stability-TEST.apk; fi
-          git commit -m "Stability APK status ${GITHUB_SHA}" || true
+          git add NexusNova-v1.1.1-StartupFix-TEST.txt
+          if [ -f NexusNova-v1.1.1-StartupFix-TEST.apk ]; then git add NexusNova-v1.1.1-StartupFix-TEST.apk; fi
+          git commit -m "StartupFix APK status ${GITHUB_SHA}" || true
           git push origin HEAD:apk-builds
