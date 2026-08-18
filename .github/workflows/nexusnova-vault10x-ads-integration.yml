@@ -15,6 +15,7 @@ on:
       - 'NexusNovaAndroid/patch_nova_vault_10x_ads.py'
       - 'NexusNovaAndroid/patch_dashboard_startup_lockfix_v1.py'
       - 'NexusNovaAndroid/patch_legal_pages.py'
+      - 'NexusNovaAndroid/patch_essential_settings_v3.py'
       - '.github/fixtures/runtime-origin.html'
       - '.github/scripts/install_nova_vault_10x_ads_v1.py'
       - '.github/scripts/nova-vault-10x-runtime.mjs'
@@ -61,7 +62,7 @@ jobs:
 
       - name: Python syntax contract
         id: py_syntax
-        run: python3 -m py_compile .github/scripts/install_nova_vault_10x_ads_v1.py NexusNovaAndroid/patch_admob.py NexusNovaAndroid/patch_nova_vault_10x_ads.py NexusNovaAndroid/patch_dashboard_startup_lockfix_v1.py NexusNovaAndroid/patch_legal_pages.py
+        run: python3 -m py_compile .github/scripts/install_nova_vault_10x_ads_v1.py NexusNovaAndroid/patch_admob.py NexusNovaAndroid/patch_nova_vault_10x_ads.py NexusNovaAndroid/patch_dashboard_startup_lockfix_v1.py NexusNovaAndroid/patch_legal_pages.py NexusNovaAndroid/patch_essential_settings_v3.py
 
       - name: JavaScript syntax contract
         id: js_syntax
@@ -93,6 +94,7 @@ jobs:
           grep -Fq 'nexusnova-nova-vault-10x-v1.js?v=1' js/nexusnova-page2-after-core-v2.js
           grep -Fq 'REWARD_PURPOSE_VAULT_10X' NexusNovaAndroid/patch_nova_vault_10x_ads.py
           grep -Fq 'nova-vault-10x' NexusNovaAndroid/patch_nova_vault_10x_ads.py
+          grep -Fq 'NexusNova Essential Settings v3' NexusNovaAndroid/patch_essential_settings_v3.py
           grep -Fq 'nexusnova-shell-v25-vault10x-ads' sw.js
           grep -Fq 'nxAccountDeletionSettingsRow' js/nexusnova-account-deletion-settings-v1.js
           grep -Fq 'Privacy Policy' js/nexusnova-account-deletion-settings-v1.js
@@ -137,7 +139,7 @@ jobs:
         id: vault_runtime
         run: node .github/scripts/nova-vault-10x-runtime.mjs
 
-      - name: Runtime - essential Settings and Delete Account
+      - name: Runtime - source essential Settings and Delete Account
         id: settings_runtime
         run: node .github/scripts/nexusnova-settings-essential-runtime.mjs
 
@@ -153,6 +155,7 @@ jobs:
           python3 NexusNovaAndroid/prepare_native_web_shell.py
           python3 NexusNovaAndroid/patch_legal_pages.py
           python3 NexusNovaAndroid/patch_family_demo_web_v1.py
+          python3 NexusNovaAndroid/patch_essential_settings_v3.py
           python3 NexusNovaAndroid/patch_family_auth_recursion_fix.py
           python3 NexusNovaAndroid/patch_startup_reveal_v2.py
           python3 NexusNovaAndroid/patch_native_startup_escape_v3.py
@@ -172,7 +175,7 @@ jobs:
           python3 NexusNovaAndroid/patch_native_no_bounce_v1.py
           python3 NexusNovaAndroid/patch_dashboard_startup_lockfix_v1.py
 
-      - name: Verify generated native ad purpose + startup + legal contracts
+      - name: Verify generated native ad purpose + startup + settings + legal contracts
         id: native_static
         shell: bash
         run: |
@@ -185,9 +188,18 @@ jobs:
           grep -Fq 'nx-android-dashboard-no-secondary-shield-v1' NexusNovaAndroid/app/src/main/assets/www/js/page2.js
           grep -Fq 'nexusnova-nova-vault-10x-v1.js?v=1' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-page2-after-core-v2.js
           grep -Fq 'nexusnova-hub-ad-gate-v1.js?v=1' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-page2-after-core-v2.js
+          grep -Fq 'NexusNova Essential Settings v3' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-account-deletion-settings-v1.js
+          grep -Fq 'nxAccountDeletionSettingsRow' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-account-deletion-settings-v1.js
           test -s NexusNovaAndroid/app/src/main/assets/www/privacy-policy.html
           test -s NexusNovaAndroid/app/src/main/assets/www/account-deletion.html
           echo 'PASS generated native/static integration.'
+
+      - name: Runtime - staged Android essential Settings
+        id: settings_staged
+        env:
+          NX_SETTINGS_SCRIPT_PATH: /NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-account-deletion-settings-v1.js
+          NX_SETTINGS_LABEL: staged-android
+        run: node .github/scripts/nexusnova-settings-essential-runtime.mjs
 
       - name: Deep Android startup - no helper may hide splash
         id: startup_runtime
@@ -241,6 +253,7 @@ jobs:
           rules=${{ steps.rules.outcome }}
           prepare_android=${{ steps.prepare_android.outcome }}
           native_static=${{ steps.native_static.outcome }}
+          settings_staged=${{ steps.settings_staged.outcome }}
           startup_runtime=${{ steps.startup_runtime.outcome }}
           kotlin=${{ steps.kotlin.outcome }}
           commit=${{ steps.commit.outcome }}
