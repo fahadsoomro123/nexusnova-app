@@ -6,7 +6,7 @@ const browser=await chromium.launch({headless:true});
 const page=await browser.newPage({viewport:{width:393,height:873}});
 
 try{
-  await page.goto(`${origin}/.runtime-origin.html`,{waitUntil:'domcontentloaded'});
+  await page.goto(`${origin}/.github/fixtures/runtime-origin.html`,{waitUntil:'domcontentloaded'});
   await page.evaluate(()=>{
     document.body.innerHTML=`
       <section id="tab-about" class="tab active">
