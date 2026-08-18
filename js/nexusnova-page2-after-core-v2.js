@@ -149,6 +149,24 @@
       console.warn('NexusNova Nova Hub navigation readiness:', error);
     }
 
+    // Nova Vault remains optional/post-core so rewards can never hold the
+    // Android dashboard behind startup. The 10x layer is additive and keeps
+    // TEST rewarded ads value-free.
+    try {
+      await import('./nexusnova-nova-vault-v1.js?v=2');
+      await import('./nexusnova-nova-vault-10x-v1.js?v=1');
+    } catch (error) {
+      console.warn('NexusNova Nova Vault 10x:', error);
+    }
+
+    // Frequency-capped interstitial wrapper only. It does not redesign Nova Hub
+    // and protected destinations bypass it completely.
+    try {
+      await import('./nexusnova-hub-ad-gate-v1.js?v=1');
+    } catch (error) {
+      console.warn('NexusNova Nova Hub ad gate:', error);
+    }
+
     try {
       await import('./nexusnova-account-deletion-settings-v1.js?v=2');
     } catch (error) {
