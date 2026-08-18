@@ -73,6 +73,52 @@ if (meta) {
   meta.setAttribute('content', '6LfEc4QtAAAAAOohkqSv0p76iwPTeHI98hqVlwIs');
 }
 
+// Android resume guard: the native WebView can resume page2 before Firebase has
+// restored the persisted Auth user. page2-core treats an initial null user as a
+// real logout and redirects to index.html, which creates the login/splash bounce
+// seen on resume. Wait only in the native shell, behind the existing splash, for
+// Firebase Auth persistence to settle before page2-core installs that redirect.
+// This changes no navigation/UI/mining logic once the authoritative Auth state is ready.
+const nxNativeShell = typeof window.NexusAndroid?.postMessage === 'function';
+if (nxNativeShell) {
+  try {
+    const [appMod, authMod] = await Promise.all([
+      import('https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js'),
+      import('https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js')
+    ]);
+    const firebaseConfig = {
+      apiKey: 'AIzaSyBU75WYp5ioaMD1LrNcDyAvROFW2wrTil0',
+      authDomain: 'nexusnova-6ade2.firebaseapp.com',
+      projectId: 'nexusnova-6ade2',
+      storageBucket: 'nexusnova-6ade2.firebasestorage.app',
+      messagingSenderId: '49791194817',
+      appId: '1:49791194817:web:07f28326e0f15979536640',
+      measurementId: 'G-YLPFKWSS12'
+    };
+    const app = appMod.getApps().find(item => item?.name === '[DEFAULT]') || appMod.initializeApp(firebaseConfig);
+    const auth = authMod.getAuth(app);
+    const timeout = new Promise(resolve => setTimeout(resolve, 3000));
+
+    if (typeof auth.authStateReady === 'function') {
+      await Promise.race([auth.authStateReady(), timeout]);
+    } else if (!auth.currentUser) {
+      await Promise.race([
+        new Promise(resolve => {
+          let stop = () => {};
+          stop = authMod.onAuthStateChanged(auth, () => {
+            try { stop(); } catch (_) {}
+            resolve();
+          });
+        }),
+        timeout
+      ]);
+    }
+  } catch (error) {
+    // Never block startup because this guard is only a resume stabilization aid.
+    console.warn('NexusNova Android Auth resume guard:', error);
+  }
+}
+
 // Load the Android Daily Reward ad gate before page2-core. page2-core loads the
 // legacy rewarded/mining compatibility stack, so registering the Daily capture
 // listener first guarantees that a Daily ad result belongs only to Daily Reward.
