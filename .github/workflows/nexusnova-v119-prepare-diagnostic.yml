@@ -1,0 +1,73 @@
+name: NexusNova v1.1.9 Prepare Diagnostic
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/nexusnova-v119-prepare-diagnostic.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Android prepare chain with exact failure reporting
+        shell: bash
+        run: |
+          set +e
+          FAILED=''
+          run_one(){
+            name="$1"; shift
+            echo "=== $name ==="
+            "$@"
+            code=$?
+            if [ $code -ne 0 ]; then
+              FAILED="$name (exit $code)"
+              echo "FAILED_AT=$FAILED" | tee /tmp/nx-v119-prepare-result.txt
+              exit $code
+            fi
+            echo "PASS: $name"
+          }
+          trap 'code=$?; if [ -z "$FAILED" ] && [ $code -ne 0 ]; then echo "FAILED_AT=unexpected shell failure (exit $code)" > /tmp/nx-v119-prepare-result.txt; fi' EXIT
+          run_one prepare_native_web_shell python3 NexusNovaAndroid/prepare_native_web_shell.py
+          run_one patch_legal_pages python3 NexusNovaAndroid/patch_legal_pages.py
+          run_one patch_family_demo_web_v1 python3 NexusNovaAndroid/patch_family_demo_web_v1.py
+          run_one patch_essential_settings_v3 python3 NexusNovaAndroid/patch_essential_settings_v3.py
+          run_one patch_family_auth_recursion_fix python3 NexusNovaAndroid/patch_family_auth_recursion_fix.py
+          run_one patch_startup_reveal_v2 python3 NexusNovaAndroid/patch_startup_reveal_v2.py
+          run_one patch_native_startup_escape_v3 python3 NexusNovaAndroid/patch_native_startup_escape_v3.py
+          run_one patch_mining_boost_sync python3 NexusNovaAndroid/patch_mining_boost_sync.py
+          run_one patch_viewport python3 NexusNovaAndroid/patch_viewport.py
+          run_one patch_admob python3 NexusNovaAndroid/patch_admob.py
+          run_one patch_nova_vault_10x_ads python3 NexusNovaAndroid/patch_nova_vault_10x_ads.py
+          run_one patch_rewarded_test_contract python3 NexusNovaAndroid/patch_rewarded_test_contract.py
+          run_one patch_test_boost_reward_fx python3 NexusNovaAndroid/patch_test_boost_reward_fx.py
+          run_one patch_test_boost_reward_fx_hardening python3 NexusNovaAndroid/patch_test_boost_reward_fx_hardening.py
+          run_one patch_test_boost_cooldown_gate python3 NexusNovaAndroid/patch_test_boost_cooldown_gate.py
+          run_one patch_ad_privacy python3 NexusNovaAndroid/patch_ad_privacy.py
+          echo 'FAILED_AT=none; prepare chain success' | tee /tmp/nx-v119-prepare-result.txt
+
+      - name: Publish diagnostic
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'NexusNova Build Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git fetch origin apk-builds
+          rm -rf /tmp/nx-v119-diag-publish
+          git worktree add /tmp/nx-v119-diag-publish origin/apk-builds
+          if [ -f /tmp/nx-v119-prepare-result.txt ]; then
+            cp /tmp/nx-v119-prepare-result.txt /tmp/nx-v119-diag-publish/NexusNova-v1.1.9-Prepare-Diagnostic.txt
+          else
+            echo 'FAILED_AT=diagnostic step did not produce result' > /tmp/nx-v119-diag-publish/NexusNova-v1.1.9-Prepare-Diagnostic.txt
+          fi
+          cd /tmp/nx-v119-diag-publish
+          git add NexusNova-v1.1.9-Prepare-Diagnostic.txt
+          git commit -m "Publish v1.1.9 prepare diagnostic ${GITHUB_SHA}" || true
+          git pull --rebase origin apk-builds
+          git push origin HEAD:apk-builds
