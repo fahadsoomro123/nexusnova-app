@@ -1,4 +1,4 @@
-/* NexusNova ALL APPS Order + Back Control Guard v6 */
+/* NexusNova ALL APPS Order + Back Control Guard v6 - legacy compatibility */
 (() => {
   'use strict';
   const ORDER=['TOOLS','GOLD/FX','NEWS','CHAT','AI','LOCATION','SOS','FAMILY','PROFILE','DAILY','BUDGET','LEARN','TRAVEL','HEALTH','SMART','QIBLA','PK NEWS','WATCH','BROWSER','CALLER','SETTINGS','SUPER APP','DAILY TOOLS','CALENDAR','REMINDERS','FINANCE','WEATHER','LEARNING','PAKISTAN HUB','ISLAMIC HUB','BIBLE','HABITS','SAVINGS','CONTACTS','SHOPPING','DOCUMENTS','FILE VAULT','QR TOOLS','SECURITY','MARKETPLACE','ORDERS','NOTIFICATIONS','TEACHER TOOLKIT'];
@@ -36,7 +36,8 @@
   }
 
   function addBack(tab){
-    if(!tab||tab.id==='tab-tools'||tab.querySelector(':scope > .nx-allapps-back'))return;
+    // Settings is a root destination in the approved Mine + Nova Hub layout.
+    if(!tab||tab.id==='tab-tools'||tab.id==='tab-about'||tab.querySelector(':scope > .nx-allapps-back'))return;
     const bar=document.createElement('div');
     bar.className='nx-allapps-back';
     bar.innerHTML='<button class="tool-btn" type="button" data-nx-back-allapps>← Back to ALL APPS</button>';
