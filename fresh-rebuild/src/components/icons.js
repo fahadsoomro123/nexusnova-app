@@ -25,6 +25,12 @@ const paths = {
   ai: '<rect x="5" y="6" width="14" height="12" rx="4"/><path d="M9 11h.01M15 11h.01M9 15h6M12 6V3"/>',
   document: '<path d="M6 3h9l3 3v15H6z"/><path d="M15 3v4h4M9 11h6M9 15h6"/>',
   vault: '<rect x="4" y="5" width="16" height="15" rx="3"/><circle cx="12" cy="12" r="3"/><path d="M12 9V7M12 15v3M9 12H7M15 12h2"/>',
+  location: '<path d="M12 21s6-5.3 6-11a6 6 0 1 0-12 0c0 5.7 6 11 6 11Z"/><circle cx="12" cy="10" r="2.2"/>',
+  emergency: '<path d="M12 3 2.8 19h18.4L12 3Z"/><path d="M12 8v5M12 16.5h.01"/>',
+  drive: '<path d="M5 16.5 6.7 9h10.6l1.7 7.5"/><path d="M4 16.5h16v3H4zM7 13h10M7 19.5v1M17 19.5v1"/><circle cx="7" cy="16.5" r="1"/><circle cx="17" cy="16.5" r="1"/>',
+  track: '<path d="M4 18c4-1 4-5 8-6s4-5 8-6"/><circle cx="4" cy="18" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="20" cy="6" r="2"/>',
+  smart: '<path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/><circle cx="12" cy="12" r="4"/>',
+  analytics: '<path d="M5 19V11M10 19V5M15 19v-8M20 19V8"/><path d="M3 19h19"/>',
   settings: '<circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.4 1a7 7 0 0 0-1.7-1L14.5 3h-5l-.4 3.1a7 7 0 0 0-1.7 1L5 6.1 3 9.5 5 11a7 7 0 0 0 0 2l-2 1.5 2 3.4 2.4-1a7 7 0 0 0 1.7 1l.4 3.1h5l.4-3.1a7 7 0 0 0 1.7-1l2.4 1 2-3.4L19 13a7 7 0 0 0 .1-1Z"/>',
   more: '<circle cx="5" cy="12" r="1.3" fill="currentColor"/><circle cx="12" cy="12" r="1.3" fill="currentColor"/><circle cx="19" cy="12" r="1.3" fill="currentColor"/>'
 };
