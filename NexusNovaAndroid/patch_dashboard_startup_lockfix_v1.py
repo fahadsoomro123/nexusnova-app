@@ -15,7 +15,8 @@ before_signin = sha256(signin_path)
 page = page_path.read_text(encoding='utf-8')
 launcher = launcher_path.read_text(encoding='utf-8')
 
-# Android dashboard only: no HTML splash may own pointer events or visibility.
+# Android dashboard only: the single branded HTML splash must never own pointer
+# events or visibility. Sign-in is deliberately outside this patch.
 if 'nx-android-dashboard-startup-lockfix-v1' not in page:
     old = '<div id="nxSplash" aria-hidden="false">'
     if old not in page:
@@ -31,17 +32,14 @@ page = page.replace('<div class="balance-usd" id="usdValue">$ 0.00 USD</div>', '
 page = page.replace('<span id="btnText">START MINING</span>', '<span id="btnText">SYNCING MINING</span>', 1)
 page = page.replace('        MINER OFFLINE\n', '        CHECKING SECURE SESSION\n', 1)
 
-# page2.js can create a second full-screen readiness shield. Suppress only that
-# overlay inside the packaged Android dashboard. Web/PWA behavior is untouched.
-if 'nx-android-dashboard-no-secondary-shield-v1' not in launcher:
-    anchor = '  function installShield() {\n'
-    block = '''  function installShield() {\n    // nx-android-dashboard-no-secondary-shield-v1\n    const androidDashboard = window.__nexusAndroidShell === true || location.pathname.startsWith('/nexusnova-native/') || new URLSearchParams(location.search).get('nxAndroid') === '1';\n    if (androidDashboard) {\n      const oldSplash = document.getElementById('nxSplash');\n      if (oldSplash) {\n        oldSplash.style.setProperty('display','none','important');\n        oldSplash.style.setProperty('visibility','hidden','important');\n        oldSplash.style.setProperty('opacity','0','important');\n        oldSplash.style.setProperty('pointer-events','none','important');\n      }\n      return;\n    }\n'''
-    if anchor not in launcher:
-        raise SystemExit('Secondary startup shield anchor missing')
-    launcher = launcher.replace(anchor, block, 1)
+# Source v4 has one startup owner. Do not reintroduce a JS full-screen shield in
+# the Android staging patch; verify the clean source contract instead.
+if 'nx-single-startup-owner-v4' not in launcher:
+    raise SystemExit('Single startup owner v4 marker missing from dashboard launcher')
+if 'nxSecureStartupShieldV3' in launcher:
+    raise SystemExit('Deprecated secondary startup shield is still present')
 
 page_path.write_text(page, encoding='utf-8')
-launcher_path.write_text(launcher, encoding='utf-8')
 
 if sha256(signin_path) != before_signin:
     raise SystemExit('Sign-in document changed during dashboard startup patch')
@@ -55,7 +53,7 @@ checks = {
         'SYNCING MINING',
         'CHECKING SECURE SESSION',
     ],
-    launcher_path: ['nx-android-dashboard-no-secondary-shield-v1'],
+    launcher_path: ['nx-single-startup-owner-v4'],
 }
 for path, markers in checks.items():
     text = path.read_text(encoding='utf-8')
@@ -63,4 +61,4 @@ for path, markers in checks.items():
     if missing:
         raise SystemExit(f'{path}: startup lockfix verification failed: {missing}')
 
-print('Applied Android dashboard startup lockfix v1; sign-in asset remained byte-for-byte unchanged.')
+print('Applied Android dashboard single-owner startup lockfix; sign-in asset remained byte-for-byte unchanged.')
