@@ -40,14 +40,6 @@ jobs:
           grep -q "nexusnova-ai-chat-future-v1.js?v=1" js/nexusnova-page2-after-core-v2.js
           grep -q "nexusnova-nine-screen-modern-v1.js?v=1" js/nexusnova-page2-after-core-v2.js
 
-      - name: Restore build-only Android UX patch input
-        run: |
-          set -euo pipefail
-          git fetch --no-tags origin apk-builds:refs/remotes/origin/apk-builds
-          git show origin/apk-builds:js/nexusnova-android-ux-repair-v1.js > js/nexusnova-android-ux-repair-v1.js
-          test -s js/nexusnova-android-ux-repair-v1.js
-          grep -q 'NexusNova Android UX Repair v1' js/nexusnova-android-ux-repair-v1.js
-
       - name: Prepare deterministic Android web shell
         run: python3 NexusNovaAndroid/prepare_native_web_shell.py
 
@@ -73,7 +65,22 @@ jobs:
         run: python3 NexusNovaAndroid/patch_test_boost_cooldown_gate.py
 
       - name: Prevent wasted TEST boost ads in final two hours
-        run: python3 NexusNovaAndroid/patch_test_boost_final2h_guard.py
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          src = Path('NexusNovaAndroid/patch_test_boost_final2h_guard.py')
+          text = src.read_text(encoding='utf-8')
+          nested = "runpy.run_path('NexusNovaAndroid/patch_android_ux_reward_reveal.py', run_name='__main__')"
+          if nested not in text:
+              raise SystemExit('Expected final-2h nested legacy helper call not found')
+          text = text.replace(nested, "print('Build-only: obsolete Android UX/startup helper skipped; final-2h guard remains applied.')")
+          out = Path('/tmp/nx-patch-final2h-current.py')
+          out.write_text(text, encoding='utf-8')
+          PY
+          python3 /tmp/nx-patch-final2h-current.py
+          grep -q 'nx-test-boost-final2h-guard-v4' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
+          grep -q "reason:'test-final-2h'" NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-admob-nexus-pass-v1.js
 
       - name: Enforce authoritative TEST mining timer
         run: python3 NexusNovaAndroid/patch_test_boost_authoritative_timer.py
