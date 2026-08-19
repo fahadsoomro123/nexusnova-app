@@ -32,15 +32,17 @@ if site_key:
     text = text.replace(marker, f'<meta name="nexusnova-app-check-site-key" content="{site_key}">', 1)
     index.write_text(text, encoding='utf-8')
 
-# Force this branch's TEST APK to load the bundled fresh surface. Production
-# GitHub Pages and stable branches are deliberately left untouched.
+# Force this branch's TEST APK to load the bundled fresh surface using native
+# APIs that already exist in MainActivity. Mark it as the local/offline surface
+# so the production watchdog cannot redirect the fresh TEST UI back to Pages.
 main = MAIN.read_text(encoding='utf-8')
 startup = '''        loadProductionApp()
         showCallerSetupOnce()
 '''
 fresh_startup = '''        // Fresh-rebuild TEST edition: load only the isolated bundled fresh app.
-        // Stable/production GitHub Pages remains untouched outside this branch.
-        loadUrlSafely(LOCAL_APP_URL)
+        // Stable/production GitHub Pages remains untouched outside this CI checkout.
+        usingOfflineFallback = true
+        webView.loadUrl(LOCAL_APP_URL)
         showCallerSetupOnce()
 '''
 if main.count(startup) != 1:
