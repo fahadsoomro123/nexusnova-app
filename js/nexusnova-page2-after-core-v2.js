@@ -137,6 +137,14 @@
       console.warn('NexusNova compact premium UI:', error);
     }
 
+    // AI + Community Chat presentation only. Existing Gemini, voice, image,
+    // memory and Firestore chat owners remain authoritative.
+    try {
+      await import('./nexusnova-ai-chat-future-v1.js?v=1');
+    } catch (error) {
+      console.warn('NexusNova AI/Chat future UI:', error);
+    }
+
     try {
       await import('./nexusnova-navigation-stability-v1.js?v=1');
     } catch (error) {
