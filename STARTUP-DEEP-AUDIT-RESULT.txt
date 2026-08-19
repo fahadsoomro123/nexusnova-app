@@ -1,4 +1,4 @@
-source_commit=5a30789d64040fb94f2926da03898a2aa7a2c08c
+source_commit=dfbadcfd720688dda7d399bb75a29190010bdc3b
 job_status=failure
 target=skipped
 static=skipped
@@ -9,4 +9,4 @@ deprecated_secondary_shield=absent
 apk_built=no
 external_network_during_runtime=blocked
 test_manually_hides_splash=no
-checked_at=2026-08-19T05:49:08Z
+checked_at=2026-08-19T05:49:35Z
