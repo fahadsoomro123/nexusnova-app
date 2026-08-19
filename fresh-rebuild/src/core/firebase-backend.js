@@ -5,7 +5,7 @@ import { getToken, initializeAppCheck, ReCaptchaEnterpriseProvider } from 'https
 
 const DAY = 86_400_000;
 const MINING_REWARD = 24;
-const firebaseConfig = {
+export const firebaseConfig = {
   apiKey: 'AIzaSyBU75WYp5ioaMD1LrNcDyAvROFW2wrTil0',
   authDomain: 'nexusnova-6ade2.firebaseapp.com',
   projectId: 'nexusnova-6ade2',
@@ -15,9 +15,9 @@ const firebaseConfig = {
   measurementId: 'G-YLPFKWSS12'
 };
 
-const app = getApps()[0] || initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
+export const firebaseApp = getApps()[0] || initializeApp(firebaseConfig);
+export const firebaseAuth = getAuth(firebaseApp);
+export const firestoreDb = getFirestore(firebaseApp);
 let appCheck = null;
 let appCheckError = '';
 let unsubscribe = null;
@@ -26,7 +26,7 @@ let operation = null;
 const siteKey = String(document.querySelector('meta[name="nexusnova-app-check-site-key"]')?.content || '').trim();
 if (siteKey) {
   try {
-    appCheck = initializeAppCheck(app, {
+    appCheck = initializeAppCheck(firebaseApp, {
       provider: new ReCaptchaEnterpriseProvider(siteKey),
       isTokenAutoRefreshEnabled: true
     });
@@ -36,11 +36,11 @@ if (siteKey) {
   }
 }
 
-function waitForUser(timeout = 4200) {
-  if (auth.currentUser) return Promise.resolve(auth.currentUser);
+export function waitForFirebaseUser(timeout = 4200) {
+  if (firebaseAuth.currentUser) return Promise.resolve(firebaseAuth.currentUser);
   return new Promise(resolve => {
     let settled = false;
-    const off = onAuthStateChanged(auth, user => {
+    const off = onAuthStateChanged(firebaseAuth, user => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
@@ -51,28 +51,40 @@ function waitForUser(timeout = 4200) {
       if (settled) return;
       settled = true;
       off();
-      resolve(auth.currentUser || null);
+      resolve(firebaseAuth.currentUser || null);
     }, timeout);
   });
 }
 
-async function requireUser({ write = false } = {}) {
-  let user = await waitForUser();
+export async function requireFreshAppCheck() {
+  if (!appCheck) throw new Error(appCheckError || 'App Check is not configured for this fresh build yet.');
+  const token = await getToken(appCheck, false);
+  if (!token?.token) throw new Error('App Check could not verify this session.');
+  return token;
+}
+
+export async function requireFirebaseUser({ write = false, verified = false } = {}) {
+  let user = await waitForFirebaseUser();
   if (!user) {
     const error = new Error('Please sign in first.');
     error.code = 'auth-required';
     throw error;
   }
-  if (write) {
+  if (write || verified) {
     await user.reload();
-    user = auth.currentUser || user;
+    user = firebaseAuth.currentUser || user;
     await user.getIdToken(true);
-    if (!user.emailVerified) throw new Error('Verify your email before using NVX mining.');
-    if (!appCheck) throw new Error(appCheckError || 'App Check is not configured for this fresh build yet.');
-    const token = await getToken(appCheck, false);
-    if (!token?.token) throw new Error('App Check could not verify this session.');
+    if (!user.emailVerified) throw new Error('Verify your email before using secure NVX actions.');
   }
+  if (write) await requireFreshAppCheck();
   return user;
+}
+
+export async function readUserProfile(user = null) {
+  const active = user || await requireFirebaseUser();
+  const snap = await getDoc(doc(firestoreDb, 'users', active.uid));
+  if (!snap.exists()) throw new Error('User profile not found.');
+  return snap.data() || {};
 }
 
 function normalize(raw = {}) {
@@ -96,16 +108,10 @@ function normalize(raw = {}) {
   };
 }
 
-async function readRaw(user) {
-  const snap = await getDoc(doc(db, 'users', user.uid));
-  if (!snap.exists()) throw new Error('User profile not found.');
-  return snap.data() || {};
-}
-
 async function startFresh(user) {
   const now = Date.now();
-  const userRef = doc(db, 'users', user.uid);
-  return runTransaction(db, async tx => {
+  const userRef = doc(firestoreDb, 'users', user.uid);
+  return runTransaction(firestoreDb, async tx => {
     const snap = await tx.get(userRef);
     if (!snap.exists()) throw new Error('User profile not found.');
     const raw = snap.data() || {};
@@ -120,8 +126,8 @@ async function startFresh(user) {
 
 async function finishExpired(user) {
   const now = Date.now();
-  const userRef = doc(db, 'users', user.uid);
-  return runTransaction(db, async tx => {
+  const userRef = doc(firestoreDb, 'users', user.uid);
+  return runTransaction(firestoreDb, async tx => {
     const snap = await tx.get(userRef);
     if (!snap.exists()) throw new Error('User profile not found.');
     const raw = snap.data() || {};
@@ -154,19 +160,19 @@ async function finishExpired(user) {
 
 export const firebaseBackend = {
   async currentUser() {
-    return waitForUser();
+    return waitForFirebaseUser();
   },
 
   async getMiningSnapshot() {
-    const user = await requireUser({ write: false });
-    return normalize(await readRaw(user));
+    const user = await requireFirebaseUser();
+    return normalize(await readUserProfile(user));
   },
 
   async toggleMining() {
     if (operation) return operation;
     operation = (async () => {
-      const user = await requireUser({ write: true });
-      let raw = await readRaw(user);
+      const user = await requireFirebaseUser({ write: true });
+      let raw = await readUserProfile(user);
       let state = normalize(raw);
       if (state.active && state.sessionComplete) {
         raw = await finishExpired(user);
@@ -180,10 +186,10 @@ export const firebaseBackend = {
 
   subscribeMining(listener) {
     let cancelled = false;
-    waitForUser().then(user => {
+    waitForFirebaseUser().then(user => {
       if (cancelled || !user) return;
       unsubscribe?.();
-      unsubscribe = onSnapshot(doc(db, 'users', user.uid), snap => {
+      unsubscribe = onSnapshot(doc(firestoreDb, 'users', user.uid), snap => {
         if (!snap.exists()) return;
         listener(normalize(snap.data() || {}));
       }, error => console.error('[NexusNova Fresh] mining subscription:', error));
