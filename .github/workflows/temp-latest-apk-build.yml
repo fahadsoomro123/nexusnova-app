@@ -45,7 +45,7 @@ jobs:
           set -euo pipefail
           git fetch --no-tags origin apk-builds:refs/remotes/origin/apk-builds
           git show origin/apk-builds:NexusNova-v1.1.12-CallerStartupFix-TEST.apk > /tmp/nx-v112.apk
-          echo 'ad0a0a872db5a149d8fa9198000e38d162263933ea3e414ba854435be080dd06  /tmp/nx-v112.apk' | sha256sum -c -
+          echo '91645d8431fd0fee843cb51a5b32b32ec4e4b2bf5bd7a18f14c648f415a13817  /tmp/nx-v112.apk' | sha256sum -c -
           rm -rf /tmp/nx-v112-assets NexusNovaAndroid/app/src/main/assets/www
           mkdir -p /tmp/nx-v112-assets NexusNovaAndroid/app/src/main/assets/www
           unzip -qq /tmp/nx-v112.apk 'assets/www/*' -d /tmp/nx-v112-assets
