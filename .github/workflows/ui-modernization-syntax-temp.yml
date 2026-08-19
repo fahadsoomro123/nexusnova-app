@@ -50,6 +50,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 NexusNovaAndroid/prepare_native_web_shell.py
+          python3 NexusNovaAndroid/patch_admob.py
           python3 NexusNovaAndroid/patch_web_shell_reset.py
           python3 NexusNovaAndroid/patch_native_shell.py
           python3 NexusNovaAndroid/patch_splash_timing.py
