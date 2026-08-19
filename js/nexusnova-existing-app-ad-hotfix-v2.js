@@ -1,4 +1,4 @@
-/* NexusNova existing-app ad hotfix v2
+/* NexusNova existing-app ad hotfix v2.1
    Web-only repair for the already-installed Android TEST app.
 
    Purpose:
@@ -9,6 +9,11 @@
    - Preserve the 3-minute native cooldown, max 4 interstitials per session and
      all protected/ad-free NexusNova areas.
    - No APK/native rebuild and no NVX/mining value mutation.
+
+   Android startup safety:
+   - Attribute writes in repairTaskWatchAd are idempotent. The task guard watches
+     id/onclick/disabled, so writing identical values from inside the observer
+     would create a self-triggering microtask loop and starve the WebView.
 */
 (() => {
   'use strict';
@@ -51,12 +56,13 @@
     const button = taskWatchButton();
     if (!button) return false;
 
-    // The mining bridge locates the task button using either rewardedAdBtn or
-    // the literal text "Watch Ad". Give the real task its own id and a label
-    // that does not match that mining selector, while keeping user meaning clear.
-    if (button.id === 'rewardedAdBtn') button.removeAttribute('id');
-    button.id = WATCH_BUTTON_ID;
-    button.setAttribute('onclick', 'watchAdReward()');
+    // The task guard observes id/onclick/disabled. Never rewrite an attribute
+    // that already has its desired value; otherwise the observer can schedule
+    // repairTaskWatchAd forever and starve Android WebView startup.
+    if (button.id !== WATCH_BUTTON_ID) button.id = WATCH_BUTTON_ID;
+    if (button.getAttribute('onclick') !== 'watchAdReward()') {
+      button.setAttribute('onclick', 'watchAdReward()');
+    }
 
     const text = String(button.textContent || '');
     if (button.disabled && /mining|boost|session|preparing/i.test(text)) {
