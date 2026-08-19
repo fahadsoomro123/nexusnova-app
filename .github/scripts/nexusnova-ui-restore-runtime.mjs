@@ -33,7 +33,6 @@ try {
   await page.waitForFunction(() => Boolean(window.NexusNovaUiRegressionRepair),null,{timeout:10000});
   await page.waitForTimeout(6500);
 
-  // Open approved Nova Hub through the actual dock button.
   await page.locator('#moreBtn').click();
   await page.waitForFunction(() => document.getElementById('moreMenu')?.classList.contains('show') || document.body.classList.contains('nx-allapps-open'));
   await page.waitForTimeout(700);
@@ -53,6 +52,10 @@ try {
     const iconStyle = firstIcon ? getComputedStyle(firstIcon) : null;
     const dockVisible = Array.from(document.querySelectorAll('.bottom-dock .dock-item')).filter(visible);
     const coreHubVisible = Array.from(document.querySelectorAll('#moreMenu [data-nx-nova-hub-core="1"]')).filter(visible);
+    const orderGuardScripts = Array.from(document.scripts)
+      .map(script => String(script.src || ''))
+      .filter(src => /nexusnova-allapps-order-guard-v(?:4|5|6)\.js/i.test(src))
+      .map(src => src.split('/').pop());
     return {
       firstChildId:inner?.firstElementChild?.id || '',
       secondChildId:inner?.children?.[1]?.id || '',
@@ -63,7 +66,8 @@ try {
       visibleDockLabels:dockVisible.map(b => String(b.getAttribute('aria-label') || b.textContent || '').replace(/\s+/g,' ').trim()),
       coreHubVisible:coreHubVisible.length,
       mineQuick:document.querySelectorAll('#nxMineQuickNavV1 [data-nx-mine-target]').length,
-      headerCopy:String(header?.querySelector('.nx-nova-hub-copy')?.textContent || '').trim()
+      headerCopy:String(header?.querySelector('.nx-nova-hub-copy')?.textContent || '').trim(),
+      orderGuardScripts
     };
   }, expected);
 
@@ -78,20 +82,26 @@ try {
   assert.equal(hub.visibleDockLabels.length,2,`Bottom dock must remain exactly Mine + Nova Hub: ${hub.visibleDockLabels.join(' | ')}`);
   assert.equal(hub.coreHubVisible,0,'Wallet/Market duplicate core shortcuts must not be visible inside Nova Hub');
   assert.equal(hub.mineQuick,3,'Mine must expose Wallet / Tasks / Market quick destinations');
+  assert.ok(hub.orderGuardScripts.length <= 1,`Duplicate All Apps order owners loaded: ${hub.orderGuardScripts.join(' | ')}`);
 
-  // Open Settings from the real Hub item and prove the ugly reader pager is absent.
   const settings = page.locator('#moreMenu .more-item').filter({hasText:/^\s*SETTINGS\s*$/i}).first();
   await settings.click();
   await page.waitForFunction(() => document.getElementById('tab-about')?.classList.contains('active'));
-  await page.waitForTimeout(250);
+  await page.waitForTimeout(350);
   const settingsState = await page.evaluate(() => {
     const pager = document.getElementById('nxUxBottomNav');
     const pagerStyle = pager ? getComputedStyle(pager) : null;
+    const headings=[...document.querySelectorAll('#tab-about .settings-card h3')].map(el=>el.textContent.trim());
+    const appearanceRows=[...document.querySelectorAll('#tab-about .settings-card')]
+      .find(card=>String(card.querySelector('h3')?.textContent||'').trim()==='Appearance')
+      ?.querySelectorAll('.settings-row strong');
     return {
       pagerVisible:Boolean(pager && pagerStyle && pagerStyle.display !== 'none' && pagerStyle.visibility !== 'hidden' && Number(pagerStyle.opacity || 1) > 0),
       allAppsBack:Boolean(document.querySelector('#tab-about > .nx-allapps-back')),
       duplicateHeroVisible:(() => { const h=document.querySelector('#tab-about > .nx-app-hero'); if(!h)return false; const s=getComputedStyle(h); return s.display !== 'none' && s.visibility !== 'hidden'; })(),
       settingsSimple:document.documentElement.dataset.nxSettingsVersion || '',
+      headings,
+      appearanceRows:appearanceRows ? [...appearanceRows].map(el=>el.textContent.trim()) : []
     };
   });
   console.log('UI_SETTINGS_STATE ' + JSON.stringify(settingsState));
@@ -99,8 +109,9 @@ try {
   assert.equal(settingsState.allAppsBack,false,'Settings must not contain injected sub-app Back bar');
   assert.equal(settingsState.duplicateHeroVisible,false,'Settings duplicate generic app hero must be hidden');
   assert.equal(settingsState.settingsSimple,'3','Essential Settings v3 must remain active');
+  assert.deepEqual(settingsState.headings,['Account','Appearance'],'Settings must stay tiny: Account + Appearance only');
+  assert.deepEqual(settingsState.appearanceRows,['Theme'],'Appearance must contain Theme only');
 
-  // Mine workspace shortcuts must open core destinations while Mine remains the active domain in dock.
   await page.evaluate(() => window.switchTab?.('home',null));
   await page.waitForFunction(() => document.getElementById('tab-home')?.classList.contains('active'));
   const walletQuick = page.locator('#nxMineQuickNavV1 [data-nx-mine-target="wallet"]');
@@ -120,7 +131,7 @@ try {
 
   const severe = pageErrors.filter(text => !/Failed to fetch|ERR_FAILED|dynamically imported module|Importing a module script failed|NetworkError/i.test(text));
   assert.deepEqual(severe,[],`Unexpected page errors: ${severe.join(' | ')}`);
-  console.log(`PASS UI restore runtime: ${hub.inventory.present.length} approved Hub features present, compact icons restored, Hub header above search, Settings pager removed, and Mine owns Wallet/Tasks/Market while bottom dock stays Mine + Nova Hub.`);
+  console.log(`PASS UI restore runtime: ${hub.inventory.present.length} Hub entries present, compact icons restored, single order owner proven, Hub header above search, tiny Settings restored, and Mine owns Wallet/Tasks/Market while bottom dock stays Mine + Nova Hub.`);
 } finally {
   await context.close().catch(()=>{});
   await browser.close().catch(()=>{});
