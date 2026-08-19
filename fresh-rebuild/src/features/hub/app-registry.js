@@ -51,6 +51,7 @@ export const novaApps = Object.freeze([
   { id: 'emergency', name: 'Family Emergency', category: 'Personal', icon: 'emergency', description: 'Account-scoped emergency contacts with direct calling' },
 
   { id: 'finance', name: 'Finance', category: 'Money & Commerce', icon: 'market', description: 'Finance and conversion tools' },
+  { id: 'bills', name: 'Bills', category: 'Money & Commerce', icon: 'expense', description: 'Bill due dates, status and reminders' },
   { id: 'shopping', name: 'Shopping', category: 'Money & Commerce', icon: 'more', description: 'Shopping lists and discovery' },
   { id: 'marketplace', name: 'Marketplace', category: 'Money & Commerce', icon: 'more', description: 'Marketplace surface' },
   { id: 'orders', name: 'Orders', category: 'Money & Commerce', icon: 'document', description: 'Order tracking surface' },
