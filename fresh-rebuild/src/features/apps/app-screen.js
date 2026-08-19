@@ -17,6 +17,7 @@ import { learningSuiteRenderers } from './learning-suite.js';
 import { billRenderers } from './bills-app.js';
 import { budgetSuiteRenderers } from './budget-suite.js';
 import { healthSuiteRenderers } from './health-suite.js';
+import { familySuiteRenderers } from './family-suite.js';
 
 let cleanup = null;
 
@@ -44,7 +45,7 @@ export function appScreen({ id, backToHub } = {}) {
 
   root.querySelector('[data-app-back]').addEventListener('click', () => backToHub?.());
   const mount = root.querySelector('[data-app-mount]');
-  const renderer = coreEnhancementRenderers[id] || coreRenderers[id] || healthSuiteRenderers[id] || personalRenderers[id] || teacherSuiteRenderers[id] || islamicSuiteRenderers[id] || documentsSuiteRenderers[id] || communityChatRenderers[id] || learningSuiteRenderers[id] || budgetSuiteRenderers[id] || billRenderers[id] || discoverRenderers[id] || faithSecurityRenderers[id] || deviceRenderers[id] || smartRenderers[id] || everydayRenderers[id] || liveRenderers[id];
+  const renderer = coreEnhancementRenderers[id] || coreRenderers[id] || healthSuiteRenderers[id] || familySuiteRenderers[id] || personalRenderers[id] || teacherSuiteRenderers[id] || islamicSuiteRenderers[id] || documentsSuiteRenderers[id] || communityChatRenderers[id] || learningSuiteRenderers[id] || budgetSuiteRenderers[id] || billRenderers[id] || discoverRenderers[id] || faithSecurityRenderers[id] || deviceRenderers[id] || smartRenderers[id] || everydayRenderers[id] || liveRenderers[id];
 
   if (renderer) {
     const body = renderer();
