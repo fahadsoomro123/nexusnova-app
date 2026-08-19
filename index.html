@@ -37,7 +37,7 @@
     #googleArea[hidden]{display:none}
     #message{min-height:19px;margin-top:12px;text-align:center;color:var(--danger);font-size:.74rem;font-weight:750;line-height:1.45;word-break:break-word}#message[data-kind="success"]{color:var(--success)}
     .foot{margin-top:13px;text-align:center;color:#4f6a88;font-size:.61rem;line-height:1.45}
-    #nxSplash{position:fixed;inset:0;z-index:2147483500;display:flex;align-items:center;justify-content:center;padding:24px;background:radial-gradient(circle at 50% 43%,rgba(20,117,255,.30),transparent 22%),radial-gradient(ellipse 75% 60% at 50% 20%,rgba(20,86,190,.25),transparent 65%),#00040a;transition:opacity .42s ease,visibility .42s ease}#nxSplash.hide{opacity:0;visibility:hidden;pointer-events:none}.splash-inner{text-align:center}.splash-logo{width:88px;height:88px;margin:0 auto 18px;border-radius:28px;display:grid;place-items:center;color:#fff;font-size:40px;font-weight:950;background:linear-gradient(145deg,#6dceff,#197fff 48%,#0646bd);border:1px solid rgba(255,255,255,.58);box-shadow:0 0 0 8px rgba(35,132,255,.08),0 0 55px rgba(38,140,255,.38)}.splash-name{font-size:30px;font-weight:950;letter-spacing:-.05em}.splash-name span{color:#55a9ff}.splash-status{margin-top:10px;color:#88a5c7;font-size:11px;font-weight:750;letter-spacing:.08em}.splash-line{width:160px;height:3px;margin:18px auto 0;border-radius:999px;background:rgba(88,164,255,.13);overflow:hidden}.splash-line i{display:block;width:42%;height:100%;border-radius:inherit;background:linear-gradient(90deg,#218cff,#5dd9ff);animation:splashMove 1.05s ease-in-out infinite alternate}@keyframes splashMove{from{transform:translateX(-14%)}to{transform:translateX(140%)}}
+    #nxSplash{position:fixed;inset:0;z-index:2147483500;display:flex;align-items:center;justify-content:center;padding:24px;pointer-events:none;background:radial-gradient(circle at 50% 43%,rgba(20,117,255,.30),transparent 22%),radial-gradient(ellipse 75% 60% at 50% 20%,rgba(20,86,190,.25),transparent 65%),#00040a;transition:opacity .42s ease,visibility .42s ease}#nxSplash.hide{opacity:0;visibility:hidden;pointer-events:none}.splash-inner{text-align:center}.splash-logo{width:88px;height:88px;margin:0 auto 18px;border-radius:28px;display:grid;place-items:center;color:#fff;font-size:40px;font-weight:950;background:linear-gradient(145deg,#6dceff,#197fff 48%,#0646bd);border:1px solid rgba(255,255,255,.58);box-shadow:0 0 0 8px rgba(35,132,255,.08),0 0 55px rgba(38,140,255,.38)}.splash-name{font-size:30px;font-weight:950;letter-spacing:-.05em}.splash-name span{color:#55a9ff}.splash-status{margin-top:10px;color:#88a5c7;font-size:11px;font-weight:750;letter-spacing:.08em}.splash-line{width:160px;height:3px;margin:18px auto 0;border-radius:999px;background:rgba(88,164,255,.13);overflow:hidden}.splash-line i{display:block;width:42%;height:100%;border-radius:inherit;background:linear-gradient(90deg,#218cff,#5dd9ff);animation:splashMove 1.05s ease-in-out infinite alternate}@keyframes splashMove{from{transform:translateX(-14%)}to{transform:translateX(140%)}}
     .nx-auth-redirecting .auth-shell{opacity:0!important;pointer-events:none!important}
     @media(max-width:520px){.page{align-items:flex-start;padding-top:max(14px,env(safe-area-inset-top))}.auth-shell{margin:auto 0}.card{padding:21px 16px 18px;border-radius:24px}.logo{width:58px;height:58px;border-radius:18px;font-size:26px}.brand{margin-bottom:16px}h1{font-size:1.62rem}.subtitle{font-size:.76rem}.field{margin-bottom:10px}.field input{padding:12px 13px;font-size:.90rem}.security-note{margin-bottom:10px;padding:9px 10px}.primary{padding:13px}.account-links{margin-top:11px;flex-wrap:wrap}.divider{margin:12px 0}.google{padding:12px}.foot{margin-top:10px}}
     @media(max-height:650px) and (max-width:520px){.page{padding-top:8px;padding-bottom:12px}.card{padding-top:15px}.logo{width:48px;height:48px;margin-bottom:8px}.brand{margin-bottom:10px}.eyebrow{margin-bottom:4px}.subtitle{margin-top:6px}.security-note{display:none}}
@@ -106,28 +106,24 @@
       const message = document.getElementById('message');
       const startedAt = Date.now();
       let released = false;
-      let seen = false;
-      try { seen = sessionStorage.getItem('nxAuthSplashSeenV2') === '1'; } catch (_) {}
 
+      // Safe splash contract: always visible briefly, never blocks taps, never
+      // waits forever for Firebase/network. A hard release runs independently.
       function releaseSplash(force = false) {
         if (released) return;
-        const minimum = seen ? 0 : 900;
-        const wait = force ? 0 : Math.max(0, minimum - (Date.now() - startedAt));
+        const minimum = 1050;
+        const wait = force ? 0 : Math.max(0,minimum-(Date.now()-startedAt));
         setTimeout(() => {
           if (released) return;
           released = true;
           splash?.classList.add('hide');
-          try { sessionStorage.setItem('nxAuthSplashSeenV2', '1'); } catch (_) {}
-          setTimeout(() => splash?.remove(), 480);
-        }, wait);
+          setTimeout(() => splash?.remove(),480);
+        },wait);
       }
 
-      window.addEventListener('nexusnova:auth-bootstrap-ready', () => releaseSplash(false), { once: true });
-      if (seen) setTimeout(() => releaseSplash(true), 80);
-      setTimeout(() => {
-        shell?.classList.add('ready');
-        releaseSplash(true);
-      }, 5000);
+      window.addEventListener('nexusnova:auth-bootstrap-ready',()=>releaseSplash(false),{once:true});
+      setTimeout(()=>releaseSplash(true),2200);
+      setTimeout(()=>shell?.classList.add('ready'),5000);
 
       import('./js/nexusnova-auth-page-v2.js?v=1').catch(error => {
         console.error('NexusNova auth page:', error);
