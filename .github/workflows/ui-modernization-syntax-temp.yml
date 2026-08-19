@@ -46,11 +46,21 @@ jobs:
           git diff --exit-code origin/main...HEAD -- js/nexusnova-nova-vault-v1.js
           git diff --exit-code origin/main...HEAD -- NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
 
-      - name: Prepare only the native splash owners
+      - name: Prepare native shell in build order without unrelated broken timer patch
         run: |
           set -euo pipefail
           python3 NexusNovaAndroid/prepare_native_web_shell.py
+          python3 NexusNovaAndroid/patch_mining_boost_sync.py
+          python3 NexusNovaAndroid/patch_viewport.py
           python3 NexusNovaAndroid/patch_admob.py
+          python3 NexusNovaAndroid/patch_rewarded_test_contract.py
+          python3 NexusNovaAndroid/patch_test_boost_reward_fx.py
+          python3 NexusNovaAndroid/patch_test_boost_reward_fx_hardening.py
+          python3 NexusNovaAndroid/patch_test_boost_cooldown_gate.py
+          python3 NexusNovaAndroid/patch_test_boost_final2h_guard.py
+          python3 NexusNovaAndroid/patch_ad_privacy.py
+          python3 NexusNovaAndroid/patch_session_restore.py
+          python3 NexusNovaAndroid/patch_deferred_caller_setup.py
           python3 NexusNovaAndroid/patch_web_shell_reset.py
           python3 NexusNovaAndroid/patch_native_shell.py
           python3 NexusNovaAndroid/patch_splash_timing.py
@@ -62,4 +72,5 @@ jobs:
           grep -q 'setTimeout(nxForceReleaseSplash, 1400);' NexusNovaAndroid/app/src/main/assets/www/page2.html
           grep -q 'nexusnova-compact-premium-v1.js?v=1' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-page2-after-core-v2.js
           test -s NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-compact-premium-v1.js
+          ! grep -q 'showCallerSetupOnce()' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
           echo 'Final UI and isolated native splash validation passed.'
