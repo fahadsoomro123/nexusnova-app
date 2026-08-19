@@ -1,0 +1,242 @@
+name: NexusNova v1.1.10 Freeze Fix TEST
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/nexusnova-v110-freeze-fix.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nexusnova-v110-freeze-fix
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle 8.13
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Prove targeted scope
+        id: scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE=1f06b778bca6a1a215fac66b95d7ab147daa276b
+          git cat-file -e "$BASE^{commit}"
+          git diff --exit-code "$BASE" HEAD -- \
+            js/rewards-security-v1.js js/page2.js js/page2-core.js \
+            js/nexusnova-allapps-scroll-fix-v1.js js/nexusnova-drive-track-v1.js \
+            js/nexusnova-nova-hub-nav-v1.js \
+            NexusNovaAndroid/patch_mining_boost_sync.py \
+            NexusNovaAndroid/patch_test_boost_reward_fx.py \
+            NexusNovaAndroid/patch_test_boost_reward_fx_hardening.py \
+            NexusNovaAndroid/patch_test_boost_cooldown_gate.py
+          CHANGED=$(git diff --name-only "$BASE" HEAD | grep -v '^.github/workflows/nexusnova-v110-freeze-fix.yml$' | sort)
+          EXPECTED=$(printf '%s\n' js/nexusnova-navigation-stability-v1.js js/nexusnova-speedtest-app-v4.js | sort)
+          test "$CHANGED" = "$EXPECTED"
+          echo 'PASS: only freeze owners changed; mining, smooth scroll, Drive/Track and Nova Hub layout unchanged.'
+
+      - name: Validate freeze-fix contract
+        id: freeze
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check js/nexusnova-speedtest-app-v4.js
+          node --check js/nexusnova-navigation-stability-v1.js
+          grep -Fq "const VERSION = '4.0.1'" js/nexusnova-speedtest-app-v4.js
+          grep -Fq 'installActivationObserver' js/nexusnova-speedtest-app-v4.js
+          grep -Fq "observer.observe(tab, { attributes:true, attributeFilter:['class'] });" js/nexusnova-speedtest-app-v4.js
+          ! grep -Fq 'observer.observe(document.documentElement' js/nexusnova-speedtest-app-v4.js
+          ! grep -Fq "subtree: true, childList: true, attributes: true, attributeFilter: ['class']" js/nexusnova-speedtest-app-v4.js
+          grep -Fq 'let globalOwnersInstalled = false;' js/nexusnova-navigation-stability-v1.js
+          grep -Fq 'if (globalOwnersInstalled) return;' js/nexusnova-navigation-stability-v1.js
+          grep -Fq 'globalOwnersInstalled = true;' js/nexusnova-navigation-stability-v1.js
+          grep -Fq 'const INSTALL_DELAYS = [0, 500, 1400, 3000, 6000, 10000];' js/nexusnova-navigation-stability-v1.js
+          grep -Fq 'function installScrollPolish()' js/nexusnova-navigation-stability-v1.js
+          echo 'PASS: Speed Test global mutation storm removed and navigation wrappers single-install.'
+
+      - name: Prepare canonical Android shell
+        id: prepare_base
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 NexusNovaAndroid/prepare_native_web_shell.py
+          python3 NexusNovaAndroid/patch_legal_pages.py
+          python3 NexusNovaAndroid/patch_family_demo_web_v1.py
+          python3 NexusNovaAndroid/patch_essential_settings_v3.py
+          python3 NexusNovaAndroid/patch_family_auth_recursion_fix.py
+          python3 NexusNovaAndroid/patch_startup_reveal_v2.py
+          python3 NexusNovaAndroid/patch_native_startup_escape_v3.py
+          python3 NexusNovaAndroid/patch_mining_boost_sync.py
+          python3 NexusNovaAndroid/patch_viewport.py
+          python3 NexusNovaAndroid/patch_admob.py
+          python3 NexusNovaAndroid/patch_nova_vault_10x_ads.py
+          python3 NexusNovaAndroid/patch_rewarded_test_contract.py
+          python3 NexusNovaAndroid/patch_test_boost_reward_fx.py
+          python3 NexusNovaAndroid/patch_test_boost_reward_fx_hardening.py
+          python3 NexusNovaAndroid/patch_test_boost_cooldown_gate.py
+          python3 NexusNovaAndroid/patch_ad_privacy.py
+
+      - name: Run session compatibility verifier
+        id: session
+        shell: bash
+        run: |
+          set -euo pipefail
+          FILE=NexusNovaAndroid/app/src/main/assets/www/js/final-integrity-fix.js
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('NexusNovaAndroid/app/src/main/assets/www/js/final-integrity-fix.js')
+          s=p.read_text(encoding='utf-8')
+          marker='// nx-build-verifier-only: nexusnova-ad-placements-v1.js nexusnova-watch-ad-reward-v1.js\n'
+          if marker not in s: s=s.replace("(async () => {\n",marker+"(async () => {\n",1)
+          p.write_text(s,encoding='utf-8')
+          PY
+          python3 NexusNovaAndroid/patch_session_restore.py
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('NexusNovaAndroid/app/src/main/assets/www/js/final-integrity-fix.js')
+          s=p.read_text(encoding='utf-8').replace('// nx-build-verifier-only: nexusnova-ad-placements-v1.js nexusnova-watch-ad-reward-v1.js\n','')
+          p.write_text(s,encoding='utf-8')
+          PY
+          ! grep -Fq 'nx-build-verifier-only' "$FILE"
+
+      - name: Complete Android patches
+        id: prepare_post
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 NexusNovaAndroid/patch_web_shell_reset.py
+          python3 NexusNovaAndroid/patch_native_shell.py
+          python3 NexusNovaAndroid/patch_native_splash_release_v4.py
+          python3 NexusNovaAndroid/patch_native_no_bounce_v1.py
+          python3 NexusNovaAndroid/patch_dashboard_startup_lockfix_v1.py
+
+      - name: Set v1.1.10 TEST identity
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('NexusNovaAndroid/app/build.gradle.kts')
+          s=p.read_text(encoding='utf-8')
+          s,n1=re.subn(r'versionCode\s*=\s*\d+','versionCode = 120',s,count=1)
+          s,n2=re.subn(r'versionName\s*=\s*"[^"]+"','versionName = "1.1.10-freeze-fix-test"',s,count=1)
+          if n1 != 1 or n2 != 1: raise SystemExit('Could not set v1.1.10 identity')
+          p.write_text(s,encoding='utf-8')
+          PY
+
+      - name: Verify staged Android shell
+        id: staged
+        shell: bash
+        run: |
+          set -euo pipefail
+          WEB=NexusNovaAndroid/app/src/main/assets/www
+          node --check "$WEB/js/nexusnova-speedtest-app-v4.js"
+          node --check "$WEB/js/nexusnova-navigation-stability-v1.js"
+          grep -Fq "const VERSION = '4.0.1'" "$WEB/js/nexusnova-speedtest-app-v4.js"
+          grep -Fq 'installActivationObserver' "$WEB/js/nexusnova-speedtest-app-v4.js"
+          ! grep -Fq 'observer.observe(document.documentElement' "$WEB/js/nexusnova-speedtest-app-v4.js"
+          grep -Fq 'let globalOwnersInstalled = false;' "$WEB/js/nexusnova-navigation-stability-v1.js"
+          grep -Fq 'globalOwnersInstalled = true;' "$WEB/js/nexusnova-navigation-stability-v1.js"
+          grep -Fq 'samsung-compact-smooth-v1' "$WEB/js/nexusnova-allapps-scroll-fix-v1.js"
+          grep -Fq "nexusNovaDriveTrackVersion = 'drive-track-v1'" "$WEB/js/nexusnova-drive-track-v1.js"
+          grep -Fq 'nx-android-dashboard-startup-lockfix-v2' "$WEB/page2.html"
+          grep -Fq 'window.__nexusAndroidReleaseSplash = releaseSplash' "$WEB/index.html"
+          grep -Fq 'window.__nexusAndroidReleaseSplash = releaseSplash' "$WEB/page2.html"
+          echo 'PASS: final staged Android shell contains freeze fix and preserved locked owners.'
+
+      - name: Compile Android Kotlin
+        id: kotlin
+        run: gradle -p NexusNovaAndroid :app:compileDebugKotlin --stacktrace --no-daemon
+
+      - name: Assemble v1.1.10 TEST APK
+        id: assemble
+        run: gradle -p NexusNovaAndroid :app:assembleDebug --stacktrace --no-daemon
+
+      - name: Package and hash APK
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK=NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          cp "$APK" NexusNova-v1.1.10-NovaHubFreezeFix-TEST.apk
+          sha256sum NexusNova-v1.1.10-NovaHubFreezeFix-TEST.apk | tee NexusNova-v1.1.10-NovaHubFreezeFix-TEST.sha256
+
+      - name: Upload APK artifact
+        id: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: NexusNova-v1.1.10-NovaHubFreezeFix-TEST
+          path: |
+            NexusNova-v1.1.10-NovaHubFreezeFix-TEST.apk
+            NexusNova-v1.1.10-NovaHubFreezeFix-TEST.sha256
+          retention-days: 14
+
+      - name: Publish APK and proof
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'NexusNova Build Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git fetch origin apk-builds
+          rm -rf /tmp/nx-v110-publish
+          git worktree add /tmp/nx-v110-publish origin/apk-builds
+          STATUS='${{ job.status }}'; APK_SHA=''; APK_STATE='not-published'
+          if [ -s NexusNova-v1.1.10-NovaHubFreezeFix-TEST.apk ]; then
+            cp NexusNova-v1.1.10-NovaHubFreezeFix-TEST.apk /tmp/nx-v110-publish/
+            cp NexusNova-v1.1.10-NovaHubFreezeFix-TEST.sha256 /tmp/nx-v110-publish/
+            APK_SHA=$(awk '{print $1}' NexusNova-v1.1.10-NovaHubFreezeFix-TEST.sha256); APK_STATE='present'
+          fi
+          cat > /tmp/nx-v110-publish/NexusNova-v1.1.10-NovaHubFreezeFix-TEST.txt <<EOF
+          source_commit=${GITHUB_SHA}
+          fix_base=1f06b778bca6a1a215fac66b95d7ab147daa276b
+          build_status=${STATUS}
+          apk=${APK_STATE}
+          scope=${{ steps.scope.outcome }}
+          mining_source_unchanged=${{ steps.scope.outcome }}
+          smooth_scroll_source_unchanged=${{ steps.scope.outcome }}
+          drive_track_source_unchanged=${{ steps.scope.outcome }}
+          freeze_contract=${{ steps.freeze.outcome }}
+          prepare_base=${{ steps.prepare_base.outcome }}
+          session=${{ steps.session.outcome }}
+          prepare_post=${{ steps.prepare_post.outcome }}
+          staged=${{ steps.staged.outcome }}
+          kotlin=${{ steps.kotlin.outcome }}
+          assemble=${{ steps.assemble.outcome }}
+          package=${{ steps.package.outcome }}
+          upload=${{ steps.upload.outcome }}
+          version_code=120
+          version_name=1.1.10-freeze-fix-test
+          apk_sha256=${APK_SHA}
+          built_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          EOF
+          sed -i 's/^          //' /tmp/nx-v110-publish/NexusNova-v1.1.10-NovaHubFreezeFix-TEST.txt
+          cd /tmp/nx-v110-publish
+          git add NexusNova-v1.1.10-NovaHubFreezeFix-TEST.txt
+          if [ -s NexusNova-v1.1.10-NovaHubFreezeFix-TEST.apk ]; then git add NexusNova-v1.1.10-NovaHubFreezeFix-TEST.apk NexusNova-v1.1.10-NovaHubFreezeFix-TEST.sha256; fi
+          git commit -m "Publish v1.1.10 Nova Hub Freeze Fix TEST APK ${GITHUB_SHA}" || true
+          git pull --rebase origin apk-builds
+          git push origin HEAD:apk-builds
