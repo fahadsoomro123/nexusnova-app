@@ -13,6 +13,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: nexusnova-fresh-rebuild-apk
+  cancel-in-progress: true
+
 env:
   JAVA_VERSION: '17'
   GRADLE_VERSION: '8.13'
@@ -57,6 +61,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          rm -rf fresh-build-output
           mkdir -p fresh-build-output
           {
             test -f fresh-rebuild/index.html
