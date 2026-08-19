@@ -61,7 +61,7 @@ jobs:
           ! grep -Fq "src:'./js/nexusnova-daily-ad-test-v1.js" js/nexusnova-ad-settings-v2.js
 
           grep -Fq 'nexusnova-allapps-experience-v2.js?v=2' js/core-failsafe.js
-          ! grep -Fq 'nexusnova-allapps-experience-v2.js' js/final-integrity-fix-core.js
+          ! grep -Fq "loadGuard('./js/nexusnova-allapps-experience-v2.js" js/final-integrity-fix-core.js
 
       - name: Validate dead files removed
         id: deadfiles
@@ -98,7 +98,7 @@ jobs:
           test ! -e "$WEB/js/nexusnova-allapps-order-guard-v4.js"
           test ! -e "$WEB/js/ticker-fix.js"
           grep -Fq 'nexusnova-existing-app-ad-hotfix-v2.js?v=20260819-observerfix1' "$WEB/js/final-integrity-fix.js"
-          ! grep -Fq 'nexusnova-allapps-experience-v2.js' "$WEB/js/final-integrity-fix-core.js"
+          ! grep -Fq "loadGuard('./js/nexusnova-allapps-experience-v2.js" "$WEB/js/final-integrity-fix-core.js"
 
       - name: Publish validation result
         if: always()
