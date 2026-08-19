@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="app_name">NexusNova</string>
-    <string name="caller_setup_title">Caller ID setup</string>
-    <string name="caller_setup_body">Android requires NexusNova to be set as your Caller ID / spam app so unknown numbers can show name and address when a call arrives.\n\n1) Tap the button below\n2) Select NexusNova as Caller ID &amp; spam app\n3) Allow phone permissions if asked</string>
-    <string name="enable_caller_id">Enable Caller ID role</string>
-    <string name="unknown_caller">Unknown number</string>
-    <string name="not_in_phonebook">Not in NexusNova phonebook</string>
-</resources>
