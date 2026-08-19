@@ -68,6 +68,23 @@ router = createRouter({
   }
 });
 
+window.NexusNovaFresh = Object.freeze({
+  openApp(id) {
+    const safeId = String(id || '').trim();
+    if (!safeId) return false;
+    router.render('app', { id: safeId });
+    return true;
+  },
+  openHub() {
+    router.render('hub');
+    return true;
+  },
+  openMine() {
+    router.render('mine');
+    return true;
+  }
+});
+
 /* Android MainActivity already asks NexusNovaUxSimplify.systemBack().
    Keep that native contract, but give it a fresh implementation instead of
    loading any legacy UX script. */
