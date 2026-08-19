@@ -5,6 +5,8 @@ on:
     branches:
       - main
       - codex-final-audit
+    paths-ignore:
+      - '.github/workflows/**'
   workflow_dispatch:
 
 permissions:
