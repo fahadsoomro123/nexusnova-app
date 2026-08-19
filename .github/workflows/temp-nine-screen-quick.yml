@@ -1,0 +1,30 @@
+name: TEMP Nine Screen Quick Validation
+on:
+  push:
+    branches: [quick-partial-modernization-20260819]
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax
+        run: |
+          node --check js/nexusnova-nine-screen-modern-v1.js
+          node --check js/nexusnova-page2-after-core-v2.js
+      - name: Protected owners unchanged
+        run: |
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          git diff --exit-code origin/main...HEAD -- js/page2-core.js js/nexusnova-ai-authority-v2.js js/nexusnova-natural-voice-v1.js js/nexusnova-navigation-stability-v1.js js/nexusnova-allapps-scroll-fix-v1.js js/nexusnova-drive-track-v1.js js/nexusnova-nova-vault-v1.js NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+      - name: Contract
+        run: |
+          grep -q "nine-screen-modern-v1" js/nexusnova-nine-screen-modern-v1.js
+          for id in tab-location tab-emergency tab-family tab-profile tab-smart tab-qibla tab-entertainment tab-browser tab-caller-id; do grep -q "$id" js/nexusnova-nine-screen-modern-v1.js; done
+          grep -q "nexusnova-nine-screen-modern-v1.js?v=1" js/nexusnova-page2-after-core-v2.js
