@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - 'js/page2.js'
+      - 'NexusNovaAndroid/patch_family_demo_web_v1.py'
+      - 'NexusNovaAndroid/patch_family_auth_recursion_fix.py'
       - 'NexusNovaAndroid/patch_startup_reveal_v2.py'
       - 'NexusNovaAndroid/patch_native_startup_escape_v3.py'
       - 'NexusNovaAndroid/patch_native_splash_release_v4.py'
@@ -107,6 +109,7 @@ jobs:
           git worktree add /tmp/nx-audit-status origin/startup-deep-fix-audit
           cat > /tmp/nx-audit-status/STARTUP-DEEP-AUDIT-RESULT.txt <<EOF
           source_commit=${GITHUB_SHA}
+          run_id=${GITHUB_RUN_ID}
           job_status=${{ job.status }}
           target=${{ steps.target.outcome }}
           static=${{ steps.static.outcome }}
