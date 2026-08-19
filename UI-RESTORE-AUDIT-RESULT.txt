@@ -1,18 +1,25 @@
-source_commit=6ff2479fda495c110759821d3aabd49c229378da
-run_id=32226778191
-job_status=cancelled
-deps=cancelled
-syntax=skipped
-prepare=skipped
-signin=skipped
-server=skipped
-ui_runtime=skipped
-startup_runtime=skipped
+source_commit=1e07a52b793fd4fea86d094f1ab61c8550f15b40
+run_id=32226868436
+job_status=failure
+deps=success
+syntax=success
+prepare=success
+signin=success
+server=success
+ui_runtime=failure
+startup_runtime=success
 apk_built=no
 sign_in_source=untouched-by-hash
 bottom_dock_contract=MINE+NOVA_HUB
 external_network_during_ui_test=blocked
 external_network_during_startup_test=blocked
-checked_at=2026-08-19T07:14:06Z
+checked_at=2026-08-19T07:16:13Z
 --- ui runtime evidence ---
+UI_HUB_STATE {"firstChildId":"nxNovaHubHeader","secondChildId":"nxAllAppsSmartSearch","headerBeforeSearch":true,"inventory":{"expected":["TOOLS","GOLD/FX","NEWS","CHAT","AI","LOCATION","SOS","FAMILY","PROFILE","DAILY","BUDGET","LEARN","TRAVEL","HEALTH","SMART","QIBLA","PK NEWS","WATCH","BROWSER","CALLER","SETTINGS","SUPER APP","DAILY TOOLS","CALENDAR","REMINDERS","FINANCE","WEATHER","LEARNING","PAKISTAN HUB","ISLAMIC HUB","BIBLE","HABITS","SAVINGS","CONTACTS","SHOPPING","DOCUMENTS","FILE VAULT","QR TOOLS","SECURITY","MARKETPLACE","ORDERS","NOTIFICATIONS","TEACHER TOOLKIT"],"present":["TOOLS","GOLD/FX","NEWS","CHAT","AI","LOCATION","SOS","FAMILY","PROFILE","DAILY","BUDGET","LEARN","TRAVEL","HEALTH","SMART","QIBLA","PK NEWS","WATCH","BROWSER","CALLER","SETTINGS","SUPER APP","DAILY TOOLS","CALENDAR","REMINDERS","FINANCE","WEATHER","LEARNING","PAKISTAN HUB","ISLAMIC HUB","BIBLE","HABITS","SAVINGS","CONTACTS","SHOPPING","DOCUMENTS","FILE VAULT","QR TOOLS","SECURITY","MARKETPLACE","ORDERS","NOTIFICATIONS","TEACHER TOOLKIT","SPEED TEST","LEADERBOARD","GROWTH","URDU LIBRARY"],"missing":[],"count":47},"iconWidth":40,"iconHeight":40,"visibleDockLabels":["Open Mine","Open Nova Hub"],"coreHubVisible":0,"mineQuick":3,"headerCopy":"All apps, utilities, learning and daily tools in one place.","orderGuardScripts":["nexusnova-allapps-order-guard-v5.js"]}
+UI_SETTINGS_STATE {"pagerVisible":false,"allAppsBack":true,"duplicateHeroVisible":false,"settingsSimple":"3","headings":["Account","Appearance"],"appearanceRows":["Theme"]}
+AssertionError [ERR_ASSERTION]: Settings must not contain injected sub-app Back bar
 --- startup evidence ---
+SNAPSHOT 1s {"href":"http://127.0.0.1:4173/NexusNovaAndroid/app/src/main/assets/www/page2.html?nxAndroid=1&deepSplashTest=1","readyState":"complete","android":true,"novaHubNavReady":true,"uiRepairReady":true,"splashBlocking":false,"splashDisplay":"","shieldExists":false,"shieldBlocking":false,"homeActive":true,"homeContainsMine":true,"mineVisible":true,"dockVisible":true,"visibleDockCount":2,"visibleDockLabels":["Open Mine","Open Nova Hub"],"balance":"—","btnText":"RETRY SECURE SYNC","timer":"SESSION SYNC DELAYED • TAP TO RETRY","watchExists":true,"watchId":"nxWatchAdRewardBtn","watchOnclick":"watchAdReward()","navigations":["http://127.0.0.1:4173/NexusNovaAndroid/app/src/main/assets/www/page2.html?nxAndroid=1&deepSplashTest=1"]}
+SNAPSHOT 3s {"href":"http://127.0.0.1:4173/NexusNovaAndroid/app/src/main/assets/www/page2.html?nxAndroid=1&deepSplashTest=1","readyState":"complete","android":true,"novaHubNavReady":true,"uiRepairReady":true,"splashBlocking":false,"splashDisplay":"","shieldExists":false,"shieldBlocking":false,"homeActive":true,"homeContainsMine":true,"mineVisible":true,"dockVisible":true,"visibleDockCount":2,"visibleDockLabels":["Open Mine","Open Nova Hub"],"balance":"—","btnText":"RETRY SECURE SYNC","timer":"SESSION SYNC DELAYED • TAP TO RETRY","watchExists":true,"watchId":"nxWatchAdRewardBtn","watchOnclick":"watchAdReward()","navigations":["http://127.0.0.1:4173/NexusNovaAndroid/app/src/main/assets/www/page2.html?nxAndroid=1&deepSplashTest=1"]}
+SNAPSHOT 8s {"href":"http://127.0.0.1:4173/NexusNovaAndroid/app/src/main/assets/www/page2.html?nxAndroid=1&deepSplashTest=1","readyState":"complete","android":true,"novaHubNavReady":true,"uiRepairReady":true,"splashBlocking":false,"splashDisplay":"","shieldExists":false,"shieldBlocking":false,"homeActive":true,"homeContainsMine":true,"mineVisible":true,"dockVisible":true,"visibleDockCount":2,"visibleDockLabels":["Open Mine","Open Nova Hub"],"balance":"—","btnText":"RETRY SECURE SYNC","timer":"SESSION SYNC DELAYED • TAP TO RETRY","watchExists":true,"watchId":"nxWatchAdRewardBtn","watchOnclick":"watchAdReward()","navigations":["http://127.0.0.1:4173/NexusNovaAndroid/app/src/main/assets/www/page2.html?nxAndroid=1&deepSplashTest=1"]}
+PASS Android dashboard startup proof: staged shell stayed responsive, splash/shield never blocked, bottom dock stayed Mine + Nova Hub, Hub structure stayed clean, and Wallet opened from the Mine workspace with external network blocked.
