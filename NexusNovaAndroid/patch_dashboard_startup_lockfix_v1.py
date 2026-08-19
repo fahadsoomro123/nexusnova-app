@@ -1,3 +1,4 @@
+# nx-clean-startup-contract-v4: single dashboard startup owner; no JS shield mutation.
 from pathlib import Path
 import hashlib
 
