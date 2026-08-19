@@ -1,4 +1,4 @@
-# nx-clean-startup-contract-v4: single dashboard startup owner; no JS shield mutation.
+# nx-clean-startup-contract-v5: one branded dashboard splash, bounded and non-blocking.
 from pathlib import Path
 import hashlib
 
@@ -16,15 +16,19 @@ before_signin = sha256(signin_path)
 page = page_path.read_text(encoding='utf-8')
 launcher = launcher_path.read_text(encoding='utf-8')
 
-# Android dashboard only: the single branded HTML splash must never own pointer
-# events or visibility. Sign-in is deliberately outside this patch.
-if 'nx-android-dashboard-startup-lockfix-v1' not in page:
-    old = '<div id="nxSplash" aria-hidden="false">'
-    if old not in page:
-        old = '<div id="nxSplash" aria-hidden="true">'
-    if old not in page:
+# Android dashboard only: preserve the existing beautiful HTML splash, but make
+# it incapable of trapping touches. prepare_native_web_shell.py + native splash
+# release v4 remain independent hard-release owners, so network/Auth can never
+# keep this overlay stuck on screen.
+if 'nx-android-dashboard-startup-lockfix-v2' not in page:
+    candidates = [
+        '<div id="nxSplash" aria-hidden="false">',
+        '<div id="nxSplash" aria-hidden="true">',
+    ]
+    old = next((value for value in candidates if value in page), None)
+    if old is None:
         raise SystemExit('Dashboard splash markup not found')
-    new = '<!-- nx-android-dashboard-startup-lockfix-v1 -->\n<div id="nxSplash" aria-hidden="true" style="display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important">'
+    new = '<!-- nx-android-dashboard-startup-lockfix-v2 -->\n<div id="nxSplash" aria-hidden="false" style="pointer-events:none!important">'
     page = page.replace(old, new, 1)
 
 # Never flash fabricated default mining values while Firestore restores.
@@ -33,8 +37,8 @@ page = page.replace('<div class="balance-usd" id="usdValue">$ 0.00 USD</div>', '
 page = page.replace('<span id="btnText">START MINING</span>', '<span id="btnText">SYNCING MINING</span>', 1)
 page = page.replace('        MINER OFFLINE\n', '        CHECKING SECURE SESSION\n', 1)
 
-# Source v4 has one startup owner. Do not reintroduce a JS full-screen shield in
-# the Android staging patch; verify the clean source contract instead.
+# Source v4 has one startup owner. Do not reintroduce a second JavaScript
+# full-screen shield; verify the clean launcher contract instead.
 if 'nx-single-startup-owner-v4' not in launcher:
     raise SystemExit('Single startup owner v4 marker missing from dashboard launcher')
 if 'nxSecureStartupShieldV3' in launcher:
@@ -47,8 +51,8 @@ if sha256(signin_path) != before_signin:
 
 checks = {
     page_path: [
-        'nx-android-dashboard-startup-lockfix-v1',
-        'display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important',
+        'nx-android-dashboard-startup-lockfix-v2',
+        'style="pointer-events:none!important"',
         'id="balance">—</div>',
         'SYNCING SECURE BALANCE',
         'SYNCING MINING',
@@ -61,5 +65,7 @@ for path, markers in checks.items():
     missing = [marker for marker in markers if marker not in text]
     if missing:
         raise SystemExit(f'{path}: startup lockfix verification failed: {missing}')
+    if path == page_path and 'display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important' in text:
+        raise SystemExit('Dashboard splash was hidden instead of preserved')
 
-print('Applied Android dashboard single-owner startup lockfix; sign-in asset remained byte-for-byte unchanged.')
+print('Applied Android dashboard bounded branded splash; touch-safe and independently hard-released. Sign-in asset remained unchanged by this patch.')
