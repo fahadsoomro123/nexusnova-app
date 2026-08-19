@@ -13,12 +13,26 @@ function arcPath(cx, cy, radius, startAngle, endAngle) {
   return `M ${start.x} ${start.y} A ${radius} ${radius} 0 ${largeArc} 0 ${end.x} ${end.y}`;
 }
 
-export function createGauge({ value = 0, min = 0, max = 1, unit = 'NVX/H' } = {}) {
+export function createGauge({
+  value = 0,
+  min = 0,
+  max = 1,
+  unit = 'NVX/H',
+  ratio: ratioOverride = null,
+  displayValue = null,
+  decimals = 4,
+  ariaLabel = ''
+} = {}) {
   const safeMin = Number.isFinite(min) ? min : 0;
   const safeMax = Number.isFinite(max) && max > safeMin ? max : safeMin + 1;
-  const safeValue = Number.isFinite(value) ? Math.min(safeMax, Math.max(safeMin, value)) : safeMin;
-  const ratio = (safeValue - safeMin) / (safeMax - safeMin);
+  const numericValue = Number.isFinite(Number(value)) ? Number(value) : safeMin;
+  const safeValue = Math.min(safeMax, Math.max(safeMin, numericValue));
+  const computedRatio = (safeValue - safeMin) / (safeMax - safeMin);
+  const ratio = Math.max(0, Math.min(1, Number.isFinite(Number(ratioOverride)) ? Number(ratioOverride) : computedRatio));
   const angle = START + ratio * SWEEP;
+  const shown = displayValue == null
+    ? safeValue.toFixed(Math.max(0, Math.min(6, Number(decimals) || 0)))
+    : String(displayValue);
   const ticks = Array.from({ length: 21 }, (_, index) => {
     const tickAngle = START + (index / 20) * SWEEP;
     const major = index % 5 === 0;
@@ -28,7 +42,7 @@ export function createGauge({ value = 0, min = 0, max = 1, unit = 'NVX/H' } = {}
   }).join('');
 
   return `<div class="nx-gauge" data-nx-gauge>
-    <svg viewBox="0 0 160 126" role="img" aria-label="Mining rate ${safeValue} ${unit}">
+    <svg viewBox="0 0 160 126" role="img" aria-label="${ariaLabel || `${shown} ${unit}`}">
       <defs>
         <linearGradient id="nxGaugeGradient" x1="0" y1="0" x2="1" y2="0">
           <stop offset="0" stop-color="#3b82f6"/><stop offset=".55" stop-color="#42d3ff"/><stop offset="1" stop-color="#27e2a4"/>
@@ -41,7 +55,7 @@ export function createGauge({ value = 0, min = 0, max = 1, unit = 'NVX/H' } = {}
         <path d="M78.5 82 L80 30 L81.5 82 Z" fill="#42d3ff"/>
       </g>
       <circle class="nx-gauge__hub" cx="80" cy="80" r="5"/>
-      <text class="nx-gauge__value" x="80" y="103">${safeValue.toFixed(4)}</text>
+      <text class="nx-gauge__value" x="80" y="103">${shown}</text>
       <text class="nx-gauge__unit" x="80" y="114">${unit}</text>
     </svg>
   </div>`;
