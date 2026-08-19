@@ -46,7 +46,7 @@ const ASSETS = [
   "./js/nexusnova-daily-secure-claim-v1.js?v=1",
   "./js/nexusnova-ad-placements-v1.js?v=3",
   "./js/nexusnova-watch-ad-reward-v1.js?v=1",
-  "./js/nexusnova-existing-app-ad-hotfix-v2.js?v=20260817-0926",
+  "./js/nexusnova-existing-app-ad-hotfix-v2.js?v=20260819-observerfix1",
   "./js/nexusnova-ux-simplify-v1.js?v=20260817-1015",
   "./js/nexusnova-ad-privacy-v1.js?v=1",
   "./js/nexusnova-admob-diagnostics-v1.js",
