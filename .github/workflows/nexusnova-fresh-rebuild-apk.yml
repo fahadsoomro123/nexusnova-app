@@ -1,0 +1,137 @@
+name: NexusNova Fresh Rebuild TEST APK
+
+on:
+  push:
+    branches:
+      - nexusnova-fresh-rebuild-20260820
+    paths:
+      - 'fresh-rebuild/**'
+      - 'NexusNovaAndroid/**'
+      - '.github/workflows/nexusnova-fresh-rebuild-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  JAVA_VERSION: '17'
+  GRADLE_VERSION: '8.13'
+
+jobs:
+  fresh-test-apk:
+    name: Fresh TEST APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout fresh branch
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: ${{ env.GRADLE_VERSION }}
+
+      - name: Validate fresh web architecture
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f fresh-rebuild/index.html
+          test -f fresh-rebuild/src/main.js
+          test -f fresh-rebuild/AUDIT-20260820.md
+
+          while IFS= read -r -d '' file; do
+            node --check "$file"
+          done < <(find fresh-rebuild/src -type f -name '*.js' -print0 | sort -z)
+
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          html = Path('fresh-rebuild/index.html').read_text(encoding='utf-8')
+          if html.count('class="nx-dock__item"') != 2:
+              raise SystemExit('Fresh shell must have exactly two bottom-nav items')
+          if 'page2.html' in html or 'js/page2' in html or 'switchTab(' in html:
+              raise SystemExit('Legacy dashboard dependency detected in fresh entry')
+          if 'nexusnova-tools-hub-v1.js' in html:
+              raise SystemExit('Legacy Tools Hub dependency detected')
+
+          registry = Path('fresh-rebuild/src/features/hub/app-registry.js').read_text(encoding='utf-8')
+          for tool in ('notes','todo','calculator','unit-converter','expenses','pomodoro','bmi','tip','world-clock','qr'):
+              if f"id: '{tool}'" not in registry:
+                  raise SystemExit(f'Direct Nova Hub tool missing: {tool}')
+
+          all_source = '\n'.join(p.read_text(encoding='utf-8') for p in Path('fresh-rebuild').rglob('*') if p.is_file() and p.suffix in {'.js','.html','.css'})
+          forbidden_runtime = (
+              'nexusnova-allapps-scroll-fix-v1.js',
+              'nexusnova-nova-hub-nav-v1.js',
+              'nexusnova-tools-hub-v1.js',
+              'page2-core.js'
+          )
+          for name in forbidden_runtime:
+              if re.search(r'(?:src|href)=["\'][^"\']*' + re.escape(name), all_source):
+                  raise SystemExit(f'Legacy runtime loaded by fresh app: {name}')
+          print('Fresh architecture checks passed')
+          PY
+
+      - name: Prepare isolated Android fresh bundle
+        env:
+          NEXUSNOVA_APP_CHECK_SITE_KEY: ${{ secrets.NEXUSNOVA_APP_CHECK_SITE_KEY }}
+        run: python NexusNovaAndroid/prepare_fresh_rebuild.py
+
+      - name: Apply Android TEST AdMob bridge
+        run: python NexusNovaAndroid/patch_admob.py
+
+      - name: Verify Android fresh bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f NexusNovaAndroid/app/src/main/assets/www/FRESH-REBUILD-BUILD.txt
+          test -f NexusNovaAndroid/app/src/main/assets/www/src/main.js
+          test ! -e NexusNovaAndroid/app/src/main/assets/www/page2.html
+          test ! -e NexusNovaAndroid/app/src/main/assets/www/js/page2-core.js
+
+          grep -q 'loadUrlSafely(LOCAL_APP_URL)' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -q 'private lateinit var adManager: NexusAdManager' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -q 'ACTION_SHOW_REWARDED_AD' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -q 'buildConfigField("Boolean", "NEXUS_ADS_TEST_MODE", "true")' NexusNovaAndroid/app/build.gradle.kts
+          echo 'Android fresh bundle checks passed'
+
+      - name: Build fresh debug TEST APK
+        working-directory: NexusNovaAndroid
+        run: gradle --no-daemon --stacktrace clean assembleDebug
+
+      - name: Stage APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK='NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk'
+          test -f "$APK"
+          mkdir -p fresh-apk
+          cp "$APK" fresh-apk/NexusNova-Fresh-Rebuild-TEST-20260820.apk
+          printf 'Branch: nexusnova-fresh-rebuild-20260820\nCommit: %s\nEdition: TEST/debug only\nUI: isolated fresh-rebuild\n' "$GITHUB_SHA" > fresh-apk/BUILD-INFO.txt
+          sha256sum fresh-apk/NexusNova-Fresh-Rebuild-TEST-20260820.apk > fresh-apk/SHA256.txt
+
+      - name: Upload fresh TEST APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexusnova-fresh-rebuild-test-apk
+          path: fresh-apk/
+          if-no-files-found: error
+          retention-days: 14
