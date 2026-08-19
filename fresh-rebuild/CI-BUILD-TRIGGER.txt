@@ -1,0 +1,4 @@
+NexusNova Fresh Rebuild TEST APK validation
+Branch: nexusnova-fresh-rebuild-20260820
+Date: 2026-08-20
+Purpose: trigger isolated PR-based CI inspection without changing main or Golden backups.
