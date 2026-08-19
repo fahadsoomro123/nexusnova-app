@@ -89,6 +89,11 @@ try {
       const shieldStyle = shield ? getComputedStyle(shield) : null;
       const mineRect = mine?.getBoundingClientRect();
       const dockRect = dock?.getBoundingClientRect();
+      const visibleDock = Array.from(document.querySelectorAll('.bottom-dock .dock-item')).filter(button => {
+        const style = getComputedStyle(button);
+        const rect = button.getBoundingClientRect();
+        return button.getAttribute('aria-hidden') !== 'true' && style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 20 && rect.height > 20;
+      });
       return {
         href: location.href,
         readyState: document.readyState,
@@ -101,6 +106,8 @@ try {
         homeContainsMine: Boolean(home && mine && home.contains(mine)),
         mineVisible: Boolean(mineRect && mineRect.width > 100 && mineRect.height > 40),
         dockVisible: Boolean(dockRect && dockRect.width > 100 && dockRect.height > 20),
+        visibleDockCount: visibleDock.length,
+        visibleDockLabels: visibleDock.map(button => String(button.getAttribute('aria-label') || button.textContent || '').replace(/\s+/g,' ').trim()),
         balance: String(document.getElementById('balance')?.textContent || '').trim(),
         btnText: String(document.getElementById('btnText')?.textContent || '').trim(),
         timer: String(document.getElementById('timer')?.textContent || '').trim(),
@@ -120,6 +127,7 @@ try {
     assert.equal(state.homeActive, true, `${label}: Mining screen is not active`);
     assert.equal(state.mineVisible, true, `${label}: Mine control is not visible`);
     assert.equal(state.dockVisible, true, `${label}: bottom dock is not visible`);
+    assert.equal(state.visibleDockCount, 2, `${label}: approved Mine + Nova Hub dock is not the only visible dock pair`);
     assert.notEqual(state.balance, '0.0000', `${label}: stale 0.0000 balance exposed`);
 
     if (expectWatchGuard && state.watchExists) {
@@ -140,29 +148,63 @@ try {
   await page.waitForTimeout(5000);
   await snapshot('8s', { expectWatchGuard:true });
 
-  stage('wallet navigation');
-  await bounded(page.locator('.bottom-dock .dock-item:nth-child(2)').click({ timeout:4500 }), 5500, 'wallet dock click');
+  // The approved phone-confirmed Nova Hub navigation deliberately exposes only
+  // Mine + Nova Hub in the dock. Wallet/Market live inside Nova Hub, so test the
+  // real navigation instead of clicking a hidden legacy Wallet dock button.
+  stage('open Nova Hub');
+  const hubButton = page.locator('#moreBtn');
+  await bounded(hubButton.click({ timeout:4500 }), 5500, 'Nova Hub dock click');
+  await bounded(
+    page.waitForFunction(() => {
+      const menu = document.getElementById('moreMenu');
+      if (!menu) return false;
+      const style = getComputedStyle(menu);
+      return menu.classList.contains('show') || document.body.classList.contains('nx-allapps-open') || (style.display !== 'none' && style.visibility !== 'hidden');
+    }, null, { timeout:3000 }),
+    4000,
+    'Nova Hub open wait'
+  );
+
+  stage('open Wallet from Nova Hub');
+  const hubWallet = page.locator('#moreMenu [data-nx-nova-hub-target="wallet"]');
+  await bounded(hubWallet.click({ timeout:4500 }), 5500, 'Nova Hub Wallet click');
   await bounded(
     page.waitForFunction(() => document.getElementById('tab-wallet')?.classList.contains('active') === true, null, { timeout:3000 }),
     4000,
-    'wallet active wait'
+    'Wallet active wait'
   );
 
-  stage('home navigation');
-  await bounded(page.locator('.bottom-dock .dock-item:nth-child(1)').click({ timeout:4500 }), 5500, 'home dock click');
+  const walletState = await bounded(page.evaluate(() => ({
+    walletActive: document.getElementById('tab-wallet')?.classList.contains('active') === true,
+    hubDockActive: document.getElementById('moreBtn')?.classList.contains('active') === true,
+    splashBlocking: (() => {
+      const splash = document.getElementById('nxSplash');
+      if (!splash) return false;
+      const style = getComputedStyle(splash);
+      return style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity) > 0 && style.pointerEvents !== 'none';
+    })(),
+  })), 2500, 'Wallet state evaluate');
+  console.log(`WALLET_STATE ${JSON.stringify(walletState)}`);
+  assert.equal(walletState.walletActive, true, 'Wallet did not open from Nova Hub');
+  assert.equal(walletState.hubDockActive, true, 'Nova Hub dock state did not follow Wallet');
+  assert.equal(walletState.splashBlocking, false, 'Splash returned after Wallet navigation');
+
+  stage('return to Mine');
+  const mineDock = page.locator('.bottom-dock .dock-item[data-nx-nova-hub-primary="1"]:not(#moreBtn)');
+  await bounded(mineDock.click({ timeout:4500 }), 5500, 'Mine dock click');
   await bounded(
     page.waitForFunction(() => document.getElementById('tab-home')?.classList.contains('active') === true, null, { timeout:3000 }),
     4000,
-    'home active wait'
+    'Mine active wait'
   );
   await page.waitForTimeout(1200);
-  await snapshot('after-wallet-home', { expectWatchGuard:true });
+  await snapshot('after-hub-wallet-mine', { expectWatchGuard:true });
 
   const severe = pageErrors.filter(text => !/Failed to fetch|ERR_FAILED|dynamically imported module|Importing a module script failed|NetworkError/i.test(text));
   assert.deepEqual(severe, [], `unexpected severe page errors: ${severe.join(' | ')}`);
 
   stage('PASS');
-  console.log('PASS Android dashboard startup proof: full staged shell remained responsive, splash/shield never blocked, stale zero stayed masked, and dock navigation worked with external network blocked.');
+  console.log('PASS Android dashboard startup proof: full staged shell remained responsive, splash/shield never blocked, stale zero stayed masked, Tasks ad guard stayed stable, and approved Mine -> Nova Hub -> Wallet -> Mine navigation worked with external network blocked.');
 } catch (error) {
   failure = error;
   console.error(`FAIL Android dashboard startup proof at +${Date.now() - startedAt}ms: ${error?.stack || error}`);
