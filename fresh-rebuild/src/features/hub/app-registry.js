@@ -2,6 +2,7 @@ export const novaApps = Object.freeze([
   { id: 'wallet', name: 'Wallet', category: 'Core', icon: 'wallet', description: 'Assets, portfolio and wallet actions' },
   { id: 'tasks', name: 'Rewards', category: 'Core', icon: 'tasks', description: 'Daily reward, tasks and verified bonuses' },
   { id: 'market', name: 'Market', category: 'Core', icon: 'market', description: 'Top assets and live market data' },
+  { id: 'profile', name: 'Profile', category: 'Core', icon: 'more', description: 'Identity, account stats and profile details' },
 
   { id: 'notes', name: 'Notes', category: 'Everyday Tools', icon: 'notes', description: 'Fast private notes' },
   { id: 'todo', name: 'To-Do', category: 'Everyday Tools', icon: 'todo', description: 'Simple focused task list' },
