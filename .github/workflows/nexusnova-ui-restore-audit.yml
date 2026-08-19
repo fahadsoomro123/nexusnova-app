@@ -7,6 +7,11 @@ on:
       - 'js/nexusnova-allapps-order-guard-v5.js'
       - 'js/nexusnova-ui-regression-repair-v1.js'
       - 'js/nexusnova-page2-after-core-v2.js'
+      - 'js/nexusnova-nova-hub-nav-v1.js'
+      - 'js/nexusnova-navigation-stability-v1.js'
+      - 'js/nexusnova-account-deletion-settings-v1.js'
+      - 'NexusNovaAndroid/patch_essential_settings_v3.py'
+      - '.github/scripts/nexusnova-settings-essential-runtime.mjs'
       - '.github/scripts/nexusnova-ui-restore-runtime.mjs'
       - '.github/scripts/nexusnova-dashboard-splash-deep-test.mjs'
       - '.github/workflows/nexusnova-ui-restore-audit.yml'
@@ -54,11 +59,23 @@ jobs:
           node --check js/nexusnova-allapps-order-guard-v5.js
           node --check js/nexusnova-ui-regression-repair-v1.js
           node --check js/nexusnova-page2-after-core-v2.js
+          node --check js/nexusnova-nova-hub-nav-v1.js
+          node --check js/nexusnova-navigation-stability-v1.js
+          node --check js/nexusnova-account-deletion-settings-v1.js
+          node --check .github/scripts/nexusnova-settings-essential-runtime.mjs
           node --check .github/scripts/nexusnova-ui-restore-runtime.mjs
           node --check .github/scripts/nexusnova-dashboard-splash-deep-test.mjs
           grep -Fq 'nxAllAppsPolishV1' js/nexusnova-allapps-order-guard-v5.js
           grep -Fq 'width:40px!important' js/nexusnova-allapps-order-guard-v5.js
           grep -Fq "tab.id==='tab-about'" js/nexusnova-allapps-order-guard-v5.js
+          grep -Fq "if (name === 'about')" js/nexusnova-navigation-stability-v1.js
+          grep -Fq "const MINE_DOMAIN = new Set(['home','wallet','tasks','market'])" js/nexusnova-nova-hub-nav-v1.js
+          grep -Fq 'All apps, utilities, learning and daily tools in one place.' js/nexusnova-nova-hub-nav-v1.js
+          if grep -Fq 'createCoreButton' js/nexusnova-nova-hub-nav-v1.js; then
+            echo 'Legacy synthetic Wallet/Market Hub buttons returned.' >&2
+            exit 1
+          fi
+          grep -Fq 'NexusNova Essential Settings v3 - single owner' js/nexusnova-account-deletion-settings-v1.js
           grep -Fq 'NexusNovaUiRegressionRepair' js/nexusnova-ui-regression-repair-v1.js
           grep -Fq 'nxMineQuickNavV1' js/nexusnova-ui-regression-repair-v1.js
           grep -Fq "await import('./nexusnova-ui-regression-repair-v1.js?v=1')" js/nexusnova-page2-after-core-v2.js
@@ -101,6 +118,10 @@ jobs:
           grep -Fq 'nxAllAppsPolishV1' "$WEB/js/nexusnova-allapps-order-guard-v5.js"
           grep -Fq 'NexusNovaUiRegressionRepair' "$WEB/js/nexusnova-ui-regression-repair-v1.js"
           grep -Fq "await import('./nexusnova-ui-regression-repair-v1.js?v=1')" "$WEB/js/nexusnova-page2-after-core-v2.js"
+          grep -Fq "if (name === 'about')" "$WEB/js/nexusnova-navigation-stability-v1.js"
+          grep -Fq "const MINE_DOMAIN = new Set(['home','wallet','tasks','market'])" "$WEB/js/nexusnova-nova-hub-nav-v1.js"
+          if grep -Fq 'createCoreButton' "$WEB/js/nexusnova-nova-hub-nav-v1.js"; then exit 1; fi
+          grep -Fq 'NexusNova Essential Settings v3 - single owner' "$WEB/js/nexusnova-account-deletion-settings-v1.js"
           grep -Fq 'nx-single-startup-owner-v4' "$WEB/js/page2.js"
           if grep -Fq 'nxSecureStartupShieldV3' "$WEB/js/page2.js"; then exit 1; fi
           echo 'PASS exact Android UI restore staging.'
@@ -126,6 +147,10 @@ jobs:
           done
           cat /tmp/nx-ui-http.log || true
           exit 1
+
+      - name: Exact tiny Settings runtime
+        id: settings_runtime
+        run: node .github/scripts/nexusnova-settings-essential-runtime.mjs
 
       - name: Exact Android phone-UI restore runtime
         id: ui_runtime
@@ -161,6 +186,7 @@ jobs:
             echo "prepare=${{ steps.prepare.outcome }}"
             echo "signin=${{ steps.signin.outcome }}"
             echo "server=${{ steps.server.outcome }}"
+            echo "settings_runtime=${{ steps.settings_runtime.outcome }}"
             echo "ui_runtime=${{ steps.ui_runtime.outcome }}"
             echo "startup_runtime=${{ steps.startup_runtime.outcome }}"
             echo "apk_built=no"
@@ -171,7 +197,7 @@ jobs:
             echo "checked_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
             echo '--- ui runtime evidence ---'
             if test -s /tmp/nx-ui-restore-runtime.log; then
-              grep -E 'UI_HUB_STATE|UI_SETTINGS_STATE|UI_MINE_DOMAIN|PASS UI restore runtime|FAIL|AssertionError|Missing Nova Hub features' /tmp/nx-ui-restore-runtime.log || true
+              grep -E 'UI_HUB_STATE|UI_SETTINGS_STATE|UI_MINE_DOMAIN|PASS UI restore runtime|FAIL|AssertionError|Missing Nova Hub features|Duplicate All Apps order owners' /tmp/nx-ui-restore-runtime.log || true
             fi
             echo '--- startup evidence ---'
             if test -s /tmp/nx-ui-startup-runtime.log; then
