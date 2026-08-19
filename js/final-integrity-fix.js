@@ -59,9 +59,6 @@
   loadCritical({flag:'__nxRewardedAdsV1',marker:'data-nx-rewarded-ads',src:'./js/nexusnova-rewarded-ads-v1.js?v=1',error:'NexusNova rewarded ads bridge failed to load.'});
   loadCritical({flag:'__nxRewardedAdsButtonGuardV1',marker:'data-nx-rewarded-guard',src:'./js/nexusnova-rewarded-ads-button-guard-v1.js?v=1',error:'NexusNova rewarded ads button guard failed to load.'});
   loadCritical({flag:'__nxAdSettingsV2',marker:'data-nx-ad-settings-v2',src:'./js/nexusnova-ad-settings-v2.js?v=20260817-test',error:'NexusNova TEST ad settings failed to load.'});
-  loadCritical({flag:'__nxAdPlacementsV1',marker:'data-nx-ad-placements-v1',src:'./js/nexusnova-ad-placements-v1.js?v=20260817-livefix1',error:'NexusNova ad placement controller failed to load.'});
-  loadCritical({flag:'__nxWatchAdRewardV1',marker:'data-nx-watch-ad-reward-v1',src:'./js/nexusnova-watch-ad-reward-v1.js?v=20260817-livefix1',error:'NexusNova Watch Ad reward flow failed to load.'});
-  loadCritical({flag:'__nxExistingAppAdHotfixV1',marker:'data-nx-existing-app-ad-hotfix-v1',src:'./js/nexusnova-existing-app-ad-hotfix-v1.js?v=20260817-0909',error:'NexusNova existing-app ad hotfix failed to load.'});
   loadCritical({flag:'__nxExistingAppAdHotfixV2',marker:'data-nx-existing-app-ad-hotfix-v2',src:'./js/nexusnova-existing-app-ad-hotfix-v2.js?v=20260819-observerfix1',error:'NexusNova existing-app ad hotfix v2 failed to load.'});
   loadCritical({flag:'__nxUxSimplifyV1',marker:'data-nx-ux-simplify-v1',src:'./js/nexusnova-ux-simplify-v1.js?v=20260817-1015',error:'NexusNova UX simplify hotfix failed to load.'});
   loadCritical({flag:'__nxSpeedTestAppV4',marker:'data-nx-speedtest-app-v4',src:'./js/nexusnova-speedtest-app-v4.js?v=20260817-1043',error:'NexusNova standalone Internet Speed Test failed to load.'});
@@ -70,7 +67,6 @@
   loadCritical({flag:'__nxCommunityProgressV1',marker:'data-nx-community-progress',src:'./js/nexusnova-community-progress-v1.js?v=1',error:'NexusNova Community League failed to load.'});
   loadCritical({flag:'__nxCompleteProfileV1',marker:'data-nx-complete-profile',src:'./js/nexusnova-complete-profile-v1.js?v=1',error:'NexusNova Complete Profile failed to load.'});
   loadCritical({flag:'__nxGrowthCenterV1',marker:'data-nx-growth-center',src:'./js/nexusnova-growth-center-v1.js?v=1',error:'NexusNova Growth Center failed to load.'});
-  loadCritical({flag:'__nxNovaVaultV1',marker:'data-nx-nova-vault',src:'./js/nexusnova-nova-vault-v1.js?v=1',error:'NexusNova Nova Vault failed to load.'});
   loadCritical({flag:'__nxGrowthReferralLinkV1',marker:'data-nx-growth-referral-link',src:'./js/nexusnova-growth-referral-link-v1.js?v=2',error:'NexusNova referral invite link guard failed to load.'});
   loadCritical({flag:'__nxReferralCaptureV1',marker:'data-nx-referral-capture',src:'./js/nexusnova-referral-capture-v1.js?v=1',error:'NexusNova referral capture failed to load.'});
   loadCritical({flag:'__nxOnboardingInsightsV1',marker:'data-nx-onboarding-insights',src:'./js/nexusnova-onboarding-insights-v1.js?v=1',error:'NexusNova guided onboarding failed to load.'});
