@@ -140,7 +140,8 @@ jobs:
             test ! -e NexusNovaAndroid/app/src/main/assets/www/page2.html
             test ! -e NexusNovaAndroid/app/src/main/assets/www/js/page2-core.js
 
-            grep -q 'loadUrlSafely(LOCAL_APP_URL)' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+            grep -q 'usingOfflineFallback = true' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+            grep -q 'webView.loadUrl(LOCAL_APP_URL)' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
             grep -q 'private lateinit var adManager: NexusAdManager' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
             grep -q 'ACTION_SHOW_REWARDED_AD' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
             grep -q 'buildConfigField("boolean", "NEXUS_ADS_TEST_MODE", "true")' NexusNovaAndroid/app/build.gradle.kts
