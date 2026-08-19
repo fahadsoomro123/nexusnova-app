@@ -7,9 +7,11 @@
 */
 if (!window.__nxFastDashboardLauncherV4) {
   window.__nxFastDashboardLauncherV4 = true;
-  // Compatibility marker for older diagnostics; v4 intentionally has no shield.
+  // Compatibility markers for older diagnostics; v4 intentionally has no shield.
   window.__nxFastDashboardLauncherV3 = true;
   window.__nxSingleStartupOwnerV4 = true; // nx-single-startup-owner-v4
+  // nx-android-dashboard-no-secondary-shield-v1: compatibility contract only;
+  // there is no secondary shield implementation in this launcher.
 
   try {
     await import('./nexusnova-page2-core-launch-v2.js?v=1');
