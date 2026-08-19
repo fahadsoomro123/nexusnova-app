@@ -7,7 +7,7 @@
   if (window.__nxSpeedTestAppV4) return;
   window.__nxSpeedTestAppV4 = true;
 
-  const VERSION = '4.0.0';
+  const VERSION = '4.0.1';
   const TAB_ID = 'tab-speed-test';
   const MENU_ATTR = 'data-nx-speedtest-v4';
   const DOWNLOAD_BYTES = 4_000_000;
@@ -448,12 +448,21 @@
     }
   }
 
+  function installActivationObserver() {
+    const tab = $(TAB_ID) || ensureTab();
+    if (!tab || tab.__nxSpeed4ActivationObserver) return;
+    const observer = new MutationObserver(syncActiveState);
+    observer.observe(tab, { attributes:true, attributeFilter:['class'] });
+    tab.__nxSpeed4ActivationObserver = observer;
+  }
+
   function install() {
     ensureCss();
     ensureTab();
     ensureMenuTile();
     hideLegacyToolsSpeed();
     wrapLegacyShowTool();
+    installActivationObserver();
     syncActiveState();
   }
 
@@ -472,12 +481,13 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install, { once: true });
   else install();
 
-  const observer = new MutationObserver(() => {
-    ensureMenuTile();
-    hideLegacyToolsSpeed();
-    wrapLegacyShowTool();
-    syncActiveState();
+  // Freeze guard: only the Speed Test tab's active-class changes need observation.
+  // The old documentElement subtree/class observer reacted to every Nova Hub and
+  // navigation class mutation, producing a feedback storm in Android WebView.
+  window.addEventListener('nexusnova:tab-changed', event => {
+    const name = String(event?.detail?.name || '').replace(/^tab-/, '');
+    if (name === 'speed-test' || $(TAB_ID)?.classList.contains('active')) syncActiveState();
   });
-  observer.observe(document.documentElement, { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] });
+  window.addEventListener('pageshow', syncActiveState);
   [300, 900, 1800, 3500, 7000].forEach(ms => setTimeout(install, ms));
 })();
