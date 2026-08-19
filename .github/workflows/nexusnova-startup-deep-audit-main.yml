@@ -5,6 +5,9 @@ on:
     branches: [main]
     paths:
       - 'js/page2.js'
+      - 'NexusNovaAndroid/patch_startup_reveal_v2.py'
+      - 'NexusNovaAndroid/patch_native_startup_escape_v3.py'
+      - 'NexusNovaAndroid/patch_native_splash_release_v4.py'
       - 'NexusNovaAndroid/patch_dashboard_startup_lockfix_v1.py'
       - '.github/scripts/nexusnova-dashboard-splash-deep-test.mjs'
       - '.github/workflows/nexusnova-startup-deep-audit-main.yml'
