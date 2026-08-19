@@ -1,199 +1,141 @@
-/* NexusNova Essential Settings v3
-   Compact Settings cleanup. Keeps only useful account/preferences controls,
-   plus Privacy Policy and account deletion. No mining, Nova Hub, rewards,
-   wallet, market, or sign-in logic is changed.
+/* NexusNova Essential Settings v3 - single owner
+   Deliberately tiny Settings: Account essentials + Appearance/Theme only,
+   with Privacy Policy, Delete Account and Sign out kept visible.
+   No mining, Nova Hub, rewards, wallet, market or sign-in logic is changed.
 */
 (() => {
   'use strict';
   if (window.__nxEssentialSettingsV3) return;
   window.__nxEssentialSettingsV3 = true;
 
-  const DELETE_ROW_ID = 'nxAccountDeletionSettingsRow';
-  const PRIVACY_ROW_ID = 'nxPrivacyPolicySettingsRow';
-  const STYLE_ID = 'nxEssentialSettingsStyleV3';
-  const PRODUCTION_ROOT = 'https://fahadsoomro123.github.io/nexusnova-app/';
+  const PUBLIC_BASE = 'https://fahadsoomro123.github.io/nexusnova-app/';
+  const DELETE_ID = 'nxAccountDeletionSettingsRow';
+  const PRIVACY_ID = 'nxPrivacyPolicySettingsRow';
+  const STYLE_ID = 'nxEssentialSettingsV3Style';
 
-  function legalUrl(path) {
-    const file = String(path || '').replace(/^\.\//, '').replace(/^\/+/, '');
+  function publicUrl(file) {
     try {
       const current = new URL(window.location.href);
-      // The packaged Android shell keeps the github.io origin but uses the
-      // synthetic /nexusnova-native/ path. BrowserActivity does not serve that
-      // synthetic path, so bridge opens must use the real public Pages URL.
-      if (
-        current.hostname.toLowerCase() === 'fahadsoomro123.github.io' &&
-        current.pathname.startsWith('/nexusnova-native/')
-      ) {
-        return new URL(file, PRODUCTION_ROOT).href;
+      if (current.hostname.toLowerCase() === 'fahadsoomro123.github.io' && current.pathname.startsWith('/nexusnova-native/')) {
+        return new URL(file, PUBLIC_BASE).href;
       }
       return new URL(file, current.href).href;
     } catch (_) {
-      return new URL(file, PRODUCTION_ROOT).href;
+      return new URL(file, PUBLIC_BASE).href;
     }
   }
 
-  function openLegalPage(path) {
-    const url = legalUrl(path);
+  function openPublic(file) {
+    const url = publicUrl(file);
     try {
       if (typeof window.NexusBrowserAndroid?.postMessage === 'function') {
-        window.NexusBrowserAndroid.postMessage(JSON.stringify({ action: 'open', url }));
+        window.NexusBrowserAndroid.postMessage(JSON.stringify({ action:'open', url }));
         return;
       }
-    } catch (error) {
-      console.warn('NexusNova Settings browser bridge:', error);
-    }
-
+    } catch (_) {}
     try {
       const opened = window.open(url, '_blank', 'noopener,noreferrer');
       if (opened) return;
     } catch (_) {}
-
-    // In the packaged Android WebView this same-document fallback is also safe
-    // because the legal pages are copied into the APK shell.
     window.location.href = url;
   }
 
-  window.openNexusAccountDeletion = () => openLegalPage('./account-deletion.html');
-  window.openNexusPrivacyPolicy = () => openLegalPage('./privacy-policy.html');
+  window.openNexusPrivacyPolicy = () => openPublic('privacy-policy.html');
+  window.openNexusAccountDeletion = () => openPublic('account-deletion.html');
+
+  const text = el => String(el?.textContent || '').replace(/\s+/g,' ').trim().toLowerCase();
+  const cards = settings => Array.from(settings.querySelectorAll('.settings-card'));
+  const cardBy = (settings, name) => cards(settings).find(card => text(card.querySelector('h2,h3')).includes(name)) || null;
+  const rowBy = (card, label) => Array.from(card?.querySelectorAll('.settings-row') || []).find(row => text(row.querySelector('strong')) === String(label).toLowerCase()) || null;
+
+  function addRow(card, id, title, copy, buttonText, handler, danger=false) {
+    if (!card) return;
+    let row = document.getElementById(id);
+    if (!row) {
+      row = document.createElement('div');
+      row.id = id;
+      row.className = 'settings-row';
+      row.innerHTML = `<div><strong>${title}</strong><small>${copy}</small></div><button type="button" class="settings-btn ${danger ? 'settings-logout nx-delete-btn' : 'settings-reset'}">${buttonText}</button>`;
+      card.appendChild(row);
+    }
+    const button = row.querySelector('button');
+    if (button) {
+      button.id = id === PRIVACY_ID ? 'nxPrivacyPolicyBtn' : 'nxAccountDeletionBtn';
+      if (button.dataset.nxEssentialBound !== '1') {
+        button.dataset.nxEssentialBound = '1';
+        button.addEventListener('click', handler);
+      }
+    }
+  }
 
   function installStyle() {
     if (document.getElementById(STYLE_ID)) return;
     const style = document.createElement('style');
     style.id = STYLE_ID;
     style.textContent = `
-      #tab-about .settings-hero{padding:14px 16px!important;margin-bottom:10px!important;border-radius:18px!important}
-      #tab-about .settings-hero h2{font-size:18px!important;margin:0!important}
-      #tab-about .settings-hero .settings-muted{font-size:10px!important;margin-top:4px!important;line-height:1.35!important}
-      #tab-about .settings-version{font-size:9px!important;padding:5px 7px!important}
-      #tab-about .settings-card{padding:12px 14px!important;margin-bottom:10px!important;border-radius:17px!important}
-      #tab-about .settings-card>h3{font-size:13px!important;margin:0 0 4px!important}
-      #tab-about .settings-row{padding:9px 0!important;min-height:0!important;gap:8px!important}
-      #tab-about .settings-row strong{font-size:11px!important;line-height:1.25!important}
-      #tab-about .settings-row small{font-size:9px!important;line-height:1.35!important;margin-top:2px!important}
-      #tab-about .settings-btn,#tab-about .settings-select{font-size:9px!important;min-height:30px!important;padding:6px 8px!important;border-radius:9px!important}
-      #tab-about .settings-actions{gap:5px!important}
-      #${DELETE_ROW_ID}{border-top:1px solid rgba(255,125,145,.16)!important}
-      #${DELETE_ROW_ID} strong{color:#ffb3c0!important}
-      #${DELETE_ROW_ID} .nx-delete-btn{border:1px solid rgba(255,125,145,.38)!important;background:rgba(111,30,50,.78)!important;color:#fff!important}
-      #${PRIVACY_ROW_ID}{border-top:1px solid rgba(94,177,255,.12)!important}
+      #tab-about .settings-hero{padding:13px 15px!important;margin-bottom:9px!important;border-radius:17px!important}
+      #tab-about .settings-hero h2{font-size:17px!important;margin:0!important}
+      #tab-about .settings-hero .settings-muted{font-size:9px!important;margin-top:3px!important;line-height:1.35!important}
+      #tab-about .settings-version{font-size:8px!important;padding:4px 6px!important}
+      #tab-about .settings-card{padding:11px 13px!important;margin-bottom:9px!important;border-radius:16px!important}
+      #tab-about .settings-card>h3{font-size:12px!important;margin:0 0 3px!important}
+      #tab-about .settings-row{padding:8px 0!important;min-height:0!important;gap:8px!important}
+      #tab-about .settings-row strong{font-size:10.5px!important;line-height:1.2!important}
+      #tab-about .settings-row small{font-size:8.5px!important;line-height:1.3!important;margin-top:2px!important}
+      #tab-about .settings-btn,#tab-about .settings-select{font-size:8.5px!important;min-height:29px!important;padding:6px 8px!important;border-radius:9px!important}
+      #${DELETE_ID}{border-top:1px solid rgba(255,120,145,.18)!important}
+      #${DELETE_ID} strong{color:#ffb1bf!important}
+      #${DELETE_ID} .nx-delete-btn{border-color:rgba(255,125,145,.38)!important;background:rgba(111,30,50,.78)!important;color:#fff!important}
+      #${PRIVACY_ID}{border-top:1px solid rgba(94,177,255,.12)!important}
     `;
     document.head.appendChild(style);
   }
 
-  function headingText(card) {
-    return String(card?.querySelector('h2,h3')?.textContent || '')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .toLowerCase();
-  }
-
-  function findCard(settings, needle) {
-    return Array.from(settings.querySelectorAll('.settings-card')).find(card =>
-      headingText(card).includes(String(needle).toLowerCase())
-    ) || null;
-  }
-
-  function findRow(card, label) {
-    return Array.from(card?.querySelectorAll('.settings-row') || []).find(row =>
-      String(row.querySelector('strong')?.textContent || '')
-        .trim()
-        .toLowerCase() === String(label).toLowerCase()
-    ) || null;
-  }
-
-  function addPrivacyRow(accountCard) {
-    if (!accountCard || document.getElementById(PRIVACY_ROW_ID)) return;
-    const row = document.createElement('div');
-    row.id = PRIVACY_ROW_ID;
-    row.className = 'settings-row';
-    row.innerHTML = `
-      <div>
-        <strong>Privacy Policy</strong>
-        <small>Read how NexusNova handles account and app data.</small>
-      </div>
-      <button type="button" class="settings-btn settings-reset" id="nxPrivacyPolicyBtn">Open</button>`;
-    accountCard.appendChild(row);
-    row.querySelector('#nxPrivacyPolicyBtn')?.addEventListener('click', window.openNexusPrivacyPolicy);
-  }
-
-  function addDeletionRow(accountCard) {
-    if (!accountCard || document.getElementById(DELETE_ROW_ID)) return;
-    const row = document.createElement('div');
-    row.id = DELETE_ROW_ID;
-    row.className = 'settings-row';
-    row.innerHTML = `
-      <div>
-        <strong>Delete Account</strong>
-        <small>Request permanent deletion of your NexusNova account and associated data.</small>
-      </div>
-      <button type="button" class="settings-btn settings-reset nx-delete-btn" id="nxAccountDeletionBtn">Delete</button>`;
-    accountCard.appendChild(row);
-    row.querySelector('#nxAccountDeletionBtn')?.addEventListener('click', window.openNexusAccountDeletion);
-  }
-
-  function simplifySettings() {
+  function simplify() {
     const settings = document.getElementById('tab-about');
     if (!settings) return false;
-
     installStyle();
 
     const hero = settings.querySelector('.settings-hero');
     if (hero) {
-      const title = hero.querySelector('h2');
-      const subtitle = hero.querySelector('.settings-muted');
-      if (title) title.textContent = '⚙️ Settings';
-      if (subtitle) subtitle.textContent = 'Account and essential app preferences.';
+      const h = hero.querySelector('h2');
+      const p = hero.querySelector('.settings-muted');
+      if (h) h.textContent = '⚙️ Settings';
+      if (p) p.textContent = 'Account and essential preferences.';
     }
 
-    const accountCard = findCard(settings, 'account');
-    const appearanceCard = findCard(settings, 'appearance');
-    const aiCard = findCard(settings, 'ai');
+    const account = cardBy(settings, 'account');
+    const appearance = cardBy(settings, 'appearance');
 
-    if (accountCard) {
-      addPrivacyRow(accountCard);
-      addDeletionRow(accountCard);
-
-      const signOutRow = findRow(accountCard, 'Sign out');
-      if (signOutRow) accountCard.appendChild(signOutRow);
+    if (account) {
+      addRow(account, PRIVACY_ID, 'Privacy Policy', 'Read NexusNova privacy information.', 'Open', window.openNexusPrivacyPolicy);
+      addRow(account, DELETE_ID, 'Delete Account', 'Request permanent account and data deletion.', 'Delete', window.openNexusAccountDeletion, true);
+      const signout = rowBy(account, 'sign out');
+      if (signout) account.appendChild(signout);
     }
 
-    if (appearanceCard) {
-      const heading = appearanceCard.querySelector('h3');
-      if (heading) heading.textContent = 'Preferences';
-      findRow(appearanceCard, 'Compact mode')?.remove();
-
-      if (aiCard) {
-        const aiLanguage = findRow(aiCard, 'AI language');
-        const voiceReplies = findRow(aiCard, 'Voice replies');
-        if (aiLanguage) appearanceCard.appendChild(aiLanguage);
-        if (voiceReplies) appearanceCard.appendChild(voiceReplies);
-        aiCard.remove();
-      }
-    } else if (aiCard) {
-      findRow(aiCard, 'Clear saved AI data')?.remove();
+    if (appearance) {
+      const heading = appearance.querySelector('h3');
+      if (heading) heading.textContent = 'Appearance';
+      Array.from(appearance.querySelectorAll('.settings-row')).forEach(row => {
+        if (text(row.querySelector('strong')) !== 'theme') row.remove();
+      });
     }
 
-    [
-      'notifications',
-      'privacy & permissions',
-      'general',
-      'system status',
-      'support & about'
-    ].forEach(label => findCard(settings, label)?.remove());
+    cards(settings).forEach(card => {
+      if (card !== account && card !== appearance) card.remove();
+    });
 
     document.documentElement.dataset.nxSettingsSimple = '1';
     document.documentElement.dataset.nxSettingsVersion = '3';
-    return Boolean(accountCard);
+    return Boolean(account);
   }
 
   function boot() {
-    simplifySettings();
-    [250, 700, 1500, 3500].forEach(ms => setTimeout(simplifySettings, ms));
+    simplify();
+    [150,450,1000,2200,4500].forEach(ms => setTimeout(simplify, ms));
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', boot, { once: true });
-  } else {
-    boot();
-  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, {once:true});
+  else boot();
 })();
