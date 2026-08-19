@@ -67,6 +67,25 @@ router = createRouter({
   }
 });
 
+/* Android MainActivity already asks NexusNovaUxSimplify.systemBack().
+   Keep that native contract, but give it a fresh implementation instead of
+   loading any legacy UX script. */
+window.NexusNovaUxSimplify = Object.freeze({
+  systemBack() {
+    if (!router?.current || router.current === 'auth' || router.current === 'mine') return false;
+    if (router.current === 'app') {
+      router.render('hub');
+      return true;
+    }
+    if (router.current === 'hub') {
+      router.render('mine');
+      return true;
+    }
+    router.render('mine');
+    return true;
+  }
+});
+
 dockItems.forEach(button => button.addEventListener('click', () => router.render(button.dataset.route)));
 
 async function boot() {
