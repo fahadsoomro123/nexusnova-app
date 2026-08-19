@@ -1,5 +1,5 @@
 /* NexusNova Service Worker - fresh-code first, bounded network + offline fallback + FCM web push */
-const CACHE = "nexusnova-shell-v24-auth-startup-recovery";
+const CACHE = "nexusnova-shell-v25-vault10x-ads";
 
 const ASSETS = [
   "./",
@@ -37,6 +37,8 @@ const ASSETS = [
   "./js/rewards-security-v1.js",
   "./js/nexusnova-rewards-spark-v1.js",
   "./js/nexusnova-nova-vault-v1.js",
+  "./js/nexusnova-nova-vault-10x-v1.js",
+  "./js/nexusnova-hub-ad-gate-v1.js",
   "./js/nexusnova-rewarded-ads-config-v1.js",
   "./js/nexusnova-rewarded-ads-v1.js",
   "./js/nexusnova-rewarded-ads-button-guard-v1.js",
