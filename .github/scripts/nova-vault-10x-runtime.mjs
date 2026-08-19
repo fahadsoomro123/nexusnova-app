@@ -1,5 +1,20 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { chromium } from 'playwright';
+
+// Root-cause regression contract for the Android startup freeze fixed on
+// 2026-08-19. The Tasks ad hotfix observes id/onclick mutations, so its repair
+// must never rewrite those attributes when they already have the desired value.
+// Both dynamic loading and service-worker pre-cache must request the same fixed
+// cache-busted script so a stale self-loop copy cannot be revived.
+const startupHotfix = await readFile('js/nexusnova-existing-app-ad-hotfix-v2.js', 'utf8');
+const integrityLoader = await readFile('js/final-integrity-fix.js', 'utf8');
+const serviceWorker = await readFile('sw.js', 'utf8');
+const fixedHotfixUrl = 'nexusnova-existing-app-ad-hotfix-v2.js?v=20260819-observerfix1';
+assert.ok(startupHotfix.includes('if (button.id !== WATCH_BUTTON_ID) button.id = WATCH_BUTTON_ID;'), 'startup observer idempotence guard missing');
+assert.ok(startupHotfix.includes("if (button.getAttribute('onclick') !== 'watchAdReward()')"), 'startup observer onclick idempotence guard missing');
+assert.ok(integrityLoader.includes(fixedHotfixUrl), 'dynamic loader is not pinned to the fixed startup hotfix');
+assert.ok(serviceWorker.includes(fixedHotfixUrl), 'service worker is not pinned to the fixed startup hotfix');
 
 const origin = 'http://127.0.0.1:4173';
 const browser = await chromium.launch({ headless:true });
@@ -184,7 +199,7 @@ try {
   await page.locator('#hubNews').click();
   await page.waitForFunction(() => window.__openedFeatures.includes('news'));
 
-  console.log('PASS Nova Vault 10x: TEST ads are value-free, production credits use secure callable, and Hub ads never block protected/no-fill navigation.');
+  console.log('PASS Nova Vault 10x + startup observer contract: TEST ads are value-free, production credits use secure callable, Hub ads never block protected/no-fill navigation, and the fixed hotfix is pinned across loader/cache.');
 } finally {
   await browser.close();
 }
