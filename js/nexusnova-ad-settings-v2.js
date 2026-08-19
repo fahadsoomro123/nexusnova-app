@@ -2,9 +2,8 @@
    TESTING-edition ad policy + bootstrap.
 
    This module deliberately does NOT enable production ad IDs or production
-   value rewards. It wires the already-audited TEST rewarded/interstitial
-   modules into the normal app boot path and exposes one clear policy/status
-   card in Settings for device testing.
+   value rewards. It exposes the TEST ad policy/status card in Settings while
+   the dedicated core/post-core owners load the functional ad modules.
 
    UX rules:
    - Rewarded ads are always user initiated.
@@ -49,12 +48,12 @@
 
   window.NexusNovaAdPolicy = TEST_POLICY;
 
+  // Functional ad ownership is intentionally elsewhere:
+  // - Daily Reward gate: nexusnova-page2-core-launch-v2.js
+  // - Placements / Watch Ad / Privacy: nexusnova-page2-after-core-v2.js
+  // Settings owns diagnostics/status only, avoiding duplicate module loaders.
   const MODULES = [
-    { flag:'__nxAdPlacementsV1', marker:'data-nx-ad-placements-v1', src:'./js/nexusnova-ad-placements-v1.js?v=20260817-test', label:'ad placement controller' },
-    { flag:'__nxDailyRewardAdGateV4', marker:'data-nx-daily-ad-gate-v4', src:'./js/nexusnova-daily-ad-test-v1.js?v=20260817-test', label:'Daily Reward ad gate' },
-    { flag:'__nxWatchAdRewardV1', marker:'data-nx-watch-ad-reward-v1', src:'./js/nexusnova-watch-ad-reward-v1.js?v=20260817-test', label:'Watch Ad reward flow' },
-    { flag:'__nxAdMobDiagnosticsV2', marker:'data-nx-admob-diagnostics-v2', src:'./js/nexusnova-admob-diagnostics-v1.js?v=20260817-test', label:'AdMob diagnostics' },
-    { flag:'__nxAdPrivacyV1', marker:'data-nx-ad-privacy-v1', src:'./js/nexusnova-ad-privacy-v1.js?v=20260817-test', label:'ad privacy controls' }
+    { flag:'__nxAdMobDiagnosticsV2', marker:'data-nx-admob-diagnostics-v2', src:'./js/nexusnova-admob-diagnostics-v1.js?v=20260817-test', label:'AdMob diagnostics' }
   ];
 
   function loadModule(mod) {
@@ -86,7 +85,6 @@
   }
 
   async function bootModules() {
-    // Placement controller first: Watch Ad uses NexusNovaAds.requestRewarded().
     for (const mod of MODULES) await loadModule(mod);
     requestStatus();
     renderSettingsCard();
