@@ -173,6 +173,14 @@
       console.warn('NexusNova account deletion Settings option:', error);
     }
 
+    // Focused phone-UI regression restore. Loaded only after the approved Nova
+    // Hub + Settings owners exist, so it cannot become another startup owner.
+    try {
+      await import('./nexusnova-ui-regression-repair-v1.js?v=1');
+    } catch (error) {
+      console.warn('NexusNova UI regression repair:', error);
+    }
+
     window.__nxPage2AfterCoreReadyV2 = true;
     window.dispatchEvent(new Event('nexusnova:after-core-ready'));
   })().catch(error => {
