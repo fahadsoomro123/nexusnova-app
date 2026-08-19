@@ -1,17 +1,17 @@
-/* NexusNova Nova Hub Navigation v1
-   Web-only branding/navigation layer for the live Android WebView.
-   Keeps every existing tab and feature logic intact while presenting a compact
-   two-destination dock: Mine + Nova Hub. Wallet/Tasks/Market remain reachable
-   inside Nova Hub; no mining, rewards, auth, ads or native code is changed.
+/* NexusNova Nova Hub Navigation v1.1
+   Compact two-destination dock: Mine + Nova Hub.
+   Wallet / Tasks / Market belong to the Mine workspace; Nova Hub owns the app grid.
+   No mining, rewards, auth, ads or native code is changed.
 */
 (() => {
   'use strict';
   if (window.__nxNovaHubNavV1) return;
   window.__nxNovaHubNavV1 = true;
-  window.nexusNovaHubNavVersion = 'nova-hub-nav-v1';
+  window.nexusNovaHubNavVersion = 'nova-hub-nav-v1.1';
 
   const $ = id => document.getElementById(id);
   const $$ = sel => Array.from(document.querySelectorAll(sel));
+  const MINE_DOMAIN = new Set(['home','wallet','tasks','market']);
 
   const HUB_ICON = `
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -24,16 +24,6 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
       <path d="M13.6 2.8 6.9 13h4.4l-.9 8.2L17.1 11h-4.4l.9-8.2Z" fill="currentColor" stroke="none"/>
       <circle cx="12" cy="12" r="9" opacity=".32"/>
-    </svg>`;
-
-  const WALLET_ICON = `
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <rect x="3" y="6" width="18" height="13" rx="3"/><path d="M3 9h18"/><path d="M15.5 13.2h3"/>
-    </svg>`;
-
-  const MARKET_ICON = `
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <path d="M4 18V9l4 3.2 4-6.1 4 5 4-2.6V18"/><path d="M4 18h16"/>
     </svg>`;
 
   function installStyles() {
@@ -78,7 +68,6 @@
       #moreMenu .nx-nova-hub-kicker{font-size:9px;font-weight:950;letter-spacing:.19em;color:#61c8ff}
       #moreMenu .nx-nova-hub-title{margin-top:2px;font-size:18px;font-weight:950;color:#f4fbff;letter-spacing:-.02em}
       #moreMenu .nx-nova-hub-copy{margin-top:8px;font-size:10px;line-height:1.5;color:#829db8}
-      #moreMenu .more-item[data-nx-nova-hub-core="1"]{border-color:rgba(84,178,255,.19)!important;background:linear-gradient(145deg,rgba(11,43,80,.88),rgba(5,23,45,.92))!important}
       @media(max-width:700px){
         body.nx-nova-hub-nav{padding-bottom:calc(144px + env(safe-area-inset-bottom))!important}
         body.nx-nova-hub-nav .main{padding-bottom:calc(144px + env(safe-area-inset-bottom))!important}
@@ -154,35 +143,18 @@
     return true;
   }
 
-  function createCoreButton(name, label, svg) {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'more-item';
-    button.dataset.nxNovaHubCore = '1';
-    button.dataset.nxNovaHubTarget = name;
-    button.innerHTML = `<span class="mi-icon">${svg}</span><span>${label}</span>`;
-    button.addEventListener('click', event => {
-      event.preventDefault();
-      event.stopPropagation();
-      document.body.classList.remove('nx-allapps-open');
-      const menu = $('moreMenu');
-      if (menu) {
-        menu.classList.remove('show');
-        menu.style.display = 'none';
-      }
-      window.switchTab?.(name, null);
-      queueRefresh();
-    });
-    return button;
-  }
-
   function configureHub() {
     const menu = $('moreMenu');
     const inner = menu?.querySelector('.more-inner');
     if (!menu || !inner) return false;
 
-    if (!$('nxNovaHubHeader')) {
-      const header = document.createElement('div');
+    // Remove legacy synthetic Wallet/Market Hub buttons. Core destinations now
+    // live under Mine, so Nova Hub remains a clean app grid with one owner.
+    inner.querySelectorAll('[data-nx-nova-hub-core="1"],[data-nx-nova-hub-target="wallet"],[data-nx-nova-hub-target="market"]').forEach(node => node.remove());
+
+    let header = $('nxNovaHubHeader');
+    if (!header) {
+      header = document.createElement('div');
       header.id = 'nxNovaHubHeader';
       header.className = 'nx-nova-hub-header';
       header.innerHTML = `
@@ -190,23 +162,11 @@
           <div class="nx-nova-hub-mark">${HUB_ICON}</div>
           <div><div class="nx-nova-hub-kicker">NEXUSNOVA</div><div class="nx-nova-hub-title">Nova Hub</div></div>
         </div>
-        <div class="nx-nova-hub-copy">All apps, utilities, wallet, market, learning and daily tools in one place.</div>`;
-      inner.insertBefore(header, inner.firstChild);
+        <div class="nx-nova-hub-copy">All apps, utilities, learning and daily tools in one place.</div>`;
     }
-
-    if (!inner.querySelector('[data-nx-nova-hub-target="wallet"]')) {
-      const wallet = createCoreButton('wallet','Wallet',WALLET_ICON);
-      const header = $('nxNovaHubHeader');
-      header?.insertAdjacentElement('afterend', wallet);
-    }
-
-    if (!inner.querySelector('[data-nx-nova-hub-target="market"]')) {
-      const market = createCoreButton('market','Market',MARKET_ICON);
-      const wallet = inner.querySelector('[data-nx-nova-hub-target="wallet"]');
-      if (wallet) wallet.insertAdjacentElement('afterend', market);
-      else $('nxNovaHubHeader')?.insertAdjacentElement('afterend', market);
-    }
-
+    const copy = header.querySelector('.nx-nova-hub-copy');
+    if (copy) copy.textContent = 'All apps, utilities, learning and daily tools in one place.';
+    if (inner.firstElementChild !== header) inner.insertBefore(header, inner.firstElementChild);
     return true;
   }
 
@@ -226,7 +186,7 @@
     const menuOpen = document.body.classList.contains('nx-allapps-open') || $('moreMenu')?.classList.contains('show');
     const mine = items.find(button => buttonTarget(button) === 'home');
     const hub = $('moreBtn');
-    if (!menuOpen && activeName === 'home') mine?.classList.add('active');
+    if (!menuOpen && MINE_DOMAIN.has(activeName)) mine?.classList.add('active');
     else hub?.classList.add('active');
   }
 
