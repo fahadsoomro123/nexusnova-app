@@ -2,6 +2,7 @@ import { icon } from '../../components/icons.js';
 import { novaApps } from '../hub/app-registry.js';
 import { everydayRenderers } from './everyday-tools.js';
 import { liveRenderers } from './live-tools.js';
+import { coreRenderers } from './core-apps.js';
 
 let cleanup = null;
 
@@ -29,7 +30,7 @@ export function appScreen({ id, backToHub } = {}) {
 
   root.querySelector('[data-app-back]').addEventListener('click', () => backToHub?.());
   const mount = root.querySelector('[data-app-mount]');
-  const renderer = everydayRenderers[id] || liveRenderers[id];
+  const renderer = coreRenderers[id] || everydayRenderers[id] || liveRenderers[id];
 
   if (renderer) {
     const body = renderer();
