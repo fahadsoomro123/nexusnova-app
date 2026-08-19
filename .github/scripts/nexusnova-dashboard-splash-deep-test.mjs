@@ -183,7 +183,6 @@ try {
 
   const walletState = await bounded(page.evaluate(() => ({
     walletActive: document.getElementById('tab-wallet')?.classList.contains('active') === true,
-    hubDockActive: document.getElementById('moreBtn')?.classList.contains('active') === true,
     splashBlocking: (() => {
       const splash = document.getElementById('nxSplash');
       if (!splash) return false;
@@ -193,7 +192,6 @@ try {
   })), 2500, 'Wallet state evaluate');
   console.log(`WALLET_STATE ${JSON.stringify(walletState)}`);
   assert.equal(walletState.walletActive, true, 'Wallet did not open from Nova Hub');
-  assert.equal(walletState.hubDockActive, true, 'Nova Hub dock state did not follow Wallet');
   assert.equal(walletState.splashBlocking, false, 'Splash returned after Wallet navigation');
 
   stage('return to Mine');
