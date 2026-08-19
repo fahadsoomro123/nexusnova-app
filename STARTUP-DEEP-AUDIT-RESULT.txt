@@ -1,6 +1,6 @@
-source_commit=c4105cd3f08474aa4212d1f85f7cd8a7eba06c15
-run_id=32231071329
-job_status=cancelled
+source_commit=491ed3e1780725e051cde1488815ed3ecc2d80ec
+run_id=32243528935
+job_status=failure
 target=skipped
 static=skipped
 runtime=skipped
@@ -10,4 +10,4 @@ deprecated_secondary_shield=absent
 apk_built=no
 external_network_during_runtime=blocked
 test_manually_hides_splash=no
-checked_at=2026-08-19T08:52:43Z
+checked_at=2026-08-19T10:37:21Z
