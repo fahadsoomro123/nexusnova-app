@@ -1,5 +1,6 @@
 name: NexusNova v1.1.12 Golden Master Bundle
 
+# Trigger fresh package after workflow exists on main.
 on:
   push:
     branches: [main]
