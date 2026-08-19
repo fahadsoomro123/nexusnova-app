@@ -57,6 +57,41 @@ let loginMode = false;
 let authActionInProgress = false;
 let redirected = false;
 const nativeShell = typeof window.NexusAndroid?.postMessage === 'function';
+const AUTH_SPLASH_TARGET_MS = 1900;
+const AUTH_SUCCESS_HOLD_MS = 650;
+
+function enhanceAuthSplash() {
+  const splash = document.getElementById('nxSplash');
+  const inner = splash?.querySelector('.splash-inner');
+  if (!splash || !inner || splash.dataset.nxPremiumPolish === '1') return;
+  splash.dataset.nxPremiumPolish = '1';
+
+  if (!document.getElementById('nxAuthSplashPremiumStyle')) {
+    const style = document.createElement('style');
+    style.id = 'nxAuthSplashPremiumStyle';
+    style.textContent = `
+      #nxSplash .splash-inner{position:relative;isolation:isolate;min-width:min(86vw,330px)}
+      #nxSplash .splash-logo{position:relative;isolation:isolate;animation:nxAuthLogoBreathe 2.2s ease-in-out infinite}
+      #nxSplash .splash-logo:before,#nxSplash .splash-logo:after{content:"";position:absolute;inset:-12px;border-radius:34px;border:1px solid rgba(96,190,255,.18);z-index:-1;transform:rotate(12deg)}
+      #nxSplash .splash-logo:after{inset:-22px;border-color:rgba(77,142,255,.10);transform:rotate(-12deg)}
+      #nxSplash .nx-auth-splash-kicker{margin:0 auto 7px;color:#69b7ff;font-size:8px;font-weight:950;letter-spacing:.20em;text-transform:uppercase}
+      #nxSplash .nx-auth-splash-tagline{margin:7px auto 0;max-width:280px;color:#6684a7;font-size:9px;font-weight:700;letter-spacing:.035em;line-height:1.35}
+      #nxSplash .splash-status{margin-top:12px!important;font-size:9px!important;letter-spacing:.12em!important}
+      #nxSplash .splash-line{height:2px!important;margin-top:14px!important;box-shadow:0 0 18px rgba(46,151,255,.12)}
+      @keyframes nxAuthLogoBreathe{50%{transform:translateY(-2px);filter:brightness(1.08)}}
+      @media(prefers-reduced-motion:reduce){#nxSplash .splash-logo{animation:none!important}}
+    `;
+    document.head.appendChild(style);
+  }
+
+  const name = inner.querySelector('.splash-name');
+  if (name && !inner.querySelector('.nx-auth-splash-kicker')) {
+    name.insertAdjacentHTML('beforebegin','<div class="nx-auth-splash-kicker">NEURAL UTILITY GRID</div>');
+    name.insertAdjacentHTML('afterend','<div class="nx-auth-splash-tagline">Your daily tools, one NexusNova workspace.</div>');
+  }
+}
+
+enhanceAuthSplash();
 
 function setMessage(text = '', success = false) {
   message.textContent = String(text || '');
@@ -97,6 +132,15 @@ function redirectToDashboard() {
   redirected = true;
   document.documentElement.classList.add('nx-auth-redirecting');
   window.location.replace('./page2.html');
+}
+
+function revealAuthShellAfterBrandHold() {
+  const elapsed = Number.isFinite(performance?.now?.()) ? performance.now() : AUTH_SPLASH_TARGET_MS;
+  const wait = Math.max(0, AUTH_SPLASH_TARGET_MS - elapsed);
+  window.setTimeout(() => {
+    authShell.classList.add('ready');
+    window.dispatchEvent(new Event('nexusnova:auth-bootstrap-ready'));
+  }, wait);
 }
 
 async function createUserProfile(user) {
@@ -189,7 +233,7 @@ async function emailAuth() {
         setMessage('Account created. Open Settings later to resend email verification. Opening NexusNova…', true);
       }
     }
-    window.setTimeout(redirectToDashboard, 180);
+    window.setTimeout(redirectToDashboard, AUTH_SUCCESS_HOLD_MS);
   } catch (error) {
     console.error('NexusNova email auth:', error);
     authActionInProgress = false;
@@ -238,7 +282,7 @@ async function googleAuth() {
     const result = await authMod.signInWithPopup(auth, provider);
     await createUserProfile(result.user);
     setMessage('Google login successful. Opening NexusNova…', true);
-    window.setTimeout(redirectToDashboard, 180);
+    window.setTimeout(redirectToDashboard, AUTH_SUCCESS_HOLD_MS);
   } catch (error) {
     console.error('NexusNova Google auth:', error);
     authActionInProgress = false;
@@ -304,8 +348,7 @@ try {
 if (auth.currentUser && !authActionInProgress) {
   redirectToDashboard();
 } else {
-  authShell.classList.add('ready');
-  window.dispatchEvent(new Event('nexusnova:auth-bootstrap-ready'));
+  revealAuthShellAfterBrandHold();
 }
 
 authMod.onAuthStateChanged(auth, user => {
