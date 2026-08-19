@@ -1,0 +1,60 @@
+:root {
+  --nx-bg: #050b14;
+  --nx-bg-elevated: #081321;
+  --nx-surface: rgba(12, 26, 43, .88);
+  --nx-surface-strong: #0c1a2b;
+  --nx-surface-soft: rgba(17, 39, 62, .58);
+  --nx-border: rgba(154, 204, 255, .12);
+  --nx-border-strong: rgba(118, 196, 255, .28);
+  --nx-text: #f5f9ff;
+  --nx-text-2: #adc1d7;
+  --nx-text-3: #6e869f;
+  --nx-cyan: #42d3ff;
+  --nx-blue: #3b82f6;
+  --nx-violet: #8b5cf6;
+  --nx-green: #27e2a4;
+  --nx-amber: #ffbd55;
+  --nx-red: #ff6577;
+  --nx-radius-xs: 10px;
+  --nx-radius-sm: 14px;
+  --nx-radius-md: 18px;
+  --nx-radius-lg: 24px;
+  --nx-radius-xl: 30px;
+  --nx-shadow-soft: 0 12px 36px rgba(0, 0, 0, .22);
+  --nx-shadow-float: 0 20px 55px rgba(0, 0, 0, .34);
+  --nx-pad: clamp(14px, 4vw, 22px);
+  --nx-dock-height: 74px;
+  --nx-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --nx-ease: cubic-bezier(.2, .72, .18, 1);
+  --nx-fast: 160ms;
+  --nx-normal: 280ms;
+  font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+* { box-sizing: border-box; }
+html { min-height: 100%; background: var(--nx-bg); }
+body {
+  min-width: 320px;
+  min-height: 100dvh;
+  margin: 0;
+  color: var(--nx-text);
+  background:
+    radial-gradient(circle at 18% -8%, rgba(31, 134, 255, .16), transparent 32rem),
+    radial-gradient(circle at 100% 24%, rgba(93, 68, 255, .11), transparent 28rem),
+    linear-gradient(180deg, #06101c 0%, var(--nx-bg) 48%, #040810 100%);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+button, input, select, textarea { font: inherit; }
+button { color: inherit; }
+a { color: inherit; }
+svg { display: block; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}
