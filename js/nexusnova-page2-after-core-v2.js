@@ -149,6 +149,14 @@
       console.warn('NexusNova Nova Hub navigation readiness:', error);
     }
 
+    // GPS driving utilities are optional/post-core. They request location only
+    // after the user explicitly starts Nova Drive and never hold startup.
+    try {
+      await import('./nexusnova-drive-track-v1.js?v=1');
+    } catch (error) {
+      console.warn('NexusNova Nova Drive / Nova Track:', error);
+    }
+
     // Nova Vault remains optional/post-core so rewards can never hold the
     // Android dashboard behind startup. The 10x layer is additive and keeps
     // TEST rewarded ads value-free.
