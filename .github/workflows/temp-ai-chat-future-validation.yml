@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - ai-chat-future-20260819
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: read
