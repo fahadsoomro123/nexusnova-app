@@ -16,6 +16,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Java 17
         uses: actions/setup-java@v4
@@ -37,6 +39,14 @@ jobs:
           node --check js/nexusnova-page2-after-core-v2.js
           grep -q "nexusnova-ai-chat-future-v1.js?v=1" js/nexusnova-page2-after-core-v2.js
           grep -q "nexusnova-nine-screen-modern-v1.js?v=1" js/nexusnova-page2-after-core-v2.js
+
+      - name: Restore build-only Android UX patch input
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin apk-builds:refs/remotes/origin/apk-builds
+          git show origin/apk-builds:js/nexusnova-android-ux-repair-v1.js > js/nexusnova-android-ux-repair-v1.js
+          test -s js/nexusnova-android-ux-repair-v1.js
+          grep -q 'NexusNova Android UX Repair v1' js/nexusnova-android-ux-repair-v1.js
 
       - name: Prepare deterministic Android web shell
         run: python3 NexusNovaAndroid/prepare_native_web_shell.py
