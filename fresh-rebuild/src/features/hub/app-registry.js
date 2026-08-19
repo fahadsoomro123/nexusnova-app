@@ -1,10 +1,8 @@
 export const novaApps = Object.freeze([
-  // Core utilities that remain reachable without expanding bottom navigation.
   { id: 'wallet', name: 'Wallet', category: 'Core', icon: 'wallet', description: 'Assets, portfolio and wallet actions' },
   { id: 'tasks', name: 'Rewards', category: 'Core', icon: 'tasks', description: 'Daily reward, tasks and verified bonuses' },
   { id: 'market', name: 'Market', category: 'Core', icon: 'market', description: 'Top assets and live market data' },
 
-  // Tools Hub is intentionally flattened into direct apps.
   { id: 'notes', name: 'Notes', category: 'Everyday Tools', icon: 'notes', description: 'Fast private notes' },
   { id: 'todo', name: 'To-Do', category: 'Everyday Tools', icon: 'todo', description: 'Simple focused task list' },
   { id: 'calculator', name: 'Calculator', category: 'Everyday Tools', icon: 'calculator', description: 'Safe everyday calculations' },
@@ -18,6 +16,7 @@ export const novaApps = Object.freeze([
 
   { id: 'weather', name: 'Weather', category: 'Live & Local', icon: 'weather', description: 'Current conditions and forecast' },
   { id: 'qibla', name: 'Qibla', category: 'Live & Local', icon: 'qibla', description: 'Live compass and direction' },
+  { id: 'prayer-times', name: 'Prayer Times', category: 'Live & Local', icon: 'prayer', description: 'Location-aware daily prayer times' },
   { id: 'speed-test', name: 'Speed Test', category: 'Live & Local', icon: 'speed', description: 'Network speed instrument' },
   { id: 'pakistan', name: 'Pakistan Hub', category: 'Live & Local', icon: 'news', description: 'Pakistan-focused information' },
   { id: 'news', name: 'News', category: 'Live & Local', icon: 'news', description: 'Current headlines and feeds' },
