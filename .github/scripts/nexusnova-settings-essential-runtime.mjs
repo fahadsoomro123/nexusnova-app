@@ -45,19 +45,25 @@ try{
     title:document.querySelector('#tab-about .settings-hero h2')?.textContent||'',
     subtitle:document.querySelector('#tab-about .settings-hero .settings-muted')?.textContent||'',
     headings:[...document.querySelectorAll('#tab-about .settings-card h3')].map(el=>el.textContent.trim()),
+    accountRows:[...document.querySelectorAll('#tab-about .settings-card')][0]?.querySelectorAll('.settings-row strong') ? [...document.querySelectorAll('#tab-about .settings-card')[0].querySelectorAll('.settings-row strong')].map(el=>el.textContent.trim()) : [],
+    appearanceRows:[...document.querySelectorAll('#tab-about .settings-card')][1]?.querySelectorAll('.settings-row strong') ? [...document.querySelectorAll('#tab-about .settings-card')[1].querySelectorAll('.settings-row strong')].map(el=>el.textContent.trim()) : [],
     deleteText:document.getElementById('nxAccountDeletionSettingsRow')?.textContent||'',
     privacyText:document.getElementById('nxPrivacyPolicySettingsRow')?.textContent||'',
     compact:[...document.querySelectorAll('#tab-about .settings-row strong')].some(el=>el.textContent.trim()==='Compact mode'),
+    aiLanguage:[...document.querySelectorAll('#tab-about .settings-row strong')].some(el=>el.textContent.trim()==='AI language'),
     clearAi:[...document.querySelectorAll('#tab-about .settings-row strong')].some(el=>el.textContent.trim()==='Clear saved AI data'),
     settingsVersion:document.documentElement.dataset.nxSettingsVersion||''
   }));
 
   assert.equal(state.title,'⚙️ Settings');
-  assert.match(state.subtitle,/essential app preferences/i);
-  assert.deepEqual(state.headings,['Account','Preferences']);
+  assert.match(state.subtitle,/essential preferences/i);
+  assert.deepEqual(state.headings,['Account','Appearance']);
+  assert.deepEqual(state.appearanceRows,['Theme']);
+  assert.match(state.accountRows.join(' | '),/Sign out/);
   assert.match(state.deleteText,/Delete Account/);
   assert.match(state.privacyText,/Privacy Policy/);
   assert.equal(state.compact,false);
+  assert.equal(state.aiLanguage,false);
   assert.equal(state.clearAi,false);
   assert.equal(state.settingsVersion,'3');
 
@@ -68,7 +74,7 @@ try{
   assert.match(urls[0],/privacy-policy\.html$/);
   assert.match(urls[1],/account-deletion\.html$/);
 
-  console.log(`PASS Settings (${expectedLabel}): compact Account + Preferences only, Privacy Policy and Delete Account visible and routed.`);
+  console.log(`PASS Settings (${expectedLabel}): tiny Account + Appearance/Theme only, Privacy Policy, Delete Account and Sign out preserved.`);
 }finally{
   await browser.close();
 }
