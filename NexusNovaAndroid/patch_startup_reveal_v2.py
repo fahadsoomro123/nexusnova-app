@@ -23,10 +23,17 @@ if 'nx-single-startup-owner-v4' not in launcher:
     raise SystemExit('Startup v2 compatibility: single startup owner v4 missing')
 if 'nxSecureStartupShieldV3' in launcher:
     raise SystemExit('Startup v2 compatibility: deprecated secondary shield returned')
-if 'await createUserProfile(user);' not in auth:
-    raise SystemExit('Startup v2 compatibility: auth profile recursion fix missing')
-if 'await ensureUserProfile(user);' in auth:
+
+safe_helper = '''async function ensureUserProfile(user) {\n  try {\n    await createUserProfile(user);\n'''
+recursive_helper = '''async function ensureUserProfile(user) {\n  try {\n    await ensureUserProfile(user);\n'''
+if recursive_helper in auth:
     raise SystemExit('Startup v2 compatibility: recursive auth profile helper returned')
+if safe_helper not in auth:
+    raise SystemExit('Startup v2 compatibility: safe auth profile helper missing')
+
+# Valid email-login/signup call sites are expected to call ensureUserProfile.
+if 'await ensureUserProfile(user);' not in auth:
+    raise SystemExit('Startup v2 compatibility: best-effort profile call site missing')
 
 # Secure mining must still own an explicit unknown-state renderer. Do not modify
 # it here; this validator only guards the existing implementation.
