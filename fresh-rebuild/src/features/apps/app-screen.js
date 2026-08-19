@@ -3,6 +3,7 @@ import { novaApps } from '../hub/app-registry.js';
 import { everydayRenderers } from './everyday-tools.js';
 import { liveRenderers } from './live-tools.js';
 import { coreRenderers } from './core-apps.js';
+import { coreEnhancementRenderers } from './core-enhancements.js';
 import { personalRenderers } from './personal-apps.js';
 import { discoverRenderers } from './discover-apps.js';
 import { faithSecurityRenderers } from './faith-security-apps.js';
@@ -40,7 +41,7 @@ export function appScreen({ id, backToHub } = {}) {
 
   root.querySelector('[data-app-back]').addEventListener('click', () => backToHub?.());
   const mount = root.querySelector('[data-app-mount]');
-  const renderer = coreRenderers[id] || personalRenderers[id] || teacherSuiteRenderers[id] || islamicSuiteRenderers[id] || documentsSuiteRenderers[id] || communityChatRenderers[id] || learningSuiteRenderers[id] || discoverRenderers[id] || faithSecurityRenderers[id] || deviceRenderers[id] || smartRenderers[id] || everydayRenderers[id] || liveRenderers[id];
+  const renderer = coreEnhancementRenderers[id] || coreRenderers[id] || personalRenderers[id] || teacherSuiteRenderers[id] || islamicSuiteRenderers[id] || documentsSuiteRenderers[id] || communityChatRenderers[id] || learningSuiteRenderers[id] || discoverRenderers[id] || faithSecurityRenderers[id] || deviceRenderers[id] || smartRenderers[id] || everydayRenderers[id] || liveRenderers[id];
 
   if (renderer) {
     const body = renderer();
