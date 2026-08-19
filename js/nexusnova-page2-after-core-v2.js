@@ -128,6 +128,15 @@
       }
     })();
 
+    // Load the approved compact/premium presentation guard before the existing
+    // navigation capture owner so taps on an already-active MINE/NOVA HUB item
+    // can be consumed without changing the stable navigation implementation.
+    try {
+      await import('./nexusnova-compact-premium-v1.js?v=1');
+    } catch (error) {
+      console.warn('NexusNova compact premium UI:', error);
+    }
+
     try {
       await import('./nexusnova-navigation-stability-v1.js?v=1');
     } catch (error) {
