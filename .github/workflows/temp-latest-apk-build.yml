@@ -86,6 +86,23 @@ jobs:
               path.write_text(updated, encoding='utf-8')
           PY
 
+      - name: Preserve deferred Caller ID startup
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt')
+          s = p.read_text(encoding='utf-8')
+          old = '        loadProductionApp()\n        showCallerSetupOnce()\n'
+          if s.count(old) != 1:
+              raise SystemExit('Expected Caller ID startup sequence not found exactly once')
+          s = s.replace(old, '        loadProductionApp()\n', 1)
+          if 'private fun showCallerSetupOnce()' not in s:
+              raise SystemExit('Caller ID feature method missing; refusing to build')
+          p.write_text(s, encoding='utf-8')
+          print('Removed only automatic Caller ID startup call; feature remains available.')
+          PY
+
       - name: Verify stable owners plus latest UI contract
         run: |
           set -euo pipefail
@@ -110,7 +127,9 @@ jobs:
           block=s[start:end if end > start else len(s)]
           if 'showCallerSetupOnce()' in block:
               raise SystemExit('Caller ID startup regression detected')
-          print('Caller ID remains deferred from app startup.')
+          if 'private fun showCallerSetupOnce()' not in s:
+              raise SystemExit('Caller ID feature was accidentally removed')
+          print('Caller ID remains deferred from app startup and feature method is preserved.')
           PY
           echo 'Stable v1.1.12 navigation/scroll/ad owners preserved byte-for-byte.'
 
