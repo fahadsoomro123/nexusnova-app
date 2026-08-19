@@ -72,6 +72,12 @@
       const tab = $('tab-' + name);
       if (!tab) return;
 
+      // Settings is a root destination in the approved Mine + Nova Hub layout.
+      // Never decorate it with sub-app / reader Back chrome.
+      if (name === 'about') {
+        tab.querySelectorAll(':scope > .nx-allapps-back').forEach(node => node.remove());
+        return;
+      }
       if (name === 'tools' && tab.querySelector('.tools-main-back')) return;
       if (tab.querySelector(':scope > .nx-allapps-back')) return;
 
