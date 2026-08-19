@@ -12,6 +12,7 @@
   const $$ = selector => Array.from(document.querySelectorAll(selector));
   const CORE_TABS = new Set(['home', 'wallet', 'tasks', 'market']);
   const INSTALL_DELAYS = [0, 500, 1400, 3000, 6000, 10000];
+  let globalOwnersInstalled = false;
 
   function menuOpen() {
     const menu = $('moreMenu');
@@ -198,6 +199,9 @@
   }
 
   function installGlobalOwners() {
+    if (globalOwnersInstalled) return;
+    if (typeof window.switchTab !== 'function' || typeof window.openMoreTab !== 'function') return;
+
     wrapSwitchTab();
     wrapOpenMoreTab();
 
@@ -219,6 +223,11 @@
       stableToggle.__nxNavigationStableV1 = true;
       window.toggleMore = stableToggle;
     }
+
+    // Important: delayed install passes may repair observers/back buttons, but
+    // must never wrap navigation again after another late module decorates it.
+    // Re-wrapping here used to create an alternating wrapper chain with Nova Hub.
+    globalOwnersInstalled = true;
   }
 
   function installScrollPolish() {
