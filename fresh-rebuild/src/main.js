@@ -31,10 +31,22 @@ const labels = {
   hub: ['NOVA HUB', 'hub']
 };
 
-dockItems.forEach(button => {
-  const [label, iconName] = labels[button.dataset.route] || labels.mine;
-  button.innerHTML = `${icon(iconName)}<span>${label}</span>`;
-});
+function dockLabel(route) {
+  const urdu = localStorage.getItem('nexus_ui_lang_v1') === 'ur';
+  if (!urdu) return labels[route]?.[0] || labels.mine[0];
+  return route === 'hub' ? 'نووا ہب' : 'مائن';
+}
+
+function paintDockLabels() {
+  dockItems.forEach(button => {
+    const route = button.dataset.route || 'mine';
+    const [, iconName] = labels[route] || labels.mine;
+    button.innerHTML = `${icon(iconName)}<span>${dockLabel(route)}</span>`;
+  });
+}
+
+paintDockLabels();
+window.addEventListener('nexusnova:language-changed', paintDockLabels);
 
 function showDock(show) {
   dock.hidden = !show;
