@@ -5,6 +5,7 @@ import { liveRenderers } from './live-tools.js';
 import { coreRenderers } from './core-apps.js';
 import { personalRenderers } from './personal-apps.js';
 import { discoverRenderers } from './discover-apps.js';
+import { faithSecurityRenderers } from './faith-security-apps.js';
 
 let cleanup = null;
 
@@ -32,7 +33,7 @@ export function appScreen({ id, backToHub } = {}) {
 
   root.querySelector('[data-app-back]').addEventListener('click', () => backToHub?.());
   const mount = root.querySelector('[data-app-mount]');
-  const renderer = coreRenderers[id] || personalRenderers[id] || discoverRenderers[id] || everydayRenderers[id] || liveRenderers[id];
+  const renderer = coreRenderers[id] || personalRenderers[id] || discoverRenderers[id] || faithSecurityRenderers[id] || everydayRenderers[id] || liveRenderers[id];
 
   if (renderer) {
     const body = renderer();
