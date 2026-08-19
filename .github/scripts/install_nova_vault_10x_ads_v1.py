@@ -1,3 +1,4 @@
+# Clean-startup integration rerun marker: single startup owner v4.
 from pathlib import Path
 
 ROOT = Path('.')
