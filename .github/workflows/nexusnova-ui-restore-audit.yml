@@ -1,0 +1,184 @@
+name: NexusNova Phone UI Restore Audit - NO APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'js/nexusnova-allapps-order-guard-v5.js'
+      - 'js/nexusnova-ui-regression-repair-v1.js'
+      - 'js/nexusnova-page2-after-core-v2.js'
+      - '.github/scripts/nexusnova-ui-restore-runtime.mjs'
+      - '.github/scripts/nexusnova-dashboard-splash-deep-test.mjs'
+      - '.github/workflows/nexusnova-ui-restore-audit.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nexusnova-phone-ui-restore-audit
+  cancel-in-progress: true
+
+jobs:
+  ui-restore-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v4
+
+      - name: Preserve approved sign-in source hash
+        id: signin_before
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum index.html | awk '{print $1}' > /tmp/nx-ui-signin-before.sha
+          echo "source_commit=${GITHUB_SHA}"
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Playwright Chromium
+        id: deps
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Source UI regression contracts
+        id: syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check js/nexusnova-allapps-order-guard-v5.js
+          node --check js/nexusnova-ui-regression-repair-v1.js
+          node --check js/nexusnova-page2-after-core-v2.js
+          node --check .github/scripts/nexusnova-ui-restore-runtime.mjs
+          node --check .github/scripts/nexusnova-dashboard-splash-deep-test.mjs
+          grep -Fq 'nxAllAppsPolishV1' js/nexusnova-allapps-order-guard-v5.js
+          grep -Fq 'width:40px!important' js/nexusnova-allapps-order-guard-v5.js
+          grep -Fq "tab.id==='tab-about'" js/nexusnova-allapps-order-guard-v5.js
+          grep -Fq 'NexusNovaUiRegressionRepair' js/nexusnova-ui-regression-repair-v1.js
+          grep -Fq 'nxMineQuickNavV1' js/nexusnova-ui-regression-repair-v1.js
+          grep -Fq "await import('./nexusnova-ui-regression-repair-v1.js?v=1')" js/nexusnova-page2-after-core-v2.js
+          grep -Fq 'nx-single-startup-owner-v4' js/page2.js
+          if grep -Fq 'nxSecureStartupShieldV3' js/page2.js; then
+            echo 'Deprecated secondary startup shield returned.' >&2
+            exit 1
+          fi
+          echo 'PASS source UI restore contracts.'
+
+      - name: Prepare exact Android shell - NO APK
+        id: prepare
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 NexusNovaAndroid/prepare_native_web_shell.py
+          python3 NexusNovaAndroid/patch_legal_pages.py
+          python3 NexusNovaAndroid/patch_family_demo_web_v1.py
+          python3 NexusNovaAndroid/patch_essential_settings_v3.py
+          python3 NexusNovaAndroid/patch_family_auth_recursion_fix.py
+          python3 NexusNovaAndroid/patch_startup_reveal_v2.py
+          python3 NexusNovaAndroid/patch_native_startup_escape_v3.py
+          python3 NexusNovaAndroid/patch_mining_boost_sync.py
+          python3 NexusNovaAndroid/patch_viewport.py
+          python3 NexusNovaAndroid/patch_admob.py
+          python3 NexusNovaAndroid/patch_nova_vault_10x_ads.py
+          python3 NexusNovaAndroid/patch_rewarded_test_contract.py
+          python3 NexusNovaAndroid/patch_test_boost_reward_fx.py
+          python3 NexusNovaAndroid/patch_test_boost_reward_fx_hardening.py
+          python3 NexusNovaAndroid/patch_test_boost_cooldown_gate.py
+          python3 NexusNovaAndroid/patch_ad_privacy.py
+          python3 NexusNovaAndroid/patch_session_restore.py
+          python3 NexusNovaAndroid/patch_web_shell_reset.py
+          python3 NexusNovaAndroid/patch_native_shell.py
+          python3 NexusNovaAndroid/patch_native_splash_release_v4.py
+          python3 NexusNovaAndroid/patch_native_no_bounce_v1.py
+          python3 NexusNovaAndroid/patch_dashboard_startup_lockfix_v1.py
+          WEB=NexusNovaAndroid/app/src/main/assets/www
+          test -s "$WEB/js/nexusnova-ui-regression-repair-v1.js"
+          grep -Fq 'nxAllAppsPolishV1' "$WEB/js/nexusnova-allapps-order-guard-v5.js"
+          grep -Fq 'NexusNovaUiRegressionRepair' "$WEB/js/nexusnova-ui-regression-repair-v1.js"
+          grep -Fq "await import('./nexusnova-ui-regression-repair-v1.js?v=1')" "$WEB/js/nexusnova-page2-after-core-v2.js"
+          grep -Fq 'nx-single-startup-owner-v4' "$WEB/js/page2.js"
+          if grep -Fq 'nxSecureStartupShieldV3' "$WEB/js/page2.js"; then exit 1; fi
+          echo 'PASS exact Android UI restore staging.'
+
+      - name: Prove sign-in source remained byte-for-byte untouched
+        id: signin
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum index.html | awk '{print $1}' > /tmp/nx-ui-signin-after.sha
+          cmp /tmp/nx-ui-signin-before.sha /tmp/nx-ui-signin-after.sha
+          echo 'PASS sign-in source untouched.'
+
+      - name: Start local staged-shell server
+        id: server
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m http.server 4173 > /tmp/nx-ui-http.log 2>&1 &
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:4173/NexusNovaAndroid/app/src/main/assets/www/page2.html >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/nx-ui-http.log || true
+          exit 1
+
+      - name: Exact Android phone-UI restore runtime
+        id: ui_runtime
+        shell: bash
+        run: |
+          set -o pipefail
+          node .github/scripts/nexusnova-ui-restore-runtime.mjs 2>&1 | tee /tmp/nx-ui-restore-runtime.log
+
+      - name: Deep startup regression after UI repair
+        if: ${{ always() && steps.prepare.outcome == 'success' && steps.server.outcome == 'success' }}
+        id: startup_runtime
+        shell: bash
+        run: |
+          set -o pipefail
+          node .github/scripts/nexusnova-dashboard-splash-deep-test.mjs 2>&1 | tee /tmp/nx-ui-startup-runtime.log
+
+      - name: Publish exact audit result
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'NexusNova UI Audit Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git fetch origin ui-restore-audit
+          rm -rf /tmp/nx-ui-audit-branch
+          git worktree add /tmp/nx-ui-audit-branch origin/ui-restore-audit
+          {
+            echo "source_commit=${GITHUB_SHA}"
+            echo "run_id=${GITHUB_RUN_ID}"
+            echo "job_status=${{ job.status }}"
+            echo "deps=${{ steps.deps.outcome }}"
+            echo "syntax=${{ steps.syntax.outcome }}"
+            echo "prepare=${{ steps.prepare.outcome }}"
+            echo "signin=${{ steps.signin.outcome }}"
+            echo "server=${{ steps.server.outcome }}"
+            echo "ui_runtime=${{ steps.ui_runtime.outcome }}"
+            echo "startup_runtime=${{ steps.startup_runtime.outcome }}"
+            echo "apk_built=no"
+            echo "sign_in_source=untouched-by-hash"
+            echo "bottom_dock_contract=MINE+NOVA_HUB"
+            echo "external_network_during_ui_test=blocked"
+            echo "external_network_during_startup_test=blocked"
+            echo "checked_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo '--- ui runtime evidence ---'
+            if test -s /tmp/nx-ui-restore-runtime.log; then
+              grep -E 'UI_HUB_STATE|UI_SETTINGS_STATE|UI_MINE_DOMAIN|PASS UI restore runtime|FAIL|AssertionError|Missing Nova Hub features' /tmp/nx-ui-restore-runtime.log || true
+            fi
+            echo '--- startup evidence ---'
+            if test -s /tmp/nx-ui-startup-runtime.log; then
+              grep -E 'SNAPSHOT (1s|3s|8s)|PASS Android dashboard startup proof|FAIL Android dashboard startup proof' /tmp/nx-ui-startup-runtime.log || true
+            fi
+          } > /tmp/nx-ui-audit-branch/UI-RESTORE-AUDIT-RESULT.txt
+          cd /tmp/nx-ui-audit-branch
+          git add UI-RESTORE-AUDIT-RESULT.txt
+          git commit -m "Record UI restore audit ${GITHUB_SHA}" || true
+          git push origin HEAD:ui-restore-audit
