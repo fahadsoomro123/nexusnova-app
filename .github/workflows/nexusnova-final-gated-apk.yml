@@ -241,16 +241,20 @@ jobs:
           set -euo pipefail
           APK=NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk
           test -s "$APK"
-          unzip -p "$APK" assets/www/js/nexusnova-existing-app-ad-hotfix-v2.js | grep -Fq 'if (button.id !== WATCH_BUTTON_ID) button.id = WATCH_BUTTON_ID;'
-          unzip -p "$APK" assets/www/js/nexusnova-existing-app-ad-hotfix-v2.js | grep -Fq "if (button.getAttribute('onclick') !== 'watchAdReward()')"
-          unzip -p "$APK" assets/www/js/final-integrity-fix.js | grep -Fq 'nexusnova-existing-app-ad-hotfix-v2.js?v=20260819-observerfix1'
-          unzip -p "$APK" assets/www/sw.js | grep -Fq 'nexusnova-existing-app-ad-hotfix-v2.js?v=20260819-observerfix1'
-          unzip -p "$APK" assets/www/page2.html | grep -Fq 'nx-android-dashboard-startup-lockfix-v1'
-          unzip -p "$APK" assets/www/js/page2.js | grep -Fq 'nx-android-dashboard-no-secondary-shield-v1'
-          unzip -p "$APK" assets/www/js/nexusnova-page2-after-core-v2.js | grep -Fq 'nexusnova-nova-vault-10x-v1.js?v=1'
-          unzip -p "$APK" assets/www/js/nexusnova-page2-after-core-v2.js | grep -Fq 'nexusnova-hub-ad-gate-v1.js?v=1'
-          unzip -p "$APK" assets/www/js/nexusnova-account-deletion-settings-v1.js | grep -Fq 'NexusNova Essential Settings v3'
-          unzip -p "$APK" assets/www/js/nexusnova-nova-vault-10x-v1.js | grep -Fq "const PURPOSE = 'nova-vault-10x'"
+          rm -rf /tmp/nx-final-apk-verify
+          mkdir -p /tmp/nx-final-apk-verify
+          unzip -qq "$APK" 'assets/www/*' -d /tmp/nx-final-apk-verify
+          WEB=/tmp/nx-final-apk-verify/assets/www
+          grep -Fq 'if (button.id !== WATCH_BUTTON_ID) button.id = WATCH_BUTTON_ID;' "$WEB/js/nexusnova-existing-app-ad-hotfix-v2.js"
+          grep -Fq "if (button.getAttribute('onclick') !== 'watchAdReward()')" "$WEB/js/nexusnova-existing-app-ad-hotfix-v2.js"
+          grep -Fq 'nexusnova-existing-app-ad-hotfix-v2.js?v=20260819-observerfix1' "$WEB/js/final-integrity-fix.js"
+          grep -Fq 'nexusnova-existing-app-ad-hotfix-v2.js?v=20260819-observerfix1' "$WEB/sw.js"
+          grep -Fq 'nx-android-dashboard-startup-lockfix-v1' "$WEB/page2.html"
+          grep -Fq 'nx-android-dashboard-no-secondary-shield-v1' "$WEB/js/page2.js"
+          grep -Fq 'nexusnova-nova-vault-10x-v1.js?v=1' "$WEB/js/nexusnova-page2-after-core-v2.js"
+          grep -Fq 'nexusnova-hub-ad-gate-v1.js?v=1' "$WEB/js/nexusnova-page2-after-core-v2.js"
+          grep -Fq 'NexusNova Essential Settings v3' "$WEB/js/nexusnova-account-deletion-settings-v1.js"
+          grep -Fq "const PURPOSE = 'nova-vault-10x'" "$WEB/js/nexusnova-nova-vault-10x-v1.js"
           sha256sum "$APK" | tee /tmp/nx-final-apk.sha256
           echo 'PASS actual APK contains proven startup/Vault10x/ads/Settings fixes.'
 
@@ -313,4 +317,45 @@ jobs:
           cd /tmp/nx-final-apk-publish
           git add NexusNova-v1.1.4-FinalGate-TEST.apk NexusNova-v1.1.4-FinalGate-TEST.txt
           git commit -m "FinalGate TEST APK ${GITHUB_SHA}"
+          git push origin HEAD:apk-builds
+
+      - name: Publish exact failure status if final APK was not published
+        if: ${{ failure() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'NexusNova Final Build Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git fetch origin apk-builds
+          rm -rf /tmp/nx-final-apk-failure
+          git worktree add /tmp/nx-final-apk-failure origin/apk-builds
+          cat > /tmp/nx-final-apk-failure/NexusNova-v1.1.4-FinalGate-TEST.txt <<EOF
+          source_commit=${GITHUB_SHA}
+          job_status=failure
+          apk=not-published-by-this-run
+          deps=${{ steps.deps.outcome }}
+          source_contract=${{ steps.source_contract.outcome }}
+          patch_syntax=${{ steps.patch_syntax.outcome }}
+          server=${{ steps.server.outcome }}
+          vault_runtime=${{ steps.vault_runtime.outcome }}
+          settings_source=${{ steps.settings_source.outcome }}
+          firestore_rules=${{ steps.rules.outcome }}
+          prepare_android=${{ steps.prepare_android.outcome }}
+          version=${{ steps.version.outcome }}
+          native_static=${{ steps.native_static.outcome }}
+          settings_staged=${{ steps.settings_staged.outcome }}
+          startup_runtime=${{ steps.startup_runtime.outcome }}
+          signin_after=${{ steps.signin_after.outcome }}
+          kotlin=${{ steps.kotlin.outcome }}
+          assemble=${{ steps.assemble.outcome }}
+          apk_verify=${{ steps.apk_verify.outcome }}
+          name_apk=${{ steps.name_apk.outcome }}
+          upload=${{ steps.upload.outcome }}
+          publish=${{ steps.publish.outcome }}
+          checked_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          EOF
+          sed -i 's/^          //' /tmp/nx-final-apk-failure/NexusNova-v1.1.4-FinalGate-TEST.txt
+          cd /tmp/nx-final-apk-failure
+          git add NexusNova-v1.1.4-FinalGate-TEST.txt
+          git commit -m "FinalGate TEST failure ${GITHUB_SHA}" || true
           git push origin HEAD:apk-builds
