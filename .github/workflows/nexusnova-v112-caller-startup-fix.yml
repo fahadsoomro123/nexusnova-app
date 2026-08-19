@@ -1,0 +1,240 @@
+name: NexusNova v1.1.12 Caller Startup Fix TEST
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/nexusnova-v112-caller-startup-fix.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nexusnova-v112-caller-startup-fix
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle 8.13
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Prove targeted scope
+        id: scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE=95b50ccaa75c993c5d36fe9e07eee7efcee17174
+          git cat-file -e "$BASE^{commit}"
+          git diff --exit-code "$BASE" HEAD -- \
+            js/rewards-security-v1.js js/page2.js js/page2-core.js \
+            js/nexusnova-allapps-scroll-fix-v1.js js/nexusnova-drive-track-v1.js \
+            js/nexusnova-speedtest-app-v4.js js/nexusnova-navigation-stability-v1.js \
+            js/nexusnova-nova-hub-nav-v1.js js/nexusnova-hub-ad-gate-v1.js \
+            NexusNovaAndroid/patch_mining_boost_sync.py \
+            NexusNovaAndroid/patch_test_boost_reward_fx.py \
+            NexusNovaAndroid/patch_test_boost_reward_fx_hardening.py \
+            NexusNovaAndroid/patch_test_boost_cooldown_gate.py
+          CHANGED=$(git diff --name-only "$BASE" HEAD | grep -v '^.github/workflows/nexusnova-v112-caller-startup-fix.yml$' | sort)
+          EXPECTED=$(printf '%s\n' NexusNovaAndroid/patch_deferred_caller_setup.py | sort)
+          test "$CHANGED" = "$EXPECTED"
+          echo 'PASS: only Caller startup patch changed; mining, smooth scroll, ads and feature owners unchanged.'
+
+      - name: Validate caller startup contract
+        id: caller
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile NexusNovaAndroid/patch_deferred_caller_setup.py
+          grep -Fq 'Caller ID setup must never interrupt splash/auth startup' NexusNovaAndroid/patch_deferred_caller_setup.py
+          grep -Fq 'ACTION_REQUEST_CALLER_ROLE -> requestCallerRole()' NexusNovaAndroid/patch_deferred_caller_setup.py
+          ! grep -Fq "runpy.run_path" NexusNovaAndroid/patch_deferred_caller_setup.py
+          grep -Fq "nova-hub-ad-gate-v2-safe-open" js/nexusnova-hub-ad-gate-v1.js
+          grep -Fq "const VERSION = '4.0.1'" js/nexusnova-speedtest-app-v4.js
+          ! grep -Fq 'observer.observe(document.documentElement' js/nexusnova-speedtest-app-v4.js
+          grep -Fq 'let globalOwnersInstalled = false;' js/nexusnova-navigation-stability-v1.js
+          echo 'PASS: Caller startup patch is single-purpose and prior freeze/ad fixes remain intact.'
+
+      - name: Prepare canonical Android shell
+        id: prepare_base
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 NexusNovaAndroid/prepare_native_web_shell.py
+          python3 NexusNovaAndroid/patch_legal_pages.py
+          python3 NexusNovaAndroid/patch_family_demo_web_v1.py
+          python3 NexusNovaAndroid/patch_essential_settings_v3.py
+          python3 NexusNovaAndroid/patch_family_auth_recursion_fix.py
+          python3 NexusNovaAndroid/patch_startup_reveal_v2.py
+          python3 NexusNovaAndroid/patch_native_startup_escape_v3.py
+          python3 NexusNovaAndroid/patch_mining_boost_sync.py
+          python3 NexusNovaAndroid/patch_viewport.py
+          python3 NexusNovaAndroid/patch_admob.py
+          python3 NexusNovaAndroid/patch_deferred_caller_setup.py
+          python3 NexusNovaAndroid/patch_nova_vault_10x_ads.py
+          python3 NexusNovaAndroid/patch_rewarded_test_contract.py
+          python3 NexusNovaAndroid/patch_test_boost_reward_fx.py
+          python3 NexusNovaAndroid/patch_test_boost_reward_fx_hardening.py
+          python3 NexusNovaAndroid/patch_test_boost_cooldown_gate.py
+          python3 NexusNovaAndroid/patch_ad_privacy.py
+
+      - name: Run session compatibility verifier
+        id: session
+        shell: bash
+        run: |
+          set -euo pipefail
+          FILE=NexusNovaAndroid/app/src/main/assets/www/js/final-integrity-fix.js
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('NexusNovaAndroid/app/src/main/assets/www/js/final-integrity-fix.js')
+          s=p.read_text(encoding='utf-8')
+          marker='// nx-build-verifier-only: nexusnova-ad-placements-v1.js nexusnova-watch-ad-reward-v1.js\n'
+          if marker not in s: s=s.replace("(async () => {\n",marker+"(async () => {\n",1)
+          p.write_text(s,encoding='utf-8')
+          PY
+          python3 NexusNovaAndroid/patch_session_restore.py
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('NexusNovaAndroid/app/src/main/assets/www/js/final-integrity-fix.js')
+          s=p.read_text(encoding='utf-8').replace('// nx-build-verifier-only: nexusnova-ad-placements-v1.js nexusnova-watch-ad-reward-v1.js\n','')
+          p.write_text(s,encoding='utf-8')
+          PY
+          ! grep -Fq 'nx-build-verifier-only' "$FILE"
+
+      - name: Complete Android patches
+        id: prepare_post
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 NexusNovaAndroid/patch_web_shell_reset.py
+          python3 NexusNovaAndroid/patch_native_shell.py
+          python3 NexusNovaAndroid/patch_native_splash_release_v4.py
+          python3 NexusNovaAndroid/patch_native_no_bounce_v1.py
+          python3 NexusNovaAndroid/patch_dashboard_startup_lockfix_v1.py
+
+      - name: Verify staged caller startup
+        id: staged
+        shell: bash
+        run: |
+          set -euo pipefail
+          MAIN=NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt')
+          s=p.read_text(encoding='utf-8')
+          block=s.split('override fun onCreate',1)[1].split('private fun configureWebView',1)[0]
+          assert 'showCallerSetupOnce()' not in block, 'Caller setup still auto-launches in onCreate'
+          assert 'ACTION_REQUEST_CALLER_ROLE -> requestCallerRole()' in s, 'Explicit Caller ID action missing'
+          print('PASS: Caller ID setup is not auto-launched before sign-in.')
+          PY
+          grep -Fq 'Caller ID setup must never interrupt splash/auth startup' "$MAIN"
+          grep -Fq "nova-hub-ad-gate-v2-safe-open" NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-hub-ad-gate-v1.js
+          grep -Fq 'samsung-compact-smooth-v1' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-allapps-scroll-fix-v1.js
+          grep -Fq "nexusNovaDriveTrackVersion = 'drive-track-v1'" NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-drive-track-v1.js
+
+      - name: Set v1.1.12 TEST identity
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('NexusNovaAndroid/app/build.gradle.kts')
+          s=p.read_text(encoding='utf-8')
+          s,n1=re.subn(r'versionCode\s*=\s*\d+','versionCode = 122',s,count=1)
+          s,n2=re.subn(r'versionName\s*=\s*"[^"]+"','versionName = "1.1.12-caller-startup-fix-test"',s,count=1)
+          if n1 != 1 or n2 != 1: raise SystemExit('Could not set v1.1.12 identity')
+          p.write_text(s,encoding='utf-8')
+          PY
+
+      - name: Compile Android Kotlin
+        id: kotlin
+        run: gradle -p NexusNovaAndroid :app:compileDebugKotlin --stacktrace --no-daemon
+
+      - name: Assemble v1.1.12 TEST APK
+        id: assemble
+        run: gradle -p NexusNovaAndroid :app:assembleDebug --stacktrace --no-daemon
+
+      - name: Package and hash APK
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK=NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          cp "$APK" NexusNova-v1.1.12-CallerStartupFix-TEST.apk
+          sha256sum NexusNova-v1.1.12-CallerStartupFix-TEST.apk | tee NexusNova-v1.1.12-CallerStartupFix-TEST.sha256
+
+      - name: Upload APK artifact
+        id: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: NexusNova-v1.1.12-CallerStartupFix-TEST
+          path: |
+            NexusNova-v1.1.12-CallerStartupFix-TEST.apk
+            NexusNova-v1.1.12-CallerStartupFix-TEST.sha256
+          retention-days: 14
+
+      - name: Publish APK and proof
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'NexusNova Build Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git fetch origin apk-builds
+          rm -rf /tmp/nx-v112-publish
+          git worktree add /tmp/nx-v112-publish origin/apk-builds
+          STATUS='${{ job.status }}'; APK_SHA=''; APK_STATE='not-published'
+          if [ -s NexusNova-v1.1.12-CallerStartupFix-TEST.apk ]; then
+            cp NexusNova-v1.1.12-CallerStartupFix-TEST.apk /tmp/nx-v112-publish/
+            cp NexusNova-v1.1.12-CallerStartupFix-TEST.sha256 /tmp/nx-v112-publish/
+            APK_SHA=$(awk '{print $1}' NexusNova-v1.1.12-CallerStartupFix-TEST.sha256); APK_STATE='present'
+          fi
+          cat > /tmp/nx-v112-publish/NexusNova-v1.1.12-CallerStartupFix-TEST.txt <<EOF
+          source_commit=${GITHUB_SHA}
+          feature_base=95b50ccaa75c993c5d36fe9e07eee7efcee17174
+          build_status=${STATUS}
+          apk=${APK_STATE}
+          scope=${{ steps.scope.outcome }}
+          mining_source_unchanged=${{ steps.scope.outcome }}
+          smooth_scroll_source_unchanged=${{ steps.scope.outcome }}
+          ads_source_unchanged=${{ steps.scope.outcome }}
+          caller_contract=${{ steps.caller.outcome }}
+          prepare_base=${{ steps.prepare_base.outcome }}
+          session=${{ steps.session.outcome }}
+          prepare_post=${{ steps.prepare_post.outcome }}
+          staged=${{ steps.staged.outcome }}
+          kotlin=${{ steps.kotlin.outcome }}
+          assemble=${{ steps.assemble.outcome }}
+          package=${{ steps.package.outcome }}
+          upload=${{ steps.upload.outcome }}
+          version_code=122
+          version_name=1.1.12-caller-startup-fix-test
+          apk_sha256=${APK_SHA}
+          built_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          EOF
+          sed -i 's/^          //' /tmp/nx-v112-publish/NexusNova-v1.1.12-CallerStartupFix-TEST.txt
+          cd /tmp/nx-v112-publish
+          git add NexusNova-v1.1.12-CallerStartupFix-TEST.txt
+          if [ -s NexusNova-v1.1.12-CallerStartupFix-TEST.apk ]; then git add NexusNova-v1.1.12-CallerStartupFix-TEST.apk NexusNova-v1.1.12-CallerStartupFix-TEST.sha256; fi
+          git commit -m "Publish v1.1.12 Caller Startup Fix TEST APK ${GITHUB_SHA}" || true
+          git pull --rebase origin apk-builds
+          git push origin HEAD:apk-builds
