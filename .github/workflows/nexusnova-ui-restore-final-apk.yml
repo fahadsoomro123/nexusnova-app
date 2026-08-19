@@ -1,0 +1,426 @@
+name: NexusNova v1.1.6 UI Restore TEST APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/nexusnova-ui-restore-final-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nexusnova-ui-restore-final-apk
+  cancel-in-progress: true
+
+jobs:
+  ui-restore-final-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Preserve approved sign-in source hash
+        id: signin_before
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum index.html | awk '{print $1}' > /tmp/nx116-signin-before.sha
+          echo "source_commit=${GITHUB_SHA}"
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle 8.13
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Install runtime and security test dependencies
+        id: deps
+        run: |
+          npm install --no-save playwright@1.55.0 firebase@12.1.0 @firebase/rules-unit-testing@5.0.0 firebase-tools@14.12.1
+          npx playwright install --with-deps chromium
+
+      - name: Source contracts - startup UI Vault ads Settings
+        id: source_contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in \
+            js/page2.js \
+            js/nexusnova-existing-app-ad-hotfix-v2.js \
+            js/final-integrity-fix.js \
+            js/nexusnova-allapps-order-guard-v5.js \
+            js/nexusnova-ui-regression-repair-v1.js \
+            js/nexusnova-nova-hub-nav-v1.js \
+            js/nexusnova-navigation-stability-v1.js \
+            js/nexusnova-page2-after-core-v2.js \
+            js/nexusnova-account-deletion-settings-v1.js \
+            js/nexusnova-nova-vault-10x-v1.js \
+            js/nexusnova-hub-ad-gate-v1.js \
+            functions/index.js \
+            functions/novaVault10x.js \
+            functions/admobRewardedSsvV2.js \
+            .github/scripts/nexusnova-settings-essential-runtime.mjs \
+            .github/scripts/nexusnova-ui-restore-runtime.mjs \
+            .github/scripts/nexusnova-dashboard-splash-deep-test.mjs \
+            .github/scripts/nova-vault-10x-runtime.mjs \
+            .github/scripts/nova-vault-10x-rules-smoke.mjs; do
+              node --check "$file"
+          done
+
+          grep -Fq 'nx-single-startup-owner-v4' js/page2.js
+          if grep -Fq 'nxSecureStartupShieldV3' js/page2.js; then
+            echo 'Deprecated secondary startup shield returned.' >&2
+            exit 1
+          fi
+
+          grep -Fq 'if (button.id !== WATCH_BUTTON_ID) button.id = WATCH_BUTTON_ID;' js/nexusnova-existing-app-ad-hotfix-v2.js
+          grep -Fq "if (button.getAttribute('onclick') !== 'watchAdReward()')" js/nexusnova-existing-app-ad-hotfix-v2.js
+          grep -Fq 'nexusnova-existing-app-ad-hotfix-v2.js?v=20260819-observerfix1' js/final-integrity-fix.js
+          grep -Fq 'nexusnova-existing-app-ad-hotfix-v2.js?v=20260819-observerfix1' sw.js
+
+          grep -Fq 'nxAllAppsPolishV1' js/nexusnova-allapps-order-guard-v5.js
+          grep -Fq 'width:40px!important' js/nexusnova-allapps-order-guard-v5.js
+          grep -Fq "tab.id==='tab-about'" js/nexusnova-allapps-order-guard-v5.js
+          grep -Fq "if (name === 'about')" js/nexusnova-navigation-stability-v1.js
+          grep -Fq "const MINE_DOMAIN = new Set(['home','wallet','tasks','market'])" js/nexusnova-nova-hub-nav-v1.js
+          grep -Fq 'All apps, utilities, learning and daily tools in one place.' js/nexusnova-nova-hub-nav-v1.js
+          if grep -Fq 'createCoreButton' js/nexusnova-nova-hub-nav-v1.js; then
+            echo 'Synthetic Wallet/Market Hub buttons returned.' >&2
+            exit 1
+          fi
+          grep -Fq 'NexusNova Essential Settings v3 - single owner' js/nexusnova-account-deletion-settings-v1.js
+          grep -Fq 'NexusNovaUiRegressionRepair' js/nexusnova-ui-regression-repair-v1.js
+          grep -Fq 'nxMineQuickNavV1' js/nexusnova-ui-regression-repair-v1.js
+          grep -Fq "await import('./nexusnova-ui-regression-repair-v1.js?v=1')" js/nexusnova-page2-after-core-v2.js
+
+          grep -Fq 'nexusnova-nova-vault-10x-v1.js?v=1' js/nexusnova-page2-after-core-v2.js
+          grep -Fq 'nexusnova-hub-ad-gate-v1.js?v=1' js/nexusnova-page2-after-core-v2.js
+          grep -Fq 'nova-vault-10x' functions/novaVault10x.js
+          grep -Fq 'nova-vault-10x' functions/admobRewardedSsvV2.js
+          echo 'PASS source contracts.'
+
+      - name: Python patch syntax contracts
+        id: patch_syntax
+        run: |
+          python3 -m py_compile \
+            NexusNovaAndroid/prepare_native_web_shell.py \
+            NexusNovaAndroid/patch_legal_pages.py \
+            NexusNovaAndroid/patch_family_demo_web_v1.py \
+            NexusNovaAndroid/patch_essential_settings_v3.py \
+            NexusNovaAndroid/patch_family_auth_recursion_fix.py \
+            NexusNovaAndroid/patch_startup_reveal_v2.py \
+            NexusNovaAndroid/patch_native_startup_escape_v3.py \
+            NexusNovaAndroid/patch_mining_boost_sync.py \
+            NexusNovaAndroid/patch_viewport.py \
+            NexusNovaAndroid/patch_admob.py \
+            NexusNovaAndroid/patch_nova_vault_10x_ads.py \
+            NexusNovaAndroid/patch_rewarded_test_contract.py \
+            NexusNovaAndroid/patch_test_boost_reward_fx.py \
+            NexusNovaAndroid/patch_test_boost_reward_fx_hardening.py \
+            NexusNovaAndroid/patch_test_boost_cooldown_gate.py \
+            NexusNovaAndroid/patch_ad_privacy.py \
+            NexusNovaAndroid/patch_session_restore.py \
+            NexusNovaAndroid/patch_web_shell_reset.py \
+            NexusNovaAndroid/patch_native_shell.py \
+            NexusNovaAndroid/patch_native_splash_release_v4.py \
+            NexusNovaAndroid/patch_native_no_bounce_v1.py \
+            NexusNovaAndroid/patch_dashboard_startup_lockfix_v1.py
+
+      - name: Start local proof server
+        id: server
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m http.server 4173 > /tmp/nx116-http.log 2>&1 &
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:4173/.github/fixtures/runtime-origin.html >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/nx116-http.log || true
+          exit 1
+
+      - name: Source runtime - Nova Vault10x and Hub ad gate
+        id: vault_runtime
+        run: node .github/scripts/nova-vault-10x-runtime.mjs
+
+      - name: Source runtime - approved tiny Settings
+        id: settings_source
+        run: node .github/scripts/nexusnova-settings-essential-runtime.mjs
+
+      - name: Firestore attack tests for Vault10x credits
+        id: rules
+        run: npx firebase emulators:exec --only firestore --project demo-nexusnova-ui116 "node .github/scripts/nova-vault-10x-rules-smoke.mjs"
+
+      - name: Prepare exact Android shell
+        id: prepare_android
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 NexusNovaAndroid/prepare_native_web_shell.py
+          python3 NexusNovaAndroid/patch_legal_pages.py
+          python3 NexusNovaAndroid/patch_family_demo_web_v1.py
+          python3 NexusNovaAndroid/patch_essential_settings_v3.py
+          python3 NexusNovaAndroid/patch_family_auth_recursion_fix.py
+          python3 NexusNovaAndroid/patch_startup_reveal_v2.py
+          python3 NexusNovaAndroid/patch_native_startup_escape_v3.py
+          python3 NexusNovaAndroid/patch_mining_boost_sync.py
+          python3 NexusNovaAndroid/patch_viewport.py
+          python3 NexusNovaAndroid/patch_admob.py
+          python3 NexusNovaAndroid/patch_nova_vault_10x_ads.py
+          python3 NexusNovaAndroid/patch_rewarded_test_contract.py
+          python3 NexusNovaAndroid/patch_test_boost_reward_fx.py
+          python3 NexusNovaAndroid/patch_test_boost_reward_fx_hardening.py
+          python3 NexusNovaAndroid/patch_test_boost_cooldown_gate.py
+          python3 NexusNovaAndroid/patch_ad_privacy.py
+          python3 NexusNovaAndroid/patch_session_restore.py
+          python3 NexusNovaAndroid/patch_web_shell_reset.py
+          python3 NexusNovaAndroid/patch_native_shell.py
+          python3 NexusNovaAndroid/patch_native_splash_release_v4.py
+          python3 NexusNovaAndroid/patch_native_no_bounce_v1.py
+          python3 NexusNovaAndroid/patch_dashboard_startup_lockfix_v1.py
+
+      - name: Set v1.1.6 UI Restore TEST build identity
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          path=Path('NexusNovaAndroid/app/build.gradle.kts')
+          text=path.read_text(encoding='utf-8')
+          text,n1=re.subn(r'versionCode\s*=\s*\d+','versionCode = 116',text,count=1)
+          text,n2=re.subn(r'versionName\s*=\s*"[^"]+"','versionName = "1.1.6-ui-restore-test"',text,count=1)
+          if n1 != 1 or n2 != 1: raise SystemExit('Could not set v1.1.6 identity')
+          path.write_text(text,encoding='utf-8')
+          PY
+          grep -Fq 'versionCode = 116' NexusNovaAndroid/app/build.gradle.kts
+          grep -Fq 'versionName = "1.1.6-ui-restore-test"' NexusNovaAndroid/app/build.gradle.kts
+
+      - name: Verify staged Android UI startup ads and legal contracts
+        id: native_static
+        shell: bash
+        run: |
+          set -euo pipefail
+          WEB=NexusNovaAndroid/app/src/main/assets/www
+          grep -Fq 'nx-android-dashboard-startup-lockfix-v1' "$WEB/page2.html"
+          grep -Fq 'nx-single-startup-owner-v4' "$WEB/js/page2.js"
+          if grep -Fq 'nxSecureStartupShieldV3' "$WEB/js/page2.js"; then exit 1; fi
+          grep -Fq 'nxAllAppsPolishV1' "$WEB/js/nexusnova-allapps-order-guard-v5.js"
+          grep -Fq 'width:40px!important' "$WEB/js/nexusnova-allapps-order-guard-v5.js"
+          grep -Fq "if (name === 'about')" "$WEB/js/nexusnova-navigation-stability-v1.js"
+          grep -Fq "const MINE_DOMAIN = new Set(['home','wallet','tasks','market'])" "$WEB/js/nexusnova-nova-hub-nav-v1.js"
+          if grep -Fq 'createCoreButton' "$WEB/js/nexusnova-nova-hub-nav-v1.js"; then exit 1; fi
+          grep -Fq 'NexusNova Essential Settings v3 - single owner' "$WEB/js/nexusnova-account-deletion-settings-v1.js"
+          grep -Fq 'NexusNovaUiRegressionRepair' "$WEB/js/nexusnova-ui-regression-repair-v1.js"
+          grep -Fq "await import('./nexusnova-ui-regression-repair-v1.js?v=1')" "$WEB/js/nexusnova-page2-after-core-v2.js"
+          grep -Fq 'if (button.id !== WATCH_BUTTON_ID) button.id = WATCH_BUTTON_ID;' "$WEB/js/nexusnova-existing-app-ad-hotfix-v2.js"
+          grep -Fq "if (button.getAttribute('onclick') !== 'watchAdReward()')" "$WEB/js/nexusnova-existing-app-ad-hotfix-v2.js"
+          grep -Fq 'nexusnova-existing-app-ad-hotfix-v2.js?v=20260819-observerfix1' "$WEB/js/final-integrity-fix.js"
+          grep -Fq 'nexusnova-existing-app-ad-hotfix-v2.js?v=20260819-observerfix1' "$WEB/sw.js"
+          grep -Fq 'nexusnova-nova-vault-10x-v1.js?v=1' "$WEB/js/nexusnova-page2-after-core-v2.js"
+          grep -Fq 'nexusnova-hub-ad-gate-v1.js?v=1' "$WEB/js/nexusnova-page2-after-core-v2.js"
+          grep -Fq 'REWARD_PURPOSE_VAULT_10X' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
+          grep -Fq 'ssvIdentityReady' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
+          grep -Fq 'INTERSTITIAL_ALLOWED_FEATURES' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
+          test -s "$WEB/privacy-policy.html"
+          test -s "$WEB/account-deletion.html"
+          echo 'PASS staged static contracts.'
+
+      - name: Runtime - staged Android tiny Settings
+        id: settings_staged
+        env:
+          NX_SETTINGS_SCRIPT_PATH: /NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-account-deletion-settings-v1.js
+          NX_SETTINGS_LABEL: v116-staged-android
+        run: node .github/scripts/nexusnova-settings-essential-runtime.mjs
+
+      - name: Runtime - exact Android phone UI restore inventory
+        id: ui_runtime
+        shell: bash
+        run: |
+          set -o pipefail
+          node .github/scripts/nexusnova-ui-restore-runtime.mjs 2>&1 | tee /tmp/nx116-ui.log
+
+      - name: Runtime - deep Android startup with external network blocked
+        id: startup_runtime
+        shell: bash
+        run: |
+          set -o pipefail
+          node .github/scripts/nexusnova-dashboard-splash-deep-test.mjs 2>&1 | tee /tmp/nx116-startup.log
+
+      - name: Prove sign-in source remained byte-for-byte untouched
+        id: signin_after
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum index.html | awk '{print $1}' > /tmp/nx116-signin-after.sha
+          cmp /tmp/nx116-signin-before.sha /tmp/nx116-signin-after.sha
+          echo 'PASS sign-in source untouched.'
+
+      - name: Compile native Kotlin after all proof gates
+        id: kotlin
+        run: gradle -p NexusNovaAndroid :app:compileDebugKotlin --stacktrace --no-daemon
+
+      - name: Assemble v1.1.6 UI Restore TEST APK
+        id: assemble
+        run: gradle -p NexusNovaAndroid :app:assembleDebug --stacktrace --no-daemon
+
+      - name: Verify actual APK contains UI startup Vault ads and Settings fixes
+        id: apk_verify
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK=NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          rm -rf /tmp/nx116-apk
+          mkdir -p /tmp/nx116-apk
+          unzip -qq "$APK" 'assets/www/*' -d /tmp/nx116-apk
+          WEB=/tmp/nx116-apk/assets/www
+          grep -Fq 'nx-android-dashboard-startup-lockfix-v1' "$WEB/page2.html"
+          grep -Fq 'nx-single-startup-owner-v4' "$WEB/js/page2.js"
+          if grep -Fq 'nxSecureStartupShieldV3' "$WEB/js/page2.js"; then exit 1; fi
+          grep -Fq 'nxAllAppsPolishV1' "$WEB/js/nexusnova-allapps-order-guard-v5.js"
+          grep -Fq 'width:40px!important' "$WEB/js/nexusnova-allapps-order-guard-v5.js"
+          grep -Fq "if (name === 'about')" "$WEB/js/nexusnova-navigation-stability-v1.js"
+          grep -Fq "const MINE_DOMAIN = new Set(['home','wallet','tasks','market'])" "$WEB/js/nexusnova-nova-hub-nav-v1.js"
+          if grep -Fq 'createCoreButton' "$WEB/js/nexusnova-nova-hub-nav-v1.js"; then exit 1; fi
+          grep -Fq 'NexusNova Essential Settings v3 - single owner' "$WEB/js/nexusnova-account-deletion-settings-v1.js"
+          grep -Fq 'NexusNovaUiRegressionRepair' "$WEB/js/nexusnova-ui-regression-repair-v1.js"
+          grep -Fq 'if (button.id !== WATCH_BUTTON_ID) button.id = WATCH_BUTTON_ID;' "$WEB/js/nexusnova-existing-app-ad-hotfix-v2.js"
+          grep -Fq 'nexusnova-existing-app-ad-hotfix-v2.js?v=20260819-observerfix1' "$WEB/sw.js"
+          grep -Fq "const PURPOSE = 'nova-vault-10x'" "$WEB/js/nexusnova-nova-vault-10x-v1.js"
+          grep -Fq 'nexusnova-hub-ad-gate-v1.js?v=1' "$WEB/js/nexusnova-page2-after-core-v2.js"
+          sha256sum "$APK" | tee /tmp/nx116-apk.sha256
+          echo 'PASS actual APK content contracts.'
+
+      - name: Name v1.1.6 UI Restore TEST APK
+        id: name_apk
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk NexusNova-v1.1.6-UIRestore-TEST.apk
+          test -s NexusNova-v1.1.6-UIRestore-TEST.apk
+
+      - name: Upload v1.1.6 UI Restore TEST artifact
+        id: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: NexusNova-v1.1.6-UIRestore-TEST
+          path: NexusNova-v1.1.6-UIRestore-TEST.apk
+          if-no-files-found: error
+
+      - name: Publish successful v1.1.6 APK and proof status
+        id: publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'NexusNova Final Build Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git fetch origin apk-builds
+          rm -rf /tmp/nx116-publish
+          git worktree add /tmp/nx116-publish origin/apk-builds
+          cp NexusNova-v1.1.6-UIRestore-TEST.apk /tmp/nx116-publish/NexusNova-v1.1.6-UIRestore-TEST.apk
+          APK_SHA=$(sha256sum NexusNova-v1.1.6-UIRestore-TEST.apk | awk '{print $1}')
+          cat > /tmp/nx116-publish/NexusNova-v1.1.6-UIRestore-TEST.txt <<EOF
+          source_commit=${GITHUB_SHA}
+          job_status=success
+          apk=present
+          source_contract=success
+          patch_syntax=success
+          vault_runtime=success
+          settings_source=success
+          firestore_rules=success
+          prepare_android=success
+          native_static=success
+          settings_staged=success
+          ui_runtime=success
+          feature_inventory=47
+          missing_expected_features=none
+          hub_icon_mobile_px=40
+          hub_header_above_search=yes
+          allapps_order_owners=1
+          settings_layout=Account+AppearanceTheme
+          settings_reader_pager=absent
+          settings_allapps_back=absent
+          mine_quick_nav=Wallet+Tasks+Market
+          bottom_dock=MINE+NOVA_HUB
+          startup_runtime=success
+          startup_owners=1
+          deprecated_secondary_shield=absent
+          external_network_during_ui_test=blocked
+          external_network_during_startup_test=blocked
+          runtime_test_manual_splash_release=no
+          signin_source=untouched-by-hash
+          kotlin=success
+          assemble=success
+          apk_verify=success
+          upload=success
+          version_code=116
+          version_name=1.1.6-ui-restore-test
+          ads_mode=debug-test-inventory
+          test_rewarded_value_changes=forbidden
+          apk_sha256=${APK_SHA}
+          built_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          EOF
+          sed -i 's/^          //' /tmp/nx116-publish/NexusNova-v1.1.6-UIRestore-TEST.txt
+          cd /tmp/nx116-publish
+          git add NexusNova-v1.1.6-UIRestore-TEST.apk NexusNova-v1.1.6-UIRestore-TEST.txt
+          git commit -m "UIRestore v1.1.6 TEST APK ${GITHUB_SHA}"
+          git push origin HEAD:apk-builds
+
+      - name: Publish exact failure status if v1.1.6 was not published
+        if: ${{ failure() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'NexusNova Final Build Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git fetch origin apk-builds
+          rm -rf /tmp/nx116-failure
+          git worktree add /tmp/nx116-failure origin/apk-builds
+          cat > /tmp/nx116-failure/NexusNova-v1.1.6-UIRestore-TEST.txt <<EOF
+          source_commit=${GITHUB_SHA}
+          job_status=failure
+          apk=not-published-by-this-run
+          deps=${{ steps.deps.outcome }}
+          source_contract=${{ steps.source_contract.outcome }}
+          patch_syntax=${{ steps.patch_syntax.outcome }}
+          server=${{ steps.server.outcome }}
+          vault_runtime=${{ steps.vault_runtime.outcome }}
+          settings_source=${{ steps.settings_source.outcome }}
+          firestore_rules=${{ steps.rules.outcome }}
+          prepare_android=${{ steps.prepare_android.outcome }}
+          version=${{ steps.version.outcome }}
+          native_static=${{ steps.native_static.outcome }}
+          settings_staged=${{ steps.settings_staged.outcome }}
+          ui_runtime=${{ steps.ui_runtime.outcome }}
+          startup_runtime=${{ steps.startup_runtime.outcome }}
+          signin_after=${{ steps.signin_after.outcome }}
+          kotlin=${{ steps.kotlin.outcome }}
+          assemble=${{ steps.assemble.outcome }}
+          apk_verify=${{ steps.apk_verify.outcome }}
+          name_apk=${{ steps.name_apk.outcome }}
+          upload=${{ steps.upload.outcome }}
+          publish=${{ steps.publish.outcome }}
+          checked_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          EOF
+          sed -i 's/^          //' /tmp/nx116-failure/NexusNova-v1.1.6-UIRestore-TEST.txt
+          cd /tmp/nx116-failure
+          git add NexusNova-v1.1.6-UIRestore-TEST.txt
+          git commit -m "UIRestore v1.1.6 failure ${GITHUB_SHA}" || true
+          git push origin HEAD:apk-builds
