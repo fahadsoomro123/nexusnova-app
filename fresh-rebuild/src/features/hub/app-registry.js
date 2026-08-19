@@ -27,6 +27,7 @@ export const novaApps = Object.freeze([
 
   { id: 'ai', name: 'Nova AI', category: 'Discover', icon: 'ai', description: 'AI chat, voice and research tools' },
   { id: 'smart', name: 'Smart Hub', category: 'Discover', icon: 'smart', description: 'AI, voice, file understanding and real-data daily brief' },
+  { id: 'chat', name: 'Community Chat', category: 'Discover', icon: 'more', description: 'Real-time NexusNova community messages' },
   { id: 'browser', name: 'Browser', category: 'Discover', icon: 'browser', description: 'In-app web browsing' },
   { id: 'travel', name: 'Travel', category: 'Discover', icon: 'travel', description: 'Travel planning and live sources' },
   { id: 'learning', name: 'Learning', category: 'Discover', icon: 'teacher', description: 'Study and learning utilities' },
