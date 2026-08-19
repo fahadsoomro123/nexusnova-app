@@ -4,8 +4,10 @@ on:
   push:
     branches: [main]
     paths:
-      - '.github/workflows/nexusnova-startup-deep-audit-main.yml'
+      - 'js/page2.js'
+      - 'NexusNovaAndroid/patch_dashboard_startup_lockfix_v1.py'
       - '.github/scripts/nexusnova-dashboard-splash-deep-test.mjs'
+      - '.github/workflows/nexusnova-startup-deep-audit-main.yml'
   workflow_dispatch:
 
 permissions:
@@ -50,63 +52,33 @@ jobs:
           python3 NexusNovaAndroid/patch_native_splash_release_v4.py
           python3 NexusNovaAndroid/patch_native_no_bounce_v1.py
 
-      - name: Apply dashboard-only audit fix in staged APK assets
+      - name: Apply shared dashboard startup lockfix
         id: target
-        shell: bash
-        run: |
-          set -euo pipefail
-          sha256sum NexusNovaAndroid/app/src/main/assets/www/index.html | awk '{print $1}' > /tmp/index-before.sha
-          python3 - <<'PY'
-          from pathlib import Path
-          root = Path('NexusNovaAndroid/app/src/main/assets/www')
-          page_path = root / 'page2.html'
-          launcher_path = root / 'js/page2.js'
-          page = page_path.read_text(encoding='utf-8')
-          launcher = launcher_path.read_text(encoding='utf-8')
+        run: python3 NexusNovaAndroid/patch_dashboard_startup_lockfix_v1.py
 
-          old = '<div id="nxSplash" aria-hidden="false">'
-          new = '<!-- nx-android-dashboard-startup-lockfix-v1 -->\n<div id="nxSplash" aria-hidden="true" style="display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important">'
-          if old not in page:
-              old = '<div id="nxSplash" aria-hidden="true">'
-          if old not in page:
-              raise SystemExit('dashboard splash markup not found')
-          page = page.replace(old, new, 1)
-          page = page.replace('<div class="balance-amount" id="balance">0.0000</div>', '<div class="balance-amount" id="balance">—</div>', 1)
-          page = page.replace('<div class="balance-usd" id="usdValue">$ 0.00 USD</div>', '<div class="balance-usd" id="usdValue">SYNCING SECURE BALANCE</div>', 1)
-          page = page.replace('<span id="btnText">START MINING</span>', '<span id="btnText">SYNCING MINING</span>', 1)
-          page = page.replace('        MINER OFFLINE\n', '        CHECKING SECURE SESSION\n', 1)
-
-          anchor = '  function installShield() {\n'
-          block = '''  function installShield() {\n    // nx-android-dashboard-no-secondary-shield-v1\n    const androidDashboard = window.__nexusAndroidShell === true || location.pathname.startsWith('/nexusnova-native/') || new URLSearchParams(location.search).get('nxAndroid') === '1';\n    if (androidDashboard) {\n      const oldSplash = document.getElementById('nxSplash');\n      if (oldSplash) {\n        oldSplash.style.setProperty('display','none','important');\n        oldSplash.style.setProperty('visibility','hidden','important');\n        oldSplash.style.setProperty('opacity','0','important');\n        oldSplash.style.setProperty('pointer-events','none','important');\n      }\n      return;\n    }\n'''
-          if 'nx-android-dashboard-no-secondary-shield-v1' not in launcher:
-              if anchor not in launcher:
-                  raise SystemExit('secondary shield anchor missing')
-              launcher = launcher.replace(anchor, block, 1)
-
-          page_path.write_text(page, encoding='utf-8')
-          launcher_path.write_text(launcher, encoding='utf-8')
-          PY
-          sha256sum NexusNovaAndroid/app/src/main/assets/www/index.html | awk '{print $1}' > /tmp/index-after.sha
-          cmp /tmp/index-before.sha /tmp/index-after.sha
-
-      - name: Static no-regression contract
+      - name: Static single-owner startup contract
         id: static
         shell: bash
         run: |
           set -euo pipefail
-          grep -q 'nx-android-dashboard-startup-lockfix-v1' NexusNovaAndroid/app/src/main/assets/www/page2.html
-          grep -q 'id="nxSplash" aria-hidden="true" style="display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important"' NexusNovaAndroid/app/src/main/assets/www/page2.html
-          grep -q 'nx-android-dashboard-no-secondary-shield-v1' NexusNovaAndroid/app/src/main/assets/www/js/page2.js
-          grep -q 'id="balance">—</div>' NexusNovaAndroid/app/src/main/assets/www/page2.html
-          grep -q 'SYNCING SECURE BALANCE' NexusNovaAndroid/app/src/main/assets/www/page2.html
-          grep -q 'SYNCING MINING' NexusNovaAndroid/app/src/main/assets/www/page2.html
-          grep -q 'CHECKING SECURE SESSION' NexusNovaAndroid/app/src/main/assets/www/page2.html
+          WEB=NexusNovaAndroid/app/src/main/assets/www
+          grep -q 'nx-android-dashboard-startup-lockfix-v1' "$WEB/page2.html"
+          grep -q 'id="nxSplash" aria-hidden="true" style="display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important"' "$WEB/page2.html"
+          grep -q 'nx-single-startup-owner-v4' "$WEB/js/page2.js"
+          if grep -q 'nxSecureStartupShieldV3' "$WEB/js/page2.js"; then
+            echo 'Deprecated secondary startup shield reappeared.' >&2
+            exit 1
+          fi
+          grep -q 'id="balance">—</div>' "$WEB/page2.html"
+          grep -q 'SYNCING SECURE BALANCE' "$WEB/page2.html"
+          grep -q 'SYNCING MINING' "$WEB/page2.html"
+          grep -q 'CHECKING SECURE SESSION' "$WEB/page2.html"
           grep -q 'scheduleNativeSplashRelease(target) // nx-native-splash-release-v4' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
           grep -q 'releaseAfter(2_600L)' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
           grep -q 'releaseAfter(4_800L)' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
           grep -q 'releaseAfter(8_000L)' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
-          node --check NexusNovaAndroid/app/src/main/assets/www/js/page2.js
-          echo 'PASS static startup contract'
+          node --check "$WEB/js/page2.js"
+          echo 'PASS static single-owner startup contract'
 
       - name: Start local final prepared shell
         shell: bash
@@ -137,6 +109,8 @@ jobs:
           static=${{ steps.static.outcome }}
           runtime=${{ steps.runtime.outcome }}
           sign_in_target_patch=untouched-by-hash
+          startup_owners=1
+          deprecated_secondary_shield=absent
           apk_built=no
           external_network_during_runtime=blocked
           test_manually_hides_splash=no
