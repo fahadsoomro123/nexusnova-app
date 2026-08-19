@@ -1,5 +1,5 @@
 import { firebaseApp, readUserProfile, requireFirebaseUser } from '../../core/firebase-backend.js';
-import { escapeHtml, loadJson } from '../../core/local-store.js';
+import { loadJson } from '../../core/local-store.js';
 
 function node(html) {
   const root = document.createElement('div');
@@ -91,12 +91,18 @@ async function buildDailyBriefPrompt() {
 
   const habits = loadJson(`nexus_fresh_habits_v1_${id}`, []).slice(0, 8);
   const expenses = loadJson('nexus_expenses_v1', []);
+  const billsRaw = loadJson('nexus_bills_v1', []);
   const month = new Date();
   const monthExpenses = expenses.filter(item => {
     const d = new Date(item?.at);
     return d.getMonth() === month.getMonth() && d.getFullYear() === month.getFullYear();
   });
   const expenseTotal = monthExpenses.reduce((sum, item) => sum + (Number(item?.amount) || 0), 0);
+
+  const today = new Date().toISOString().slice(0, 10);
+  const dueBills = (Array.isArray(billsRaw) ? billsRaw : [])
+    .filter(item => item && item.done !== true && /^\d{4}-\d{2}-\d{2}$/.test(String(item.due || '')) && String(item.due) <= today)
+    .slice(0, 8);
 
   const miningStartedAt = Number(profile?.miningStartedAt) || 0;
   const miningLeftMs = profile?.miningActive === true && miningStartedAt
@@ -112,6 +118,9 @@ async function buildDailyBriefPrompt() {
   const habitText = habits.length
     ? habits.map(item => `${item.name || 'Habit'}: ${Array.isArray(item.days) ? item.days.length : 0} recorded check-ins`).join('; ')
     : 'none';
+  const billText = dueBills.length
+    ? dueBills.map(item => `${String(item.title || 'Bill').slice(0,120)} due ${item.due}${Number(item.amount) > 0 ? ` amount ${Number(item.amount)}` : ''}`).join('; ')
+    : 'none due or overdue';
   const balance = Number(profile?.balance);
 
   return `Build my concise NexusNova daily brief in Roman Urdu. Use only the real app data below. Do not invent missing information.\n` +
@@ -119,6 +128,7 @@ async function buildDailyBriefPrompt() {
     `Mining: ${profile?.miningActive === true ? `active, about ${(miningLeftMs / 3_600_000).toFixed(2)} hours remaining` : 'idle or unavailable'}\n` +
     `Upcoming events: ${eventText}\n` +
     `Upcoming reminders: ${reminderText}\n` +
+    `Bills due/overdue: ${billText}\n` +
     `This month logged expenses total: ${expenseTotal}\n` +
     `Habits: ${habitText}\n` +
     `Weather data: not supplied\nNews data: not supplied\n` +
@@ -147,7 +157,7 @@ export function renderSmartHub() {
 
     <section class="nx-tool-card">
       <strong>AI Daily Brief</strong>
-      <p class="nx-tool-meta">Uses your real NexusNova balance/mining state plus saved events, reminders, expenses and habits. Missing weather/news are never guessed.</p>
+      <p class="nx-tool-meta">Uses your real NexusNova balance/mining state plus saved events, reminders, bills, expenses and habits. Missing weather/news are never guessed.</p>
       <div class="nx-two-col">
         <button class="nx-primary" type="button" data-smart-brief>BUILD BRIEF</button>
         <button type="button" data-smart-speak disabled>SPEAK BRIEF</button>
