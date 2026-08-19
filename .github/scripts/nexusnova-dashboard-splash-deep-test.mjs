@@ -83,12 +83,33 @@ try {
     8500,
     'mineBtn DOM wait'
   );
-  stage('wait mineBtn tab owner');
-  await bounded(
-    page.waitForFunction(() => Boolean(document.getElementById('mineBtn')?.closest('.tab')), null, { timeout: 7000 }),
-    8500,
-    'mineBtn tab wait'
-  );
+
+  stage('trace mineBtn ownership');
+  const ownership = await bounded(page.evaluate(() => {
+    const mine = document.getElementById('mineBtn');
+    const home = document.getElementById('tab-home');
+    const chain = [];
+    let node = mine;
+    for (let i = 0; node && i < 9; i += 1, node = node.parentElement) {
+      chain.push({
+        tag: String(node.tagName || '').toLowerCase(),
+        id: String(node.id || ''),
+        className: String(node.className || '').slice(0, 240),
+      });
+    }
+    return {
+      mineConnected: Boolean(mine?.isConnected),
+      mineCount: document.querySelectorAll('#mineBtn').length,
+      mineOuter: String(mine?.outerHTML || '').slice(0, 700),
+      homeExists: Boolean(home),
+      homeClass: String(home?.className || ''),
+      homeContainsMine: Boolean(home && mine && home.contains(mine)),
+      closestTabId: String(mine?.closest?.('.tab')?.id || ''),
+      chain,
+      homeOuterStart: String(home?.outerHTML || '').slice(0, 1600),
+    };
+  }), 5000, 'mineBtn ownership trace');
+  console.log(`OWNERSHIP ${JSON.stringify(ownership)}`);
 
   async function snapshot(label) {
     stage(`snapshot ${label} begin`);
@@ -96,7 +117,8 @@ try {
       const splash = document.getElementById('nxSplash');
       const shield = document.getElementById('nxSecureStartupShieldV3');
       const mine = document.getElementById('mineBtn');
-      const miningTab = mine?.closest('.tab') || null;
+      const home = document.getElementById('tab-home');
+      const miningTab = mine?.closest?.('.tab') || null;
       const dock = document.querySelector('.bottom-dock');
       const splashStyle = splash ? getComputedStyle(splash) : null;
       const shieldStyle = shield ? getComputedStyle(shield) : null;
@@ -112,7 +134,9 @@ try {
         shieldExists: Boolean(shield),
         shieldBlocking: Boolean(shield && shieldStyle && shieldStyle.display !== 'none' && shieldStyle.visibility !== 'hidden' && Number(shieldStyle.opacity) > 0 && shieldStyle.pointerEvents !== 'none'),
         miningTabId: String(miningTab?.id || ''),
-        homeActive: Boolean(miningTab?.classList.contains('active')),
+        homeExists: Boolean(home),
+        homeContainsMine: Boolean(home && mine && home.contains(mine)),
+        homeActive: Boolean(home?.classList.contains('active')),
         mineVisible: Boolean(mineRect && mineRect.width > 100 && mineRect.height > 40),
         dockVisible: Boolean(dockRect && dockRect.width > 100 && dockRect.height > 20),
         balance: String(document.getElementById('balance')?.textContent || '').trim(),
@@ -126,7 +150,8 @@ try {
     assert.equal(state.splashBlocking, false, `${label}: HTML splash is blocking`);
     assert.equal(state.shieldBlocking, false, `${label}: secondary shield is blocking`);
     assert.equal(state.shieldExists, false, `${label}: Android created a secondary startup shield`);
-    assert.equal(state.miningTabId, 'tab-home', `${label}: mining button is no longer owned by tab-home`);
+    assert.equal(state.homeExists, true, `${label}: tab-home missing`);
+    assert.equal(state.homeContainsMine, true, `${label}: mining button is no longer contained by tab-home`);
     assert.equal(state.homeActive, true, `${label}: mining screen is not active`);
     assert.equal(state.mineVisible, true, `${label}: mining control is not visible`);
     assert.equal(state.dockVisible, true, `${label}: bottom dock is not visible`);
@@ -153,7 +178,7 @@ try {
   stage('navigate dock back home');
   await bounded(page.locator('.bottom-dock .dock-item:nth-child(1)').click({ timeout: 5000 }), 6500, 'home dock click');
   await bounded(
-    page.waitForFunction(() => document.getElementById('mineBtn')?.closest('.tab')?.classList.contains('active') === true, null, { timeout: 3000 }),
+    page.waitForFunction(() => document.getElementById('tab-home')?.classList.contains('active') === true, null, { timeout: 3000 }),
     4500,
     'home active wait'
   );
