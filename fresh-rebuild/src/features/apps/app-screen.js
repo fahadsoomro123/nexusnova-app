@@ -10,6 +10,7 @@ import { deviceRenderers } from './device-apps.js';
 import { smartRenderers } from './smart-apps.js';
 import { teacherSuiteRenderers } from './teacher-suite.js';
 import { islamicSuiteRenderers } from './islamic-suite.js';
+import { documentsSuiteRenderers } from './documents-suite.js';
 
 let cleanup = null;
 
@@ -37,7 +38,7 @@ export function appScreen({ id, backToHub } = {}) {
 
   root.querySelector('[data-app-back]').addEventListener('click', () => backToHub?.());
   const mount = root.querySelector('[data-app-mount]');
-  const renderer = coreRenderers[id] || personalRenderers[id] || teacherSuiteRenderers[id] || islamicSuiteRenderers[id] || discoverRenderers[id] || faithSecurityRenderers[id] || deviceRenderers[id] || smartRenderers[id] || everydayRenderers[id] || liveRenderers[id];
+  const renderer = coreRenderers[id] || personalRenderers[id] || teacherSuiteRenderers[id] || islamicSuiteRenderers[id] || documentsSuiteRenderers[id] || discoverRenderers[id] || faithSecurityRenderers[id] || deviceRenderers[id] || smartRenderers[id] || everydayRenderers[id] || liveRenderers[id];
 
   if (renderer) {
     const body = renderer();
