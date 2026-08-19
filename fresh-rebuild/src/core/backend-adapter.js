@@ -1,11 +1,14 @@
 const EMPTY_MINING = Object.freeze({
   availability: 'unbound',
   active: false,
+  startedAt: 0,
   balance: null,
   totalMined: null,
   rate: null,
   sessionRemainingSeconds: null,
+  sessionComplete: false,
   halvingStage: null,
+  novaVaultPending: 0,
   statusText: 'Backend not connected'
 });
 
@@ -13,6 +16,7 @@ class BackendAdapter {
   constructor() {
     this.bridge = null;
     this.listeners = new Set();
+    this.bridgeUnsubscribe = null;
     this.handleExternalState = this.handleExternalState.bind(this);
     window.addEventListener('nexusnova:mining-state', this.handleExternalState);
     this.attach(window.NexusNovaFreshBridge || null);
@@ -20,7 +24,12 @@ class BackendAdapter {
 
   attach(bridge) {
     if (!bridge || typeof bridge !== 'object') return false;
+    this.bridgeUnsubscribe?.();
+    this.bridgeUnsubscribe = null;
     this.bridge = bridge;
+    if (typeof bridge.subscribeMining === 'function') {
+      this.bridgeUnsubscribe = bridge.subscribeMining(snapshot => this.emit(this.normalizeMining(snapshot)));
+    }
     return true;
   }
 
@@ -33,7 +42,7 @@ class BackendAdapter {
       return this.normalizeMining(raw);
     } catch (error) {
       console.error('[NexusNova Fresh] mining snapshot failed', error);
-      return { ...EMPTY_MINING, availability: 'error', statusText: 'Mining data unavailable' };
+      return { ...EMPTY_MINING, availability: 'error', statusText: error?.message || 'Mining data unavailable' };
     }
   }
 
@@ -69,11 +78,14 @@ class BackendAdapter {
     return {
       availability: raw.availability || 'ready',
       active: Boolean(raw.active),
+      startedAt: Math.max(0, Math.floor(numberOrNull(raw.startedAt) || 0)),
       balance: numberOrNull(raw.balance),
       totalMined: numberOrNull(raw.totalMined),
       rate: numberOrNull(raw.rate),
       sessionRemainingSeconds: seconds == null ? null : Math.max(0, Math.floor(seconds)),
+      sessionComplete: Boolean(raw.sessionComplete),
       halvingStage: raw.halvingStage ?? null,
+      novaVaultPending: Math.max(0, Math.floor(numberOrNull(raw.novaVaultPending) || 0)),
       statusText: String(raw.statusText || (raw.active ? 'Mining active' : 'Mining idle'))
     };
   }
