@@ -1,5 +1,5 @@
 /* NexusNova Service Worker - fresh-code first, bounded network + offline fallback + FCM web push */
-const CACHE = "nexusnova-shell-v25-vault10x-ads";
+const CACHE = "nexusnova-shell-v26-drive-track-splash";
 
 const ASSETS = [
   "./",
@@ -21,6 +21,7 @@ const ASSETS = [
   "./js/page2.js",
   "./js/nexusnova-page2-core-launch-v2.js",
   "./js/nexusnova-page2-after-core-v2.js",
+  "./js/nexusnova-drive-track-v1.js?v=1",
   "./js/nexusnova-account-deletion-settings-v1.js",
   "./js/page2-core.js",
   "./js/core-failsafe.js",
@@ -47,7 +48,7 @@ const ASSETS = [
   "./js/nexusnova-ad-placements-v1.js?v=3",
   "./js/nexusnova-watch-ad-reward-v1.js?v=1",
   "./js/nexusnova-existing-app-ad-hotfix-v2.js?v=20260819-observerfix1",
-  "./js/nexusnova-ux-simplify-v1.js?v=20260817-1015",
+  "./js/nexusnova-ux-simplify-v1.js?v=20260819-readeronly1",
   "./js/nexusnova-ad-privacy-v1.js?v=1",
   "./js/nexusnova-admob-diagnostics-v1.js",
   /* Compatibility filename; implementation is the AdMob Mining Boost bridge. */
