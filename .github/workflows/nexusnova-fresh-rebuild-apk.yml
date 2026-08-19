@@ -8,6 +8,13 @@ on:
       - 'fresh-rebuild/**'
       - 'NexusNovaAndroid/**'
       - '.github/workflows/nexusnova-fresh-rebuild-apk.yml'
+  pull_request:
+    branches:
+      - nexusnova-fresh-ci-base-20260820
+    paths:
+      - 'fresh-rebuild/**'
+      - 'NexusNovaAndroid/**'
+      - '.github/workflows/nexusnova-fresh-rebuild-apk.yml'
   workflow_dispatch:
 
 permissions:
@@ -110,7 +117,7 @@ jobs:
           grep -q 'loadUrlSafely(LOCAL_APP_URL)' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
           grep -q 'private lateinit var adManager: NexusAdManager' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
           grep -q 'ACTION_SHOW_REWARDED_AD' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
-          grep -q 'buildConfigField("Boolean", "NEXUS_ADS_TEST_MODE", "true")' NexusNovaAndroid/app/build.gradle.kts
+          grep -q 'buildConfigField("boolean", "NEXUS_ADS_TEST_MODE", "true")' NexusNovaAndroid/app/build.gradle.kts
           echo 'Android fresh bundle checks passed'
 
       - name: Build fresh debug TEST APK
