@@ -145,6 +145,14 @@
       console.warn('NexusNova AI/Chat future UI:', error);
     }
 
+    // Quick presentation-only modernization for the remaining partial Nova Hub
+    // screens. Feature logic and protected behaviors remain authoritative.
+    try {
+      await import('./nexusnova-nine-screen-modern-v1.js?v=1');
+    } catch (error) {
+      console.warn('NexusNova remaining screen modernization:', error);
+    }
+
     try {
       await import('./nexusnova-navigation-stability-v1.js?v=1');
     } catch (error) {
