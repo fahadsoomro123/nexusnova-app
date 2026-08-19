@@ -1,0 +1,112 @@
+name: NexusNova v1.1.12 Golden Master Bundle
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/nexusnova-golden-master-v112.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build single Golden Master ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          GOLDEN=golden-master-v1.1.12-stable
+          GOLDEN_COMMIT=6c2dac23239e986c9c6fa73e92b2f9832ee2e946
+          APK=NexusNova-v1.1.12-CallerStartupFix-TEST.apk
+          SHA=NexusNova-v1.1.12-CallerStartupFix-TEST.sha256
+          PROOF=NexusNova-v1.1.12-CallerStartupFix-TEST.txt
+          OUT=NexusNova-GOLDEN-MASTER-v1.1.12-COMPLETE.zip
+          ROOT=NexusNova-GOLDEN-MASTER-v1.1.12
+
+          git fetch origin "$GOLDEN" apk-builds
+          test "$(git rev-parse origin/$GOLDEN)" = "$GOLDEN_COMMIT"
+
+          rm -rf "$ROOT" "$OUT" "$OUT.sha256"
+          mkdir -p "$ROOT/SOURCE" "$ROOT/APK" "$ROOT/BUILD-PROOF"
+          git archive "origin/$GOLDEN" | tar -x -C "$ROOT/SOURCE"
+          git show "origin/apk-builds:$APK" > "$ROOT/APK/$APK"
+          git show "origin/apk-builds:$SHA" > "$ROOT/APK/$SHA"
+          git show "origin/apk-builds:$PROOF" > "$ROOT/BUILD-PROOF/$PROOF"
+
+          cat > "$ROOT/GOLDEN-MASTER-METADATA.txt" <<EOF
+          NexusNova Golden Master v1.1.12
+          Golden branch: $GOLDEN
+          Golden clean source commit: $GOLDEN_COMMIT
+          Stable APK: $APK
+          APK SHA-256: ad0a0a872db5a149d8fa9198000e38d162263933ea3e414ba854435be080dd06
+          Build source commit: 46a4e0e37f40ee166d3e10edacd895d04ca3eb4e
+          Firebase project: nexusnova-6ade2
+          AdMob App ID: ca-app-pub-5070673529890078~1824799663
+          Interstitial ID: ca-app-pub-5070673529890078/7807608294
+          Rewarded ID: ca-app-pub-5070673529890078/7194148596
+          EOF
+
+          cat > "$ROOT/RESTORE-INSTRUCTIONS.txt" <<'EOF'
+          NEXUSNOVA v1.1.12 COMPLETE RESTORE
+          =================================
+          This ZIP is the read-only Golden Master backup.
+
+          FAST RESTORE:
+          1. Open SOURCE folder.
+          2. Upload/push all SOURCE contents to a clean GitHub repository or restore main from the golden branch.
+          3. Keep the Golden Master branch untouched.
+          4. The tested APK is inside APK/.
+          5. Use BUILD-PROOF/ and the SHA-256 file to verify the matching build.
+
+          IMPORTANT:
+          This package contains project source and the tested APK, but cloud-side Firebase Auth users,
+          Firestore live data, Firebase Console settings and AdMob Console account data remain external services.
+
+          GOLDEN RULE:
+          Never do normal development directly on golden-master-v1.1.12-stable.
+          EOF
+
+          zip -qr "$OUT" "$ROOT"
+          sha256sum "$OUT" > "$OUT.sha256"
+          test -s "$OUT"
+
+      - name: Publish Golden Master ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT=NexusNova-GOLDEN-MASTER-v1.1.12-COMPLETE.zip
+          git config user.name 'NexusNova Build Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git fetch origin apk-builds
+          rm -rf /tmp/nx-golden-v112
+          git worktree add /tmp/nx-golden-v112 origin/apk-builds
+          cp "$OUT" /tmp/nx-golden-v112/
+          cp "$OUT.sha256" /tmp/nx-golden-v112/
+          HASH=$(awk '{print $1}' "$OUT.sha256")
+          cat > /tmp/nx-golden-v112/NexusNova-GOLDEN-MASTER-v1.1.12-COMPLETE.txt <<EOF
+          source_commit=${GITHUB_SHA}
+          golden_branch=golden-master-v1.1.12-stable
+          golden_commit=6c2dac23239e986c9c6fa73e92b2f9832ee2e946
+          bundle_status=success
+          bundle=$OUT
+          bundle_sha256=$HASH
+          includes_source=success
+          includes_apk=success
+          includes_apk_sha=success
+          includes_build_proof=success
+          includes_restore_instructions=success
+          EOF
+          cd /tmp/nx-golden-v112
+          git add "$OUT" "$OUT.sha256" NexusNova-GOLDEN-MASTER-v1.1.12-COMPLETE.txt
+          git commit -m "Publish v1.1.12 complete Golden Master bundle ${GITHUB_SHA}" || true
+          git pull --rebase origin apk-builds
+          git push origin HEAD:apk-builds
