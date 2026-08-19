@@ -35,19 +35,17 @@ if site_key:
 # Force this branch's TEST APK to load the bundled fresh surface. Production
 # GitHub Pages and stable branches are deliberately left untouched.
 main = MAIN.read_text(encoding='utf-8')
-old = '''        // The production GitHub Pages origin is the single source of truth.
-        // A local asset copy remains only as an automatic offline/recovery fallback.
-        loadProductionApp()
+startup = '''        loadProductionApp()
         showCallerSetupOnce()
 '''
-new = '''        // Fresh-rebuild TEST edition: load only the isolated bundled fresh app.
+fresh_startup = '''        // Fresh-rebuild TEST edition: load only the isolated bundled fresh app.
         // Stable/production GitHub Pages remains untouched outside this branch.
         loadUrlSafely(LOCAL_APP_URL)
         showCallerSetupOnce()
 '''
-if old not in main:
-    raise SystemExit('Fresh MainActivity startup patch point not found')
-main = main.replace(old, new, 1)
+if main.count(startup) != 1:
+    raise SystemExit(f'Fresh MainActivity startup patch point count was {main.count(startup)}, expected 1')
+main = main.replace(startup, fresh_startup, 1)
 MAIN.write_text(main, encoding='utf-8')
 
 marker = WWW / 'FRESH-REBUILD-BUILD.txt'
