@@ -224,6 +224,13 @@ jobs:
           git config user.name 'NexusNova Integration Bot'
           git config user.email 'actions@users.noreply.github.com'
           git commit -m 'Wire secure Nova Vault 10x and capped Hub ads'
+          # The Android proof chain intentionally stages generated/native test
+          # mutations outside the three integration-wiring files above. Once the
+          # tested wiring is committed in HEAD, discard only those uncommitted
+          # leftovers so rebase sees a clean worktree. The desired integration
+          # commit itself is preserved by reset --hard HEAD.
+          git reset --hard HEAD
+          git clean -fd
           git fetch origin main
           git rebase origin/main
           git push origin HEAD:main
