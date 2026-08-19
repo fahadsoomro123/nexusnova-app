@@ -90,6 +90,7 @@ jobs:
         run: |
           set -euo pipefail
           WEB=NexusNovaAndroid/app/src/main/assets/www
+          BASE=/tmp/nx-v112-assets/assets/www
           grep -q "nexusnova-ai-chat-future-v1.js?v=1" "$WEB/js/nexusnova-page2-after-core-v2.js"
           grep -q "nexusnova-nine-screen-modern-v1.js?v=1" "$WEB/js/nexusnova-page2-after-core-v2.js"
           grep -q "ai-chat-future-v1" "$WEB/js/nexusnova-ai-chat-future-v1.js"
@@ -97,8 +98,9 @@ jobs:
           grep -q "compact-premium-v1" "$WEB/js/nexusnova-compact-premium-v1.js"
           grep -q 'setTimeout(releaseSplash, 1900);' "$WEB/index.html"
           grep -q 'setTimeout(nxForceReleaseSplash, 1400);' "$WEB/page2.html"
-          grep -q 'globalOwnersInstalled' "$WEB/js/nexusnova-navigation-stability-v1.js"
-          grep -q 'REQUEST_ACK_TIMEOUT_MS = 2500' "$WEB/js/nexusnova-hub-ad-gate-v1.js"
+          cmp "$BASE/js/nexusnova-navigation-stability-v1.js" "$WEB/js/nexusnova-navigation-stability-v1.js"
+          cmp "$BASE/js/nexusnova-allapps-scroll-fix-v1.js" "$WEB/js/nexusnova-allapps-scroll-fix-v1.js"
+          cmp "$BASE/js/nexusnova-hub-ad-gate-v1.js" "$WEB/js/nexusnova-hub-ad-gate-v1.js"
           python3 - <<'PY'
           from pathlib import Path
           p=Path('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt')
@@ -110,6 +112,7 @@ jobs:
               raise SystemExit('Caller ID startup regression detected')
           print('Caller ID remains deferred from app startup.')
           PY
+          echo 'Stable v1.1.12 navigation/scroll/ad owners preserved byte-for-byte.'
 
       - name: Assemble latest TEST APK
         run: gradle -p NexusNovaAndroid :app:assembleDebug --stacktrace --no-daemon
