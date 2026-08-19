@@ -1,0 +1,118 @@
+name: NexusNova Restored Approved APK Export
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/nexusnova-restored-approved-apk-export.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout restored source
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle 8.13
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Prepare exact approved Android shell
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 NexusNovaAndroid/prepare_native_web_shell.py
+          python3 NexusNovaAndroid/patch_legal_pages.py
+          python3 NexusNovaAndroid/patch_family_demo_web_v1.py
+          python3 NexusNovaAndroid/patch_essential_settings_v3.py
+          python3 NexusNovaAndroid/patch_family_auth_recursion_fix.py
+          python3 NexusNovaAndroid/patch_startup_reveal_v2.py
+          python3 NexusNovaAndroid/patch_native_startup_escape_v3.py
+          python3 NexusNovaAndroid/patch_mining_boost_sync.py
+          python3 NexusNovaAndroid/patch_viewport.py
+          python3 NexusNovaAndroid/patch_admob.py
+          python3 NexusNovaAndroid/patch_nova_vault_10x_ads.py
+          python3 NexusNovaAndroid/patch_rewarded_test_contract.py
+          python3 NexusNovaAndroid/patch_test_boost_reward_fx.py
+          python3 NexusNovaAndroid/patch_test_boost_reward_fx_hardening.py
+          python3 NexusNovaAndroid/patch_test_boost_cooldown_gate.py
+          python3 NexusNovaAndroid/patch_ad_privacy.py
+          python3 NexusNovaAndroid/patch_session_restore.py
+          python3 NexusNovaAndroid/patch_web_shell_reset.py
+          python3 NexusNovaAndroid/patch_native_shell.py
+          python3 NexusNovaAndroid/patch_native_splash_release_v4.py
+          python3 NexusNovaAndroid/patch_native_no_bounce_v1.py
+          python3 NexusNovaAndroid/patch_dashboard_startup_lockfix_v1.py
+
+      - name: Verify restored build contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'nx-android-dashboard-startup-lockfix-v1' NexusNovaAndroid/app/src/main/assets/www/page2.html
+          grep -Fq 'nexusnova-nova-vault-10x-v1.js?v=1' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-page2-after-core-v2.js
+          grep -Fq 'nexusnova-hub-ad-gate-v1.js?v=1' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-page2-after-core-v2.js
+          grep -Fq 'NexusNova Essential Settings v3' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-account-deletion-settings-v1.js
+          test -s NexusNovaAndroid/app/src/main/assets/www/privacy-policy.html
+          test -s NexusNovaAndroid/app/src/main/assets/www/account-deletion.html
+
+      - name: Compile restored TEST APK
+        run: gradle -p NexusNovaAndroid :app:assembleDebug --stacktrace --no-daemon
+
+      - name: Name and hash APK
+        shell: bash
+        run: |
+          cp NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk NexusNova-Restored-Approved-2026-08-18-TEST.apk
+          test -s NexusNova-Restored-Approved-2026-08-18-TEST.apk
+          sha256sum NexusNova-Restored-Approved-2026-08-18-TEST.apk | tee NexusNova-Restored-Approved-2026-08-18-TEST.sha256
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NexusNova-Restored-Approved-2026-08-18-TEST
+          path: |
+            NexusNova-Restored-Approved-2026-08-18-TEST.apk
+            NexusNova-Restored-Approved-2026-08-18-TEST.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Publish APK to apk-builds branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'NexusNova Build Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git fetch origin apk-builds
+          rm -rf /tmp/nexusnova-restored-apk
+          git worktree add /tmp/nexusnova-restored-apk origin/apk-builds
+          cp NexusNova-Restored-Approved-2026-08-18-TEST.apk /tmp/nexusnova-restored-apk/
+          cp NexusNova-Restored-Approved-2026-08-18-TEST.sha256 /tmp/nexusnova-restored-apk/
+          cat > /tmp/nexusnova-restored-apk/NexusNova-Restored-Approved-2026-08-18-TEST.txt <<EOF
+          source_commit=${GITHUB_SHA}
+          build_status=success
+          apk=NexusNova-Restored-Approved-2026-08-18-TEST.apk
+          build_mode=TEST
+          restored_base=1964718d81bae2ea492dc3aa80be55db05f03656
+          built_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          EOF
+          cd /tmp/nexusnova-restored-apk
+          git add NexusNova-Restored-Approved-2026-08-18-TEST.apk NexusNova-Restored-Approved-2026-08-18-TEST.sha256 NexusNova-Restored-Approved-2026-08-18-TEST.txt
+          git commit -m 'Publish restored approved NexusNova TEST APK' || true
+          for attempt in 1 2 3; do
+            git fetch origin apk-builds
+            git rebase origin/apk-builds || { git rebase --abort || true; sleep 3; continue; }
+            if git push origin HEAD:apk-builds; then exit 0; fi
+            sleep 3
+          done
+          exit 1
