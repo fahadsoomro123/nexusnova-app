@@ -76,7 +76,7 @@ try {
     'mineBtn DOM wait'
   );
 
-  async function snapshot(label, { expectWatchGuard = false } = {}) {
+  async function snapshot(label, { expectWatchGuard = false, expectNovaHubDock = false } = {}) {
     stage(`snapshot ${label} begin`);
     const state = await bounded(page.evaluate(() => {
       const splash = document.getElementById('nxSplash');
@@ -98,6 +98,7 @@ try {
         href: location.href,
         readyState: document.readyState,
         android: window.__nexusAndroidShell === true,
+        novaHubNavReady: window.__nxNovaHubNavV1 === true,
         splashBlocking: Boolean(splash && splashStyle && splashStyle.display !== 'none' && splashStyle.visibility !== 'hidden' && Number(splashStyle.opacity) > 0 && splashStyle.pointerEvents !== 'none'),
         splashDisplay: String(splashStyle?.display || ''),
         shieldExists: Boolean(shield),
@@ -127,8 +128,12 @@ try {
     assert.equal(state.homeActive, true, `${label}: Mining screen is not active`);
     assert.equal(state.mineVisible, true, `${label}: Mine control is not visible`);
     assert.equal(state.dockVisible, true, `${label}: bottom dock is not visible`);
-    assert.equal(state.visibleDockCount, 2, `${label}: approved Mine + Nova Hub dock is not the only visible dock pair`);
     assert.notEqual(state.balance, '0.0000', `${label}: stale 0.0000 balance exposed`);
+
+    if (expectNovaHubDock) {
+      assert.equal(state.novaHubNavReady, true, `${label}: approved Nova Hub navigation has not hydrated`);
+      assert.equal(state.visibleDockCount, 2, `${label}: approved Mine + Nova Hub dock is not the only visible dock pair`);
+    }
 
     if (expectWatchGuard && state.watchExists) {
       assert.equal(state.watchId, 'nxWatchAdRewardBtn', `${label}: Tasks rewarded button ownership regressed`);
@@ -138,15 +143,17 @@ try {
   }
 
   // IMPORTANT: this test never invokes any splash release/hide/remove helper.
-  // 1s is specifically past the old hotfix-v2 200/500ms observer-loop window.
+  // The 150ms probe validates startup safety before optional Nova Hub hydration.
+  // 1s is past both the old hotfix-v2 200/500ms observer-loop window and the
+  // normal local Nova Hub navigation hydration window.
   await page.waitForTimeout(150);
   await snapshot('150ms');
   await page.waitForTimeout(850);
-  await snapshot('1s', { expectWatchGuard:true });
+  await snapshot('1s', { expectWatchGuard:true, expectNovaHubDock:true });
   await page.waitForTimeout(2000);
-  await snapshot('3s', { expectWatchGuard:true });
+  await snapshot('3s', { expectWatchGuard:true, expectNovaHubDock:true });
   await page.waitForTimeout(5000);
-  await snapshot('8s', { expectWatchGuard:true });
+  await snapshot('8s', { expectWatchGuard:true, expectNovaHubDock:true });
 
   // The approved phone-confirmed Nova Hub navigation deliberately exposes only
   // Mine + Nova Hub in the dock. Wallet/Market live inside Nova Hub, so test the
@@ -198,7 +205,7 @@ try {
     'Mine active wait'
   );
   await page.waitForTimeout(1200);
-  await snapshot('after-hub-wallet-mine', { expectWatchGuard:true });
+  await snapshot('after-hub-wallet-mine', { expectWatchGuard:true, expectNovaHubDock:true });
 
   const severe = pageErrors.filter(text => !/Failed to fetch|ERR_FAILED|dynamically imported module|Importing a module script failed|NetworkError/i.test(text));
   assert.deepEqual(severe, [], `unexpected severe page errors: ${severe.join(' | ')}`);
