@@ -1,0 +1,16 @@
+NexusNova Fresh Rebuild TEST APK
+Branch: nexusnova-fresh-rebuild-20260820
+Source commit: d3db0ee405fe067010dc6f37564b5a5a78cdac4a
+Edition: TEST/debug only
+Web validation: success
+Android preparation: failure
+AdMob patch: skipped
+Android verification: skipped
+Gradle build: skipped
+RESULT: FAIL — inspect diagnostics below.
+
+===== web-validate.log =====
+Fresh architecture checks passed
+
+===== prepare-android.log =====
+Fresh MainActivity startup patch point not found
