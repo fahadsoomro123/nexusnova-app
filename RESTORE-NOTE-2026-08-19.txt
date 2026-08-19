@@ -1,0 +1,1 @@
+NexusNova restore safety marker. Current main before restoring approved late-18-August state: b8566bbca84b3ddb0107238dcf96c2358dbb070c. Approved restore target identified from repository history: 1964718d81bae2ea492dc3aa80be55db05f03656. This marker preserves the pre-restore SHA for recovery.
