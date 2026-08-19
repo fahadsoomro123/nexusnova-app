@@ -21,6 +21,9 @@ export const novaApps = Object.freeze([
   { id: 'speed-test', name: 'Speed Test', category: 'Live & Local', icon: 'speed', description: 'Network speed instrument' },
   { id: 'pakistan', name: 'Pakistan Hub', category: 'Live & Local', icon: 'news', description: 'Pakistan-focused information' },
   { id: 'news', name: 'News', category: 'Live & Local', icon: 'news', description: 'Current headlines and feeds' },
+  { id: 'location', name: 'My Location', category: 'Live & Local', icon: 'location', description: 'Live GPS coordinates and accuracy without storage' },
+  { id: 'nova-drive', name: 'Nova Drive', category: 'Live & Local', icon: 'drive', description: 'Foreground GPS speed, distance and trip recording' },
+  { id: 'nova-track', name: 'Nova Track', category: 'Live & Local', icon: 'track', description: 'Daily, weekly and monthly drive summaries' },
 
   { id: 'ai', name: 'Nova AI', category: 'Discover', icon: 'ai', description: 'AI chat, voice and research tools' },
   { id: 'browser', name: 'Browser', category: 'Discover', icon: 'browser', description: 'In-app web browsing' },
@@ -43,6 +46,7 @@ export const novaApps = Object.freeze([
   { id: 'contacts', name: 'Contacts', category: 'Personal', icon: 'more', description: 'Account-scoped contacts' },
   { id: 'caller-id', name: 'Caller ID', category: 'Personal', icon: 'more', description: 'Android caller utilities' },
   { id: 'family', name: 'Family Hub', category: 'Personal', icon: 'more', description: 'Family-focused utilities' },
+  { id: 'emergency', name: 'Family Emergency', category: 'Personal', icon: 'emergency', description: 'Account-scoped emergency contacts with direct calling' },
 
   { id: 'finance', name: 'Finance', category: 'Money & Commerce', icon: 'market', description: 'Finance and conversion tools' },
   { id: 'shopping', name: 'Shopping', category: 'Money & Commerce', icon: 'more', description: 'Shopping lists and discovery' },
