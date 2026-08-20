@@ -22,17 +22,23 @@ Daemon will be stopped at the end of the build
 > Task :app:processDebugMainManifest
 > Task :app:processDebugManifest
 > Task :app:javaPreCompileDebug
-> Task :app:processDebugManifestForPackage
 > Task :app:mergeDebugShaders
 > Task :app:compileDebugShaders NO-SOURCE
 > Task :app:generateDebugAssets UP-TO-DATE
 > Task :app:mergeDebugAssets
 > Task :app:desugarDebugFileDependencies
 > Task :app:compressDebugAssets
-> Task :app:processDebugResources
+> Task :app:mergeDebugJniLibFolders
 > Task :app:checkDebugDuplicateClasses
-> Task :app:compileDebugKotlin
+> Task :app:mergeDebugNativeLibs NO-SOURCE
+> Task :app:processDebugManifestForPackage
 > Task :app:mergeExtDexDebug
+> Task :app:mergeLibDexDebug
+> Task :app:stripDebugDebugSymbols NO-SOURCE
+> Task :app:processDebugResources
+> Task :app:validateSigningDebug
+> Task :app:writeDebugAppMetadata
+> Task :app:writeDebugSigningConfigVersions
 
 > Task :app:compileDebugKotlin
 w: file:///home/runner/work/nexusnova-app/nexusnova-app/NexusNovaAndroid/app/src/main/java/com/nexusnova/app/BrowserActivity.kt:62:16 'var statusBarColor: Int' is deprecated. Deprecated in Java.
@@ -57,19 +63,12 @@ w: file:///home/runner/work/nexusnova-app/nexusnova-app/NexusNovaAndroid/app/src
 > Task :app:dexBuilderDebug
 > Task :app:mergeDebugGlobalSynthetics
 > Task :app:processDebugJavaRes
-> Task :app:mergeDebugJniLibFolders
-> Task :app:mergeLibDexDebug
-> Task :app:mergeDebugNativeLibs NO-SOURCE
-> Task :app:stripDebugDebugSymbols NO-SOURCE
 > Task :app:mergeProjectDexDebug
 > Task :app:mergeDebugJavaResource
-> Task :app:validateSigningDebug
-> Task :app:writeDebugAppMetadata
-> Task :app:writeDebugSigningConfigVersions
 > Task :app:packageDebug
 > Task :app:createDebugApkListingFileRedirect
 > Task :app:assembleDebug
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/android_build-1787238807236.json
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/android_build-1787239104786.json
 
-BUILD SUCCESSFUL in 2m 4s
+BUILD SUCCESSFUL in 2m 1s
 40 actionable tasks: 39 executed, 1 up-to-date
