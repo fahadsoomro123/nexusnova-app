@@ -89,6 +89,38 @@ jobs:
               if f"id: '{tool}'" not in registry:
                   raise SystemExit(f'Direct Nova Hub tool missing: {tool}')
 
+          policy = Path('fresh-rebuild/src/core/ad-policy.js').read_text(encoding='utf-8')
+          app_ids = set(re.findall(r"\bid:\s*'([^']+)'", registry))
+          protected_block = policy.split('const PROTECTED_APPS = new Set([', 1)[1].split(']);', 1)[0]
+          protected_ids = set(re.findall(r"'([^']+)'", protected_block))
+          required_protected = {'quran','hadith','bukhari','bible','qibla','security','emergency','health','contacts','about'}
+          if not required_protected.issubset(protected_ids):
+              raise SystemExit('Approved protected ad exclusions are incomplete')
+          forbidden_overprotection = {'wallet','tasks','market','profile','location','documents','islamic','family','settings','chat'}
+          accidental = sorted(forbidden_overprotection & protected_ids)
+          if accidental:
+              raise SystemExit('Eligible apps accidentally protected from ads: ' + ', '.join(accidental))
+
+          alias_block = policy.split('const FEATURE_ALIAS = Object.freeze({', 1)[1].split('});', 1)[0]
+          alias_ids = set()
+          for line in alias_block.splitlines():
+              match = re.match(r"\s*(?:'([^']+)'|([A-Za-z][A-Za-z0-9_-]*))\s*:", line)
+              if match:
+                  alias_ids.add(match.group(1) or match.group(2))
+          protected_registered = app_ids & required_protected
+          missing_ad_alias = sorted(app_ids - protected_registered - alias_ids)
+          if missing_ad_alias:
+              raise SystemExit('Nova Hub apps missing ad coverage alias: ' + ', '.join(missing_ad_alias))
+
+          main_js = Path('fresh-rebuild/src/main.js').read_text(encoding='utf-8')
+          for route_contract in (
+              'openHubApp: openAppWithAd',
+              'hub: () => hubScreen({ openApp: openAppWithAd })',
+              'openAppWithAd(safeId)'
+          ):
+              if route_contract not in main_js:
+                  raise SystemExit('Fresh app-open ad route bypass detected: ' + route_contract)
+
           all_source = '\n'.join(
               p.read_text(encoding='utf-8')
               for p in Path('fresh-rebuild').rglob('*')
@@ -103,7 +135,7 @@ jobs:
           for name in forbidden_runtime:
               if re.search(r'(?:src|href)=["\'][^"\']*' + re.escape(name), all_source):
                   raise SystemExit(f'Legacy runtime loaded by fresh app: {name}')
-          print('Fresh architecture checks passed')
+          print('Fresh architecture and ad coverage checks passed')
           PY
           } 2>&1 | tee fresh-build-output/web-validate.log
 
@@ -125,7 +157,10 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          python NexusNovaAndroid/patch_admob.py 2>&1 | tee fresh-build-output/patch-admob.log
+          {
+            python NexusNovaAndroid/patch_admob.py
+            python NexusNovaAndroid/patch_fresh_ad_coverage.py
+          } 2>&1 | tee fresh-build-output/patch-admob.log
 
       - name: Verify Android fresh bundle
         id: android_verify
@@ -145,6 +180,8 @@ jobs:
             grep -q 'private lateinit var adManager: NexusAdManager' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
             grep -q 'ACTION_SHOW_REWARDED_AD' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
             grep -q 'buildConfigField("boolean", "NEXUS_ADS_TEST_MODE", "true")' NexusNovaAndroid/app/build.gradle.kts
+            grep -q 'TEST_INTERSTITIAL_COOLDOWN_MS = 5_000L' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
+            grep -q 'now - lastInterstitialShownAt < interstitialCooldownMs' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
             echo 'Android fresh bundle checks passed'
           } 2>&1 | tee fresh-build-output/android-verify.log
 
