@@ -1,5 +1,8 @@
+import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-functions.js';
 import { escapeHtml, loadJson, saveJson, uid } from '../../core/local-store.js';
-import { requireFirebaseUser } from '../../core/firebase-backend.js';
+import { firebaseApp, requireFirebaseUser } from '../../core/firebase-backend.js';
+
+const functions = getFunctions(firebaseApp, 'us-central1');
 
 function node(html) {
   const root = document.createElement('div');
@@ -39,26 +42,29 @@ async function wikiSearch(topic) {
   const search = await fetchJson(`${endpoint}?action=query&list=search&srlimit=1&format=json&origin=*&srsearch=${encodeURIComponent(topic)}`);
   const first = search?.query?.search?.[0];
   if (!first?.pageid) throw new Error('No matching learning article found.');
-  const page = await fetchJson(`${endpoint}?action=query&prop=extracts|info&exintro=1&explaintext=1&inprop=url&format=json&origin=*&pageids=${encodeURIComponent(first.pageid)}`);
+  const page = await fetchJson(`${endpoint}?action=query&prop=extracts&exintro=1&explaintext=1&format=json&origin=*&pageids=${encodeURIComponent(first.pageid)}`);
   const data = page?.query?.pages?.[first.pageid];
   if (!data?.extract) throw new Error('Learning article has no readable summary.');
   return {
+    pageid: first.pageid,
+    lang,
     title: data.title || first.title || topic,
-    extract: String(data.extract).trim(),
-    url: data.fullurl || `https://${lang}.wikipedia.org/?curid=${first.pageid}`
+    extract: String(data.extract).trim()
   };
 }
 
-function openExternal(url) {
-  try {
-    const parsed = new URL(url);
-    if (!/^https:$/.test(parsed.protocol)) return false;
-    if (typeof window.nexusPostNativeAction === 'function' && window.nexusPostNativeAction('openExternal', { url: parsed.href })) return true;
-    window.open(parsed.href, '_blank', 'noopener,noreferrer');
-    return true;
-  } catch {
-    return false;
-  }
+async function wikiFullArticle(article) {
+  const endpoint = `https://${article.lang}.wikipedia.org/w/api.php`;
+  const page = await fetchJson(`${endpoint}?action=query&prop=extracts&explaintext=1&format=json&origin=*&pageids=${encodeURIComponent(article.pageid)}`, 16000);
+  const data = page?.query?.pages?.[article.pageid];
+  const text = String(data?.extract || '').trim();
+  if (!text) throw new Error('Full article text is unavailable.');
+  return text.slice(0, 30000);
+}
+
+function articleParagraphs(text) {
+  return String(text || '').split(/\n{2,}/).map(value => value.trim()).filter(Boolean).slice(0, 60)
+    .map(value => `<p>${escapeHtml(value)}</p>`).join('');
 }
 
 function hideWord(sentence) {
@@ -71,6 +77,13 @@ function hideWord(sentence) {
   return { question: `${sentence.slice(0, index)}________${sentence.slice(index + answer.length)}`, answer };
 }
 
+function paperError(error) {
+  return String(error?.message || error || 'Past-paper search failed.')
+    .replace(/^FirebaseError:\s*/i, '')
+    .replace(/^functions\/[a-z-]+:\s*/i, '')
+    .slice(0, 280);
+}
+
 export function renderLearningSuite() {
   const root = node(`
     <section class="nx-tool-card">
@@ -80,12 +93,13 @@ export function renderLearningSuite() {
         <button class="nx-primary" type="button" data-learn-summary>LIVE SUMMARY</button>
         <button type="button" data-learn-quiz>BUILD QUIZ</button>
       </div>
-      <p class="nx-tool-meta" data-learn-status>Summaries and quizzes use a live Wikipedia knowledge source. NexusNova does not invent paper files or source articles.</p>
+      <p class="nx-tool-meta" data-learn-status>Summaries, quizzes and full articles stay inside NexusNova and use live Wikipedia data.</p>
       <article class="nx-list-card" data-learn-output hidden></article>
     </section>
 
     <section class="nx-tool-card">
       <strong>Solved / Past Papers</strong>
+      <p class="nx-tool-meta">Search verified web-index results inside NexusNova. No Google browser handoff and no fabricated paper links.</p>
       <label class="nx-field"><span>Board / University</span><input maxlength="120" data-paper-board placeholder="BISE Larkana, University of Sindh…"></label>
       <div class="nx-two-col">
         <label class="nx-field"><span>Class / Program</span><input maxlength="80" data-paper-class placeholder="Grade 10 or B.Ed"></label>
@@ -93,11 +107,12 @@ export function renderLearningSuite() {
       </div>
       <label class="nx-field"><span>Year (optional)</span><input type="number" min="1990" max="2100" data-paper-year placeholder="2025"></label>
       <div class="nx-two-col">
-        <button class="nx-primary" type="button" data-paper-edu>EDUCATION SITES</button>
-        <button type="button" data-paper-pdf>PDF SEARCH</button>
+        <button class="nx-primary" type="button" data-paper-mode="education">EDUCATION SOURCES</button>
+        <button type="button" data-paper-mode="pdf">PDF RESULTS</button>
       </div>
-      <button type="button" data-paper-web>FULL WEB SEARCH</button>
-      <p class="nx-tool-meta" data-paper-status>Search details are turned into real web queries; no solved paper is fabricated inside NexusNova.</p>
+      <button type="button" data-paper-mode="web">ALL SOURCES</button>
+      <p class="nx-tool-meta" data-paper-status>Ready for secure in-app past-paper search.</p>
+      <div class="nx-stack" data-paper-results style="margin-top:12px"></div>
     </section>
 
     <section class="nx-tool-card">
@@ -141,9 +156,23 @@ export function renderLearningSuite() {
     try {
       const article = await wikiSearch(value);
       const short = article.extract.length > 2200 ? `${article.extract.slice(0, 2200).replace(/\s+\S*$/, '')}…` : article.extract;
-      output.innerHTML = `<strong>${escapeHtml(article.title)}</strong><p>${escapeHtml(short)}</p><button type="button" data-open-source>OPEN SOURCE ARTICLE</button>`;
+      output.innerHTML = `<strong>${escapeHtml(article.title)}</strong><p>${escapeHtml(short)}</p><button type="button" data-read-full>READ FULL ARTICLE IN NEXUSNOVA</button>`;
       output.hidden = false;
-      output.querySelector('[data-open-source]').addEventListener('click', () => openExternal(article.url));
+      output.querySelector('[data-read-full]').addEventListener('click', async event => {
+        const button = event.currentTarget;
+        button.disabled = true;
+        button.textContent = 'LOADING FULL ARTICLE…';
+        learnStatus.textContent = 'Loading full source article inside NexusNova…';
+        try {
+          const full = await wikiFullArticle(article);
+          output.innerHTML = `<div class="nx-list-card__head"><strong>${escapeHtml(article.title)}</strong><span class="nx-badge">WIKIPEDIA</span></div><div style="margin-top:10px">${articleParagraphs(full)}</div>`;
+          learnStatus.textContent = 'Full live-source article loaded inside NexusNova.';
+        } catch (error) {
+          button.disabled = false;
+          button.textContent = 'READ FULL ARTICLE IN NEXUSNOVA';
+          learnStatus.textContent = `Full article unavailable: ${error.message || 'request failed'}`;
+        }
+      });
       learnStatus.textContent = 'Live source summary ready.';
     } catch (error) {
       learnStatus.textContent = `Live knowledge lookup unavailable: ${error.message || 'request failed'}`;
@@ -189,21 +218,60 @@ export function renderLearningSuite() {
   const paperSubject = root.querySelector('[data-paper-subject]');
   const paperYear = root.querySelector('[data-paper-year]');
   const paperStatus = root.querySelector('[data-paper-status]');
-  const paperQuery = prefix => {
+  const paperResults = root.querySelector('[data-paper-results]');
+
+  const searchPapers = async mode => {
     const board = paperBoard.value.trim();
-    if (!board) { paperStatus.textContent = 'Enter a board or university first.'; return ''; }
-    const parts = [board, paperClass.value.trim(), paperSubject.value.trim(), paperYear.value.trim(), 'past paper solved paper PDF'].filter(Boolean);
-    return `${prefix || ''}${parts.join(' ')}`.trim();
+    if (!board) { paperStatus.textContent = 'Enter a board or university first.'; return; }
+    root.querySelectorAll('[data-paper-mode]').forEach(button => button.disabled = true);
+    paperStatus.textContent = 'Searching secure indexed education sources…';
+    paperResults.innerHTML = '<div class="nx-empty">Searching real sources inside NexusNova…</div>';
+    try {
+      await requireFirebaseUser();
+      const call = httpsCallable(functions, 'searchLearningPapers');
+      const response = await call({
+        board,
+        level: paperClass.value.trim(),
+        subject: paperSubject.value.trim(),
+        year: paperYear.value.trim(),
+        mode
+      });
+      const data = response?.data || {};
+      if (data.ok !== true) {
+        paperResults.innerHTML = '<div class="nx-empty">Past-paper provider is not connected yet. No browser search or fake result was substituted.</div>';
+        paperStatus.textContent = data.message || 'Secure search provider is not configured yet.';
+        return;
+      }
+      const rows = Array.isArray(data.results) ? data.results : [];
+      paperResults.innerHTML = rows.length ? rows.map((item, index) => `
+        <article class="nx-list-card">
+          <div class="nx-list-card__head">
+            <div><strong>${escapeHtml(item.title || 'Search result')}</strong><p class="nx-tool-meta">${escapeHtml(item.domain || 'source')}</p></div>
+            <span class="nx-badge${item.isPdf ? ' good' : ''}">${item.isPdf ? 'PDF' : `#${index + 1}`}</span>
+          </div>
+          <p>${escapeHtml(item.snippet || 'No source description supplied.')}</p>
+          <button type="button" data-paper-source="${index}">SHOW SOURCE ADDRESS</button>
+          <p class="nx-tool-meta" data-paper-source-text="${index}" hidden>${escapeHtml(item.url || '')}</p>
+        </article>`).join('') : '<div class="nx-empty">No indexed source matched this search.</div>';
+      paperResults.querySelectorAll('[data-paper-source]').forEach(button => button.addEventListener('click', () => {
+        const target = paperResults.querySelector(`[data-paper-source-text="${button.dataset.paperSource}"]`);
+        if (!target) return;
+        target.hidden = !target.hidden;
+        button.textContent = target.hidden ? 'SHOW SOURCE ADDRESS' : 'HIDE SOURCE ADDRESS';
+      }));
+      paperStatus.textContent = `${rows.length} real indexed source${rows.length === 1 ? '' : 's'} returned inside NexusNova.`;
+    } catch (error) {
+      const message = paperError(error);
+      paperResults.innerHTML = '<div class="nx-empty">Secure past-paper search is unavailable right now.</div>';
+      paperStatus.textContent = /not-found|searchLearningPapers/i.test(message)
+        ? 'Past-paper backend is prepared but still needs deployment/provider connection.'
+        : message;
+    } finally {
+      root.querySelectorAll('[data-paper-mode]').forEach(button => button.disabled = false);
+    }
   };
-  root.querySelector('[data-paper-edu]').addEventListener('click', () => {
-    const q = paperQuery('site:edu.pk '); if (q) openExternal(`https://www.google.com/search?q=${encodeURIComponent(q)}`);
-  });
-  root.querySelector('[data-paper-pdf]').addEventListener('click', () => {
-    const q = paperQuery(''); if (q) openExternal(`https://www.google.com/search?q=${encodeURIComponent(`${q} filetype:pdf`)}`);
-  });
-  root.querySelector('[data-paper-web]').addEventListener('click', () => {
-    const q = paperQuery(''); if (q) openExternal(`https://www.google.com/search?q=${encodeURIComponent(q)}`);
-  });
+
+  root.querySelectorAll('[data-paper-mode]').forEach(button => button.addEventListener('click', () => searchPapers(button.dataset.paperMode)));
 
   const planSubjects = root.querySelector('[data-plan-subjects]');
   const planExam = root.querySelector('[data-plan-exam]');
