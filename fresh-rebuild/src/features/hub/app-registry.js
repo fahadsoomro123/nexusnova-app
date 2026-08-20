@@ -1,7 +1,7 @@
 export const novaApps = Object.freeze([
-  { id: 'wallet', name: 'Wallet', category: 'Core', icon: 'wallet', description: 'Assets, portfolio and wallet actions' },
-  { id: 'tasks', name: 'Rewards', category: 'Core', icon: 'tasks', description: 'Daily reward, tasks and verified bonuses' },
-  { id: 'market', name: 'Market', category: 'Core', icon: 'market', description: 'Top assets and live market data' },
+  { id: 'wallet', name: 'Wallet', category: 'Mining', placement: 'mine', icon: 'wallet', description: 'NVX balance, assets and wallet actions' },
+  { id: 'tasks', name: 'Tasks', category: 'Mining', placement: 'mine', icon: 'tasks', description: 'NVX rewards and verified community missions' },
+  { id: 'market', name: 'Market', category: 'Mining', placement: 'mine', icon: 'market', description: 'NVX context, top assets and live market data' },
   { id: 'profile', name: 'Profile', category: 'Core', icon: 'more', description: 'Identity, account stats and profile details' },
 
   { id: 'notes', name: 'Notes', category: 'Everyday Tools', icon: 'notes', description: 'Fast private notes' },
@@ -58,11 +58,13 @@ export const novaApps = Object.freeze([
   { id: 'orders', name: 'Orders', category: 'Money & Commerce', icon: 'document', description: 'Order tracking surface' },
   { id: 'growth', name: 'Growth Center', category: 'Money & Commerce', icon: 'market', description: 'Referral and growth tools' },
 
-  { id: 'nova-vault', name: 'Nova Vault', category: 'Security & System', icon: 'vault', description: 'Server-backed Nova Vault features' },
+  { id: 'nova-vault', name: 'Nova Vault + 10X', category: 'Mining', placement: 'mine', icon: 'vault', description: 'Server-backed vault rewards and secure 10X chance' },
   { id: 'file-vault', name: 'File Vault', category: 'Security & System', icon: 'vault', description: 'Protected file workflow' },
   { id: 'security', name: 'Security', category: 'Security & System', icon: 'vault', description: 'Security status and controls' },
   { id: 'notifications', name: 'Notifications', category: 'Security & System', icon: 'more', description: 'Notification preferences and status' },
   { id: 'settings', name: 'Settings', category: 'Security & System', icon: 'settings', description: 'Account, privacy and app settings' }
 ]);
 
-export const categories = Object.freeze([...new Set(novaApps.map(app => app.category))]);
+export const mineApps = Object.freeze(novaApps.filter(app => app.placement === 'mine'));
+export const hubApps = Object.freeze(novaApps.filter(app => app.placement !== 'mine'));
+export const categories = Object.freeze([...new Set(hubApps.map(app => app.category))]);

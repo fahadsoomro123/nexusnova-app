@@ -8,11 +8,15 @@ import { adPolicy } from './core/ad-policy.js';
 import { authScreen } from './features/auth/auth-screen.js';
 import { mineScreen } from './features/mine/mine-screen.js';
 import { hubScreen } from './features/hub/hub-screen.js';
+import { mineApps } from './features/hub/app-registry.js';
 import { appScreen, cleanupAppScreen } from './features/apps/app-screen.js';
 
 const stage = document.getElementById('nx-stage');
 const dock = document.querySelector('.nx-dock');
 const dockItems = [...document.querySelectorAll('.nx-dock__item')];
+const mineAppIds = new Set(mineApps.map(app => app.id));
+const BOOT_SPLASH_MIN_MS = 2_200;
+const bootSplashStartedAt = performance.now();
 
 backend.attach(firebaseBackend);
 
@@ -70,18 +74,25 @@ function showDock(show) {
   document.body.classList.toggle('nx-auth-mode', !show);
 }
 
-function syncDock(route) {
+function parentRouteForApp(id) {
+  return mineAppIds.has(String(id || '')) ? 'mine' : 'hub';
+}
+
+function syncDock(route, payload = {}) {
+  const visibleRoute = route === 'app' ? parentRouteForApp(payload.id) : route;
   dockItems.forEach(button => {
-    const active = button.dataset.route === route || (route === 'app' && button.dataset.route === 'hub');
+    const active = button.dataset.route === visibleRoute;
     if (active) button.setAttribute('aria-current', 'page');
     else button.removeAttribute('aria-current');
   });
 }
 
 let router;
+let currentAppParent = 'hub';
 const openAppDirect = id => router.render('app', { id });
 const openAppWithAd = id => adPolicy.gateHubApp(id, () => openAppDirect(id));
 const backToHub = () => router.render('hub');
+const backToMine = () => router.render('mine');
 
 router = createRouter({
   stage,
@@ -94,10 +105,11 @@ router = createRouter({
       beforeMiningRenewal: continueMining => adPolicy.gateMiningRenewal(continueMining)
     }),
     hub: () => hubScreen({ openApp: openAppWithAd }),
-    app: payload => appScreen({ id: payload.id, backToHub })
+    app: payload => appScreen({ id: payload.id, backToHub, backToMine })
   },
-  onRoute(route) {
-    syncDock(route);
+  onRoute(route, payload = {}) {
+    if (route === 'app') currentAppParent = parentRouteForApp(payload.id);
+    syncDock(route, payload);
     showDock(route !== 'auth');
     if (route !== 'app') cleanupAppScreen();
   }
@@ -130,7 +142,7 @@ window.NexusNovaUxSimplify = Object.freeze({
   systemBack() {
     if (!router?.current || router.current === 'auth' || router.current === 'mine') return false;
     if (router.current === 'app') {
-      router.render('hub');
+      router.render(currentAppParent);
       return true;
     }
     if (router.current === 'hub') {
@@ -144,9 +156,15 @@ window.NexusNovaUxSimplify = Object.freeze({
 
 dockItems.forEach(button => button.addEventListener('click', () => router.render(button.dataset.route)));
 
+function waitForBootSplashMinimum() {
+  const remaining = BOOT_SPLASH_MIN_MS - (performance.now() - bootSplashStartedAt);
+  return remaining > 0 ? new Promise(resolve => setTimeout(resolve, remaining)) : Promise.resolve();
+}
+
 async function boot() {
   stage.innerHTML = '<div class="nx-boot"><div class="nx-auth__logo">N</div><p>Initializing secure workspace…</p></div>';
   const user = await authService.waitForUser();
+  await waitForBootSplashMinimum();
   if (!user) {
     await router.render('auth');
     return;

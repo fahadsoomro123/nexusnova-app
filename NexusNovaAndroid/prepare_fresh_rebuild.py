@@ -35,6 +35,8 @@ if site_key:
 # Force this branch's TEST APK to load the bundled fresh surface using native
 # APIs that already exist in MainActivity. Mark it as the local/offline surface
 # so the production watchdog cannot redirect the fresh TEST UI back to Pages.
+# Caller ID setup stays user-initiated; never auto-launch its role prompt before
+# the fresh auth/account flow has completed.
 main = MAIN.read_text(encoding='utf-8')
 startup = '''        loadProductionApp()
         showCallerSetupOnce()
@@ -43,7 +45,6 @@ fresh_startup = '''        // Fresh-rebuild TEST edition: load only the isolated
         // Stable/production GitHub Pages remains untouched outside this CI checkout.
         usingOfflineFallback = true
         webView.loadUrl(LOCAL_APP_URL)
-        showCallerSetupOnce()
 '''
 if main.count(startup) != 1:
     raise SystemExit(f'Fresh MainActivity startup patch point count was {main.count(startup)}, expected 1')

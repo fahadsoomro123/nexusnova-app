@@ -1,8 +1,8 @@
 import { icon } from '../../components/icons.js';
-import { createGauge } from '../../components/instrument-gauge.js';
 import { backend } from '../../core/backend-adapter.js';
 
 const DAY_SECONDS = 86_400;
+const DAY_MS = DAY_SECONDS * 1000;
 let cleanupCurrent = null;
 
 function formatClock(seconds) {
@@ -23,7 +23,12 @@ function projectedBalance(state) {
 
 function remainingFromState(state) {
   if (!state.active || !state.startedAt) return state.sessionRemainingSeconds ?? DAY_SECONDS;
-  return Math.max(0, Math.ceil((86_400_000 - (Date.now() - state.startedAt)) / 1000));
+  return Math.max(0, Math.ceil((DAY_MS - (Date.now() - state.startedAt)) / 1000));
+}
+
+function sessionProgress(state) {
+  if (!state.active || !state.startedAt) return 0;
+  return Math.max(0, Math.min(1, (Date.now() - state.startedAt) / DAY_MS));
 }
 
 export async function mineScreen({ openHubApp, beforeMiningRenewal } = {}) {
@@ -37,19 +42,28 @@ export async function mineScreen({ openHubApp, beforeMiningRenewal } = {}) {
       <div>
         <p class="nx-eyebrow">NEXUSNOVA NETWORK</p>
         <h1 class="nx-title">Mine</h1>
-        <p class="nx-subtitle">Compact secure mining. No filler, no duplicate panels.</p>
+        <p class="nx-subtitle">Secure 24H NVX mining with tasks, vault rewards and boost tools.</p>
       </div>
       <span class="nx-status-dot" data-mining-dot aria-hidden="true"></span>
     </header>
 
     <article class="nx-panel nx-miner" aria-label="NVX mining session">
       <div class="nx-miner-grid">
-        <div>
+        <div class="nx-miner-balance">
           <div class="nx-balance-label">NVX Balance</div>
           <div class="nx-balance" data-balance>-- <small>NVX</small></div>
-          <div class="nx-rate">Rate <strong data-rate>--</strong> NVX/h</div>
+          <div class="nx-miner-state"><span data-rate-dot></span><strong data-miner-state>SECURE SYNC</strong></div>
         </div>
-        <div class="nx-gauge-wrap" data-gauge-wrap>${createGauge({ value: 0, min: 0, max: 1, unit: 'NVX/H' })}</div>
+        <div class="nx-live-rate" aria-label="Live NVX mining rate">
+          <span>LIVE RATE</span>
+          <strong><b data-rate>--</b><small>NVX/H</small></strong>
+          <em>SERVER SYNCED</em>
+        </div>
+      </div>
+
+      <div class="nx-mining-flow" aria-label="24 hour mining progress">
+        <div class="nx-mining-flow__top"><span>24H SECURE SESSION</span><strong data-progress-label>READY</strong></div>
+        <div class="nx-mining-flow__track"><i data-progress-bar></i></div>
       </div>
 
       <div class="nx-session">
@@ -62,11 +76,26 @@ export async function mineScreen({ openHubApp, beforeMiningRenewal } = {}) {
       <p class="nx-subtitle" data-mining-status style="margin-bottom:0">Checking your secure session…</p>
     </article>
 
-    <div class="nx-quick-grid" aria-label="Core quick access">
-      <button class="nx-quick" type="button" data-open-app="wallet">${icon('wallet')}<strong>Wallet</strong><span>Assets & portfolio</span></button>
-      <button class="nx-quick" type="button" data-open-app="tasks">${icon('tasks')}<strong>Rewards</strong><span>Daily & tasks</span></button>
-      <button class="nx-quick" type="button" data-open-app="market">${icon('market')}<strong>Market</strong><span>Top assets</span></button>
-    </div>
+    <section class="nx-mining-tools" aria-label="Mining tools">
+      <div class="nx-mining-tools__head">
+        <div><p class="nx-eyebrow">MINING ECOSYSTEM</p><h2>NVX tools</h2></div>
+        <span>4 CORE TOOLS</span>
+      </div>
+      <div class="nx-mining-tool-grid">
+        <button class="nx-mining-tool nx-mining-tool--featured" type="button" data-open-app="tasks">
+          <span class="nx-mining-tool__icon">${icon('tasks')}</span><div><strong>Tasks</strong><span>NVX rewards + community missions</span></div>
+        </button>
+        <button class="nx-mining-tool nx-mining-tool--boost" type="button" data-open-app="nova-vault">
+          <span class="nx-mining-tool__icon">${icon('vault')}</span><div><strong>Nova Vault + 10X</strong><span>Secure boosted reward chance</span></div><b>10X</b>
+        </button>
+        <button class="nx-mining-tool" type="button" data-open-app="wallet">
+          <span class="nx-mining-tool__icon">${icon('wallet')}</span><div><strong>Wallet</strong><span>NVX balance + assets</span></div>
+        </button>
+        <button class="nx-mining-tool" type="button" data-open-app="market">
+          <span class="nx-mining-tool__icon">${icon('market')}</span><div><strong>Market</strong><span>Live asset prices</span></div>
+        </button>
+      </div>
+    </section>
   `;
 
   const refs = {
@@ -78,12 +107,24 @@ export async function mineScreen({ openHubApp, beforeMiningRenewal } = {}) {
     status: root.querySelector('[data-mining-status]'),
     button: root.querySelector('[data-mine-action]'),
     dot: root.querySelector('[data-mining-dot]'),
-    gauge: root.querySelector('[data-gauge-wrap]')
+    rateDot: root.querySelector('[data-rate-dot]'),
+    minerState: root.querySelector('[data-miner-state]'),
+    progress: root.querySelector('[data-progress-bar]'),
+    progressLabel: root.querySelector('[data-progress-label]')
   };
 
   let state = await backend.getMiningSnapshot();
   let clockTimer = null;
   let busy = false;
+
+  const paintProgress = () => {
+    const remaining = remainingFromState(state);
+    const progress = sessionProgress(state);
+    refs.progress.style.width = `${Math.round(progress * 1000) / 10}%`;
+    refs.progressLabel.textContent = state.active
+      ? (remaining <= 0 ? 'COMPLETE' : `${Math.round(progress * 100)}%`)
+      : 'READY';
+  };
 
   const render = next => {
     state = next || state;
@@ -93,11 +134,13 @@ export async function mineScreen({ openHubApp, beforeMiningRenewal } = {}) {
     refs.stage.textContent = state.halvingStage == null ? '--' : `STAGE ${state.halvingStage}`;
     refs.vaults.textContent = String(state.novaVaultPending || 0);
     refs.dot.dataset.state = state.active ? 'active' : 'idle';
+    refs.rateDot.dataset.state = state.active ? 'active' : 'idle';
+    refs.minerState.textContent = state.active ? 'MINING LIVE' : 'SECURE READY';
     refs.status.textContent = state.statusText || 'Mining status unavailable';
-    refs.gauge.innerHTML = createGauge({ value: Number(state.rate) || 0, min: 0, max: Math.max(1, Number(state.rate) || 1), unit: 'NVX/H' });
 
     const remaining = remainingFromState(state);
     refs.session.textContent = state.active ? formatClock(remaining) : '24:00:00';
+    paintProgress();
 
     refs.button.disabled = busy || state.availability === 'unbound' || state.availability === 'error' || (state.active && remaining > 0);
     if (busy) refs.button.textContent = 'WORKING…';
@@ -113,6 +156,7 @@ export async function mineScreen({ openHubApp, beforeMiningRenewal } = {}) {
     refs.session.textContent = formatClock(remaining);
     const balance = projectedBalance(state);
     refs.balance.innerHTML = `${balance == null ? '--' : balance.toFixed(4)} <small>NVX</small>`;
+    paintProgress();
     if (remaining <= 0) render(state);
   };
 

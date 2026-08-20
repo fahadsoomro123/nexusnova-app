@@ -1,5 +1,5 @@
 import { icon } from '../../components/icons.js';
-import { categories, novaApps } from './app-registry.js';
+import { categories, hubApps } from './app-registry.js';
 
 export function hubScreen({ openApp } = {}) {
   const root = document.createElement('section');
@@ -9,7 +9,7 @@ export function hubScreen({ openApp } = {}) {
       <div>
         <p class="nx-eyebrow">ALL APPS • DIRECT ACCESS</p>
         <h1 class="nx-title">Nova Hub</h1>
-        <p class="nx-subtitle">Every utility is first-class. Tools Hub has been removed.</p>
+        <p class="nx-subtitle">Everyday apps and utilities. Mining tools now live under Mine.</p>
       </div>
     </header>
     <div class="nx-hub-toolbar">
@@ -24,8 +24,8 @@ export function hubScreen({ openApp } = {}) {
   const draw = query => {
     const needle = String(query || '').trim().toLowerCase();
     const filtered = needle
-      ? novaApps.filter(app => `${app.name} ${app.category} ${app.description}`.toLowerCase().includes(needle))
-      : novaApps;
+      ? hubApps.filter(app => `${app.name} ${app.category} ${app.description}`.toLowerCase().includes(needle))
+      : hubApps;
 
     if (!filtered.length) {
       content.innerHTML = '<div class="nx-empty">No Nova Hub app matches that search.</div>';
