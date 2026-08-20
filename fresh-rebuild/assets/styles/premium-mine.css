@@ -1,0 +1,82 @@
+.nx-nebula-miner{
+  position:relative;overflow:hidden;padding:18px;border:1px solid rgba(86,174,255,.18);border-radius:24px;
+  background:
+    radial-gradient(circle at 22% 38%,rgba(49,92,255,.16),transparent 30%),
+    radial-gradient(circle at 38% 44%,rgba(133,66,255,.12),transparent 26%),
+    linear-gradient(155deg,rgba(8,21,36,.98),rgba(4,11,20,.985));
+  box-shadow:0 18px 46px rgba(0,0,0,.26),inset 0 1px rgba(255,255,255,.04);
+}
+.nx-nebula-miner::before{
+  content:"";position:absolute;inset:0;pointer-events:none;opacity:.38;
+  background-image:
+    radial-gradient(circle at 8% 20%,rgba(121,211,255,.55) 0 1px,transparent 1.5px),
+    radial-gradient(circle at 32% 72%,rgba(152,107,255,.48) 0 1px,transparent 1.4px),
+    radial-gradient(circle at 59% 15%,rgba(107,210,255,.35) 0 1px,transparent 1.5px),
+    radial-gradient(circle at 82% 63%,rgba(115,79,255,.4) 0 1px,transparent 1.4px),
+    radial-gradient(circle at 91% 28%,rgba(83,233,255,.45) 0 1px,transparent 1.5px);
+}
+.nx-nebula-miner__head{position:relative;z-index:2;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
+.nx-nebula-miner__head>div>span{display:block;color:var(--nx-text);font-size:13px;font-weight:900;letter-spacing:.05em}
+.nx-nebula-miner__head strong{display:flex;align-items:center;gap:7px;margin-top:4px;color:var(--nx-green);font-size:9px;letter-spacing:.08em}
+.nx-nebula-miner__head strong i{width:7px;height:7px;border-radius:50%;background:var(--nx-text-3);box-shadow:0 0 0 4px rgba(110,134,159,.08)}
+.nx-nebula-miner__head strong i[data-state="active"]{background:var(--nx-green);box-shadow:0 0 0 4px rgba(39,226,164,.09),0 0 15px rgba(39,226,164,.5)}
+.nx-nebula-miner__head strong b{font:inherit}
+.nx-nebula-miner__sync{padding-top:2px;color:var(--nx-text-3);font-size:7px;font-weight:850;letter-spacing:.11em}
+
+.nx-nebula-miner__layout{position:relative;z-index:1;display:grid;grid-template-columns:minmax(0,1.05fr) minmax(145px,.95fr);gap:14px;align-items:center}
+.nx-nebula-core{--nx-nebula-progress:0deg;position:relative;width:min(46vw,255px);aspect-ratio:1;margin:4px auto;display:grid;place-items:center;isolation:isolate}
+.nx-nebula-core::before{
+  content:"";position:absolute;inset:2%;border-radius:50%;z-index:-1;
+  background:conic-gradient(from -90deg,#2a6cff 0deg,#1fcdf0 var(--nx-nebula-progress),rgba(47,91,142,.16) var(--nx-nebula-progress),rgba(33,52,81,.13) 360deg);
+  -webkit-mask:radial-gradient(circle,transparent 0 66%,#000 67% 73%,transparent 74%);
+  mask:radial-gradient(circle,transparent 0 66%,#000 67% 73%,transparent 74%);
+  filter:drop-shadow(0 0 10px rgba(58,168,255,.45));
+}
+.nx-nebula-core__aura{position:absolute;inset:10%;border-radius:50%;background:radial-gradient(circle,rgba(26,61,130,.22),rgba(18,43,89,.09) 42%,transparent 70%);box-shadow:0 0 42px rgba(64,109,255,.18),inset 0 0 34px rgba(76,183,255,.06)}
+.nx-nebula-core__orbit{position:absolute;border-radius:50%;pointer-events:none}
+.nx-nebula-core__orbit::before,.nx-nebula-core__orbit::after{content:"";position:absolute;border-radius:50%;background:#83e8ff;box-shadow:0 0 8px rgba(91,214,255,.85),0 0 18px rgba(70,99,255,.45)}
+.nx-nebula-core__orbit--outer{inset:0;border:1px solid rgba(84,156,255,.16);box-shadow:inset 0 0 28px rgba(70,100,255,.08);animation:nx-nebula-spin 13s linear infinite}
+.nx-nebula-core__orbit--outer::before{width:6px;height:6px;left:9%;top:27%}.nx-nebula-core__orbit--outer::after{width:4px;height:4px;right:12%;bottom:22%;background:#a47bff}
+.nx-nebula-core__orbit--mid{inset:8%;border:1px dashed rgba(105,115,255,.26);animation:nx-nebula-spin-rev 19s linear infinite}
+.nx-nebula-core__orbit--mid::before{width:5px;height:5px;right:10%;top:15%;background:#6478ff}.nx-nebula-core__orbit--mid::after{width:4px;height:4px;left:13%;bottom:16%}
+.nx-nebula-core__orbit--inner{inset:18%;border:1px solid rgba(61,203,255,.18);animation:nx-nebula-spin 9s linear infinite}
+.nx-nebula-core__orbit--inner::before{width:4px;height:4px;left:47%;top:-2%}.nx-nebula-core__orbit--inner::after{display:none}
+@keyframes nx-nebula-spin{to{transform:rotate(360deg)}}
+@keyframes nx-nebula-spin-rev{to{transform:rotate(-360deg)}}
+.nx-nebula-core__center{position:relative;z-index:3;width:64%;aspect-ratio:1;border-radius:50%;display:grid;place-items:center;align-content:center;text-align:center;border:1px solid rgba(73,186,255,.2);background:radial-gradient(circle at 50% 40%,rgba(15,43,83,.86),rgba(3,12,24,.96) 70%);box-shadow:inset 0 0 30px rgba(50,132,255,.08),0 0 36px rgba(38,88,255,.08)}
+.nx-nebula-core__mark{width:30px;height:30px;margin-bottom:4px;display:grid;place-items:center;border:1px solid rgba(76,179,255,.32);border-radius:9px;color:#8be9ff;font-size:14px;font-weight:950;box-shadow:inset 0 0 12px rgba(63,173,255,.08)}
+.nx-nebula-core__center strong{font-size:clamp(30px,9vw,52px);line-height:.98;letter-spacing:-.06em;font-variant-numeric:tabular-nums}
+.nx-nebula-core__center>span:not(.nx-nebula-core__mark){margin-top:6px;color:var(--nx-text-2);font-size:9px;font-weight:750;font-variant-numeric:tabular-nums}
+.nx-nebula-core__center small{margin-top:5px;color:var(--nx-text-3);font-size:7px;font-weight:900;letter-spacing:.12em}
+
+.nx-nebula-readouts{display:grid;gap:10px}
+.nx-nebula-readout{min-width:0;padding:14px 13px;border:1px solid rgba(94,177,255,.12);border-radius:17px;background:linear-gradient(145deg,rgba(8,23,40,.9),rgba(4,13,24,.94));box-shadow:inset 0 1px rgba(255,255,255,.025)}
+.nx-nebula-readout>span{display:block;color:var(--nx-text-3);font-size:8px;font-weight:900;letter-spacing:.1em}
+.nx-nebula-readout>strong{display:block;margin-top:9px;overflow:hidden;color:var(--nx-text);font-size:clamp(18px,5.7vw,31px);line-height:1.05;letter-spacing:-.045em;font-variant-numeric:tabular-nums;text-overflow:ellipsis;white-space:nowrap}
+.nx-nebula-readout>strong b{font:inherit}.nx-nebula-readout small{color:var(--nx-text-2);font-size:.42em;font-weight:850;letter-spacing:.04em}
+
+.nx-nebula-meta{position:relative;z-index:2;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:13px}
+.nx-nebula-meta>div{min-width:0;padding:10px 9px;border:1px solid rgba(131,190,255,.08);border-radius:13px;background:rgba(4,13,23,.58)}
+.nx-nebula-meta span{display:block;color:var(--nx-text-3);font-size:7px;font-weight:900;letter-spacing:.11em}
+.nx-nebula-meta strong{display:block;margin-top:4px;overflow:hidden;font-size:11px;white-space:nowrap;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+
+.nx-nebula-action{position:relative;z-index:2;width:100%;min-height:46px;margin-top:12px;padding:0 16px;border:1px solid rgba(74,201,255,.38);border-radius:14px;background:linear-gradient(180deg,rgba(13,29,46,.94),rgba(5,14,25,.98));color:var(--nx-text);font-size:10px;font-weight:900;letter-spacing:.09em;box-shadow:inset 0 1px rgba(255,255,255,.05),0 8px 22px rgba(0,0,0,.18);cursor:pointer}
+.nx-nebula-action:active{transform:scale(.988)}
+.nx-nebula-action:disabled{cursor:default;opacity:.66;border-color:rgba(116,151,190,.18);color:var(--nx-text-2);box-shadow:inset 0 1px rgba(255,255,255,.025)}
+.nx-nebula-miner[data-nebula-state="complete"] .nx-nebula-action{border-color:rgba(255,190,78,.42);box-shadow:inset 0 1px rgba(255,255,255,.05),0 0 22px rgba(255,178,55,.06)}
+.nx-nebula-miner[data-nebula-state="complete"] .nx-nebula-core::before{background:conic-gradient(from -90deg,#2a6cff 0deg,#36d6f3 250deg,#52e1bb 360deg)}
+.nx-nebula-status{position:relative;z-index:2;margin:9px 2px 0;color:var(--nx-text-3);font-size:9px;line-height:1.4}
+
+@media(max-width:430px){
+  .nx-nebula-miner{padding:15px 13px}
+  .nx-nebula-miner__layout{grid-template-columns:minmax(0,1.04fr) minmax(122px,.96fr);gap:8px}
+  .nx-nebula-core{width:min(50vw,220px)}
+  .nx-nebula-readout{padding:11px 9px;border-radius:14px}
+  .nx-nebula-readout>strong{font-size:clamp(16px,5.5vw,24px)}
+  .nx-nebula-meta{gap:6px}.nx-nebula-meta>div{padding:9px 7px}
+}
+@media(max-width:355px){
+  .nx-nebula-miner__layout{grid-template-columns:1fr}.nx-nebula-core{width:min(68vw,230px)}
+  .nx-nebula-readouts{grid-template-columns:repeat(2,minmax(0,1fr))}.nx-nebula-readout>strong{font-size:18px}
+}
+@media(prefers-reduced-motion:reduce){.nx-nebula-core__orbit{animation:none!important}}
