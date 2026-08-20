@@ -80,21 +80,20 @@ function syncDock(route) {
 
 let router;
 const openAppDirect = id => router.render('app', { id });
-const openHubAppWithAd = id => adPolicy.gateHubApp(id, () => openAppDirect(id));
+const openAppWithAd = id => adPolicy.gateHubApp(id, () => openAppDirect(id));
 const backToHub = () => router.render('hub');
 
 router = createRouter({
   stage,
   routes: {
     auth: () => authScreen({ onSignedIn: () => router.render('mine') }),
-    // Mine quick-access cards stay direct. Only completed-session renewal uses
-    // the dedicated mining-start natural-break interstitial.
+    // Every eligible app-open transition uses the same ad policy regardless of
+    // whether the entry came from Nova Hub, Mine quick access, or another app.
     mine: () => mineScreen({
-      openHubApp: openAppDirect,
+      openHubApp: openAppWithAd,
       beforeMiningRenewal: continueMining => adPolicy.gateMiningRenewal(continueMining)
     }),
-    // Nova Hub cards use the approved protected/eligible placement policy.
-    hub: () => hubScreen({ openApp: openHubAppWithAd }),
+    hub: () => hubScreen({ openApp: openAppWithAd }),
     app: payload => appScreen({ id: payload.id, backToHub })
   },
   onRoute(route) {
@@ -108,7 +107,7 @@ window.NexusNovaFresh = Object.freeze({
   openApp(id) {
     const safeId = String(id || '').trim();
     if (!safeId) return false;
-    openAppDirect(safeId);
+    openAppWithAd(safeId);
     return true;
   },
   openHub() {
