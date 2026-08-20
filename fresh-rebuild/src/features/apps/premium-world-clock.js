@@ -8,7 +8,6 @@ function node(html, className = '') {
 }
 
 const CLOCK_KEY = 'nexus_world_clocks_v2';
-
 const DEFAULT_CLOCKS = [
   { label:'Karachi', zone:'Asia/Karachi' },
   { label:'Dubai', zone:'Asia/Dubai' },
@@ -17,10 +16,33 @@ const DEFAULT_CLOCKS = [
   { label:'Tokyo', zone:'Asia/Tokyo' },
   { label:'Istanbul', zone:'Europe/Istanbul' }
 ];
+const FALLBACK_ZONES = [
+  'UTC','Africa/Cairo','Africa/Johannesburg','America/Anchorage','America/Argentina/Buenos_Aires','America/Chicago','America/Denver','America/Los_Angeles','America/Mexico_City','America/New_York','America/Sao_Paulo','America/Toronto','America/Vancouver','Asia/Baghdad','Asia/Bangkok','Asia/Dhaka','Asia/Dubai','Asia/Hong_Kong','Asia/Jakarta','Asia/Karachi','Asia/Kathmandu','Asia/Kolkata','Asia/Kuala_Lumpur','Asia/Riyadh','Asia/Seoul','Asia/Shanghai','Asia/Singapore','Asia/Tehran','Asia/Tokyo','Asia/Yangon','Australia/Adelaide','Australia/Brisbane','Australia/Melbourne','Australia/Perth','Australia/Sydney','Europe/Amsterdam','Europe/Athens','Europe/Berlin','Europe/Istanbul','Europe/London','Europe/Madrid','Europe/Moscow','Europe/Paris','Europe/Rome','Pacific/Auckland','Pacific/Honolulu'
+];
 
 function readClocks() {
   const saved = loadJson(CLOCK_KEY, null);
-  return Array.isArray(saved) && saved.length ? saved.filter(item => item?.label && item?.zone).slice(0, 24) : DEFAULT_CLOCKS;
+  if (Array.isArray(saved)) return saved.filter(item => item?.label && item?.zone).slice(0, 24);
+  return DEFAULT_CLOCKS.map(item => ({ ...item }));
+}
+
+function supportedZones() {
+  try {
+    const zones = typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('timeZone') : [];
+    return [...new Set(['UTC', ...zones])].sort((a, b) => a.localeCompare(b));
+  } catch {
+    return FALLBACK_ZONES.slice();
+  }
+}
+
+function cityLabel(zone) {
+  if (zone === 'UTC') return 'UTC';
+  const parts = String(zone).split('/');
+  return String(parts[parts.length - 1] || zone).replaceAll('_', ' ');
+}
+
+function zoneSearchText(zone) {
+  return `${zone} ${cityLabel(zone)} ${String(zone).replaceAll('_', ' ')}`.toLowerCase();
 }
 
 function timeZoneAbbr(zone) {
@@ -33,44 +55,57 @@ function timeZoneAbbr(zone) {
 }
 
 export function renderWorldClockPremium() {
+  const zones = supportedZones();
   const root = node(`
     <section class="nxclock-console">
       <header><div><span>GLOBAL TIME NETWORK</span><strong>World Clock</strong></div><b data-clock-count>0 CITIES</b></header>
       <div class="nxclock-picker">
-        <label><span>COUNTRY</span><select data-clock-country><option>Loading countries…</option></select></label>
-        <label><span>CITY</span><select data-clock-city disabled><option>Select a country first</option></select></label>
-        <button class="nxpi-action" type="button" data-clock-add disabled>ADD CLOCK</button>
+        <label><span>SEARCH CITY / TIME ZONE</span><input class="nxwx-results" type="search" autocomplete="off" data-clock-search placeholder="Karachi, London, Asia…"></label>
+        <label><span>TIME ZONE</span><select data-clock-zone aria-label="World time zone"></select></label>
+        <button class="nxpi-action" type="button" data-clock-add>ADD CLOCK</button>
       </div>
-      <p class="nxpi-status" data-clock-status>Loading the global country directory…</p>
+      <p class="nxpi-status" data-clock-status>${zones.length.toLocaleString()} browser-supported IANA time zones ready.</p>
     </section>
     <section class="nxclock-grid" data-clock-list></section>
   `, 'nx-world-clock-premium');
 
-  const country = root.querySelector('[data-clock-country]');
-  const city = root.querySelector('[data-clock-city]');
+  const search = root.querySelector('[data-clock-search]');
+  const zoneSelect = root.querySelector('[data-clock-zone]');
   const add = root.querySelector('[data-clock-add]');
   const status = root.querySelector('[data-clock-status]');
   const list = root.querySelector('[data-clock-list]');
   const count = root.querySelector('[data-clock-count]');
-  let countries = [];
   let timer = null;
+
+  const renderZoneOptions = query => {
+    const needle = String(query || '').trim().toLowerCase();
+    const matches = (needle ? zones.filter(zone => zoneSearchText(zone).includes(needle)) : zones).slice(0, 500);
+    zoneSelect.innerHTML = matches.length
+      ? matches.map(zone => `<option value="${escapeHtml(zone)}">${escapeHtml(cityLabel(zone))} • ${escapeHtml(zone)}</option>`).join('')
+      : '<option value="">No matching time zone</option>';
+    zoneSelect.disabled = !matches.length;
+    add.disabled = !matches.length;
+    status.textContent = matches.length
+      ? `${matches.length.toLocaleString()} matching time zone${matches.length === 1 ? '' : 's'} • live browser Intl data.`
+      : 'No matching city or time zone. Try a broader search.';
+  };
 
   const draw = () => {
     const clocks = readClocks();
     count.textContent = `${clocks.length} ${clocks.length === 1 ? 'CITY' : 'CITIES'}`;
     const now = new Date();
-    list.innerHTML = clocks.map((clock, index) => {
+    list.innerHTML = clocks.length ? clocks.map((clock, index) => {
       let time = '—', date = '—';
       try {
         time = now.toLocaleTimeString([], { timeZone:clock.zone, hour:'2-digit', minute:'2-digit', second:'2-digit' });
         date = now.toLocaleDateString([], { timeZone:clock.zone, weekday:'short', day:'2-digit', month:'short' });
       } catch {}
       return `<article class="nxclock-card">
-        <div><span>${escapeHtml(clock.label)}</span><small>${escapeHtml(date)} • ${escapeHtml(timeZoneAbbr(clock.zone))}</small></div>
+        <div><span>${escapeHtml(clock.label)}</span><small>${escapeHtml(date)} • ${escapeHtml(clock.zone)} • ${escapeHtml(timeZoneAbbr(clock.zone))}</small></div>
         <strong>${escapeHtml(time)}</strong>
         <button type="button" data-clock-remove="${index}" aria-label="Remove ${escapeHtml(clock.label)}">×</button>
       </article>`;
-    }).join('');
+    }).join('') : '<div class="nx-empty">No clocks added. Search a city or IANA time zone above.</div>';
     list.querySelectorAll('[data-clock-remove]').forEach(button => button.addEventListener('click', () => {
       const clocks = readClocks();
       clocks.splice(Number(button.dataset.clockRemove), 1);
@@ -79,84 +114,31 @@ export function renderWorldClockPremium() {
     }));
   };
 
-  const loadCities = async () => {
-    const name = country.value;
-    if (!name) return;
-    city.disabled = true;
-    add.disabled = true;
-    city.innerHTML = '<option>Loading cities…</option>';
-    status.textContent = `Loading cities in ${name}…`;
-    try {
-      const response = await fetch(`https://countriesnow.space/api/v0.1/countries/cities/q?country=${encodeURIComponent(name)}`, { cache:'force-cache' });
-      if (!response.ok) throw new Error(`Cities HTTP ${response.status}`);
-      const json = await response.json();
-      const rows = Array.isArray(json.data) ? json.data : [];
-      if (!rows.length) throw new Error('No city list returned');
-      city.innerHTML = rows.slice().sort((a,b) => String(a).localeCompare(String(b))).map(name => `<option>${escapeHtml(String(name))}</option>`).join('');
-      city.disabled = false;
-      add.disabled = false;
-      status.textContent = `${rows.length.toLocaleString()} cities available in ${name}.`;
-    } catch (error) {
-      city.innerHTML = '<option>City directory unavailable</option>';
-      status.textContent = 'City directory could not be loaded. Try another country or check the connection.';
-      console.warn('[NexusNova Premium] world clock cities:', error);
+  search.addEventListener('input', () => renderZoneOptions(search.value));
+  search.addEventListener('keydown', event => {
+    if (event.key === 'Enter' && !add.disabled) add.click();
+  });
+  zoneSelect.addEventListener('change', () => {
+    const zone = zoneSelect.value;
+    if (zone) status.textContent = `${cityLabel(zone)} • ${zone} selected.`;
+  });
+  add.addEventListener('click', () => {
+    const zone = String(zoneSelect.value || '').trim();
+    if (!zone) return;
+    const clocks = readClocks();
+    if (clocks.some(item => item.zone === zone)) {
+      status.textContent = `${cityLabel(zone)} is already in your clocks.`;
+      return;
     }
-  };
-
-  const loadCountries = async () => {
-    try {
-      const response = await fetch('https://restcountries.com/v3.1/all?fields=name,cca2', { cache:'force-cache' });
-      if (!response.ok) throw new Error(`Countries HTTP ${response.status}`);
-      const json = await response.json();
-      countries = (Array.isArray(json) ? json : [])
-        .map(item => ({ name:String(item?.name?.common || '').trim(), code:String(item?.cca2 || '').trim() }))
-        .filter(item => item.name)
-        .sort((a,b) => a.name.localeCompare(b.name));
-      if (!countries.length) throw new Error('No countries returned');
-      country.innerHTML = `<option value="">Select country</option>${countries.map(item => `<option value="${escapeHtml(item.name)}">${escapeHtml(item.name)}</option>`).join('')}`;
-      status.textContent = `${countries.length} countries ready. Select a country, then a city.`;
-    } catch (error) {
-      country.innerHTML = '<option value="">Global directory unavailable</option>';
-      status.textContent = 'Global country directory is unavailable right now.';
-      console.warn('[NexusNova Premium] world clock countries:', error);
-    }
-  };
-
-  country.addEventListener('change', loadCities);
-  add.addEventListener('click', async () => {
-    const countryName = country.value;
-    const cityName = city.value;
-    if (!countryName || !cityName || city.disabled) return;
-    add.disabled = true;
-    status.textContent = `Resolving ${cityName} time zone…`;
-    try {
-      const query = `${cityName}, ${countryName}`;
-      const response = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=5&language=en&format=json`, { cache:'no-store' });
-      if (!response.ok) throw new Error(`Time zone HTTP ${response.status}`);
-      const json = await response.json();
-      const rows = Array.isArray(json.results) ? json.results : [];
-      const match = rows.find(item => String(item.country || '').toLowerCase() === countryName.toLowerCase()) || rows[0];
-      const zone = String(match?.timezone || '').trim();
-      if (!zone) throw new Error('No IANA time zone returned');
-      const clocks = readClocks();
-      if (!clocks.some(item => item.zone === zone && item.label === cityName)) {
-        clocks.push({ label:cityName, zone });
-        saveJson(CLOCK_KEY, clocks.slice(-24));
-      }
-      draw();
-      status.textContent = `${cityName} added • ${zone}`;
-    } catch (error) {
-      status.textContent = 'Could not resolve that city time zone. Try another nearby city.';
-      console.warn('[NexusNova Premium] world clock zone:', error);
-    } finally {
-      add.disabled = city.disabled;
-    }
+    clocks.push({ label:cityLabel(zone), zone });
+    saveJson(CLOCK_KEY, clocks.slice(-24));
+    draw();
+    status.textContent = `${cityLabel(zone)} added • ${zone}`;
   });
 
+  renderZoneOptions('');
   draw();
   timer = setInterval(draw, 1000);
-  loadCountries();
-
   root.__cleanup = () => clearInterval(timer);
   return root;
 }
