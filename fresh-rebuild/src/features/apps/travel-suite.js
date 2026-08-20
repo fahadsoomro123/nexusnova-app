@@ -1,6 +1,7 @@
 import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-functions.js';
 import { firebaseApp, requireFirebaseUser } from '../../core/firebase-backend.js';
 import { escapeHtml, loadJson, saveJson } from '../../core/local-store.js';
+import { renderTravelHotelsPanel } from './travel-hotels.js';
 
 const TRIP_KEY = 'nexusnova_trip_plan_v1';
 const functions = getFunctions(firebaseApp, 'us-central1');
@@ -159,10 +160,10 @@ export function renderTravelSuite() {
 
     <section class="nx-tool-card">
       <strong>Worldwide Travel Expansion</strong>
-      <p class="nx-tool-meta">Flights are the first live comparison layer. Hotels, rail and coach/bus providers will plug into the same in-app comparison model instead of browser redirects.</p>
+      <p class="nx-tool-meta">Flights and hotels now use in-app secure data engines. Rail and coach/bus providers will plug into the same browser-free model.</p>
       <div class="nx-summary-grid">
         <div><span>Flights</span><strong>COMPARE ENGINE</strong></div>
-        <div><span>Hotels</span><strong>NEXT PROVIDER</strong></div>
+        <div><span>Hotels</span><strong>LIVE SEARCH ENGINE</strong></div>
         <div><span>Rail / Bus</span><strong>NEXT PROVIDER</strong></div>
       </div>
     </section>
@@ -199,6 +200,7 @@ export function renderTravelSuite() {
   const countLabel = root.querySelector('[data-flight-count]');
   const providerNote = root.querySelector('[data-flight-provider-note]');
   const results = root.querySelector('[data-flight-results]');
+  results.insertAdjacentElement('afterend', renderTravelHotelsPanel());
   let liveOffers = [];
   let currentSort = 'cheapest';
 
