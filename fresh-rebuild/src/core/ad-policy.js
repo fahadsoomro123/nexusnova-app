@@ -186,6 +186,8 @@ function gateHubApp(appId, open) {
     open?.();
     return Promise.resolve({ shown:false, reason:'protected-or-ineligible' });
   }
+  // Ignore an accidental second card tap while the first ad transition owns
+  // navigation. The first requested app remains the exact continuation target.
   if (inFlight) return Promise.resolve({ shown:false, reason:'transition-pending' });
   return startGate({
     placement:HUB_PLACEMENT,
@@ -197,7 +199,12 @@ function gateHubApp(appId, open) {
 }
 
 function gateMiningRenewal(continueMining) {
-  if (inFlight) return Promise.resolve({ shown:false, reason:'transition-pending' });
+  // A full-screen transition is already satisfying the natural break. Never
+  // leave the completed-session button locked behind a second pending ad.
+  if (inFlight) {
+    continueMining?.();
+    return Promise.resolve({ shown:false, reason:'transition-pending' });
+  }
   return startGate({
     placement:MINING_PLACEMENT,
     feature:'',
