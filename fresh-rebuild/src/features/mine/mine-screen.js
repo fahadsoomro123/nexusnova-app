@@ -14,6 +14,17 @@ function formatClock(seconds) {
   return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
 }
 
+function formatTimeLeft(seconds) {
+  if (!Number.isFinite(seconds)) return '--';
+  const safe = Math.max(0, Math.floor(seconds));
+  const h = Math.floor(safe / 3600);
+  const m = Math.floor((safe % 3600) / 60);
+  const s = safe % 60;
+  if (h > 0) return `${h}h ${String(m).padStart(2,'0')}m ${String(s).padStart(2,'0')}s left`;
+  if (m > 0) return `${m}m ${String(s).padStart(2,'0')}s left`;
+  return `${s}s left`;
+}
+
 function projectedBalance(state) {
   if (!Number.isFinite(state.balance)) return null;
   if (!state.active || !state.startedAt) return state.balance;
@@ -47,33 +58,49 @@ export async function mineScreen({ openHubApp, beforeMiningRenewal } = {}) {
       <span class="nx-status-dot" data-mining-dot aria-hidden="true"></span>
     </header>
 
-    <article class="nx-panel nx-miner" aria-label="NVX mining session">
-      <div class="nx-miner-grid">
-        <div class="nx-miner-balance">
-          <div class="nx-balance-label">NVX Balance</div>
-          <div class="nx-balance" data-balance>-- <small>NVX</small></div>
-          <div class="nx-miner-state"><span data-rate-dot></span><strong data-miner-state>SECURE SYNC</strong></div>
+    <article class="nx-nebula-miner" data-nebula-state="ready" aria-label="NVX mining session">
+      <div class="nx-nebula-miner__head">
+        <div>
+          <span>NVX MINING</span>
+          <strong><i data-rate-dot></i><b data-miner-state>SECURE READY</b></strong>
         </div>
-        <div class="nx-live-rate" aria-label="Live NVX mining rate">
-          <span>LIVE RATE</span>
-          <strong><b data-rate>--</b><small>NVX/H</small></strong>
-          <em>SERVER SYNCED</em>
+        <span class="nx-nebula-miner__sync">SERVER SYNCED</span>
+      </div>
+
+      <div class="nx-nebula-miner__layout">
+        <div class="nx-nebula-core" data-nebula-core style="--nx-nebula-progress:0deg">
+          <div class="nx-nebula-core__aura"></div>
+          <div class="nx-nebula-core__orbit nx-nebula-core__orbit--outer"></div>
+          <div class="nx-nebula-core__orbit nx-nebula-core__orbit--mid"></div>
+          <div class="nx-nebula-core__orbit nx-nebula-core__orbit--inner"></div>
+          <div class="nx-nebula-core__center">
+            <span class="nx-nebula-core__mark">N</span>
+            <strong data-progress-percent>0%</strong>
+            <span data-time-left>24h 00m 00s left</span>
+            <small>24H SESSION</small>
+          </div>
+        </div>
+
+        <div class="nx-nebula-readouts">
+          <div class="nx-nebula-readout">
+            <span>BALANCE</span>
+            <strong data-balance>-- <small>NVX</small></strong>
+          </div>
+          <div class="nx-nebula-readout">
+            <span>LIVE RATE</span>
+            <strong><b data-rate>--</b> <small>NVX/H</small></strong>
+          </div>
         </div>
       </div>
 
-      <div class="nx-mining-flow" aria-label="24 hour mining progress">
-        <div class="nx-mining-flow__top"><span>24H SECURE SESSION</span><strong data-progress-label>READY</strong></div>
-        <div class="nx-mining-flow__track"><i data-progress-bar></i></div>
+      <div class="nx-nebula-meta">
+        <div><span>STAGE</span><strong data-stage>--</strong></div>
+        <div><span>VAULTS</span><strong data-vaults>0</strong></div>
+        <div><span>SESSION</span><strong data-session>24:00:00</strong></div>
       </div>
 
-      <div class="nx-session">
-        <div class="nx-metric"><span>Session</span><strong data-session>--:--:--</strong></div>
-        <div class="nx-metric"><span>Stage</span><strong data-stage>--</strong></div>
-        <div class="nx-metric"><span>Vaults</span><strong data-vaults>0</strong></div>
-      </div>
-
-      <button class="nx-primary" type="button" data-mine-action disabled>SYNCING SECURE MINING</button>
-      <p class="nx-subtitle" data-mining-status style="margin-bottom:0">Checking your secure session…</p>
+      <button class="nx-nebula-action" type="button" data-mine-action disabled>SYNCING SECURE MINING</button>
+      <p class="nx-nebula-status" data-mining-status>Checking your secure session…</p>
     </article>
 
     <section class="nx-mining-tools" aria-label="Mining tools">
@@ -109,21 +136,28 @@ export async function mineScreen({ openHubApp, beforeMiningRenewal } = {}) {
     dot: root.querySelector('[data-mining-dot]'),
     rateDot: root.querySelector('[data-rate-dot]'),
     minerState: root.querySelector('[data-miner-state]'),
-    progress: root.querySelector('[data-progress-bar]'),
-    progressLabel: root.querySelector('[data-progress-label]')
+    core: root.querySelector('[data-nebula-core]'),
+    progressPercent: root.querySelector('[data-progress-percent]'),
+    timeLeft: root.querySelector('[data-time-left]'),
+    miner: root.querySelector('.nx-nebula-miner')
   };
 
   let state = await backend.getMiningSnapshot();
   let clockTimer = null;
   let busy = false;
 
-  const paintProgress = () => {
+  const paintLiveProgress = () => {
     const remaining = remainingFromState(state);
     const progress = sessionProgress(state);
-    refs.progress.style.width = `${Math.round(progress * 1000) / 10}%`;
-    refs.progressLabel.textContent = state.active
-      ? (remaining <= 0 ? 'COMPLETE' : `${Math.round(progress * 100)}%`)
-      : 'READY';
+    const percent = progress * 100;
+    const complete = state.active && remaining <= 0;
+    const visualPercent = complete ? 100 : percent;
+
+    refs.core.style.setProperty('--nx-nebula-progress', `${visualPercent * 3.6}deg`);
+    refs.progressPercent.textContent = `${Math.round(visualPercent * 10) / 10}%`;
+    refs.timeLeft.textContent = complete ? 'Session complete' : (state.active ? formatTimeLeft(remaining) : '24h 00m 00s left');
+    refs.session.textContent = state.active ? formatClock(remaining) : '24:00:00';
+    refs.miner.dataset.nebulaState = complete ? 'complete' : (state.active ? 'active' : 'ready');
   };
 
   const render = next => {
@@ -135,29 +169,26 @@ export async function mineScreen({ openHubApp, beforeMiningRenewal } = {}) {
     refs.vaults.textContent = String(state.novaVaultPending || 0);
     refs.dot.dataset.state = state.active ? 'active' : 'idle';
     refs.rateDot.dataset.state = state.active ? 'active' : 'idle';
-    refs.minerState.textContent = state.active ? 'MINING LIVE' : 'SECURE READY';
+    refs.minerState.textContent = state.active ? 'LIVE' : 'READY';
     refs.status.textContent = state.statusText || 'Mining status unavailable';
 
     const remaining = remainingFromState(state);
-    refs.session.textContent = state.active ? formatClock(remaining) : '24:00:00';
-    paintProgress();
+    paintLiveProgress();
 
     refs.button.disabled = busy || state.availability === 'unbound' || state.availability === 'error' || (state.active && remaining > 0);
     if (busy) refs.button.textContent = 'WORKING…';
     else if (state.availability === 'error') refs.button.textContent = 'SECURE MINING UNAVAILABLE';
-    else if (state.active && remaining <= 0) refs.button.textContent = 'CLAIM + START NEXT';
+    else if (state.active && remaining <= 0) refs.button.textContent = 'CLAIM & RENEW';
     else if (state.active) refs.button.textContent = 'MINING ACTIVE';
     else refs.button.textContent = 'START 24H MINING';
   };
 
   const tick = () => {
     if (!state?.active) return;
-    const remaining = remainingFromState(state);
-    refs.session.textContent = formatClock(remaining);
     const balance = projectedBalance(state);
     refs.balance.innerHTML = `${balance == null ? '--' : balance.toFixed(4)} <small>NVX</small>`;
-    paintProgress();
-    if (remaining <= 0) render(state);
+    paintLiveProgress();
+    if (remainingFromState(state) <= 0) render(state);
   };
 
   render(state);
