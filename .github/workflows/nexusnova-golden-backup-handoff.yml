@@ -1,0 +1,68 @@
+name: NexusNova Golden Backup Handoff
+
+on:
+  push:
+    branches:
+      - nexusnova-fresh-rebuild-20260820
+    paths:
+      - .github/workflows/nexusnova-golden-backup-handoff.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package-golden-backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout locked PASS snapshot
+        uses: actions/checkout@v4
+        with:
+          ref: 4107fed257ee195655d75a53f3f205c9180cde0b
+          fetch-depth: 1
+
+      - name: Verify locked source and APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "4107fed257ee195655d75a53f3f205c9180cde0b"
+          grep -F "Source commit: bab42efda23086d445fa62943a979bacd11a75b9" fresh-build-output/BUILD-STATUS.txt
+          grep -F "RESULT: PASS" fresh-build-output/BUILD-STATUS.txt
+          echo "b0f4f97123abb8992b3e40b29628d5b120d1d4536abb1ce909d40c4b889e26f7  fresh-build-output/NexusNova-Fresh-Rebuild-TEST-20260820.apk" | sha256sum -c -
+
+      - name: Create complete Golden Backup folder and ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/nexusnova-golden"
+          ROOT="$OUT/NexusNova-GOLDEN-BACKUP-20260820-Ads-PASS"
+          mkdir -p "$ROOT/repository"
+          rsync -a --exclude='.git' ./ "$ROOT/repository/"
+          cat > "$ROOT/GOLDEN-BACKUP-INFO.txt" <<'EOF'
+          NEXUSNOVA GOLDEN BACKUP — 20 AUGUST 2026
+          Repository: fahadsoomro123/nexusnova-app
+          Working branch: nexusnova-fresh-rebuild-20260820
+          Locked snapshot commit: 4107fed257ee195655d75a53f3f205c9180cde0b
+          Latest app source commit: bab42efda23086d445fa62943a979bacd11a75b9
+          Build result: PASS
+          Edition: TEST/debug only
+          APK: repository/fresh-build-output/NexusNova-Fresh-Rebuild-TEST-20260820.apk
+          APK SHA-256: b0f4f97123abb8992b3e40b29628d5b120d1d4536abb1ce909d40c4b889e26f7
+          Notes: This package contains the complete tracked project snapshot except Git's internal .git metadata.
+          EOF
+          cd "$OUT"
+          zip -q -r "NexusNova-GOLDEN-BACKUP-20260820-Ads-PASS.zip" "NexusNova-GOLDEN-BACKUP-20260820-Ads-PASS"
+          sha256sum "NexusNova-GOLDEN-BACKUP-20260820-Ads-PASS.zip" > "NexusNova-GOLDEN-BACKUP-20260820-Ads-PASS.zip.sha256"
+          printf 'Backup files: '
+          find "$ROOT/repository" -type f | wc -l
+          ls -lh "NexusNova-GOLDEN-BACKUP-20260820-Ads-PASS.zip"
+
+      - name: Upload Golden Backup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NexusNova-GOLDEN-BACKUP-20260820-Ads-PASS
+          path: |
+            ${{ runner.temp }}/nexusnova-golden/NexusNova-GOLDEN-BACKUP-20260820-Ads-PASS.zip
+            ${{ runner.temp }}/nexusnova-golden/NexusNova-GOLDEN-BACKUP-20260820-Ads-PASS.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
