@@ -48,12 +48,13 @@
 }
 
 .nx-primary {
-  width: 100%; min-height: 50px; margin-top: 13px; border: 1px solid rgba(83,210,255,.32); border-radius: 16px;
-  background: linear-gradient(135deg, #1477e6, #14a7cf);
-  color: #fff; font-weight: 900; letter-spacing: .035em;
-  box-shadow: 0 12px 28px rgba(9,122,215,.24), inset 0 1px rgba(255,255,255,.18);
-  cursor: pointer; transition: transform var(--nx-fast) var(--nx-ease), filter var(--nx-fast) linear;
+  width: 100%; min-height: 50px; margin-top: 13px; border: 1px solid rgba(128,166,196,.24); border-radius: 16px;
+  background: linear-gradient(145deg, rgba(24,39,55,.98), rgba(7,16,27,.99));
+  color: var(--nx-text); font-weight: 900; letter-spacing: .035em;
+  box-shadow: 0 10px 24px rgba(0,0,0,.20), inset 0 1px rgba(255,255,255,.055);
+  cursor: pointer; transition: transform var(--nx-fast) var(--nx-ease), filter var(--nx-fast) linear, border-color var(--nx-fast) linear, background var(--nx-fast) linear;
 }
+.nx-primary:hover { border-color: rgba(140,190,220,.34); background: linear-gradient(145deg, rgba(28,47,65,.99), rgba(8,19,31,.99)); }
 .nx-primary:active { transform: scale(.985); }
 .nx-primary:disabled { cursor: not-allowed; filter: grayscale(.45); opacity: .58; box-shadow: none; }
 
