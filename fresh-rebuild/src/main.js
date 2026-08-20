@@ -15,7 +15,8 @@ const stage = document.getElementById('nx-stage');
 const dock = document.querySelector('.nx-dock');
 const dockItems = [...document.querySelectorAll('.nx-dock__item')];
 const mineAppIds = new Set(mineApps.map(app => app.id));
-const BOOT_SPLASH_MIN_MS = 2_200;
+const BOOT_SPLASH_MIN_MS = 1_350;
+const POST_LOGIN_SPLASH_MS = 900;
 const bootSplashStartedAt = performance.now();
 
 backend.attach(firebaseBackend);
@@ -74,6 +75,62 @@ function showDock(show) {
   document.body.classList.toggle('nx-auth-mode', !show);
 }
 
+function setSplashMode(enabled) {
+  document.body.classList.toggle('nx-splash-mode', Boolean(enabled));
+}
+
+function splashMarkup(phase = 'boot') {
+  const entering = phase === 'entry';
+  const kicker = entering
+    ? 'IDENTITY VERIFIED / SECURE ACCESS'
+    : 'NEXUSNOVA / PRIVATE DIGITAL INFRASTRUCTURE';
+  const title = entering
+    ? 'Secure workspace <span>online.</span>'
+    : 'Infrastructure for your <span>digital world.</span>';
+  const status = entering
+    ? 'Synchronizing protected services'
+    : 'Establishing secure session';
+
+  return `
+    <section class="nx-cinematic-splash" data-splash-phase="${entering ? 'entry' : 'boot'}" aria-label="NexusNova secure startup">
+      <div class="nx-cinematic-splash__noise" aria-hidden="true"></div>
+      <div class="nx-cinematic-splash__beam" aria-hidden="true"></div>
+      <div class="nx-cinematic-splash__grid" aria-hidden="true"></div>
+      <div class="nx-cinematic-splash__orbital" aria-hidden="true"></div>
+      <div class="nx-cinematic-splash__shell">
+        <div class="nx-cinematic-splash__telemetry" aria-hidden="true">
+          <span>NX-01</span>
+          <span>ENCRYPTED LINK</span>
+        </div>
+        <div class="nx-cinematic-splash__core">
+          <div class="nx-cinematic-splash__mark" aria-hidden="true"><span>N</span></div>
+          <p class="nx-cinematic-splash__kicker">${kicker}</p>
+          <h1>${title}</h1>
+          <div class="nx-cinematic-splash__rule" aria-hidden="true"><i></i></div>
+          <p class="nx-cinematic-splash__status"><span aria-hidden="true"></span>${status}</p>
+        </div>
+        <div class="nx-cinematic-splash__footer" aria-hidden="true">
+          <span>SECURE CORE</span>
+          <span>NEXUSNOVA NETWORK</span>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function renderCinematicSplash(phase = 'boot') {
+  showDock(false);
+  setSplashMode(true);
+  stage.dataset.route = 'splash';
+  stage.innerHTML = splashMarkup(phase);
+  stage.focus({ preventScroll: true });
+  window.scrollTo({ top: 0, behavior: 'instant' });
+}
+
+function wait(ms) {
+  return new Promise(resolve => setTimeout(resolve, Math.max(0, Number(ms) || 0)));
+}
+
 function parentRouteForApp(id) {
   return mineAppIds.has(String(id || '')) ? 'mine' : 'hub';
 }
@@ -97,10 +154,17 @@ const backToHub = () => {
 };
 const backToMine = () => router.render('mine');
 
+async function handleSignedIn(user) {
+  syncNativeAccount(user);
+  renderCinematicSplash('entry');
+  await wait(POST_LOGIN_SPLASH_MS);
+  await router.render('mine');
+}
+
 router = createRouter({
   stage,
   routes: {
-    auth: () => authScreen({ onSignedIn: () => router.render('mine') }),
+    auth: () => authScreen({ onSignedIn: handleSignedIn }),
     // Every eligible app-open transition uses the same ad policy regardless of
     // whether the entry came from Nova Hub, Mine quick access, or another app.
     mine: () => mineScreen({
@@ -111,6 +175,7 @@ router = createRouter({
     app: payload => appScreen({ id: payload.id, backToHub, backToMine })
   },
   onRoute(route, payload = {}) {
+    setSplashMode(false);
     if (route === 'app') currentAppParent = parentRouteForApp(payload.id);
     syncDock(route, payload);
     showDock(route !== 'auth');
@@ -172,11 +237,11 @@ dockItems.forEach(button => button.addEventListener('click', () => {
 
 function waitForBootSplashMinimum() {
   const remaining = BOOT_SPLASH_MIN_MS - (performance.now() - bootSplashStartedAt);
-  return remaining > 0 ? new Promise(resolve => setTimeout(resolve, remaining)) : Promise.resolve();
+  return remaining > 0 ? wait(remaining) : Promise.resolve();
 }
 
 async function boot() {
-  stage.innerHTML = '<div class="nx-boot"><div class="nx-auth__logo">N</div><p>Initializing secure workspace…</p></div>';
+  renderCinematicSplash('boot');
   const user = await authService.waitForUser();
   await waitForBootSplashMinimum();
   if (!user) {
@@ -195,6 +260,7 @@ authService.onChange(user => {
 
 boot().catch(error => {
   console.error('[NexusNova Fresh] boot:', error);
+  setSplashMode(false);
   stage.innerHTML = `<div class="nx-empty">NexusNova could not initialize.<br><small>${String(error?.message || error)}</small></div>`;
   showDock(false);
 });
