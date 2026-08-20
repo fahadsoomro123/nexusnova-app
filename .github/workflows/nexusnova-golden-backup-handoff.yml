@@ -1,0 +1,104 @@
+name: NexusNova Clean Golden Backup Handoff
+
+on:
+  push:
+    branches:
+      - nexusnova-fresh-rebuild-20260820
+    paths:
+      - .github/workflows/nexusnova-golden-backup-handoff.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  package-clean-golden-backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout locked clean PASS snapshot
+        uses: actions/checkout@v4
+        with:
+          ref: 7d248b6d5b20ffca28b10a7344e8b0a10c3e092b
+          fetch-depth: 1
+
+      - name: Verify locked clean source and APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "7d248b6d5b20ffca28b10a7344e8b0a10c3e092b"
+          test ! -e .github/workflows/nexusnova-golden-backup-handoff.yml
+          test ! -e golden-backup-output/GOLDEN-BACKUP-HANDOFF.txt
+          test ! -e NexusNovaAndroid/patch_fresh_ad_coverage.py
+          grep -F "Source commit: 9b755365a6891522f896e80d2654f3c63a9ddde1" fresh-build-output/BUILD-STATUS.txt
+          grep -F "RESULT: PASS" fresh-build-output/BUILD-STATUS.txt
+          echo "15f8c8d7a516028ea6e22fd2c49c8db3581ac49aafa4e9ef2549a9320e5ae589  fresh-build-output/NexusNova-Fresh-Rebuild-TEST-20260820.apk" | sha256sum -c -
+
+      - name: Create complete clean Golden Backup folder and ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/nexusnova-golden"
+          ROOT="$OUT/NexusNova-GOLDEN-BACKUP-20260820-CLEAN-ADS-PASS"
+          mkdir -p "$ROOT/repository"
+          rsync -a --exclude='.git' ./ "$ROOT/repository/"
+          cat > "$ROOT/GOLDEN-BACKUP-INFO.txt" <<'EOF'
+          NEXUSNOVA GOLDEN BACKUP — 20 AUGUST 2026 — CLEAN ADS PASS
+          Repository: fahadsoomro123/nexusnova-app
+          Working branch: nexusnova-fresh-rebuild-20260820
+          Locked clean snapshot commit: 7d248b6d5b20ffca28b10a7344e8b0a10c3e092b
+          Latest clean app source commit: 9b755365a6891522f896e80d2654f3c63a9ddde1
+          Build-output snapshot commit: ddba170ec38780a8994ce0f71120a0f721c88f2e
+          Build result: PASS
+          Edition: TEST/debug only
+          APK: repository/fresh-build-output/NexusNova-Fresh-Rebuild-TEST-20260820.apk
+          APK SHA-256: 15f8c8d7a516028ea6e22fd2c49c8db3581ac49aafa4e9ef2549a9320e5ae589
+          Cleanup: duplicate patch_fresh_ad_coverage.py removed; TEST coverage folded into canonical patch_admob.py.
+          Notes: Complete tracked project snapshot except Git internal .git metadata. Temporary Golden packaging workflow/output are intentionally excluded from this locked clean snapshot.
+          EOF
+          cd "$OUT"
+          zip -q -r "NexusNova-GOLDEN-BACKUP-20260820-CLEAN-ADS-PASS.zip" "NexusNova-GOLDEN-BACKUP-20260820-CLEAN-ADS-PASS"
+          sha256sum "NexusNova-GOLDEN-BACKUP-20260820-CLEAN-ADS-PASS.zip" > "NexusNova-GOLDEN-BACKUP-20260820-CLEAN-ADS-PASS.zip.sha256"
+          printf 'Backup files: '
+          find "$ROOT/repository" -type f | wc -l
+          ls -lh "NexusNova-GOLDEN-BACKUP-20260820-CLEAN-ADS-PASS.zip"
+
+      - name: Upload clean Golden Backup artifact
+        id: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: NexusNova-GOLDEN-BACKUP-20260820-CLEAN-ADS-PASS
+          path: |
+            ${{ runner.temp }}/nexusnova-golden/NexusNova-GOLDEN-BACKUP-20260820-CLEAN-ADS-PASS.zip
+            ${{ runner.temp }}/nexusnova-golden/NexusNova-GOLDEN-BACKUP-20260820-CLEAN-ADS-PASS.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish temporary artifact handoff metadata
+        shell: bash
+        env:
+          ARTIFACT_ID: ${{ steps.upload.outputs.artifact-id }}
+          ARTIFACT_URL: ${{ steps.upload.outputs.artifact-url }}
+        run: |
+          set -euo pipefail
+          ZIP_SHA="$(awk '{print $1}' "$RUNNER_TEMP/nexusnova-golden/NexusNova-GOLDEN-BACKUP-20260820-CLEAN-ADS-PASS.zip.sha256")"
+          git fetch origin nexusnova-fresh-rebuild-20260820
+          git checkout -B nexusnova-fresh-rebuild-20260820 origin/nexusnova-fresh-rebuild-20260820
+          mkdir -p golden-backup-output
+          cat > golden-backup-output/GOLDEN-BACKUP-HANDOFF.txt <<EOF
+          NexusNova Clean Golden Backup Handoff
+          Artifact ID: ${ARTIFACT_ID}
+          Artifact URL: ${ARTIFACT_URL}
+          Locked clean snapshot commit: 7d248b6d5b20ffca28b10a7344e8b0a10c3e092b
+          Clean app source commit: 9b755365a6891522f896e80d2654f3c63a9ddde1
+          Build-output snapshot commit: ddba170ec38780a8994ce0f71120a0f721c88f2e
+          APK SHA-256: 15f8c8d7a516028ea6e22fd2c49c8db3581ac49aafa4e9ef2549a9320e5ae589
+          Golden ZIP SHA-256: ${ZIP_SHA}
+          Result: PASS
+          EOF
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add golden-backup-output/GOLDEN-BACKUP-HANDOFF.txt
+          if ! git diff --cached --quiet; then
+            git commit -m "ci: publish clean golden backup handoff [skip ci]"
+            git push origin HEAD:nexusnova-fresh-rebuild-20260820
+          fi
