@@ -1,0 +1,50 @@
+name: NexusNova Golden Disaster Recovery Export
+
+on:
+  push:
+    branches:
+      - nexusnova-golden-export-20260820
+    paths:
+      - '.github/workflows/nexusnova-golden-export-20260820.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  export-golden:
+    name: Export locked golden snapshot
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout locked golden snapshot
+        uses: actions/checkout@v4
+        with:
+          ref: nexusnova-master-golden-disaster-recovery-20260820-ui-locked
+          fetch-depth: 1
+
+      - name: Add recovery manifest
+        shell: bash
+        run: |
+          cat > GOLDEN-DISASTER-RECOVERY-MANIFEST.txt <<'EOF'
+          NEXUSNOVA GOLDEN DISASTER RECOVERY — UI/DESIGN LOCKED
+          Date: 20 August 2026
+          Golden branch: nexusnova-master-golden-disaster-recovery-20260820-ui-locked
+          Golden snapshot commit: a8464b4bd43506c1b800294be9edec4175ace5ad
+          Approved source commit: 6bf0798a3d25cb662f4260d0ee46b5348bc094f0
+          Build result: PASS
+          APK: fresh-build-output/NexusNova-Fresh-Rebuild-TEST-20260820.apk
+          APK SHA256: 6ad2cdedd75cc3d777c08574930bf551b21449b290d5c8ed3c9f5d067b01d3c4
+          Status: UI/DESIGN APPROVED AND LOCKED. Restore only on explicit disaster-recovery instruction.
+          EOF
+
+      - name: Upload single complete recovery archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: NexusNova-Golden-Disaster-Recovery-20260820-UI-LOCKED
+          path: |
+            .
+            !.git/**
+          include-hidden-files: true
+          if-no-files-found: error
+          compression-level: 6
+          retention-days: 90
