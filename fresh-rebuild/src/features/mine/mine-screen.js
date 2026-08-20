@@ -26,7 +26,7 @@ function remainingFromState(state) {
   return Math.max(0, Math.ceil((86_400_000 - (Date.now() - state.startedAt)) / 1000));
 }
 
-export async function mineScreen({ openHubApp } = {}) {
+export async function mineScreen({ openHubApp, beforeMiningRenewal } = {}) {
   cleanupCurrent?.();
   cleanupCurrent = null;
 
@@ -120,10 +120,7 @@ export async function mineScreen({ openHubApp } = {}) {
   clockTimer = setInterval(tick, 1000);
   const off = backend.subscribeMining(render);
 
-  refs.button.addEventListener('click', async () => {
-    if (busy) return;
-    busy = true;
-    render(state);
+  const performMiningAction = async () => {
     try {
       state = await backend.toggleMining();
       render(state);
@@ -135,6 +132,32 @@ export async function mineScreen({ openHubApp } = {}) {
       busy = false;
       render(state);
     }
+  };
+
+  refs.button.addEventListener('click', () => {
+    if (busy) return;
+    const renewingCompletedSession = state.active && remainingFromState(state) <= 0;
+    busy = true;
+    render(state);
+
+    const proceed = () => {
+      refs.status.textContent = renewingCompletedSession
+        ? 'Starting the next secure 24-hour session…'
+        : 'Starting secure mining…';
+      performMiningAction();
+    };
+
+    if (renewingCompletedSession && typeof beforeMiningRenewal === 'function') {
+      refs.status.textContent = 'Opening ad before the next 24-hour session…';
+      Promise.resolve(beforeMiningRenewal(proceed)).catch(error => {
+        console.warn('[NexusNova Fresh] mining renewal ad gate:', error);
+        proceed();
+      });
+      return;
+    }
+
+    // Ordinary current-session start remains ad-free by the approved policy.
+    proceed();
   });
 
   root.querySelectorAll('[data-open-app]').forEach(button => {
