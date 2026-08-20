@@ -14,6 +14,10 @@ function cleanQuery(value) {
   return text;
 }
 
+function cleanMode(value) {
+  return String(value || "").toLowerCase() === "live" ? "live" : "discover";
+}
+
 function providerConfig() {
   let raw = "";
   try { raw = String(ENTERTAINMENT_PROVIDER_CONFIG.value() || "").trim(); } catch {}
@@ -50,18 +54,21 @@ async function fetchJson(url, options = {}) {
   }
 }
 
-async function searchYouTube(query, key) {
-  if (!key) return {provider: "YouTube", status: "not-configured", results: []};
+async function searchYouTube(query, key, {live = false} = {}) {
+  const provider = live ? "YouTube Live" : "YouTube";
+  if (!key) return {provider, status: "not-configured", results: []};
   try {
     const params = new URLSearchParams({
       part: "snippet",
       type: "video",
       q: query,
-      maxResults: "8",
+      maxResults: live ? "12" : "8",
       safeSearch: "strict",
       videoEmbeddable: "true",
+      videoSyndicated: "true",
       key
     });
+    if (live) params.set("eventType", "live");
     const json = await fetchJson(`https://www.googleapis.com/youtube/v3/search?${params.toString()}`);
     const results = (Array.isArray(json?.items) ? json.items : []).map(item => {
       const id = String(item?.id?.videoId || "").trim();
@@ -69,19 +76,20 @@ async function searchYouTube(query, key) {
       const snippet = item?.snippet || {};
       return {
         kind: "video",
-        provider: "YouTube",
+        provider,
+        live,
         id,
-        title: String(snippet.title || "YouTube video").slice(0, 220),
-        creator: String(snippet.channelTitle || "YouTube").slice(0, 120),
+        title: String(snippet.title || (live ? "Live stream" : "YouTube video")).slice(0, 220),
+        creator: String(snippet.channelTitle || provider).slice(0, 120),
         description: String(snippet.description || "").replace(/\s+/g, " ").trim().slice(0, 500),
         publishedAt: String(snippet.publishedAt || ""),
-        thumbnail: String(snippet.thumbnails?.medium?.url || snippet.thumbnails?.default?.url || ""),
+        thumbnail: String(snippet.thumbnails?.high?.url || snippet.thumbnails?.medium?.url || snippet.thumbnails?.default?.url || ""),
         embedUrl: `https://www.youtube-nocookie.com/embed/${id}`
       };
     }).filter(Boolean);
-    return {provider: "YouTube", status: "connected", results};
+    return {provider, status: "connected", results};
   } catch (error) {
-    return {provider: "YouTube", status: "error", message: String(error.message || error).slice(0, 180), results: []};
+    return {provider, status: "error", message: String(error.message || error).slice(0, 180), results: []};
   }
 }
 
@@ -99,6 +107,7 @@ async function searchDailymotion(query) {
       return {
         kind: "video",
         provider: "Dailymotion",
+        live: false,
         id,
         title: String(item?.title || "Dailymotion video").slice(0, 220),
         creator: String(item?.["owner.screenname"] || "Dailymotion").slice(0, 120),
@@ -158,18 +167,22 @@ exports.searchEntertainment = onCall({
 }, async req => {
   requireUser(req);
   const query = cleanQuery(req.data?.query);
+  const mode = cleanMode(req.data?.mode);
   const config = providerConfig();
 
-  const providers = await Promise.all([
-    searchYouTube(query, config.youtubeKey),
-    searchDailymotion(query),
-    searchTmdb(query, config.tmdbToken)
-  ]);
+  const providers = mode === "live"
+    ? [await searchYouTube(query, config.youtubeKey, {live: true})]
+    : await Promise.all([
+      searchYouTube(query, config.youtubeKey),
+      searchDailymotion(query),
+      searchTmdb(query, config.tmdbToken)
+    ]);
 
   return {
     ok: true,
     searchedAt: Date.now(),
     query,
+    mode,
     providers: providers.map(({provider, status, message}) => ({provider, status, message: message || ""})),
     results: providers.flatMap(item => item.results)
   };
