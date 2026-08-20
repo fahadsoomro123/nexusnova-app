@@ -1,6 +1,13 @@
 import { icon } from '../../components/icons.js';
 import { categories, hubApps } from './app-registry.js';
 
+const hubState = { scrollY: 0, lastAppId: '', query: '' };
+let restoreOnNextRender = false;
+
+export function requestHubReturnRestore() {
+  restoreOnNextRender = true;
+}
+
 function gridClass(count) {
   if (count === 1) return 'nx-app-grid nx-app-grid--single';
   const remainder = count % 3;
@@ -9,7 +16,10 @@ function gridClass(count) {
   return 'nx-app-grid';
 }
 
-export function hubScreen({ openApp, state = {}, restoreScroll = false } = {}) {
+export function hubScreen({ openApp } = {}) {
+  const restoreScroll = restoreOnNextRender;
+  restoreOnNextRender = false;
+
   const root = document.createElement('section');
   root.className = 'nx-screen';
   root.innerHTML = `
@@ -31,7 +41,7 @@ export function hubScreen({ openApp, state = {}, restoreScroll = false } = {}) {
 
   const draw = query => {
     const needle = String(query || '').trim().toLowerCase();
-    state.query = String(query || '');
+    hubState.query = String(query || '');
     const filtered = needle
       ? hubApps.filter(app => `${app.name} ${app.category} ${app.description}`.toLowerCase().includes(needle))
       : hubApps;
@@ -49,7 +59,7 @@ export function hubScreen({ openApp, state = {}, restoreScroll = false } = {}) {
           <div class="nx-category">${category}</div>
           <div class="${gridClass(apps.length)}">
             ${apps.map(app => {
-              const isLastOpened = app.id === state.lastAppId;
+              const isLastOpened = app.id === hubState.lastAppId;
               return `
                 <button class="nx-app-card${isLastOpened ? ' is-last-opened' : ''}" type="button" data-app-id="${app.id}"${isLastOpened ? ' data-last-opened="true"' : ''} aria-label="Open ${app.name}">
                   <span class="nx-app-card__icon">${icon(app.icon)}</span>
@@ -65,8 +75,8 @@ export function hubScreen({ openApp, state = {}, restoreScroll = false } = {}) {
 
     content.querySelectorAll('[data-app-id]').forEach(button => {
       button.addEventListener('click', () => {
-        state.scrollY = window.scrollY;
-        state.lastAppId = button.dataset.appId;
+        hubState.scrollY = window.scrollY;
+        hubState.lastAppId = button.dataset.appId;
         content.querySelectorAll('.is-last-opened').forEach(card => {
           card.classList.remove('is-last-opened');
           card.removeAttribute('data-last-opened');
@@ -79,11 +89,11 @@ export function hubScreen({ openApp, state = {}, restoreScroll = false } = {}) {
   };
 
   input.addEventListener('input', () => draw(input.value));
-  input.value = restoreScroll ? String(state.query || '') : '';
+  input.value = restoreScroll ? hubState.query : '';
   draw(input.value);
 
   if (restoreScroll) {
-    const savedScrollY = Math.max(0, Number(state.scrollY) || 0);
+    const savedScrollY = Math.max(0, Number(hubState.scrollY) || 0);
     requestAnimationFrame(() => requestAnimationFrame(() => {
       window.scrollTo({ top: savedScrollY, behavior: 'instant' });
     }));

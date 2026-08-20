@@ -7,7 +7,7 @@ import { authService } from './core/auth-service.js';
 import { adPolicy } from './core/ad-policy.js';
 import { authScreen } from './features/auth/auth-screen.js';
 import { mineScreen } from './features/mine/mine-screen.js';
-import { hubScreen } from './features/hub/hub-screen.js';
+import { hubScreen, requestHubReturnRestore } from './features/hub/hub-screen.js';
 import { mineApps } from './features/hub/app-registry.js';
 import { appScreen, cleanupAppScreen } from './features/apps/app-screen.js';
 
@@ -17,7 +17,6 @@ const dockItems = [...document.querySelectorAll('.nx-dock__item')];
 const mineAppIds = new Set(mineApps.map(app => app.id));
 const BOOT_SPLASH_MIN_MS = 2_200;
 const bootSplashStartedAt = performance.now();
-const hubReturnState = { scrollY: 0, lastAppId: '', query: '' };
 
 backend.attach(firebaseBackend);
 
@@ -92,7 +91,10 @@ let router;
 let currentAppParent = 'hub';
 const openAppDirect = id => router.render('app', { id });
 const openAppWithAd = id => adPolicy.gateHubApp(id, () => openAppDirect(id));
-const backToHub = () => router.render('hub', { restoreScroll: true });
+const backToHub = () => {
+  requestHubReturnRestore();
+  return router.render('hub');
+};
 const backToMine = () => router.render('mine');
 
 router = createRouter({
@@ -105,15 +107,7 @@ router = createRouter({
       openHubApp: openAppWithAd,
       beforeMiningRenewal: continueMining => adPolicy.gateMiningRenewal(continueMining)
     }),
-    hub: payload => hubScreen({
-      state: hubReturnState,
-      restoreScroll: Boolean(payload.restoreScroll),
-      openApp: id => {
-        hubReturnState.scrollY = window.scrollY;
-        hubReturnState.lastAppId = id;
-        return openAppWithAd(id);
-      }
-    }),
+    hub: () => hubScreen({ openApp: openAppWithAd }),
     app: payload => appScreen({ id: payload.id, backToHub, backToMine })
   },
   onRoute(route, payload = {}) {
@@ -132,8 +126,8 @@ window.NexusNovaFresh = Object.freeze({
     return true;
   },
   openHub() {
-    const restoreScroll = router.current === 'app' && currentAppParent === 'hub';
-    router.render('hub', { restoreScroll });
+    if (router.current === 'app' && currentAppParent === 'hub') requestHubReturnRestore();
+    router.render('hub');
     return true;
   },
   openMine() {
@@ -152,8 +146,12 @@ window.NexusNovaUxSimplify = Object.freeze({
   systemBack() {
     if (!router?.current || router.current === 'auth' || router.current === 'mine') return false;
     if (router.current === 'app') {
-      if (currentAppParent === 'hub') router.render('hub', { restoreScroll: true });
-      else router.render('mine');
+      if (currentAppParent === 'hub') {
+        requestHubReturnRestore();
+        router.render('hub');
+      } else {
+        router.render('mine');
+      }
       return true;
     }
     if (router.current === 'hub') {
@@ -168,8 +166,8 @@ window.NexusNovaUxSimplify = Object.freeze({
 dockItems.forEach(button => button.addEventListener('click', () => {
   const route = button.dataset.route;
   if (!route || router.current === route) return;
-  const restoreScroll = route === 'hub' && router.current === 'app' && currentAppParent === 'hub';
-  router.render(route, restoreScroll ? { restoreScroll: true } : {});
+  if (route === 'hub' && router.current === 'app' && currentAppParent === 'hub') requestHubReturnRestore();
+  router.render(route);
 }));
 
 function waitForBootSplashMinimum() {
