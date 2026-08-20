@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   package-golden-backup:
@@ -58,6 +58,7 @@ jobs:
           ls -lh "NexusNova-GOLDEN-BACKUP-20260820-Ads-PASS.zip"
 
       - name: Upload Golden Backup artifact
+        id: upload
         uses: actions/upload-artifact@v4
         with:
           name: NexusNova-GOLDEN-BACKUP-20260820-Ads-PASS
@@ -66,3 +67,32 @@ jobs:
             ${{ runner.temp }}/nexusnova-golden/NexusNova-GOLDEN-BACKUP-20260820-Ads-PASS.zip.sha256
           if-no-files-found: error
           retention-days: 30
+
+      - name: Publish artifact handoff metadata
+        shell: bash
+        env:
+          ARTIFACT_ID: ${{ steps.upload.outputs.artifact-id }}
+          ARTIFACT_URL: ${{ steps.upload.outputs.artifact-url }}
+        run: |
+          set -euo pipefail
+          ZIP_SHA="$(awk '{print $1}' "$RUNNER_TEMP/nexusnova-golden/NexusNova-GOLDEN-BACKUP-20260820-Ads-PASS.zip.sha256")"
+          git fetch origin nexusnova-fresh-rebuild-20260820
+          git checkout -B nexusnova-fresh-rebuild-20260820 origin/nexusnova-fresh-rebuild-20260820
+          mkdir -p golden-backup-output
+          cat > golden-backup-output/GOLDEN-BACKUP-HANDOFF.txt <<EOF
+          NexusNova Golden Backup Handoff
+          Artifact ID: ${ARTIFACT_ID}
+          Artifact URL: ${ARTIFACT_URL}
+          Locked snapshot commit: 4107fed257ee195655d75a53f3f205c9180cde0b
+          App source commit: bab42efda23086d445fa62943a979bacd11a75b9
+          APK SHA-256: b0f4f97123abb8992b3e40b29628d5b120d1d4536abb1ce909d40c4b889e26f7
+          Golden ZIP SHA-256: ${ZIP_SHA}
+          Result: PASS
+          EOF
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add golden-backup-output/GOLDEN-BACKUP-HANDOFF.txt
+          if ! git diff --cached --quiet; then
+            git commit -m "ci: publish golden backup handoff [skip ci]"
+            git push origin HEAD:nexusnova-fresh-rebuild-20260820
+          fi
