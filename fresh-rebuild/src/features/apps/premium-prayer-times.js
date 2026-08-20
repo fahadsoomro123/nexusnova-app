@@ -22,21 +22,6 @@ function currentPosition(options = {}) {
   });
 }
 
-async function resolvePlaceName(lat, lon) {
-  try {
-    const response = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lon)}&localityLanguage=en`, { cache:'no-store' });
-    if (!response.ok) throw new Error(`Reverse geocoding HTTP ${response.status}`);
-    const json = await response.json();
-    const values = [json?.locality || json?.city, json?.principalSubdivision, json?.countryName]
-      .filter(Boolean)
-      .filter((value, index, list) => list.indexOf(value) === index);
-    return values.join(', ') || 'Current location';
-  } catch (error) {
-    console.warn('[NexusNova Premium] prayer reverse geocoding:', error);
-    return 'Current location';
-  }
-}
-
 function timeParts(value) {
   const match = String(value || '').match(/^(\d{1,2}):(\d{2})/);
   if (!match) return { clock:'--:--', suffix:'' };
@@ -271,14 +256,6 @@ export function renderPrayerTimesPremium() {
     }
   };
 
-  const loadGpsPosition = async () => {
-    const pos = await currentPosition();
-    const lat = pos.coords.latitude;
-    const lon = pos.coords.longitude;
-    const place = await resolvePlaceName(lat, lon);
-    await load({ lat, lon, place });
-  };
-
   root.querySelector('[data-prayer-back]').addEventListener('click', () => root.closest('.nx-screen')?.querySelector('[data-app-back]')?.click());
   root.querySelector('[data-prayer-search-go]').addEventListener('click', findPlaces);
   search.addEventListener('keydown', event => { if (event.key === 'Enter') findPlaces(); });
@@ -290,13 +267,14 @@ export function renderPrayerTimesPremium() {
   root.querySelector('[data-prayer-gps]').addEventListener('click', async () => {
     showStatus('Getting your GPS location…');
     try {
-      await loadGpsPosition();
+      const pos = await currentPosition();
+      await load({ lat:pos.coords.latitude, lon:pos.coords.longitude, place:'Current location' });
     } catch {
       showStatus('GPS permission is unavailable. Search for a city instead.');
     }
   });
 
-  loadGpsPosition().catch(() => load(state));
+  currentPosition().then(pos => load({ lat:pos.coords.latitude, lon:pos.coords.longitude, place:'Current location' })).catch(() => load(state));
 
   root.__cleanup = () => {
     clearInterval(timer);
