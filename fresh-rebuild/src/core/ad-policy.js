@@ -5,49 +5,84 @@ const HUB_PLACEMENT = 'hub-app-open';
 const MINING_PLACEMENT = 'mining-start';
 const REQUEST_ACK_TIMEOUT_MS = 2_500;
 const DISMISS_FAILSAFE_MS = 90_000;
-const INTERSTITIAL_MIN_GAP_MS = 180_000;
-const INTERSTITIAL_SESSION_MAX = 4;
-const ELIGIBLE_BREAKS_BEFORE_FIRST = 3;
 
+// Production remains frequency-capped. TEST/debug deliberately uses a short
+// cooldown so ad coverage can be verified across several apps on a real phone.
+const PRODUCTION_INTERSTITIAL_MIN_GAP_MS = 180_000;
+const TEST_INTERSTITIAL_MIN_GAP_MS = 5_000;
+const PRODUCTION_INTERSTITIAL_SESSION_MAX = 4;
+const TEST_INTERSTITIAL_SESSION_MAX = 50;
+const PRODUCTION_ELIGIBLE_BREAKS_BEFORE_FIRST = 2;
+const TEST_ELIGIBLE_BREAKS_BEFORE_FIRST = 1;
+
+// User-approved forced-interstitial exclusions. Bible/Bukhari/About are kept
+// here even if a direct fresh tile is not currently registered, so future
+// additions inherit the same protection automatically.
 const PROTECTED_APPS = new Set([
-  'wallet','tasks','profile','bmi','qibla','prayer-times','location','documents',
-  'islamic','quran','hadith','urdu-library','health','contacts','caller-id','family',
-  'emergency','savings','nova-vault','file-vault','security','notifications','settings',
-  'chat','growth','market'
+  'quran', 'hadith', 'bukhari', 'bible', 'qibla', 'security', 'emergency',
+  'health', 'contacts', 'about'
 ]);
 
-// Fresh Nova Hub removed the legacy umbrella Tools/Money/etc screens. Map only
-// approved, non-sensitive direct apps back to the native allowlist categories.
+// Every current non-protected Nova Hub app maps to a native allowlisted feature
+// family. This prevents silent "ineligible" gaps such as News/Habits/etc.
 const FEATURE_ALIAS = Object.freeze({
+  wallet:'finance',
+  tasks:'tools',
+  market:'finance',
+  profile:'tools',
   notes:'tools',
   todo:'tools',
   calculator:'tools',
   'unit-converter':'tools',
   expenses:'tools',
   pomodoro:'tools',
+  bmi:'tools',
   tip:'tools',
   'world-clock':'tools',
   qr:'tools',
   weather:'mega-weather',
+  qibla:'tools',
+  'prayer-times':'tools',
   'speed-test':'tools',
   pakistan:'mega-pakistan',
+  news:'news',
+  location:'travel',
   'nova-drive':'travel',
   'nova-track':'travel',
   ai:'ai',
   smart:'smart',
+  chat:'tools',
   browser:'browser',
   travel:'travel',
   learning:'learn',
   teacher:'mega-teacher',
+  documents:'tools',
   entertainment:'entertainment',
+  islamic:'tools',
+  quran:'tools',
+  hadith:'tools',
+  'urdu-library':'learn',
+  health:'tools',
   calendar:'mega-calendar',
   reminders:'mega-reminders',
+  habits:'tools',
+  savings:'money',
+  contacts:'tools',
+  'caller-id':'tools',
+  family:'tools',
+  emergency:'tools',
   finance:'finance',
   budget:'money',
   bills:'money',
   shopping:'shopping',
   marketplace:'marketplace',
-  orders:'mega-orders'
+  orders:'mega-orders',
+  growth:'finance',
+  'nova-vault':'tools',
+  'file-vault':'tools',
+  security:'tools',
+  notifications:'tools',
+  settings:'tools'
 });
 
 let lastInterstitialAt = 0;
@@ -57,6 +92,24 @@ let inFlight = null;
 
 function normalize(value) {
   return String(value || '').trim().toLowerCase();
+}
+
+function nativeTestMode() {
+  return nativeAds.status().testMode !== false;
+}
+
+function interstitialMinGapMs() {
+  return nativeTestMode() ? TEST_INTERSTITIAL_MIN_GAP_MS : PRODUCTION_INTERSTITIAL_MIN_GAP_MS;
+}
+
+function interstitialSessionMax() {
+  return nativeTestMode() ? TEST_INTERSTITIAL_SESSION_MAX : PRODUCTION_INTERSTITIAL_SESSION_MAX;
+}
+
+function eligibleBreaksBeforeFirst() {
+  return nativeTestMode()
+    ? TEST_ELIGIBLE_BREAKS_BEFORE_FIRST
+    : PRODUCTION_ELIGIBLE_BREAKS_BEFORE_FIRST;
 }
 
 function readSession() {
@@ -85,8 +138,9 @@ function adFeatureFor(appId) {
 
 function isProtected(appId) {
   const id = normalize(appId);
-  if (!id || PROTECTED_APPS.has(id)) return true;
-  return /(?:wallet|payment|checkout|security|password|emergency|health|quran|hadith|bukhari|bible|islamic|caller|profile|login|auth|file-vault|document)/i.test(id);
+  if (!id) return true;
+  if (PROTECTED_APPS.has(id)) return true;
+  return /(?:^|[-_])(quran|hadith|bukhari|bible|qibla|security|emergency|health|contacts|about)(?:$|[-_])/i.test(id);
 }
 
 function isEligibleHubApp(appId) {
@@ -120,7 +174,7 @@ function markAdStarted() {
   clearTimeout(active.ackTimer);
   active.ackTimer = null;
   lastInterstitialAt = Date.now();
-  sessionInterstitialCount = Math.min(INTERSTITIAL_SESSION_MAX, sessionInterstitialCount + 1);
+  sessionInterstitialCount = Math.min(interstitialSessionMax(), sessionInterstitialCount + 1);
   eligibleBreakCount = 0;
   persist();
   active.dismissTimer = setTimeout(() => finish('dismiss-failsafe-timeout'), DISMISS_FAILSAFE_MS);
@@ -128,8 +182,8 @@ function markAdStarted() {
 
 function readyForHubInterstitial() {
   if (inFlight) return false;
-  if (sessionInterstitialCount >= INTERSTITIAL_SESSION_MAX) return false;
-  if (Date.now() - lastInterstitialAt < INTERSTITIAL_MIN_GAP_MS) return false;
+  if (sessionInterstitialCount >= interstitialSessionMax()) return false;
+  if (Date.now() - lastInterstitialAt < interstitialMinGapMs()) return false;
   return nativeAds.status().interstitialReady === true;
 }
 
@@ -137,13 +191,15 @@ function startGate({ placement, feature = '', requestedFeature = '', continue: c
   if (inFlight) return Promise.resolve({ shown:false, reason:'transition-pending' });
 
   if (requireWarmup) {
-    eligibleBreakCount = Math.min(ELIGIBLE_BREAKS_BEFORE_FIRST, eligibleBreakCount + 1);
+    const warmupTarget = eligibleBreaksBeforeFirst();
+    eligibleBreakCount = Math.min(warmupTarget, eligibleBreakCount + 1);
     persist();
-    if (eligibleBreakCount < ELIGIBLE_BREAKS_BEFORE_FIRST) {
+    if (eligibleBreakCount < warmupTarget) {
       continuation?.();
       return Promise.resolve({ shown:false, reason:'warmup' });
     }
     if (!readyForHubInterstitial()) {
+      nativeAds.requestStatus();
       continuation?.();
       return Promise.resolve({ shown:false, reason:'frequency-or-not-ready' });
     }
@@ -255,10 +311,11 @@ export const adPolicy = Object.freeze({
       inFlight:Boolean(inFlight),
       lastInterstitialAt,
       sessionInterstitialCount,
-      sessionMax:INTERSTITIAL_SESSION_MAX,
-      minGapMs:INTERSTITIAL_MIN_GAP_MS,
+      sessionMax:interstitialSessionMax(),
+      minGapMs:interstitialMinGapMs(),
       eligibleBreakCount,
-      warmupTarget:ELIGIBLE_BREAKS_BEFORE_FIRST,
+      warmupTarget:eligibleBreaksBeforeFirst(),
+      testMode:nativeTestMode(),
       native:nativeAds.status()
     });
   }
