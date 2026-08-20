@@ -9,26 +9,31 @@ function node(html, className = '') {
   return root;
 }
 
-function gaugeMarkup(kind, unit, maxLabel) {
+function gaugeMarkup(kind, unit) {
   return `<div class="nxgauge nxgauge--${kind}">
+    <div class="nxgauge__glass" aria-hidden="true"></div>
+    <div class="nxgauge__grid" aria-hidden="true"></div>
     <svg viewBox="0 0 100 100" role="img" aria-label="${escapeHtml(kind)} gauge">
       <defs>
         <linearGradient id="nxGaugeGradient-${kind}" x1="0" y1="1" x2="1" y2="0">
-          <stop offset="0%" stop-color="#55718b"/>
-          <stop offset="38%" stop-color="#41c8e6"/>
-          <stop offset="72%" stop-color="#4ad3a1"/>
-          <stop offset="100%" stop-color="#d4b66f"/>
+          <stop offset="0%" stop-color="#20a9ff"/>
+          <stop offset="52%" stop-color="#75ddff"/>
+          <stop offset="82%" stop-color="#39e0d1"/>
+          <stop offset="100%" stop-color="#c95cff"/>
         </linearGradient>
       </defs>
       <path class="nxgauge__track" d="${GAUGE_ARC}" pathLength="100"/>
       <path class="nxgauge__fill" data-gauge-fill d="${GAUGE_ARC}" pathLength="100" style="stroke-dasharray:0 100"/>
-      <g class="nxgauge__needle" data-gauge-needle>
-        <line x1="50" y1="51" x2="50" y2="20"/>
-        <circle cx="50" cy="51" r="4.4"/>
-        <circle cx="50" cy="51" r="1.6"/>
+      <g class="nxgauge__scale nxgauge__scale--speed">
+        <text x="17" y="79">0</text><text x="11" y="63">1</text><text x="14" y="46">5</text>
+        <text x="24" y="30">10</text><text x="42" y="20">20</text><text x="61" y="21">50</text>
+        <text x="76" y="31">100</text><text x="86" y="47">250</text><text x="89" y="65">500</text><text x="80" y="81">1G</text>
       </g>
-      <text x="19" y="78" class="nxgauge__mark">0</text>
-      <text x="77" y="78" class="nxgauge__mark">${escapeHtml(maxLabel)}</text>
+      <g class="nxgauge__needle" data-gauge-needle>
+        <line x1="50" y1="51" x2="50" y2="17"/>
+        <circle cx="50" cy="51" r="4.5"/>
+        <circle cx="50" cy="51" r="1.65"/>
+      </g>
     </svg>
     <div class="nxgauge__readout"><span data-gauge-mode>READY</span><strong data-gauge-value>0</strong><small>${escapeHtml(unit)}</small></div>
   </div>`;
@@ -69,16 +74,18 @@ export function renderSpeedTestPremium() {
   const DOWNLOAD_BYTES = 4_000_000;
   const UPLOAD_BYTES = 1_500_000;
   const root = node(`
-    <section class="nxspeed-console">
-      <header><div><span>NETWORK PERFORMANCE</span><strong>Precision Speed Test</strong></div><b data-speed-quality>READY</b></header>
-      ${gaugeMarkup('speed', 'MBPS', '1G')}
+    <section class="nxspeed-console nxspeed-console--sample-b">
+      <header><div><span>NEXUSNOVA NETWORK</span><strong>Precision Speed Test</strong></div><b>METER SAMPLE B</b></header>
+      <div class="nxspeed-network-state"><i></i><span data-speed-quality>READY</span></div>
+      ${gaugeMarkup('speed', 'Mbps')}
       <section class="nxspeed-metrics">
-        <article><span>DOWNLOAD</span><strong data-speed-down>—</strong></article>
-        <article><span>UPLOAD</span><strong data-speed-up>—</strong></article>
-        <article><span>PING</span><strong data-speed-ping>—</strong></article>
-        <article><span>JITTER</span><strong data-speed-jitter>—</strong></article>
+        <article><span>DOWNLOAD</span><strong data-speed-down>—</strong><i></i></article>
+        <article><span>UPLOAD</span><strong data-speed-up>—</strong><i></i></article>
+        <article><span>PING</span><strong data-speed-ping>—</strong><i></i></article>
+        <article><span>JITTER</span><strong data-speed-jitter>—</strong><i></i></article>
       </section>
       <button class="nxpi-action nxspeed-start" type="button" data-speed-start>RUN SPEED TEST</button>
+      <div class="nxspeed-foot"><span>NexusNova Server • Auto Select</span><span>Live connection</span></div>
       <p class="nxpi-status" data-speed-status>Cloudflare Edge throughput test • approximately 5.5 MB per complete run.</p>
     </section>
   `, 'nx-speed-premium');
@@ -177,14 +184,14 @@ export function renderSpeedTestPremium() {
       const u = await upload();
       up.textContent = `${u < 10 ? u.toFixed(2) : u.toFixed(1)} Mbps`;
 
-      const quality = d >= 300 && u >= 80 && l.ping <= 35 ? 'EXCELLENT'
+      const quality = d >= 300 && u >= 80 && l.ping <= 35 ? 'OPTIMAL CONNECTION'
         : d >= 100 ? 'VERY FAST'
-        : d >= 25 ? 'GOOD'
-        : d >= 8 ? 'USABLE'
-        : 'SLOW';
+        : d >= 25 ? 'GOOD CONNECTION'
+        : d >= 8 ? 'USABLE CONNECTION'
+        : 'SLOW CONNECTION';
       qualityEl.textContent = quality;
       paintSpeed(d, 'DOWNLOAD');
-      status.textContent = `${quality} connection • ping ${l.ping.toFixed(0)} ms • jitter ${l.jitter.toFixed(1)} ms`;
+      status.textContent = `${quality} • ping ${l.ping.toFixed(0)} ms • jitter ${l.jitter.toFixed(1)} ms`;
       start.textContent = 'RUN AGAIN';
     } catch (error) {
       qualityEl.textContent = 'INTERRUPTED';
