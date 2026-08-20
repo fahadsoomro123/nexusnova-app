@@ -1,0 +1,1 @@
+NexusNova selected reference assets for premium Weather, Speed Test, Nova Drive, Qibla and Prayer Times. These assets are user-approved visual specifications and must not be replaced without explicit approval.
