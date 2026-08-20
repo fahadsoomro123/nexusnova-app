@@ -67,6 +67,7 @@ jobs:
             test -f fresh-rebuild/index.html
             test -f fresh-rebuild/src/main.js
             test -f fresh-rebuild/AUDIT-20260820.md
+            test ! -e NexusNovaAndroid/patch_fresh_ad_coverage.py
 
             while IFS= read -r -d '' file; do
               node --check "$file"
@@ -157,10 +158,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          {
-            python NexusNovaAndroid/patch_admob.py
-            python NexusNovaAndroid/patch_fresh_ad_coverage.py
-          } 2>&1 | tee fresh-build-output/patch-admob.log
+          python NexusNovaAndroid/patch_admob.py 2>&1 | tee fresh-build-output/patch-admob.log
 
       - name: Verify Android fresh bundle
         id: android_verify
