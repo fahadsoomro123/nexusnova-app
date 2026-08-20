@@ -3,7 +3,7 @@ import { requireFirebaseUser } from '../../core/firebase-backend.js';
 
 function node(html) {
   const root = document.createElement('div');
-  root.className = 'nx-app-body';
+  root.className = 'nx-app-body nx-family-suite';
   root.innerHTML = html;
   return root;
 }
@@ -63,40 +63,75 @@ function mergeMembers(canonicalKey, freshKey) {
   return merged;
 }
 
-function openExternal(url) {
+function callPhone(raw) {
+  const phone = normalizePhone(raw);
+  if (!phone) return false;
+  window.location.href = `tel:${phone}`;
+  return true;
+}
+
+function openWhatsApp(raw) {
+  const phone = normalizePhone(raw);
+  if (!phone) return false;
+  const url = `https://wa.me/${encodeURIComponent(phone.replace(/^\+/, ''))}`;
   try {
-    const parsed = new URL(String(url));
-    if (!['https:', 'tel:'].includes(parsed.protocol)) return false;
-    if (parsed.protocol === 'https:' && typeof window.nexusPostNativeAction === 'function') {
-      if (window.nexusPostNativeAction('openExternal', { url: parsed.href })) return true;
-    }
-    if (parsed.protocol === 'tel:') window.location.href = parsed.href;
-    else window.open(parsed.href, '_blank', 'noopener,noreferrer');
+    if (typeof window.nexusPostNativeAction === 'function' && window.nexusPostNativeAction('openExternal', { url })) return true;
+    window.location.href = url;
     return true;
   } catch {
     return false;
   }
 }
 
+function mapEmbedUrl(latitude, longitude, accuracy = 0) {
+  const lat = Number(latitude);
+  const lon = Number(longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return '';
+  const span = Math.min(.035, Math.max(.004, (Number(accuracy) || 30) / 65000));
+  const params = new URLSearchParams({
+    bbox: `${lon - span},${lat - span},${lon + span},${lat + span}`,
+    layer: 'mapnik',
+    marker: `${lat},${lon}`
+  });
+  return `https://www.openstreetmap.org/export/embed.html?${params.toString()}`;
+}
+
+function shareMapUrl(latitude, longitude) {
+  const lat = Number(latitude).toFixed(6);
+  const lon = Number(longitude).toFixed(6);
+  return `https://www.openstreetmap.org/?mlat=${encodeURIComponent(lat)}&mlon=${encodeURIComponent(lon)}#map=16/${encodeURIComponent(lat)}/${encodeURIComponent(lon)}`;
+}
+
 export function renderFamilySuite() {
   const root = node(`
-    <section class="nx-tool-card">
-      <div class="nx-two-col">
-        <label class="nx-field"><span>Name</span><input maxlength="80" data-family-name placeholder="Family member"></label>
-        <label class="nx-field"><span>Relation</span><input maxlength="80" data-family-relation placeholder="Parent, spouse, sibling…"></label>
-      </div>
-      <label class="nx-field"><span>Phone</span><input inputmode="tel" maxlength="18" data-family-phone placeholder="03XXXXXXXXX"></label>
-      <button class="nx-primary" type="button" data-family-add>ADD FAMILY MEMBER</button>
-      <p class="nx-tool-meta" data-family-status>Trusted family contacts stay on this device for the signed-in NexusNova account.</p>
+    <section class="nx-family-hero">
+      <div><p class="nx-eyebrow">FAMILY • PRIVATE CONTACTS</p><strong>Your trusted people in one place</strong><p class="nx-tool-meta" data-family-status>Contacts stay on this device for the signed-in NexusNova account.</p></div>
+      <span data-family-count>0</span>
     </section>
 
-    <section class="nx-stack" data-family-list></section>
+    <section class="nx-family-add">
+      <div class="nx-family-fields">
+        <label><span>Name</span><input maxlength="80" data-family-name placeholder="Family member"></label>
+        <label><span>Relation</span><input maxlength="80" data-family-relation placeholder="Parent, spouse…"></label>
+        <label class="wide"><span>Phone</span><input inputmode="tel" maxlength="18" data-family-phone placeholder="03XXXXXXXXX"></label>
+      </div>
+      <button class="nx-primary" type="button" data-family-add>ADD MEMBER</button>
+    </section>
 
-    <section class="nx-tool-card">
-      <strong>One-time Location Check-in</strong>
-      <p class="nx-tool-meta">Gets your current GPS position once and prepares a Google Maps link. NexusNova does not continuously track or upload your coordinates.</p>
+    <section class="nx-family-list" data-family-list></section>
+
+    <section class="nx-family-checkin">
+      <div class="nx-family-checkin__head">
+        <div><p class="nx-eyebrow">ONE-TIME CHECK-IN</p><strong>Share where you are — only when you choose</strong></div>
+        <span>GPS</span>
+      </div>
+      <p class="nx-tool-meta">Reads your current position once. NexusNova does not continuously track or save your coordinates.</p>
       <button class="nx-primary" type="button" data-family-checkin>CREATE LOCATION CHECK-IN</button>
-      <article class="nx-list-card" data-family-checkin-status><p>No check-in created.</p></article>
+      <div class="nx-family-checkin__map" data-family-map hidden>
+        <iframe data-family-map-frame title="Family check-in map" loading="lazy" referrerpolicy="no-referrer" sandbox="allow-scripts allow-same-origin"></iframe>
+        <div class="nx-family-checkin__info"><div><strong data-family-coords>—</strong><span data-family-updated>—</span></div><button type="button" data-family-copy-checkin>COPY CHECK-IN</button></div>
+      </div>
+      <p class="nx-tool-meta" data-family-checkin-status>No check-in created.</p>
     </section>
   `);
 
@@ -105,9 +140,18 @@ export function renderFamilySuite() {
   const phone = root.querySelector('[data-family-phone]');
   const status = root.querySelector('[data-family-status]');
   const list = root.querySelector('[data-family-list]');
+  const count = root.querySelector('[data-family-count]');
+  const checkInButton = root.querySelector('[data-family-checkin]');
   const checkInStatus = root.querySelector('[data-family-checkin-status]');
+  const checkInMap = root.querySelector('[data-family-map]');
+  const checkInFrame = root.querySelector('[data-family-map-frame]');
+  const checkInCoords = root.querySelector('[data-family-coords]');
+  const checkInUpdated = root.querySelector('[data-family-updated]');
+  const copyCheckIn = root.querySelector('[data-family-copy-checkin]');
   let canonicalKey = '';
   let freshKey = '';
+  let currentCheckIn = null;
+  let cancelled = false;
 
   const read = () => canonicalKey ? mergeMembers(canonicalKey, freshKey) : [];
   const write = rows => {
@@ -119,16 +163,15 @@ export function renderFamilySuite() {
   const draw = () => {
     if (!canonicalKey) return;
     const items = read();
+    count.textContent = String(items.length);
     list.innerHTML = items.length ? items.map(item => `
-      <article class="nx-list-card">
-        <div class="nx-list-card__head">
-          <strong>${escapeHtml(item.name)} • ${escapeHtml(item.relation || 'Family')}</strong>
-          <button class="nx-icon-button" type="button" data-family-delete="${escapeHtml(item.id)}">×</button>
-        </div>
-        <p>${escapeHtml(item.phone)}</p>
-        <div class="nx-two-col">
-          <button class="nx-primary" type="button" data-family-call="${escapeHtml(item.phone)}">CALL</button>
+      <article class="nx-family-member">
+        <div class="nx-family-member__avatar">${escapeHtml(item.name.slice(0, 1).toUpperCase())}</div>
+        <div class="nx-family-member__body"><strong>${escapeHtml(item.name)}</strong><span>${escapeHtml(item.relation || 'Family')} • ${escapeHtml(item.phone)}</span></div>
+        <div class="nx-family-member__actions">
+          <button type="button" data-family-call="${escapeHtml(item.phone)}">CALL</button>
           <button type="button" data-family-wa="${escapeHtml(item.phone)}">WHATSAPP</button>
+          <button class="danger" type="button" data-family-delete="${escapeHtml(item.id)}" aria-label="Remove ${escapeHtml(item.name)}">×</button>
         </div>
       </article>
     `).join('') : '<div class="nx-empty">No family members added yet.</div>';
@@ -138,15 +181,8 @@ export function renderFamilySuite() {
       status.textContent = 'Family member removed.';
       draw();
     }));
-    list.querySelectorAll('[data-family-call]').forEach(button => button.addEventListener('click', () => {
-      const value = normalizePhone(button.dataset.familyCall);
-      if (value) openExternal(`tel:${value}`);
-    }));
-    list.querySelectorAll('[data-family-wa]').forEach(button => button.addEventListener('click', () => {
-      const value = normalizePhone(button.dataset.familyWa);
-      if (!value) return;
-      openExternal(`https://wa.me/${encodeURIComponent(value.replace(/^\+/, ''))}`);
-    }));
+    list.querySelectorAll('[data-family-call]').forEach(button => button.addEventListener('click', () => callPhone(button.dataset.familyCall)));
+    list.querySelectorAll('[data-family-wa]').forEach(button => button.addEventListener('click', () => openWhatsApp(button.dataset.familyWa)));
   };
 
   familyKeys().then(keys => {
@@ -155,9 +191,7 @@ export function renderFamilySuite() {
     const beforeOld = Array.isArray(loadJson(canonicalKey, [])) ? loadJson(canonicalKey, []).length : 0;
     const beforeFresh = Array.isArray(loadJson(freshKey, [])) ? loadJson(freshKey, []).length : 0;
     const merged = mergeMembers(canonicalKey, freshKey);
-    if (merged.length > Math.max(beforeOld, beforeFresh)) {
-      status.textContent = 'Previous Family Hub contacts merged into the fresh account-scoped store.';
-    }
+    if (merged.length > Math.max(beforeOld, beforeFresh)) status.textContent = 'Previous Family Hub contacts merged into the fresh account-scoped store.';
     draw();
   });
 
@@ -171,7 +205,7 @@ export function renderFamilySuite() {
       return;
     }
     const items = read();
-    items.push({ id: uid('family'), name: cleanName, relation: cleanRelation, phone: cleanPhone, createdAt: Date.now() });
+    items.push({ id:uid('family'), name:cleanName, relation:cleanRelation, phone:cleanPhone, createdAt:Date.now() });
     write(items);
     name.value = '';
     relation.value = '';
@@ -180,35 +214,59 @@ export function renderFamilySuite() {
     draw();
   });
 
-  root.querySelector('[data-family-checkin]').addEventListener('click', () => {
+  checkInButton.addEventListener('click', () => {
     if (!navigator.geolocation) {
-      checkInStatus.querySelector('p').textContent = 'Location is not supported on this device.';
+      checkInStatus.textContent = 'Location is not supported on this device.';
       return;
     }
-    checkInStatus.querySelector('p').textContent = 'Getting your current location…';
-    navigator.geolocation.getCurrentPosition(async position => {
+    checkInButton.disabled = true;
+    checkInButton.textContent = 'LOCATING…';
+    checkInStatus.textContent = 'Getting your current GPS position…';
+    navigator.geolocation.getCurrentPosition(position => {
+      if (cancelled) return;
       const lat = Number(position.coords.latitude);
       const lon = Number(position.coords.longitude);
-      if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
-        checkInStatus.querySelector('p').textContent = 'GPS returned an invalid location.';
+      const accuracy = Number(position.coords.accuracy) || 0;
+      const embed = mapEmbedUrl(lat, lon, accuracy);
+      if (!embed) {
+        checkInStatus.textContent = 'GPS returned an invalid location.';
+        checkInButton.disabled = false;
+        checkInButton.textContent = 'CREATE LOCATION CHECK-IN';
         return;
       }
-      const link = `https://www.google.com/maps?q=${encodeURIComponent(`${lat},${lon}`)}`;
-      let copied = false;
-      try {
-        await navigator.clipboard.writeText(link);
-        copied = true;
-      } catch {}
-      checkInStatus.innerHTML = `<strong>${copied ? 'Location check-in link copied.' : 'Location link ready.'}</strong><p>Coordinates were not saved.</p><button type="button" data-open-checkin>OPEN MAP</button>`;
-      checkInStatus.querySelector('[data-open-checkin]').addEventListener('click', () => openExternal(link));
+      currentCheckIn = { lat, lon, url:shareMapUrl(lat, lon) };
+      checkInFrame.src = embed;
+      checkInCoords.textContent = `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+      checkInUpdated.textContent = `Accuracy ${Math.round(accuracy || 0)} m • ${new Date(position.timestamp || Date.now()).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })}`;
+      checkInMap.hidden = false;
+      checkInStatus.textContent = 'One-time check-in ready. Coordinates were not saved.';
+      checkInButton.disabled = false;
+      checkInButton.textContent = 'REFRESH CHECK-IN';
     }, error => {
-      checkInStatus.querySelector('p').textContent = error.code === 1
-        ? 'Location permission was denied.'
-        : 'Could not get your current location.';
-    }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 });
+      if (cancelled) return;
+      checkInStatus.textContent = error.code === 1 ? 'Location permission was denied.' : 'Could not get your current location.';
+      checkInButton.disabled = false;
+      checkInButton.textContent = 'TRY AGAIN';
+    }, { enableHighAccuracy:true, timeout:10000, maximumAge:30000 });
   });
 
+  copyCheckIn.addEventListener('click', async () => {
+    if (!currentCheckIn) return;
+    const text = `My current location: ${currentCheckIn.lat.toFixed(6)}, ${currentCheckIn.lon.toFixed(6)}\n${currentCheckIn.url}`;
+    try {
+      await navigator.clipboard.writeText(text);
+      checkInStatus.textContent = 'Check-in copied. You can paste it into a message to a trusted person.';
+    } catch {
+      checkInStatus.textContent = `Check-in: ${currentCheckIn.lat.toFixed(6)}, ${currentCheckIn.lon.toFixed(6)}`;
+    }
+  });
+
+  root.__cleanup = () => {
+    cancelled = true;
+    checkInFrame.removeAttribute('src');
+    currentCheckIn = null;
+  };
   return root;
 }
 
-export const familySuiteRenderers = Object.freeze({ family: renderFamilySuite });
+export const familySuiteRenderers = Object.freeze({ family:renderFamilySuite });
