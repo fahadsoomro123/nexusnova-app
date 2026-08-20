@@ -30,24 +30,53 @@ function bearingToKaaba(latitude, longitude) {
   return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
 }
 
+function distanceToKaaba(latitude, longitude) {
+  const R = 6371;
+  const φ1 = Number(latitude) * Math.PI / 180;
+  const φ2 = 21.4225 * Math.PI / 180;
+  const dφ = (21.4225 - Number(latitude)) * Math.PI / 180;
+  const dλ = (39.8262 - Number(longitude)) * Math.PI / 180;
+  const a = Math.sin(dφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(dλ / 2) ** 2;
+  return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function compassPoint(degrees) {
+  const names = ['N','NE','E','SE','S','SW','W','NW'];
+  return names[Math.round((((Number(degrees) || 0) % 360) + 360) % 360 / 45) % 8];
+}
+
 export function renderQiblaPremium() {
   const root = node(`
-    <section class="nxqibla-console" data-qibla-console>
-      <header><div><span>PRECISION QIBLA</span><strong>Live Direction Instrument</strong></div><b data-qibla-lock>LOCATING</b></header>
-      <div class="nxqibla-dial">
-        <div class="nxqibla-cardinals" data-qibla-cardinals>
-          <span class="n">N</span><span class="e">E</span><span class="s">S</span><span class="w">W</span>
+    <section class="nxqibla-console nxqibla-console--selected" data-qibla-console>
+      <header><div><span>QIBLA COMPASS</span><strong>Find direction to Kaaba</strong></div><b data-qibla-lock>LOCATING</b></header>
+      <div class="nxqibla-layout">
+        <aside class="nxqibla-side nxqibla-side--left">
+          <article><span>QIBLA DIRECTION</span><strong data-qibla-bearing>—</strong><small data-qibla-point>FROM NORTH</small></article>
+          <article><span>DISTANCE</span><strong data-qibla-distance>—</strong><small>TO KAABA</small></article>
+          <article><span>LOCATION</span><strong data-qibla-location>Current location</strong><small data-qibla-coords>—</small></article>
+          <article class="nxqibla-health"><span>CALIBRATION</span><strong data-qibla-calibration>Waiting</strong></article>
+        </aside>
+
+        <div class="nxqibla-dial-wrap">
+          <div class="nxqibla-dial">
+            <div class="nxqibla-degree-ring" aria-hidden="true"></div>
+            <div class="nxqibla-cardinals" data-qibla-cardinals>
+              <span class="n">N</span><span class="e">E</span><span class="s">S</span><span class="w">W</span>
+            </div>
+            <span class="nxqibla-kaaba" aria-hidden="true">🕋</span>
+            <div class="nxqibla-qibla" data-qibla-pointer><i></i><b>QIBLA</b></div>
+            <div class="nxqibla-heading"><i></i></div>
+            <div class="nxqibla-core"><span>LIVE</span><strong>●</strong></div>
+          </div>
         </div>
-        <div class="nxqibla-qibla" data-qibla-pointer><i></i><b>QIBLA</b></div>
-        <div class="nxqibla-heading"><i></i></div>
-        <div class="nxqibla-core"><span>KAABA</span><strong>◈</strong></div>
+
+        <aside class="nxqibla-side nxqibla-side--right">
+          <article><span>HEADING</span><strong data-qibla-heading>—</strong><small data-qibla-heading-point>—</small></article>
+          <article><span>TILT</span><strong data-qibla-tilt>—</strong><small>PHONE ANGLE</small></article>
+          <article><span>MAGNETIC FIELD</span><strong data-qibla-field>Sensor idle</strong><small>DEVICE COMPASS</small></article>
+          <article class="nxqibla-health"><span>COMPASS</span><strong data-qibla-strength>Waiting</strong></article>
+        </aside>
       </div>
-      <section class="nxqibla-readouts">
-        <article><span>QIBLA</span><strong data-qibla-bearing>—</strong></article>
-        <article><span>HEADING</span><strong data-qibla-heading>—</strong></article>
-        <article><span>OFFSET</span><strong data-qibla-offset>—</strong></article>
-        <article><span>GPS</span><strong data-qibla-accuracy>—</strong></article>
-      </section>
       <button class="nxpi-action" type="button" data-qibla-enable>ACTIVATE LIVE COMPASS</button>
       <p class="nxpi-status" data-qibla-status>Location and orientation are used only while this screen is open.</p>
     </section>
@@ -58,9 +87,16 @@ export function renderQiblaPremium() {
   const pointer = root.querySelector('[data-qibla-pointer]');
   const lock = root.querySelector('[data-qibla-lock]');
   const bearingEl = root.querySelector('[data-qibla-bearing]');
+  const pointEl = root.querySelector('[data-qibla-point]');
+  const distanceEl = root.querySelector('[data-qibla-distance]');
+  const locationEl = root.querySelector('[data-qibla-location]');
+  const coordsEl = root.querySelector('[data-qibla-coords]');
   const headingEl = root.querySelector('[data-qibla-heading]');
-  const offsetEl = root.querySelector('[data-qibla-offset]');
-  const accuracyEl = root.querySelector('[data-qibla-accuracy]');
+  const headingPointEl = root.querySelector('[data-qibla-heading-point]');
+  const tiltEl = root.querySelector('[data-qibla-tilt]');
+  const fieldEl = root.querySelector('[data-qibla-field]');
+  const calibrationEl = root.querySelector('[data-qibla-calibration]');
+  const strengthEl = root.querySelector('[data-qibla-strength]');
   const status = root.querySelector('[data-qibla-status]');
   const enable = root.querySelector('[data-qibla-enable]');
   let bearing = null;
@@ -78,12 +114,15 @@ export function renderQiblaPremium() {
     const relative = shortest(bearing, heading);
     cardinals.style.transform = `rotate(${-heading}deg)`;
     pointer.style.transform = `rotate(${relative}deg)`;
-    bearingEl.textContent = `${bearing.toFixed(1)}°`;
-    headingEl.textContent = `${heading.toFixed(1)}°`;
-    offsetEl.textContent = `${Math.abs(relative).toFixed(1)}° ${relative > 0 ? 'RIGHT' : relative < 0 ? 'LEFT' : ''}`.trim();
+    bearingEl.textContent = `${bearing.toFixed(0)}°`;
+    pointEl.textContent = `${compassPoint(bearing)} • FROM NORTH`;
+    headingEl.textContent = `${heading.toFixed(0)}°`;
+    headingPointEl.textContent = compassPoint(heading);
     const aligned = Math.abs(relative) <= 3;
     consoleEl.classList.toggle('is-aligned', aligned);
-    lock.textContent = aligned ? 'ALIGNED' : listening ? 'LIVE' : 'READY';
+    lock.textContent = aligned ? 'ON TARGET' : listening ? 'LIVE' : 'READY';
+    calibrationEl.textContent = aligned ? 'Excellent' : listening ? 'Active' : 'Ready';
+    strengthEl.textContent = aligned ? 'Strong' : listening ? 'Live' : 'Ready';
   };
 
   const onOrientation = event => {
@@ -93,6 +132,13 @@ export function renderQiblaPremium() {
       const alpha = Number(event.alpha);
       if (Number.isFinite(alpha)) heading = (360 - alpha) % 360;
     }
+    const beta = Number(event.beta);
+    const gamma = Number(event.gamma);
+    if (Number.isFinite(beta) || Number.isFinite(gamma)) {
+      const tilt = Math.sqrt((Number.isFinite(beta) ? beta : 0) ** 2 + (Number.isFinite(gamma) ? gamma : 0) ** 2);
+      tiltEl.textContent = `${Math.round(Math.min(90, tilt))}°`;
+    }
+    fieldEl.textContent = 'Normal';
     paint();
   };
 
@@ -108,6 +154,7 @@ export function renderQiblaPremium() {
         listening = true;
       }
       enable.textContent = 'LIVE COMPASS ACTIVE';
+      fieldEl.textContent = 'Normal';
       status.textContent = 'Compass active • keep the phone flat and away from magnets or metal.';
       paint();
     } catch (error) {
@@ -116,10 +163,16 @@ export function renderQiblaPremium() {
   };
 
   currentPosition().then(position => {
-    bearing = bearingToKaaba(position.coords.latitude, position.coords.longitude);
-    accuracyEl.textContent = `${Math.round(Number(position.coords.accuracy) || 0)} m`;
-    status.textContent = 'Location locked. Activate the live compass for real-time heading.';
+    const lat = Number(position.coords.latitude);
+    const lon = Number(position.coords.longitude);
+    bearing = bearingToKaaba(lat, lon);
+    distanceEl.textContent = `${Math.round(distanceToKaaba(lat, lon)).toLocaleString()} km`;
+    coordsEl.textContent = `${lat.toFixed(4)}° N • ${lon.toFixed(4)}° E`;
+    locationEl.textContent = 'Current GPS location';
+    status.textContent = `Location locked • accuracy about ${Math.round(Number(position.coords.accuracy) || 0)} m.`;
     lock.textContent = 'READY';
+    calibrationEl.textContent = 'Ready';
+    strengthEl.textContent = 'Ready';
     paint();
     if (typeof DeviceOrientationEvent === 'undefined' || typeof DeviceOrientationEvent.requestPermission !== 'function') {
       enableOrientation();
