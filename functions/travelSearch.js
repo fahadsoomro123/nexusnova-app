@@ -1,9 +1,11 @@
 const {onCall, HttpsError} = require("firebase-functions/v2/https");
+const {defineSecret} = require("firebase-functions/params");
 
 const MAX_RESULTS = 36;
 const SEARCH_TIMEOUT_MS = 24_000;
 const DUFFEL_API = "https://api.duffel.com";
-let amadeusTokenCache = { token: "", expiresAt: 0 };
+const TRAVEL_PROVIDER_CONFIG = defineSecret("NEXUSNOVA_TRAVEL_PROVIDERS");
+let amadeusTokenCache = { token: "", expiresAt: 0, fingerprint: "" };
 
 function requireUser(req) {
   if (!req.auth?.uid) throw new HttpsError("unauthenticated", "Sign in first.");
@@ -41,6 +43,42 @@ function cleanCurrency(value) {
   return /^[A-Z]{3}$/.test(code) ? code : "USD";
 }
 
+function parseProviderSecret() {
+  let raw = "";
+  try {
+    raw = String(TRAVEL_PROVIDER_CONFIG.value() || "").trim();
+  } catch {}
+  let parsed = {};
+  if (raw) {
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      throw new HttpsError("internal", "Travel provider secret is invalid JSON.");
+    }
+  }
+  const env = process.env;
+  const apiBase = String(
+    parsed.amadeusApiBase ||
+    env.AMADEUS_API_BASE ||
+    "https://api.amadeus.com"
+  ).trim().replace(/\/+$/, "");
+  let parsedBase;
+  try {
+    parsedBase = new URL(apiBase);
+  } catch {
+    throw new HttpsError("internal", "Amadeus API base URL is invalid.");
+  }
+  if (parsedBase.protocol !== "https:") {
+    throw new HttpsError("internal", "Amadeus API base URL must use HTTPS.");
+  }
+  return {
+    duffelToken: String(parsed.duffelAccessToken || env.DUFFEL_ACCESS_TOKEN || "").trim(),
+    amadeusClientId: String(parsed.amadeusClientId || env.AMADEUS_CLIENT_ID || "").trim(),
+    amadeusClientSecret: String(parsed.amadeusClientSecret || env.AMADEUS_CLIENT_SECRET || "").trim(),
+    amadeusApiBase: apiBase
+  };
+}
+
 function parseIsoDurationMinutes(value) {
   const text = String(value || "");
   const match = /^P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?$/i.exec(text);
@@ -72,37 +110,24 @@ async function fetchJson(url, options = {}, timeoutMs = SEARCH_TIMEOUT_MS) {
   }
 }
 
-function duffelToken() {
-  return String(process.env.DUFFEL_ACCESS_TOKEN || "").trim();
-}
-
-function amadeusCredentials() {
-  return {
-    id: String(process.env.AMADEUS_CLIENT_ID || "").trim(),
-    secret: String(process.env.AMADEUS_CLIENT_SECRET || "").trim(),
-    base: String(process.env.AMADEUS_API_BASE || "https://api.amadeus.com").trim().replace(/\/+$/, "")
-  };
-}
-
-async function duffelRequest(path, options = {}) {
-  const token = duffelToken();
-  if (!token) throw new Error("Duffel provider is not configured.");
+async function duffelRequest(config, path, options = {}) {
+  if (!config.duffelToken) throw new Error("Duffel provider is not configured.");
   return fetchJson(`${DUFFEL_API}${path}`, {
     ...options,
     headers: {
       Accept: "application/json",
       "Content-Type": "application/json",
       "Duffel-Version": "v2",
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${config.duffelToken}`,
       ...(options.headers || {})
     }
   });
 }
 
-async function resolveDuffelPlace(raw) {
+async function resolveDuffelPlace(config, raw) {
   const query = cleanText(raw, "origin/destination", 80);
   if (/^[A-Za-z]{3}$/.test(query)) return { code: query.toUpperCase(), label: query.toUpperCase() };
-  const json = await duffelRequest(`/places/suggestions?query=${encodeURIComponent(query)}`, { method: "GET" });
+  const json = await duffelRequest(config, `/places/suggestions?query=${encodeURIComponent(query)}`, { method: "GET" });
   const item = (json?.data || []).find(place => /^[A-Z]{3}$/i.test(String(place?.iata_code || "")));
   if (!item) throw new Error(`Duffel could not resolve "${query}" to an airport/city code.`);
   return {
@@ -111,12 +136,27 @@ async function resolveDuffelPlace(raw) {
   };
 }
 
-async function getAmadeusToken() {
-  const { id, secret, base } = amadeusCredentials();
-  if (!id || !secret) throw new Error("Amadeus provider is not configured.");
-  if (amadeusTokenCache.token && Date.now() < amadeusTokenCache.expiresAt - 60_000) return amadeusTokenCache.token;
-  const body = new URLSearchParams({ grant_type: "client_credentials", client_id: id, client_secret: secret });
-  const json = await fetchJson(`${base}/v1/security/oauth2/token`, {
+function amadeusFingerprint(config) {
+  return `${config.amadeusApiBase}|${config.amadeusClientId}`;
+}
+
+async function getAmadeusToken(config) {
+  if (!config.amadeusClientId || !config.amadeusClientSecret) {
+    throw new Error("Amadeus provider is not configured.");
+  }
+  const fingerprint = amadeusFingerprint(config);
+  if (
+    amadeusTokenCache.token &&
+    amadeusTokenCache.fingerprint === fingerprint &&
+    Date.now() < amadeusTokenCache.expiresAt - 60_000
+  ) return amadeusTokenCache.token;
+
+  const body = new URLSearchParams({
+    grant_type: "client_credentials",
+    client_id: config.amadeusClientId,
+    client_secret: config.amadeusClientSecret
+  });
+  const json = await fetchJson(`${config.amadeusApiBase}/v1/security/oauth2/token`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: body.toString()
@@ -124,20 +164,23 @@ async function getAmadeusToken() {
   const token = String(json?.access_token || "").trim();
   const expiresIn = Math.max(300, Number(json?.expires_in) || 1200);
   if (!token) throw new Error("Amadeus authentication returned no access token.");
-  amadeusTokenCache = { token, expiresAt: Date.now() + expiresIn * 1000 };
+  amadeusTokenCache = {
+    token,
+    expiresAt: Date.now() + expiresIn * 1000,
+    fingerprint
+  };
   return token;
 }
 
-async function amadeusRequest(path) {
-  const { base } = amadeusCredentials();
-  const token = await getAmadeusToken();
-  return fetchJson(`${base}${path}`, {
+async function amadeusRequest(config, path) {
+  const token = await getAmadeusToken(config);
+  return fetchJson(`${config.amadeusApiBase}${path}`, {
     method: "GET",
     headers: { Accept: "application/json", Authorization: `Bearer ${token}` }
   });
 }
 
-async function resolveAmadeusPlace(raw) {
+async function resolveAmadeusPlace(config, raw) {
   const query = cleanText(raw, "origin/destination", 80);
   if (/^[A-Za-z]{3}$/.test(query)) return { code: query.toUpperCase(), label: query.toUpperCase() };
   const qs = new URLSearchParams({
@@ -146,7 +189,7 @@ async function resolveAmadeusPlace(raw) {
     view: "LIGHT"
   });
   qs.set("page[limit]", "8");
-  const json = await amadeusRequest(`/v1/reference-data/locations?${qs.toString()}`);
+  const json = await amadeusRequest(config, `/v1/reference-data/locations?${qs.toString()}`);
   const item = (json?.data || []).find(place => /^[A-Z]{3}$/i.test(String(place?.iataCode || "")));
   if (!item) throw new Error(`Amadeus could not resolve "${query}" to an airport/city code.`);
   return {
@@ -199,16 +242,16 @@ function normalizeDuffelOffer(offer, route) {
   };
 }
 
-async function searchDuffel(criteria) {
+async function searchDuffel(config, criteria) {
   const [origin, destination] = await Promise.all([
-    resolveDuffelPlace(criteria.origin),
-    resolveDuffelPlace(criteria.destination)
+    resolveDuffelPlace(config, criteria.origin),
+    resolveDuffelPlace(config, criteria.destination)
   ]);
   const slices = [{ origin: origin.code, destination: destination.code, departure_date: criteria.departureDate }];
   if (criteria.returnDate) slices.push({ origin: destination.code, destination: origin.code, departure_date: criteria.returnDate });
   const passengers = Array.from({ length: criteria.adults }, () => ({ type: "adult" }));
   const body = { data: { slices, passengers, cabin_class: criteria.cabin } };
-  const json = await duffelRequest("/air/offer_requests?return_offers=true&supplier_timeout=12000", {
+  const json = await duffelRequest(config, "/air/offer_requests?return_offers=true&supplier_timeout=12000", {
     method: "POST",
     body: JSON.stringify(body)
   });
@@ -254,10 +297,10 @@ function normalizeAmadeusOffer(offer, dictionaries, route) {
   };
 }
 
-async function searchAmadeus(criteria) {
+async function searchAmadeus(config, criteria) {
   const [origin, destination] = await Promise.all([
-    resolveAmadeusPlace(criteria.origin),
-    resolveAmadeusPlace(criteria.destination)
+    resolveAmadeusPlace(config, criteria.origin),
+    resolveAmadeusPlace(config, criteria.destination)
   ]);
   const params = new URLSearchParams({
     originLocationCode: origin.code,
@@ -269,7 +312,7 @@ async function searchAmadeus(criteria) {
     max: "24"
   });
   if (criteria.returnDate) params.set("returnDate", criteria.returnDate);
-  const json = await amadeusRequest(`/v2/shopping/flight-offers?${params.toString()}`);
+  const json = await amadeusRequest(config, `/v2/shopping/flight-offers?${params.toString()}`);
   return {
     provider: "Amadeus",
     route: { origin, destination },
@@ -320,13 +363,16 @@ function dedupeOffers(offers) {
 exports.searchWorldwideFlights = onCall({
   enforceAppCheck: true,
   timeoutSeconds: 35,
-  memory: "256MiB"
+  memory: "256MiB",
+  secrets: [TRAVEL_PROVIDER_CONFIG]
 }, async req => {
   requireUser(req);
   const departureDate = cleanDate(req.data?.departureDate, "departure date");
   const returnRaw = String(req.data?.returnDate || "").trim();
   const returnDate = returnRaw ? cleanDate(returnRaw, "return date") : "";
-  if (returnDate && returnDate < departureDate) throw new HttpsError("invalid-argument", "Return date must be after departure date.");
+  if (returnDate && returnDate < departureDate) {
+    throw new HttpsError("invalid-argument", "Return date must be after departure date.");
+  }
 
   const criteria = {
     origin: cleanText(req.data?.origin, "origin", 80),
@@ -338,14 +384,15 @@ exports.searchWorldwideFlights = onCall({
     currency: cleanCurrency(req.data?.currency)
   };
 
+  const config = parseProviderSecret();
   const configured = {
-    duffel: Boolean(duffelToken()),
-    amadeus: Boolean(amadeusCredentials().id && amadeusCredentials().secret)
+    duffel: Boolean(config.duffelToken),
+    amadeus: Boolean(config.amadeusClientId && config.amadeusClientSecret)
   };
 
   const jobs = [];
-  if (configured.duffel) jobs.push(searchDuffel(criteria));
-  if (configured.amadeus) jobs.push(searchAmadeus(criteria));
+  if (configured.duffel) jobs.push(searchDuffel(config, criteria));
+  if (configured.amadeus) jobs.push(searchAmadeus(config, criteria));
 
   if (!jobs.length) {
     return {
