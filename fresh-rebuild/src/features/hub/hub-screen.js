@@ -8,12 +8,8 @@ export function requestHubReturnRestore() {
   restoreOnNextRender = true;
 }
 
-function gridClass(count) {
-  if (count === 1) return 'nx-app-grid nx-app-grid--single';
-  const remainder = count % 3;
-  if (remainder === 1) return 'nx-app-grid nx-app-grid--tail-four';
-  if (remainder === 2) return 'nx-app-grid nx-app-grid--tail-two';
-  return 'nx-app-grid';
+function currentScrollY() {
+  return Math.max(0, Number(document.scrollingElement?.scrollTop ?? window.scrollY) || 0);
 }
 
 export function hubScreen({ openApp } = {}) {
@@ -21,9 +17,9 @@ export function hubScreen({ openApp } = {}) {
   restoreOnNextRender = false;
 
   const root = document.createElement('section');
-  root.className = 'nx-screen';
+  root.className = 'nx-screen nx-hub-screen';
   root.innerHTML = `
-    <header class="nx-screen-head">
+    <header class="nx-screen-head nx-hub-head">
       <div>
         <p class="nx-eyebrow">ALL APPS • DIRECT ACCESS</p>
         <h1 class="nx-title">Nova Hub</h1>
@@ -33,7 +29,7 @@ export function hubScreen({ openApp } = {}) {
     <div class="nx-hub-toolbar">
       <input class="nx-search" type="search" inputmode="search" autocomplete="off" placeholder="Search Nova Hub" aria-label="Search Nova Hub" data-hub-search>
     </div>
-    <div data-hub-content></div>
+    <div class="nx-hub-content" data-hub-content></div>
   `;
 
   const input = root.querySelector('[data-hub-search]');
@@ -55,9 +51,9 @@ export function hubScreen({ openApp } = {}) {
       const apps = filtered.filter(app => app.category === category);
       if (!apps.length) return '';
       return `
-        <section aria-label="${category}">
+        <section class="nx-hub-section" aria-label="${category}">
           <div class="nx-category">${category}</div>
-          <div class="${gridClass(apps.length)}">
+          <div class="nx-app-grid">
             ${apps.map(app => {
               const isLastOpened = app.id === hubState.lastAppId;
               return `
@@ -75,7 +71,7 @@ export function hubScreen({ openApp } = {}) {
 
     content.querySelectorAll('[data-app-id]').forEach(button => {
       button.addEventListener('click', () => {
-        hubState.scrollY = window.scrollY;
+        hubState.scrollY = currentScrollY();
         hubState.lastAppId = button.dataset.appId;
         content.querySelectorAll('.is-last-opened').forEach(card => {
           card.classList.remove('is-last-opened');
