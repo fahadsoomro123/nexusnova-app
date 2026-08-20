@@ -24,12 +24,9 @@ function currentPosition(options = {}) {
 
 function timeParts(value) {
   const match = String(value || '').match(/^(\d{1,2}):(\d{2})/);
-  if (!match) return { clock: '--:--', suffix: '' };
+  if (!match) return { clock:'--:--', suffix:'' };
   const h = Number(match[1]);
-  return {
-    clock: `${String(h % 12 || 12).padStart(2, '0')}:${match[2]}`,
-    suffix: h >= 12 ? 'PM' : 'AM'
-  };
+  return { clock:`${String(h % 12 || 12).padStart(2, '0')}:${match[2]}`, suffix:h >= 12 ? 'PM' : 'AM' };
 }
 
 function to12Hour(value) {
@@ -71,33 +68,38 @@ const PRAYERS = [
 ];
 
 const NEXT_PRAYER_SEQUENCE = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
+const ICON_SRC = './assets/media/selected/prayer-icons.jpg';
+
+function prayerIcon(index, className = 'nxprayer-icon', extra = '') {
+  const safe = Math.max(0, Math.min(5, Number(index) || 0));
+  return `<span class="${className} nxprayer-icon--${safe}" ${extra} aria-hidden="true"><img src="${ICON_SRC}" alt="" draggable="false"></span>`;
+}
 
 export function renderPrayerTimesPremium() {
   const root = node(`
     <section class="nxprayer-console nxprayer-console--selected">
-      <header class="nxprayer-brand">
+      <header class="nxprayer-topbar">
+        <button class="nxprayer-back" type="button" data-prayer-back aria-label="Back">‹</button>
         <div class="nxprayer-brandmark" aria-hidden="true">N</div>
         <div class="nxprayer-brandcopy">
           <b>NexusNova</b>
           <strong>Prayer Times</strong>
           <span>Daily prayer schedule</span>
         </div>
-        <em>MUSLIM WORLD LEAGUE</em>
+        <div class="nxprayer-topactions" aria-hidden="true"><span class="nxprayer-calendar">▦</span><span class="nxprayer-menu">⋮</span></div>
       </header>
 
       <section class="nxprayer-citybox">
         <div class="nxprayer-locationrow">
-          <label class="nxprayer-locationinput">
+          <div class="nxprayer-locationinput">
             <i aria-hidden="true">●</i>
             <input type="search" maxlength="100" autocomplete="off" data-prayer-search placeholder="Search city, town or country">
-          </label>
+            <button class="nxprayer-chevron" type="button" data-prayer-search-go aria-label="Search city">⌄</button>
+          </div>
           <button class="nxprayer-gps" type="button" data-prayer-gps aria-label="Use GPS">◎</button>
         </div>
-        <div class="nxprayer-cityactions">
-          <button class="nxpi-chip" type="button" data-prayer-search-go>SEARCH CITY</button>
-          <select data-prayer-results hidden aria-label="Prayer city search results"></select>
-        </div>
-        <div class="nxprayer-selected"><span>LOCATION</span><strong data-prayer-place>Locating…</strong></div>
+        <select class="nxprayer-results" data-prayer-results hidden aria-label="Prayer city search results"></select>
+        <strong class="nxprayer-liveplace" data-prayer-place hidden>Locating…</strong>
       </section>
 
       <div class="nxprayer-datebar">
@@ -108,7 +110,7 @@ export function renderPrayerTimesPremium() {
       <section class="nxprayer-grid" data-prayer-list></section>
 
       <section class="nxprayer-next">
-        <div class="nxprayer-next-icon nxprayer-icon--0" data-prayer-next-icon aria-hidden="true"></div>
+        ${prayerIcon(0, 'nxprayer-next-icon', 'data-prayer-next-icon')}
         <div class="nxprayer-next-copy">
           <span>NEXT PRAYER</span>
           <strong data-prayer-next>—</strong>
@@ -121,6 +123,9 @@ export function renderPrayerTimesPremium() {
       <p class="nxpi-status" data-prayer-status>Choose a city or use GPS. Prayer times are loaded live.</p>
     </section>
   `);
+
+  document.body.classList.add('nx-prayer-immersive');
+  queueMicrotask(() => root.closest('.nx-screen')?.classList.add('nx-prayer-screen'));
 
   const search = root.querySelector('[data-prayer-search]');
   const results = root.querySelector('[data-prayer-results]');
@@ -139,6 +144,11 @@ export function renderPrayerTimesPremium() {
   let timings = null;
   let timer = null;
   let busy = false;
+
+  const showStatus = message => {
+    status.hidden = false;
+    status.textContent = message;
+  };
 
   const paintNext = () => {
     if (!timings) return;
@@ -159,20 +169,17 @@ export function renderPrayerTimesPremium() {
     const elapsed = Math.max(0, now - previousAt);
     const progress = Math.max(0, Math.min(100, elapsed / span * 100));
 
-    nextEl.textContent = `${nextName === 'Dhuhr' ? 'Zuhr' : nextName} at ${to12Hour(timings[nextName])}`;
+    const displayName = nextName === 'Dhuhr' ? 'Zuhr' : nextName;
+    nextEl.textContent = `${displayName} at ${to12Hour(timings[nextName])}`;
     countdownEl.textContent = formatCountdown(nextAt - now);
     progressEl.style.width = `${progress.toFixed(1)}%`;
-    nextCaption.textContent = `Time remaining until ${nextName === 'Dhuhr' ? 'Zuhr' : nextName}`;
+    nextCaption.textContent = `Time remaining until ${displayName}`;
 
     const nextIndex = Math.max(0, PRAYERS.findIndex(([key]) => key === nextName));
     nextIcon.className = `nxprayer-next-icon nxprayer-icon--${nextIndex}`;
-    root.querySelectorAll('[data-prayer-key]').forEach(card => {
-      card.classList.toggle('is-next', card.dataset.prayerKey === nextName);
-    });
-
+    root.querySelectorAll('[data-prayer-key]').forEach(card => card.classList.toggle('is-next', card.dataset.prayerKey === nextName));
     root.querySelectorAll('[data-prayer-delta]').forEach(deltaEl => {
-      const key = deltaEl.dataset.prayerDelta;
-      const occurrence = nextOccurrence(timings[key], now);
+      const occurrence = nextOccurrence(timings[deltaEl.dataset.prayerDelta], now);
       deltaEl.textContent = occurrence ? `+${formatCountdown(occurrence - now)}` : '—';
     });
   };
@@ -180,16 +187,14 @@ export function renderPrayerTimesPremium() {
   const drawTimings = () => {
     list.innerHTML = PRAYERS.map(([key, label], index) => {
       const parts = timeParts(timings?.[key]);
-      return `
-        <article class="nxprayer-card nxprayer-card--${index}" data-prayer-key="${key}">
-          <b class="nxprayer-icon nxprayer-icon--${index}" aria-hidden="true"></b>
-          <span>${label}</span>
-          <i class="nxprayer-divider" aria-hidden="true"></i>
-          <strong><b>${escapeHtml(parts.clock)}</b><small>${escapeHtml(parts.suffix)}</small></strong>
-          <em data-prayer-delta="${key}">—</em>
-          <i class="nxprayer-ornament" aria-hidden="true"></i>
-        </article>
-      `;
+      return `<article class="nxprayer-card nxprayer-card--${index}" data-prayer-key="${key}">
+        ${prayerIcon(index)}
+        <span>${label}</span>
+        <i class="nxprayer-divider" aria-hidden="true"></i>
+        <strong><b>${escapeHtml(parts.clock)}</b><small>${escapeHtml(parts.suffix)}</small></strong>
+        <em data-prayer-delta="${key}">—</em>
+        <i class="nxprayer-ornament" aria-hidden="true"></i>
+      </article>`;
     }).join('');
     paintNext();
   };
@@ -197,7 +202,7 @@ export function renderPrayerTimesPremium() {
   const load = async ({ lat, lon, place }) => {
     if (busy) return;
     busy = true;
-    status.textContent = `Loading prayer times for ${place}…`;
+    showStatus(`Loading prayer times for ${place}…`);
     try {
       const now = new Date();
       const dateParam = `${now.getDate()}-${now.getMonth() + 1}-${now.getFullYear()}`;
@@ -208,15 +213,16 @@ export function renderPrayerTimesPremium() {
       if (!timings) throw new Error('Prayer timings missing');
       state = { lat:Number(lat), lon:Number(lon), place:String(place || 'Selected city') };
       placeEl.textContent = state.place;
+      if (document.activeElement !== search) search.value = state.place;
       dateEl.textContent = String(json?.data?.date?.readable || now.toLocaleDateString()).toUpperCase();
       const hijri = json?.data?.date?.hijri;
       hijriEl.textContent = hijri ? `${hijri.day} ${String(hijri.month?.en || '').toUpperCase()} ${hijri.year} AH` : 'LIVE CALCULATION';
       drawTimings();
-      status.textContent = `${state.place} • calculation: Muslim World League`;
+      status.hidden = true;
       clearInterval(timer);
       timer = setInterval(paintNext, 1000);
     } catch (error) {
-      status.textContent = 'Prayer times are unavailable right now. Check the connection and try again.';
+      showStatus('Prayer times are unavailable right now. Check the connection and try again.');
       console.warn('[NexusNova Premium] prayer times:', error);
     } finally {
       busy = false;
@@ -226,10 +232,10 @@ export function renderPrayerTimesPremium() {
   const findPlaces = async () => {
     const query = search.value.trim();
     if (query.length < 2) {
-      status.textContent = 'Enter at least 2 characters to search a city.';
+      showStatus('Enter at least 2 characters to search a city.');
       return;
     }
-    status.textContent = `Searching ${query}…`;
+    showStatus(`Searching ${query}…`);
     try {
       const response = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=12&language=en&format=json`, { cache:'no-store' });
       if (!response.ok) throw new Error(`Geocoding HTTP ${response.status}`);
@@ -237,22 +243,20 @@ export function renderPrayerTimesPremium() {
       searchRows = Array.isArray(json.results) ? json.results : [];
       if (!searchRows.length) {
         results.hidden = true;
-        status.textContent = 'No matching city found.';
+        showStatus('No matching city found.');
         return;
       }
-      results.innerHTML = searchRows.map((item, index) => {
-        const detail = [item.name, item.admin1, item.country].filter(Boolean).join(', ');
-        return `<option value="${index}">${escapeHtml(detail)}</option>`;
-      }).join('');
+      results.innerHTML = searchRows.map((item, index) => `<option value="${index}">${escapeHtml([item.name, item.admin1, item.country].filter(Boolean).join(', '))}</option>`).join('');
       results.hidden = false;
       const first = searchRows[0];
       await load({ lat:first.latitude, lon:first.longitude, place:[first.name, first.admin1, first.country].filter(Boolean).join(', ') });
     } catch (error) {
-      status.textContent = 'City search is unavailable right now.';
+      showStatus('City search is unavailable right now.');
       console.warn('[NexusNova Premium] prayer city search:', error);
     }
   };
 
+  root.querySelector('[data-prayer-back]').addEventListener('click', () => root.closest('.nx-screen')?.querySelector('[data-app-back]')?.click());
   root.querySelector('[data-prayer-search-go]').addEventListener('click', findPlaces);
   search.addEventListener('keydown', event => { if (event.key === 'Enter') findPlaces(); });
   results.addEventListener('change', () => {
@@ -261,18 +265,22 @@ export function renderPrayerTimesPremium() {
     load({ lat:item.latitude, lon:item.longitude, place:[item.name, item.admin1, item.country].filter(Boolean).join(', ') });
   });
   root.querySelector('[data-prayer-gps]').addEventListener('click', async () => {
-    status.textContent = 'Getting your GPS location…';
+    showStatus('Getting your GPS location…');
     try {
       const pos = await currentPosition();
       await load({ lat:pos.coords.latitude, lon:pos.coords.longitude, place:'Current location' });
     } catch {
-      status.textContent = 'GPS permission is unavailable. Search for a city instead.';
+      showStatus('GPS permission is unavailable. Search for a city instead.');
     }
   });
 
   currentPosition().then(pos => load({ lat:pos.coords.latitude, lon:pos.coords.longitude, place:'Current location' })).catch(() => load(state));
 
-  root.__cleanup = () => clearInterval(timer);
+  root.__cleanup = () => {
+    clearInterval(timer);
+    root.closest('.nx-screen')?.classList.remove('nx-prayer-screen');
+    document.body.classList.remove('nx-prayer-immersive');
+  };
   return root;
 }
 
