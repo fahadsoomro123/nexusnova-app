@@ -1,6 +1,7 @@
 import { icon } from '../../components/icons.js';
 import { novaApps } from '../hub/app-registry.js';
 import { enhanceMiningApp } from './mining-integrations.js';
+import { enhanceTravelApp } from './travel-integrations.js';
 import { everydayRenderers } from './everyday-tools.js';
 import { liveRenderers } from './live-tools.js';
 import { coreRenderers } from './core-apps.js';
@@ -44,6 +45,7 @@ export function appScreen({ id, backToHub, backToMine } = {}) {
   if (renderer) {
     const body = renderer();
     enhanceMiningApp(id, body);
+    enhanceTravelApp(id, body);
     mount.appendChild(body);
     cleanup = () => body.__cleanup?.();
   } else mount.innerHTML = `<article class="nx-tool-card nx-migration-card"><span class="nx-app-head__icon">${icon(app.icon)}</span><h2>${app.name} fresh migration</h2><p>This module exists in the current NexusNova codebase, but its old presentation layer is intentionally not being loaded here. Its verified logic/native/provider contracts will be connected to this fresh screen without carrying the legacy UI.</p><div class="nx-migration-status"><i></i><span>Fresh architecture migration queued</span></div></article>`;
