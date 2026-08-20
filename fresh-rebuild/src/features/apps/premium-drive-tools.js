@@ -13,28 +13,34 @@ function node(html, className = '') {
   return root;
 }
 
-function gaugeMarkup(kind, unit, maxLabel) {
+function gaugeMarkup(kind, unit) {
   return `<div class="nxgauge nxgauge--${kind}">
+    <div class="nxgauge__glass" aria-hidden="true"></div>
     <svg viewBox="0 0 100 100" role="img" aria-label="${escapeHtml(kind)} gauge">
       <defs>
         <linearGradient id="nxGaugeGradient-${kind}" x1="0" y1="1" x2="1" y2="0">
-          <stop offset="0%" stop-color="#55718b"/>
-          <stop offset="38%" stop-color="#41c8e6"/>
-          <stop offset="72%" stop-color="#4ad3a1"/>
-          <stop offset="100%" stop-color="#d4b66f"/>
+          <stop offset="0%" stop-color="#2d9dff"/>
+          <stop offset="78%" stop-color="#d73939"/>
+          <stop offset="100%" stop-color="#ff3b30"/>
         </linearGradient>
       </defs>
       <path class="nxgauge__track" d="${GAUGE_ARC}" pathLength="100"/>
       <path class="nxgauge__fill" data-gauge-fill d="${GAUGE_ARC}" pathLength="100" style="stroke-dasharray:0 100"/>
-      <g class="nxgauge__needle" data-gauge-needle>
-        <line x1="50" y1="51" x2="50" y2="20"/>
-        <circle cx="50" cy="51" r="4.4"/>
-        <circle cx="50" cy="51" r="1.6"/>
+      <g class="nxgauge__scale nxgauge__scale--drive">
+        <text x="17" y="79">0</text><text x="11" y="67">20</text><text x="10" y="54">40</text>
+        <text x="15" y="40">60</text><text x="24" y="29">80</text><text x="35" y="21">100</text>
+        <text x="50" y="18">120</text><text x="64" y="21">140</text><text x="76" y="29">160</text>
+        <text x="84" y="41">180</text><text x="89" y="54">200</text><text x="88" y="68">220</text><text x="80" y="80">240</text>
       </g>
-      <text x="19" y="78" class="nxgauge__mark">0</text>
-      <text x="77" y="78" class="nxgauge__mark">${escapeHtml(maxLabel)}</text>
+      <text x="50" y="30" text-anchor="middle" class="nxgauge__unitmark">KM/H</text>
+      <g class="nxgauge__needle" data-gauge-needle>
+        <line x1="50" y1="51" x2="50" y2="16"/>
+        <circle cx="50" cy="51" r="5.2"/>
+        <circle cx="50" cy="51" r="2.3"/>
+      </g>
     </svg>
     <div class="nxgauge__readout"><span data-gauge-mode>READY</span><strong data-gauge-value>0</strong><small>${escapeHtml(unit)}</small></div>
+    <div class="nxdrive-odometer" data-drive-odometer>000000</div>
   </div>`;
 }
 
@@ -148,19 +154,29 @@ function formatDistance(meters) {
   return km < 10 ? `${km.toFixed(2)} km` : `${km.toFixed(1)} km`;
 }
 
+function activeDuration(ride) {
+  if (!ride) return 0;
+  const currentPause = ride.pausedAt ? Date.now() - ride.pausedAt : 0;
+  return Math.max(0, Date.now() - ride.startedAt - (ride.pausedMs || 0) - currentPause);
+}
+
 export function renderNovaDrivePremium() {
   const root = node(`
-    <section class="nxdrive-console">
+    <section class="nxdrive-console nxdrive-console--sample-c">
       <header><div><span>LIVE GPS DRIVE</span><strong>Nova Drive</strong></div><b data-drive-state>IDLE</b></header>
-      ${gaugeMarkup('drive', 'KM/H', '240')}
+      <div class="nxdrive-meter-label">METER SAMPLE C</div>
+      ${gaugeMarkup('drive', 'KM/H')}
       <section class="nxdrive-metrics">
         <article><span>TOP SPEED</span><strong data-drive-top>0 km/h</strong></article>
+        <article><span>AVG SPEED</span><strong data-drive-average>0 km/h</strong></article>
         <article><span>TRIP</span><strong data-drive-distance>0.00 km</strong></article>
         <article><span>DURATION</span><strong data-drive-duration>00:00</strong></article>
         <article><span>GPS ACCURACY</span><strong data-drive-accuracy>—</strong></article>
+        <article><span>HEADING</span><strong data-drive-heading>—</strong></article>
       </section>
       <div class="nxdrive-controls">
         <button class="nxpi-action" type="button" data-drive-start>START DRIVE</button>
+        <button class="nxpi-action nxpi-action--pause" type="button" data-drive-pause disabled>PAUSE</button>
         <button class="nxpi-action nxpi-action--danger" type="button" data-drive-stop disabled>STOP</button>
       </div>
       <p class="nxpi-status" data-drive-status>Foreground GPS only. Coordinates are never stored; only trip distance/time summaries are saved.</p>
@@ -170,11 +186,15 @@ export function renderNovaDrivePremium() {
   const gauge = root.querySelector('.nxgauge');
   const stateEl = root.querySelector('[data-drive-state]');
   const topEl = root.querySelector('[data-drive-top]');
+  const averageEl = root.querySelector('[data-drive-average]');
   const distanceEl = root.querySelector('[data-drive-distance]');
   const durationEl = root.querySelector('[data-drive-duration]');
   const accuracyEl = root.querySelector('[data-drive-accuracy]');
+  const headingEl = root.querySelector('[data-drive-heading]');
+  const odometerEl = root.querySelector('[data-drive-odometer]');
   const status = root.querySelector('[data-drive-status]');
   const start = root.querySelector('[data-drive-start]');
+  const pause = root.querySelector('[data-drive-pause]');
   const stop = root.querySelector('[data-drive-stop]');
 
   let watchId = null;
@@ -184,11 +204,15 @@ export function renderNovaDrivePremium() {
   let lastFix = null;
 
   const paint = () => {
-    const speed = Math.max(0, Number(ride?.speedKmh) || 0);
-    setGauge(gauge, Math.min(1, speed / MAX_DRIVE_KMH), speed, ride ? 'LIVE SPEED' : 'READY', 0);
+    const speed = ride?.pausedAt ? 0 : Math.max(0, Number(ride?.speedKmh) || 0);
+    setGauge(gauge, Math.min(1, speed / MAX_DRIVE_KMH), speed, ride?.pausedAt ? 'PAUSED' : ride ? 'LIVE SPEED' : 'READY', 0);
     topEl.textContent = `${Math.round(Number(ride?.topKmh) || 0)} km/h`;
+    const avg = ride?.movingMs > 0 ? (Number(ride.distanceM) / (ride.movingMs / 1000)) * 3.6 : 0;
+    averageEl.textContent = `${Math.round(Math.max(0, avg))} km/h`;
     distanceEl.textContent = formatDistance(ride?.distanceM || 0);
-    durationEl.textContent = formatDuration(ride ? Date.now() - ride.startedAt : 0);
+    durationEl.textContent = formatDuration(activeDuration(ride));
+    headingEl.textContent = Number.isFinite(ride?.heading) ? `${Math.round(ride.heading)}°` : '—';
+    odometerEl.textContent = String(Math.round((Number(ride?.distanceM) || 0) / 10)).padStart(6, '0').slice(-6);
   };
 
   const addMovement = (distanceM, movingMs) => {
@@ -205,6 +229,11 @@ export function renderNovaDrivePremium() {
     const c = position.coords;
     const accuracy = Number(c.accuracy);
     accuracyEl.textContent = Number.isFinite(accuracy) ? `${Math.round(accuracy)} m` : '—';
+    if (Number.isFinite(Number(c.heading))) ride.heading = Number(c.heading);
+    if (ride.pausedAt) {
+      paint();
+      return;
+    }
     if (!Number.isFinite(accuracy) || accuracy > MAX_GPS_ACCURACY_M) {
       stateEl.textContent = 'GPS ACQUIRING';
       status.textContent = 'Waiting for a more accurate GPS fix…';
@@ -247,6 +276,10 @@ export function renderNovaDrivePremium() {
     clearInterval(timer);
     watchId = null;
     timer = null;
+    if (ride.pausedAt) {
+      ride.pausedMs += Date.now() - ride.pausedAt;
+      ride.pausedAt = null;
+    }
 
     if (storeKey) {
       const store = readDriveStore(storeKey);
@@ -257,7 +290,7 @@ export function renderNovaDrivePremium() {
         endedAt:new Date().toISOString(),
         distanceM:Math.max(0, ride.distanceM || 0),
         movingMs:Math.max(0, ride.movingMs || 0),
-        durationMs:Math.max(0, Date.now() - ride.startedAt),
+        durationMs:activeDuration(ride),
         topKmh:Math.max(0, ride.topKmh || 0)
       });
       writeDriveStore(storeKey, store);
@@ -270,6 +303,8 @@ export function renderNovaDrivePremium() {
     stateEl.textContent = 'SAVED';
     status.textContent = 'Drive stopped • aggregate trip summary saved • coordinates were not stored.';
     start.disabled = false;
+    pause.disabled = true;
+    pause.textContent = 'PAUSE';
     stop.disabled = true;
   };
 
@@ -280,9 +315,10 @@ export function renderNovaDrivePremium() {
     }
     if (ride) return;
     storeKey = await driveStoreKey();
-    ride = { startedAt:Date.now(), distanceM:0, movingMs:0, topKmh:0, speedKmh:0 };
+    ride = { startedAt:Date.now(), pausedAt:null, pausedMs:0, distanceM:0, movingMs:0, topKmh:0, speedKmh:0, heading:null };
     lastFix = null;
     start.disabled = true;
+    pause.disabled = false;
     stop.disabled = false;
     stateEl.textContent = 'STARTING';
     status.textContent = 'Starting high-accuracy GPS…';
@@ -292,6 +328,26 @@ export function renderNovaDrivePremium() {
       stateEl.textContent = 'GPS ERROR';
       status.textContent = `GPS unavailable: ${error.message || 'permission or signal error'}`;
     }, { enableHighAccuracy:true, timeout:15000, maximumAge:1000 });
+  });
+
+  pause.addEventListener('click', () => {
+    if (!ride) return;
+    if (ride.pausedAt) {
+      ride.pausedMs += Date.now() - ride.pausedAt;
+      ride.pausedAt = null;
+      lastFix = null;
+      pause.textContent = 'PAUSE';
+      stateEl.textContent = 'LIVE';
+      status.textContent = 'Drive resumed • waiting for the next GPS fix.';
+    } else {
+      ride.pausedAt = Date.now();
+      ride.speedKmh = 0;
+      lastFix = null;
+      pause.textContent = 'RESUME';
+      stateEl.textContent = 'PAUSED';
+      status.textContent = 'Drive paused • movement is not being added.';
+    }
+    paint();
   });
 
   stop.addEventListener('click', finish);
