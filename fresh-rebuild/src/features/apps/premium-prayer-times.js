@@ -22,14 +22,19 @@ function currentPosition(options = {}) {
   });
 }
 
-function to12Hour(value) {
+function timeParts(value) {
   const match = String(value || '').match(/^(\d{1,2}):(\d{2})/);
-  if (!match) return '--:--';
+  if (!match) return { clock: '--:--', suffix: '' };
   const h = Number(match[1]);
-  const m = match[2];
-  const suffix = h >= 12 ? 'PM' : 'AM';
-  const hour = h % 12 || 12;
-  return `${String(hour).padStart(2, '0')}:${m} ${suffix}`;
+  return {
+    clock: `${String(h % 12 || 12).padStart(2, '0')}:${match[2]}`,
+    suffix: h >= 12 ? 'PM' : 'AM'
+  };
+}
+
+function to12Hour(value) {
+  const parts = timeParts(value);
+  return `${parts.clock}${parts.suffix ? ` ${parts.suffix}` : ''}`;
 }
 
 function timeToday(value, addDays = 0) {
@@ -49,43 +54,67 @@ function formatCountdown(ms) {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
+function nextOccurrence(value, now = new Date()) {
+  let at = timeToday(value);
+  if (!at) return null;
+  if (at <= now) at = timeToday(value, 1);
+  return at;
+}
+
 const PRAYERS = [
-  ['Fajr', 'FAJR', '◒'],
-  ['Sunrise', 'SUNRISE', '☀'],
-  ['Dhuhr', 'DHUHR', '☀'],
-  ['Asr', 'ASR', '☀'],
-  ['Maghrib', 'MAGHRIB', '◉'],
-  ['Isha', 'ISHA', '☾']
+  ['Fajr', 'FAJR'],
+  ['Sunrise', 'SUNRISE'],
+  ['Dhuhr', 'ZUHR'],
+  ['Asr', 'ASR'],
+  ['Maghrib', 'MAGHRIB'],
+  ['Isha', 'ISHA']
 ];
+
+const NEXT_PRAYER_SEQUENCE = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
 
 export function renderPrayerTimesPremium() {
   const root = node(`
-    <section class="nxprayer-console">
-      <header class="nxprayer-head">
-        <div><span>DAILY PRAYER SCHEDULE</span><strong>Prayer Times</strong></div>
-        <b>MUSLIM WORLD LEAGUE</b>
+    <section class="nxprayer-console nxprayer-console--selected">
+      <header class="nxprayer-brand">
+        <div class="nxprayer-brandmark" aria-hidden="true">N</div>
+        <div class="nxprayer-brandcopy">
+          <b>NexusNova</b>
+          <strong>Prayer Times</strong>
+          <span>Daily prayer schedule</span>
+        </div>
+        <em>MUSLIM WORLD LEAGUE</em>
       </header>
 
       <section class="nxprayer-citybox">
-        <div class="nxprayer-searchrow">
-          <input type="search" maxlength="100" autocomplete="off" data-prayer-search placeholder="Search city, town or country">
-          <button class="nxpi-chip" type="button" data-prayer-search-go>SEARCH</button>
-          <button class="nxpi-chip" type="button" data-prayer-gps>GPS</button>
+        <div class="nxprayer-locationrow">
+          <label class="nxprayer-locationinput">
+            <i aria-hidden="true">●</i>
+            <input type="search" maxlength="100" autocomplete="off" data-prayer-search placeholder="Search city, town or country">
+          </label>
+          <button class="nxprayer-gps" type="button" data-prayer-gps aria-label="Use GPS">◎</button>
         </div>
-        <select data-prayer-results hidden aria-label="Prayer city search results"></select>
+        <div class="nxprayer-cityactions">
+          <button class="nxpi-chip" type="button" data-prayer-search-go>SEARCH CITY</button>
+          <select data-prayer-results hidden aria-label="Prayer city search results"></select>
+        </div>
         <div class="nxprayer-selected"><span>LOCATION</span><strong data-prayer-place>Locating…</strong></div>
       </section>
 
       <div class="nxprayer-datebar">
-        <span data-prayer-date>Loading date…</span>
-        <small data-prayer-hijri>—</small>
+        <span><b data-prayer-date>Loading date…</b><i>/</i><b data-prayer-hijri>—</b></span>
+        <small>Calculation: <em>Muslim World League</em></small>
       </div>
 
       <section class="nxprayer-grid" data-prayer-list></section>
 
       <section class="nxprayer-next">
-        <div><span>NEXT PRAYER</span><strong data-prayer-next>—</strong></div>
-        <div class="nxprayer-progress"><i data-prayer-progress></i></div>
+        <div class="nxprayer-next-icon nxprayer-icon--0" data-prayer-next-icon aria-hidden="true"></div>
+        <div class="nxprayer-next-copy">
+          <span>NEXT PRAYER</span>
+          <strong data-prayer-next>—</strong>
+          <div class="nxprayer-progress"><i data-prayer-progress></i></div>
+          <small data-prayer-next-caption>Live countdown</small>
+        </div>
         <b data-prayer-countdown>--:--:--</b>
       </section>
 
@@ -100,6 +129,8 @@ export function renderPrayerTimesPremium() {
   const hijriEl = root.querySelector('[data-prayer-hijri]');
   const list = root.querySelector('[data-prayer-list]');
   const nextEl = root.querySelector('[data-prayer-next]');
+  const nextIcon = root.querySelector('[data-prayer-next-icon]');
+  const nextCaption = root.querySelector('[data-prayer-next-caption]');
   const countdownEl = root.querySelector('[data-prayer-countdown]');
   const progressEl = root.querySelector('[data-prayer-progress]');
   const status = root.querySelector('[data-prayer-status]');
@@ -112,8 +143,7 @@ export function renderPrayerTimesPremium() {
   const paintNext = () => {
     if (!timings) return;
     const now = new Date();
-    const sequence = ['Fajr','Dhuhr','Asr','Maghrib','Isha'];
-    let nextName = sequence.find(name => {
+    let nextName = NEXT_PRAYER_SEQUENCE.find(name => {
       const at = timeToday(timings[name]);
       return at && at > now;
     });
@@ -121,25 +151,46 @@ export function renderPrayerTimesPremium() {
     if (!nextName) nextName = 'Fajr';
     if (!nextAt) return;
 
-    const previousCandidates = sequence.map(name => ({ name, at:timeToday(timings[name]) })).filter(row => row.at && row.at <= now);
+    const previousCandidates = NEXT_PRAYER_SEQUENCE
+      .map(name => ({ name, at:timeToday(timings[name]) }))
+      .filter(row => row.at && row.at <= now);
     const previousAt = previousCandidates.length ? previousCandidates[previousCandidates.length - 1].at : timeToday(timings.Isha, -1);
     const span = Math.max(1, nextAt - previousAt);
     const elapsed = Math.max(0, now - previousAt);
     const progress = Math.max(0, Math.min(100, elapsed / span * 100));
 
-    nextEl.textContent = `${nextName} at ${to12Hour(timings[nextName])}`;
+    nextEl.textContent = `${nextName === 'Dhuhr' ? 'Zuhr' : nextName} at ${to12Hour(timings[nextName])}`;
     countdownEl.textContent = formatCountdown(nextAt - now);
     progressEl.style.width = `${progress.toFixed(1)}%`;
+    nextCaption.textContent = `Time remaining until ${nextName === 'Dhuhr' ? 'Zuhr' : nextName}`;
+
+    const nextIndex = Math.max(0, PRAYERS.findIndex(([key]) => key === nextName));
+    nextIcon.className = `nxprayer-next-icon nxprayer-icon--${nextIndex}`;
+    root.querySelectorAll('[data-prayer-key]').forEach(card => {
+      card.classList.toggle('is-next', card.dataset.prayerKey === nextName);
+    });
+
+    root.querySelectorAll('[data-prayer-delta]').forEach(deltaEl => {
+      const key = deltaEl.dataset.prayerDelta;
+      const occurrence = nextOccurrence(timings[key], now);
+      deltaEl.textContent = occurrence ? `+${formatCountdown(occurrence - now)}` : '—';
+    });
   };
 
   const drawTimings = () => {
-    list.innerHTML = PRAYERS.map(([key, label, glyph], index) => `
-      <article class="nxprayer-card nxprayer-card--${index}">
-        <b>${glyph}</b>
-        <span>${label}</span>
-        <strong>${escapeHtml(to12Hour(timings?.[key]))}</strong>
-      </article>
-    `).join('');
+    list.innerHTML = PRAYERS.map(([key, label], index) => {
+      const parts = timeParts(timings?.[key]);
+      return `
+        <article class="nxprayer-card nxprayer-card--${index}" data-prayer-key="${key}">
+          <b class="nxprayer-icon nxprayer-icon--${index}" aria-hidden="true"></b>
+          <span>${label}</span>
+          <i class="nxprayer-divider" aria-hidden="true"></i>
+          <strong><b>${escapeHtml(parts.clock)}</b><small>${escapeHtml(parts.suffix)}</small></strong>
+          <em data-prayer-delta="${key}">—</em>
+          <i class="nxprayer-ornament" aria-hidden="true"></i>
+        </article>
+      `;
+    }).join('');
     paintNext();
   };
 
@@ -159,7 +210,7 @@ export function renderPrayerTimesPremium() {
       placeEl.textContent = state.place;
       dateEl.textContent = String(json?.data?.date?.readable || now.toLocaleDateString()).toUpperCase();
       const hijri = json?.data?.date?.hijri;
-      hijriEl.textContent = hijri ? `${hijri.day} ${hijri.month?.en || ''} ${hijri.year} AH` : 'LIVE CALCULATION';
+      hijriEl.textContent = hijri ? `${hijri.day} ${String(hijri.month?.en || '').toUpperCase()} ${hijri.year} AH` : 'LIVE CALCULATION';
       drawTimings();
       status.textContent = `${state.place} • calculation: Muslim World League`;
       clearInterval(timer);
