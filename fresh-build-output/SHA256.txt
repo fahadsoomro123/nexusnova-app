@@ -1,1 +1,1 @@
-d778bae2795d5490b9b44cba16b5c6ed5d0500ba98c0b29c86836dcedfc27b07  fresh-build-output/NexusNova-Fresh-Rebuild-TEST-20260820.apk
+15f8c8d7a516028ea6e22fd2c49c8db3581ac49aafa4e9ef2549a9320e5ae589  fresh-build-output/NexusNova-Fresh-Rebuild-TEST-20260820.apk
