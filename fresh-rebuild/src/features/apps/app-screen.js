@@ -1,6 +1,6 @@
 import { icon } from '../../components/icons.js';
 import { novaApps } from '../hub/app-registry.js';
-import { miningRenderers } from './mining-apps.js';
+import { enhanceMiningApp } from './mining-integrations.js';
 import { everydayRenderers } from './everyday-tools.js';
 import { liveRenderers } from './live-tools.js';
 import { coreRenderers } from './core-apps.js';
@@ -40,9 +40,13 @@ export function appScreen({ id, backToHub, backToMine } = {}) {
   root.innerHTML = `<header class="nx-app-head"><button class="nx-back" type="button" data-app-back aria-label="Back to ${parentName}">‹</button><span class="nx-app-head__icon">${icon(app.icon)}</span><div><p class="nx-eyebrow">${app.category}</p><h1>${app.name}</h1><p>${app.description}</p></div></header><div data-app-mount></div>`;
   root.querySelector('[data-app-back]').addEventListener('click', () => goBack?.());
   const mount = root.querySelector('[data-app-mount]');
-  const renderer = miningRenderers[id] || documentsLiveRenderers[id] || teacherAIRenderers[id] || pakistanSuiteRenderers[id] || entertainmentSuiteRenderers[id] || notificationsSuiteRenderers[id] || securityLockSuiteRenderers[id] || fileVaultSuiteRenderers[id] || marketplaceSuiteRenderers[id] || coreEnhancementRenderers[id] || coreRenderers[id] || healthSuiteRenderers[id] || familySuiteRenderers[id] || personalRenderers[id] || teacherSuiteRenderers[id] || islamicSuiteRenderers[id] || documentsSuiteRenderers[id] || communityChatRenderers[id] || learningSuiteRenderers[id] || budgetSuiteRenderers[id] || billRenderers[id] || travelSuiteRenderers[id] || discoverRenderers[id] || faithSecurityRenderers[id] || deviceRenderers[id] || smartRenderers[id] || everydayRenderers[id] || liveRenderers[id];
-  if (renderer) { const body = renderer(); mount.appendChild(body); cleanup = () => body.__cleanup?.(); }
-  else mount.innerHTML = `<article class="nx-tool-card nx-migration-card"><span class="nx-app-head__icon">${icon(app.icon)}</span><h2>${app.name} fresh migration</h2><p>This module exists in the current NexusNova codebase, but its old presentation layer is intentionally not being loaded here. Its verified logic/native/provider contracts will be connected to this fresh screen without carrying the legacy UI.</p><div class="nx-migration-status"><i></i><span>Fresh architecture migration queued</span></div></article>`;
+  const renderer = documentsLiveRenderers[id] || teacherAIRenderers[id] || pakistanSuiteRenderers[id] || entertainmentSuiteRenderers[id] || notificationsSuiteRenderers[id] || securityLockSuiteRenderers[id] || fileVaultSuiteRenderers[id] || marketplaceSuiteRenderers[id] || coreEnhancementRenderers[id] || coreRenderers[id] || healthSuiteRenderers[id] || familySuiteRenderers[id] || personalRenderers[id] || teacherSuiteRenderers[id] || islamicSuiteRenderers[id] || documentsSuiteRenderers[id] || communityChatRenderers[id] || learningSuiteRenderers[id] || budgetSuiteRenderers[id] || billRenderers[id] || travelSuiteRenderers[id] || discoverRenderers[id] || faithSecurityRenderers[id] || deviceRenderers[id] || smartRenderers[id] || everydayRenderers[id] || liveRenderers[id];
+  if (renderer) {
+    const body = renderer();
+    enhanceMiningApp(id, body);
+    mount.appendChild(body);
+    cleanup = () => body.__cleanup?.();
+  } else mount.innerHTML = `<article class="nx-tool-card nx-migration-card"><span class="nx-app-head__icon">${icon(app.icon)}</span><h2>${app.name} fresh migration</h2><p>This module exists in the current NexusNova codebase, but its old presentation layer is intentionally not being loaded here. Its verified logic/native/provider contracts will be connected to this fresh screen without carrying the legacy UI.</p><div class="nx-migration-status"><i></i><span>Fresh architecture migration queued</span></div></article>`;
   return root;
 }
 export function cleanupAppScreen() { cleanup?.(); cleanup = null; }

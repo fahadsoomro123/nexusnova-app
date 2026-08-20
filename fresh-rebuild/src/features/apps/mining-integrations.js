@@ -2,8 +2,6 @@ import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/
 import { doc, onSnapshot } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js';
 import { firebaseApp, firestoreDb, requireFirebaseUser } from '../../core/firebase-backend.js';
 import { nativeAds } from '../../core/native-ads.js';
-import { renderRewards } from './core-apps.js';
-import { renderNovaVault } from './faith-security-apps.js';
 
 function communityTaskPanel() {
   const section = document.createElement('section');
@@ -18,13 +16,11 @@ function communityTaskPanel() {
   return section;
 }
 
-export function renderMiningTasks() {
-  const root = renderRewards();
+function enhanceMiningTasks(root) {
   const hero = root.querySelector('.nx-reward-hero');
   const eyebrow = hero?.querySelector('.nx-eyebrow');
   if (eyebrow) eyebrow.textContent = 'MINING TASKS';
   hero?.insertAdjacentElement('afterend', communityTaskPanel());
-  return root;
 }
 
 function rewardText(reward = {}) {
@@ -33,8 +29,7 @@ function rewardText(reward = {}) {
   return Number.isFinite(amount) && amount > 0 ? `${type} ${amount}` : type;
 }
 
-export function renderMiningNovaVault() {
-  const root = renderNovaVault();
+function enhanceMiningNovaVault(root) {
   const panel = document.createElement('section');
   panel.className = 'nx-tool-card';
   panel.innerHTML = `
@@ -147,10 +142,11 @@ export function renderMiningNovaVault() {
     profileOff?.();
     baseCleanup?.();
   };
-  return root;
 }
 
-export const miningRenderers = Object.freeze({
-  tasks: renderMiningTasks,
-  'nova-vault': renderMiningNovaVault
-});
+export function enhanceMiningApp(id, root) {
+  if (!(root instanceof HTMLElement)) return root;
+  if (id === 'tasks') enhanceMiningTasks(root);
+  else if (id === 'nova-vault') enhanceMiningNovaVault(root);
+  return root;
+}
