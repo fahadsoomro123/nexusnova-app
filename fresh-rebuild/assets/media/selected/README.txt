@@ -1,1 +1,4 @@
-NexusNova selected reference assets for premium Weather, Speed Test, Nova Drive, Qibla and Prayer Times. These assets are user-approved visual specifications and must not be replaced without explicit approval.
+Selected premium visuals used by the fresh NexusNova build.
+
+Prayer Times uses the repaired selected prayer icon sprite at prayer-icons.jpg.
+Qibla, Speed, Drive and Weather selected visuals remain unchanged.
