@@ -1,13 +1,10 @@
 NexusNova Fresh Rebuild TEST APK
 Branch: nexusnova-fresh-rebuild-20260820
-Source commit: d101081ea9a4fd3314a323748b247b362cea8be9
+Source commit: 255b42fa9f629c77a503cc0983ba02557c653070
 Edition: TEST/debug only
-Web validation: failure
-Android preparation: skipped
-AdMob patch: skipped
-Android verification: skipped
-Gradle build: skipped
-RESULT: FAIL — inspect diagnostics below.
-
-===== web-validate.log =====
-Fresh app-open ad route bypass detected: hub: () => hubScreen({ openApp: openAppWithAd })
+Web validation: success
+Android preparation: success
+AdMob patch: success
+Android verification: success
+Gradle build: success
+RESULT: PASS — fresh TEST APK built successfully.
