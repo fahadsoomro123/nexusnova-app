@@ -4,6 +4,7 @@ import { createRouter } from './core/router.js';
 import { backend } from './core/backend-adapter.js';
 import { firebaseBackend } from './core/firebase-backend.js';
 import { authService } from './core/auth-service.js';
+import { adPolicy } from './core/ad-policy.js';
 import { authScreen } from './features/auth/auth-screen.js';
 import { mineScreen } from './features/mine/mine-screen.js';
 import { hubScreen } from './features/hub/hub-screen.js';
@@ -78,15 +79,22 @@ function syncDock(route) {
 }
 
 let router;
-const openApp = id => router.render('app', { id });
+const openAppDirect = id => router.render('app', { id });
+const openHubAppWithAd = id => adPolicy.gateHubApp(id, () => openAppDirect(id));
 const backToHub = () => router.render('hub');
 
 router = createRouter({
   stage,
   routes: {
     auth: () => authScreen({ onSignedIn: () => router.render('mine') }),
-    mine: () => mineScreen({ openHubApp: openApp }),
-    hub: () => hubScreen({ openApp }),
+    // Mine quick-access cards stay direct. Only completed-session renewal uses
+    // the dedicated mining-start natural-break interstitial.
+    mine: () => mineScreen({
+      openHubApp: openAppDirect,
+      beforeMiningRenewal: continueMining => adPolicy.gateMiningRenewal(continueMining)
+    }),
+    // Nova Hub cards use the approved protected/eligible placement policy.
+    hub: () => hubScreen({ openApp: openHubAppWithAd }),
     app: payload => appScreen({ id: payload.id, backToHub })
   },
   onRoute(route) {
@@ -100,7 +108,7 @@ window.NexusNovaFresh = Object.freeze({
   openApp(id) {
     const safeId = String(id || '').trim();
     if (!safeId) return false;
-    router.render('app', { id: safeId });
+    openAppDirect(safeId);
     return true;
   },
   openHub() {
@@ -110,6 +118,9 @@ window.NexusNovaFresh = Object.freeze({
   openMine() {
     router.render('mine');
     return true;
+  },
+  adStatus() {
+    return adPolicy.status();
   }
 });
 
