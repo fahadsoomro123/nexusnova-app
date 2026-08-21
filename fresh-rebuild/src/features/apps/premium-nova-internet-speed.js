@@ -2,16 +2,16 @@ const NIS_DOWNLOAD_URL = 'https://speed.cloudflare.com/__down';
 const NIS_UPLOAD_URL = 'https://speed.cloudflare.com/__up';
 const NIS_RESULT_KEY = 'nexusnova_nova_internet_speed_v1';
 const NIS_SCALE = Object.freeze([
-  { value: 0, rotation: -94.0, label: '0', x: 171.0, y: 534.9 },
-  { value: 1, rotation: -68.6, label: '1', x: 185.5, y: 388.5 },
-  { value: 5, rotation: -44.1, label: '5', x: 255.4, y: 259.7 },
-  { value: 10, rotation: -21.9, label: '10', x: 371.1, y: 191.5 },
-  { value: 20, rotation: 0.2, label: '20', x: 501.2, y: 156.2 },
-  { value: 50, rotation: 21.9, label: '50', x: 628.9, y: 191.5 },
-  { value: 100, rotation: 43.5, label: '100', x: 737.4, y: 262.2 },
-  { value: 250, rotation: 66.7, label: '250', x: 804.9, y: 380.9 },
-  { value: 500, rotation: 92.7, label: '500', x: 821.7, y: 527.3 },
-  { value: 1000, rotation: 117.4, label: '1G', x: 792.8, y: 663.6 }
+  { value: 0, rotation: -126, label: '0' },
+  { value: 1, rotation: -98, label: '1' },
+  { value: 5, rotation: -70, label: '5' },
+  { value: 10, rotation: -42, label: '10' },
+  { value: 20, rotation: -14, label: '20' },
+  { value: 50, rotation: 14, label: '50' },
+  { value: 100, rotation: 42, label: '100' },
+  { value: 250, rotation: 70, label: '250' },
+  { value: 500, rotation: 98, label: '500' },
+  { value: 1000, rotation: 126, label: '1G' }
 ]);
 
 function nisNode(html, className = '') {
@@ -40,93 +40,85 @@ function nisRotationForMbps(value) {
 }
 
 function nisGaugeSvg() {
+  const cx = 500, cy = 500;
+  const outerTickR = 420, minorInnerR = 398, majorInnerR = 382, labelR = 344;
+  const startRotation = NIS_SCALE[0].rotation;
+  const endRotation = NIS_SCALE[NIS_SCALE.length - 1].rotation;
   const minorTicks = [];
   for (let i = 0; i <= 81; i += 1) {
-    const angle = 188 + (162 / 81) * i;
+    const rotation = startRotation + ((endRotation - startRotation) / 81) * i;
+    const angle = rotation - 90;
     const major = i % 9 === 0;
-    const [x1, y1] = nisPoint(500, 676, 421, 565, angle);
-    const [x2, y2] = nisPoint(500, 676, major ? 382 : 394, major ? 512 : 532, angle);
+    const [x1, y1] = nisPoint(cx, cy, outerTickR, outerTickR, angle);
+    const innerR = major ? majorInnerR : minorInnerR;
+    const [x2, y2] = nisPoint(cx, cy, innerR, innerR, angle);
     minorTicks.push(`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" class="${major ? 'nis-major-tick' : 'nis-minor-tick'}"/>`);
   }
   const labels = NIS_SCALE.map((item, index) => {
+    const [x, y] = nisPoint(cx, cy, labelR, labelR, item.rotation - 90);
     const extra = index === 0 ? ' nis-label-zero' : index === NIS_SCALE.length - 1 ? ' nis-label-gig' : '';
-    return `<text x="${item.x.toFixed(1)}" y="${item.y.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" class="nis-scale-label${extra}">${item.label}</text>`;
+    return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" class="nis-scale-label${extra}">${item.label}</text>`;
   }).join('');
   const dots = [];
-  for (let row = 0; row < 8; row += 1) {
-    const y = 642 + row * 14;
-    const inset = row * 14;
-    const count = 34 - row * 2;
-    for (let col = 0; col < count; col += 1) {
-      const x = 205 + inset + (590 - inset * 2) * (col / Math.max(1, count - 1));
-      const opacity = (0.33 - row * 0.025).toFixed(3);
-      dots.push(`<circle cx="${x.toFixed(1)}" cy="${y}" r="${row < 3 ? 2.2 : 1.8}" fill="#39cfff" opacity="${opacity}"/>`);
+  for (let ring = 0; ring < 5; ring += 1) {
+    const radius = 95 + ring * 24;
+    const count = 26 + ring * 5;
+    for (let i = 0; i < count; i += 1) {
+      const a = Math.PI * (0.12 + 0.76 * (i / Math.max(1, count - 1)));
+      const x = cx + Math.cos(a) * radius;
+      const y = 650 + Math.sin(a) * radius * 0.24;
+      dots.push(`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="1.9" fill="#39cfff" opacity="${(0.12 + ring * 0.035).toFixed(3)}"/>`);
     }
   }
-  return `<svg class="nxnis-gauge-svg" viewBox="65 35 870 720" preserveAspectRatio="none" role="img" aria-label="Nova Internet Speed live meter">
+  return `<svg class="nxnis-gauge-svg" viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Nova Internet Speed live meter">
     <defs>
       <linearGradient id="nisOuterMetal" x1="0" y1="0" x2="1" y2="1">
         <stop offset="0" stop-color="#f8fdff"/><stop offset=".08" stop-color="#8ccfff"/>
         <stop offset=".23" stop-color="#13345d"/><stop offset=".48" stop-color="#05111f"/>
         <stop offset=".72" stop-color="#1f74bc"/><stop offset=".88" stop-color="#6bd8ff"/>
-        <stop offset="1" stop-color="#2420ff"/>
+        <stop offset="1" stop-color="#702cff"/>
       </linearGradient>
-      <linearGradient id="nisArc" x1="0" y1=".1" x2="1" y2=".9">
+      <linearGradient id="nisArc" x1="0" y1="0" x2="1" y2="1">
         <stop offset="0" stop-color="#bfeaff"/><stop offset=".34" stop-color="#77c9ff"/>
         <stop offset=".68" stop-color="#2ae7ff"/><stop offset=".86" stop-color="#275aff"/>
         <stop offset="1" stop-color="#d628ff"/>
       </linearGradient>
-      <linearGradient id="nisNeedle" x1="0" y1="0" x2="1" y2="0">
-        <stop offset="0" stop-color="#efffff"/><stop offset=".52" stop-color="#65eeff"/><stop offset="1" stop-color="#0aa9ff"/>
+      <linearGradient id="nisNeedle" x1="0" y1="1" x2="0" y2="0">
+        <stop offset="0" stop-color="#0aa9ff"/><stop offset=".52" stop-color="#65eeff"/><stop offset="1" stop-color="#efffff"/>
       </linearGradient>
-      <radialGradient id="nisFace" cx="50%" cy="40%" r="70%">
+      <radialGradient id="nisFace" cx="50%" cy="42%" r="64%">
         <stop offset="0" stop-color="#0c2c50"/><stop offset=".36" stop-color="#071c35"/>
         <stop offset=".72" stop-color="#03111f"/><stop offset="1" stop-color="#010812"/>
       </radialGradient>
-      <linearGradient id="nisGlass" x1="0" y1="0" x2=".9" y2=".9">
-        <stop offset="0" stop-color="#fff" stop-opacity=".42"/>
-        <stop offset=".24" stop-color="#bde9ff" stop-opacity=".13"/>
-        <stop offset=".57" stop-color="#fff" stop-opacity=".015"/>
-        <stop offset="1" stop-color="#fff" stop-opacity="0"/>
-      </linearGradient>
-      <linearGradient id="nisFloor" x1="0" y1="0" x2="1" y2="0">
-        <stop offset="0" stop-color="#09b7ff" stop-opacity=".62"/>
-        <stop offset=".55" stop-color="#24dcff" stop-opacity=".28"/>
-        <stop offset="1" stop-color="#c327ff" stop-opacity=".62"/>
-      </linearGradient>
+      <radialGradient id="nisCenter" cx="50%" cy="45%" r="62%">
+        <stop offset="0" stop-color="#0a2946" stop-opacity=".94"/><stop offset="1" stop-color="#03101d" stop-opacity=".92"/>
+      </radialGradient>
       <filter id="nisGlow" x="-60%" y="-60%" width="220%" height="220%">
-        <feGaussianBlur stdDeviation="11" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        <feGaussianBlur stdDeviation="10" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
       </filter>
       <filter id="nisNeedleGlow" x="-80%" y="-80%" width="260%" height="260%">
-        <feGaussianBlur stdDeviation="8" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        <feGaussianBlur stdDeviation="7" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
       </filter>
-      <clipPath id="nisFaceClip"><path d="M89 709C74 331 219 93 500 61C781 93 926 331 911 709Q904 738 866 746H134Q96 738 89 709Z"/></clipPath>
+      <clipPath id="nisFaceClip"><circle cx="500" cy="500" r="438"/></clipPath>
     </defs>
-    <path d="M70 712C52 311 209 70 500 40C791 70 948 311 930 712Q923 753 873 764H127Q77 753 70 712Z" fill="#020711" stroke="#07111f" stroke-width="22"/>
-    <path d="M77 710C61 323 214 81 500 51C786 81 939 323 923 710Q916 746 870 756H130Q84 746 77 710Z" fill="#061220" stroke="url(#nisOuterMetal)" stroke-width="18"/>
-    <path d="M89 709C74 331 219 93 500 61C781 93 926 331 911 709Q904 738 866 746H134Q96 738 89 709Z" fill="url(#nisFace)" stroke="#1c6097" stroke-width="8"/>
-    <path d="M101 704C88 344 225 111 500 80C775 111 912 344 899 704Q892 725 859 732H141Q108 725 101 704Z" fill="none" stroke="url(#nisArc)" stroke-width="9" opacity=".95" filter="url(#nisGlow)"/>
-    <path d="M109 702C96 352 229 123 500 91C771 123 904 352 891 702" fill="none" stroke="#a8e9ff" stroke-width="2.4" opacity=".58"/>
+    <circle cx="500" cy="500" r="476" fill="#020711" stroke="#07111f" stroke-width="20"/>
+    <circle cx="500" cy="500" r="458" fill="#061220" stroke="url(#nisOuterMetal)" stroke-width="22"/>
+    <circle cx="500" cy="500" r="438" fill="url(#nisFace)" stroke="#1c6097" stroke-width="8"/>
+    <circle cx="500" cy="500" r="424" fill="none" stroke="url(#nisArc)" stroke-width="9" opacity=".96" filter="url(#nisGlow)"/>
+    <circle cx="500" cy="500" r="411" fill="none" stroke="#a8e9ff" stroke-width="2.4" opacity=".50"/>
     <g clip-path="url(#nisFaceClip)">${minorTicks.join('')}</g>
     <g>${labels}</g>
-    <g clip-path="url(#nisFaceClip)" opacity=".96">${dots.join('')}
-      ${[170,220,270,320,370,420,580,630,680,730,780,830].map(x=>`<path d="M500 610 Q${((500+x)/2).toFixed(1)} 655 ${x} 729" fill="none" stroke="#2dcfff" stroke-width="1.6" opacity=".16"/>`).join('')}
-      <path d="M159 715Q500 596 841 715" fill="none" stroke="url(#nisFloor)" stroke-width="5" filter="url(#nisGlow)"/>
-      <path d="M205 686Q500 615 795 686" fill="none" stroke="#4adfff" stroke-width="2" opacity=".28"/>
-      <path d="M132 739Q500 758 868 739" fill="none" stroke="url(#nisArc)" stroke-width="9" opacity=".62" filter="url(#nisGlow)"/>
+    <g clip-path="url(#nisFaceClip)" opacity=".88">${dots.join('')}</g>
+    <path d="M205 263Q500 105 795 263" fill="none" stroke="#e9fbff" stroke-width="18" stroke-linecap="round" opacity=".28" filter="url(#nisGlow)"/>
+    <path d="M222 266Q500 128 778 266" fill="none" stroke="#d5f3ff" stroke-width="6" stroke-linecap="round" opacity=".58"/>
+    <g data-nis-needle transform="rotate(-126 500 500)" filter="url(#nisNeedleGlow)">
+      <polygon points="492,510 497,236 500,194 503,236 508,510" fill="url(#nisNeedle)" stroke="#dfffff" stroke-width="3"/>
+      <circle cx="500" cy="500" r="20" fill="#0b2338" stroke="#69eaff" stroke-width="6"/>
+      <circle cx="500" cy="500" r="7" fill="#eaffff"/>
     </g>
-    <path d="M220 116C318 67 455 48 620 64" fill="none" stroke="#e9fbff" stroke-width="24" stroke-linecap="round" opacity=".62" filter="url(#nisGlow)"/>
-    <path d="M226 115C323 74 457 58 612 70" fill="none" stroke="#c8eaff" stroke-width="9" stroke-linecap="round" opacity=".86"/>
-    <path d="M145 170Q319 51 536 76Q702 93 807 213Q619 143 487 219Q309 146 145 170Z" fill="url(#nisGlass)" opacity=".72"/>
-    <g data-nis-needle transform="rotate(-94 500 512)" filter="url(#nisNeedleGlow)">
-      <polygon points="493,518 496,231 500,198 504,231 507,518" fill="url(#nisNeedle)" stroke="#dfffff" stroke-width="3"/>
-      <circle cx="500" cy="512" r="14" fill="#0b2338" stroke="#69eaff" stroke-width="5"/>
-      <circle cx="500" cy="512" r="5" fill="#eaffff"/>
-    </g>
-    <ellipse cx="500" cy="512" rx="132" ry="74" fill="#06182a" opacity=".94"/>
-    <ellipse cx="500" cy="512" rx="132" ry="74" fill="none" stroke="#12324d" stroke-width="2" opacity=".32"/>
+    <circle cx="500" cy="500" r="156" fill="url(#nisCenter)" stroke="#12324d" stroke-width="2" opacity=".96"/>
     <g class="nxnis-readout-svg">
-      <text x="500" y="386" text-anchor="middle" class="nis-mode-label">↓ DOWNLOAD</text>
+      <text x="500" y="430" text-anchor="middle" class="nis-mode-label">↓ DOWNLOAD</text>
       <text x="500" y="535" text-anchor="middle" class="nis-main-value" data-nis-svg-value>0.0</text>
       <text x="500" y="583" text-anchor="middle" class="nis-unit-label">Mbps</text>
     </g>
@@ -162,7 +154,7 @@ const nisStyles = `
 .nxnis-sample{width:96px;height:24px;padding:0;border:1px solid rgba(49,141,196,.18);border-radius:11px;background:#041421;color:#4dc9f2;font-size:6.4px;font-weight:900;letter-spacing:.09em;white-space:nowrap}
 .nxnis-network{padding:15px 0 3px}.nxnis-network b{display:block;color:#8ca6c1;font-size:8px;letter-spacing:.16em}.nxnis-network span{display:flex;align-items:center;gap:6px;margin-top:5px;color:#8499ae;font-size:9px}.nxnis-network i{width:7px;height:7px;border-radius:50%;background:#2eea63;box-shadow:0 0 9px rgba(46,234,99,.7)}
 .nxnis-network.is-offline i{background:#ff5d73;box-shadow:0 0 9px rgba(255,93,115,.55)}
-.nxnis-meter{position:relative;width:100%;aspect-ratio:1000/790;margin:-26px auto 0}
+.nxnis-meter{position:relative;width:100%;aspect-ratio:1/1;margin:-16px auto -8px}
 .nxnis-gauge-svg{display:block;width:100%;height:100%;filter:drop-shadow(0 16px 26px rgba(0,0,0,.38))}
 .nis-minor-tick{stroke:#4385af;stroke-width:2;opacity:.52}.nis-major-tick{stroke:#7bcfff;stroke-width:4;opacity:.82}.nis-scale-label{fill:#edf8ff;font-size:31px;font-weight:790;paint-order:stroke;stroke:#061221;stroke-width:5}.nis-label-zero,.nis-label-gig{font-size:29px}.nis-mode-label{fill:#6bdcff;font-size:19px;font-weight:860;letter-spacing:.14em}.nis-main-value{fill:#fbfdff;font-size:128px;font-weight:340;letter-spacing:-.04em;paint-order:stroke;stroke:#07121f;stroke-width:2}.nis-unit-label{fill:#93a7bb;font-size:25px;font-weight:760;letter-spacing:.02em}
 .nxnis-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:24px}
@@ -255,7 +247,7 @@ export function renderNovaInternetSpeed() {
   const paintMeter = (mbps, mode = 'DOWNLOAD') => {
     const n = Math.max(0, Number(mbps) || 0);
     const rotation = nisRotationForMbps(n);
-    needle?.setAttribute('transform', `rotate(${rotation.toFixed(2)} 500 512)`);
+    needle?.setAttribute('transform', `rotate(${rotation.toFixed(2)} 500 500)`);
     svgValue.textContent = nisFormatMbps(n);
     modeLabel.textContent = `${mode === 'UPLOAD' ? '↑' : '↓'} ${mode}`;
   };
