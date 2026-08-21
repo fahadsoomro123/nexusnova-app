@@ -166,8 +166,8 @@ export function renderQiblaPremium() {
     staticWMask.style.setProperty('filter','blur(.35px)','important');
   }
   if (staticSwMask) {
-    staticSwMask.style.setProperty('left','11%','important');
-    staticSwMask.style.setProperty('top','58%','important');
+    staticSwMask.style.setProperty('left','7%','important');
+    staticSwMask.style.setProperty('top','55%','important');
     staticSwMask.style.setProperty('width','45%','important');
     staticSwMask.style.setProperty('height','8%','important');
     staticSwMask.style.setProperty('transform','rotate(-40deg)','important');
@@ -175,10 +175,10 @@ export function renderQiblaPremium() {
     staticSwMask.style.setProperty('filter','blur(.35px)','important');
   }
   if (staticKaabaMask) {
-    staticKaabaMask.style.setProperty('left','38%','important');
+    staticKaabaMask.style.setProperty('left','34.5%','important');
     staticKaabaMask.style.setProperty('top','-1%','important');
-    staticKaabaMask.style.setProperty('width','24%','important');
-    staticKaabaMask.style.setProperty('height','24%','important');
+    staticKaabaMask.style.setProperty('width','31.5%','important');
+    staticKaabaMask.style.setProperty('height','25%','important');
     staticKaabaMask.style.setProperty('border-radius','0 0 48% 48%','important');
     staticKaabaMask.style.setProperty('background','linear-gradient(180deg,#0b1117 0%,#111820 78%,rgba(17,24,32,0) 100%)','important');
     staticKaabaMask.style.setProperty('filter','none','important');
