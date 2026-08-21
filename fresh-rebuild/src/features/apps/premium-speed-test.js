@@ -166,12 +166,12 @@ export function renderSpeedTestPremium() {
       <div class="nxspeed-network-state"><i></i><span data-speed-quality>READY</span></div>
       ${gaugeMarkup('speed', 'Mbps')}
       <section class="nxspeed-metrics" data-speed-metrics>
-        <article><span>DOWNLOAD</span><strong data-speed-down>—</strong><i></i></article>
-        <article><span>UPLOAD</span><strong data-speed-up>—</strong><i></i></article>
-        <article><span>PING</span><strong data-speed-ping>—</strong><i></i></article>
-        <article><span>JITTER</span><strong data-speed-jitter>—</strong><i></i></article>
+        <article class="is-download"><span>DOWNLOAD</span><strong data-speed-down>—</strong><i></i></article>
+        <article class="is-upload"><span>UPLOAD</span><strong data-speed-up>—</strong><i></i></article>
+        <article class="is-ping"><span>PING</span><strong data-speed-ping>—</strong><i></i></article>
+        <article class="is-jitter"><span>JITTER</span><strong data-speed-jitter>—</strong><i></i></article>
       </section>
-      <button class="nxpi-action nxspeed-start" type="button" data-speed-start>RUN SPEED TEST</button>
+      <button class="nxpi-action nxspeed-start" type="button" data-speed-start><b data-speed-start-label>RUN SPEED TEST</b><span aria-hidden="true">›</span></button>
       <div class="nxspeed-foot"><span>NexusNova Server • Auto Select</span><span>Connection • Live</span></div>
       <p class="nxpi-status" data-speed-status>Cloudflare Edge live throughput test.</p>
     </section>
@@ -203,6 +203,7 @@ export function renderSpeedTestPremium() {
   const jitterEl = root.querySelector('[data-speed-jitter]');
   const qualityEl = root.querySelector('[data-speed-quality]');
   const start = root.querySelector('[data-speed-start]');
+  const startLabel = root.querySelector('[data-speed-start-label]');
   const status = root.querySelector('[data-speed-status]');
   let running = false;
   let aborter = null;
@@ -292,7 +293,7 @@ export function renderSpeedTestPremium() {
     running = true;
     aborter = new AbortController();
     start.disabled = true;
-    start.textContent = 'TEST IN PROGRESS';
+    startLabel.textContent = 'TEST IN PROGRESS';
     qualityEl.textContent = 'MEASURING';
     down.textContent = up.textContent = ping.textContent = jitterEl.textContent = '—';
     paintSpeed(0, 'CALIBRATING');
@@ -311,12 +312,12 @@ export function renderSpeedTestPremium() {
       qualityEl.textContent = quality;
       paintSpeed(d, '↓ DOWNLOAD');
       status.textContent = `${quality} • ping ${l.ping.toFixed(0)} ms • jitter ${l.jitter.toFixed(1)} ms`;
-      start.textContent = 'RUN AGAIN';
+      startLabel.textContent = 'RUN AGAIN';
     } catch (error) {
       if (error?.name !== 'AbortError') {
         qualityEl.textContent = 'INTERRUPTED';
         status.textContent = 'Speed test interrupted. Check the connection and try again.';
-        start.textContent = 'TRY AGAIN';
+        startLabel.textContent = 'TRY AGAIN';
         console.warn('[NexusNova Premium] speed test:', error);
       }
     } finally {
