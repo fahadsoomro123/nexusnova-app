@@ -1,6 +1,6 @@
 NexusNova Fresh Rebuild TEST APK
 Branch: nexusnova-fresh-rebuild-20260820
-Source commit: a54cb89e89e1444945af2d5e7b607e2e099008da
+Source commit: 307f96f6fbcca12b96d1e8c25999fd266c55c2c9
 Edition: TEST/debug only
 Web validation: success
 Android preparation: success

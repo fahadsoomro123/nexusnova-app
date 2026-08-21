@@ -5,8 +5,8 @@ Daemon will be stopped at the end of the build
 > Task :app:preDebugBuild UP-TO-DATE
 > Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
 > Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
-> Task :app:generateDebugResValues
 > Task :app:dataBindingMergeDependencyArtifactsDebug
+> Task :app:generateDebugResValues
 > Task :app:generateDebugResources
 > Task :app:packageDebugResources
 > Task :app:processDebugNavigationResources
@@ -21,11 +21,11 @@ Daemon will be stopped at the end of the build
 > Task :app:extractDeepLinksDebug
 > Task :app:processDebugMainManifest
 > Task :app:processDebugManifest
-> Task :app:processDebugManifestForPackage
 > Task :app:javaPreCompileDebug
 > Task :app:mergeDebugShaders
 > Task :app:compileDebugShaders NO-SOURCE
 > Task :app:generateDebugAssets UP-TO-DATE
+> Task :app:processDebugManifestForPackage
 > Task :app:mergeDebugAssets
 > Task :app:desugarDebugFileDependencies
 > Task :app:processDebugResources
@@ -69,7 +69,7 @@ w: file:///home/runner/work/nexusnova-app/nexusnova-app/NexusNovaAndroid/app/src
 > Task :app:packageDebug
 > Task :app:createDebugApkListingFileRedirect
 > Task :app:assembleDebug
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/android_build-1787302726363.json
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/android_build-1787302950931.json
 
-BUILD SUCCESSFUL in 1m 56s
+BUILD SUCCESSFUL in 1m 48s
 40 actionable tasks: 39 executed, 1 up-to-date
