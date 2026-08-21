@@ -136,17 +136,17 @@ export function renderSpeedTestPremium() {
   if (embeddedNeedleMask) {
     embeddedNeedleMask.style.setProperty('display','block','important');
     embeddedNeedleMask.style.setProperty('position','absolute','important');
-    embeddedNeedleMask.style.setProperty('left','49%','important');
-    embeddedNeedleMask.style.setProperty('top','49%','important');
-    embeddedNeedleMask.style.setProperty('width','32%','important');
-    embeddedNeedleMask.style.setProperty('height','7%','important');
+    embeddedNeedleMask.style.setProperty('left','68.2%','important');
+    embeddedNeedleMask.style.setProperty('top','43.2%','important');
+    embeddedNeedleMask.style.setProperty('width','24%','important');
+    embeddedNeedleMask.style.setProperty('height','3.5%','important');
     embeddedNeedleMask.style.setProperty('transform-origin','0 50%','important');
-    embeddedNeedleMask.style.setProperty('transform','rotate(-34deg)','important');
+    embeddedNeedleMask.style.setProperty('transform','rotate(-34.6deg)','important');
     embeddedNeedleMask.style.setProperty('border-radius','999px','important');
     embeddedNeedleMask.style.setProperty('z-index','2','important');
     embeddedNeedleMask.style.setProperty('pointer-events','none','important');
-    embeddedNeedleMask.style.setProperty('background','linear-gradient(90deg,#081522 0%,#0a1b2b 72%,rgba(10,27,43,.2) 100%)','important');
-    embeddedNeedleMask.style.setProperty('filter','blur(.2px)','important');
+    embeddedNeedleMask.style.setProperty('background','linear-gradient(90deg,#0b1928 0%,#0d2133 56%,#12344b 100%)','important');
+    embeddedNeedleMask.style.setProperty('filter','blur(.35px)','important');
   }
   const gaugeSvg = gauge.querySelector('svg');
   if (gaugeSvg) {
@@ -222,7 +222,7 @@ export function renderSpeedTestPremium() {
     xhr.open('POST', `https://speed.cloudflare.com/__up?bytes=${bytesTarget}&nx=${Date.now()}-${Math.random()}`, true);
     xhr.timeout = 30000;
     xhr.upload.onprogress = event => {
-      const current = (event.loaded * 8) / (Math.max(1, performance.now() - started) / 1000) / 1e6;
+      const current = (event.loaded * 8) / (Math.max(1,performance.now()-started)/1000)/1e6;
       up.textContent = `${current < 10 ? current.toFixed(2) : current.toFixed(1)} Mbps`;
       paintSpeed(current, '↑ UPLOAD');
     };
