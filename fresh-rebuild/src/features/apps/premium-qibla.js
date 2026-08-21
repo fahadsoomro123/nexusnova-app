@@ -99,9 +99,8 @@ export function renderQiblaPremium() {
           <div class="nxqibla-dial" data-qibla-dial>
             <div class="nxqibla-face-rotor" data-qibla-face-rotor aria-hidden="true">
               <div class="nxqibla-face"></div>
-              <i class="nxqibla-mask nxqibla-mask--w"></i>
-              <i class="nxqibla-mask nxqibla-mask--sw"></i>
-              <i class="nxqibla-mask nxqibla-mask--kaaba"></i>
+              <div class="nxqibla-clean-face" data-qibla-clean-face></div>
+              <i class="nxqibla-mask nxqibla-mask--kaaba" data-qibla-static-kaaba-mask></i>
             </div>
             <div class="nxqibla-cardinals" data-qibla-cardinals aria-hidden="true">
               <span class="n">N</span><span class="e">E</span><span class="s">S</span><span class="w">W</span>
@@ -128,6 +127,8 @@ export function renderQiblaPremium() {
 
   const consoleEl = root.querySelector('[data-qibla-console]');
   const rotor = root.querySelector('[data-qibla-face-rotor]');
+  const cleanFace = root.querySelector('[data-qibla-clean-face]');
+  const staticKaabaMask = root.querySelector('[data-qibla-static-kaaba-mask]');
   const cardinals = root.querySelector('[data-qibla-cardinals]');
   const pointer = root.querySelector('[data-qibla-pointer]');
   const bearingEl = root.querySelector('[data-qibla-bearing]');
@@ -143,6 +144,23 @@ export function renderQiblaPremium() {
   const strengthEl = root.querySelector('[data-qibla-strength]');
   const status = root.querySelector('[data-qibla-status]');
   const enable = root.querySelector('[data-qibla-enable]');
+
+  if (cleanFace) {
+    Object.assign(cleanFace.style, {
+      position:'absolute', inset:'12.5%', zIndex:'2', borderRadius:'50%', pointerEvents:'none',
+      background:'repeating-conic-gradient(from -1deg,rgba(201,211,219,.16) 0deg .55deg,transparent .7deg 22.5deg),radial-gradient(circle at 50% 50%,#2b3034 0 7%,#171d22 8% 34%,#10161b 35% 68%,#0a1015 69% 100%)',
+      boxShadow:'inset 0 0 0 1px rgba(207,218,224,.12),inset 0 0 24px rgba(0,0,0,.72)'
+    });
+  }
+  if (staticKaabaMask) {
+    staticKaabaMask.style.setProperty('left','38%','important');
+    staticKaabaMask.style.setProperty('top','-1%','important');
+    staticKaabaMask.style.setProperty('width','24%','important');
+    staticKaabaMask.style.setProperty('height','24%','important');
+    staticKaabaMask.style.setProperty('border-radius','0 0 48% 48%','important');
+    staticKaabaMask.style.setProperty('background','linear-gradient(180deg,#0b1117 0%,#111820 78%,rgba(17,24,32,0) 100%)','important');
+    staticKaabaMask.style.setProperty('filter','none','important');
+  }
 
   let bearing = null;
   let heading = 0;
