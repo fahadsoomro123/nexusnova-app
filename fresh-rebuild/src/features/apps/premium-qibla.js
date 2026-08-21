@@ -78,20 +78,32 @@ async function reversePlace(lat, lon) {
 
 export function renderQiblaPremium() {
   const root = node(`
+    <div class="nxqibla-premium-title"><b>QIBLA COMPASS</b><span> – PREMIUM</span></div>
     <section class="nxqibla-console nxqibla-console--selected" data-qibla-console>
-      <header data-qibla-internal-head><div><span>QIBLA COMPASS</span><strong>Find direction to Kaaba</strong></div><b data-qibla-lock>LOCATING</b></header>
-      <div class="nxqibla-layout" data-qibla-layout>
-        <aside class="nxqibla-side nxqibla-side--left" data-qibla-left>
+      <header class="nxqibla-head">
+        <button class="nxqibla-headbtn nxqibla-back" type="button" data-qibla-back aria-label="Back">‹</button>
+        <span class="nxqibla-appicon" data-qibla-appicon aria-hidden="true">⌖</span>
+        <div class="nxqibla-headcopy"><strong>Qibla Compass</strong><span>Find direction to Kaaba</span></div>
+        <button class="nxqibla-headbtn nxqibla-enable" type="button" data-qibla-enable aria-label="Activate live compass">◎</button>
+      </header>
+
+      <div class="nxqibla-layout">
+        <aside class="nxqibla-side nxqibla-side--left">
           <article><span>QIBLA DIRECTION</span><strong data-qibla-bearing>—</strong><small data-qibla-point>FROM NORTH</small></article>
           <article><span>DISTANCE</span><strong data-qibla-distance>—</strong><small>TO KAABA</small></article>
-          <article><span>LOCATION</span><strong data-qibla-location>Current location</strong><small data-qibla-coords>—</small></article>
+          <article><span>LOCATION</span><strong class="nxqibla-location" data-qibla-location>Current location</strong><small data-qibla-coords>—</small></article>
           <article class="nxqibla-health"><span>CALIBRATION</span><strong data-qibla-calibration>Waiting</strong></article>
         </aside>
 
-        <div class="nxqibla-dial-wrap" data-qibla-dial-wrap>
+        <div class="nxqibla-dial-wrap">
           <div class="nxqibla-dial" data-qibla-dial>
-            <div class="nxqibla-degree-ring" aria-hidden="true"></div>
-            <div class="nxqibla-cardinals" data-qibla-cardinals>
+            <div class="nxqibla-face-rotor" data-qibla-face-rotor aria-hidden="true">
+              <div class="nxqibla-face"></div>
+              <i class="nxqibla-mask nxqibla-mask--w"></i>
+              <i class="nxqibla-mask nxqibla-mask--sw"></i>
+              <i class="nxqibla-mask nxqibla-mask--kaaba"></i>
+            </div>
+            <div class="nxqibla-cardinals" data-qibla-cardinals aria-hidden="true">
               <span class="n">N</span><span class="e">E</span><span class="s">S</span><span class="w">W</span>
             </div>
             <div class="nxqibla-qibla" data-qibla-pointer>
@@ -103,28 +115,21 @@ export function renderQiblaPremium() {
           </div>
         </div>
 
-        <aside class="nxqibla-side nxqibla-side--right" data-qibla-right>
+        <aside class="nxqibla-side nxqibla-side--right">
           <article><span>HEADING</span><strong data-qibla-heading>—</strong><small data-qibla-heading-point>—</small></article>
           <article><span>TILT</span><strong data-qibla-tilt>—</strong><small>PHONE ANGLE</small></article>
-          <article><span>MAGNETIC FIELD</span><strong data-qibla-field>Sensor idle</strong><small>DEVICE COMPASS</small></article>
+          <article><span>MAGNETIC FIELD</span><strong class="nxqibla-location" data-qibla-field>Sensor idle</strong><small>DEVICE COMPASS</small></article>
           <article class="nxqibla-health"><span>COMPASS</span><strong data-qibla-strength>Waiting</strong></article>
         </aside>
       </div>
-      <button class="nxpi-action" type="button" data-qibla-enable>ACTIVATE LIVE COMPASS</button>
       <p class="nxpi-status" data-qibla-status>Location and orientation are used only while this screen is open.</p>
     </section>
   `, 'nx-qibla-premium');
 
   const consoleEl = root.querySelector('[data-qibla-console]');
-  const layout = root.querySelector('[data-qibla-layout]');
-  const left = root.querySelector('[data-qibla-left]');
-  const right = root.querySelector('[data-qibla-right]');
-  const dialWrap = root.querySelector('[data-qibla-dial-wrap]');
-  const dial = root.querySelector('[data-qibla-dial]');
-  const internalHead = root.querySelector('[data-qibla-internal-head]');
+  const rotor = root.querySelector('[data-qibla-face-rotor]');
   const cardinals = root.querySelector('[data-qibla-cardinals]');
   const pointer = root.querySelector('[data-qibla-pointer]');
-  const lock = root.querySelector('[data-qibla-lock]');
   const bearingEl = root.querySelector('[data-qibla-bearing]');
   const pointEl = root.querySelector('[data-qibla-point]');
   const distanceEl = root.querySelector('[data-qibla-distance]');
@@ -139,80 +144,21 @@ export function renderQiblaPremium() {
   const status = root.querySelector('[data-qibla-status]');
   const enable = root.querySelector('[data-qibla-enable]');
 
-  internalHead.style.display = 'none';
-  consoleEl.style.padding = '14px';
-  consoleEl.style.overflow = 'visible';
-  layout.style.setProperty('display', 'grid', 'important');
-  layout.style.setProperty('grid-template-columns', 'minmax(72px,.72fr) minmax(0,1.75fr) minmax(72px,.72fr)', 'important');
-  layout.style.setProperty('gap', '9px', 'important');
-  layout.style.setProperty('align-items', 'center', 'important');
-  layout.style.setProperty('margin', '4px 0 12px', 'important');
-  left.style.setProperty('order', '1', 'important');
-  dialWrap.style.setProperty('order', '2', 'important');
-  right.style.setProperty('order', '3', 'important');
-  dialWrap.style.minWidth = '0';
-  dial.style.setProperty('width', 'min(48vw,340px)', 'important');
-  dial.style.setProperty('max-width', '100%', 'important');
-  dial.style.setProperty('margin', '0 auto', 'important');
-  dial.style.setProperty('contain', 'layout paint', 'important');
-
-  [left, right].forEach(side => {
-    side.style.setProperty('display', 'grid', 'important');
-    side.style.setProperty('gap', '8px', 'important');
-    side.querySelectorAll('article').forEach(article => {
-      article.style.setProperty('min-height', '72px', 'important');
-      article.style.setProperty('padding', '10px', 'important');
-      article.style.setProperty('overflow', 'hidden', 'important');
-    });
-  });
-
-  const dock = document.querySelector('.nx-dock');
-  const dockStyle = dock?.getAttribute('style') ?? null;
-  if (dock) {
-    dock.style.setProperty('position', 'fixed', 'important');
-    dock.style.setProperty('left', '50%', 'important');
-    dock.style.setProperty('bottom', 'max(10px, env(safe-area-inset-bottom))', 'important');
-    dock.style.setProperty('transform', 'translate3d(-50%,0,0)', 'important');
-    dock.style.setProperty('transform-origin', '50% 50%', 'important');
-    dock.style.setProperty('rotate', '0deg', 'important');
-    dock.style.setProperty('animation', 'none', 'important');
-    dock.style.setProperty('transition', 'none', 'important');
-    dock.style.setProperty('will-change', 'auto', 'important');
-    dock.style.setProperty('z-index', '999', 'important');
-  }
-
-  let floatingEnable = null;
-  queueMicrotask(() => {
-    const host = root.closest('.nx-screen');
-    if (!host) return;
-    const head = host.querySelector(':scope > .nx-app-head');
-    const eyebrow = head?.querySelector('.nx-eyebrow');
-    const h1 = head?.querySelector('h1');
-    const sub = head?.querySelector('p:not(.nx-eyebrow)');
-    if (eyebrow) eyebrow.style.display = 'none';
-    if (h1) h1.textContent = 'Qibla Compass';
-    if (sub) sub.textContent = 'Find direction to Kaaba';
-    if (head) {
-      head.style.position = 'relative';
-      head.style.paddingRight = '66px';
-      floatingEnable = document.createElement('button');
-      floatingEnable.type = 'button';
-      floatingEnable.setAttribute('aria-label', 'Activate live compass');
-      floatingEnable.textContent = '◎';
-      Object.assign(floatingEnable.style, {
-        position:'absolute', right:'0', top:'50%', transform:'translateY(-50%)', width:'54px', height:'54px',
-        borderRadius:'17px', border:'1px solid rgba(86,156,197,.35)', background:'linear-gradient(145deg,#081725,#040b12)',
-        color:'#eaf7ff', fontSize:'30px', lineHeight:'1', display:'grid', placeItems:'center', cursor:'pointer'
-      });
-      floatingEnable.addEventListener('click', () => enable.click());
-      head.appendChild(floatingEnable);
-      enable.style.display = 'none';
-    }
-  });
-
   let bearing = null;
   let heading = 0;
   let listening = false;
+  let screen = null;
+
+  queueMicrotask(() => {
+    screen = root.closest('.nx-screen');
+    screen?.classList.add('nx-qibla-screen');
+    const sourceIcon = screen?.querySelector(':scope > .nx-app-head .nx-app-head__icon svg');
+    const targetIcon = root.querySelector('[data-qibla-appicon]');
+    if (sourceIcon && targetIcon) {
+      targetIcon.textContent = '';
+      targetIcon.appendChild(sourceIcon.cloneNode(true));
+    }
+  });
 
   const shortest = (target, actual) => {
     let delta = ((target - actual + 540) % 360) - 180;
@@ -223,19 +169,19 @@ export function renderQiblaPremium() {
   const paint = () => {
     if (!Number.isFinite(bearing)) return;
     const relative = shortest(bearing, heading);
-    cardinals.style.setProperty('transform-origin', '50% 50%', 'important');
-    pointer.style.setProperty('transform-origin', '50% 50%', 'important');
-    cardinals.style.setProperty('transform', `rotate(${-heading}deg)`, 'important');
-    pointer.style.setProperty('transform', `rotate(${relative}deg)`, 'important');
+    rotor.style.transform = `rotate(${-heading}deg)`;
+    cardinals.style.transform = `rotate(${-heading}deg)`;
+    pointer.style.transform = `rotate(${relative}deg)`;
     bearingEl.textContent = `${bearing.toFixed(0)}°`;
     pointEl.textContent = `${compassPoint(bearing)} • FROM NORTH`;
     headingEl.textContent = `${heading.toFixed(0)}°`;
-    headingPointEl.textContent = compassPoint(heading);
+    headingPointEl.textContent = `${compassPoint(heading)} • DEVICE`;
     const aligned = Math.abs(relative) <= 3;
     consoleEl.classList.toggle('is-aligned', aligned);
-    lock.textContent = aligned ? 'ON TARGET' : listening ? 'LIVE' : 'READY';
-    calibrationEl.textContent = aligned ? 'Excellent' : listening ? 'Active' : 'Ready';
-    strengthEl.textContent = aligned ? 'Strong' : listening ? 'Live' : 'Ready';
+    calibrationEl.textContent = aligned ? '● Excellent' : listening ? '● Active' : 'Ready';
+    strengthEl.textContent = aligned ? '● Strong' : listening ? '● Live' : 'Ready';
+    enable.classList.toggle('is-live', listening);
+    enable.textContent = listening ? '◉' : '◎';
   };
 
   const onOrientation = event => {
@@ -266,10 +212,7 @@ export function renderQiblaPremium() {
         window.addEventListener('deviceorientation', onOrientation, true);
         listening = true;
       }
-      enable.textContent = 'LIVE COMPASS ACTIVE';
-      if (floatingEnable) floatingEnable.textContent = '◉';
-      fieldEl.textContent = 'Normal';
-      status.textContent = 'Compass active • only the compass dial and Qibla needle respond to heading.';
+      status.textContent = 'Compass active • only the compass face and Qibla pointer respond to heading.';
       paint();
     } catch (error) {
       status.textContent = error?.message || 'Device orientation is unavailable.';
@@ -281,28 +224,24 @@ export function renderQiblaPremium() {
     const lon = Number(position.coords.longitude);
     bearing = bearingToKaaba(lat, lon);
     distanceEl.textContent = `${Math.round(distanceToKaaba(lat, lon)).toLocaleString()} km`;
-    coordsEl.textContent = `${lat.toFixed(4)}° N • ${lon.toFixed(4)}° E`;
+    coordsEl.textContent = `${lat.toFixed(4)}° • ${lon.toFixed(4)}°`;
     locationEl.textContent = await reversePlace(lat, lon);
     status.textContent = `Location locked • accuracy about ${Math.round(Number(position.coords.accuracy) || 0)} m.`;
-    lock.textContent = 'READY';
     calibrationEl.textContent = 'Ready';
     strengthEl.textContent = 'Ready';
     paint();
     if (typeof DeviceOrientationEvent === 'undefined' || typeof DeviceOrientationEvent.requestPermission !== 'function') enableOrientation();
   }).catch(error => {
-    lock.textContent = 'NO GPS';
     status.textContent = error?.message || 'Location permission is required to calculate Qibla.';
   });
 
+  root.querySelector('[data-qibla-back]').addEventListener('click', () => screen?.querySelector(':scope > .nx-app-head [data-app-back]')?.click());
   enable.addEventListener('click', enableOrientation);
+
   root.__cleanup = () => {
     window.removeEventListener('deviceorientationabsolute', onOrientation, true);
     window.removeEventListener('deviceorientation', onOrientation, true);
-    floatingEnable?.remove();
-    if (dock) {
-      if (dockStyle === null) dock.removeAttribute('style');
-      else dock.setAttribute('style', dockStyle);
-    }
+    screen?.classList.remove('nx-qibla-screen');
   };
   return root;
 }
