@@ -22,17 +22,15 @@ Daemon will be stopped at the end of the build
 > Task :app:processDebugMainManifest
 > Task :app:processDebugManifest
 > Task :app:javaPreCompileDebug
-> Task :app:processDebugManifestForPackage
 > Task :app:mergeDebugShaders
 > Task :app:compileDebugShaders NO-SOURCE
 > Task :app:generateDebugAssets UP-TO-DATE
 > Task :app:mergeDebugAssets
-> Task :app:desugarDebugFileDependencies
+> Task :app:processDebugManifestForPackage
 > Task :app:compressDebugAssets
+> Task :app:desugarDebugFileDependencies
 > Task :app:processDebugResources
 > Task :app:checkDebugDuplicateClasses
-> Task :app:compileDebugKotlin
-> Task :app:mergeExtDexDebug
 
 > Task :app:compileDebugKotlin
 w: file:///home/runner/work/nexusnova-app/nexusnova-app/NexusNovaAndroid/app/src/main/java/com/nexusnova/app/BrowserActivity.kt:62:16 'var statusBarColor: Int' is deprecated. Deprecated in Java.
@@ -53,6 +51,7 @@ w: file:///home/runner/work/nexusnova-app/nexusnova-app/NexusNovaAndroid/app/src
 w: file:///home/runner/work/nexusnova-app/nexusnova-app/NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt:653:76 The corresponding parameter in the supertype 'AdEventCallback' is named 'fullScreenContentError'. This may cause problems when calling this function with named arguments.
 w: file:///home/runner/work/nexusnova-app/nexusnova-app/NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt:677:47 The corresponding parameter in the supertype 'AdLoadCallback' is named 'adError'. This may cause problems when calling this function with named arguments.
 
+> Task :app:mergeExtDexDebug
 > Task :app:compileDebugJavaWithJavac
 > Task :app:dexBuilderDebug
 > Task :app:mergeDebugGlobalSynthetics
@@ -69,7 +68,7 @@ w: file:///home/runner/work/nexusnova-app/nexusnova-app/NexusNovaAndroid/app/src
 > Task :app:packageDebug
 > Task :app:createDebugApkListingFileRedirect
 > Task :app:assembleDebug
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/android_build-1787296965610.json
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/android_build-1787297542773.json
 
-BUILD SUCCESSFUL in 1m 54s
+BUILD SUCCESSFUL in 1m 35s
 40 actionable tasks: 39 executed, 1 up-to-date
