@@ -4,7 +4,10 @@ import { requireFirebaseUser } from '../../core/firebase-backend.js';
 const GAUGE_ARC = 'M 76.87 76.87 A 38 38 0 1 1 76.87 23.13';
 const DRIVE_HISTORY = 90;
 const MAX_DRIVE_KMH = 240;
-const MAX_GPS_ACCURACY_M = 45;
+const MAX_GPS_ACCURACY_M = 35;
+const MAX_FIX_GAP_MS = 8000;
+const MIN_FIX_GAP_MS = 350;
+const MIN_MOVING_KMH = 2;
 
 function node(html, className = '') {
   const root = document.createElement('div');
@@ -58,6 +61,7 @@ function formatDuration(ms){ const total=Math.max(0,Math.floor((Number(ms)||0)/1
 function formatDistance(meters){ const km=Math.max(0,Number(meters)||0)/1000; return km<10?`${km.toFixed(2)} km`:`${km.toFixed(1)} km`; }
 function activeDuration(ride){ if(!ride)return 0; const currentPause=ride.pausedAt?Date.now()-ride.pausedAt:0; return Math.max(0,Date.now()-ride.startedAt-(ride.pausedMs||0)-currentPause); }
 function compassPoint(degrees){ const names=['N','NE','E','SE','S','SW','W','NW']; return names[Math.round((((Number(degrees)||0)%360)+360)%360/45)%8]; }
+function finiteSpeedMps(value){ const n=Number(value); return Number.isFinite(n)&&n>=0&&n*3.6<=MAX_DRIVE_KMH?n:NaN; }
 
 export function renderNovaDrivePremium() {
   const root = node(`
@@ -75,59 +79,150 @@ export function renderNovaDrivePremium() {
   `,'nx-drive-premium');
 
   const gauge=root.querySelector('.nxgauge');
-  gauge.style.width='min(92vw,560px)'; gauge.style.aspectRatio='1 / 1'; gauge.style.margin='4px auto 4px'; gauge.style.borderRadius='50%'; gauge.style.overflow='hidden'; gauge.style.backgroundImage="url('assets/media/selected/drive-bezel-selected.png')"; gauge.style.backgroundSize='cover'; gauge.style.backgroundPosition='center';
-  const scale=gauge.querySelector('.nxgauge__scale--drive'), unit=gauge.querySelector('.nxgauge__unitmark'); if(scale)scale.style.display='none'; if(unit)unit.style.display='none';
-  const svg=gauge.querySelector('svg'); if(svg){ svg.style.position='absolute'; svg.style.inset='0'; svg.style.width='100%'; svg.style.height='100%'; svg.style.zIndex='3'; }
-
   const stateEl=root.querySelector('[data-drive-state]'),topEl=root.querySelector('[data-drive-top]'),averageEl=root.querySelector('[data-drive-average]'),distanceEl=root.querySelector('[data-drive-distance]'),durationEl=root.querySelector('[data-drive-duration]'),accuracyEl=root.querySelector('[data-drive-accuracy]'),headingEl=root.querySelector('[data-drive-heading]'),odometerEl=root.querySelector('[data-drive-odometer]'),status=root.querySelector('[data-drive-status]'),start=root.querySelector('[data-drive-start]'),pause=root.querySelector('[data-drive-pause]'),stop=root.querySelector('[data-drive-stop]');
   let watchId=null,timer=null,storeKey='',ride=null,lastFix=null;
 
   const paint=()=>{
-    const speed=ride?.pausedAt?0:Math.max(0,Number(ride?.speedKmh)||0); setGauge(gauge,Math.min(1,speed/MAX_DRIVE_KMH),speed,ride?.pausedAt?'PAUSED':ride?'LIVE SPEED':'READY',0);
+    const speed=ride?.pausedAt?0:Math.max(0,Number(ride?.speedKmh)||0);
+    setGauge(gauge,Math.min(1,speed/MAX_DRIVE_KMH),speed,ride?.pausedAt?'PAUSED':ride?'LIVE SPEED':'READY',0);
     topEl.textContent=`${Math.round(Number(ride?.topKmh)||0)} km/h`;
-    const avg=ride?.movingMs>0?(Number(ride.distanceM)/(ride.movingMs/1000))*3.6:0; averageEl.textContent=`${Math.round(Math.max(0,avg))} km/h`;
-    distanceEl.textContent=formatDistance(ride?.distanceM||0); durationEl.textContent=formatDuration(activeDuration(ride));
-    headingEl.textContent=Number.isFinite(ride?.heading)?`${compassPoint(ride.heading)} ${Math.round(ride.heading)}°`:'—'; odometerEl.textContent=String(Math.round((Number(ride?.distanceM)||0)/10)).padStart(6,'0').slice(-6);
+    const avg=ride?.movingMs>0?(Number(ride.distanceM)/(ride.movingMs/1000))*3.6:0;
+    averageEl.textContent=`${Math.round(Math.max(0,avg))} km/h`;
+    distanceEl.textContent=formatDistance(ride?.distanceM||0);
+    durationEl.textContent=formatDuration(activeDuration(ride));
+    headingEl.textContent=Number.isFinite(ride?.heading)?`${compassPoint(ride.heading)} ${Math.round(ride.heading)}°`:'—';
+    odometerEl.textContent=String(Math.round((Number(ride?.distanceM)||0)/10)).padStart(6,'0').slice(-6);
   };
 
-  const addMovement=(distanceM,movingMs)=>{ if(!storeKey||(!(distanceM>0)&&!(movingMs>0)))return; const store=readDriveStore(storeKey),row=dayRecord(store,localDayKey()); row.distanceM+=Math.max(0,Number(distanceM)||0); row.movingMs+=Math.max(0,Number(movingMs)||0); writeDriveStore(storeKey,store); };
+  const addMovement=(distanceM,movingMs)=>{
+    if(!storeKey||(!(distanceM>0)&&!(movingMs>0)))return;
+    const store=readDriveStore(storeKey),row=dayRecord(store,localDayKey());
+    row.distanceM+=Math.max(0,Number(distanceM)||0);
+    row.movingMs+=Math.max(0,Number(movingMs)||0);
+    writeDriveStore(storeKey,store);
+  };
 
   const onFix=position=>{
-    if(!ride)return; const c=position.coords,accuracy=Number(c.accuracy); accuracyEl.textContent=Number.isFinite(accuracy)?`${Math.round(accuracy)} m`:'—';
+    if(!ride)return;
+    const c=position.coords;
+    const accuracy=Number(c.accuracy);
+    accuracyEl.textContent=Number.isFinite(accuracy)?`${Math.round(accuracy)} m`:'—';
     if(Number.isFinite(Number(c.heading)))ride.heading=Number(c.heading);
-    if(ride.pausedAt){paint();return;}
-    if(!Number.isFinite(accuracy)||accuracy>MAX_GPS_ACCURACY_M){ stateEl.textContent='GPS ACQUIRING'; status.textContent='Waiting for a high-accuracy GPS fix…'; return; }
-    const now=Number(position.timestamp)||Date.now(); const fix={lat:Number(c.latitude),lon:Number(c.longitude),at:now,accuracy,gpsSpeed:Number.isFinite(c.speed)&&c.speed>=0?Number(c.speed):NaN}; if(!Number.isFinite(fix.lat)||!Number.isFinite(fix.lon))return;
-    let calculatedKmh=0,dt=0,rawDistance=0,acceptedDistance=0;
+    if(ride.pausedAt){ lastFix=null; paint(); return; }
+    if(!Number.isFinite(accuracy)||accuracy>MAX_GPS_ACCURACY_M){
+      stateEl.textContent='GPS ACQUIRING';
+      status.textContent='Waiting for a precise GPS fix…';
+      lastFix=null;
+      ride.speedKmh=0;
+      paint();
+      return;
+    }
+
+    const now=Number(position.timestamp)||Date.now();
+    const fix={lat:Number(c.latitude),lon:Number(c.longitude),at:now,accuracy,gpsSpeed:finiteSpeedMps(c.speed)};
+    if(!Number.isFinite(fix.lat)||!Number.isFinite(fix.lon))return;
+
+    let displayedKmh=Number.isFinite(fix.gpsSpeed)?fix.gpsSpeed*3.6:0;
+    let acceptedDistance=0;
+    let movingMs=0;
+
     if(lastFix){
-      dt=Math.max(0,now-lastFix.at); rawDistance=haversineM(lastFix,fix); if(dt>0)calculatedKmh=(rawDistance/(dt/1000))*3.6;
-      const validInterval=dt>=350&&dt<=15000; const plausible=calculatedKmh<=MAX_DRIVE_KMH; const noiseFloor=Math.max(1.5,Math.min(4.5,(accuracy+lastFix.accuracy)*0.075));
-      if(validInterval&&plausible){
-        const gpsKmh=Number.isFinite(fix.gpsSpeed)?fix.gpsSpeed*3.6:NaN; const moving=(Number.isFinite(gpsKmh)?gpsKmh:calculatedKmh)>=2;
-        if(moving&&rawDistance>=noiseFloor){
-          acceptedDistance=rawDistance;
-          if(Number.isFinite(fix.gpsSpeed)&&Number.isFinite(lastFix.gpsSpeed)){
-            const speedDistance=((fix.gpsSpeed+lastFix.gpsSpeed)/2)*(dt/1000); const tolerance=Math.max(8,rawDistance*0.45);
-            if(speedDistance>0&&Math.abs(speedDistance-rawDistance)<=tolerance) acceptedDistance=rawDistance*0.75+speedDistance*0.25;
+      const dt=Math.max(0,now-lastFix.at);
+      if(dt>=MIN_FIX_GAP_MS&&dt<=MAX_FIX_GAP_MS){
+        const seconds=dt/1000;
+        const rawDistance=haversineM(lastFix,fix);
+        const calculatedKmh=seconds>0?(rawDistance/seconds)*3.6:0;
+        const previousMps=finiteSpeedMps(lastFix.gpsSpeed);
+        const currentMps=finiteSpeedMps(fix.gpsSpeed);
+        const sensorMps=Number.isFinite(previousMps)&&Number.isFinite(currentMps)?(previousMps+currentMps)/2:Number.isFinite(currentMps)?currentMps:Number.isFinite(previousMps)?previousMps:NaN;
+        const sensorKmh=Number.isFinite(sensorMps)?sensorMps*3.6:NaN;
+        const motionKmh=Number.isFinite(sensorKmh)?sensorKmh:calculatedKmh;
+        const plausible=motionKmh>=0&&motionKmh<=MAX_DRIVE_KMH&&calculatedKmh<=MAX_DRIVE_KMH*1.35;
+
+        if(plausible&&motionKmh>=MIN_MOVING_KMH){
+          const combinedAccuracy=Math.hypot(accuracy,lastFix.accuracy);
+          const noiseFloor=Math.max(2.5,Math.min(12,combinedAccuracy*0.22));
+          const speedDistance=Number.isFinite(sensorMps)?sensorMps*seconds:NaN;
+
+          if(Number.isFinite(speedDistance)&&speedDistance>=1){
+            if(rawDistance>=noiseFloor){
+              const ratio=speedDistance>0?rawDistance/speedDistance:1;
+              acceptedDistance=ratio>=0.4&&ratio<=2.5?rawDistance*0.55+speedDistance*0.45:speedDistance;
+            } else {
+              acceptedDistance=speedDistance;
+            }
+          } else if(rawDistance>=noiseFloor){
+            acceptedDistance=rawDistance;
           }
+
+          const maximumSegment=(MAX_DRIVE_KMH/3.6)*seconds*1.05;
+          acceptedDistance=Math.max(0,Math.min(acceptedDistance,maximumSegment));
+          movingMs=dt;
         }
+
+        if(!Number.isFinite(fix.gpsSpeed))displayedKmh=calculatedKmh<=MAX_DRIVE_KMH?calculatedKmh:0;
       }
     }
-    const gpsKmh=Number.isFinite(fix.gpsSpeed)?fix.gpsSpeed*3.6:NaN; let speedKmh=Number.isFinite(gpsKmh)?gpsKmh:calculatedKmh; if(!Number.isFinite(speedKmh)||speedKmh<0||speedKmh>MAX_DRIVE_KMH)speedKmh=0;
-    if(ride.speedKmh>0&&speedKmh>0) speedKmh=ride.speedKmh*0.35+speedKmh*0.65;
-    if(acceptedDistance>0){ ride.distanceM+=acceptedDistance; const movingMs=speedKmh>=2?dt:0; ride.movingMs+=movingMs; addMovement(acceptedDistance,movingMs); }
-    ride.speedKmh=speedKmh; if(accuracy<=25)ride.topKmh=Math.max(ride.topKmh,speedKmh); lastFix=fix; stateEl.textContent=speedKmh>=2?'DRIVING':'LIVE'; status.textContent='GPS live • filtered high-accuracy trip data is being recorded.'; paint();
+
+    if(!Number.isFinite(displayedKmh)||displayedKmh<0||displayedKmh>MAX_DRIVE_KMH)displayedKmh=0;
+    if(ride.speedKmh>0&&displayedKmh>0)displayedKmh=ride.speedKmh*0.28+displayedKmh*0.72;
+
+    if(acceptedDistance>0||movingMs>0){
+      ride.distanceM+=acceptedDistance;
+      ride.movingMs+=movingMs;
+      addMovement(acceptedDistance,movingMs);
+    }
+
+    ride.speedKmh=displayedKmh;
+    const rawTopKmh=Number.isFinite(fix.gpsSpeed)?fix.gpsSpeed*3.6:displayedKmh;
+    if(accuracy<=20&&rawTopKmh>=MIN_MOVING_KMH&&rawTopKmh<=MAX_DRIVE_KMH)ride.topKmh=Math.max(ride.topKmh,rawTopKmh);
+    lastFix=fix;
+    stateEl.textContent=displayedKmh>=MIN_MOVING_KMH?'DRIVING':'LIVE';
+    status.textContent='GPS live • precision-filtered speed, distance and trip time are being recorded.';
+    paint();
   };
 
   const finish=()=>{
-    if(!ride)return; if(watchId!==null)navigator.geolocation?.clearWatch(watchId); clearInterval(timer); watchId=null; timer=null; if(ride.pausedAt){ride.pausedMs+=Date.now()-ride.pausedAt;ride.pausedAt=null;}
-    if(storeKey){ const store=readDriveStore(storeKey),row=dayRecord(store,localDayKey(ride.startedAt)); row.trips+=1; store.trips.unshift({at:new Date(ride.startedAt).toISOString(),endedAt:new Date().toISOString(),distanceM:Math.max(0,ride.distanceM||0),movingMs:Math.max(0,ride.movingMs||0),durationMs:activeDuration(ride),topKmh:Math.max(0,ride.topKmh||0)}); writeDriveStore(storeKey,store); }
-    ride.speedKmh=0; paint(); ride=null; lastFix=null; stateEl.textContent='SAVED'; status.textContent='Drive stopped • accurate aggregate trip summary saved • coordinates were not stored.'; start.disabled=false; pause.disabled=true; pause.textContent='PAUSE'; stop.disabled=true;
+    if(!ride)return;
+    if(watchId!==null)navigator.geolocation?.clearWatch(watchId);
+    clearInterval(timer); watchId=null; timer=null;
+    if(ride.pausedAt){ride.pausedMs+=Date.now()-ride.pausedAt;ride.pausedAt=null;}
+    if(storeKey){
+      const store=readDriveStore(storeKey),row=dayRecord(store,localDayKey(ride.startedAt));
+      row.trips+=1;
+      store.trips.unshift({at:new Date(ride.startedAt).toISOString(),endedAt:new Date().toISOString(),distanceM:Math.max(0,ride.distanceM||0),movingMs:Math.max(0,ride.movingMs||0),durationMs:activeDuration(ride),topKmh:Math.max(0,ride.topKmh||0)});
+      writeDriveStore(storeKey,store);
+    }
+    ride.speedKmh=0; paint(); ride=null; lastFix=null;
+    stateEl.textContent='SAVED';
+    status.textContent='Drive stopped • aggregate trip summary saved • coordinates were not stored.';
+    start.disabled=false; pause.disabled=true; pause.textContent='PAUSE'; stop.disabled=true;
   };
 
-  start.addEventListener('click',async()=>{ if(!navigator.geolocation){status.textContent='GPS is not supported on this device.';return;} if(ride)return; storeKey=await driveStoreKey(); ride={startedAt:Date.now(),pausedAt:null,pausedMs:0,distanceM:0,movingMs:0,topKmh:0,speedKmh:0,heading:null}; lastFix=null; start.disabled=true; pause.disabled=false; stop.disabled=false; stateEl.textContent='STARTING'; status.textContent='Starting high-accuracy GPS…'; paint(); timer=setInterval(paint,1000); watchId=navigator.geolocation.watchPosition(onFix,error=>{stateEl.textContent='GPS ERROR';status.textContent=`GPS unavailable: ${error.message||'permission or signal error'}`;},{enableHighAccuracy:true,timeout:15000,maximumAge:0}); });
-  pause.addEventListener('click',()=>{ if(!ride)return; if(ride.pausedAt){ride.pausedMs+=Date.now()-ride.pausedAt;ride.pausedAt=null;lastFix=null;pause.textContent='PAUSE';stateEl.textContent='LIVE';status.textContent='Drive resumed • waiting for the next accurate GPS fix.';}else{ride.pausedAt=Date.now();ride.speedKmh=0;lastFix=null;pause.textContent='RESUME';stateEl.textContent='PAUSED';status.textContent='Drive paused • movement is not being added.';} paint(); });
-  stop.addEventListener('click',finish); paint(); root.__cleanup=()=>{if(watchId!==null)navigator.geolocation?.clearWatch(watchId);clearInterval(timer);watchId=null;timer=null;}; return root;
+  start.addEventListener('click',async()=>{
+    if(!navigator.geolocation){status.textContent='GPS is not supported on this device.';return;}
+    if(ride)return;
+    storeKey=await driveStoreKey();
+    ride={startedAt:Date.now(),pausedAt:null,pausedMs:0,distanceM:0,movingMs:0,topKmh:0,speedKmh:0,heading:null};
+    lastFix=null; start.disabled=true; pause.disabled=false; stop.disabled=false; stateEl.textContent='STARTING'; status.textContent='Starting precision GPS…'; paint();
+    timer=setInterval(paint,1000);
+    watchId=navigator.geolocation.watchPosition(onFix,error=>{stateEl.textContent='GPS ERROR';status.textContent=`GPS unavailable: ${error.message||'permission or signal error'}`;},{enableHighAccuracy:true,timeout:15000,maximumAge:0});
+  });
+
+  pause.addEventListener('click',()=>{
+    if(!ride)return;
+    if(ride.pausedAt){
+      ride.pausedMs+=Date.now()-ride.pausedAt; ride.pausedAt=null; lastFix=null; pause.textContent='PAUSE'; stateEl.textContent='LIVE'; status.textContent='Drive resumed • waiting for the next precise GPS fix.';
+    }else{
+      ride.pausedAt=Date.now(); ride.speedKmh=0; lastFix=null; pause.textContent='RESUME'; stateEl.textContent='PAUSED'; status.textContent='Drive paused • movement is not being added.';
+    }
+    paint();
+  });
+
+  stop.addEventListener('click',finish);
+  paint();
+  root.__cleanup=()=>{if(watchId!==null)navigator.geolocation?.clearWatch(watchId);clearInterval(timer);watchId=null;timer=null;};
+  return root;
 }
 
 function aggregateRange(store,startAt){ const start=dayStart(startAt).getTime(); return Object.entries(store.days||{}).reduce((sum,[key,row])=>{const at=new Date(`${key}T00:00:00`).getTime();if(!Number.isFinite(at)||at<start)return sum;sum.distanceM+=Number(row.distanceM)||0;sum.movingMs+=Number(row.movingMs)||0;sum.trips+=Number(row.trips)||0;return sum;},{distanceM:0,movingMs:0,trips:0}); }
