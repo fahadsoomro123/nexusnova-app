@@ -1,10 +1,13 @@
 NexusNova Fresh Rebuild TEST APK
 Branch: nexusnova-fresh-rebuild-20260820
-Source commit: b50c77e14f709cf93ed12a54046fb178f39e15f4
+Source commit: 177833fdc9fe16dc370fca28234e3c332736bf6f
 Edition: TEST/debug only
-Web validation: success
-Android preparation: success
-AdMob patch: success
-Android verification: success
-Gradle build: success
-RESULT: PASS — fresh TEST APK built successfully.
+Web validation: failure
+Android preparation: skipped
+AdMob patch: skipped
+Android verification: skipped
+Gradle build: skipped
+RESULT: FAIL — inspect diagnostics below.
+
+===== web-validate.log =====
+Nova Hub apps missing ad coverage alias: nova-internet-speed
