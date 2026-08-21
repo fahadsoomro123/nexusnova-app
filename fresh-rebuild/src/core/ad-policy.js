@@ -43,7 +43,7 @@ const FEATURE_ALIAS = Object.freeze({
   weather:'mega-weather',
   qibla:'tools',
   'prayer-times':'tools',
-  'speed-test':'tools',
+  'nova-internet-speed':'tools',
   pakistan:'mega-pakistan',
   news:'news',
   location:'travel',
