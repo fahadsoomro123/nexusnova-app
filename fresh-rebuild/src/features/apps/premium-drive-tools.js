@@ -103,9 +103,18 @@ function prepareSelectedDriveMeter(gauge) {
   const gaugeSvg = gauge.querySelector('svg');
   const driveScale = gauge.querySelector('.nxgauge__scale--drive');
   const unitMark = gauge.querySelector('.nxgauge__unitmark');
+  const needle = gauge.querySelector('[data-gauge-needle]');
+  const readout = gauge.querySelector('.nxgauge__readout');
+  const odometer = gauge.querySelector('.nxdrive-odometer');
   if (faceCover) faceCover.style.setProperty('display','none','important');
   if (driveScale) driveScale.style.setProperty('visibility','hidden','important');
   if (unitMark) unitMark.style.setProperty('visibility','hidden','important');
+  if (needle) {
+    needle.style.setProperty('transform-origin','50px 51px','important');
+    needle.style.setProperty('transform-box','view-box','important');
+  }
+  if (readout) readout.style.setProperty('z-index','6','important');
+  if (odometer) odometer.style.setProperty('z-index','6','important');
 
   const face = document.createElement('div');
   face.className = 'nxdrive-live-face';
