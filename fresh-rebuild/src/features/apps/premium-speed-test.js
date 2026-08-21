@@ -138,8 +138,13 @@ function prepareLiveSpeedFace(gauge) {
     gaugeSvg.style.setProperty('position','relative','important');
     gaugeSvg.style.setProperty('z-index','4','important');
   }
+  const needleGroup = gauge.querySelector('[data-gauge-needle]');
   const needleLine = gauge.querySelector('[data-gauge-needle] line');
   const needleCircles = gauge.querySelectorAll('[data-gauge-needle] circle');
+  if (needleGroup) {
+    needleGroup.style.setProperty('transform-origin','50px 51px','important');
+    needleGroup.style.setProperty('transform-box','view-box','important');
+  }
   if (needleLine) {
     needleLine.style.setProperty('stroke','#aaf8ff','important');
     needleLine.style.setProperty('stroke-width','2.35','important');
