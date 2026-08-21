@@ -63,12 +63,39 @@ function activeDuration(ride) { if (!ride) return 0; const currentPause=ride.pau
 function compassPoint(degrees) { const names=['N','NE','E','SE','S','SW','W','NW']; return names[Math.round((((Number(degrees)||0)%360)+360)%360/45)%8]; }
 function finiteSpeedMps(value) { const n=Number(value); return Number.isFinite(n)&&n>=0&&n*3.6<=MAX_DRIVE_KMH?n:NaN; }
 
-function addMeterMask(gauge, styles) {
-  const mask = document.createElement('i');
-  mask.setAttribute('aria-hidden','true');
-  Object.assign(mask.style, {position:'absolute',display:'block',pointerEvents:'none',zIndex:'4',...styles});
-  gauge.appendChild(mask);
-  return mask;
+function drivePolar(radius, degrees) {
+  const angle = (degrees - 90) * Math.PI / 180;
+  return [50 + Math.cos(angle) * radius, 50 + Math.sin(angle) * radius];
+}
+
+function driveFaceMarkup() {
+  const ticks = [];
+  for (let speed = 0; speed <= MAX_DRIVE_KMH; speed += 5) {
+    const angle = -135 + (speed / MAX_DRIVE_KMH) * 270;
+    const major = speed % 20 === 0;
+    const outer = drivePolar(43.5, angle);
+    const inner = drivePolar(major ? 36.5 : 39.2, angle);
+    const color = speed >= 160 ? '#ff454b' : speed <= 20 ? '#75cfff' : '#e9ecee';
+    ticks.push(`<line x1="${outer[0].toFixed(2)}" y1="${outer[1].toFixed(2)}" x2="${inner[0].toFixed(2)}" y2="${inner[1].toFixed(2)}" stroke="${color}" stroke-width="${major ? .9 : .38}" opacity="${major ? .95 : .58}"/>`);
+  }
+  const labels = [];
+  for (let speed = 0; speed <= MAX_DRIVE_KMH; speed += 20) {
+    const angle = -135 + (speed / MAX_DRIVE_KMH) * 270;
+    const [x,y] = drivePolar(32.6, angle);
+    labels.push(`<text x="${x.toFixed(2)}" y="${(y+1.8).toFixed(2)}" text-anchor="middle" fill="#f2f3f4" font-size="5" font-weight="760">${speed}</text>`);
+  }
+  return `<svg viewBox="0 0 100 100" aria-hidden="true" focusable="false" style="position:absolute;inset:0;width:100%;height:100%;display:block">
+    <defs>
+      <radialGradient id="nxDriveFace"><stop offset="0" stop-color="#191d20"/><stop offset=".55" stop-color="#0d1114"/><stop offset="1" stop-color="#050708"/></radialGradient>
+      <filter id="nxDriveGlow"><feGaussianBlur stdDeviation="2.2"/></filter>
+    </defs>
+    <circle cx="50" cy="50" r="47" fill="url(#nxDriveFace)" stroke="#15191c" stroke-width="2"/>
+    <path d="M16 78 A45 45 0 0 1 9 67" fill="none" stroke="#1b9fff" stroke-width="4.5" opacity=".52" filter="url(#nxDriveGlow)"/>
+    <path d="M83 25 A45 45 0 0 1 92 63" fill="none" stroke="#ff343a" stroke-width="3.5" opacity=".28" filter="url(#nxDriveGlow)"/>
+    <g>${ticks.join('')}</g>
+    <g font-family="Arial,system-ui,sans-serif">${labels.join('')}</g>
+    <text x="50" y="31" text-anchor="middle" fill="#c9cccf" font-size="4.4" font-weight="800" letter-spacing=".8">KM/H</text>
+  </svg>`;
 }
 
 function prepareSelectedDriveMeter(gauge) {
@@ -76,38 +103,32 @@ function prepareSelectedDriveMeter(gauge) {
   const gaugeSvg = gauge.querySelector('svg');
   const driveScale = gauge.querySelector('.nxgauge__scale--drive');
   const unitMark = gauge.querySelector('.nxgauge__unitmark');
-
   if (faceCover) faceCover.style.setProperty('display','none','important');
   if (driveScale) driveScale.style.setProperty('visibility','hidden','important');
   if (unitMark) unitMark.style.setProperty('visibility','hidden','important');
+
+  const face = document.createElement('div');
+  face.className = 'nxdrive-live-face';
+  face.setAttribute('aria-hidden','true');
+  face.innerHTML = driveFaceMarkup();
+  Object.assign(face.style, {
+    position:'absolute',left:'50.8%',top:'45.2%',width:'76%',aspectRatio:'1',transform:'translate(-50%,-50%)',borderRadius:'50%',overflow:'hidden',zIndex:'2',pointerEvents:'none',
+    boxShadow:'inset 0 0 34px rgba(0,0,0,.7),0 0 0 1px rgba(255,255,255,.025)'
+  });
+  gauge.appendChild(face);
 
   if (gaugeSvg) {
     gaugeSvg.style.setProperty('position','absolute','important');
     gaugeSvg.style.setProperty('left','50.8%','important');
     gaugeSvg.style.setProperty('top','45.2%','important');
-    gaugeSvg.style.setProperty('width','69%','important');
+    gaugeSvg.style.setProperty('width','76%','important');
     gaugeSvg.style.setProperty('height','auto','important');
     gaugeSvg.style.setProperty('aspect-ratio','1','important');
     gaugeSvg.style.setProperty('transform','translate(-50%,-50%)','important');
     gaugeSvg.style.setProperty('z-index','5','important');
     gaugeSvg.style.setProperty('overflow','visible','important');
   }
-
-  const leftMask = addMeterMask(gauge, {
-    left:'23.8%', top:'47.4%', width:'28.6%', height:'5.3%', transformOrigin:'100% 50%', transform:'rotate(-12.7deg)', borderRadius:'999px',
-    background:'linear-gradient(90deg,rgba(10,15,19,.98),rgba(18,23,27,.99) 60%,rgba(24,28,31,.99))', boxShadow:'0 0 7px rgba(5,8,10,.95)'
-  });
-  const rightMask = addMeterMask(gauge, {
-    left:'49.2%', top:'41.8%', width:'10.5%', height:'6.3%', transformOrigin:'0 50%', transform:'rotate(-16deg)', borderRadius:'999px',
-    background:'linear-gradient(90deg,rgba(24,28,31,.99),rgba(14,19,23,.99))', boxShadow:'0 0 6px rgba(5,8,10,.9)'
-  });
-  const hub = addMeterMask(gauge, {
-    left:'50.8%', top:'45.2%', width:'10.2%', aspectRatio:'1', transform:'translate(-50%,-50%)', borderRadius:'50%', zIndex:'6',
-    border:'1px solid #8b9297', background:'radial-gradient(circle at 43% 38%,#7e8488 0 11%,#383d40 12% 38%,#15191c 39% 67%,#050708 68%)',
-    boxShadow:'0 0 0 3px #171b1e,0 4px 8px rgba(0,0,0,.75),inset 0 1px rgba(255,255,255,.16)'
-  });
-
-  return [leftMask, rightMask, hub];
+  return face;
 }
 
 export function renderNovaDrivePremium() {
@@ -126,7 +147,7 @@ export function renderNovaDrivePremium() {
   `,'nx-drive-premium');
 
   const gauge = root.querySelector('.nxgauge');
-  const meterMasks = prepareSelectedDriveMeter(gauge);
+  const liveFace = prepareSelectedDriveMeter(gauge);
   const stateEl=root.querySelector('[data-drive-state]'),topEl=root.querySelector('[data-drive-top]'),averageEl=root.querySelector('[data-drive-average]'),distanceEl=root.querySelector('[data-drive-distance]'),durationEl=root.querySelector('[data-drive-duration]'),accuracyEl=root.querySelector('[data-drive-accuracy]'),headingEl=root.querySelector('[data-drive-heading]'),odometerEl=root.querySelector('[data-drive-odometer]'),status=root.querySelector('[data-drive-status]'),start=root.querySelector('[data-drive-start]'),pause=root.querySelector('[data-drive-pause]'),stop=root.querySelector('[data-drive-stop]');
   let watchId=null,timer=null,storeKey='',ride=null,lastFix=null;
 
@@ -266,7 +287,7 @@ export function renderNovaDrivePremium() {
   root.__cleanup=()=>{
     if(watchId!==null) navigator.geolocation?.clearWatch(watchId);
     clearInterval(timer); watchId=null; timer=null;
-    meterMasks.forEach(mask=>mask.remove());
+    liveFace.remove();
   };
   return root;
 }
