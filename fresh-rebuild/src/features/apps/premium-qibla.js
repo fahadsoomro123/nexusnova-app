@@ -100,6 +100,8 @@ export function renderQiblaPremium() {
             <div class="nxqibla-face-rotor" data-qibla-face-rotor aria-hidden="true">
               <div class="nxqibla-face"></div>
               <div class="nxqibla-clean-face" data-qibla-clean-face></div>
+              <i class="nxqibla-mask nxqibla-mask--w" data-qibla-static-w-mask></i>
+              <i class="nxqibla-mask nxqibla-mask--sw" data-qibla-static-sw-mask></i>
               <i class="nxqibla-mask nxqibla-mask--kaaba" data-qibla-static-kaaba-mask></i>
             </div>
             <div class="nxqibla-cardinals" data-qibla-cardinals aria-hidden="true">
@@ -128,6 +130,8 @@ export function renderQiblaPremium() {
   const consoleEl = root.querySelector('[data-qibla-console]');
   const rotor = root.querySelector('[data-qibla-face-rotor]');
   const cleanFace = root.querySelector('[data-qibla-clean-face]');
+  const staticWMask = root.querySelector('[data-qibla-static-w-mask]');
+  const staticSwMask = root.querySelector('[data-qibla-static-sw-mask]');
   const staticKaabaMask = root.querySelector('[data-qibla-static-kaaba-mask]');
   const cardinals = root.querySelector('[data-qibla-cardinals]');
   const pointer = root.querySelector('[data-qibla-pointer]');
@@ -151,6 +155,24 @@ export function renderQiblaPremium() {
       background:'repeating-conic-gradient(from -1deg,rgba(201,211,219,.16) 0deg .55deg,transparent .7deg 22.5deg),radial-gradient(circle at 50% 50%,#2b3034 0 7%,#171d22 8% 34%,#10161b 35% 68%,#0a1015 69% 100%)',
       boxShadow:'inset 0 0 0 1px rgba(207,218,224,.12),inset 0 0 24px rgba(0,0,0,.72)'
     });
+  }
+  if (staticWMask) {
+    staticWMask.style.setProperty('left','9%','important');
+    staticWMask.style.setProperty('top','45.2%','important');
+    staticWMask.style.setProperty('width','44%','important');
+    staticWMask.style.setProperty('height','8%','important');
+    staticWMask.style.setProperty('transform','rotate(-1deg)','important');
+    staticWMask.style.setProperty('background','linear-gradient(90deg,#0c1218,#11181e 58%,#161d22)','important');
+    staticWMask.style.setProperty('filter','blur(.35px)','important');
+  }
+  if (staticSwMask) {
+    staticSwMask.style.setProperty('left','11%','important');
+    staticSwMask.style.setProperty('top','58%','important');
+    staticSwMask.style.setProperty('width','45%','important');
+    staticSwMask.style.setProperty('height','8%','important');
+    staticSwMask.style.setProperty('transform','rotate(-40deg)','important');
+    staticSwMask.style.setProperty('background','linear-gradient(90deg,#0b1117,#11181e 58%,#171d22)','important');
+    staticSwMask.style.setProperty('filter','blur(.35px)','important');
   }
   if (staticKaabaMask) {
     staticKaabaMask.style.setProperty('left','38%','important');
