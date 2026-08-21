@@ -4,7 +4,7 @@ import { requireFirebaseUser } from '../../core/firebase-backend.js';
 const GAUGE_ARC = 'M 76.87 76.87 A 38 38 0 1 1 76.87 23.13';
 const DRIVE_HISTORY = 90;
 const MAX_DRIVE_KMH = 240;
-const MAX_GPS_ACCURACY_M = 35;
+const MAX_GPS_ACCURACY_M = 30;
 const MAX_FIX_GAP_MS = 8000;
 const MIN_FIX_GAP_MS = 350;
 const MIN_MOVING_KMH = 2;
@@ -79,6 +79,52 @@ export function renderNovaDrivePremium() {
   `,'nx-drive-premium');
 
   const gauge=root.querySelector('.nxgauge');
+  const faceCover=gauge.querySelector('.nxgauge__glass');
+  const gaugeSvg=gauge.querySelector('svg');
+  const driveScale=gauge.querySelector('.nxgauge__scale--drive');
+  const unitMark=gauge.querySelector('.nxgauge__unitmark');
+
+  if(faceCover){
+    faceCover.style.setProperty('display','block','important');
+    faceCover.style.setProperty('position','absolute','important');
+    faceCover.style.setProperty('left','50.8%','important');
+    faceCover.style.setProperty('top','45.2%','important');
+    faceCover.style.setProperty('width','69%','important');
+    faceCover.style.setProperty('height','auto','important');
+    faceCover.style.setProperty('aspect-ratio','1','important');
+    faceCover.style.setProperty('transform','translate(-50%,-50%)','important');
+    faceCover.style.setProperty('border-radius','50%','important');
+    faceCover.style.setProperty('z-index','2','important');
+    faceCover.style.setProperty('pointer-events','none','important');
+    faceCover.style.setProperty('background','radial-gradient(circle,#171c20 0 70%,rgba(10,14,18,.96) 71% 80%,transparent 81%),repeating-conic-gradient(from -135deg,rgba(235,239,241,.72) 0deg .45deg,transparent .65deg 9deg),conic-gradient(from -135deg,transparent 0deg 205deg,rgba(255,37,46,.46) 205deg 270deg,transparent 270deg 360deg),radial-gradient(circle,#11161a 0%,#090d11 100%)','important');
+    faceCover.style.setProperty('box-shadow','inset 0 0 38px rgba(0,0,0,.76),inset 0 0 0 1px rgba(255,255,255,.05)','important');
+  }
+  if(gaugeSvg){
+    gaugeSvg.style.setProperty('position','absolute','important');
+    gaugeSvg.style.setProperty('left','50.8%','important');
+    gaugeSvg.style.setProperty('top','45.2%','important');
+    gaugeSvg.style.setProperty('width','68%','important');
+    gaugeSvg.style.setProperty('height','auto','important');
+    gaugeSvg.style.setProperty('aspect-ratio','1','important');
+    gaugeSvg.style.setProperty('transform','translate(-50%,-50%)','important');
+    gaugeSvg.style.setProperty('z-index','3','important');
+    gaugeSvg.style.setProperty('overflow','visible','important');
+  }
+  if(driveScale){
+    driveScale.style.setProperty('display','block','important');
+    driveScale.style.setProperty('opacity','1','important');
+    driveScale.querySelectorAll('text').forEach(text=>{
+      text.style.setProperty('fill','#f2f3f4','important');
+      text.style.setProperty('font-size','5.1px','important');
+      text.style.setProperty('font-weight','760','important');
+    });
+  }
+  if(unitMark){
+    unitMark.style.setProperty('display','block','important');
+    unitMark.style.setProperty('opacity','1','important');
+    unitMark.style.setProperty('fill','#c8cccf','important');
+  }
+
   const stateEl=root.querySelector('[data-drive-state]'),topEl=root.querySelector('[data-drive-top]'),averageEl=root.querySelector('[data-drive-average]'),distanceEl=root.querySelector('[data-drive-distance]'),durationEl=root.querySelector('[data-drive-duration]'),accuracyEl=root.querySelector('[data-drive-accuracy]'),headingEl=root.querySelector('[data-drive-heading]'),odometerEl=root.querySelector('[data-drive-odometer]'),status=root.querySelector('[data-drive-status]'),start=root.querySelector('[data-drive-start]'),pause=root.querySelector('[data-drive-pause]'),stop=root.querySelector('[data-drive-stop]');
   let watchId=null,timer=null,storeKey='',ride=null,lastFix=null;
 
@@ -157,7 +203,7 @@ export function renderNovaDrivePremium() {
 
           const maximumSegment=(MAX_DRIVE_KMH/3.6)*seconds*1.05;
           acceptedDistance=Math.max(0,Math.min(acceptedDistance,maximumSegment));
-          movingMs=dt;
+          if(acceptedDistance>0)movingMs=dt;
         }
 
         if(!Number.isFinite(fix.gpsSpeed))displayedKmh=calculatedKmh<=MAX_DRIVE_KMH?calculatedKmh:0;
@@ -167,7 +213,7 @@ export function renderNovaDrivePremium() {
     if(!Number.isFinite(displayedKmh)||displayedKmh<0||displayedKmh>MAX_DRIVE_KMH)displayedKmh=0;
     if(ride.speedKmh>0&&displayedKmh>0)displayedKmh=ride.speedKmh*0.28+displayedKmh*0.72;
 
-    if(acceptedDistance>0||movingMs>0){
+    if(acceptedDistance>0){
       ride.distanceM+=acceptedDistance;
       ride.movingMs+=movingMs;
       addMovement(acceptedDistance,movingMs);
