@@ -57,8 +57,8 @@ w: file:///home/runner/work/nexusnova-app/nexusnova-app/NexusNovaAndroid/app/src
 > Task :app:dexBuilderDebug
 > Task :app:mergeDebugGlobalSynthetics
 > Task :app:processDebugJavaRes
-> Task :app:mergeDebugJniLibFolders
 > Task :app:mergeLibDexDebug
+> Task :app:mergeDebugJniLibFolders
 > Task :app:mergeDebugNativeLibs NO-SOURCE
 > Task :app:stripDebugDebugSymbols NO-SOURCE
 > Task :app:mergeProjectDexDebug
@@ -69,7 +69,7 @@ w: file:///home/runner/work/nexusnova-app/nexusnova-app/NexusNovaAndroid/app/src
 > Task :app:packageDebug
 > Task :app:createDebugApkListingFileRedirect
 > Task :app:assembleDebug
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/android_build-1787288793045.json
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/android_build-1787289594194.json
 
-BUILD SUCCESSFUL in 1m 53s
+BUILD SUCCESSFUL in 2m
 40 actionable tasks: 39 executed, 1 up-to-date
