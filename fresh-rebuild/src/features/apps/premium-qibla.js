@@ -1,19 +1,16 @@
-function node(html, className = '') {
+function node(html) {
   const root = document.createElement('div');
-  root.className = `nx-app-body nx-premium-instruments ${className}`.trim();
+  root.className = 'nx-app-body nx2-qibla';
   root.innerHTML = html;
   return root;
 }
 
 function currentPosition(options = {}) {
   return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) {
-      reject(new Error('Location is not supported on this device.'));
-      return;
-    }
+    if (!navigator.geolocation) return reject(new Error('Location is not supported on this device.'));
     navigator.geolocation.getCurrentPosition(resolve, reject, {
       enableHighAccuracy: true,
-      timeout: 12000,
+      timeout: 15000,
       maximumAge: 30000,
       ...options
     });
@@ -21,36 +18,36 @@ function currentPosition(options = {}) {
 }
 
 function bearingToKaaba(latitude, longitude) {
-  const phi1 = Number(latitude) * Math.PI / 180;
-  const phi2 = 21.4225 * Math.PI / 180;
-  const lambda1 = Number(longitude) * Math.PI / 180;
-  const lambda2 = 39.8262 * Math.PI / 180;
-  const y = Math.sin(lambda2 - lambda1) * Math.cos(phi2);
-  const x = Math.cos(phi1) * Math.sin(phi2) - Math.sin(phi1) * Math.cos(phi2) * Math.cos(lambda2 - lambda1);
+  const p1 = Number(latitude) * Math.PI / 180;
+  const p2 = 21.4225 * Math.PI / 180;
+  const l1 = Number(longitude) * Math.PI / 180;
+  const l2 = 39.8262 * Math.PI / 180;
+  const y = Math.sin(l2 - l1) * Math.cos(p2);
+  const x = Math.cos(p1) * Math.sin(p2) - Math.sin(p1) * Math.cos(p2) * Math.cos(l2 - l1);
   return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
 }
 
 function distanceToKaaba(latitude, longitude) {
   const R = 6371;
-  const phi1 = Number(latitude) * Math.PI / 180;
-  const phi2 = 21.4225 * Math.PI / 180;
-  const dPhi = (21.4225 - Number(latitude)) * Math.PI / 180;
-  const dLambda = (39.8262 - Number(longitude)) * Math.PI / 180;
-  const a = Math.sin(dPhi / 2) ** 2 + Math.cos(phi1) * Math.cos(phi2) * Math.sin(dLambda / 2) ** 2;
+  const p1 = Number(latitude) * Math.PI / 180;
+  const p2 = 21.4225 * Math.PI / 180;
+  const dp = (21.4225 - Number(latitude)) * Math.PI / 180;
+  const dl = (39.8262 - Number(longitude)) * Math.PI / 180;
+  const a = Math.sin(dp / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) ** 2;
   return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 function compassPoint(degrees) {
   const names = ['N','NE','E','SE','S','SW','W','NW'];
-  const normalized = (((Number(degrees) || 0) % 360) + 360) % 360;
-  return names[Math.round(normalized / 45) % 8];
+  const d = (((Number(degrees) || 0) % 360) + 360) % 360;
+  return names[Math.round(d / 45) % 8];
 }
 
 function compactPlace(parts) {
   const seen = new Set();
-  return parts.map(value => String(value || '').trim()).filter(value => {
-    const key = value.toLowerCase();
-    if (!value || seen.has(key)) return false;
+  return parts.map(v => String(v || '').trim()).filter(v => {
+    const key = v.toLowerCase();
+    if (!v || seen.has(key)) return false;
     seen.add(key);
     return true;
   }).slice(0, 3).join(', ');
@@ -58,18 +55,18 @@ function compactPlace(parts) {
 
 async function reversePlace(lat, lon) {
   try {
-    const response = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lon)}&localityLanguage=en`, { cache:'no-store' });
-    if (response.ok) {
-      const json = await response.json();
-      const place = compactPlace([json.locality || json.city || json.principalSubdivision, json.principalSubdivision, json.countryName]);
+    const r = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lon)}&localityLanguage=en`, { cache:'no-store' });
+    if (r.ok) {
+      const j = await r.json();
+      const place = compactPlace([j.locality || j.city || j.principalSubdivision, j.principalSubdivision, j.countryName]);
       if (place) return place;
     }
   } catch {}
   try {
-    const response = await fetch(`https://photon.komoot.io/reverse?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`, { cache:'no-store' });
-    if (response.ok) {
-      const props = (await response.json())?.features?.[0]?.properties || {};
-      const place = compactPlace([props.city || props.town || props.village || props.name, props.state, props.country]);
+    const r = await fetch(`https://photon.komoot.io/reverse?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`, { cache:'no-store' });
+    if (r.ok) {
+      const p = (await r.json())?.features?.[0]?.properties || {};
+      const place = compactPlace([p.city || p.town || p.village || p.name, p.state, p.country]);
       if (place) return place;
     }
   } catch {}
@@ -77,239 +74,52 @@ async function reversePlace(lat, lon) {
 }
 
 function polar(radius, degrees) {
-  const angle = (degrees - 90) * Math.PI / 180;
-  return [50 + Math.cos(angle) * radius, 50 + Math.sin(angle) * radius];
+  const a = (degrees - 90) * Math.PI / 180;
+  return [500 + Math.cos(a) * radius, 500 + Math.sin(a) * radius];
 }
 
-function compassFaceMarkup() {
+function qiblaCompassSvg() {
   const ticks = [];
-  for (let degree = 0; degree < 360; degree += 5) {
-    const major = degree % 30 === 0;
-    const medium = !major && degree % 10 === 0;
-    const outer = polar(46.4, degree);
-    const inner = polar(major ? 40.7 : medium ? 42.3 : 43.5, degree);
-    ticks.push(`<line x1="${outer[0].toFixed(2)}" y1="${outer[1].toFixed(2)}" x2="${inner[0].toFixed(2)}" y2="${inner[1].toFixed(2)}" stroke="${major ? '#e4e9ec' : medium ? '#aab4bb' : '#69757e'}" stroke-width="${major ? 0.72 : medium ? 0.44 : 0.26}" opacity="${major ? .92 : medium ? .72 : .5}"/>`);
+  for (let d = 0; d < 360; d += 2) {
+    const major = d % 20 === 0;
+    const medium = !major && d % 10 === 0;
+    const [x1,y1] = polar(447,d);
+    const [x2,y2] = polar(major ? 405 : medium ? 418 : 428,d);
+    ticks.push(`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${major ? '#eef4f8' : '#8ba0af'}" stroke-width="${major ? 3.2 : medium ? 2 : 1.2}" opacity="${major ? .95 : medium ? .72 : .55}"/>`);
   }
-
-  const degreeLabels = [];
-  for (let degree = 0; degree < 360; degree += 20) {
-    const [x, y] = polar(36.6, degree);
-    degreeLabels.push(`<text x="${x.toFixed(2)}" y="${(y + 1.15).toFixed(2)}" text-anchor="middle" fill="#9ca6ad" font-size="2.65" font-weight="700">${String(degree).padStart(3, '0')}</text>`);
+  const labels = [];
+  for (let d = 0; d < 360; d += 20) {
+    const [x,y] = polar(370,d);
+    labels.push(`<text x="${x.toFixed(1)}" y="${(y+10).toFixed(1)}" text-anchor="middle" fill="#cbd7df" font-size="25" font-weight="700">${String(d).padStart(3,'0')}</text>`);
   }
-
-  const roseAngles = [0,45,90,135,180,225,270,315];
-  const rose = roseAngles.map((degree, index) => {
-    const long = index % 2 === 0;
-    const tip = polar(long ? 27.5 : 21.5, degree);
-    const left = polar(long ? 5.3 : 4.3, degree - 90);
-    const right = polar(long ? 5.3 : 4.3, degree + 90);
-    const fill = degree === 0 ? 'url(#nxqiblaNorth)' : degree === 180 ? 'url(#nxqiblaSouth)' : index % 2 === 0 ? 'url(#nxqiblaSilver)' : 'url(#nxqiblaDarkSilver)';
-    return `<polygon points="${left[0].toFixed(2)},${left[1].toFixed(2)} ${tip[0].toFixed(2)},${tip[1].toFixed(2)} ${right[0].toFixed(2)},${right[1].toFixed(2)} 50,50" fill="${fill}" stroke="#05080a" stroke-width=".38" opacity="${long ? .96 : .78}"/>`;
-  }).join('');
-
-  return `<svg class="nxqibla-face-svg" viewBox="0 0 100 100" aria-hidden="true" focusable="false" style="position:absolute;inset:0;width:100%;height:100%;display:block">
-    <defs>
-      <radialGradient id="nxqiblaFace" cx="50%" cy="43%" r="62%"><stop offset="0" stop-color="#333b42"/><stop offset=".34" stop-color="#20272d"/><stop offset=".72" stop-color="#0d1318"/><stop offset="1" stop-color="#05090c"/></radialGradient>
-      <linearGradient id="nxqiblaSilver" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#eef2f4"/><stop offset=".42" stop-color="#929da5"/><stop offset="1" stop-color="#3b444a"/></linearGradient>
-      <linearGradient id="nxqiblaDarkSilver" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#aab3b9"/><stop offset=".55" stop-color="#59636a"/><stop offset="1" stop-color="#232a2f"/></linearGradient>
-      <linearGradient id="nxqiblaNorth" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f4f6f7"/><stop offset="1" stop-color="#8a969e"/></linearGradient>
-      <linearGradient id="nxqiblaSouth" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7f8b93"/><stop offset="1" stop-color="#252d32"/></linearGradient>
-      <filter id="nxqiblaShadow"><feDropShadow dx="0" dy="1" stdDeviation="1.2" flood-color="#000" flood-opacity=".9"/></filter>
-    </defs>
-    <circle cx="50" cy="50" r="47.3" fill="#070b0e" stroke="#707b82" stroke-width="1.15"/>
-    <circle cx="50" cy="50" r="44.5" fill="url(#nxqiblaFace)" stroke="#2d353a" stroke-width="1.1"/>
-    <circle cx="50" cy="50" r="39.6" fill="none" stroke="#667078" stroke-width=".36" opacity=".72"/>
-    <circle cx="50" cy="50" r="31.7" fill="none" stroke="#434c52" stroke-width=".42" opacity=".62"/>
-    <g>${ticks.join('')}</g>
-    <g font-family="Arial,system-ui,sans-serif">${degreeLabels.join('')}</g>
-    <g filter="url(#nxqiblaShadow)">${rose}</g>
-    <circle cx="50" cy="50" r="12.1" fill="rgba(4,7,9,.7)" stroke="#69747a" stroke-width=".55"/>
-    <text x="50" y="18.2" text-anchor="middle" fill="#f3f5f6" font-family="Georgia,serif" font-size="7.9" font-weight="700">N</text>
-    <text x="82.5" y="52.4" text-anchor="middle" fill="#dce1e4" font-family="Georgia,serif" font-size="7.1" font-weight="700">E</text>
-    <text x="50" y="86.6" text-anchor="middle" fill="#dce1e4" font-family="Georgia,serif" font-size="7.1" font-weight="700">S</text>
-    <text x="17.5" y="52.4" text-anchor="middle" fill="#dce1e4" font-family="Georgia,serif" font-size="7.1" font-weight="700">W</text>
-  </svg>`;
+  const star = [];
+  for (let d = 0; d < 360; d += 45) {
+    const long = d % 90 === 0;
+    const [tx,ty] = polar(long ? 270 : 205,d);
+    const [lx,ly] = polar(long ? 62 : 48,d-90);
+    const [rx,ry] = polar(long ? 62 : 48,d+90);
+    star.push(`<polygon points="500,500 ${lx.toFixed(1)},${ly.toFixed(1)} ${tx.toFixed(1)},${ty.toFixed(1)} ${rx.toFixed(1)},${ry.toFixed(1)}" fill="${long ? 'url(#qbSilver)' : 'url(#qbDarkSilver)'}" stroke="#07101a" stroke-width="4"/>`);
+  }
+  return `<svg class="nx2-qb-svg" viewBox="0 0 1000 1000" role="img" aria-label="Live Qibla compass"><defs><radialGradient id="qbFace" cx="48%" cy="42%" r="66%"><stop offset="0" stop-color="#18304a"/><stop offset=".45" stop-color="#0f2235"/><stop offset="1" stop-color="#06111d"/></radialGradient><linearGradient id="qbRing" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e6edf2"/><stop offset=".22" stop-color="#65717a"/><stop offset=".5" stop-color="#18232c"/><stop offset=".76" stop-color="#bac4ca"/><stop offset="1" stop-color="#323b42"/></linearGradient><linearGradient id="qbSilver" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f7fbfd"/><stop offset=".45" stop-color="#aab9c4"/><stop offset="1" stop-color="#364653"/></linearGradient><linearGradient id="qbDarkSilver" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#9eb0bd"/><stop offset=".5" stop-color="#475867"/><stop offset="1" stop-color="#172431"/></linearGradient><linearGradient id="qbGold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff1a6"/><stop offset=".32" stop-color="#f2c44f"/><stop offset=".68" stop-color="#aa6918"/><stop offset="1" stop-color="#ffdc68"/></linearGradient><filter id="qbGlow"><feGaussianBlur stdDeviation="9" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter><filter id="qbShadow"><feDropShadow dx="0" dy="11" stdDeviation="12" flood-color="#000" flood-opacity=".9"/></filter></defs><g data-qb-rotor filter="url(#qbShadow)"><circle cx="500" cy="500" r="478" fill="#050a10" stroke="url(#qbRing)" stroke-width="24"/><circle cx="500" cy="500" r="452" fill="url(#qbFace)" stroke="#677783" stroke-width="4"/><circle cx="500" cy="500" r="411" fill="none" stroke="#7c8c96" stroke-width="2" opacity=".75"/><circle cx="500" cy="500" r="337" fill="none" stroke="#31495d" stroke-width="2"/>${ticks.join('')}${labels.join('')}<g>${star.join('')}</g><text x="500" y="230" text-anchor="middle" fill="#f3f3ee" font-family="Georgia,serif" font-size="70" font-weight="700">N</text><text x="770" y="524" text-anchor="middle" fill="#eee" font-family="Georgia,serif" font-size="66" font-weight="700">E</text><text x="500" y="807" text-anchor="middle" fill="#eee" font-family="Georgia,serif" font-size="66" font-weight="700">S</text><text x="230" y="524" text-anchor="middle" fill="#eee" font-family="Georgia,serif" font-size="66" font-weight="700">W</text><circle cx="500" cy="500" r="81" fill="#0a1118" stroke="url(#qbRing)" stroke-width="12"/><circle cx="500" cy="500" r="42" fill="url(#qbGold)" stroke="#1c1305" stroke-width="8"/><circle cx="500" cy="500" r="23" fill="#12191e" stroke="#f0ce72" stroke-width="5"/></g><g data-qb-pointer filter="url(#qbGlow)"><line x1="500" y1="500" x2="500" y2="126" stroke="url(#qbGold)" stroke-width="16" stroke-linecap="round"/><polygon points="500,76 458,150 542,150" fill="url(#qbGold)" stroke="#6e430e" stroke-width="5"/><g transform="translate(450 18)"><polygon points="50,0 18,32 82,32" fill="#f3c94f" stroke="#7a4c0b" stroke-width="4"/><rect x="18" y="31" width="64" height="64" rx="4" fill="#050505" stroke="#d7aa35" stroke-width="4"/><rect x="18" y="48" width="64" height="10" fill="#d7aa35"/><rect x="35" y="68" width="12" height="27" fill="#b47715"/><rect x="55" y="68" width="10" height="14" fill="#b47715"/></g></g><g class="nx2-qb-device-arrow"><polygon points="500,96 484,128 516,128" fill="#eaf8ff"/></g></svg>`;
 }
+
+const qiblaStyles = `.nx2-qibla-screen>.nx-app-head{display:none!important}.nx2-qibla{display:block!important;width:100%!important;max-width:none!important;padding:0 0 28px!important;color:#f6f9fc;font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif}.nx2-qibla *{box-sizing:border-box}.nx2-qibla button{font:inherit}.nx2-qb-page{padding:20px 16px 10px;border-radius:0;background:radial-gradient(circle at 50% 34%,rgba(0,97,162,.16),transparent 28%),linear-gradient(#030d17,#020a12);overflow:hidden}.nx2-qb-head{display:grid;grid-template-columns:52px 66px minmax(0,1fr) 52px 52px;gap:10px;align-items:center}.nx2-qb-btn,.nx2-qb-icon{height:52px;border:1px solid #234762;border-radius:16px;background:linear-gradient(145deg,#071724,#03101a);box-shadow:inset 0 1px rgba(255,255,255,.08),0 8px 20px rgba(0,0,0,.28)}.nx2-qb-btn{display:grid;place-items:center;color:#f4f8fb;font-size:30px;cursor:pointer}.nx2-qb-icon{display:grid;place-items:center;color:#35d9ff}.nx2-qb-icon svg{width:40px;height:40px;filter:drop-shadow(0 0 10px rgba(29,205,255,.5))}.nx2-qb-title strong{display:block;font-size:25px;line-height:1.05;letter-spacing:-.03em}.nx2-qb-title span{display:block;margin-top:6px;color:#9caec0;font-size:13px}.nx2-qb-menu{font-size:25px;letter-spacing:1px}.nx2-qb-grid{display:grid;grid-template-columns:minmax(92px,22%) minmax(0,56%) minmax(92px,22%);gap:12px;align-items:center;margin-top:30px}.nx2-qb-side{display:grid;gap:12px}.nx2-qb-card{min-height:142px;padding:14px 13px;border:1px solid #19415d;border-radius:18px;background:linear-gradient(150deg,rgba(5,26,42,.96),rgba(2,14,25,.98));box-shadow:inset 0 1px rgba(255,255,255,.035)}.nx2-qb-card span{display:block;color:#42cfff;font-size:9px;font-weight:800;letter-spacing:.04em}.nx2-qb-card strong{display:block;margin-top:12px;color:#f5f8fb;font-size:25px;line-height:1.05}.nx2-qb-card small{display:block;margin-top:7px;color:#9eb0c1;font-size:9px;line-height:1.35}.nx2-qb-card .nx2-qb-place{font-size:13px;line-height:1.28}.nx2-qb-card .nx2-qb-green{color:#35ec5d;font-size:15px}.nx2-qb-visual{position:relative;min-width:0}.nx2-qb-compass{width:min(100%,590px);aspect-ratio:1;margin:auto}.nx2-qb-svg{display:block;width:100%;height:100%;overflow:visible}.nx2-qb-mini{margin-top:14px;height:62px;position:relative}.nx2-qb-mini::before{content:"";position:absolute;left:16%;right:16%;top:30px;border-top:1px solid #154361}.nx2-qb-mini::after{content:"";position:absolute;left:50%;top:14px;width:14px;height:14px;border:3px solid #35bfff;border-radius:50%;transform:translateX(-50%);box-shadow:0 0 16px #159cff}.nx2-qb-mag{min-height:250px}.nx2-qb-mag-grid{display:grid;grid-template-columns:20px 1fr;gap:8px;margin-top:15px;color:#f1f5f8;font-size:11px}.nx2-qb-mag-grid b{color:#38cfff}.nx2-qb-statusline{margin-top:14px;padding-top:14px;border-top:1px solid #244256;color:#9fb0bf;font-size:10px}.nx2-qb-ready{display:grid;grid-template-columns:94px minmax(0,1fr) 180px;gap:18px;align-items:center;margin-top:28px;padding:18px 22px;border:1px solid #173f5a;border-radius:20px;background:linear-gradient(145deg,#061a2b,#03101b)}.nx2-qb-ready-icon{width:82px;height:82px;border:2px solid #20baff;border-radius:50%;display:grid;place-items:center;color:#35e5ff;font-size:40px;box-shadow:0 0 28px rgba(0,177,255,.28),inset 0 0 24px rgba(0,183,255,.16)}.nx2-qb-ready strong{display:block;font-size:17px}.nx2-qb-ready p{margin:7px 0 0;color:#9daec0;font-size:12px;line-height:1.45}.nx2-qb-ready-art{height:86px;border-radius:15px;background:linear-gradient(155deg,transparent 42%,rgba(0,130,216,.22)),radial-gradient(circle at 65% 70%,rgba(0,181,255,.26),transparent 32%);position:relative;overflow:hidden}.nx2-qb-ready-art::after{content:"KAABA";position:absolute;right:18px;bottom:18px;color:#32cfff;font-weight:900;letter-spacing:.12em}@media(max-width:700px){.nx2-qb-page{padding:16px 10px 12px}.nx2-qb-head{grid-template-columns:48px 56px minmax(0,1fr) 48px 48px;gap:7px}.nx2-qb-btn,.nx2-qb-icon{height:48px;border-radius:15px}.nx2-qb-title strong{font-size:21px}.nx2-qb-title span{font-size:11px}.nx2-qb-grid{grid-template-columns:minmax(78px,22%) minmax(0,56%) minmax(78px,22%);gap:7px;margin-top:22px}.nx2-qb-side{gap:8px}.nx2-qb-card{min-height:111px;padding:10px 8px;border-radius:15px}.nx2-qb-card span{font-size:7px}.nx2-qb-card strong{margin-top:8px;font-size:17px}.nx2-qb-card small{font-size:7px}.nx2-qb-card .nx2-qb-place{font-size:10px}.nx2-qb-card .nx2-qb-green{font-size:11px}.nx2-qb-mag{min-height:228px}.nx2-qb-ready{grid-template-columns:72px minmax(0,1fr);padding:15px;gap:12px}.nx2-qb-ready-icon{width:64px;height:64px;font-size:30px}.nx2-qb-ready-art{display:none}.nx2-qb-ready strong{font-size:14px}.nx2-qb-ready p{font-size:10px}}`;
+
+function iconMarkup() { return `<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M38 8c-8 1-14 8-14 16 0 9 7 16 16 16 5 0 10-2 13-6-2 11-12 20-24 20-14 0-25-11-25-25 0-13 10-24 23-25 4 0 8 1 11 4z" fill="none" stroke="currentColor" stroke-width="3" opacity=".9"/><rect x="20" y="30" width="24" height="19" rx="2" fill="none" stroke="currentColor" stroke-width="3"/><path d="M20 36h24M28 41v8" stroke="currentColor" stroke-width="2"/></svg>`; }
 
 export function renderQiblaPremium() {
-  const root = node(`
-    <div class="nxqibla-premium-title"><b>QIBLA COMPASS</b><span> – PREMIUM</span></div>
-    <section class="nxqibla-console nxqibla-console--selected" data-qibla-console>
-      <header class="nxqibla-head">
-        <button class="nxqibla-headbtn nxqibla-back" type="button" data-qibla-back aria-label="Back">‹</button>
-        <span class="nxqibla-appicon" data-qibla-appicon aria-hidden="true">⌖</span>
-        <div class="nxqibla-headcopy"><strong>Qibla Compass</strong><span>Find direction to Kaaba</span></div>
-        <button class="nxqibla-headbtn nxqibla-enable" type="button" data-qibla-enable aria-label="Activate live compass">◎</button>
-      </header>
-
-      <div class="nxqibla-layout" data-qibla-layout>
-        <aside class="nxqibla-side nxqibla-side--left">
-          <article><span>QIBLA DIRECTION</span><strong data-qibla-bearing>—</strong><small data-qibla-point>FROM NORTH</small></article>
-          <article><span>DISTANCE</span><strong data-qibla-distance>—</strong><small>TO KAABA</small></article>
-          <article><span>LOCATION</span><strong class="nxqibla-location" data-qibla-location>Current location</strong><small data-qibla-coords>—</small></article>
-          <article class="nxqibla-health"><span>CALIBRATION</span><strong data-qibla-calibration>Waiting</strong></article>
-        </aside>
-
-        <div class="nxqibla-dial-wrap">
-          <div class="nxqibla-dial" data-qibla-dial>
-            <div class="nxqibla-face-rotor" data-qibla-face-rotor aria-hidden="true">${compassFaceMarkup()}</div>
-            <div class="nxqibla-qibla" data-qibla-pointer>
-              <span class="nxqibla-kaaba" data-qibla-kaaba aria-hidden="true"><i></i><b></b></span>
-              <i></i><b>QIBLA</b>
-            </div>
-            <div class="nxqibla-heading"><i></i></div>
-            <div class="nxqibla-core"><span>LIVE</span><strong>●</strong></div>
-          </div>
-        </div>
-
-        <aside class="nxqibla-side nxqibla-side--right">
-          <article><span>HEADING</span><strong data-qibla-heading>—</strong><small data-qibla-heading-point>—</small></article>
-          <article><span>TILT</span><strong data-qibla-tilt>—</strong><small>PHONE ANGLE</small></article>
-          <article><span>MAGNETIC FIELD</span><strong class="nxqibla-location" data-qibla-field>Sensor idle</strong><small>DEVICE COMPASS</small></article>
-          <article class="nxqibla-health"><span>COMPASS</span><strong data-qibla-strength>Waiting</strong></article>
-        </aside>
-      </div>
-      <p class="nxpi-status" data-qibla-status>Location and orientation are used only while this screen is open.</p>
-    </section>
-  `, 'nx-qibla-premium');
-
-  const consoleEl = root.querySelector('[data-qibla-console]');
-  const layout = root.querySelector('[data-qibla-layout]');
-  const dial = root.querySelector('[data-qibla-dial]');
-  const rotor = root.querySelector('[data-qibla-face-rotor]');
-  const pointer = root.querySelector('[data-qibla-pointer]');
-  const kaaba = root.querySelector('[data-qibla-kaaba]');
-  const bearingEl = root.querySelector('[data-qibla-bearing]');
-  const pointEl = root.querySelector('[data-qibla-point]');
-  const distanceEl = root.querySelector('[data-qibla-distance]');
-  const locationEl = root.querySelector('[data-qibla-location]');
-  const coordsEl = root.querySelector('[data-qibla-coords]');
-  const headingEl = root.querySelector('[data-qibla-heading]');
-  const headingPointEl = root.querySelector('[data-qibla-heading-point]');
-  const tiltEl = root.querySelector('[data-qibla-tilt]');
-  const fieldEl = root.querySelector('[data-qibla-field]');
-  const calibrationEl = root.querySelector('[data-qibla-calibration]');
-  const strengthEl = root.querySelector('[data-qibla-strength]');
-  const status = root.querySelector('[data-qibla-status]');
-  const enable = root.querySelector('[data-qibla-enable]');
-
-  layout.style.setProperty('grid-template-columns','minmax(68px,.62fr) minmax(0,2.15fr) minmax(68px,.62fr)','important');
-  layout.style.setProperty('gap','6px','important');
-  dial.style.setProperty('width','min(100%,330px)','important');
-  dial.style.setProperty('background','#070b0e','important');
-
-  if (kaaba) {
-    Object.assign(kaaba.style, {
-      left:'50%', top:'3.5%', width:'29px', height:'34px', transform:'translateX(-50%)', fontSize:'0',
-      borderRadius:'3px', background:'#050505', border:'1px solid #c99d36', boxShadow:'0 2px 4px #000,0 0 7px rgba(225,180,67,.38)', overflow:'visible'
-    });
-    const body = kaaba.querySelector('i');
-    const roof = kaaba.querySelector('b');
-    if (body) Object.assign(body.style, {position:'absolute',left:'2px',right:'2px',top:'9px',bottom:'2px',display:'block',background:'linear-gradient(#090909,#010101)',borderTop:'4px solid #d5aa42',boxShadow:'inset 0 0 0 1px rgba(255,255,255,.04)'});
-    if (roof) Object.assign(roof.style, {position:'absolute',left:'50%',top:'-8px',width:'0',height:'0',transform:'translateX(-50%)',borderLeft:'14px solid transparent',borderRight:'14px solid transparent',borderBottom:'14px solid #e3b43e',filter:'drop-shadow(0 1px 2px #000)'});
-  }
-
-  let bearing = null;
-  let heading = 0;
-  let listening = false;
-  let screen = null;
-
-  queueMicrotask(() => {
-    screen = root.closest('.nx-screen');
-    screen?.classList.add('nx-qibla-screen');
-    const sourceIcon = screen?.querySelector(':scope > .nx-app-head .nx-app-head__icon svg');
-    const targetIcon = root.querySelector('[data-qibla-appicon]');
-    if (sourceIcon && targetIcon) {
-      targetIcon.textContent = '';
-      targetIcon.appendChild(sourceIcon.cloneNode(true));
-    }
-  });
-
-  const shortest = (target, actual) => {
-    let delta = ((target - actual + 540) % 360) - 180;
-    if (delta === -180) delta = 180;
-    return delta;
-  };
-
-  const paint = () => {
-    if (!Number.isFinite(bearing)) return;
-    const relative = shortest(bearing, heading);
-    rotor.style.transform = `rotate(${-heading}deg)`;
-    pointer.style.transform = `rotate(${relative}deg)`;
-    bearingEl.textContent = `${bearing.toFixed(0)}°`;
-    pointEl.textContent = `${compassPoint(bearing)} • FROM NORTH`;
-    headingEl.textContent = `${heading.toFixed(0)}°`;
-    headingPointEl.textContent = `${compassPoint(heading)} • DEVICE`;
-    const aligned = Math.abs(relative) <= 3;
-    consoleEl.classList.toggle('is-aligned', aligned);
-    calibrationEl.textContent = aligned ? '● Excellent' : listening ? '● Active' : 'Ready';
-    strengthEl.textContent = aligned ? '● Strong' : listening ? '● Live' : 'Ready';
-    enable.classList.toggle('is-live', listening);
-    enable.textContent = listening ? '◉' : '◎';
-  };
-
-  const onOrientation = event => {
-    const webkit = Number(event.webkitCompassHeading);
-    if (Number.isFinite(webkit)) heading = webkit;
-    else {
-      const alpha = Number(event.alpha);
-      if (Number.isFinite(alpha)) heading = (360 - alpha) % 360;
-    }
-    const beta = Number(event.beta);
-    const gamma = Number(event.gamma);
-    if (Number.isFinite(beta) || Number.isFinite(gamma)) {
-      const tilt = Math.sqrt((Number.isFinite(beta) ? beta : 0) ** 2 + (Number.isFinite(gamma) ? gamma : 0) ** 2);
-      tiltEl.textContent = `${Math.round(Math.min(90, tilt))}°`;
-    }
-    fieldEl.textContent = 'Normal';
-    paint();
-  };
-
-  const enableOrientation = async () => {
-    try {
-      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-        const permission = await DeviceOrientationEvent.requestPermission();
-        if (permission !== 'granted') throw new Error('Motion permission was not granted.');
-      }
-      if (!listening) {
-        window.addEventListener('deviceorientationabsolute', onOrientation, true);
-        window.addEventListener('deviceorientation', onOrientation, true);
-        listening = true;
-      }
-      status.textContent = 'Compass active • only the compass dial and Qibla needle respond to heading.';
-      paint();
-    } catch (error) {
-      status.textContent = error?.message || 'Device orientation is unavailable.';
-    }
-  };
-
-  currentPosition().then(async position => {
-    const lat = Number(position.coords.latitude);
-    const lon = Number(position.coords.longitude);
-    bearing = bearingToKaaba(lat, lon);
-    distanceEl.textContent = `${Math.round(distanceToKaaba(lat, lon)).toLocaleString()} km`;
-    const latSuffix = lat >= 0 ? 'N' : 'S';
-    const lonSuffix = lon >= 0 ? 'E' : 'W';
-    coordsEl.textContent = `${Math.abs(lat).toFixed(4)}° ${latSuffix} • ${Math.abs(lon).toFixed(4)}° ${lonSuffix}`;
-    locationEl.textContent = await reversePlace(lat, lon);
-    status.textContent = `Location locked • accuracy about ${Math.round(Number(position.coords.accuracy) || 0)} m.`;
-    calibrationEl.textContent = 'Ready';
-    strengthEl.textContent = 'Ready';
-    paint();
-    if (typeof DeviceOrientationEvent === 'undefined' || typeof DeviceOrientationEvent.requestPermission !== 'function') enableOrientation();
-  }).catch(error => {
-    status.textContent = error?.message || 'Location permission is required to calculate Qibla.';
-  });
-
-  root.querySelector('[data-qibla-back]').addEventListener('click', () => screen?.querySelector(':scope > .nx-app-head [data-app-back]')?.click());
-  enable.addEventListener('click', enableOrientation);
-
-  root.__cleanup = () => {
-    window.removeEventListener('deviceorientationabsolute', onOrientation, true);
-    window.removeEventListener('deviceorientation', onOrientation, true);
-    screen?.classList.remove('nx-qibla-screen');
-  };
-  return root;
+  const root = node(`<style>${qiblaStyles}</style><section class="nx2-qb-page"><header class="nx2-qb-head"><button class="nx2-qb-btn" type="button" data-qb-back aria-label="Back">‹</button><div class="nx2-qb-icon">${iconMarkup()}</div><div class="nx2-qb-title"><strong>Qibla Compass</strong><span>Find direction to Kaaba</span></div><button class="nx2-qb-btn" type="button" data-qb-enable aria-label="Activate compass">⌾</button><button class="nx2-qb-btn nx2-qb-menu" type="button" data-qb-menu aria-label="Compass menu">⋮</button></header><section class="nx2-qb-grid"><aside class="nx2-qb-side"><article class="nx2-qb-card"><span>QIBLA DIRECTION</span><strong data-qb-bearing>—</strong><small>From North</small><div class="nx2-qb-mini"></div></article><article class="nx2-qb-card"><span>DISTANCE</span><strong><b data-qb-distance>—</b> <small style="display:inline">km</small></strong><small>TO KAABA</small></article><article class="nx2-qb-card"><span>LOCATION</span><strong class="nx2-qb-place" data-qb-location>Locating…</strong><small data-qb-coords>—</small><div class="nx2-qb-mini"></div></article><article class="nx2-qb-card"><span>CALIBRATION</span><strong class="nx2-qb-green" data-qb-calibration>● Waiting</strong><small>Compass accuracy</small></article></aside><div class="nx2-qb-visual"><div class="nx2-qb-compass">${qiblaCompassSvg()}</div></div><aside class="nx2-qb-side"><article class="nx2-qb-card"><span>HEADING</span><strong data-qb-heading>—</strong><small data-qb-heading-point>From North</small><div class="nx2-qb-mini"></div></article><article class="nx2-qb-card nx2-qb-mag"><span>MAGNETOMETER</span><div class="nx2-qb-mag-grid"><b>X</b><span data-qb-mag-x>— µT</span><b>Y</b><span data-qb-mag-y>— µT</span><b>Z</b><span data-qb-mag-z>— µT</span></div><div class="nx2-qb-statusline">STATUS<br><strong class="nx2-qb-green" data-qb-field>Sensor unavailable</strong><small data-qb-strength>Field strength —</small></div></article></aside></section><section class="nx2-qb-ready"><div class="nx2-qb-ready-icon">✓</div><div><strong>Compass is ready</strong><p data-qb-status>Location and orientation are used only while this screen is open.</p></div><div class="nx2-qb-ready-art"></div></section></section>`);
+  let screen = null, bearing = NaN, heading = 0, listening = false, magnetometer = null;
+  const rotor=root.querySelector('[data-qb-rotor]'),pointer=root.querySelector('[data-qb-pointer]'),bearingEl=root.querySelector('[data-qb-bearing]'),distanceEl=root.querySelector('[data-qb-distance]'),locationEl=root.querySelector('[data-qb-location]'),coordsEl=root.querySelector('[data-qb-coords]'),headingEl=root.querySelector('[data-qb-heading]'),headingPointEl=root.querySelector('[data-qb-heading-point]'),calibrationEl=root.querySelector('[data-qb-calibration]'),statusEl=root.querySelector('[data-qb-status]'),fieldEl=root.querySelector('[data-qb-field]'),strengthEl=root.querySelector('[data-qb-strength]'),enableBtn=root.querySelector('[data-qb-enable]');
+  queueMicrotask(() => { screen=root.closest('.nx-screen'); screen?.classList.add('nx2-qibla-screen'); });
+  const shortest=(target,actual)=>{let delta=((target-actual+540)%360)-180;if(delta===-180)delta=180;return delta;};
+  const paint=()=>{rotor?.setAttribute('transform',`rotate(${-heading.toFixed(2)} 500 500)`);if(Number.isFinite(bearing))pointer?.setAttribute('transform',`rotate(${shortest(bearing,heading).toFixed(2)} 500 500)`);if(Number.isFinite(bearing))bearingEl.textContent=`${Math.round(bearing)}°`;headingEl.textContent=`${Math.round(heading)}°`;headingPointEl.textContent=`${compassPoint(heading)} • From North`;const aligned=Number.isFinite(bearing)&&Math.abs(shortest(bearing,heading))<=3;calibrationEl.textContent=aligned?'● Excellent':listening?'● Active':'● Ready';enableBtn.textContent=listening?'◉':'⌾';};
+  const onOrientation=event=>{const webkit=Number(event.webkitCompassHeading),alpha=Number(event.alpha);if(Number.isFinite(webkit))heading=webkit;else if(Number.isFinite(alpha))heading=(360-alpha+360)%360;paint();};
+  const startMagnetometer=()=>{if(!('Magnetometer' in window)||magnetometer)return;try{magnetometer=new window.Magnetometer({frequency:10});magnetometer.addEventListener('reading',()=>{const x=Number(magnetometer.x),y=Number(magnetometer.y),z=Number(magnetometer.z);root.querySelector('[data-qb-mag-x]').textContent=Number.isFinite(x)?`${x.toFixed(1)} µT`:'— µT';root.querySelector('[data-qb-mag-y]').textContent=Number.isFinite(y)?`${y.toFixed(1)} µT`:'— µT';root.querySelector('[data-qb-mag-z]').textContent=Number.isFinite(z)?`${z.toFixed(1)} µT`:'— µT';const strength=Math.sqrt(x*x+y*y+z*z);if(Number.isFinite(strength)){fieldEl.textContent=strength>=20&&strength<=80?'Normal':'Check field';strengthEl.textContent=`Field strength ${strength.toFixed(1)} µT`;}});magnetometer.addEventListener('error',()=>{fieldEl.textContent='Sensor unavailable';});magnetometer.start();}catch{fieldEl.textContent='Sensor unavailable';}};
+  const enableSensors=async()=>{try{if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'){const permission=await DeviceOrientationEvent.requestPermission();if(permission!=='granted')throw new Error('Motion permission was not granted.');}if(!listening){window.addEventListener('deviceorientationabsolute',onOrientation,true);window.addEventListener('deviceorientation',onOrientation,true);listening=true;}startMagnetometer();statusEl.textContent='Point the golden arrow towards the Kaaba for the correct Qibla direction.';paint();}catch(error){statusEl.textContent=error?.message||'Device orientation is unavailable.';}};
+  currentPosition().then(async position=>{const lat=Number(position.coords.latitude),lon=Number(position.coords.longitude);bearing=bearingToKaaba(lat,lon);distanceEl.textContent=Math.round(distanceToKaaba(lat,lon)).toLocaleString();const ns=lat>=0?'N':'S',ew=lon>=0?'E':'W';coordsEl.textContent=`${Math.abs(lat).toFixed(4)}° ${ns} • ${Math.abs(lon).toFixed(4)}° ${ew}`;locationEl.textContent=await reversePlace(lat,lon);statusEl.textContent='Compass is ready. Point the golden arrow towards the Kaaba.';paint();if(typeof DeviceOrientationEvent==='undefined'||typeof DeviceOrientationEvent.requestPermission!=='function')enableSensors();}).catch(error=>{statusEl.textContent=error?.message||'Location permission is required to calculate Qibla.';});
+  root.querySelector('[data-qb-back]').addEventListener('click',()=>screen?.querySelector(':scope > .nx-app-head [data-app-back]')?.click());root.querySelector('[data-qb-enable]').addEventListener('click',enableSensors);root.querySelector('[data-qb-menu]').addEventListener('click',()=>{statusEl.textContent='Compass uses live GPS and device orientation only while this screen is open.';});
+  root.__cleanup=()=>{window.removeEventListener('deviceorientationabsolute',onOrientation,true);window.removeEventListener('deviceorientation',onOrientation,true);try{magnetometer?.stop?.();}catch{}screen?.classList.remove('nx2-qibla-screen');};return root;
 }
 
 export const premiumQiblaRenderers = Object.freeze({ qibla: renderQiblaPremium });
