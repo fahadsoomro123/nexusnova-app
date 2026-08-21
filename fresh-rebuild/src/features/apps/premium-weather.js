@@ -60,6 +60,42 @@ function phaseFor(timeZone, isDay) {
   return 'day';
 }
 
+function minutesFromIso(value) {
+  const match = String(value || '').match(/T(\d{2}):(\d{2})/);
+  if (!match) return null;
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function celestialTrack(currentTime, sunrise, sunset, isDay) {
+  const now = minutesFromIso(currentTime);
+  const rise = minutesFromIso(sunrise);
+  const set = minutesFromIso(sunset);
+  let sunX = 78;
+  let sunY = 18;
+  let moonX = 76;
+  let moonY = 20;
+
+  if (now !== null && rise !== null && set !== null && set > rise) {
+    if (Number(isDay)) {
+      const progress = clamp((now - rise) / (set - rise), 0, 1);
+      sunX = 10 + progress * 80;
+      sunY = 68 - Math.sin(Math.PI * progress) * 54;
+    } else {
+      const nightLength = (1440 - set) + rise;
+      const elapsed = now >= set ? now - set : (1440 - set) + now;
+      const progress = clamp(elapsed / nightLength, 0, 1);
+      moonX = 10 + progress * 80;
+      moonY = 66 - Math.sin(Math.PI * progress) * 50;
+    }
+  }
+
+  return { sunX, sunY, moonX, moonY };
+}
+
 function windDirection(degrees) {
   const points = ['N','NE','E','SE','S','SW','W','NW'];
   const d = ((Number(degrees) || 0) % 360 + 360) % 360;
@@ -211,9 +247,15 @@ export function renderWeatherPremium() {
       const current = data.current || {};
       const meta = weatherMeta(current.weather_code);
       const phase = phaseFor(data.timezone, current.is_day);
+      const track = celestialTrack(current.time, data.daily?.sunrise?.[0], data.daily?.sunset?.[0], current.is_day);
       state = { ...state, lat:Number(lat), lon:Number(lon), place, timezone:data.timezone || state.timezone };
       shell.dataset.condition = meta.key;
       shell.dataset.phase = phase;
+      shell.style.setProperty('--sun-x', `${track.sunX.toFixed(2)}%`);
+      shell.style.setProperty('--sun-y', `${track.sunY.toFixed(2)}%`);
+      shell.style.setProperty('--moon-x', `${track.moonX.toFixed(2)}%`);
+      shell.style.setProperty('--moon-y', `${track.moonY.toFixed(2)}%`);
+      shell.style.setProperty('--wx-cloud-cover', `${clamp(Number(current.cloud_cover) || 0, 0, 100)}%`);
       refs.place.textContent = place;
       refs.phase.textContent = `${phase.toUpperCase()} • LIVE CONDITIONS`;
       refs.temp.textContent = `${Math.round(Number(current.temperature_2m) || 0)}°`;
