@@ -200,7 +200,7 @@ export function renderQiblaPremium() {
 
   if (kaaba) {
     Object.assign(kaaba.style, {
-      left:'50%', top:'-1.5%', width:'29px', height:'34px', transform:'translateX(-50%)', fontSize:'0',
+      left:'50%', top:'3.5%', width:'29px', height:'34px', transform:'translateX(-50%)', fontSize:'0',
       borderRadius:'3px', background:'#050505', border:'1px solid #c99d36', boxShadow:'0 2px 4px #000,0 0 7px rgba(225,180,67,.38)', overflow:'visible'
     });
     const body = kaaba.querySelector('i');
