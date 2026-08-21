@@ -2,6 +2,7 @@ import { escapeHtml } from '../../core/local-store.js';
 
 const GAUGE_ARC = 'M 76.87 76.87 A 38 38 0 1 1 76.87 23.13';
 const WARMUP_BYTES = 1_500_000;
+const SPEED_MARKS = [0,1,5,10,20,50,100,250,500,1000];
 
 function node(html, className = '') {
   const root = document.createElement('div');
@@ -72,6 +73,92 @@ function uploadBytesFor(mbps) {
   return 1_500_000;
 }
 
+function speedPolar(radius, ratio) {
+  const degree = -135 + Math.max(0,Math.min(1,ratio)) * 270;
+  const angle = (degree - 90) * Math.PI / 180;
+  return [50 + Math.cos(angle) * radius, 51 + Math.sin(angle) * radius];
+}
+
+function speedFaceMarkup() {
+  const decorativeTicks = [];
+  for (let i = 0; i <= 54; i += 1) {
+    const ratio = i / 54;
+    const outer = speedPolar(43.2, ratio);
+    const inner = speedPolar(i % 6 === 0 ? 38.6 : i % 3 === 0 ? 40.2 : 41.2, ratio);
+    decorativeTicks.push(`<line x1="${outer[0].toFixed(2)}" y1="${outer[1].toFixed(2)}" x2="${inner[0].toFixed(2)}" y2="${inner[1].toFixed(2)}" stroke="${ratio > .78 ? '#b950ff' : ratio > .52 ? '#36d9ff' : '#7597ad'}" stroke-width="${i % 6 === 0 ? .75 : .3}" opacity="${i % 6 === 0 ? .9 : .52}"/>`);
+  }
+  const labels = SPEED_MARKS.map(value => {
+    const ratio = speedRatio(value);
+    const [x,y] = speedPolar(34.5,ratio);
+    const label = value === 1000 ? '1G' : String(value);
+    return `<text x="${x.toFixed(2)}" y="${(y+1.45).toFixed(2)}" text-anchor="middle" fill="#f2f7fa" font-size="4" font-weight="760">${label}</text>`;
+  }).join('');
+  const rays = [14,23,32,41,50,59,68,77,86].map(x => `<line x1="50" y1="75" x2="${x}" y2="91" stroke="#27b8ff" stroke-width=".3" opacity=".28"/>`).join('');
+  const floor = [78,82,86,90].map((y,index) => `<path d="M ${16+index*4} ${y} Q 50 ${y-4-index} ${84-index*4} ${y}" fill="none" stroke="${index > 1 ? '#8b4dff' : '#31cfff'}" stroke-width=".28" opacity=".25"/>`).join('');
+
+  return `<svg viewBox="0 0 100 100" aria-hidden="true" focusable="false" style="position:absolute;inset:0;width:100%;height:100%;display:block">
+    <defs>
+      <radialGradient id="nxSpeedInner" cx="50%" cy="47%" r="58%"><stop offset="0" stop-color="#0c2236"/><stop offset=".52" stop-color="#071523"/><stop offset="1" stop-color="#040b13"/></radialGradient>
+      <linearGradient id="nxSpeedArc" x1="0" y1=".4" x2="1" y2=".8"><stop offset="0" stop-color="#35ccff"/><stop offset=".58" stop-color="#46dfff"/><stop offset="1" stop-color="#a847ff"/></linearGradient>
+      <filter id="nxSpeedArcGlow"><feGaussianBlur stdDeviation="1.25"/></filter>
+    </defs>
+    <path d="M12 77 A43 43 0 1 1 88 77 L88 91 Q50 96 12 91 Z" fill="url(#nxSpeedInner)" stroke="#12304b" stroke-width=".7"/>
+    <path d="M15 78 A40 40 0 1 1 85 78" fill="none" stroke="url(#nxSpeedArc)" stroke-width="2.1" opacity=".32" filter="url(#nxSpeedArcGlow)"/>
+    <path d="M15 78 A40 40 0 1 1 85 78" fill="none" stroke="url(#nxSpeedArc)" stroke-width=".55" opacity=".9"/>
+    <g>${decorativeTicks.join('')}</g>
+    <g font-family="Arial,system-ui,sans-serif">${labels}</g>
+    <g>${rays}${floor}</g>
+  </svg>`;
+}
+
+function prepareLiveSpeedFace(gauge) {
+  const glass = gauge.querySelector('.nxgauge__glass');
+  const grid = gauge.querySelector('.nxgauge__grid');
+  const oldScale = gauge.querySelector('.nxgauge__scale--speed');
+  const track = gauge.querySelector('.nxgauge__track');
+  const fill = gauge.querySelector('.nxgauge__fill');
+  if (glass) glass.style.setProperty('display','none','important');
+  if (grid) grid.style.setProperty('display','none','important');
+  if (oldScale) oldScale.style.setProperty('visibility','hidden','important');
+  if (track) track.style.setProperty('visibility','hidden','important');
+  if (fill) fill.style.setProperty('visibility','hidden','important');
+
+  const face = document.createElement('div');
+  face.className = 'nxspeed-live-face';
+  face.setAttribute('aria-hidden','true');
+  face.innerHTML = speedFaceMarkup();
+  Object.assign(face.style, {
+    position:'absolute',left:'50%',top:'52%',width:'88%',height:'88%',transform:'translate(-50%,-50%)',zIndex:'2',pointerEvents:'none',overflow:'hidden',
+    borderRadius:'49% 49% 18% 18% / 55% 55% 17% 17%',boxShadow:'inset 0 0 30px rgba(0,0,0,.5)'
+  });
+  gauge.appendChild(face);
+
+  const gaugeSvg = gauge.querySelector('svg');
+  if (gaugeSvg) {
+    gaugeSvg.style.setProperty('position','relative','important');
+    gaugeSvg.style.setProperty('z-index','4','important');
+  }
+  const needleLine = gauge.querySelector('[data-gauge-needle] line');
+  const needleCircles = gauge.querySelectorAll('[data-gauge-needle] circle');
+  if (needleLine) {
+    needleLine.style.setProperty('stroke','#aaf8ff','important');
+    needleLine.style.setProperty('stroke-width','2.35','important');
+    needleLine.style.setProperty('stroke-linecap','round','important');
+    needleLine.style.setProperty('filter','drop-shadow(0 0 2px #7deeff) drop-shadow(0 0 7px rgba(42,207,255,.95))','important');
+  }
+  if (needleCircles[0]) {
+    needleCircles[0].style.setProperty('fill','#10202a','important');
+    needleCircles[0].style.setProperty('stroke','#98f1ff','important');
+    needleCircles[0].style.setProperty('stroke-width','1','important');
+  }
+  if (needleCircles[1]) {
+    needleCircles[1].style.setProperty('fill','#9cf5ff','important');
+    needleCircles[1].style.setProperty('stroke','#e8feff','important');
+    needleCircles[1].style.setProperty('stroke-width','.5','important');
+  }
+  return face;
+}
+
 export function renderSpeedTestPremium() {
   const root = node(`
     <section class="nxspeed-console nxspeed-console--sample-b">
@@ -109,51 +196,7 @@ export function renderSpeedTestPremium() {
   });
 
   const gauge = root.querySelector('.nxgauge');
-  const glass = gauge.querySelector('.nxgauge__glass');
-  const embeddedNeedleMask = gauge.querySelector('.nxgauge__grid');
-  const embeddedStatusMask = document.createElement('i');
-  embeddedStatusMask.setAttribute('aria-hidden', 'true');
-  Object.assign(embeddedStatusMask.style, {
-    position:'absolute', left:'0', top:'0', width:'43%', height:'9%', zIndex:'2', pointerEvents:'none',
-    background:'linear-gradient(90deg,#07131f 0%,#07131f 72%,rgba(7,19,31,0) 100%)'
-  });
-  gauge.appendChild(embeddedStatusMask);
-
-  if (glass) {
-    glass.style.setProperty('display','block','important');
-    glass.style.setProperty('position','absolute','important');
-    glass.style.setProperty('left','50%','important');
-    glass.style.setProperty('top','58%','important');
-    glass.style.setProperty('width','58%','important');
-    glass.style.setProperty('height','39%','important');
-    glass.style.setProperty('transform','translate(-50%,-50%)','important');
-    glass.style.setProperty('border-radius','50%','important');
-    glass.style.setProperty('z-index','1','important');
-    glass.style.setProperty('pointer-events','none','important');
-    glass.style.setProperty('background','radial-gradient(ellipse at 50% 48%,#0b1b2c 0%,#081522 58%,#06101a 100%)','important');
-    glass.style.setProperty('box-shadow','inset 0 0 35px rgba(0,0,0,.45),0 0 22px rgba(27,129,194,.05)','important');
-  }
-  if (embeddedNeedleMask) {
-    embeddedNeedleMask.style.setProperty('display','block','important');
-    embeddedNeedleMask.style.setProperty('position','absolute','important');
-    embeddedNeedleMask.style.setProperty('left','68.2%','important');
-    embeddedNeedleMask.style.setProperty('top','43.2%','important');
-    embeddedNeedleMask.style.setProperty('width','24%','important');
-    embeddedNeedleMask.style.setProperty('height','3.5%','important');
-    embeddedNeedleMask.style.setProperty('transform-origin','0 50%','important');
-    embeddedNeedleMask.style.setProperty('transform','rotate(-34.6deg)','important');
-    embeddedNeedleMask.style.setProperty('border-radius','999px','important');
-    embeddedNeedleMask.style.setProperty('z-index','2','important');
-    embeddedNeedleMask.style.setProperty('pointer-events','none','important');
-    embeddedNeedleMask.style.setProperty('background','linear-gradient(90deg,#0b1928 0%,#0d2133 56%,#12344b 100%)','important');
-    embeddedNeedleMask.style.setProperty('filter','blur(.35px)','important');
-  }
-  const gaugeSvg = gauge.querySelector('svg');
-  if (gaugeSvg) {
-    gaugeSvg.style.setProperty('position','relative','important');
-    gaugeSvg.style.setProperty('z-index','3','important');
-  }
-
+  const liveFace = prepareLiveSpeedFace(gauge);
   const down = root.querySelector('[data-speed-down]');
   const up = root.querySelector('[data-speed-up]');
   const ping = root.querySelector('[data-speed-ping]');
@@ -285,6 +328,7 @@ export function renderSpeedTestPremium() {
 
   root.__cleanup = () => {
     aborter?.abort();
+    liveFace.remove();
     samplePill?.remove();
     screen?.classList.remove('nx-speed-screen');
   };
