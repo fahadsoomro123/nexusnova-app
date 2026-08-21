@@ -5,19 +5,19 @@
 .nx2-sp-net{margin:8px 7px 0!important}.nx2-sp-net em{text-transform:capitalize!important}
 .nx2-sp-metrics{margin-left:6px!important;margin-right:6px!important}
 .nx2-sp-run{width:calc(100% - 12px)!important;margin-left:6px!important;margin-right:6px!important}
-.nx2-sp-meter{position:relative;width:122%!important;height:290px!important;margin:-64px 0 0 -11%!important;overflow:visible!important}
-.nx2-sp-svg{position:absolute!important;left:0!important;top:0!important;width:100%!important;height:auto!important;transform:scaleY(.77)!important;transform-origin:50% 0!important;overflow:visible!important}
+.nx2-sp-meter{position:relative;width:122%!important;height:323px!important;margin:-64px 0 0 -11%!important;overflow:visible!important}
+.nx2-sp-svg{position:absolute!important;left:0!important;top:0!important;width:100%!important;height:auto!important;transform:scaleY(.84)!important;transform-origin:50% 0!important;overflow:visible!important}
 .nx2-sp-svg [data-sp-needle] circle{display:none}
 .nx2-sp-svg [data-sp-needle] polygon{transform-box:fill-box;transform-origin:50% 100%;transform:scaleX(2.15)}
 .nx2-sp-svg [data-sp-needle] line{stroke-width:7}.nx2-sp-svg>g[filter="url(#spGlow)"] circle{opacity:.32!important}
-.nx2-sp-readout{left:50%!important;top:68%!important;z-index:4!important;width:48%!important;padding:17px 0 16px!important;border-radius:50%;background:radial-gradient(ellipse at center,rgba(5,18,31,.98) 0%,rgba(5,18,31,.92) 50%,rgba(5,18,31,.56) 68%,transparent 76%)}
+.nx2-sp-readout{left:50%!important;top:61%!important;z-index:4!important;width:48%!important;padding:17px 0 16px!important;border-radius:50%;background:radial-gradient(ellipse at center,rgba(5,18,31,.98) 0%,rgba(5,18,31,.92) 50%,rgba(5,18,31,.56) 68%,transparent 76%)}
 .nx2-sp-readout span{font-size:9px;letter-spacing:.13em}
 .nx2-sp-readout strong{margin-top:8px;font-size:50px;line-height:.94;font-weight:300;letter-spacing:-.035em}
 .nx2-sp-readout small{margin-top:7px;font-size:11px}
 .nx2-sp-metrics{gap:8px!important;margin-top:6px!important}
 .nx2-sp-card{min-height:58px!important;border-radius:13px!important;background:linear-gradient(145deg,#071827,#04111c)}
 .nx2-sp-card>strong{color:#f6f9fb!important}
-.nx2-sp-run{height:39px!important;margin-top:14px!important;border-radius:22px!important;font-size:11px!important}
+.nx2-sp-run{height:39px!important;margin-top:8px!important;border-radius:22px!important;font-size:11px!important}
 .nx2-sp-foot{padding:14px 8px 0;font-size:8px}
 .nx2-sp-status{margin-top:5px}
 }
