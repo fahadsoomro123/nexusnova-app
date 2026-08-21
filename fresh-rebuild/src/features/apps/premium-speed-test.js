@@ -1,8 +1,7 @@
 import { escapeHtml } from '../../core/local-store.js';
 
 const GAUGE_ARC = 'M 76.87 76.87 A 38 38 0 1 1 76.87 23.13';
-const DOWNLOAD_BYTES = 10_000_000;
-const UPLOAD_BYTES = 4_000_000;
+const WARMUP_BYTES = 1_500_000;
 
 function node(html, className = '') {
   const root = document.createElement('div');
@@ -57,6 +56,22 @@ function speedRatio(value) {
   return Math.log10(1 + Math.max(0, Math.min(1000, Number(value) || 0))) / Math.log10(1001);
 }
 
+function downloadBytesFor(mbps) {
+  if (mbps >= 400) return 25_000_000;
+  if (mbps >= 150) return 16_000_000;
+  if (mbps >= 50) return 10_000_000;
+  if (mbps >= 15) return 6_000_000;
+  return 3_000_000;
+}
+
+function uploadBytesFor(mbps) {
+  if (mbps >= 400) return 12_000_000;
+  if (mbps >= 150) return 8_000_000;
+  if (mbps >= 50) return 5_000_000;
+  if (mbps >= 15) return 3_000_000;
+  return 1_500_000;
+}
+
 export function renderSpeedTestPremium() {
   const root = node(`
     <section class="nxspeed-console nxspeed-console--sample-b">
@@ -94,6 +109,51 @@ export function renderSpeedTestPremium() {
   });
 
   const gauge = root.querySelector('.nxgauge');
+  const glass = gauge.querySelector('.nxgauge__glass');
+  const embeddedNeedleMask = gauge.querySelector('.nxgauge__grid');
+  const embeddedStatusMask = document.createElement('i');
+  embeddedStatusMask.setAttribute('aria-hidden', 'true');
+  Object.assign(embeddedStatusMask.style, {
+    position:'absolute', left:'0', top:'0', width:'43%', height:'9%', zIndex:'2', pointerEvents:'none',
+    background:'linear-gradient(90deg,#07131f 0%,#07131f 72%,rgba(7,19,31,0) 100%)'
+  });
+  gauge.appendChild(embeddedStatusMask);
+
+  if (glass) {
+    glass.style.setProperty('display','block','important');
+    glass.style.setProperty('position','absolute','important');
+    glass.style.setProperty('left','50%','important');
+    glass.style.setProperty('top','58%','important');
+    glass.style.setProperty('width','58%','important');
+    glass.style.setProperty('height','39%','important');
+    glass.style.setProperty('transform','translate(-50%,-50%)','important');
+    glass.style.setProperty('border-radius','50%','important');
+    glass.style.setProperty('z-index','1','important');
+    glass.style.setProperty('pointer-events','none','important');
+    glass.style.setProperty('background','radial-gradient(ellipse at 50% 48%,#0b1b2c 0%,#081522 58%,#06101a 100%)','important');
+    glass.style.setProperty('box-shadow','inset 0 0 35px rgba(0,0,0,.45),0 0 22px rgba(27,129,194,.05)','important');
+  }
+  if (embeddedNeedleMask) {
+    embeddedNeedleMask.style.setProperty('display','block','important');
+    embeddedNeedleMask.style.setProperty('position','absolute','important');
+    embeddedNeedleMask.style.setProperty('left','49%','important');
+    embeddedNeedleMask.style.setProperty('top','49%','important');
+    embeddedNeedleMask.style.setProperty('width','32%','important');
+    embeddedNeedleMask.style.setProperty('height','7%','important');
+    embeddedNeedleMask.style.setProperty('transform-origin','0 50%','important');
+    embeddedNeedleMask.style.setProperty('transform','rotate(-34deg)','important');
+    embeddedNeedleMask.style.setProperty('border-radius','999px','important');
+    embeddedNeedleMask.style.setProperty('z-index','2','important');
+    embeddedNeedleMask.style.setProperty('pointer-events','none','important');
+    embeddedNeedleMask.style.setProperty('background','linear-gradient(90deg,#081522 0%,#0a1b2b 72%,rgba(10,27,43,.2) 100%)','important');
+    embeddedNeedleMask.style.setProperty('filter','blur(.2px)','important');
+  }
+  const gaugeSvg = gauge.querySelector('svg');
+  if (gaugeSvg) {
+    gaugeSvg.style.setProperty('position','relative','important');
+    gaugeSvg.style.setProperty('z-index','3','important');
+  }
+
   const down = root.querySelector('[data-speed-down]');
   const up = root.querySelector('[data-speed-up]');
   const ping = root.querySelector('[data-speed-ping]');
@@ -145,35 +205,44 @@ export function renderSpeedTestPremium() {
   };
 
   const download = async signal => {
-    await downloadSample(1_000_000, signal, 'WARMING UP');
+    const warm = await downloadSample(WARMUP_BYTES, signal, 'WARMING UP');
+    const bytesTarget = downloadBytesFor(warm);
     const samples = [];
-    for (let i = 0; i < 2; i += 1) samples.push(await downloadSample(DOWNLOAD_BYTES, signal, '↓ DOWNLOAD'));
+    for (let i = 0; i < 2; i += 1) samples.push(await downloadSample(bytesTarget, signal, '↓ DOWNLOAD'));
     return median(samples);
   };
 
-  const upload = signal => new Promise((resolve, reject) => {
-    const payload = new Uint8Array(UPLOAD_BYTES);
+  const uploadSample = (bytesTarget, signal) => new Promise((resolve, reject) => {
+    const payload = new Uint8Array(bytesTarget);
     const xhr = new XMLHttpRequest();
     const started = performance.now();
+    const cleanupSignal = () => signal?.removeEventListener('abort', onAbort);
     const onAbort = () => xhr.abort();
     signal?.addEventListener('abort', onAbort, { once:true });
-    xhr.open('POST', `https://speed.cloudflare.com/__up?bytes=${UPLOAD_BYTES}&nx=${Date.now()}`, true);
+    xhr.open('POST', `https://speed.cloudflare.com/__up?bytes=${bytesTarget}&nx=${Date.now()}-${Math.random()}`, true);
     xhr.timeout = 30000;
     xhr.upload.onprogress = event => {
       const current = (event.loaded * 8) / (Math.max(1, performance.now() - started) / 1000) / 1e6;
       up.textContent = `${current < 10 ? current.toFixed(2) : current.toFixed(1)} Mbps`;
       paintSpeed(current, '↑ UPLOAD');
     };
-    xhr.onerror = () => reject(new Error('Upload network error'));
-    xhr.onabort = () => reject(new DOMException('Aborted', 'AbortError'));
-    xhr.ontimeout = () => reject(new Error('Upload timeout'));
+    xhr.onerror = () => { cleanupSignal(); reject(new Error('Upload network error')); };
+    xhr.onabort = () => { cleanupSignal(); reject(new DOMException('Aborted', 'AbortError')); };
+    xhr.ontimeout = () => { cleanupSignal(); reject(new Error('Upload timeout')); };
     xhr.onload = () => {
-      signal?.removeEventListener('abort', onAbort);
+      cleanupSignal();
       if (xhr.status < 200 || xhr.status >= 300) return reject(new Error(`Upload HTTP ${xhr.status}`));
-      resolve((UPLOAD_BYTES * 8) / (Math.max(1, performance.now() - started) / 1000) / 1e6);
+      resolve((bytesTarget * 8) / (Math.max(1, performance.now() - started) / 1000) / 1e6);
     };
     xhr.send(payload);
   });
+
+  const upload = async (signal, downloadMbps) => {
+    const bytesTarget = uploadBytesFor(downloadMbps);
+    const samples = [];
+    for (let i = 0; i < 2; i += 1) samples.push(await uploadSample(bytesTarget, signal));
+    return median(samples);
+  };
 
   start.addEventListener('click', async () => {
     if (running) return;
@@ -193,7 +262,7 @@ export function renderSpeedTestPremium() {
       const d = await download(aborter.signal);
       down.textContent = `${d < 10 ? d.toFixed(2) : d.toFixed(1)} Mbps`;
       status.textContent = 'Measuring sustained live upload throughput…';
-      const u = await upload(aborter.signal);
+      const u = await upload(aborter.signal, d);
       up.textContent = `${u < 10 ? u.toFixed(2) : u.toFixed(1)} Mbps`;
       const quality = d >= 300 && u >= 80 && l.ping <= 35 ? 'OPTIMAL CONNECTION' : d >= 100 ? 'VERY FAST' : d >= 25 ? 'GOOD CONNECTION' : d >= 8 ? 'USABLE CONNECTION' : 'SLOW CONNECTION';
       qualityEl.textContent = quality;
