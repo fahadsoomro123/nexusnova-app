@@ -114,7 +114,16 @@ const PRAYERS = [
 const NEXT_PRAYER_SEQUENCE = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
 
 function controlArt(index, className = '') {
-  return `<span class="nxprayer-control-art nxprayer-control-art--${index}${className ? ` ${className}` : ''}" aria-hidden="true"></span>`;
+  const glyphs = [
+    '<path d="M39 13 20 32l19 19" fill="none" stroke="#f3f7fb" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>',
+    '<path d="M18 53V17l28 36V17" fill="none" stroke="#18dff2" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><path d="M32 4l2.8 8.2L43 15l-8.2 2.8L32 26l-2.8-8.2L21 15l8.2-2.8L32 4Z" fill="#64f5ff"/><circle cx="32" cy="15" r="2.2" fill="#fff"/>',
+    '<rect x="13" y="16" width="38" height="36" rx="6" fill="none" stroke="#f2f6fb" stroke-width="4"/><path d="M13 26h38M22 11v10M42 11v10" fill="none" stroke="#f2f6fb" stroke-width="4" stroke-linecap="round"/><path d="M21 34h4m7 0h4m7 0h2M21 42h4m7 0h4m7 0h2" stroke="#b9d9ee" stroke-width="3" stroke-linecap="round"/>',
+    '<circle cx="32" cy="17" r="4.5" fill="#f4f7fb"/><circle cx="32" cy="32" r="4.5" fill="#f4f7fb"/><circle cx="32" cy="47" r="4.5" fill="#f4f7fb"/>',
+    '<path d="M32 8c-10.8 0-19.5 8.7-19.5 19.5C12.5 42 32 57 32 57s19.5-15 19.5-29.5C51.5 16.7 42.8 8 32 8Z" fill="#5cecff"/><circle cx="32" cy="27.5" r="8" fill="#083044"/>',
+    '<circle cx="32" cy="32" r="13" fill="none" stroke="#dff7ff" stroke-width="5"/><circle cx="32" cy="32" r="4" fill="#69eaff"/><path d="M32 7v11M32 46v11M7 32h11M46 32h11" stroke="#dff7ff" stroke-width="5" stroke-linecap="round"/>'
+  ];
+  const safe = Math.max(0, Math.min(5, Number(index) || 0));
+  return `<svg class="nxprayer-control-art nxprayer-control-art--${safe}${className ? ` ${className}` : ''}" viewBox="0 0 64 64" aria-hidden="true" focusable="false" style="background:none">${glyphs[safe]}</svg>`;
 }
 
 function prayerIcon(index, className = 'nxprayer-icon', extra = '') {
