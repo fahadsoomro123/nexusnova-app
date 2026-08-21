@@ -1,6 +1,6 @@
 /* NexusNova selected premium visuals.
    Qibla, Speed and Drive now own their clean .nx2-* visual systems in their canonical JS renderers.
-   This shared stylesheet remains canonical only for Prayer and Weather. */
+   This shared stylesheet remains canonical only for Prayer. */
 
 /* PRAYER TIMES — selected reference */
 .nx-prayer-screen>.nx-app-head{display:none!important}
@@ -120,41 +120,3 @@
   .nx-prayer-premium .nxprayer-next-orbit{width:56px;height:56px}
   .nx-prayer-premium .nxprayer-next-icon{width:40px;height:40px}
 }
-
-/* WEATHER — full-time scalable 3D live visuals; no raster hero backgrounds */
-.nx-weather-premium,.nx-weather-premium .nxwx-shell,.nx-weather-premium .nxwx-radar,.nx-weather-premium .nxwx-forecast-panel,.nx-weather-premium .nxwx-prayer-strip{min-width:0;max-width:100%}
-.nx-weather-premium .nxwx-shell{overflow-x:clip}
-.nx-weather-premium .nxwx-hero{min-height:300px;perspective:1000px;transform-style:preserve-3d;background:radial-gradient(ellipse at 76% 14%,var(--sky-glow),transparent 38%),radial-gradient(ellipse at 50% 115%,rgba(54,145,180,.24),transparent 48%),linear-gradient(154deg,var(--sky-a),var(--sky-b) 72%)!important;background-image:radial-gradient(ellipse at 76% 14%,var(--sky-glow),transparent 38%),radial-gradient(ellipse at 50% 115%,rgba(54,145,180,.24),transparent 48%),linear-gradient(154deg,var(--sky-a),var(--sky-b) 72%)!important;background-position:center!important;background-size:cover!important;background-repeat:no-repeat!important;box-shadow:0 28px 62px rgba(0,0,0,.34),inset 0 1px rgba(255,255,255,.09),inset 0 -36px 64px rgba(0,0,0,.2)}
-.nx-weather-premium .nxwx-hero::before{background:linear-gradient(115deg,rgba(255,255,255,.13),transparent 28%,transparent 63%,rgba(136,219,255,.05) 77%,transparent)!important;mix-blend-mode:screen}
-.nx-weather-premium .nxwx-hero::after{content:"";position:absolute;left:-12%;right:-12%;bottom:-70px;height:150px;border-radius:50% 50% 0 0;background:radial-gradient(ellipse at 50% 0,rgba(105,212,228,.28),rgba(8,58,79,.46) 43%,rgba(2,16,27,.9) 76%);box-shadow:0 -18px 50px rgba(87,198,226,.08),inset 0 20px 34px rgba(255,255,255,.04);transform:translateZ(8px);z-index:2;pointer-events:none}
-.nx-weather-premium .nxwx-atmosphere{perspective:1000px;transform-style:preserve-3d;filter:saturate(1.12) contrast(1.04)}
-.nx-weather-premium .nxwx-sun{opacity:.96;box-shadow:0 0 0 18px rgba(255,222,111,.055),0 0 72px rgba(255,193,76,.48),0 18px 42px rgba(0,0,0,.14);filter:saturate(1.16) drop-shadow(0 12px 18px rgba(112,62,7,.2));animation:nxwx-sun-depth 4.8s ease-in-out infinite}
-@keyframes nxwx-sun-depth{0%,100%{box-shadow:0 0 0 18px rgba(255,222,111,.055),0 0 72px rgba(255,193,76,.48),0 18px 42px rgba(0,0,0,.14)}50%{box-shadow:0 0 0 23px rgba(255,222,111,.045),0 0 94px rgba(255,193,76,.58),0 20px 45px rgba(0,0,0,.12)}}
-.nx-weather-premium .nxwx-moon{box-shadow:inset -12px -9px 18px rgba(46,62,78,.25),0 0 0 13px rgba(196,225,255,.025),0 0 56px rgba(188,220,255,.3),0 14px 34px rgba(0,0,0,.24);filter:drop-shadow(0 12px 20px rgba(0,0,0,.24))}
-.nx-weather-premium .nxwx-stars{filter:drop-shadow(0 0 4px rgba(230,246,255,.7))}
-.nx-weather-premium .nxwx-cloud{background:linear-gradient(180deg,rgba(246,252,255,.96) 0%,rgba(201,220,231,.9) 36%,rgba(117,145,163,.82) 72%,rgba(71,92,108,.78) 100%);box-shadow:inset 0 5px 10px rgba(255,255,255,.55),inset 0 -9px 15px rgba(45,68,83,.22),0 18px 30px rgba(0,0,0,.26);filter:drop-shadow(0 10px 16px rgba(0,0,0,.2));opacity:.38}
-.nx-weather-premium .nxwx-cloud--one{transform:translateZ(84px) scale(.96);filter:drop-shadow(0 16px 20px rgba(0,0,0,.24))}
-.nx-weather-premium .nxwx-cloud--two{transform:translateZ(52px) scale(.72);filter:drop-shadow(0 12px 16px rgba(0,0,0,.2))}
-.nx-weather-premium .nxwx-cloud--three{transform:translateZ(28px) scale(.54);filter:drop-shadow(0 9px 13px rgba(0,0,0,.17))}
-.nx-weather-premium .nxwx-shell[data-condition="clouds"] .nxwx-cloud{opacity:.84}
-.nx-weather-premium .nxwx-shell[data-condition="clouds"] .nxwx-sun{opacity:.42}
-.nx-weather-premium .nxwx-shell[data-condition="rain"] .nxwx-cloud{opacity:.94;filter:saturate(.58) brightness(.8) drop-shadow(0 14px 20px rgba(0,0,0,.27))}
-.nx-weather-premium .nxwx-shell[data-condition="rain"] .nxwx-rain{opacity:.92!important;filter:drop-shadow(0 0 4px rgba(171,224,248,.24))}
-.nx-weather-premium .nxwx-shell[data-condition="storm"] .nxwx-cloud{opacity:1;filter:saturate(.45) brightness(.58) drop-shadow(0 18px 24px rgba(0,0,0,.34))}
-.nx-weather-premium .nxwx-shell[data-condition="storm"] .nxwx-rain{opacity:1!important}
-.nx-weather-premium .nxwx-shell[data-condition="storm"] .nxwx-lightning{opacity:1!important;filter:drop-shadow(0 0 24px rgba(240,248,255,.58))}
-.nx-weather-premium .nxwx-shell[data-condition="snow"] .nxwx-snow{opacity:1!important;filter:drop-shadow(0 5px 5px rgba(255,255,255,.2))}
-.nx-weather-premium .nxwx-shell[data-condition="fog"] .nxwx-fog{opacity:.92!important}
-.nx-weather-premium .nxwx-shell[data-phase="night"] .nxwx-sun{opacity:0}
-.nx-weather-premium .nxwx-shell[data-phase="night"] .nxwx-moon,.nx-weather-premium .nxwx-shell[data-phase="night"] .nxwx-stars{opacity:.96}
-.nx-weather-premium .nxwx-hero__content{min-height:300px;transform-style:preserve-3d;background:linear-gradient(180deg,rgba(2,8,15,.02) 12%,rgba(2,8,15,.14) 58%,rgba(2,7,13,.58) 100%)!important;text-shadow:0 3px 14px rgba(0,0,0,.32)}
-.nx-weather-premium .nxwx-temp{text-shadow:0 3px 0 rgba(255,255,255,.035),0 12px 30px rgba(0,0,0,.42),0 0 24px rgba(115,222,255,.11)}
-.nx-weather-premium .nxwx-hero__badge{background:linear-gradient(145deg,rgba(11,31,48,.58),rgba(2,11,20,.42));border-color:rgba(255,255,255,.16);box-shadow:inset 0 1px rgba(255,255,255,.12),0 14px 30px rgba(0,0,0,.24);backdrop-filter:blur(14px) saturate(1.25)}
-.nx-weather-premium .nxwx-radar{overflow:hidden}
-.nx-weather-premium .nxwx-mapframe{max-width:100%}
-.nx-weather-premium .nxwx-mapframe iframe{display:block;max-width:100%}
-.nx-weather-premium .nxwx-forecast,.nx-weather-premium .nxwx-layers{max-width:100%;min-width:0}
-.nx-weather-premium .nxwx-footer{margin:0;padding:0}
-.nx-weather-premium .nxwx-footer p{margin:7px 2px 0;color:#72879a;font-size:8px;line-height:1.45}
-@media(max-width:560px){.nx-weather-premium .nxwx-hero,.nx-weather-premium .nxwx-hero__content{min-height:276px}.nx-weather-premium .nxwx-hero::after{bottom:-62px;height:132px}.nx-weather-premium .nxwx-cloud--one{transform:translateZ(68px) scale(.86)}.nx-weather-premium .nxwx-cloud--two{transform:translateZ(42px) scale(.65)}.nx-weather-premium .nxwx-cloud--three{transform:translateZ(22px) scale(.5)}}
-@media(prefers-reduced-motion:reduce){.nx-weather-premium .nxwx-sun{animation:none!important}}
