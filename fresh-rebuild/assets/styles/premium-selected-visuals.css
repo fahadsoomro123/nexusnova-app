@@ -95,14 +95,15 @@
   .nx-prayer-premium .nxprayer-card>strong>small{font-size:clamp(7px,2.15vw,10px)}
   .nx-prayer-premium .nxprayer-card>em{margin-top:14px;font-size:clamp(6px,1.9vw,9px)}
   .nx-prayer-premium .nxprayer-ornament{height:72px;opacity:.42}
-  .nx-prayer-premium .nxprayer-next{grid-template-columns:66px minmax(0,1fr) auto;gap:12px;margin-top:25px;padding:14px 16px;border-radius:20px}
-  .nx-prayer-premium .nxprayer-next-orbit{width:66px;height:66px}
+  .nx-prayer-premium .nxprayer-next{grid-template-columns:66px minmax(0,1fr) auto;column-gap:12px;row-gap:0;margin-top:25px;padding:14px 16px;border-radius:20px}
+  .nx-prayer-premium .nxprayer-next-orbit{width:66px;height:66px;grid-column:1;grid-row:1/5}
   .nx-prayer-premium .nxprayer-next-icon{width:47px;height:47px}
-  .nx-prayer-premium .nxprayer-next-copy>strong{font-size:clamp(15px,4.7vw,20px)}
-  .nx-prayer-premium .nxprayer-next-copy>span{font-size:clamp(7px,2.3vw,10px)}
-  .nx-prayer-premium .nxprayer-next>b{font-size:clamp(13px,4.2vw,18px)}
-  .nx-prayer-premium .nxprayer-next-copy>small{font-size:clamp(7px,2.15vw,9px)}
-  .nx-prayer-premium .nxprayer-progress{height:10px;margin-top:11px}
+  .nx-prayer-premium .nxprayer-next-copy{display:contents}
+  .nx-prayer-premium .nxprayer-next-copy>strong{font-size:clamp(15px,4.7vw,20px);grid-column:2;grid-row:2}
+  .nx-prayer-premium .nxprayer-next-copy>span{font-size:clamp(7px,2.3vw,10px);grid-column:2;grid-row:1}
+  .nx-prayer-premium .nxprayer-next>b{font-size:clamp(13px,4.2vw,18px);grid-column:3;grid-row:2;justify-self:end}
+  .nx-prayer-premium .nxprayer-next-copy>small{font-size:clamp(7px,2.15vw,9px);grid-column:2/4;grid-row:4}
+  .nx-prayer-premium .nxprayer-progress{height:10px;margin-top:11px;grid-column:2/4;grid-row:3}
   .nx-prayer-premium .nxprayer-progress>b{width:13px;height:13px;border-width:2px}
 }
 
@@ -115,7 +116,7 @@
   .nx-prayer-premium .nxprayer-locationinput input{font-size:10.5px}
   .nx-prayer-premium .nxprayer-card{min-height:270px}
   .nx-prayer-premium .nxprayer-ornament{height:68px}
-  .nx-prayer-premium .nxprayer-next{grid-template-columns:58px minmax(0,1fr) auto;padding:13px 12px;gap:9px}
+  .nx-prayer-premium .nxprayer-next{grid-template-columns:58px minmax(0,1fr) auto;padding:13px 12px;column-gap:9px;row-gap:0}
   .nx-prayer-premium .nxprayer-next-orbit{width:56px;height:56px}
   .nx-prayer-premium .nxprayer-next-icon{width:40px;height:40px}
 }
