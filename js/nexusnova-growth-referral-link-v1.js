@@ -1,13 +1,13 @@
-/* NexusNova Growth Referral Link Guard v1.1
-   Ensures every referral copy/share action passes through referral.html so the
-   referral code is captured before signup, and keeps the legacy Profile card
-   aligned with the secure Growth Center code. */
+/* NexusNova Growth Referral Link Guard v1.2
+   Sends every referral copy/share action to the official NexusNova website
+   account gateway so the referral can be captured before signup. */
 (() => {
   'use strict';
   if (window.__nxGrowthReferralLinkV1) return;
   window.__nxGrowthReferralLinkV1 = true;
 
   const CODE_RE=/^NVX-[A-Z0-9]{8,16}$/;
+  const WEBSITE_SIGNUP='https://nexusnovatools.com/register.html';
 
   function currentCode(){
     const code=String(document.getElementById('nxReferralCode')?.textContent||'').trim().toUpperCase();
@@ -15,8 +15,9 @@
   }
 
   function referralUrl(code){
-    const path=window.location.pathname.replace(/[^/]*$/,'referral.html');
-    return `${window.location.origin}${path}?ref=${encodeURIComponent(code)}`;
+    const clean=String(code||'').trim().toUpperCase();
+    if(!CODE_RE.test(clean)) return WEBSITE_SIGNUP;
+    return `${WEBSITE_SIGNUP}?ref=${encodeURIComponent(clean)}`;
   }
 
   function setStatus(text){
@@ -47,7 +48,7 @@
       return false;
     }
     await copy(referralUrl(code));
-    setStatus('Referral link copied. Share it with a real new user.');
+    setStatus('Website signup referral link copied. Share it with a real new user.');
     return true;
   }
 
@@ -55,8 +56,6 @@
     const code=currentCode();
     const legacy=document.getElementById('refCodeDisplay');
     if(code&&legacy) legacy.textContent=code;
-    // page2-core historically installs a disabled copyReferral function. Keep
-    // the legacy Profile button mapped to the new secure referral landing URL.
     window.copyReferral=copyCurrentReferral;
   }
 
@@ -71,15 +70,15 @@
 
     if(button.id==='nxShareReferral'&&navigator.share){
       navigator.share({title:'Join NexusNova',text:'Join NexusNova with my referral link.',url})
-        .then(()=>setStatus('Referral invite shared.'))
-        .catch(()=>copy(url).then(()=>setStatus('Referral link copied.')));
+        .then(()=>setStatus('Website signup invite shared.'))
+        .catch(()=>copy(url).then(()=>setStatus('Website signup referral link copied.')));
       return;
     }
-    copy(url).then(()=>setStatus('Referral link copied. Share it with a real new user.'))
+    copy(url).then(()=>setStatus('Website signup referral link copied. Share it with a real new user.'))
       .catch(error=>console.warn('NexusNova referral link copy:',error));
   },true);
 
-  window.nexusGrowthReferralUrl=code=>referralUrl(String(code||'').trim().toUpperCase());
+  window.nexusGrowthReferralUrl=code=>referralUrl(code);
   window.nexusCopySecureReferral=copyCurrentReferral;
   [0,300,800,1600,3200,6000].forEach(ms=>setTimeout(syncLegacyProfile,ms));
 })();
