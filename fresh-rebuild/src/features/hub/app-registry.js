@@ -18,7 +18,6 @@ export const novaApps = Object.freeze([
   { id: 'weather', name: 'Weather', category: 'Live & Local', icon: 'weather', description: 'Current conditions and forecast' },
   { id: 'qibla', name: 'Qibla', category: 'Live & Local', icon: 'qibla', description: 'Live compass and direction' },
   { id: 'prayer-times', name: 'Prayer Times', category: 'Live & Local', icon: 'prayer', description: 'Location-aware daily prayer times' },
-  { id: 'speed-test', name: 'Speed Test', category: 'Live & Local', icon: 'speed', description: 'Network speed instrument' },
   { id: 'pakistan', name: 'Pakistan Hub', category: 'Live & Local', icon: 'pakistan', description: 'Pakistan-focused information' },
   { id: 'news', name: 'News', category: 'Live & Local', icon: 'news', description: 'Current headlines and feeds' },
   { id: 'location', name: 'My Location', category: 'Live & Local', icon: 'location', description: 'Live GPS coordinates and accuracy without storage' },

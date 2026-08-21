@@ -20,7 +20,6 @@ const paths = {
   islamic: '<path d="M16.8 5.2a7 7 0 1 0 2.1 10.9A8 8 0 1 1 16.8 5.2Z"/><path d="m17.7 7 .7 1.4 1.6.2-1.1 1.1.3 1.6-1.5-.8-1.4.8.3-1.6-1.1-1.1 1.6-.2.6-1.4Z" fill="currentColor" stroke="none" opacity=".7"/>',
   browser: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/><path d="M5.2 7.5h13.6" opacity=".35"/>',
   qibla: '<circle cx="12" cy="12" r="9"/><path d="m15.7 8.3-2.1 5.3-5.3 2.1 2.1-5.3 5.3-2.1Z"/><circle cx="12" cy="12" r="1.15" fill="currentColor" stroke="none" opacity=".55"/>',
-  speed: '<path d="M4 17a8 8 0 1 1 16 0"/><path d="m12 17 4-6"/><path d="M7 15h.01M17 15h.01M12 8h.01"/><path d="M5.2 11.2h1.2M17.6 11.2h1.2" opacity=".45"/>',
   news: '<path d="M5 4h14v16H5z"/><path d="M8 8h8M8 12h8M8 16h5"/><path d="M8 6h3" opacity=".4"/>',
   pakistan: '<rect x="4" y="4.5" width="16" height="15" rx="3"/><path d="M8 4.5v15"/><path d="M15.8 8.1a3.3 3.3 0 1 0 1 5.2 3.8 3.8 0 1 1-1-5.2Z"/><path d="m17.6 9.2.5.9 1 .2-.7.7.2 1-.9-.5-.9.5.2-1-.7-.7 1-.2.3-.9Z" fill="currentColor" stroke="none" opacity=".65"/>',
   travel: '<path d="M4 16 20 8l-6 12-2-5-5-2Z"/><path d="m12 15 2-2"/><path d="M5.5 7.5 9 9" opacity=".4"/>',
