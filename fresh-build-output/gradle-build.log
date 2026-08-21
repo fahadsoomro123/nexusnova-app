@@ -5,8 +5,8 @@ Daemon will be stopped at the end of the build
 > Task :app:preDebugBuild UP-TO-DATE
 > Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
 > Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
-> Task :app:dataBindingMergeDependencyArtifactsDebug
 > Task :app:generateDebugResValues
+> Task :app:dataBindingMergeDependencyArtifactsDebug
 > Task :app:generateDebugResources
 > Task :app:packageDebugResources
 > Task :app:processDebugNavigationResources
@@ -31,6 +31,7 @@ Daemon will be stopped at the end of the build
 > Task :app:compressDebugAssets
 > Task :app:processDebugResources
 > Task :app:checkDebugDuplicateClasses
+
 > Task :app:compileDebugKotlin
 w: file:///home/runner/work/nexusnova-app/nexusnova-app/NexusNovaAndroid/app/src/main/java/com/nexusnova/app/BrowserActivity.kt:62:16 'var statusBarColor: Int' is deprecated. Deprecated in Java.
 w: file:///home/runner/work/nexusnova-app/nexusnova-app/NexusNovaAndroid/app/src/main/java/com/nexusnova/app/BrowserActivity.kt:63:16 'var navigationBarColor: Int' is deprecated. Deprecated in Java.
@@ -67,7 +68,7 @@ w: file:///home/runner/work/nexusnova-app/nexusnova-app/NexusNovaAndroid/app/src
 > Task :app:packageDebug
 > Task :app:createDebugApkListingFileRedirect
 > Task :app:assembleDebug
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/android_build-1787323308198.json
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/android_build-1787324292736.json
 
-BUILD SUCCESSFUL in 1m 39s
+BUILD SUCCESSFUL in 1m 41s
 40 actionable tasks: 39 executed, 1 up-to-date
