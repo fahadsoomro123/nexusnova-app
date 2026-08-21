@@ -1,6 +1,8 @@
 import { escapeHtml } from '../../core/local-store.js';
 
 const GAUGE_ARC = 'M 76.87 76.87 A 38 38 0 1 1 76.87 23.13';
+const DOWNLOAD_BYTES = 10_000_000;
+const UPLOAD_BYTES = 4_000_000;
 
 function node(html, className = '') {
   const root = document.createElement('div');
@@ -35,16 +37,27 @@ function setGauge(root, ratio, value, mode, decimals = 1) {
   if (fill) fill.style.strokeDasharray = `${(safeRatio * 100).toFixed(2)} 100`;
   if (valueEl) valueEl.textContent = Number(value || 0).toFixed(decimals);
   if (modeEl) modeEl.textContent = mode;
-  root.style.setProperty('--gauge-ratio', safeRatio);
 }
 
-function median(values) { const sorted=[...values].sort((a,b)=>a-b); const middle=Math.floor(sorted.length/2); return sorted.length%2?sorted[middle]:(sorted[middle-1]+sorted[middle])/2; }
-function jitter(values) { if(values.length<2)return 0; let total=0; for(let i=1;i<values.length;i+=1) total+=Math.abs(values[i]-values[i-1]); return total/(values.length-1); }
-function speedRatio(value) { return Math.log10(1+Math.max(0,Math.min(1000,Number(value)||0)))/Math.log10(1001); }
+function median(values) {
+  const sorted = [...values].filter(Number.isFinite).sort((a,b) => a-b);
+  if (!sorted.length) return 0;
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+}
+
+function jitter(values) {
+  if (values.length < 2) return 0;
+  const diffs = [];
+  for (let i = 1; i < values.length; i += 1) diffs.push(Math.abs(values[i] - values[i - 1]));
+  return median(diffs);
+}
+
+function speedRatio(value) {
+  return Math.log10(1 + Math.max(0, Math.min(1000, Number(value) || 0))) / Math.log10(1001);
+}
 
 export function renderSpeedTestPremium() {
-  const DOWNLOAD_BYTES = 4_000_000;
-  const UPLOAD_BYTES = 1_500_000;
   const root = node(`
     <section class="nxspeed-console nxspeed-console--sample-b">
       <header><div><span>NEXUSNOVA NETWORK</span><strong>Precision Speed Test</strong></div><b>METER SAMPLE B</b></header>
@@ -58,35 +71,29 @@ export function renderSpeedTestPremium() {
       </section>
       <button class="nxpi-action nxspeed-start" type="button" data-speed-start>RUN SPEED TEST</button>
       <div class="nxspeed-foot"><span>NexusNova Server • Auto Select</span><span>Connection • Live</span></div>
-      <p class="nxpi-status" data-speed-status>Cloudflare Edge throughput test • approximately 5.5 MB per complete run.</p>
+      <p class="nxpi-status" data-speed-status>Cloudflare Edge live throughput test.</p>
     </section>
   `, 'nx-speed-premium');
 
+  let screen = null;
+  let samplePill = null;
   queueMicrotask(() => {
-    const host = root.closest('.nx-screen');
-    if (!host) return;
-    const h1 = host.querySelector(':scope > .nx-app-head h1');
-    const sub = host.querySelector(':scope > .nx-app-head p:not(.nx-eyebrow)');
+    screen = root.closest('.nx-screen');
+    screen?.classList.add('nx-speed-screen');
+    const head = screen?.querySelector(':scope > .nx-app-head');
+    const h1 = head?.querySelector('h1');
+    const sub = head?.querySelector('p:not(.nx-eyebrow)');
     if (h1) h1.textContent = 'Speed Test';
     if (sub) sub.textContent = 'Network speed instrument';
-  });
-
-  const metrics = root.querySelector('[data-speed-metrics]');
-  metrics.style.gridTemplateColumns = 'repeat(2,minmax(0,1fr))';
-  metrics.style.gap = '10px';
-  metrics.querySelectorAll('article').forEach(article => {
-    article.style.minHeight = '92px';
-    article.style.padding = '14px';
-    article.style.textAlign = 'left';
+    if (head && !head.querySelector('.nx-speed-sample-pill')) {
+      samplePill = document.createElement('span');
+      samplePill.className = 'nx-speed-sample-pill';
+      samplePill.textContent = 'METER SAMPLE B';
+      head.appendChild(samplePill);
+    }
   });
 
   const gauge = root.querySelector('.nxgauge');
-  gauge.style.width = 'min(92vw,620px)';
-  gauge.style.aspectRatio = '1.18 / 1';
-  gauge.style.margin = '12px auto 12px';
-  gauge.style.borderRadius = '0';
-  gauge.style.backgroundSize = 'cover';
-  gauge.style.backgroundPosition = 'center';
   const down = root.querySelector('[data-speed-down]');
   const up = root.querySelector('[data-speed-up]');
   const ping = root.querySelector('[data-speed-ping]');
@@ -95,55 +102,123 @@ export function renderSpeedTestPremium() {
   const start = root.querySelector('[data-speed-start]');
   const status = root.querySelector('[data-speed-status]');
   let running = false;
+  let aborter = null;
 
   const paintSpeed = (value, mode) => {
     const n = Math.max(0, Number(value) || 0);
     setGauge(gauge, speedRatio(n), n, mode, n < 10 ? 2 : n < 100 ? 1 : 0);
   };
 
-  const latency = async () => {
-    const samples=[];
-    for(let i=0;i<5;i+=1){
-      const t=performance.now();
-      const response=await fetch(`https://speed.cloudflare.com/__down?bytes=0&nx=${Date.now()}-${i}`,{cache:'no-store'});
-      if(!response.ok) throw new Error(`Ping HTTP ${response.status}`);
-      await response.arrayBuffer(); samples.push(performance.now()-t); paintSpeed(0,`PING ${i+1}/5`);
+  const latency = async signal => {
+    const samples = [];
+    for (let i = 0; i < 7; i += 1) {
+      const t = performance.now();
+      const response = await fetch(`https://speed.cloudflare.com/__down?bytes=0&nx=${Date.now()}-${i}`, { cache:'no-store', signal });
+      if (!response.ok) throw new Error(`Ping HTTP ${response.status}`);
+      await response.arrayBuffer();
+      samples.push(performance.now() - t);
+      paintSpeed(0, `PING ${i + 1}/7`);
     }
-    return { ping:median(samples), jitter:jitter(samples) };
+    const stable = samples.length > 2 ? samples.slice(1) : samples;
+    return { ping:median(stable), jitter:jitter(stable) };
   };
 
-  const download = async () => {
-    const started=performance.now();
-    const response=await fetch(`https://speed.cloudflare.com/__down?bytes=${DOWNLOAD_BYTES}&nx=${Date.now()}`,{cache:'no-store'});
-    if(!response.ok) throw new Error(`Download HTTP ${response.status}`);
-    let bytes=0;
-    if(!response.body?.getReader){ const buffer=await response.arrayBuffer(); return (buffer.byteLength*8)/((performance.now()-started)/1000)/1e6; }
-    const reader=response.body.getReader();
-    while(true){ const chunk=await reader.read(); if(chunk.done)break; bytes+=chunk.value?.byteLength||0; const current=(bytes*8)/(Math.max(1,performance.now()-started)/1000)/1e6; down.textContent=`${current<10?current.toFixed(2):current.toFixed(1)} Mbps`; paintSpeed(current,'DOWNLOAD'); }
-    return (bytes*8)/(Math.max(1,performance.now()-started)/1000)/1e6;
+  const downloadSample = async (bytesTarget, signal, label) => {
+    const started = performance.now();
+    const response = await fetch(`https://speed.cloudflare.com/__down?bytes=${bytesTarget}&nx=${Date.now()}-${Math.random()}`, { cache:'no-store', signal });
+    if (!response.ok) throw new Error(`Download HTTP ${response.status}`);
+    let bytes = 0;
+    if (!response.body?.getReader) {
+      const buffer = await response.arrayBuffer();
+      return (buffer.byteLength * 8) / (Math.max(1, performance.now() - started) / 1000) / 1e6;
+    }
+    const reader = response.body.getReader();
+    while (true) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      bytes += chunk.value?.byteLength || 0;
+      const current = (bytes * 8) / (Math.max(1, performance.now() - started) / 1000) / 1e6;
+      down.textContent = `${current < 10 ? current.toFixed(2) : current.toFixed(1)} Mbps`;
+      paintSpeed(current, label);
+    }
+    return (bytes * 8) / (Math.max(1, performance.now() - started) / 1000) / 1e6;
   };
 
-  const upload = () => new Promise((resolve,reject)=>{
-    const payload=new Uint8Array(UPLOAD_BYTES); const xhr=new XMLHttpRequest(); const started=performance.now();
-    xhr.open('POST',`https://speed.cloudflare.com/__up?bytes=${UPLOAD_BYTES}&nx=${Date.now()}`,true); xhr.timeout=26000;
-    xhr.upload.onprogress=event=>{ const current=(event.loaded*8)/(Math.max(1,performance.now()-started)/1000)/1e6; up.textContent=`${current<10?current.toFixed(2):current.toFixed(1)} Mbps`; paintSpeed(current,'UPLOAD'); };
-    xhr.onerror=()=>reject(new Error('Upload network error')); xhr.ontimeout=()=>reject(new Error('Upload timeout'));
-    xhr.onload=()=>{ if(xhr.status<200||xhr.status>=300){reject(new Error(`Upload HTTP ${xhr.status}`));return;} resolve((UPLOAD_BYTES*8)/(Math.max(1,performance.now()-started)/1000)/1e6); };
+  const download = async signal => {
+    await downloadSample(1_000_000, signal, 'WARMING UP');
+    const samples = [];
+    for (let i = 0; i < 2; i += 1) samples.push(await downloadSample(DOWNLOAD_BYTES, signal, '↓ DOWNLOAD'));
+    return median(samples);
+  };
+
+  const upload = signal => new Promise((resolve, reject) => {
+    const payload = new Uint8Array(UPLOAD_BYTES);
+    const xhr = new XMLHttpRequest();
+    const started = performance.now();
+    const onAbort = () => xhr.abort();
+    signal?.addEventListener('abort', onAbort, { once:true });
+    xhr.open('POST', `https://speed.cloudflare.com/__up?bytes=${UPLOAD_BYTES}&nx=${Date.now()}`, true);
+    xhr.timeout = 30000;
+    xhr.upload.onprogress = event => {
+      const current = (event.loaded * 8) / (Math.max(1, performance.now() - started) / 1000) / 1e6;
+      up.textContent = `${current < 10 ? current.toFixed(2) : current.toFixed(1)} Mbps`;
+      paintSpeed(current, '↑ UPLOAD');
+    };
+    xhr.onerror = () => reject(new Error('Upload network error'));
+    xhr.onabort = () => reject(new DOMException('Aborted', 'AbortError'));
+    xhr.ontimeout = () => reject(new Error('Upload timeout'));
+    xhr.onload = () => {
+      signal?.removeEventListener('abort', onAbort);
+      if (xhr.status < 200 || xhr.status >= 300) return reject(new Error(`Upload HTTP ${xhr.status}`));
+      resolve((UPLOAD_BYTES * 8) / (Math.max(1, performance.now() - started) / 1000) / 1e6);
+    };
     xhr.send(payload);
   });
 
-  start.addEventListener('click',async()=>{
-    if(running)return; running=true; start.disabled=true; start.textContent='TEST IN PROGRESS'; qualityEl.textContent='MEASURING'; down.textContent=up.textContent=ping.textContent=jitterEl.textContent='—'; paintSpeed(0,'CALIBRATING');
-    try{
-      status.textContent='Measuring latency and connection stability…'; const l=await latency(); ping.textContent=`${l.ping.toFixed(0)} ms`; jitterEl.textContent=`${l.jitter.toFixed(1)} ms`;
-      status.textContent='Measuring live download throughput…'; const d=await download(); down.textContent=`${d<10?d.toFixed(2):d.toFixed(1)} Mbps`;
-      status.textContent='Measuring live upload throughput…'; const u=await upload(); up.textContent=`${u<10?u.toFixed(2):u.toFixed(1)} Mbps`;
-      const quality=d>=300&&u>=80&&l.ping<=35?'OPTIMAL CONNECTION':d>=100?'VERY FAST':d>=25?'GOOD CONNECTION':d>=8?'USABLE CONNECTION':'SLOW CONNECTION';
-      qualityEl.textContent=quality; paintSpeed(d,'DOWNLOAD'); status.textContent=`${quality} • ping ${l.ping.toFixed(0)} ms • jitter ${l.jitter.toFixed(1)} ms`; start.textContent='RUN AGAIN';
-    }catch(error){ qualityEl.textContent='INTERRUPTED'; status.textContent='Speed test interrupted. Check the connection and try again.'; start.textContent='TRY AGAIN'; console.warn('[NexusNova Premium] speed test:',error); }
-    finally{ running=false; start.disabled=false; }
+  start.addEventListener('click', async () => {
+    if (running) return;
+    running = true;
+    aborter = new AbortController();
+    start.disabled = true;
+    start.textContent = 'TEST IN PROGRESS';
+    qualityEl.textContent = 'MEASURING';
+    down.textContent = up.textContent = ping.textContent = jitterEl.textContent = '—';
+    paintSpeed(0, 'CALIBRATING');
+    try {
+      status.textContent = 'Measuring latency and connection stability…';
+      const l = await latency(aborter.signal);
+      ping.textContent = `${l.ping.toFixed(0)} ms`;
+      jitterEl.textContent = `${l.jitter.toFixed(1)} ms`;
+      status.textContent = 'Measuring sustained live download throughput…';
+      const d = await download(aborter.signal);
+      down.textContent = `${d < 10 ? d.toFixed(2) : d.toFixed(1)} Mbps`;
+      status.textContent = 'Measuring sustained live upload throughput…';
+      const u = await upload(aborter.signal);
+      up.textContent = `${u < 10 ? u.toFixed(2) : u.toFixed(1)} Mbps`;
+      const quality = d >= 300 && u >= 80 && l.ping <= 35 ? 'OPTIMAL CONNECTION' : d >= 100 ? 'VERY FAST' : d >= 25 ? 'GOOD CONNECTION' : d >= 8 ? 'USABLE CONNECTION' : 'SLOW CONNECTION';
+      qualityEl.textContent = quality;
+      paintSpeed(d, '↓ DOWNLOAD');
+      status.textContent = `${quality} • ping ${l.ping.toFixed(0)} ms • jitter ${l.jitter.toFixed(1)} ms`;
+      start.textContent = 'RUN AGAIN';
+    } catch (error) {
+      if (error?.name !== 'AbortError') {
+        qualityEl.textContent = 'INTERRUPTED';
+        status.textContent = 'Speed test interrupted. Check the connection and try again.';
+        start.textContent = 'TRY AGAIN';
+        console.warn('[NexusNova Premium] speed test:', error);
+      }
+    } finally {
+      running = false;
+      start.disabled = false;
+      aborter = null;
+    }
   });
 
+  root.__cleanup = () => {
+    aborter?.abort();
+    samplePill?.remove();
+    screen?.classList.remove('nx-speed-screen');
+  };
   return root;
 }
 
