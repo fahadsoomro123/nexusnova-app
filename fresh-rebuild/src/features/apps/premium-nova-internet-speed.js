@@ -2,16 +2,16 @@ const NIS_DOWNLOAD_URL = 'https://speed.cloudflare.com/__down';
 const NIS_UPLOAD_URL = 'https://speed.cloudflare.com/__up';
 const NIS_RESULT_KEY = 'nexusnova_nova_internet_speed_v1';
 const NIS_SCALE = Object.freeze([
-  { value: 0, angle: 188, label: '0' },
-  { value: 1, angle: 205, label: '1' },
-  { value: 5, angle: 225, label: '5' },
-  { value: 10, angle: 244, label: '10' },
-  { value: 20, angle: 270, label: '20' },
-  { value: 50, angle: 294, label: '50' },
-  { value: 100, angle: 313, label: '100' },
-  { value: 250, angle: 329, label: '250' },
-  { value: 500, angle: 340, label: '500' },
-  { value: 1000, angle: 350, label: '1G' }
+  { value: 0, rotation: -94.0, label: '0', x: 171.0, y: 534.9 },
+  { value: 1, rotation: -68.6, label: '1', x: 185.5, y: 388.5 },
+  { value: 5, rotation: -44.1, label: '5', x: 255.4, y: 259.7 },
+  { value: 10, rotation: -21.9, label: '10', x: 371.1, y: 191.5 },
+  { value: 20, rotation: 0.2, label: '20', x: 501.2, y: 156.2 },
+  { value: 50, rotation: 21.9, label: '50', x: 628.9, y: 191.5 },
+  { value: 100, rotation: 43.5, label: '100', x: 737.4, y: 262.2 },
+  { value: 250, rotation: 66.7, label: '250', x: 804.9, y: 380.9 },
+  { value: 500, rotation: 92.7, label: '500', x: 821.7, y: 527.3 },
+  { value: 1000, rotation: 117.4, label: '1G', x: 792.8, y: 663.6 }
 ]);
 
 function nisNode(html, className = '') {
@@ -26,17 +26,17 @@ function nisPoint(cx, cy, rx, ry, degrees) {
   return [cx + Math.cos(a) * rx, cy + Math.sin(a) * ry];
 }
 
-function nisAngleForMbps(value) {
+function nisRotationForMbps(value) {
   const n = Math.max(0, Math.min(1000, Number(value) || 0));
   for (let i = 1; i < NIS_SCALE.length; i += 1) {
     const lo = NIS_SCALE[i - 1], hi = NIS_SCALE[i];
     if (n <= hi.value) {
       const span = hi.value - lo.value || 1;
       const t = (n - lo.value) / span;
-      return lo.angle + (hi.angle - lo.angle) * t;
+      return lo.rotation + (hi.rotation - lo.rotation) * t;
     }
   }
-  return NIS_SCALE[NIS_SCALE.length - 1].angle;
+  return NIS_SCALE[NIS_SCALE.length - 1].rotation;
 }
 
 function nisGaugeSvg() {
@@ -49,9 +49,8 @@ function nisGaugeSvg() {
     minorTicks.push(`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" class="${major ? 'nis-major-tick' : 'nis-minor-tick'}"/>`);
   }
   const labels = NIS_SCALE.map((item, index) => {
-    const [x, y] = nisPoint(500, 676, 344, 443, item.angle);
     const extra = index === 0 ? ' nis-label-zero' : index === NIS_SCALE.length - 1 ? ' nis-label-gig' : '';
-    return `<text x="${x.toFixed(1)}" y="${(y + 12).toFixed(1)}" text-anchor="middle" class="nis-scale-label${extra}">${item.label}</text>`;
+    return `<text x="${item.x.toFixed(1)}" y="${item.y.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" class="nis-scale-label${extra}">${item.label}</text>`;
   }).join('');
   const dots = [];
   for (let row = 0; row < 8; row += 1) {
@@ -64,7 +63,7 @@ function nisGaugeSvg() {
       dots.push(`<circle cx="${x.toFixed(1)}" cy="${y}" r="${row < 3 ? 2.2 : 1.8}" fill="#39cfff" opacity="${opacity}"/>`);
     }
   }
-  return `<svg class="nxnis-gauge-svg" viewBox="0 0 1000 780" role="img" aria-label="Nova Internet Speed live meter">
+  return `<svg class="nxnis-gauge-svg" viewBox="65 35 870 720" preserveAspectRatio="none" role="img" aria-label="Nova Internet Speed live meter">
     <defs>
       <linearGradient id="nisOuterMetal" x1="0" y1="0" x2="1" y2="1">
         <stop offset="0" stop-color="#f8fdff"/><stop offset=".08" stop-color="#8ccfff"/>
@@ -110,15 +109,24 @@ function nisGaugeSvg() {
     <path d="M109 702C96 352 229 123 500 91C771 123 904 352 891 702" fill="none" stroke="#a8e9ff" stroke-width="2.4" opacity=".58"/>
     <g clip-path="url(#nisFaceClip)">${minorTicks.join('')}</g>
     <g>${labels}</g>
-    <g clip-path="url(#nisFaceClip)" opacity=".92">${dots.join('')}<path d="M159 715Q500 596 841 715" fill="none" stroke="url(#nisFloor)" stroke-width="4" filter="url(#nisGlow)"/></g>
-    <path d="M145 170Q319 51 536 76Q702 93 807 213Q619 143 487 219Q309 146 145 170Z" fill="url(#nisGlass)" opacity=".72"/>
-    <g data-nis-needle transform="rotate(-82 500 512)" filter="url(#nisNeedleGlow)">
-      <polygon points="493,518 496,231 500,198 504,231 507,518" fill="url(#nisNeedle)" stroke="#dfffff" stroke-width="3"/>
-      <circle cx="500" cy="512" r="25" fill="#0b2338" stroke="#69eaff" stroke-width="7"/>
-      <circle cx="500" cy="512" r="9" fill="#eaffff"/>
+    <g clip-path="url(#nisFaceClip)" opacity=".96">${dots.join('')}
+      ${[170,220,270,320,370,420,580,630,680,730,780,830].map(x=>`<path d="M500 610 Q${((500+x)/2).toFixed(1)} 655 ${x} 729" fill="none" stroke="#2dcfff" stroke-width="1.6" opacity=".16"/>`).join('')}
+      <path d="M159 715Q500 596 841 715" fill="none" stroke="url(#nisFloor)" stroke-width="5" filter="url(#nisGlow)"/>
+      <path d="M205 686Q500 615 795 686" fill="none" stroke="#4adfff" stroke-width="2" opacity=".28"/>
+      <path d="M132 739Q500 758 868 739" fill="none" stroke="url(#nisArc)" stroke-width="9" opacity=".62" filter="url(#nisGlow)"/>
     </g>
+    <path d="M220 116C318 67 455 48 620 64" fill="none" stroke="#e9fbff" stroke-width="24" stroke-linecap="round" opacity=".62" filter="url(#nisGlow)"/>
+    <path d="M226 115C323 74 457 58 612 70" fill="none" stroke="#c8eaff" stroke-width="9" stroke-linecap="round" opacity=".86"/>
+    <path d="M145 170Q319 51 536 76Q702 93 807 213Q619 143 487 219Q309 146 145 170Z" fill="url(#nisGlass)" opacity=".72"/>
+    <g data-nis-needle transform="rotate(-94 500 512)" filter="url(#nisNeedleGlow)">
+      <polygon points="493,518 496,231 500,198 504,231 507,518" fill="url(#nisNeedle)" stroke="#dfffff" stroke-width="3"/>
+      <circle cx="500" cy="512" r="14" fill="#0b2338" stroke="#69eaff" stroke-width="5"/>
+      <circle cx="500" cy="512" r="5" fill="#eaffff"/>
+    </g>
+    <ellipse cx="500" cy="512" rx="132" ry="74" fill="#06182a" opacity=".94"/>
+    <ellipse cx="500" cy="512" rx="132" ry="74" fill="none" stroke="#12324d" stroke-width="2" opacity=".32"/>
     <g class="nxnis-readout-svg">
-      <text x="500" y="428" text-anchor="middle" class="nis-mode-label">↓ DOWNLOAD</text>
+      <text x="500" y="386" text-anchor="middle" class="nis-mode-label">↓ DOWNLOAD</text>
       <text x="500" y="535" text-anchor="middle" class="nis-main-value" data-nis-svg-value>0.0</text>
       <text x="500" y="583" text-anchor="middle" class="nis-unit-label">Mbps</text>
     </g>
@@ -142,31 +150,32 @@ function nisSparkline(color, id) {
 
 const nisStyles = `
 .nxnis-screen>.nx-app-head{display:none!important}
-.nxnis-root{display:block!important;width:100%!important;max-width:none!important;color:#f7fbff;font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
+.nxnis-root{display:block!important;width:100%!important;max-width:none!important;overflow-x:clip;color:#f7fbff;font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
 .nxnis-root *{box-sizing:border-box}.nxnis-root button{font-family:inherit}
-.nxnis-shell{width:100%;padding:4px 0 24px;background:radial-gradient(circle at 50% 28%,rgba(11,87,151,.13),transparent 34%),linear-gradient(180deg,rgba(4,15,28,.28),rgba(1,8,15,.1))}
-.nxnis-head{display:grid;grid-template-columns:38px 38px minmax(0,1fr) auto;gap:9px;align-items:center;min-height:56px;padding:2px 0 13px;border-bottom:1px solid rgba(89,167,223,.09)}
-.nxnis-back,.nxnis-head-icon{width:38px;height:38px;display:grid;place-items:center;border:1px solid rgba(87,171,230,.14);border-radius:13px;background:linear-gradient(145deg,rgba(7,25,43,.98),rgba(4,16,29,.98));box-shadow:inset 0 1px rgba(255,255,255,.025),0 8px 20px rgba(0,0,0,.15)}
+.nxnis-shell{width:100%;margin-top:-15px;padding:4px 0 24px;background:radial-gradient(circle at 50% 28%,rgba(11,87,151,.13),transparent 34%),linear-gradient(180deg,rgba(4,15,28,.28),rgba(1,8,15,.1))}
+.nxnis-head{display:grid;grid-template-columns:36px 36px minmax(0,1fr) auto;gap:9px;align-items:center;min-height:54px;padding:2px 0 11px;border-bottom:1px solid rgba(89,167,223,.09)}
+.nxnis-back,.nxnis-head-icon{width:36px;height:36px;display:grid;place-items:center;border:1px solid rgba(87,171,230,.14);border-radius:13px;background:linear-gradient(145deg,rgba(7,25,43,.98),rgba(4,16,29,.98));box-shadow:inset 0 1px rgba(255,255,255,.025),0 8px 20px rgba(0,0,0,.15)}
 .nxnis-back{padding:0;color:#e5f4ff;font-size:28px;line-height:1;cursor:pointer}.nxnis-back span{transform:translateY(-1px)}
 .nxnis-head-icon{color:#46d2ff;background:radial-gradient(circle at 50% 48%,rgba(27,157,230,.16),transparent 62%),linear-gradient(145deg,#08243c,#041423)}
 .nxnis-head-icon svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .nxnis-title{min-width:0}.nxnis-title h2{margin:0;font-size:17px;line-height:1.02;letter-spacing:-.035em;white-space:nowrap}.nxnis-title p{margin:5px 0 0;color:#7f94aa;font-size:10px;font-weight:620;white-space:nowrap}
-.nxnis-sample{width:98px;height:36px;padding:0;border:1px solid rgba(49,141,196,.18);border-radius:11px;background:#041421;color:#4dc9f2;font-size:6.4px;font-weight:900;letter-spacing:.09em;white-space:nowrap;overflow:hidden}
+.nxnis-sample{width:96px;height:24px;padding:0;border:1px solid rgba(49,141,196,.18);border-radius:11px;background:#041421;color:#4dc9f2;font-size:6.4px;font-weight:900;letter-spacing:.09em;white-space:nowrap}
 .nxnis-network{padding:15px 0 3px}.nxnis-network b{display:block;color:#8ca6c1;font-size:8px;letter-spacing:.16em}.nxnis-network span{display:flex;align-items:center;gap:6px;margin-top:5px;color:#8499ae;font-size:9px}.nxnis-network i{width:7px;height:7px;border-radius:50%;background:#2eea63;box-shadow:0 0 9px rgba(46,234,99,.7)}
 .nxnis-network.is-offline i{background:#ff5d73;box-shadow:0 0 9px rgba(255,93,115,.55)}
-.nxnis-meter{position:relative;width:100%;margin:0 auto}
-.nxnis-gauge-svg{display:block;width:100%;height:auto;filter:drop-shadow(0 16px 26px rgba(0,0,0,.38))}
-.nis-minor-tick{stroke:#4385af;stroke-width:2;opacity:.52}.nis-major-tick{stroke:#7bcfff;stroke-width:4;opacity:.82}.nis-scale-label{fill:#edf8ff;font-size:31px;font-weight:790;paint-order:stroke;stroke:#061221;stroke-width:5}.nis-label-zero,.nis-label-gig{font-size:29px}.nis-mode-label{fill:#6bdcff;font-size:19px;font-weight:860;letter-spacing:.14em}.nis-main-value{fill:#fbfdff;font-size:100px;font-weight:340;letter-spacing:-.04em;paint-order:stroke;stroke:#07121f;stroke-width:2}.nis-unit-label{fill:#93a7bb;font-size:25px;font-weight:760;letter-spacing:.02em}
-.nxnis-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:7px}
-.nxnis-card{position:relative;overflow:hidden;min-width:0;height:58px;padding:9px 9px 8px 42px;border:1px solid rgba(78,157,210,.15);border-radius:12px;background:linear-gradient(145deg,rgba(7,25,42,.96),rgba(3,13,24,.98));box-shadow:inset 0 1px rgba(255,255,255,.022),0 8px 18px rgba(0,0,0,.12)}
+.nxnis-meter{position:relative;width:100%;aspect-ratio:1000/790;margin:-26px auto 0}
+.nxnis-gauge-svg{display:block;width:100%;height:100%;filter:drop-shadow(0 16px 26px rgba(0,0,0,.38))}
+.nis-minor-tick{stroke:#4385af;stroke-width:2;opacity:.52}.nis-major-tick{stroke:#7bcfff;stroke-width:4;opacity:.82}.nis-scale-label{fill:#edf8ff;font-size:31px;font-weight:790;paint-order:stroke;stroke:#061221;stroke-width:5}.nis-label-zero,.nis-label-gig{font-size:29px}.nis-mode-label{fill:#6bdcff;font-size:19px;font-weight:860;letter-spacing:.14em}.nis-main-value{fill:#fbfdff;font-size:128px;font-weight:340;letter-spacing:-.04em;paint-order:stroke;stroke:#07121f;stroke-width:2}.nis-unit-label{fill:#93a7bb;font-size:25px;font-weight:760;letter-spacing:.02em}
+.nxnis-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:24px}
+.nxnis-card{position:relative;overflow:hidden;min-width:0;height:58px;padding:9px 9px 8px 42px;border:1px solid rgba(78,157,210,.15);border-radius:12px;background:radial-gradient(circle at 100% 100%,rgba(22,89,136,.10),transparent 45%),linear-gradient(145deg,rgba(7,25,42,.98),rgba(3,13,24,.99));box-shadow:inset 0 1px rgba(255,255,255,.022),0 8px 18px rgba(0,0,0,.12)}
 .nxnis-card-icon{position:absolute;left:10px;top:10px;width:23px;height:23px;display:grid;place-items:center;border:1px solid currentColor;border-radius:50%;opacity:.95}.nxnis-card-icon svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .nxnis-card--download{color:#2f9cff}.nxnis-card--upload{color:#31dc74}.nxnis-card--ping{color:#b02eff}.nxnis-card--jitter{color:#e8bd2f}
 .nxnis-card label{display:block;color:#8ba2b9;font-size:7.2px;font-weight:900;letter-spacing:.13em}.nxnis-card strong{position:relative;z-index:2;display:block;margin-top:5px;color:#f7fbff;font-size:15px;line-height:1;white-space:nowrap}.nxnis-card strong small{color:#93a6ba;font-size:8px;font-weight:750}.nxnis-spark{position:absolute;right:7px;bottom:7px;width:74px;height:27px;opacity:.78}
-.nxnis-action{position:relative;width:100%;height:44px;margin-top:16px;border:1px solid #1776b1;border-radius:22px;background:radial-gradient(circle at 25% 0,rgba(27,133,207,.24),transparent 35%),linear-gradient(180deg,#08243b,#051728);color:#f6fbff;font-size:9px;font-weight:900;letter-spacing:.14em;cursor:pointer;box-shadow:inset 0 1px rgba(170,230,255,.16),0 0 24px rgba(0,129,211,.08)}.nxnis-action:disabled{opacity:.65;cursor:default}.nxnis-action span{display:block}.nxnis-action i{position:absolute;right:8px;top:50%;width:30px;height:30px;display:grid;place-items:center;transform:translateY(-50%);border-radius:50%;background:rgba(28,93,135,.45);font-style:normal;font-size:22px;line-height:1}
+.nxnis-action{position:relative;width:100%;height:40px;margin-top:10px;border:1px solid #1776b1;border-radius:22px;background:radial-gradient(circle at 25% 0,rgba(27,133,207,.24),transparent 35%),linear-gradient(180deg,#08243b,#051728);color:#f6fbff;font-size:9px;font-weight:900;letter-spacing:.14em;cursor:pointer;box-shadow:inset 0 1px rgba(170,230,255,.16),0 0 24px rgba(0,129,211,.08)}.nxnis-action:disabled{opacity:.65;cursor:default}.nxnis-action span{display:block}.nxnis-action i{position:absolute;right:8px;top:50%;width:30px;height:30px;display:grid;place-items:center;transform:translateY(-50%);border-radius:50%;background:rgba(28,93,135,.45);font-style:normal;font-size:22px;line-height:1}
 .nxnis-meta{display:grid;grid-template-columns:1fr 1px 1fr;gap:14px;align-items:center;min-height:48px;padding:9px 7px 0;color:#6f8499;font-size:7.5px}.nxnis-meta>i{width:1px;height:27px;background:rgba(115,172,210,.13)}.nxnis-meta div{display:flex;align-items:center;gap:7px;min-width:0}.nxnis-meta svg{flex:0 0 18px;width:18px;height:18px;fill:none;stroke:#6f8da8;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}.nxnis-meta span{min-width:0;line-height:1.35}.nxnis-meta b{color:#8ba3ba;font-weight:800}
-.nxnis-status{min-height:17px;margin:3px 5px 0;color:#536b81;font-size:7.4px;line-height:1.35}
-@media(max-width:360px){.nxnis-head{grid-template-columns:34px 34px minmax(0,1fr) auto;gap:6px}.nxnis-back,.nxnis-head-icon{width:34px;height:34px}.nxnis-title h2{font-size:13px;white-space:normal;line-height:1.06}.nxnis-title p{font-size:8.2px}.nxnis-sample{height:32px;padding:0 8px;font-size:6.8px}.nxnis-network{padding-top:12px}.nxnis-metrics{gap:7px}.nxnis-card{height:55px;padding-left:39px}.nxnis-card-icon{left:8px}.nxnis-card strong{font-size:13px}.nxnis-spark{width:62px}.nxnis-action{height:42px;margin-top:13px}.nxnis-meta{gap:9px;padding-inline:4px}}
-@media(min-width:600px){.nxnis-shell{max-width:520px;margin:0 auto}.nxnis-title h2{font-size:20px}}
+.nxnis-status{display:none!important}
+@media(max-width:360px){.nxnis-head{grid-template-columns:34px 34px minmax(0,1fr) 84px;gap:7px}.nxnis-back,.nxnis-head-icon{width:34px;height:34px}.nxnis-title h2{font-size:13px}.nxnis-title p{font-size:8px}.nxnis-sample{width:84px;height:26px;padding:0;font-size:5.5px;letter-spacing:.07em}.nxnis-network{padding-top:12px}.nxnis-metrics{gap:7px}.nxnis-card{height:55px;padding-left:39px}.nxnis-card-icon{left:8px}.nxnis-card strong{font-size:13px}.nxnis-spark{width:62px}.nxnis-action{height:42px;margin-top:13px}.nxnis-meta{gap:9px;padding-inline:4px}}
+@media(max-width:330px){.nxnis-title h2{font-size:11.5px}.nxnis-title p{font-size:7.2px}}
+@media(min-width:600px){.nxnis-shell{max-width:520px;margin:0 auto}.nxnis-title h2{font-size:22px}}
 `;
 
 function nisFormatMbps(value) {
@@ -208,7 +217,7 @@ export function renderNovaInternetSpeed() {
       </section>
       <button class="nxnis-action" type="button" data-nis-run><span>RUN TEST</span><i>›</i></button>
       <section class="nxnis-meta">
-        <div><svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="6" rx="1.5"/><rect x="5" y="15" width="14" height="6" rx="1.5"/><path d="M8 6h.01M8 18h.01M11 12h2"/></svg><span><b>NexusNova Test</b><br>Cloudflare Edge • Auto Select</span></div>
+        <div><svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="6" rx="1.5"/><rect x="5" y="15" width="14" height="6" rx="1.5"/><path d="M8 6h.01M8 18h.01M11 12h2"/></svg><span><b>NexusNova Server</b><br>Cloudflare Edge • Auto Select</span></div>
         <i></i>
         <div><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/></svg><span><b>Connection</b><br><span data-nis-live>Live</span></span></div>
       </section>
@@ -245,8 +254,8 @@ export function renderNovaInternetSpeed() {
 
   const paintMeter = (mbps, mode = 'DOWNLOAD') => {
     const n = Math.max(0, Number(mbps) || 0);
-    const angle = nisAngleForMbps(n);
-    needle?.setAttribute('transform', `rotate(${(angle - 270).toFixed(2)} 500 512)`);
+    const rotation = nisRotationForMbps(n);
+    needle?.setAttribute('transform', `rotate(${rotation.toFixed(2)} 500 512)`);
     svgValue.textContent = nisFormatMbps(n);
     modeLabel.textContent = `${mode === 'UPLOAD' ? '↑' : '↓'} ${mode}`;
   };
@@ -318,11 +327,11 @@ export function renderNovaInternetSpeed() {
   const measureDownload = async () => {
     status.textContent = 'Warming up download path…';
     const warm = await transferDownload(800_000);
-    paintMeter(warm, 'DOWNLOAD'); pushMetric('download', warm);
+    paintMeter(warm, 'DOWNLOAD'); downEl.textContent = nisFormatMbps(warm); pushMetric('download', warm);
     const target = Math.round(nisClamp((warm * 1_000_000 / 8) * 2.2, 2_000_000, 24_000_000));
     status.textContent = 'Measuring download throughput…';
     const measured = await transferDownload(target);
-    paintMeter(measured, 'DOWNLOAD'); pushMetric('download', measured);
+    paintMeter(measured, 'DOWNLOAD'); downEl.textContent = nisFormatMbps(measured); pushMetric('download', measured);
     downEl.textContent = nisFormatMbps(measured);
     return measured;
   };
@@ -344,11 +353,11 @@ export function renderNovaInternetSpeed() {
     status.textContent = 'Measuring upload throughput…';
     const firstBytes = Math.round(nisClamp((Math.max(5, downloadMbps * .45) * 1_000_000 / 8) * 1.6, 800_000, 6_000_000));
     const first = await uploadOnce(firstBytes);
-    paintMeter(first, 'UPLOAD'); pushMetric('upload', first);
+    paintMeter(first, 'UPLOAD'); upEl.textContent = nisFormatMbps(first); pushMetric('upload', first);
     let measured = first;
     if (first > 60 && firstBytes < 6_000_000) {
       measured = await uploadOnce(6_000_000);
-      paintMeter(measured, 'UPLOAD'); pushMetric('upload', measured);
+      paintMeter(measured, 'UPLOAD'); upEl.textContent = nisFormatMbps(measured); pushMetric('upload', measured);
     }
     upEl.textContent = nisFormatMbps(measured);
     return measured;
@@ -371,9 +380,8 @@ export function renderNovaInternetSpeed() {
   const loadPrevious = () => {
     try {
       const saved = JSON.parse(localStorage.getItem(NIS_RESULT_KEY) || 'null');
-      if (saved && Number.isFinite(saved.download) && Number.isFinite(saved.upload)) { applyResult(saved); return saved; }
+      if (saved && Number.isFinite(saved.download) && Number.isFinite(saved.upload)) applyResult(saved);
     } catch {}
-    return null;
   };
 
   const runTest = async () => {
@@ -402,7 +410,7 @@ export function renderNovaInternetSpeed() {
   run.addEventListener('click', runTest);
   window.addEventListener('online', updateOnline);
   window.addEventListener('offline', updateOnline);
-  updateOnline(); const previous = loadPrevious(); paintMeter(Number(previous?.download) || 0, 'DOWNLOAD');
+  updateOnline(); loadPrevious(); paintMeter(Number(localStorage.getItem(NIS_RESULT_KEY) ? JSON.parse(localStorage.getItem(NIS_RESULT_KEY)).download : 0) || 0, 'DOWNLOAD');
 
   root.__cleanup = () => {
     controllers.forEach(controller => controller.abort());
