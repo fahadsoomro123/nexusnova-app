@@ -18,7 +18,7 @@ NODE_ID = os.environ.get("NOVA_VPN_NODE_ID", "").strip()
 PUBLIC_HOST = os.environ.get("NOVA_VPN_PUBLIC_HOST", "").strip().lower()
 CITY = os.environ.get("NOVA_VPN_CITY", "").strip()
 COUNTRY = os.environ.get("NOVA_VPN_COUNTRY", "").strip()
-CAPACITY_MBPS = max(100, int(os.environ.get("NOVA_VPN_CAPACITY_MBPS", "1000")))
+CAPACITY_MBPS = int(os.environ.get("NOVA_VPN_CAPACITY_MBPS", "0"))
 FIREBASE_API_KEY = os.environ.get("NOVA_FIREBASE_WEB_API_KEY", "").strip()
 WG_INTERFACE = os.environ.get("NOVA_VPN_WG_INTERFACE", "wg0").strip()
 WG_PORT = int(os.environ.get("NOVA_VPN_WG_PORT", "51820"))
@@ -47,6 +47,8 @@ def require_config() -> None:
         fail("NOVA_VPN_PUBLIC_HOST is missing or invalid")
     if not CITY or not COUNTRY:
         fail("NOVA_VPN_CITY and NOVA_VPN_COUNTRY are required")
+    if CAPACITY_MBPS != 0 and not 100 <= CAPACITY_MBPS <= 100000:
+        fail("NOVA_VPN_CAPACITY_MBPS must be 0 (unverified) or a verified value from 100 to 100000")
     if not FIREBASE_API_KEY:
         fail("NOVA_FIREBASE_WEB_API_KEY is required")
     if not SERVER_PUBLIC_KEY_PATH.is_file():
@@ -207,7 +209,8 @@ def health_payload() -> dict:
         "city": CITY,
         "country": COUNTRY,
         "protocol": "wireguard",
-        "capacityMbps": CAPACITY_MBPS,
+        "capacityVerified": CAPACITY_MBPS > 0,
+        "capacityMbps": CAPACITY_MBPS if CAPACITY_MBPS > 0 else None,
         "activePeers": active,
         "peerCapacity": peer_capacity,
         "loadPercent": effective_load,
