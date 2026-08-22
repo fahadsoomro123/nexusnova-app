@@ -17,15 +17,6 @@ async function scopedKey(name) {
   }
 }
 
-function postNative(action, payload = {}) {
-  try {
-    if (typeof window.nexusPostNativeAction === 'function') return window.nexusPostNativeAction(action, payload);
-    if (typeof window.NexusAndroid?.postMessage !== 'function') return false;
-    window.NexusAndroid.postMessage(JSON.stringify({ action, ...payload }));
-    return true;
-  } catch { return false; }
-}
-
 function nowLocalInput(offsetMs = 0) {
   const date = new Date(Date.now() + offsetMs - new Date().getTimezoneOffset() * 60_000);
   return date.toISOString().slice(0,16);
@@ -198,19 +189,13 @@ function normalizePhone(value) {
 
 export function renderContacts() {
   const root=node(`
-    <section class="nx-tool-card"><div class="nx-two-col"><label class="nx-field"><span>Name</span><input maxlength="100" data-contact-name></label><label class="nx-field"><span>Phone</span><input inputmode="tel" maxlength="18" data-contact-phone></label></div><label class="nx-field"><span>Address</span><input maxlength="300" data-contact-address></label><button class="nx-primary" type="button" data-contact-add>ADD CONTACT</button><p class="nx-tool-meta" data-contact-status>Contacts are account-scoped. Android builds also sync them to the private Caller ID store.</p></section>
+    <section class="nx-tool-card"><div class="nx-two-col"><label class="nx-field"><span>Name</span><input maxlength="100" data-contact-name></label><label class="nx-field"><span>Phone</span><input inputmode="tel" maxlength="18" data-contact-phone></label></div><label class="nx-field"><span>Address</span><input maxlength="300" data-contact-address></label><button class="nx-primary" type="button" data-contact-add>ADD CONTACT</button><p class="nx-tool-meta" data-contact-status>Contacts are saved on this device for the signed-in account.</p></section>
     <section class="nx-stack" data-contact-list></section>`);
-  const name=root.querySelector('[data-contact-name]'),phone=root.querySelector('[data-contact-phone]'),address=root.querySelector('[data-contact-address]'),list=root.querySelector('[data-contact-list]'),status=root.querySelector('[data-contact-status]');let key='',accountId='';
-  const syncNative=item=>postNative('saveContact',{accountId,contactId:item.id,name:item.name,phone:item.phone,address:item.address});
-  const draw=()=>{if(!key)return;const items=loadJson(key,[]);list.innerHTML=items.length?items.map(item=>`<article class="nx-list-card"><div class="nx-list-card__head"><strong>${escapeHtml(item.name)}</strong><button class="nx-icon-button" type="button" data-contact-delete="${escapeHtml(item.id)}">×</button></div><p>${escapeHtml(item.phone)}${item.address?` • ${escapeHtml(item.address)}`:''}</p></article>`).join(''):'<div class="nx-empty">No contacts yet.</div>';list.querySelectorAll('[data-contact-delete]').forEach(b=>b.addEventListener('click',()=>{const items=loadJson(key,[]);const item=items.find(x=>x.id===b.dataset.contactDelete);saveJson(key,items.filter(x=>x.id!==b.dataset.contactDelete));if(item)postNative('deleteContact',{accountId,contactId:item.id});draw();}));};
-  requireFirebaseUser().then(user=>{accountId=user.uid;key=`nexus_fresh_contacts_v1_${user.uid}`;postNative('setActiveAccount',{accountId});loadJson(key,[]).forEach(syncNative);draw();}).catch(error=>{status.textContent=error.message;});
-  root.querySelector('[data-contact-add]').addEventListener('click',()=>{const n=name.value.trim(),p=normalizePhone(phone.value),a=address.value.trim();const digits=p.replace(/\D/g,'');if(!key||!n||digits.length<10||digits.length>15){status.textContent='Enter a name and a valid 10–15 digit phone number.';return;}const items=loadJson(key,[]);const item={id:uid('contact'),name:n.slice(0,100),phone:p,address:a.slice(0,300)};items.push(item);saveJson(key,items.slice(-1000));syncNative(item);name.value=phone.value=address.value='';status.textContent='Contact saved.';draw();});
+  const name=root.querySelector('[data-contact-name]'),phone=root.querySelector('[data-contact-phone]'),address=root.querySelector('[data-contact-address]'),list=root.querySelector('[data-contact-list]'),status=root.querySelector('[data-contact-status]');let key='';
+  const draw=()=>{if(!key)return;const items=loadJson(key,[]);list.innerHTML=items.length?items.map(item=>`<article class="nx-list-card"><div class="nx-list-card__head"><strong>${escapeHtml(item.name)}</strong><button class="nx-icon-button" type="button" data-contact-delete="${escapeHtml(item.id)}">×</button></div><p>${escapeHtml(item.phone)}${item.address?` • ${escapeHtml(item.address)}`:''}</p></article>`).join(''):'<div class="nx-empty">No contacts yet.</div>';list.querySelectorAll('[data-contact-delete]').forEach(b=>b.addEventListener('click',()=>{saveJson(key,loadJson(key,[]).filter(x=>x.id!==b.dataset.contactDelete));draw();}));};
+  requireFirebaseUser().then(user=>{key=`nexus_fresh_contacts_v1_${user.uid}`;draw();}).catch(error=>{status.textContent=error.message;});
+  root.querySelector('[data-contact-add]').addEventListener('click',()=>{const n=name.value.trim(),p=normalizePhone(phone.value),a=address.value.trim();const digits=p.replace(/\D/g,'');if(!key||!n||digits.length<10||digits.length>15){status.textContent='Enter a name and a valid 10–15 digit phone number.';return;}const items=loadJson(key,[]);const item={id:uid('contact'),name:n.slice(0,100),phone:p,address:a.slice(0,300)};items.push(item);saveJson(key,items.slice(-1000));name.value=phone.value=address.value='';status.textContent='Contact saved.';draw();});
   return root;
-}
-
-export function renderCallerId() {
-  const root=node(`<section class="nx-tool-card nx-migration-card"><h2>Android Caller ID</h2><p>NexusNova can request Android's official call-screening role. Contact data stays in the app-private, account-scoped native store.</p><button class="nx-primary" type="button" data-caller-enable>ENABLE CALLER ID</button><p class="nx-tool-meta" data-caller-status>No role request has been sent yet.</p></section>`);
-  const status=root.querySelector('[data-caller-status]');root.querySelector('[data-caller-enable]').addEventListener('click',()=>{if(postNative('requestCallerRole'))status.textContent='Android Caller ID role screen requested. Approve it in the system dialog.';else status.textContent='Caller ID role setup is available only in the Android app.';});return root;
 }
 
 export function renderFamily() {
@@ -232,7 +217,6 @@ export const personalRenderers = Object.freeze({
   savings:renderSavings,
   shopping:renderShopping,
   contacts:renderContacts,
-  'caller-id':renderCallerId,
   family:renderFamily,
   health:renderHealth
 });
