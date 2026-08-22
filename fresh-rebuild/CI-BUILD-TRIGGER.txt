@@ -1,6 +1,6 @@
 NexusNova Fresh Rebuild TEST APK validation
 Branch: nexusnova-fresh-rebuild-20260820
 Date: 2026-08-23
-Purpose: trigger final exact-source Android 11 deep validation without changing app source or Golden backups.
+Purpose: trigger exact-source Android 11 crash-fix validation and APK publish.
 Validation: build + install + MainActivity resumed + crash/ANR scan + NovaVpnActivity resumed + screenshots + SHA256.
-Trigger: final-deep-check-20260823-0251-PKT
+Trigger: crashfix-apk-20260823-0431-PKT
