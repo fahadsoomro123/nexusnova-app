@@ -69,6 +69,8 @@ jobs:
           adb logcat -c
           adb shell am force-stop com.nexusnova.app || true
           adb shell am start -W -n com.nexusnova.app/.MainActivity | tee "$GITHUB_WORKSPACE/main-launch.txt"
+          grep -q 'Status: ok' "$GITHUB_WORKSPACE/main-launch.txt"
+          grep -q 'Activity: com.nexusnova.app/.MainActivity' "$GITHUB_WORKSPACE/main-launch.txt"
           sleep 12
           MAIN_PID="$(adb shell pidof com.nexusnova.app | tr -d '\r' | xargs)"
           test -n "$MAIN_PID"
@@ -79,7 +81,9 @@ jobs:
           adb exec-out screencap -p > "$GITHUB_WORKSPACE/main-screen.png"
 
           adb logcat -c
-          adb shell am start -W -n com.nexusnova.app/.NovaVpnActivity --es nova_vpn_auth_token smoke-token | tee "$GITHUB_WORKSPACE/vpn-launch.txt"
+          adb shell run-as com.nexusnova.app am start -W -n com.nexusnova.app/.NovaVpnActivity --es nova_vpn_auth_token smoke-token | tee "$GITHUB_WORKSPACE/vpn-launch.txt"
+          grep -q 'Status: ok' "$GITHUB_WORKSPACE/vpn-launch.txt"
+          grep -q 'Activity: com.nexusnova.app/.NovaVpnActivity' "$GITHUB_WORKSPACE/vpn-launch.txt"
           sleep 12
           VPN_PID="$(adb shell pidof com.nexusnova.app | tr -d '\r' | xargs)"
           test -n "$VPN_PID"
