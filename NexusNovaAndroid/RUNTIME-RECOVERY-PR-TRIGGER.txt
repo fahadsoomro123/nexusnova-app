@@ -1,0 +1,1 @@
+Trigger the NexusNova Android 11 runtime recovery gate for the crash-hardened candidate. No application behavior is changed by this marker.
