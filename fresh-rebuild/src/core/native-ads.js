@@ -149,5 +149,3 @@ export const nativeAds = {
     });
   }
 };
-
-nativeAds.requestStatus();

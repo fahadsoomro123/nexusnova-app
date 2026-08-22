@@ -299,7 +299,6 @@ nativeAds.subscribe(detail => {
 });
 
 readSession();
-nativeAds.requestStatus();
 
 export const adPolicy = Object.freeze({
   gateHubApp,

@@ -116,7 +116,6 @@ class MainActivity : AppCompatActivity() {
         // Keep the launcher path equivalent to the known-working Golden build:
         // render NexusNova first, then initialize optional native monetization.
         loadProductionApp()
-        webView.post { initializeAdsSafely() }
     }
 
     private fun initializeAdsSafely() {
