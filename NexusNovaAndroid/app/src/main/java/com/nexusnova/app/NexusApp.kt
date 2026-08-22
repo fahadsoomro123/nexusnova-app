@@ -21,7 +21,6 @@ class NexusApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        PhonebookStore.init(this)
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
             override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {
                 if (activity is MainActivity) {
