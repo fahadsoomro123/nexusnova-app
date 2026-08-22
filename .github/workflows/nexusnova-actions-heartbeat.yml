@@ -1,0 +1,43 @@
+name: NexusNova Actions Heartbeat
+
+on:
+  push:
+    branches:
+      - nexusnova-fresh-rebuild-20260820
+    paths:
+      - '.github/workflows/nexusnova-actions-heartbeat.yml'
+      - 'fresh-rebuild/CI-HEARTBEAT-TRIGGER.txt'
+
+permissions:
+  contents: write
+
+jobs:
+  heartbeat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Publish heartbeat
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'NexusNova CI Heartbeat'
+          git config user.email 'actions@users.noreply.github.com'
+          git fetch origin apk-builds
+          rm -rf /tmp/nx-heartbeat
+          git worktree add /tmp/nx-heartbeat origin/apk-builds
+          cd /tmp/nx-heartbeat
+          mkdir -p actions-heartbeat
+          {
+            echo "HEARTBEAT_PASS"
+            echo "Source commit: $GITHUB_SHA"
+            echo "Run id: $GITHUB_RUN_ID"
+            echo "Run attempt: $GITHUB_RUN_ATTEMPT"
+          } > actions-heartbeat/latest.txt
+          git add actions-heartbeat/latest.txt
+          git commit -m "CI heartbeat $GITHUB_SHA"
+          git push origin HEAD:apk-builds
