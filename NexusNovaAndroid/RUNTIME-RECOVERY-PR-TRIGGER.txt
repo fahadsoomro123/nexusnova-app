@@ -1,1 +1,1 @@
-Trigger NexusNova Android 11 runtime recovery gate run 5 using the exact already-built Run 4 APK and POSIX-safe launch script. No application behavior is changed by this marker.
+Trigger NexusNova Android 11 runtime recovery gate run 6 using the exact already-built Run 4 APK with a single-process Bash smoke script. No application behavior is changed by this marker.
