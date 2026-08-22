@@ -46,13 +46,35 @@ jobs:
           set -euo pipefail
           python NexusNovaAndroid/prepare_fresh_rebuild.py
 
+      - name: Generate canonical AdManager candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          patch_path = Path('NexusNovaAndroid/patch_admob.py')
+          source = patch_path.read_text(encoding='utf-8')
+          marker = "manager_path = Path('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt')"
+          start = source.find(marker)
+          if start < 0:
+              raise SystemExit('AdManager canonicalization section not found')
+          exec(compile(source[start:], str(patch_path) + ':manager-only', 'exec'), {'Path': Path})
+          PY
+
       - name: Verify canonical native source
         shell: bash
         run: |
           set -euo pipefail
-          grep -q 'private var adManager: NexusAdManager? = null' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
-          grep -q 'private fun initializeAdsSafely()' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
-          grep -q 'private val backend by lazy' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NovaVpnManager.kt
+          MAIN='NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt'
+          ADS='NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt'
+          VPN='NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NovaVpnManager.kt'
+          grep -Fq 'private var adManager: NexusAdManager? = null' "$MAIN"
+          grep -Fq 'private fun initializeAdsSafely()' "$MAIN"
+          grep -Fq 'fun showRewarded(rewardPurpose: String? = null, testOnly: Boolean = false, userId: String? = null)' "$ADS"
+          grep -Fq 'fun showInterstitial(placement: String? = null, feature: String? = null, testOnly: Boolean = false)' "$ADS"
+          grep -Fq '"ssvIdentityReady" to true' "$ADS"
+          grep -Fq 'const val REWARD_PURPOSE_WATCH_AD = "task-watch-ad"' "$ADS"
+          grep -Fq 'private val backend by lazy' "$VPN"
           ! grep -R -n -E 'CallScreeningService|PhonebookStore|CallerSetupActivity|IncomingCallActivity|caller-id|ROLE_CALL_SCREENING' \
             NexusNovaAndroid/app/src/main fresh-rebuild/src
 
@@ -92,13 +114,14 @@ jobs:
         run: |
           sha256sum NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk | tee APK-SHA256.txt
 
-      - name: Upload runtime-tested APK
+      - name: Upload runtime-tested APK and canonical source
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: nexusnova-runtime-recovery-android11
           path: |
             NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk
+            NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
             APK-SHA256.txt
             RUNTIME-SMOKE.txt
             launcher-start.txt
