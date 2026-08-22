@@ -58,6 +58,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          test ! -e NexusNovaAndroid/patch_admob.py
           python -m py_compile NexusNovaAndroid/prepare_fresh_rebuild.py
           while IFS= read -r -d '' file; do
             node --check "$file"
@@ -80,7 +81,10 @@ jobs:
           grep -Fq 'private val backend by lazy(LazyThreadSafetyMode.SYNCHRONIZED)' "$VPN"
           grep -Fq 'private fun safeError(prefix: String, error: Throwable)' "$VPN"
           ! grep -REiq 'CallerSetupActivity|CallScreeningService|requestCallerRole|PhonebookStore|caller-id|ROLE_CALL_SCREENING' \
-            NexusNovaAndroid/app/src/main fresh-rebuild/src fresh-rebuild/index.html
+            NexusNovaAndroid/app/src/main/java \
+            NexusNovaAndroid/app/src/main/AndroidManifest.xml \
+            NexusNovaAndroid/app/src/main/res \
+            fresh-rebuild/src fresh-rebuild/index.html
           echo 'Canonical native/web source verified.'
 
       - name: Prepare isolated TEST bundle
@@ -93,6 +97,8 @@ jobs:
           test -f NexusNovaAndroid/app/src/main/assets/www/FRESH-REBUILD-BUILD.txt
           test ! -e NexusNovaAndroid/app/src/main/assets/www/page2.html
           grep -Fq 'NexusNova Fresh Rebuild TEST' NexusNovaAndroid/app/src/main/assets/www/FRESH-REBUILD-BUILD.txt
+          ! grep -REiq 'CallerSetupActivity|CallScreeningService|requestCallerRole|PhonebookStore|caller-id|ROLE_CALL_SCREENING' \
+            NexusNovaAndroid/app/src/main/assets/www
 
       - name: Build fresh TEST APK
         working-directory: NexusNovaAndroid
