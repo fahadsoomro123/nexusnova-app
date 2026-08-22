@@ -1,0 +1,251 @@
+name: NexusNova Phone Stability Rebuild
+
+on:
+  push:
+    branches:
+      - nexusnova-fresh-rebuild-20260820
+    paths:
+      - '.github/workflows/nexusnova-phone-stability-rebuild.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nexusnova-phone-stability-rebuild
+  cancel-in-progress: true
+
+jobs:
+  fix-build-stress-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply measured startup stability fix and self-clean
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          main_js = Path('fresh-rebuild/src/main.js')
+          text = main_js.read_text(encoding='utf-8')
+
+          old_import = "import { appScreen, cleanupAppScreen } from './features/apps/app-screen.js';\n"
+          if text.count(old_import) != 1:
+              raise SystemExit(f'app-screen static import count={text.count(old_import)}, expected 1')
+          text = text.replace(old_import, '', 1)
+
+          anchor = "backend.attach(firebaseBackend);\n"
+          lazy = """backend.attach(firebaseBackend);\n\nlet appScreenModulePromise = null;\nfunction loadAppScreenModule() {\n  if (!appScreenModulePromise) {\n    appScreenModulePromise = import('./features/apps/app-screen.js');\n  }\n  return appScreenModulePromise;\n}\n"""
+          if text.count(anchor) != 1:
+              raise SystemExit(f'backend attach anchor count={text.count(anchor)}, expected 1')
+          text = text.replace(anchor, lazy, 1)
+
+          old_route = "    app: payload => appScreen({ id: payload.id, backToHub, backToMine })\n"
+          new_route = "    app: async payload => { const { appScreen } = await loadAppScreenModule(); return appScreen({ id: payload.id, backToHub, backToMine }); }\n"
+          if text.count(old_route) != 1:
+              raise SystemExit(f'app route anchor count={text.count(old_route)}, expected 1')
+          text = text.replace(old_route, new_route, 1)
+
+          old_cleanup = "    if (route !== 'app') cleanupAppScreen();\n"
+          new_cleanup = "    if (route !== 'app' && appScreenModulePromise) appScreenModulePromise.then(module => module.cleanupAppScreen()).catch(() => {});\n"
+          if text.count(old_cleanup) != 1:
+              raise SystemExit(f'app cleanup anchor count={text.count(old_cleanup)}, expected 1')
+          text = text.replace(old_cleanup, new_cleanup, 1)
+          main_js.write_text(text, encoding='utf-8')
+
+          main = Path('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt')
+          kt = main.read_text(encoding='utf-8')
+          import_anchor = 'import android.webkit.PermissionRequest\n'
+          import_line = 'import android.webkit.RenderProcessGoneDetail\n'
+          if import_line not in kt:
+              if kt.count(import_anchor) != 1:
+                  raise SystemExit('RenderProcessGoneDetail import anchor mismatch')
+              kt = kt.replace(import_anchor, import_anchor + import_line, 1)
+
+          if 'override fun onRenderProcessGone(' not in kt:
+              tail = '''                recoverProductionWebView(view, "HTTP $status")\n            }\n        }\n\n        webView.webChromeClient = object : WebChromeClient() {\n'''
+              replacement = '''                recoverProductionWebView(view, "HTTP $status")\n            }\n\n            override fun onRenderProcessGone(\n                view: WebView?,\n                detail: RenderProcessGoneDetail?\n            ): Boolean {\n                android.util.Log.e(\n                    "NexusNovaWeb",\n                    "WebView renderer gone; didCrash=${detail?.didCrash() == true}"\n                )\n                val target = view ?: return true\n                adManager = null\n                runCatching { target.stopLoading() }\n                runCatching { (target.parent as? android.view.ViewGroup)?.removeView(target) }\n                runCatching { target.removeAllViews() }\n                runCatching { target.destroy() }\n                if (!isFinishing && !isDestroyed) {\n                    window.decorView.post {\n                        if (!isFinishing && !isDestroyed) recreate()\n                    }\n                }\n                return true\n            }\n        }\n\n        webView.webChromeClient = object : WebChromeClient() {\n'''
+              if kt.count(tail) != 1:
+                  raise SystemExit(f'WebViewClient insertion anchor count={kt.count(tail)}, expected 1')
+              kt = kt.replace(tail, replacement, 1)
+          main.write_text(kt, encoding='utf-8')
+
+          # Hard assertions: startup no longer pulls the entire app suite graph.
+          updated = main_js.read_text(encoding='utf-8')
+          if "import { appScreen, cleanupAppScreen }" in updated:
+              raise SystemExit('static app-screen import still present')
+          if "import('./features/apps/app-screen.js')" not in updated:
+              raise SystemExit('lazy app-screen import missing')
+          if 'override fun onRenderProcessGone(' not in main.read_text(encoding='utf-8'):
+              raise SystemExit('renderer recovery override missing')
+          PY
+
+          rm .github/workflows/nexusnova-phone-stability-rebuild.yml
+          git config user.name 'NexusNova Stability Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add fresh-rebuild/src/main.js \
+                  NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt \
+                  .github/workflows/nexusnova-phone-stability-rebuild.yml
+          git commit -m 'fix(android): defer heavy app suites and recover WebView renderer'
+          FIX_SHA="$(git rev-parse HEAD)"
+          echo "FIX_SHA=$FIX_SHA" >> "$GITHUB_ENV"
+          git push origin HEAD:nexusnova-fresh-rebuild-20260820
+
+      - name: Verify exact source scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check fresh-rebuild/src/main.js
+          test "$(git diff-tree --no-commit-id --name-only -r "$FIX_SHA" | sort | tr '\n' ' ')" = ".github/workflows/nexusnova-phone-stability-rebuild.yml NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt fresh-rebuild/src/main.js "
+          ! grep -Fq "import { appScreen, cleanupAppScreen }" fresh-rebuild/src/main.js
+          grep -Fq "import('./features/apps/app-screen.js')" fresh-rebuild/src/main.js
+          grep -Fq 'override fun onRenderProcessGone(' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle 8.13
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Prepare exact fresh bundle
+        env:
+          NEXUSNOVA_APP_CHECK_SITE_KEY: ${{ secrets.NEXUSNOVA_APP_CHECK_SITE_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python NexusNovaAndroid/prepare_fresh_rebuild.py
+          test -s NexusNovaAndroid/app/src/main/assets/www/FRESH-REBUILD-BUILD.txt
+          ! grep -Fq "import { appScreen, cleanupAppScreen }" NexusNovaAndroid/app/src/main/assets/www/src/main.js
+          grep -Fq "import('./features/apps/app-screen.js')" NexusNovaAndroid/app/src/main/assets/www/src/main.js
+
+      - name: Build new TEST APK
+        working-directory: NexusNovaAndroid
+        shell: bash
+        run: gradle --no-daemon --stacktrace clean assembleDebug
+
+      - name: Create phone-like stress test
+        shell: bash
+        run: |
+          cat > phone-stress.sh <<'BASH'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          APK="$GITHUB_WORKSPACE/NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          adb install -r "$APK" | tee "$GITHUB_WORKSPACE/adb-install.txt"
+          adb logcat -c
+          adb shell am force-stop com.nexusnova.app || true
+          adb shell am start -W -n com.nexusnova.app/.MainActivity | tee "$GITHUB_WORKSPACE/main-launch.txt"
+
+          : > "$GITHUB_WORKSPACE/memory-samples.txt"
+          for i in $(seq 1 9); do
+            sleep 10
+            PID="$(adb shell pidof com.nexusnova.app | tr -d '\r' | xargs)"
+            test -n "$PID"
+            echo "sample=$i pid=$PID" >> "$GITHUB_WORKSPACE/memory-samples.txt"
+            adb shell dumpsys meminfo com.nexusnova.app | grep -E 'TOTAL PSS|TOTAL RSS|Java Heap|Native Heap' | head -n 8 >> "$GITHUB_WORKSPACE/memory-samples.txt" || true
+            if [ "$i" = "2" ] || [ "$i" = "5" ]; then
+              adb shell am send-trim-memory com.nexusnova.app RUNNING_CRITICAL || true
+            fi
+            if [ "$i" = "3" ] || [ "$i" = "6" ]; then
+              adb shell input keyevent KEYCODE_HOME
+              sleep 2
+              adb shell am start -W -n com.nexusnova.app/.MainActivity >> "$GITHUB_WORKSPACE/main-launch.txt"
+            fi
+          done
+
+          for n in 1 2 3; do
+            adb shell am force-stop com.nexusnova.app
+            adb shell am start -W -n com.nexusnova.app/.MainActivity >> "$GITHUB_WORKSPACE/cold-launches.txt"
+            sleep 20
+            test -n "$(adb shell pidof com.nexusnova.app | tr -d '\r' | xargs)"
+          done
+
+          adb logcat -d -v threadtime > "$GITHUB_WORKSPACE/main-stress-logcat.txt"
+          if grep -E -q 'FATAL EXCEPTION|AndroidRuntime: Process: com\.nexusnova\.app|ANR in com\.nexusnova\.app|Fatal signal.*com\.nexusnova\.app|WebView renderer gone' "$GITHUB_WORKSPACE/main-stress-logcat.txt"; then
+            exit 1
+          fi
+          adb shell dumpsys activity activities > "$GITHUB_WORKSPACE/main-activity-state.txt"
+          grep -E -q 'mResumedActivity:.*com\.nexusnova\.app/.MainActivity|topResumedActivity=.*com\.nexusnova\.app/.MainActivity|ResumedActivity:.*com\.nexusnova\.app/.MainActivity' "$GITHUB_WORKSPACE/main-activity-state.txt"
+          adb exec-out screencap -p > "$GITHUB_WORKSPACE/main-stress-screen.png"
+          test -s "$GITHUB_WORKSPACE/main-stress-screen.png"
+
+          adb logcat -c
+          adb shell am start -W -n com.nexusnova.app/.NovaVpnActivity --es nova_vpn_auth_token smoke-token | tee "$GITHUB_WORKSPACE/vpn-launch.txt"
+          sleep 20
+          test -n "$(adb shell pidof com.nexusnova.app | tr -d '\r' | xargs)"
+          adb logcat -d -v threadtime > "$GITHUB_WORKSPACE/vpn-logcat.txt"
+          if grep -E -q 'FATAL EXCEPTION|AndroidRuntime: Process: com\.nexusnova\.app|ANR in com\.nexusnova\.app|Fatal signal.*com\.nexusnova\.app' "$GITHUB_WORKSPACE/vpn-logcat.txt"; then
+            exit 1
+          fi
+          adb exec-out screencap -p > "$GITHUB_WORKSPACE/vpn-screen.png"
+          test -s "$GITHUB_WORKSPACE/vpn-screen.png"
+
+          echo 'MAIN_90S_STRESS_PASS' > "$GITHUB_WORKSPACE/PHONE-STABILITY.txt"
+          echo 'MAIN_3_COLD_LAUNCHES_PASS' >> "$GITHUB_WORKSPACE/PHONE-STABILITY.txt"
+          echo 'WEBVIEW_RENDERER_GONE_ZERO' >> "$GITHUB_WORKSPACE/PHONE-STABILITY.txt"
+          echo 'VPN_20S_PASS' >> "$GITHUB_WORKSPACE/PHONE-STABILITY.txt"
+          BASH
+          chmod +x phone-stress.sh
+
+      - name: Android 11 stress + lifecycle + VPN
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          arch: x86_64
+          profile: pixel_4
+          disable-animations: true
+          script: bash "$GITHUB_WORKSPACE/phone-stress.sh"
+
+      - name: Package proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p phone-stability-output
+          cp NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk phone-stability-output/NexusNova-Phone-Stability-TEST.apk
+          sha256sum phone-stability-output/NexusNova-Phone-Stability-TEST.apk > phone-stability-output/SHA256.txt
+          cp PHONE-STABILITY.txt adb-install.txt main-launch.txt cold-launches.txt memory-samples.txt main-stress-logcat.txt main-activity-state.txt main-stress-screen.png vpn-launch.txt vpn-logcat.txt vpn-screen.png phone-stability-output/
+          {
+            echo 'NexusNova Phone Stability TEST APK'
+            echo "Source commit: $FIX_SHA"
+            echo 'Startup heavy app-suite graph: DEFERRED'
+            echo 'WebView renderer recovery guard: ENABLED'
+            echo 'Gradle build: PASS'
+            echo 'Android 11 main 90-second stress: PASS'
+            echo 'Android 11 three cold launches: PASS'
+            echo 'Android 11 renderer-gone events: ZERO'
+            echo 'Android 11 Nova VPN 20-second runtime: PASS'
+            echo 'Physical phone final approval: REQUIRED'
+            echo 'RESULT: TEST READY'
+          } > phone-stability-output/BUILD-STATUS.txt
+
+      - name: Publish new APK and proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'NexusNova Stability Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git fetch origin apk-builds
+          rm -rf /tmp/nx-phone-stability
+          git worktree add /tmp/nx-phone-stability origin/apk-builds
+          cd /tmp/nx-phone-stability
+          rm -rf phone-stability-rebuild
+          mkdir -p phone-stability-rebuild
+          cp -a "$GITHUB_WORKSPACE/phone-stability-output/." phone-stability-rebuild/
+          git add -A phone-stability-rebuild
+          git commit -m "Publish phone stability TEST $FIX_SHA"
+          git push origin HEAD:apk-builds
