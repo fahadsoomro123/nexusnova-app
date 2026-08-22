@@ -1,0 +1,149 @@
+name: NexusNova Exact Source Android 11 Publish
+
+on:
+  push:
+    branches:
+      - nexusnova-fresh-rebuild-20260820
+    paths:
+      - '.github/workflows/nexusnova-exact-source-android11-publish.yml'
+      - 'fresh-rebuild/CI-BUILD-TRIGGER.txt'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nexusnova-exact-source-android11-publish
+  cancel-in-progress: true
+
+jobs:
+  build-smoke-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle 8.13
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Prepare exact fresh rebuild bundle
+        env:
+          NEXUSNOVA_APP_CHECK_SITE_KEY: ${{ secrets.NEXUSNOVA_APP_CHECK_SITE_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python NexusNovaAndroid/prepare_fresh_rebuild.py
+          test -s NexusNovaAndroid/app/src/main/assets/www/FRESH-REBUILD-BUILD.txt
+
+      - name: Build exact TEST APK
+        working-directory: NexusNovaAndroid
+        shell: bash
+        run: gradle --no-daemon --stacktrace clean assembleDebug
+
+      - name: Create Android 11 runtime smoke
+        shell: bash
+        run: |
+          cat > runtime-smoke.sh <<'BASH'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          APK="$GITHUB_WORKSPACE/NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          adb install -r "$APK"
+
+          adb logcat -c
+          adb shell am force-stop com.nexusnova.app || true
+          adb shell am start -W -n com.nexusnova.app/.MainActivity | tee "$GITHUB_WORKSPACE/main-launch.txt"
+          sleep 12
+          MAIN_PID="$(adb shell pidof com.nexusnova.app | tr -d '\r' | xargs)"
+          test -n "$MAIN_PID"
+          adb logcat -d -v threadtime > "$GITHUB_WORKSPACE/main-launch-logcat.txt"
+          if grep -E -q 'FATAL EXCEPTION|AndroidRuntime: Process: com\.nexusnova\.app|ANR in com\.nexusnova\.app|Fatal signal.*com\.nexusnova\.app' "$GITHUB_WORKSPACE/main-launch-logcat.txt"; then
+            exit 1
+          fi
+          adb exec-out screencap -p > "$GITHUB_WORKSPACE/main-screen.png"
+
+          adb logcat -c
+          adb shell am start -W -n com.nexusnova.app/.NovaVpnActivity --es nova_vpn_auth_token smoke-token | tee "$GITHUB_WORKSPACE/vpn-launch.txt"
+          sleep 12
+          VPN_PID="$(adb shell pidof com.nexusnova.app | tr -d '\r' | xargs)"
+          test -n "$VPN_PID"
+          adb logcat -d -v threadtime > "$GITHUB_WORKSPACE/vpn-launch-logcat.txt"
+          if grep -E -q 'FATAL EXCEPTION|AndroidRuntime: Process: com\.nexusnova\.app|ANR in com\.nexusnova\.app|Fatal signal.*com\.nexusnova\.app' "$GITHUB_WORKSPACE/vpn-launch-logcat.txt"; then
+            exit 1
+          fi
+          adb exec-out screencap -p > "$GITHUB_WORKSPACE/vpn-screen.png"
+
+          {
+            echo "RUNTIME_MAIN_PASS pid=$MAIN_PID"
+            echo "RUNTIME_VPN_PASS pid=$VPN_PID"
+          } > "$GITHUB_WORKSPACE/RUNTIME-SMOKE.txt"
+          BASH
+          chmod +x runtime-smoke.sh
+
+      - name: Android 11 Main + VPN runtime proof
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          arch: x86_64
+          profile: pixel_4
+          disable-animations: true
+          script: bash "$GITHUB_WORKSPACE/runtime-smoke.sh"
+
+      - name: Package proof bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p exact-source-output
+          APK=NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk
+          cp "$APK" exact-source-output/NexusNova-Exact-Source-Android11-TEST.apk
+          sha256sum exact-source-output/NexusNova-Exact-Source-Android11-TEST.apk > exact-source-output/SHA256.txt
+          cp RUNTIME-SMOKE.txt main-launch.txt main-launch-logcat.txt main-screen.png vpn-launch.txt vpn-launch-logcat.txt vpn-screen.png exact-source-output/
+          {
+            echo 'NexusNova Exact Source Android 11 TEST APK'
+            echo "Source commit: $GITHUB_SHA"
+            echo 'Gradle build: PASS'
+            echo 'Android 11 MainActivity runtime: PASS'
+            echo 'Android 11 NovaVpnActivity runtime: PASS'
+            echo 'RESULT: PASS'
+          } > exact-source-output/BUILD-STATUS.txt
+
+      - name: Upload exact proof artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexusnova-exact-source-android11-proof
+          path: exact-source-output/
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Publish PASS APK and proof to apk-builds
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'NexusNova Exact Build Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git fetch origin apk-builds
+          rm -rf /tmp/nx-exact-publish
+          git worktree add /tmp/nx-exact-publish origin/apk-builds
+          cd /tmp/nx-exact-publish
+          rm -rf exact-source-android11
+          mkdir -p exact-source-android11
+          cp -a "$GITHUB_WORKSPACE/exact-source-output/." exact-source-android11/
+          git add exact-source-android11
+          git commit -m "Publish exact Android 11 PASS $GITHUB_SHA"
+          git push origin HEAD:apk-builds
