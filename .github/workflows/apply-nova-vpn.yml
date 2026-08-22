@@ -1,0 +1,58 @@
+name: Apply Nova VPN source
+
+on:
+  push:
+    branches: [nexusnova-fresh-rebuild-20260820]
+    paths:
+      - '.nova-vpn-staging/**'
+      - '.github/workflows/apply-nova-vpn.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nexusnova-apply-nova-vpn
+  cancel-in-progress: false
+
+jobs:
+  apply-source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply exact source changes
+        run: |
+          set -euo pipefail
+          python .nova-vpn-staging/apply.py
+          node --check fresh-rebuild/src/features/apps/nova-vpn-suite.js
+          python -m py_compile .nova-vpn-staging/apply.py
+          git diff --check
+          grep -Fq 'implementation("com.wireguard.android:tunnel:1.0.20260102")' NexusNovaAndroid/app/build.gradle.kts
+          grep -Fq 'ACTION_OPEN_NOVA_VPN = "openNovaVpn"' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -Fq "id: 'nova-vpn'" fresh-rebuild/src/features/hub/app-registry.js
+          grep -Fq "'nova-vpn':'tools'" fresh-rebuild/src/core/ad-policy.js
+      - name: Publish canonical Nova VPN source
+        run: |
+          set -euo pipefail
+          git config user.name 'NexusNova VPN Source Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add \
+            NexusNovaAndroid/app/build.gradle.kts \
+            NexusNovaAndroid/app/src/main/AndroidManifest.xml \
+            NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt \
+            NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NovaVpnManager.kt \
+            NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NovaVpnActivity.kt \
+            fresh-rebuild/src/features/apps/nova-vpn-suite.js \
+            fresh-rebuild/src/features/apps/app-screen.js \
+            fresh-rebuild/src/features/hub/app-registry.js \
+            fresh-rebuild/src/core/ad-policy.js
+          git commit -m 'feature: add system-wide Nova VPN client'
+          git pull --rebase origin nexusnova-fresh-rebuild-20260820
+          git push origin HEAD:nexusnova-fresh-rebuild-20260820
