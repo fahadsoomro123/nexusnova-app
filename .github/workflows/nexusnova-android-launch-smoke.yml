@@ -1,4 +1,4 @@
-name: NexusNova Android Launch Smoke
+name: NexusNova Android Deep Launch Smoke
 
 on:
   push:
@@ -11,12 +11,24 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: nexusnova-android-deep-launch-smoke
+  cancel-in-progress: true
+
 jobs:
-  launch-smoke:
+  deep-launch-smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout exact fresh branch
+        uses: actions/checkout@v4
+        with:
+          ref: nexusnova-fresh-rebuild-20260820
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
 
       - uses: actions/setup-java@v4
         with:
@@ -27,8 +39,97 @@ jobs:
         with:
           gradle-version: '8.13'
 
+      - name: Canonicalize native AdMob source and harden startup/VPN runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          python NexusNovaAndroid/patch_admob.py
+          python - <<'PY'
+          from pathlib import Path
+
+          manager_path = Path('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NovaVpnManager.kt')
+          manager = manager_path.read_text(encoding='utf-8')
+          old = '    private val backend = GoBackend(appContext)\n'
+          new = '    private val backend by lazy(LazyThreadSafetyMode.SYNCHRONIZED) { GoBackend(appContext) }\n'
+          if old in manager:
+              manager = manager.replace(old, new, 1)
+          elif new not in manager:
+              raise SystemExit('NovaVpnManager backend initialization point not found')
+          manager = manager.replace('} catch (error: Exception) {', '} catch (error: Throwable) {')
+          manager = manager.replace(
+              'private fun safeError(prefix: String, error: Exception): String',
+              'private fun safeError(prefix: String, error: Throwable): String'
+          )
+          manager_path.write_text(manager, encoding='utf-8')
+
+          activity_path = Path('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NovaVpnActivity.kt')
+          activity = activity_path.read_text(encoding='utf-8')
+          old = '''        manager = NovaVpnManager.getInstance(applicationContext)\n        setContentView(buildContent())\n'''
+          new = '''        try {\n            manager = NovaVpnManager.getInstance(applicationContext)\n        } catch (error: Throwable) {\n            android.util.Log.e("NovaVpnStartup", "VPN manager initialization failed", error)\n            Toast.makeText(this, "Nova VPN engine is unavailable on this device.", Toast.LENGTH_LONG).show()\n            finish()\n            return\n        }\n        setContentView(buildContent())\n'''
+          if old in activity:
+              activity = activity.replace(old, new, 1)
+          elif 'VPN manager initialization failed' not in activity:
+              raise SystemExit('NovaVpnActivity manager startup point not found')
+          activity_path.write_text(activity, encoding='utf-8')
+
+          main_path = Path('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt')
+          main = main_path.read_text(encoding='utf-8')
+          old = '''        configureWebView()\n        installNativeMessageListener()\n        adManager = NexusAdManager(this, webView) { view -> isTrustedAppPage(view) }\n        if (BuildConfig.NEXUS_ADS_TEST_MODE) {\n            // Debug/development APKs always use Google's test inventory.\n            adManager.initialize()\n        } else {\n            // Release APKs cannot initialize/request production ads until UMP\n            // has refreshed consent state and says ad requests are allowed.\n            NexusAdConsentManager(this).gather { canRequestAds ->\n                if (canRequestAds) adManager.initialize()\n            }\n        }\n'''
+          new = '''        configureWebView()\n        runCatching { installNativeMessageListener() }\n            .onFailure { android.util.Log.e("NexusNovaStartup", "Native bridge unavailable", it) }\n        try {\n            adManager = NexusAdManager(this, webView) { view -> isTrustedAppPage(view) }\n            if (BuildConfig.NEXUS_ADS_TEST_MODE) {\n                // Debug/development APKs always use Google's test inventory.\n                adManager.initialize()\n            } else {\n                // Release APKs cannot initialize/request production ads until UMP\n                // has refreshed consent state and says ad requests are allowed.\n                NexusAdConsentManager(this).gather { canRequestAds ->\n                    if (canRequestAds) adManager.initialize()\n                }\n            }\n        } catch (error: Throwable) {\n            android.util.Log.e("NexusNovaStartup", "Ad subsystem initialization failed", error)\n        }\n'''
+          if old in main:
+              main = main.replace(old, new, 1)
+          elif 'Ad subsystem initialization failed' not in main:
+              raise SystemExit('MainActivity startup hardening point not found')
+
+          old = '''            ACTION_SHOW_REWARDED_AD -> adManager.showRewarded(\n                rewardPurpose = message.optString("rewardPurpose").trim(),\n                testOnly = message.optBoolean("testOnly", false),\n                userId = message.optString("userId").trim()\n            )\n            ACTION_SHOW_INTERSTITIAL_AD -> adManager.showInterstitial(\n                placement = message.optString("placement", message.optString("reason")).trim(),\n                feature = message.optString("feature").trim(),\n                testOnly = message.optBoolean("testOnly", false)\n            )\n            ACTION_AD_STATUS -> adManager.publishStatus()\n'''
+          new = '''            ACTION_SHOW_REWARDED_AD -> {\n                if (!this::adManager.isInitialized) return\n                adManager.showRewarded(\n                    rewardPurpose = message.optString("rewardPurpose").trim(),\n                    testOnly = message.optBoolean("testOnly", false),\n                    userId = message.optString("userId").trim()\n                )\n            }\n            ACTION_SHOW_INTERSTITIAL_AD -> {\n                if (!this::adManager.isInitialized) return\n                adManager.showInterstitial(\n                    placement = message.optString("placement", message.optString("reason")).trim(),\n                    feature = message.optString("feature").trim(),\n                    testOnly = message.optBoolean("testOnly", false)\n                )\n            }\n            ACTION_AD_STATUS -> if (this::adManager.isInitialized) adManager.publishStatus()\n'''
+          if old in main:
+              main = main.replace(old, new, 1)
+          elif 'if (!this::adManager.isInitialized) return' not in main:
+              raise SystemExit('MainActivity ad action guard point not found')
+          main_path.write_text(main, encoding='utf-8')
+          PY
+
+          grep -Fq 'private val backend by lazy(LazyThreadSafetyMode.SYNCHRONIZED)' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NovaVpnManager.kt
+          grep -Fq 'VPN manager initialization failed' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NovaVpnActivity.kt
+          grep -Fq 'Ad subsystem initialization failed' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -Fq 'fun showRewarded(rewardPurpose: String? = null, testOnly: Boolean = false, userId: String? = null)' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
+          grep -Fq 'fun showInterstitial(placement: String? = null, feature: String? = null, testOnly: Boolean = false)' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
+          ! grep -REiq 'CallerSetupActivity|CallScreeningService|requestCallerRole|PhonebookStore|caller-id' NexusNovaAndroid/app/src/main fresh-rebuild/src fresh-rebuild/index.html
+
+      - name: Commit canonical crash hardening
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt \
+                  NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt \
+                  NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NovaVpnActivity.kt \
+                  NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NovaVpnManager.kt
+          git commit -m 'fix: harden Android startup and Nova VPN runtime' || true
+          git push origin HEAD:nexusnova-fresh-rebuild-20260820
+          echo "CANONICAL_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Prepare exact fresh Android bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          python NexusNovaAndroid/prepare_fresh_rebuild.py
+          python NexusNovaAndroid/patch_admob.py
+
+      - name: Prove canonical source remains stable after build preparation
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'private val backend by lazy(LazyThreadSafetyMode.SYNCHRONIZED)' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NovaVpnManager.kt
+          grep -Fq 'VPN manager initialization failed' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NovaVpnActivity.kt
+          grep -Fq 'Ad subsystem initialization failed' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -Fq 'fun showRewarded(rewardPurpose: String? = null, testOnly: Boolean = false, userId: String? = null)' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
+          ! grep -REiq 'CallerSetupActivity|CallScreeningService|requestCallerRole|PhonebookStore|caller-id' NexusNovaAndroid/app/src/main fresh-rebuild/src fresh-rebuild/index.html
+
       - name: Build exact TEST APK
-        run: gradle -p NexusNovaAndroid :app:assembleDebug --stacktrace --no-daemon
+        run: gradle -p NexusNovaAndroid clean :app:assembleDebug --stacktrace --no-daemon
 
       - name: Enable KVM
         run: |
@@ -36,7 +137,7 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      - name: Launch app on Android emulator and reject runtime crash
+      - name: Launch main app and Nova VPN on Android emulator
         id: smoke
         continue-on-error: true
         uses: reactivecircus/android-emulator-runner@v2
@@ -48,50 +149,66 @@ jobs:
           disable-animations: true
           script: |
             set -euo pipefail
-            mkdir -p fresh-build-output
+            mkdir -p launch-smoke-output
             APK=NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk
             adb install -r "$APK"
+
             adb logcat -c
             adb shell am force-stop com.nexusnova.app
             adb shell monkey -p com.nexusnova.app -c android.intent.category.LAUNCHER 1
             sleep 12
-            adb logcat -d -v brief > fresh-build-output/launch-smoke-logcat.txt
-            if grep -E 'FATAL EXCEPTION|Process: com\.nexusnova\.app.*has died|AndroidRuntime.*com\.nexusnova\.app' fresh-build-output/launch-smoke-logcat.txt; then
-              printf 'RESULT: FAIL\nReason: NexusNova runtime crash detected after launcher start.\nSource commit: %s\n' "$GITHUB_SHA" > fresh-build-output/LAUNCH-SMOKE.txt
+            adb logcat -d -v brief > /tmp/nexus-main-logcat.txt
+            if grep -E 'FATAL EXCEPTION|Process: com\.nexusnova\.app.*has died|AndroidRuntime.*com\.nexusnova\.app' /tmp/nexus-main-logcat.txt; then
+              echo 'main_launch=FAIL' > launch-smoke-output/LAUNCH-SMOKE.txt
+              grep -E 'FATAL EXCEPTION|AndroidRuntime|com\.nexusnova\.app' /tmp/nexus-main-logcat.txt | tail -n 120 > launch-smoke-output/logcat-tail.txt || true
               exit 1
             fi
             PID="$(adb shell pidof com.nexusnova.app | tr -d '\r' | xargs)"
-            if [ -z "$PID" ]; then
-              printf 'RESULT: FAIL\nReason: NexusNova process not alive 12 seconds after launcher start.\nSource commit: %s\n' "$GITHUB_SHA" > fresh-build-output/LAUNCH-SMOKE.txt
+            test -n "$PID"
+            adb shell dumpsys activity activities | grep -Fq 'com.nexusnova.app/.MainActivity'
+
+            adb logcat -c
+            adb shell am start -W -n com.nexusnova.app/.NovaVpnActivity --es nova_vpn_auth_token smoke-token
+            sleep 10
+            adb logcat -d -v brief > /tmp/nexus-vpn-logcat.txt
+            if grep -E 'FATAL EXCEPTION|Process: com\.nexusnova\.app.*has died|AndroidRuntime.*com\.nexusnova\.app' /tmp/nexus-vpn-logcat.txt; then
+              printf 'main_launch=PASS\nvpn_screen_launch=FAIL\n' > launch-smoke-output/LAUNCH-SMOKE.txt
+              grep -E 'FATAL EXCEPTION|AndroidRuntime|com\.nexusnova\.app' /tmp/nexus-vpn-logcat.txt | tail -n 120 > launch-smoke-output/logcat-tail.txt || true
               exit 1
             fi
-            if ! adb shell dumpsys activity activities | grep -Fq 'com.nexusnova.app/.MainActivity'; then
-              printf 'RESULT: FAIL\nReason: MainActivity not present in activity stack after launch.\nSource commit: %s\n' "$GITHUB_SHA" > fresh-build-output/LAUNCH-SMOKE.txt
-              exit 1
-            fi
-            printf 'RESULT: PASS\nSource commit: %s\nProcess alive after: 12 seconds\nMainActivity present: yes\nFatal exception detected: no\n' "$GITHUB_SHA" > fresh-build-output/LAUNCH-SMOKE.txt
+            PID="$(adb shell pidof com.nexusnova.app | tr -d '\r' | xargs)"
+            test -n "$PID"
+            adb shell dumpsys activity activities | grep -Fq 'com.nexusnova.app/.NovaVpnActivity'
+            printf 'RESULT=PASS\nmain_launch=PASS\nvpn_screen_launch=PASS\nfatal_exception=NO\nprocess_alive=YES\ncanonical_source=%s\n' "$CANONICAL_SHA" > launch-smoke-output/LAUNCH-SMOKE.txt
 
-      - name: Record harness failure when emulator step did not create a result
-        if: always()
-        shell: bash
-        run: |
-          mkdir -p fresh-build-output
-          if [ ! -s fresh-build-output/LAUNCH-SMOKE.txt ]; then
-            printf 'RESULT: HARNESS_FAIL\nSource commit: %s\nReason: emulator/build harness failed before runtime result was produced.\n' "$GITHUB_SHA" > fresh-build-output/LAUNCH-SMOKE.txt
-          fi
-
-      - name: Publish launch smoke result
+      - name: Record harness outcome and APK hash
         if: always()
         shell: bash
         run: |
           set -euo pipefail
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add fresh-build-output/LAUNCH-SMOKE.txt fresh-build-output/launch-smoke-logcat.txt 2>/dev/null || true
-          git commit -m 'ci: publish Android launch smoke result [skip ci]' || exit 0
-          git push origin HEAD:nexusnova-fresh-rebuild-20260820
+          mkdir -p launch-smoke-output
+          if [ ! -s launch-smoke-output/LAUNCH-SMOKE.txt ]; then
+            printf 'RESULT=HARNESS_FAIL\ncanonical_source=%s\nsmoke_step=%s\n' "${CANONICAL_SHA:-unknown}" '${{ steps.smoke.outcome }}' > launch-smoke-output/LAUNCH-SMOKE.txt
+          fi
+          APK=NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk
+          if [ -s "$APK" ]; then
+            sha256sum "$APK" | awk '{print $1}' > launch-smoke-output/APK-SHA256.txt
+          fi
 
-      - name: Enforce runtime PASS
+      - name: Publish deep launch result
         if: always()
         shell: bash
-        run: grep -Fq 'RESULT: PASS' fresh-build-output/LAUNCH-SMOKE.txt
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin nexusnova-fresh-rebuild-20260820
+          git rebase origin/nexusnova-fresh-rebuild-20260820
+          git add -f launch-smoke-output/
+          git commit -m 'ci: publish deep Android launch result [skip ci]' || true
+          git push origin HEAD:nexusnova-fresh-rebuild-20260820
+
+      - name: Enforce smoke PASS
+        if: always()
+        shell: bash
+        run: grep -Fq 'RESULT=PASS' launch-smoke-output/LAUNCH-SMOKE.txt
