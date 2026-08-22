@@ -458,8 +458,6 @@ class MainActivity : AppCompatActivity() {
                 PhonebookStore.clearActiveAccount(message.optString("accountId").trim())
             }
 
-            ACTION_REQUEST_CALLER_ROLE -> requestCallerRole()
-
             ACTION_OPEN_NOVA_VPN -> {
                 val authToken = message.optString("authToken").trim()
                 if (authToken.isBlank() || authToken.length > MAX_VPN_AUTH_TOKEN_CHARS) return
@@ -472,6 +470,8 @@ class MainActivity : AppCompatActivity() {
                     // Keep the main app alive if the optional VPN control cannot launch.
                 }
             }
+
+            ACTION_REQUEST_CALLER_ROLE -> requestCallerRole()
 
             ACTION_OPEN_EXTERNAL -> {
                 val url = message.optString("url").trim()
@@ -709,8 +709,8 @@ class MainActivity : AppCompatActivity() {
         const val ACTION_DELETE_CONTACT = "deleteContact"
         const val ACTION_SET_ACTIVE_ACCOUNT = "setActiveAccount"
         const val ACTION_CLEAR_ACTIVE_ACCOUNT = "clearActiveAccount"
-        const val ACTION_REQUEST_CALLER_ROLE = "requestCallerRole"
         const val ACTION_OPEN_NOVA_VPN = "openNovaVpn"
+        const val ACTION_REQUEST_CALLER_ROLE = "requestCallerRole"
         const val ACTION_OPEN_EXTERNAL = "openExternal"
 
         const val MAX_BRIDGE_MESSAGE_CHARS = 8_192
