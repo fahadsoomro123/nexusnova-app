@@ -10,25 +10,46 @@ function node(html) {
 
 export function renderNovaVpn() {
   const root = node(`
-    <section class="nx-tool-card">
-      <div class="nx-list-card__head">
-        <div>
-          <strong>Nova VPN</strong>
-          <p class="nx-tool-meta" style="margin-top:3px">System-wide WireGuard protection</p>
+    <section class="nx-vpn-shell" aria-label="Nova VPN secure network">
+      <div class="nx-vpn-brand">
+        <div class="nx-vpn-brand__identity">
+          <span class="nx-vpn-brand__mark" aria-hidden="true">N</span>
+          <div>
+            <p class="nx-eyebrow">NEXUSNOVA SECURE NETWORK</p>
+            <h2>Nova VPN</h2>
+          </div>
         </div>
-        <span class="nx-tool-meta">ANDROID</span>
+        <span class="nx-vpn-native-badge">ANDROID NATIVE</span>
       </div>
-      <div class="nx-result" style="margin-top:14px">
-        <strong>Full device tunnel</strong>
-        <p class="nx-tool-meta" style="margin-top:7px">When connected, Nova VPN covers Chrome, Firefox and other phone apps — not only the NexusNova browser.</p>
+
+      <div class="nx-vpn-core" aria-hidden="true">
+        <div class="nx-vpn-core__center">N</div>
       </div>
-      <div class="nx-stack" style="margin-top:14px">
-        <div class="nx-list-card"><strong>Protocol</strong><p>WireGuard</p></div>
-        <div class="nx-list-card"><strong>Server selection</strong><p>Real measured latency • Smart Pick chooses the lowest verified response time.</p></div>
-        <div class="nx-list-card"><strong>Privacy</strong><p>Fresh client keys are generated on-device. No public shared VPN private keys are bundled in NexusNova.</p></div>
+
+      <div class="nx-vpn-state">
+        <strong><i></i>FULL-DEVICE PROTECTION</strong>
+        <p>One encrypted WireGuard tunnel for NexusNova, Chrome, Firefox and other phone apps.</p>
       </div>
-      <button class="nx-primary" type="button" data-vpn-open style="margin-top:14px">OPEN NOVA VPN CONTROL</button>
-      <p class="nx-tool-meta" data-vpn-status style="margin-top:10px">Ready to open the native system VPN control.</p>
+
+      <div class="nx-vpn-capabilities" aria-label="VPN capabilities">
+        <div><span>PROTOCOL</span><strong>WireGuard</strong></div>
+        <div><span>ROUTING</span><strong>IPv4 + IPv6</strong></div>
+        <div><span>DNS</span><strong>Tunnel DNS</strong></div>
+      </div>
+
+      <div class="nx-vpn-trust">
+        <div>
+          <span>SMART PICK</span>
+          <p>Production locations are ranked by real measured response time before you connect.</p>
+        </div>
+        <div>
+          <span>ON-DEVICE KEYS</span>
+          <p>A fresh WireGuard client key is generated on your device. NexusNova does not bundle public shared VPN private keys.</p>
+        </div>
+      </div>
+
+      <button class="nx-vpn-open" type="button" data-vpn-open>OPEN NOVA VPN CONTROL</button>
+      <p class="nx-vpn-launch-status" data-vpn-status>Ready to open the native Nova VPN control.</p>
     </section>
   `);
 
