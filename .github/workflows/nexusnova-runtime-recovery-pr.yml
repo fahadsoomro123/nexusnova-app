@@ -45,12 +45,14 @@ jobs:
         run: |
           set -euo pipefail
           python NexusNovaAndroid/prepare_fresh_rebuild.py
-          python NexusNovaAndroid/patch_admob.py
 
-      - name: Verify Caller ID remains removed
+      - name: Verify canonical native source
         shell: bash
         run: |
           set -euo pipefail
+          grep -q 'private var adManager: NexusAdManager? = null' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -q 'private fun initializeAdsSafely()' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -q 'private val backend by lazy' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NovaVpnManager.kt
           ! grep -R -n -E 'CallScreeningService|PhonebookStore|CallerSetupActivity|IncomingCallActivity|caller-id|ROLE_CALL_SCREENING' \
             NexusNovaAndroid/app/src/main fresh-rebuild/src
 
