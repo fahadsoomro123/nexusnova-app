@@ -2,7 +2,6 @@ package com.nexusnova.app
 
 import android.Manifest
 import android.annotation.SuppressLint
-import android.app.role.RoleManager
 import android.content.ContentResolver
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -53,14 +52,6 @@ class MainActivity : AppCompatActivity() {
         val origin: String,
         val callback: GeolocationPermissions.Callback
     )
-
-    private val callerRoleLauncher = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { /* user returned from the role screen */ }
-
-    private val callerSetupLauncher = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { /* the one-time prompt is already recorded before launch */ }
 
     private val webPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -121,7 +112,6 @@ class MainActivity : AppCompatActivity() {
         // Check origin. Loading it here means web and Android use one tested
         // mining engine instead of maintaining two drifting copies.
         loadProductionApp()
-        showCallerSetupOnce()
     }
 
     private fun configureWebView() {
@@ -432,32 +422,6 @@ class MainActivity : AppCompatActivity() {
         }
 
         when (message.optString("action")) {
-            ACTION_SAVE_CONTACT -> {
-                val accountId = message.optString("accountId").trim()
-                val contactId = message.optString("contactId").trim()
-                val name = message.optString("name").trim()
-                val phone = message.optString("phone").trim()
-                val address = message.optString("address").trim()
-                if (name.length !in 1..MAX_CONTACT_NAME_CHARS ||
-                    address.length > MAX_CONTACT_ADDRESS_CHARS
-                ) return
-                PhonebookStore.save(accountId, contactId, name, phone, address)
-            }
-
-            ACTION_DELETE_CONTACT -> {
-                val accountId = message.optString("accountId").trim()
-                val contactId = message.optString("contactId").trim()
-                PhonebookStore.delete(accountId, contactId)
-            }
-
-            ACTION_SET_ACTIVE_ACCOUNT -> {
-                PhonebookStore.setActiveAccount(message.optString("accountId").trim())
-            }
-
-            ACTION_CLEAR_ACTIVE_ACCOUNT -> {
-                PhonebookStore.clearActiveAccount(message.optString("accountId").trim())
-            }
-
             ACTION_OPEN_NOVA_VPN -> {
                 val authToken = message.optString("authToken").trim()
                 if (authToken.isBlank() || authToken.length > MAX_VPN_AUTH_TOKEN_CHARS) return
@@ -470,8 +434,6 @@ class MainActivity : AppCompatActivity() {
                     // Keep the main app alive if the optional VPN control cannot launch.
                 }
             }
-
-            ACTION_REQUEST_CALLER_ROLE -> requestCallerRole()
 
             ACTION_OPEN_EXTERNAL -> {
                 val url = message.optString("url").trim()
@@ -622,37 +584,6 @@ class MainActivity : AppCompatActivity() {
         else -> false
     }
 
-    private fun showCallerSetupOnce() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
-        val preferences = getSharedPreferences(CALLER_PROMPT_PREFERENCES, MODE_PRIVATE)
-        if (hasCallerRole() || preferences.getBoolean(CALLER_PROMPT_SHOWN, false)) return
-
-        preferences.edit().putBoolean(CALLER_PROMPT_SHOWN, true).apply()
-        webView.postDelayed({
-            if (!isFinishing && !isDestroyed && !hasCallerRole()) {
-                callerSetupLauncher.launch(Intent(this, CallerSetupActivity::class.java))
-            }
-        }, CALLER_PROMPT_DELAY_MS)
-    }
-
-    fun hasCallerRole(): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return false
-        val roleManager = getSystemService(RoleManager::class.java) ?: return false
-        return roleManager.isRoleHeld(RoleManager.ROLE_CALL_SCREENING)
-    }
-
-    fun requestCallerRole() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
-        val roleManager = getSystemService(RoleManager::class.java) ?: return
-        if (roleManager.isRoleAvailable(RoleManager.ROLE_CALL_SCREENING) &&
-            !roleManager.isRoleHeld(RoleManager.ROLE_CALL_SCREENING)
-        ) {
-            callerRoleLauncher.launch(
-                roleManager.createRequestRoleIntent(RoleManager.ROLE_CALL_SCREENING)
-            )
-        }
-    }
-
     override fun onDestroy() {
         fileChooserCallback?.onReceiveValue(null)
         fileChooserCallback = null
@@ -705,26 +636,15 @@ class MainActivity : AppCompatActivity() {
         const val BROWSER_BRIDGE_NAME = "NexusBrowserAndroid"
         const val BROWSER_ACTION_OPEN = "open"
 
-        const val ACTION_SAVE_CONTACT = "saveContact"
-        const val ACTION_DELETE_CONTACT = "deleteContact"
-        const val ACTION_SET_ACTIVE_ACCOUNT = "setActiveAccount"
-        const val ACTION_CLEAR_ACTIVE_ACCOUNT = "clearActiveAccount"
         const val ACTION_OPEN_NOVA_VPN = "openNovaVpn"
-        const val ACTION_REQUEST_CALLER_ROLE = "requestCallerRole"
         const val ACTION_OPEN_EXTERNAL = "openExternal"
 
         const val MAX_BRIDGE_MESSAGE_CHARS = 8_192
         const val MAX_VPN_AUTH_TOKEN_CHARS = 7_000
-        const val MAX_CONTACT_NAME_CHARS = 100
-        const val MAX_CONTACT_ADDRESS_CHARS = 300
         const val MAX_EXTERNAL_URL_CHARS = 2_000
         const val MAX_PICKED_FILES = 5
         const val MAX_PICKED_FILE_BYTES = 20L * 1024L * 1024L
         const val MAX_PICKED_TOTAL_BYTES = 20L * 1024L * 1024L
-
-        const val CALLER_PROMPT_PREFERENCES = "caller_role_prompt"
-        const val CALLER_PROMPT_SHOWN = "shown"
-        const val CALLER_PROMPT_DELAY_MS = 2_500L
 
         const val MAIN_FRAME_LOAD_TIMEOUT_MS = 12_000L
         const val BLANK_SCREEN_GRACE_MS = 3_500L
