@@ -21,6 +21,7 @@ export const novaApps = Object.freeze([
   { id: 'nova-internet-speed', name: 'Nova Internet Speed', category: 'Live & Local', icon: 'analytics', description: 'Live download, upload, ping and jitter' },
   { id: 'pakistan', name: 'Pakistan Hub', category: 'Live & Local', icon: 'pakistan', description: 'Pakistan-focused information' },
   { id: 'news', name: 'News', category: 'Live & Local', icon: 'news', description: 'Current headlines and feeds' },
+  { id: 'articles', name: 'Articles', category: 'Live & Local', icon: 'news', description: 'NexusNova website articles, automatically synced' },
   { id: 'location', name: 'My Location', category: 'Live & Local', icon: 'location', description: 'Live GPS coordinates and accuracy without storage' },
   { id: 'nova-drive', name: 'Nova Drive', category: 'Live & Local', icon: 'drive', description: 'Foreground GPS speed, distance and trip recording' },
   { id: 'nova-track', name: 'Nova Track', category: 'Live & Local', icon: 'track', description: 'Daily, weekly and monthly drive summaries' },
