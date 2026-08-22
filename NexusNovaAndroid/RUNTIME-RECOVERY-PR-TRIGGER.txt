@@ -1,1 +1,1 @@
-Trigger the NexusNova Android 11 runtime recovery gate for the crash-hardened candidate. No application behavior is changed by this marker.
+Trigger NexusNova Android 11 runtime recovery gate run 2 after removing the obsolete AdMob patch step. No application behavior is changed by this marker.
