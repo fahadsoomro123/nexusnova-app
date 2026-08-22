@@ -69,7 +69,6 @@ const FEATURE_ALIAS = Object.freeze({
   habits:'tools',
   savings:'money',
   contacts:'tools',
-  'caller-id':'tools',
   family:'tools',
   emergency:'tools',
   finance:'finance',
