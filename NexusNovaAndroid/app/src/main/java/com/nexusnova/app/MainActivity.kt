@@ -11,6 +11,7 @@ import android.os.Build
 import android.os.Bundle
 import android.webkit.GeolocationPermissions
 import android.webkit.PermissionRequest
+import android.webkit.RenderProcessGoneDetail
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
@@ -230,6 +231,28 @@ class MainActivity : AppCompatActivity() {
                 if (!failed.isForMainFrame || status < 400 || usingOfflineFallback) return
                 if (!isProductionOrigin(failed.url)) return
                 recoverProductionWebView(view, "HTTP $status")
+            }
+
+            override fun onRenderProcessGone(
+                view: WebView?,
+                detail: RenderProcessGoneDetail?
+            ): Boolean {
+                android.util.Log.e(
+                    "NexusNovaWeb",
+                    "WebView renderer gone; didCrash=${detail?.didCrash() == true}"
+                )
+                val target = view ?: return true
+                adManager = null
+                runCatching { target.stopLoading() }
+                runCatching { (target.parent as? android.view.ViewGroup)?.removeView(target) }
+                runCatching { target.removeAllViews() }
+                runCatching { target.destroy() }
+                if (!isFinishing && !isDestroyed) {
+                    window.decorView.post {
+                        if (!isFinishing && !isDestroyed) recreate()
+                    }
+                }
+                return true
             }
         }
 

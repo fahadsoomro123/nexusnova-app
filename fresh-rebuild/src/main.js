@@ -9,7 +9,6 @@ import { authScreen } from './features/auth/auth-screen.js';
 import { mineScreen } from './features/mine/mine-screen.js';
 import { hubScreen, requestHubReturnRestore } from './features/hub/hub-screen.js';
 import { mineApps } from './features/hub/app-registry.js';
-import { appScreen, cleanupAppScreen } from './features/apps/app-screen.js';
 
 const stage = document.getElementById('nx-stage');
 const dock = document.querySelector('.nx-dock');
@@ -20,6 +19,14 @@ const POST_LOGIN_SPLASH_MS = 900;
 const bootSplashStartedAt = performance.now();
 
 backend.attach(firebaseBackend);
+
+let appScreenModulePromise = null;
+function loadAppScreenModule() {
+  if (!appScreenModulePromise) {
+    appScreenModulePromise = import('./features/apps/app-screen.js');
+  }
+  return appScreenModulePromise;
+}
 
 window.nexusPostNativeAction = window.nexusPostNativeAction || function(action, payload = {}) {
   try {
@@ -155,14 +162,14 @@ router = createRouter({
       beforeMiningRenewal: continueMining => adPolicy.gateMiningRenewal(continueMining)
     }),
     hub: () => hubScreen({ openApp: openAppWithAd }),
-    app: payload => appScreen({ id: payload.id, backToHub, backToMine })
+    app: async payload => { const { appScreen } = await loadAppScreenModule(); return appScreen({ id: payload.id, backToHub, backToMine }); }
   },
   onRoute(route, payload = {}) {
     setSplashMode(false);
     if (route === 'app') currentAppParent = parentRouteForApp(payload.id);
     syncDock(route, payload);
     showDock(route !== 'auth');
-    if (route !== 'app') cleanupAppScreen();
+    if (route !== 'app' && appScreenModulePromise) appScreenModulePromise.then(module => module.cleanupAppScreen()).catch(() => {});
   }
 });
 
