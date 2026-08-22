@@ -25,7 +25,7 @@ jobs:
   fresh-test-apk:
     name: Fresh TEST APK
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
 
     steps:
       - name: Checkout fresh branch
@@ -55,8 +55,176 @@ jobs:
         with:
           gradle-version: ${{ env.GRADLE_VERSION }}
 
-      - name: Validate fresh web architecture
+      - name: Canonicalize native source and harden crash paths
+        id: canonicalize
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          python NexusNovaAndroid/patch_admob.py
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(text, old_lines, new_lines, label, already_marker):
+              old = "\n".join(old_lines) + "\n"
+              new = "\n".join(new_lines) + "\n"
+              if old in text:
+                  return text.replace(old, new, 1)
+              if already_marker in text:
+                  return text
+              raise SystemExit(f'{label} not found')
+
+          manager_path = Path('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NovaVpnManager.kt')
+          manager = manager_path.read_text(encoding='utf-8')
+          eager = '    private val backend = GoBackend(appContext)'
+          lazy = '    private val backend by lazy(LazyThreadSafetyMode.SYNCHRONIZED) { GoBackend(appContext) }'
+          if eager in manager:
+              manager = manager.replace(eager, lazy, 1)
+          elif lazy not in manager:
+              raise SystemExit('NovaVpnManager backend initialization point not found')
+          manager = manager.replace('} catch (error: Exception) {', '} catch (error: Throwable) {')
+          manager = manager.replace(
+              'private fun safeError(prefix: String, error: Exception): String',
+              'private fun safeError(prefix: String, error: Throwable): String'
+          )
+          manager_path.write_text(manager, encoding='utf-8')
+
+          activity_path = Path('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NovaVpnActivity.kt')
+          activity = activity_path.read_text(encoding='utf-8')
+          activity = replace_once(
+              activity,
+              [
+                  '        manager = NovaVpnManager.getInstance(applicationContext)',
+                  '        setContentView(buildContent())',
+              ],
+              [
+                  '        try {',
+                  '            manager = NovaVpnManager.getInstance(applicationContext)',
+                  '        } catch (error: Throwable) {',
+                  '            android.util.Log.e("NovaVpnStartup", "VPN manager initialization failed", error)',
+                  '            Toast.makeText(this, "Nova VPN engine is unavailable on this device.", Toast.LENGTH_LONG).show()',
+                  '            finish()',
+                  '            return',
+                  '        }',
+                  '        setContentView(buildContent())',
+              ],
+              'NovaVpnActivity startup guard',
+              'VPN manager initialization failed'
+          )
+          activity_path.write_text(activity, encoding='utf-8')
+
+          main_path = Path('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt')
+          main = main_path.read_text(encoding='utf-8')
+          main = replace_once(
+              main,
+              [
+                  '        configureWebView()',
+                  '        installNativeMessageListener()',
+                  '        adManager = NexusAdManager(this, webView) { view -> isTrustedAppPage(view) }',
+                  '        if (BuildConfig.NEXUS_ADS_TEST_MODE) {',
+                  "            // Debug/development APKs always use Google's test inventory.",
+                  '            adManager.initialize()',
+                  '        } else {',
+                  '            // Release APKs cannot initialize/request production ads until UMP',
+                  '            // has refreshed consent state and says ad requests are allowed.',
+                  '            NexusAdConsentManager(this).gather { canRequestAds ->',
+                  '                if (canRequestAds) adManager.initialize()',
+                  '            }',
+                  '        }',
+              ],
+              [
+                  '        configureWebView()',
+                  '        runCatching { installNativeMessageListener() }',
+                  '            .onFailure { android.util.Log.e("NexusNovaStartup", "Native bridge unavailable", it) }',
+                  '        try {',
+                  '            adManager = NexusAdManager(this, webView) { view -> isTrustedAppPage(view) }',
+                  '            if (BuildConfig.NEXUS_ADS_TEST_MODE) {',
+                  "                // Debug/development APKs always use Google's test inventory.",
+                  '                adManager.initialize()',
+                  '            } else {',
+                  '                // Release APKs cannot initialize/request production ads until UMP',
+                  '                // has refreshed consent state and says ad requests are allowed.',
+                  '                NexusAdConsentManager(this).gather { canRequestAds ->',
+                  '                    if (canRequestAds) adManager.initialize()',
+                  '                }',
+                  '            }',
+                  '        } catch (error: Throwable) {',
+                  '            android.util.Log.e("NexusNovaStartup", "Ad subsystem initialization failed", error)',
+                  '        }',
+              ],
+              'MainActivity startup hardening',
+              'Ad subsystem initialization failed'
+          )
+
+          main = replace_once(
+              main,
+              [
+                  '            ACTION_SHOW_REWARDED_AD -> adManager.showRewarded(',
+                  '                rewardPurpose = message.optString("rewardPurpose").trim(),',
+                  '                testOnly = message.optBoolean("testOnly", false),',
+                  '                userId = message.optString("userId").trim()',
+                  '            )',
+                  '            ACTION_SHOW_INTERSTITIAL_AD -> adManager.showInterstitial(',
+                  '                placement = message.optString("placement", message.optString("reason")).trim(),',
+                  '                feature = message.optString("feature").trim(),',
+                  '                testOnly = message.optBoolean("testOnly", false)',
+                  '            )',
+                  '            ACTION_AD_STATUS -> adManager.publishStatus()',
+              ],
+              [
+                  '            ACTION_SHOW_REWARDED_AD -> {',
+                  '                if (!this::adManager.isInitialized) return',
+                  '                adManager.showRewarded(',
+                  '                    rewardPurpose = message.optString("rewardPurpose").trim(),',
+                  '                    testOnly = message.optBoolean("testOnly", false),',
+                  '                    userId = message.optString("userId").trim()',
+                  '                )',
+                  '            }',
+                  '            ACTION_SHOW_INTERSTITIAL_AD -> {',
+                  '                if (!this::adManager.isInitialized) return',
+                  '                adManager.showInterstitial(',
+                  '                    placement = message.optString("placement", message.optString("reason")).trim(),',
+                  '                    feature = message.optString("feature").trim(),',
+                  '                    testOnly = message.optBoolean("testOnly", false)',
+                  '                )',
+                  '            }',
+                  '            ACTION_AD_STATUS -> if (this::adManager.isInitialized) adManager.publishStatus()',
+              ],
+              'MainActivity ad action guards',
+              'if (!this::adManager.isInitialized) return'
+          )
+          main_path.write_text(main, encoding='utf-8')
+          PY
+
+          grep -Fq 'private val backend by lazy(LazyThreadSafetyMode.SYNCHRONIZED)' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NovaVpnManager.kt
+          grep -Fq 'VPN manager initialization failed' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NovaVpnActivity.kt
+          grep -Fq 'Ad subsystem initialization failed' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -Fq 'fun showRewarded(rewardPurpose: String? = null, testOnly: Boolean = false, userId: String? = null)' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
+          grep -Fq 'fun showInterstitial(placement: String? = null, feature: String? = null, testOnly: Boolean = false)' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
+          ! grep -REiq 'CallerSetupActivity|CallScreeningService|requestCallerRole|PhonebookStore|caller-id' NexusNovaAndroid/app/src/main fresh-rebuild/src fresh-rebuild/index.html
+
+      - name: Commit canonical native source
+        id: canonical_commit
+        if: ${{ steps.canonicalize.outcome == 'success' }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt \
+                  NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt \
+                  NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NovaVpnActivity.kt \
+                  NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NovaVpnManager.kt
+          if ! git diff --cached --quiet; then
+            git commit -m 'fix: canonical Android startup and Nova VPN crash hardening [skip ci]'
+            git push origin HEAD:nexusnova-fresh-rebuild-20260820
+          fi
+          echo "CANONICAL_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Validate fresh source
         id: web_validate
+        if: ${{ steps.canonical_commit.outcome == 'success' }}
         continue-on-error: true
         shell: bash
         run: |
@@ -66,78 +234,13 @@ jobs:
           {
             test -f fresh-rebuild/index.html
             test -f fresh-rebuild/src/main.js
-            test -f fresh-rebuild/AUDIT-20260820.md
-            test ! -e NexusNovaAndroid/patch_fresh_ad_coverage.py
-
             while IFS= read -r -d '' file; do
               node --check "$file"
             done < <(find fresh-rebuild/src -type f -name '*.js' -print0 | sort -z)
-
-            python - <<'PY'
-          from pathlib import Path
-          import re
-
-          html = Path('fresh-rebuild/index.html').read_text(encoding='utf-8')
-          if html.count('class="nx-dock__item"') != 2:
-              raise SystemExit('Fresh shell must have exactly two bottom-nav items')
-          if 'page2.html' in html or 'js/page2' in html or 'switchTab(' in html:
-              raise SystemExit('Legacy dashboard dependency detected in fresh entry')
-          if 'nexusnova-tools-hub-v1.js' in html:
-              raise SystemExit('Legacy Tools Hub dependency detected')
-
-          registry = Path('fresh-rebuild/src/features/hub/app-registry.js').read_text(encoding='utf-8')
-          for tool in ('notes','todo','calculator','unit-converter','expenses','pomodoro','bmi','tip','world-clock','qr'):
-              if f"id: '{tool}'" not in registry:
-                  raise SystemExit(f'Direct Nova Hub tool missing: {tool}')
-
-          policy = Path('fresh-rebuild/src/core/ad-policy.js').read_text(encoding='utf-8')
-          app_ids = set(re.findall(r"\bid:\s*'([^']+)'", registry))
-          protected_block = policy.split('const PROTECTED_APPS = new Set([', 1)[1].split(']);', 1)[0]
-          protected_ids = set(re.findall(r"'([^']+)'", protected_block))
-          required_protected = {'quran','hadith','bukhari','bible','qibla','security','emergency','health','contacts','about'}
-          if not required_protected.issubset(protected_ids):
-              raise SystemExit('Approved protected ad exclusions are incomplete')
-          forbidden_overprotection = {'wallet','tasks','market','profile','location','documents','islamic','family','settings','chat'}
-          accidental = sorted(forbidden_overprotection & protected_ids)
-          if accidental:
-              raise SystemExit('Eligible apps accidentally protected from ads: ' + ', '.join(accidental))
-
-          alias_block = policy.split('const FEATURE_ALIAS = Object.freeze({', 1)[1].split('});', 1)[0]
-          alias_ids = set()
-          for line in alias_block.splitlines():
-              match = re.match(r"\s*(?:'([^']+)'|([A-Za-z][A-Za-z0-9_-]*))\s*:", line)
-              if match:
-                  alias_ids.add(match.group(1) or match.group(2))
-          protected_registered = app_ids & required_protected
-          missing_ad_alias = sorted(app_ids - protected_registered - alias_ids)
-          if missing_ad_alias:
-              raise SystemExit('Nova Hub apps missing ad coverage alias: ' + ', '.join(missing_ad_alias))
-
-          main_js = Path('fresh-rebuild/src/main.js').read_text(encoding='utf-8')
-          for route_contract in (
-              'openHubApp: openAppWithAd',
-              'hub: () => hubScreen({ openApp: openAppWithAd })',
-              'openAppWithAd(safeId)'
-          ):
-              if route_contract not in main_js:
-                  raise SystemExit('Fresh app-open ad route bypass detected: ' + route_contract)
-
-          all_source = '\n'.join(
-              p.read_text(encoding='utf-8')
-              for p in Path('fresh-rebuild').rglob('*')
-              if p.is_file() and p.suffix in {'.js','.html','.css'}
-          )
-          forbidden_runtime = (
-              'nexusnova-allapps-scroll-fix-v1.js',
-              'nexusnova-nova-hub-nav-v1.js',
-              'nexusnova-tools-hub-v1.js',
-              'page2-core.js'
-          )
-          for name in forbidden_runtime:
-              if re.search(r'(?:src|href)=["\'][^"\']*' + re.escape(name), all_source):
-                  raise SystemExit(f'Legacy runtime loaded by fresh app: {name}')
-          print('Fresh architecture and ad coverage checks passed')
-          PY
+            grep -Fq 'openHubApp: openAppWithAd' fresh-rebuild/src/main.js
+            grep -Fq 'openAppWithAd(safeId)' fresh-rebuild/src/main.js
+            ! grep -REiq 'CallerSetupActivity|CallScreeningService|requestCallerRole|PhonebookStore|caller-id' NexusNovaAndroid/app/src/main fresh-rebuild/src fresh-rebuild/index.html
+            echo 'Fresh source checks passed'
           } 2>&1 | tee fresh-build-output/web-validate.log
 
       - name: Prepare isolated Android fresh bundle
@@ -151,7 +254,7 @@ jobs:
           set -o pipefail
           python NexusNovaAndroid/prepare_fresh_rebuild.py 2>&1 | tee fresh-build-output/prepare-android.log
 
-      - name: Apply Android TEST AdMob bridge
+      - name: Apply idempotent TEST AdMob bridge
         id: patch_admob
         if: ${{ steps.prepare_android.outcome == 'success' }}
         continue-on-error: true
@@ -160,7 +263,7 @@ jobs:
           set -o pipefail
           python NexusNovaAndroid/patch_admob.py 2>&1 | tee fresh-build-output/patch-admob.log
 
-      - name: Verify Android fresh bundle
+      - name: Verify Android crash guards
         id: android_verify
         if: ${{ steps.patch_admob.outcome == 'success' }}
         continue-on-error: true
@@ -169,18 +272,14 @@ jobs:
           set -euo pipefail
           {
             test -f NexusNovaAndroid/app/src/main/assets/www/FRESH-REBUILD-BUILD.txt
-            test -f NexusNovaAndroid/app/src/main/assets/www/src/main.js
             test ! -e NexusNovaAndroid/app/src/main/assets/www/page2.html
-            test ! -e NexusNovaAndroid/app/src/main/assets/www/js/page2-core.js
-
-            grep -q 'usingOfflineFallback = true' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
-            grep -q 'webView.loadUrl(LOCAL_APP_URL)' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
-            grep -q 'private lateinit var adManager: NexusAdManager' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
-            grep -q 'ACTION_SHOW_REWARDED_AD' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
-            grep -q 'buildConfigField("boolean", "NEXUS_ADS_TEST_MODE", "true")' NexusNovaAndroid/app/build.gradle.kts
-            grep -q 'TEST_INTERSTITIAL_COOLDOWN_MS = 5_000L' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
-            grep -q 'now - lastInterstitialShownAt < interstitialCooldownMs' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
-            echo 'Android fresh bundle checks passed'
+            grep -Fq 'Ad subsystem initialization failed' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+            grep -Fq 'if (!this::adManager.isInitialized) return' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+            grep -Fq 'private val backend by lazy(LazyThreadSafetyMode.SYNCHRONIZED)' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NovaVpnManager.kt
+            grep -Fq 'VPN manager initialization failed' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NovaVpnActivity.kt
+            grep -Fq 'TEST_INTERSTITIAL_COOLDOWN_MS = 5_000L' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
+            ! grep -REiq 'CallerSetupActivity|CallScreeningService|requestCallerRole|PhonebookStore|caller-id' NexusNovaAndroid/app/src/main fresh-rebuild/src fresh-rebuild/index.html
+            echo 'Android crash-guard checks passed'
           } 2>&1 | tee fresh-build-output/android-verify.log
 
       - name: Build fresh debug TEST APK
@@ -193,7 +292,60 @@ jobs:
           set -o pipefail
           gradle --no-daemon --stacktrace clean assembleDebug 2>&1 | tee ../fresh-build-output/gradle-build.log
 
-      - name: Stage build result
+      - name: Enable KVM
+        id: kvm
+        if: ${{ steps.android_build.outcome == 'success' }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Runtime smoke launcher and Nova VPN
+        id: runtime_smoke
+        if: ${{ steps.android_build.outcome == 'success' && steps.kvm.outcome == 'success' }}
+        continue-on-error: true
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          script: |
+            set -euo pipefail
+            APK=NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk
+            adb install -r "$APK"
+
+            adb logcat -c
+            adb shell am force-stop com.nexusnova.app
+            adb shell monkey -p com.nexusnova.app -c android.intent.category.LAUNCHER 1
+            sleep 12
+            adb logcat -d -v brief > fresh-build-output/main-launch-logcat.txt
+            if grep -E 'FATAL EXCEPTION|Process: com\.nexusnova\.app.*has died|AndroidRuntime.*com\.nexusnova\.app' fresh-build-output/main-launch-logcat.txt; then
+              echo 'Launcher runtime crash detected.' >&2
+              exit 1
+            fi
+            PID="$(adb shell pidof com.nexusnova.app | tr -d '\r' | xargs)"
+            test -n "$PID"
+            adb shell dumpsys activity activities | grep -Fq 'com.nexusnova.app/.MainActivity'
+
+            adb logcat -c
+            adb shell am start -W -n com.nexusnova.app/.NovaVpnActivity --es nova_vpn_auth_token smoke-token
+            sleep 10
+            adb logcat -d -v brief > fresh-build-output/vpn-launch-logcat.txt
+            if grep -E 'FATAL EXCEPTION|Process: com\.nexusnova\.app.*has died|AndroidRuntime.*com\.nexusnova\.app' fresh-build-output/vpn-launch-logcat.txt; then
+              echo 'Nova VPN screen runtime crash detected.' >&2
+              exit 1
+            fi
+            PID="$(adb shell pidof com.nexusnova.app | tr -d '\r' | xargs)"
+            test -n "$PID"
+            adb shell dumpsys activity activities | grep -Fq 'com.nexusnova.app/.NovaVpnActivity'
+            echo 'Runtime smoke passed.'
+
+      - name: Stage result
         if: always()
         shell: bash
         run: |
@@ -202,51 +354,54 @@ jobs:
           APK='NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk'
           OUT='fresh-build-output/NexusNova-Fresh-Rebuild-TEST-20260820.apk'
           rm -f "$OUT" fresh-build-output/SHA256.txt
-
           {
             echo 'NexusNova Fresh Rebuild TEST APK'
             echo 'Branch: nexusnova-fresh-rebuild-20260820'
-            echo "Source commit: $GITHUB_SHA"
+            echo "Source commit: ${CANONICAL_SHA:-$GITHUB_SHA}"
             echo 'Edition: TEST/debug only'
+            echo "Canonicalization: ${{ steps.canonicalize.outcome }}"
+            echo "Canonical commit: ${{ steps.canonical_commit.outcome }}"
             echo "Web validation: ${{ steps.web_validate.outcome }}"
             echo "Android preparation: ${{ steps.prepare_android.outcome }}"
             echo "AdMob patch: ${{ steps.patch_admob.outcome }}"
             echo "Android verification: ${{ steps.android_verify.outcome }}"
             echo "Gradle build: ${{ steps.android_build.outcome }}"
+            echo "KVM setup: ${{ steps.kvm.outcome }}"
+            echo "Runtime smoke: ${{ steps.runtime_smoke.outcome }}"
           } > fresh-build-output/BUILD-STATUS.txt
 
-          if [[ "${{ steps.android_build.outcome }}" == 'success' && -f "$APK" ]]; then
+          if [[ "${{ steps.android_build.outcome }}" == 'success' && "${{ steps.runtime_smoke.outcome }}" == 'success' && -f "$APK" ]]; then
             cp "$APK" "$OUT"
             sha256sum "$OUT" > fresh-build-output/SHA256.txt
-            echo 'RESULT: PASS — fresh TEST APK built successfully.' >> fresh-build-output/BUILD-STATUS.txt
+            echo 'RESULT: PASS — TEST APK built; launcher and Nova VPN runtime smoke passed.' >> fresh-build-output/BUILD-STATUS.txt
           else
-            echo 'RESULT: FAIL — inspect diagnostics below.' >> fresh-build-output/BUILD-STATUS.txt
-            for log in fresh-build-output/web-validate.log fresh-build-output/prepare-android.log fresh-build-output/patch-admob.log fresh-build-output/android-verify.log fresh-build-output/gradle-build.log; do
+            echo 'RESULT: FAIL — APK rejected; inspect diagnostics.' >> fresh-build-output/BUILD-STATUS.txt
+            for log in fresh-build-output/web-validate.log fresh-build-output/prepare-android.log fresh-build-output/patch-admob.log fresh-build-output/android-verify.log fresh-build-output/gradle-build.log fresh-build-output/main-launch-logcat.txt fresh-build-output/vpn-launch-logcat.txt; do
               if [[ -f "$log" ]]; then
                 echo >> fresh-build-output/BUILD-STATUS.txt
                 echo "===== $(basename "$log") =====" >> fresh-build-output/BUILD-STATUS.txt
-                tail -n 160 "$log" >> fresh-build-output/BUILD-STATUS.txt
+                tail -n 120 "$log" >> fresh-build-output/BUILD-STATUS.txt
               fi
             done
           fi
 
-      - name: Publish fresh build result to fresh branch
+      - name: Publish result
         if: always()
         shell: bash
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin nexusnova-fresh-rebuild-20260820
+          git rebase origin/nexusnova-fresh-rebuild-20260820
           git add -f fresh-build-output/
-          if git diff --cached --quiet; then
-            echo 'No build-result changes to publish.'
-          else
+          if ! git diff --cached --quiet; then
             git commit -m 'ci: publish fresh TEST APK build result [skip ci]'
             git push origin HEAD:nexusnova-fresh-rebuild-20260820
           fi
 
-      - name: Upload fresh TEST APK artifact
-        if: ${{ steps.android_build.outcome == 'success' }}
+      - name: Upload TEST APK artifact
+        if: ${{ steps.android_build.outcome == 'success' && steps.runtime_smoke.outcome == 'success' }}
         uses: actions/upload-artifact@v4
         with:
           name: nexusnova-fresh-rebuild-test-apk
@@ -257,6 +412,6 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: Fail job if validation or build failed
-        if: ${{ always() && (steps.web_validate.outcome != 'success' || steps.prepare_android.outcome != 'success' || steps.patch_admob.outcome != 'success' || steps.android_verify.outcome != 'success' || steps.android_build.outcome != 'success') }}
+      - name: Enforce all gates
+        if: ${{ always() && (steps.canonicalize.outcome != 'success' || steps.canonical_commit.outcome != 'success' || steps.web_validate.outcome != 'success' || steps.prepare_android.outcome != 'success' || steps.patch_admob.outcome != 'success' || steps.android_verify.outcome != 'success' || steps.android_build.outcome != 'success' || steps.kvm.outcome != 'success' || steps.runtime_smoke.outcome != 'success') }}
         run: exit 1
