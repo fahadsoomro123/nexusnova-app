@@ -4,7 +4,8 @@ let status = {
   sdkReady: false,
   rewardedReady: false,
   interstitialReady: false,
-  testMode: true,
+  // Conservative startup default: never assume TEST mode before native status arrives.
+  testMode: false,
   ssvIdentityReady: false
 };
 
@@ -38,7 +39,7 @@ window.addEventListener('nexusnova:native-ad-event', event => {
       sdkReady: detail.sdkReady === true,
       rewardedReady: detail.rewardedReady === true,
       interstitialReady: detail.interstitialReady === true,
-      testMode: detail.testMode !== false,
+      testMode: detail.testMode === true,
       ssvIdentityReady: detail.ssvIdentityReady === true
     };
   } else if (type === 'rewarded-ready') status.rewardedReady = true;
@@ -65,8 +66,9 @@ export const nativeAds = {
   async showRewarded({ purpose, userId = '', timeoutMs = 55_000 } = {}) {
     const rewardPurpose = String(purpose || '').slice(0, 80);
     if (!rewardPurpose) throw new Error('Reward purpose is required.');
-    if (!post('showRewardedAd', { rewardPurpose, userId: String(userId || '').slice(0,128), testOnly: true })) {
-      throw new Error('Rewarded ads require the NexusNova Android TEST app.');
+    const testOnly = status.testMode === true;
+    if (!post('showRewardedAd', { rewardPurpose, userId: String(userId || '').slice(0,128), testOnly })) {
+      throw new Error('Rewarded ads require the NexusNova Android app.');
     }
 
     return new Promise((resolve, reject) => {
@@ -94,7 +96,7 @@ export const nativeAds = {
           return;
         }
         if (type === 'rewarded-dismissed') {
-          finish({ earned, testMode: detail.testMode !== false, detail });
+          finish({ earned, testMode: detail.testMode === true, detail });
           return;
         }
         if (['rewarded-unavailable','rewarded-load-failed','rewarded-failed'].includes(type)) {
@@ -109,7 +111,7 @@ export const nativeAds = {
     return post('showInterstitialAd', {
       placement: String(placement).slice(0,80),
       feature: String(feature).slice(0,80),
-      testOnly: true
+      testOnly: status.testMode === true
     });
   }
 };
