@@ -1,1 +1,1 @@
-Trigger the gated NexusNova v1.1.3 deep-startup APK workflow after the extended startup audit timeout. No application source code is changed by this marker.
+Trigger NexusNova fresh crash-hardening TEST APK workflow with launcher and Nova VPN runtime smoke validation. No application source code is changed by this marker.
