@@ -1,0 +1,140 @@
+.nx-vpn-shell{
+  position:relative;
+  overflow:hidden;
+  padding:18px;
+  border:1px solid rgba(86,174,255,.18);
+  border-radius:24px;
+  background:
+    radial-gradient(circle at 18% 18%,rgba(49,92,255,.16),transparent 31%),
+    radial-gradient(circle at 86% 16%,rgba(66,211,255,.11),transparent 28%),
+    linear-gradient(155deg,rgba(8,21,36,.98),rgba(4,11,20,.985));
+  box-shadow:0 18px 46px rgba(0,0,0,.26),inset 0 1px rgba(255,255,255,.04);
+}
+.nx-vpn-shell::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  opacity:.34;
+  background-image:
+    radial-gradient(circle at 9% 22%,rgba(121,211,255,.5) 0 1px,transparent 1.5px),
+    radial-gradient(circle at 31% 74%,rgba(152,107,255,.42) 0 1px,transparent 1.4px),
+    radial-gradient(circle at 61% 13%,rgba(107,210,255,.34) 0 1px,transparent 1.5px),
+    radial-gradient(circle at 84% 66%,rgba(115,79,255,.36) 0 1px,transparent 1.4px),
+    radial-gradient(circle at 93% 31%,rgba(83,233,255,.4) 0 1px,transparent 1.5px);
+}
+.nx-vpn-shell>*{position:relative;z-index:1}
+.nx-vpn-brand{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.nx-vpn-brand__identity{display:flex;align-items:center;gap:11px;min-width:0}
+.nx-vpn-brand__mark{
+  flex:0 0 50px;
+  width:50px;
+  height:50px;
+  display:grid;
+  place-items:center;
+  border:1px solid rgba(85,213,255,.35);
+  border-radius:16px;
+  background:linear-gradient(145deg,#0a4b83,#102747);
+  box-shadow:0 12px 30px rgba(0,119,210,.22),inset 0 1px rgba(255,255,255,.14);
+  color:#eaffff;
+  font-size:23px;
+  font-weight:950;
+  letter-spacing:-.08em;
+}
+.nx-vpn-brand .nx-eyebrow{margin-bottom:4px}
+.nx-vpn-brand h2{margin:0;font-size:19px;line-height:1;letter-spacing:-.035em}
+.nx-vpn-native-badge{
+  flex:0 0 auto;
+  padding:6px 8px;
+  border:1px solid rgba(66,211,255,.18);
+  border-radius:10px;
+  background:rgba(66,211,255,.065);
+  color:var(--nx-cyan);
+  font-size:7px;
+  font-weight:900;
+  letter-spacing:.11em;
+}
+.nx-vpn-core{
+  width:min(42vw,154px);
+  aspect-ratio:1;
+  margin:18px auto 14px;
+  position:relative;
+  display:grid;
+  place-items:center;
+  border-radius:50%;
+  isolation:isolate;
+}
+.nx-vpn-core::before,.nx-vpn-core::after{content:"";position:absolute;border-radius:50%;pointer-events:none}
+.nx-vpn-core::before{
+  inset:0;
+  border:1px solid rgba(84,156,255,.18);
+  background:conic-gradient(from -30deg,rgba(59,130,246,.72),rgba(66,211,255,.9),rgba(139,92,246,.66),rgba(59,130,246,.72));
+  -webkit-mask:radial-gradient(circle,transparent 0 68%,#000 69% 72%,transparent 73%);
+  mask:radial-gradient(circle,transparent 0 68%,#000 69% 72%,transparent 73%);
+  filter:drop-shadow(0 0 12px rgba(58,168,255,.34));
+  animation:nx-vpn-spin 14s linear infinite;
+}
+.nx-vpn-core::after{
+  inset:10%;
+  border:1px dashed rgba(105,115,255,.2);
+  box-shadow:inset 0 0 28px rgba(70,100,255,.06),0 0 32px rgba(64,109,255,.11);
+  animation:nx-vpn-spin-rev 20s linear infinite;
+}
+.nx-vpn-core__center{
+  width:61%;
+  aspect-ratio:1;
+  display:grid;
+  place-items:center;
+  border:1px solid rgba(73,186,255,.22);
+  border-radius:50%;
+  background:radial-gradient(circle at 50% 38%,rgba(15,52,91,.9),rgba(3,12,24,.98) 72%);
+  box-shadow:inset 0 0 30px rgba(50,132,255,.09),0 0 36px rgba(38,88,255,.11);
+  color:#8be9ff;
+  font-size:30px;
+  font-weight:950;
+  letter-spacing:-.08em;
+}
+@keyframes nx-vpn-spin{to{transform:rotate(360deg)}}
+@keyframes nx-vpn-spin-rev{to{transform:rotate(-360deg)}}
+.nx-vpn-state{text-align:center}
+.nx-vpn-state strong{display:flex;align-items:center;justify-content:center;gap:8px;font-size:11px;letter-spacing:.075em}
+.nx-vpn-state strong i{width:8px;height:8px;border-radius:50%;background:var(--nx-cyan);box-shadow:0 0 0 4px rgba(66,211,255,.08),0 0 16px rgba(66,211,255,.38)}
+.nx-vpn-state p{max-width:440px;margin:7px auto 0;color:var(--nx-text-2);font-size:10px;line-height:1.5}
+.nx-vpn-capabilities{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-top:15px}
+.nx-vpn-capabilities>div{min-width:0;padding:10px 8px;border:1px solid rgba(131,190,255,.08);border-radius:13px;background:rgba(4,13,23,.58);text-align:center}
+.nx-vpn-capabilities span{display:block;color:var(--nx-text-3);font-size:7px;font-weight:900;letter-spacing:.1em}
+.nx-vpn-capabilities strong{display:block;margin-top:5px;overflow:hidden;color:var(--nx-text);font-size:10px;line-height:1.25;text-overflow:ellipsis;white-space:nowrap}
+.nx-vpn-trust{display:grid;gap:8px;margin-top:12px}
+.nx-vpn-trust>div{padding:11px 12px;border:1px solid rgba(94,177,255,.1);border-radius:15px;background:linear-gradient(145deg,rgba(8,23,40,.82),rgba(4,13,24,.9))}
+.nx-vpn-trust span{display:block;color:var(--nx-cyan);font-size:8px;font-weight:900;letter-spacing:.09em}
+.nx-vpn-trust p{margin:5px 0 0;color:var(--nx-text-2);font-size:9.5px;line-height:1.5}
+.nx-vpn-open{
+  width:100%;
+  min-height:48px;
+  margin-top:13px;
+  padding:0 16px;
+  border:1px solid rgba(74,201,255,.38);
+  border-radius:14px;
+  background:linear-gradient(180deg,rgba(13,29,46,.94),rgba(5,14,25,.98));
+  color:var(--nx-text);
+  font-size:10px;
+  font-weight:900;
+  letter-spacing:.09em;
+  box-shadow:inset 0 1px rgba(255,255,255,.05),0 8px 22px rgba(0,0,0,.18);
+  cursor:pointer;
+  transition:transform var(--nx-fast) var(--nx-ease),border-color var(--nx-fast) linear,opacity var(--nx-fast) linear;
+}
+.nx-vpn-open:active{transform:scale(.988)}
+.nx-vpn-open:disabled{cursor:default;opacity:.58;border-color:rgba(116,151,190,.18)}
+.nx-vpn-launch-status{margin:9px 2px 0;color:var(--nx-text-3);font-size:9px;line-height:1.45}
+@media(max-width:430px){
+  .nx-vpn-shell{padding:15px 13px}
+  .nx-vpn-brand__mark{flex-basis:46px;width:46px;height:46px;border-radius:15px;font-size:21px}
+  .nx-vpn-core{width:min(45vw,148px);margin-top:16px}
+}
+@media(max-width:355px){
+  .nx-vpn-native-badge{display:none}
+  .nx-vpn-capabilities{grid-template-columns:1fr 1fr}
+  .nx-vpn-capabilities>div:last-child{grid-column:1/-1}
+}
+@media(prefers-reduced-motion:reduce){.nx-vpn-core::before,.nx-vpn-core::after{animation:none!important}}
