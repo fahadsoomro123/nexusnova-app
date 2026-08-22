@@ -5,8 +5,8 @@ Daemon will be stopped at the end of the build
 > Task :app:preDebugBuild UP-TO-DATE
 > Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
 > Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
-> Task :app:generateDebugResValues
 > Task :app:dataBindingMergeDependencyArtifactsDebug
+> Task :app:generateDebugResValues
 > Task :app:generateDebugResources
 > Task :app:packageDebugResources
 > Task :app:processDebugNavigationResources
@@ -52,8 +52,8 @@ w: file:///home/runner/work/nexusnova-app/nexusnova-app/NexusNovaAndroid/app/src
 w: file:///home/runner/work/nexusnova-app/nexusnova-app/NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt:389:47 The corresponding parameter in the supertype 'AdLoadCallback' is named 'adError'. This may cause problems when calling this function with named arguments.
 w: file:///home/runner/work/nexusnova-app/nexusnova-app/NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt:653:76 The corresponding parameter in the supertype 'AdEventCallback' is named 'fullScreenContentError'. This may cause problems when calling this function with named arguments.
 w: file:///home/runner/work/nexusnova-app/nexusnova-app/NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt:677:47 The corresponding parameter in the supertype 'AdLoadCallback' is named 'adError'. This may cause problems when calling this function with named arguments.
-w: file:///home/runner/work/nexusnova-app/nexusnova-app/NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NovaVpnActivity.kt:71:16 'var statusBarColor: Int' is deprecated. Deprecated in Java.
-w: file:///home/runner/work/nexusnova-app/nexusnova-app/NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NovaVpnActivity.kt:72:16 'var navigationBarColor: Int' is deprecated. Deprecated in Java.
+w: file:///home/runner/work/nexusnova-app/nexusnova-app/NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NovaVpnActivity.kt:77:16 'var statusBarColor: Int' is deprecated. Deprecated in Java.
+w: file:///home/runner/work/nexusnova-app/nexusnova-app/NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NovaVpnActivity.kt:78:16 'var navigationBarColor: Int' is deprecated. Deprecated in Java.
 
 > Task :app:mergeExtDexDebug
 > Task :app:compileDebugJavaWithJavac
@@ -73,7 +73,7 @@ Unable to strip the following libraries, packaging them as they are: libwg-go.so
 > Task :app:packageDebug
 > Task :app:createDebugApkListingFileRedirect
 > Task :app:assembleDebug
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/android_build-1787414485494.json
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/android_build-1787415081220.json
 
-BUILD SUCCESSFUL in 1m 43s
+BUILD SUCCESSFUL in 1m 29s
 43 actionable tasks: 42 executed, 1 up-to-date
