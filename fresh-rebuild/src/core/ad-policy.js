@@ -46,6 +46,7 @@ const FEATURE_ALIAS = Object.freeze({
   'nova-internet-speed':'tools',
   pakistan:'mega-pakistan',
   news:'news',
+  articles:'news',
   location:'travel',
   'nova-drive':'travel',
   'nova-track':'travel',
