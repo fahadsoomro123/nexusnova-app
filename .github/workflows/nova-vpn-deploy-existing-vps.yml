@@ -25,9 +25,9 @@ on:
         required: true
         type: string
       capacity_mbps:
-        description: 'Verified/contracted node capacity metadata; benchmark before publishing'
+        description: 'Verified benchmarked node capacity Mbps; use 0 until measured'
         required: true
-        default: '1000'
+        default: '0'
         type: string
 
 permissions:
@@ -57,8 +57,8 @@ jobs:
           [[ "$NODE_ID" =~ ^[a-z0-9][a-z0-9-]{1,63}$ ]]
           [[ "$CITY" =~ ^[A-Za-z0-9 ._-]{1,80}$ ]]
           [[ "$COUNTRY" =~ ^[A-Za-z0-9 ._-]{2,80}$ ]]
-          [[ "$CAPACITY" =~ ^[0-9]{3,6}$ ]]
-          (( CAPACITY >= 100 && CAPACITY <= 100000 ))
+          [[ "$CAPACITY" =~ ^[0-9]{1,6}$ ]]
+          (( CAPACITY == 0 || (CAPACITY >= 100 && CAPACITY <= 100000) ))
           test -f vpn-infra/node/bootstrap.sh
           test -f vpn-infra/node/nova-vpn-node.py
           test -n '${{ secrets.NOVA_VPN_SSH_PRIVATE_KEY }}'
@@ -142,7 +142,8 @@ jobs:
           data = json.loads(raw)
           if data.get('ok') is not True or data.get('nodeId') != expected or data.get('protocol') != 'wireguard':
               raise SystemExit(1)
-          print('Nova VPN node health verified:', data.get('nodeId'), 'load', data.get('loadPercent'), 'capacityMbps', data.get('capacityMbps'))
+          capacity = data.get('capacityMbps') if data.get('capacityVerified') else 'unverified'
+          print('Nova VPN node health verified:', data.get('nodeId'), 'load', data.get('loadPercent'), 'capacityMbps', capacity)
           PY
             then
               exit 0
