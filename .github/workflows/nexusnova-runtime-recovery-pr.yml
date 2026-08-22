@@ -1,0 +1,105 @@
+name: NexusNova Runtime Recovery Gate
+
+on:
+  pull_request:
+    branches:
+      - nexusnova-fresh-rebuild-20260820
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android11-runtime-gate:
+    name: Android 11 launcher runtime gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout recovery candidate
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Prepare fresh Android bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          python NexusNovaAndroid/prepare_fresh_rebuild.py
+          python NexusNovaAndroid/patch_admob.py
+
+      - name: Verify Caller ID remains removed
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -R -n -E 'CallScreeningService|PhonebookStore|CallerSetupActivity|IncomingCallActivity|caller-id|ROLE_CALL_SCREENING' \
+            NexusNovaAndroid/app/src/main fresh-rebuild/src
+
+      - name: Build fresh TEST APK
+        working-directory: NexusNovaAndroid
+        shell: bash
+        run: gradle --no-daemon --stacktrace clean assembleDebug
+
+      - name: Android 11 launcher smoke test
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          arch: x86_64
+          profile: pixel_4
+          disable-animations: true
+          script: |
+            set -euo pipefail
+            APK="$GITHUB_WORKSPACE/NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk"
+            adb install -r "$APK"
+            adb logcat -c
+            adb shell am force-stop com.nexusnova.app || true
+            adb shell am start -W -n com.nexusnova.app/.MainActivity | tee "$GITHUB_WORKSPACE/launcher-start.txt"
+            sleep 12
+            PID="$(adb shell pidof com.nexusnova.app | tr -d '\r' | xargs)"
+            test -n "$PID"
+            adb logcat -d -v threadtime > "$GITHUB_WORKSPACE/launcher-logcat.txt"
+            if grep -E -q 'FATAL EXCEPTION|AndroidRuntime: Process: com\.nexusnova\.app|Fatal signal.*com\.nexusnova\.app' "$GITHUB_WORKSPACE/launcher-logcat.txt"; then
+              echo 'NexusNova runtime crash detected'
+              grep -E -A 30 -B 10 'FATAL EXCEPTION|AndroidRuntime: Process: com\.nexusnova\.app|Fatal signal.*com\.nexusnova\.app' "$GITHUB_WORKSPACE/launcher-logcat.txt" || true
+              exit 1
+            fi
+            echo "RUNTIME_SMOKE_PASS pid=$PID" | tee "$GITHUB_WORKSPACE/RUNTIME-SMOKE.txt"
+
+      - name: Hash APK
+        if: success()
+        shell: bash
+        run: |
+          sha256sum NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk | tee APK-SHA256.txt
+
+      - name: Upload runtime-tested APK
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexusnova-runtime-recovery-android11
+          path: |
+            NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk
+            APK-SHA256.txt
+            RUNTIME-SMOKE.txt
+            launcher-start.txt
+            launcher-logcat.txt
+          if-no-files-found: warn
+          retention-days: 7
