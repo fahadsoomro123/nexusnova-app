@@ -1,5 +1,8 @@
 package com.nexusnova.app
 
+import android.animation.AnimatorSet
+import android.animation.ObjectAnimator
+import android.animation.ValueAnimator
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
@@ -11,6 +14,7 @@ import android.os.Looper
 import android.provider.Settings
 import android.view.Gravity
 import android.view.View
+import android.view.animation.PathInterpolator
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -29,6 +33,7 @@ class NovaVpnActivity : AppCompatActivity() {
     private var pendingServerId: String? = null
     private var lastServerSignature = ""
 
+    private lateinit var heroMark: TextView
     private lateinit var statusPill: LinearLayout
     private lateinit var statusDot: View
     private lateinit var statusTitle: TextView
@@ -40,6 +45,7 @@ class NovaVpnActivity : AppCompatActivity() {
     private lateinit var disconnectButton: Button
     private lateinit var smartButton: Button
     private lateinit var serverList: LinearLayout
+    private var connectingPulse: AnimatorSet? = null
 
     private val handler = Handler(Looper.getMainLooper())
     private val managerListener: (NovaVpnManager.Snapshot) -> Unit = { snapshot ->
@@ -80,6 +86,10 @@ class NovaVpnActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         handler.removeCallbacks(statsTicker)
+        connectingPulse?.cancel()
+        connectingPulse = null
+        if (this::heroMark.isInitialized) heroMark.animate().cancel()
+        if (this::statusDot.isInitialized) statusDot.animate().cancel()
         if (this::manager.isInitialized) manager.removeListener(managerListener)
         pendingServerId = null
         authToken = ""
@@ -183,8 +193,9 @@ class NovaVpnActivity : AppCompatActivity() {
             elevation = dp(2).toFloat()
         }
 
+        heroMark = brandOrb()
         hero.addView(
-            brandOrb(),
+            heroMark,
             LinearLayout.LayoutParams(dp(92), dp(92))
         )
         hero.addView(space(13))
@@ -357,6 +368,7 @@ class NovaVpnActivity : AppCompatActivity() {
                 else -> COLOR_CYAN
             }
         )
+        syncConnectingMotion(snapshot.phase == "connecting")
         rxValue.text = formatBytes(snapshot.rxBytes)
         txValue.text = formatBytes(snapshot.txBytes)
 
@@ -385,6 +397,58 @@ class NovaVpnActivity : AppCompatActivity() {
             lastServerSignature = signature
             renderServers(snapshot)
         }
+    }
+
+    private fun syncConnectingMotion(connecting: Boolean) {
+        if (connecting) startConnectingPulse() else stopConnectingPulse()
+    }
+
+    private fun startConnectingPulse() {
+        if (connectingPulse != null || !this::heroMark.isInitialized || !this::statusDot.isInitialized) return
+        heroMark.animate().cancel()
+        statusDot.animate().cancel()
+
+        val easeInOut = PathInterpolator(0.42f, 0f, 0.58f, 1f)
+        val animators = listOf(
+            ObjectAnimator.ofFloat(heroMark, View.SCALE_X, 0.88f, 1f, 0.88f),
+            ObjectAnimator.ofFloat(heroMark, View.SCALE_Y, 0.88f, 1f, 0.88f),
+            ObjectAnimator.ofFloat(heroMark, View.ALPHA, 0.54f, 1f, 0.54f),
+            ObjectAnimator.ofFloat(statusDot, View.SCALE_X, 0.88f, 1f, 0.88f),
+            ObjectAnimator.ofFloat(statusDot, View.SCALE_Y, 0.88f, 1f, 0.88f),
+            ObjectAnimator.ofFloat(statusDot, View.ALPHA, 0.54f, 1f, 0.54f)
+        )
+        animators.forEach { animator ->
+            animator.duration = CONNECTING_PULSE_MS
+            animator.interpolator = easeInOut
+            animator.repeatCount = ValueAnimator.INFINITE
+            animator.repeatMode = ValueAnimator.RESTART
+        }
+        connectingPulse = AnimatorSet().apply {
+            playTogether(animators)
+            start()
+        }
+    }
+
+    private fun stopConnectingPulse() {
+        val active = connectingPulse ?: return
+        active.cancel()
+        connectingPulse = null
+
+        val settle = PathInterpolator(0.2f, 0.72f, 0.18f, 1f)
+        heroMark.animate()
+            .alpha(1f)
+            .scaleX(1f)
+            .scaleY(1f)
+            .setDuration(MOTION_SETTLE_MS)
+            .setInterpolator(settle)
+            .start()
+        statusDot.animate()
+            .alpha(1f)
+            .scaleX(1f)
+            .scaleY(1f)
+            .setDuration(MOTION_SETTLE_MS)
+            .setInterpolator(settle)
+            .start()
     }
 
     private fun renderServers(snapshot: NovaVpnManager.Snapshot) {
@@ -610,6 +674,8 @@ class NovaVpnActivity : AppCompatActivity() {
         const val EXTRA_AUTH_TOKEN = "nova_vpn_auth_token"
         private const val MAX_AUTH_TOKEN_CHARS = 7000
         private const val STATS_REFRESH_MS = 1200L
+        private const val CONNECTING_PULSE_MS = 1800L
+        private const val MOTION_SETTLE_MS = 280L
 
         // Exact NexusNova web design tokens mirrored for the native VPN surface.
         private val COLOR_BACKGROUND = Color.rgb(5, 11, 20)       // --nx-bg #050b14
