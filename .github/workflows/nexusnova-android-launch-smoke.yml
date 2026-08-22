@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   launch-smoke:
@@ -37,6 +37,8 @@ jobs:
           sudo udevadm trigger --name-match=kvm
 
       - name: Launch app on Android emulator and reject runtime crash
+        id: smoke
+        continue-on-error: true
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
@@ -46,22 +48,50 @@ jobs:
           disable-animations: true
           script: |
             set -euo pipefail
+            mkdir -p fresh-build-output
             APK=NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk
             adb install -r "$APK"
             adb logcat -c
             adb shell am force-stop com.nexusnova.app
             adb shell monkey -p com.nexusnova.app -c android.intent.category.LAUNCHER 1
             sleep 12
-            adb logcat -d -v brief > /tmp/nexusnova-logcat.txt
-            cat /tmp/nexusnova-logcat.txt
-            if grep -E 'FATAL EXCEPTION|Process: com\.nexusnova\.app.*has died|AndroidRuntime.*com\.nexusnova\.app' /tmp/nexusnova-logcat.txt; then
-              echo 'NexusNova runtime crash detected.' >&2
+            adb logcat -d -v brief > fresh-build-output/launch-smoke-logcat.txt
+            if grep -E 'FATAL EXCEPTION|Process: com\.nexusnova\.app.*has died|AndroidRuntime.*com\.nexusnova\.app' fresh-build-output/launch-smoke-logcat.txt; then
+              printf 'RESULT: FAIL\nReason: NexusNova runtime crash detected after launcher start.\nSource commit: %s\n' "$GITHUB_SHA" > fresh-build-output/LAUNCH-SMOKE.txt
               exit 1
             fi
             PID="$(adb shell pidof com.nexusnova.app | tr -d '\r' | xargs)"
             if [ -z "$PID" ]; then
-              echo 'NexusNova process is not alive after launch.' >&2
+              printf 'RESULT: FAIL\nReason: NexusNova process not alive 12 seconds after launcher start.\nSource commit: %s\n' "$GITHUB_SHA" > fresh-build-output/LAUNCH-SMOKE.txt
               exit 1
             fi
-            adb shell dumpsys activity activities | grep -F 'com.nexusnova.app/.MainActivity'
-            echo "PASS: NexusNova stayed alive after launch; pid=$PID"
+            if ! adb shell dumpsys activity activities | grep -Fq 'com.nexusnova.app/.MainActivity'; then
+              printf 'RESULT: FAIL\nReason: MainActivity not present in activity stack after launch.\nSource commit: %s\n' "$GITHUB_SHA" > fresh-build-output/LAUNCH-SMOKE.txt
+              exit 1
+            fi
+            printf 'RESULT: PASS\nSource commit: %s\nProcess alive after: 12 seconds\nMainActivity present: yes\nFatal exception detected: no\n' "$GITHUB_SHA" > fresh-build-output/LAUNCH-SMOKE.txt
+
+      - name: Record harness failure when emulator step did not create a result
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p fresh-build-output
+          if [ ! -s fresh-build-output/LAUNCH-SMOKE.txt ]; then
+            printf 'RESULT: HARNESS_FAIL\nSource commit: %s\nReason: emulator/build harness failed before runtime result was produced.\n' "$GITHUB_SHA" > fresh-build-output/LAUNCH-SMOKE.txt
+          fi
+
+      - name: Publish launch smoke result
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add fresh-build-output/LAUNCH-SMOKE.txt fresh-build-output/launch-smoke-logcat.txt 2>/dev/null || true
+          git commit -m 'ci: publish Android launch smoke result [skip ci]' || exit 0
+          git push origin HEAD:nexusnova-fresh-rebuild-20260820
+
+      - name: Enforce runtime PASS
+        if: always()
+        shell: bash
+        run: grep -Fq 'RESULT: PASS' fresh-build-output/LAUNCH-SMOKE.txt
