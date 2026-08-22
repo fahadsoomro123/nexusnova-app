@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: nexusnova-fresh-production-apk
@@ -126,6 +126,17 @@ jobs:
             echo 'AdMob: production IDs / NEXUS_ADS_TEST_MODE=false'
             echo 'Signature: unsigned; signing happens after CI verification'
           } > production-build-output/BUILD-STATUS.txt
+
+      - name: Publish verified production candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'NexusNova Production Build Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add -f production-build-output/
+          git commit -m 'ci: publish production APK candidate [skip ci]'
+          git pull --rebase origin nexusnova-fresh-rebuild-20260820
+          git push origin HEAD:nexusnova-fresh-rebuild-20260820
 
       - name: Upload production candidate
         uses: actions/upload-artifact@v4
