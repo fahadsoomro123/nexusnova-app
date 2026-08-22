@@ -95,31 +95,35 @@ jobs:
           adb logcat -c
           adb shell am force-stop com.nexusnova.app || true
           adb shell am start -W -n com.nexusnova.app/.MainActivity 2>&1 | tee "$GITHUB_WORKSPACE/main-launch.txt"
-          grep -q 'Status: ok' "$GITHUB_WORKSPACE/main-launch.txt"
           grep -q 'Activity: com.nexusnova.app/.MainActivity' "$GITHUB_WORKSPACE/main-launch.txt"
-          sleep 12
+          sleep 18
           MAIN_PID="$(adb shell pidof com.nexusnova.app | tr -d '\r' | xargs)"
           test -n "$MAIN_PID"
+          adb shell dumpsys activity activities > "$GITHUB_WORKSPACE/main-activity-state.txt"
+          grep -E -q 'mResumedActivity:.*com\.nexusnova\.app/.MainActivity|topResumedActivity=.*com\.nexusnova\.app/.MainActivity|ResumedActivity:.*com\.nexusnova\.app/.MainActivity' "$GITHUB_WORKSPACE/main-activity-state.txt"
           adb logcat -d -v threadtime > "$GITHUB_WORKSPACE/main-launch-logcat.txt"
           if grep -E -q 'FATAL EXCEPTION|AndroidRuntime: Process: com\.nexusnova\.app|ANR in com\.nexusnova\.app|Fatal signal.*com\.nexusnova\.app' "$GITHUB_WORKSPACE/main-launch-logcat.txt"; then
             exit 1
           fi
           adb exec-out screencap -p > "$GITHUB_WORKSPACE/main-screen.png"
+          test -s "$GITHUB_WORKSPACE/main-screen.png"
           echo 'main-pass' > "$GITHUB_WORKSPACE/CI-STAGE.txt"
 
           echo 'vpn-running' > "$GITHUB_WORKSPACE/CI-STAGE.txt"
           adb logcat -c
-          adb shell run-as com.nexusnova.app am start -W -n com.nexusnova.app/.NovaVpnActivity --es nova_vpn_auth_token smoke-token 2>&1 | tee "$GITHUB_WORKSPACE/vpn-launch.txt"
-          grep -q 'Status: ok' "$GITHUB_WORKSPACE/vpn-launch.txt"
+          adb shell am start -W -n com.nexusnova.app/.NovaVpnActivity --es nova_vpn_auth_token smoke-token 2>&1 | tee "$GITHUB_WORKSPACE/vpn-launch.txt"
           grep -q 'Activity: com.nexusnova.app/.NovaVpnActivity' "$GITHUB_WORKSPACE/vpn-launch.txt"
           sleep 12
           VPN_PID="$(adb shell pidof com.nexusnova.app | tr -d '\r' | xargs)"
           test -n "$VPN_PID"
+          adb shell dumpsys activity activities > "$GITHUB_WORKSPACE/vpn-activity-state.txt"
+          grep -E -q 'mResumedActivity:.*com\.nexusnova\.app/.NovaVpnActivity|topResumedActivity=.*com\.nexusnova\.app/.NovaVpnActivity|ResumedActivity:.*com\.nexusnova\.app/.NovaVpnActivity' "$GITHUB_WORKSPACE/vpn-activity-state.txt"
           adb logcat -d -v threadtime > "$GITHUB_WORKSPACE/vpn-launch-logcat.txt"
           if grep -E -q 'FATAL EXCEPTION|AndroidRuntime: Process: com\.nexusnova\.app|ANR in com\.nexusnova\.app|Fatal signal.*com\.nexusnova\.app' "$GITHUB_WORKSPACE/vpn-launch-logcat.txt"; then
             exit 1
           fi
           adb exec-out screencap -p > "$GITHUB_WORKSPACE/vpn-screen.png"
+          test -s "$GITHUB_WORKSPACE/vpn-screen.png"
           echo 'vpn-pass' > "$GITHUB_WORKSPACE/CI-STAGE.txt"
 
           {
@@ -151,7 +155,7 @@ jobs:
           APK=NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk
           cp "$APK" exact-source-output/NexusNova-Exact-Source-Android11-TEST.apk
           sha256sum exact-source-output/NexusNova-Exact-Source-Android11-TEST.apk > exact-source-output/SHA256.txt
-          cp RUNTIME-SMOKE.txt CI-STAGE.txt adb-install.txt main-launch.txt main-launch-logcat.txt main-screen.png vpn-launch.txt vpn-launch-logcat.txt vpn-screen.png exact-source-output/
+          cp RUNTIME-SMOKE.txt CI-STAGE.txt adb-install.txt main-launch.txt main-activity-state.txt main-launch-logcat.txt main-screen.png vpn-launch.txt vpn-activity-state.txt vpn-launch-logcat.txt vpn-screen.png exact-source-output/
           {
             echo 'NexusNova Exact Source Android 11 TEST APK'
             echo "Source commit: $GITHUB_SHA"
@@ -201,7 +205,7 @@ jobs:
             if [ -f CI-STAGE.txt ]; then cat CI-STAGE.txt; else echo 'before-stage-marker'; fi
             echo 'RESULT: FAIL'
           } > failure-output/FAILURE-STATUS.txt
-          for f in CI-STAGE.txt prepare-log.txt build-log.txt adb-install.txt main-launch.txt main-launch-logcat.txt vpn-launch.txt vpn-launch-logcat.txt; do
+          for f in CI-STAGE.txt prepare-log.txt build-log.txt adb-install.txt main-launch.txt main-activity-state.txt main-launch-logcat.txt vpn-launch.txt vpn-activity-state.txt vpn-launch-logcat.txt; do
             [ -f "$f" ] && cp "$f" failure-output/ || true
           done
           git config user.name 'NexusNova Exact Build Bot'
