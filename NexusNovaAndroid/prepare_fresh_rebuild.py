@@ -58,11 +58,10 @@ if site_key:
     index.write_text(text, encoding='utf-8')
 
 # Load the isolated bundled fresh surface using native APIs that already exist
-# in MainActivity. Mark it as the local/offline surface so the production
-# watchdog cannot redirect this fresh UI back to Pages. Caller ID setup stays
-# user-initiated; never auto-launch its role prompt before auth has completed.
+# in MainActivity. Stable/production GitHub Pages remains untouched outside
+# this CI checkout.
 main = MAIN.read_text(encoding='utf-8')
-startup = '''        loadProductionApp()\n        showCallerSetupOnce()\n'''
+startup = '''        loadProductionApp()\n'''
 fresh_startup = '''        // Fresh-rebuild edition: load only the isolated bundled fresh app.\n        // Stable/production GitHub Pages remains untouched outside this CI checkout.\n        usingOfflineFallback = true\n        webView.loadUrl(LOCAL_APP_URL)\n'''
 if main.count(startup) != 1:
     raise SystemExit(f'Fresh MainActivity startup patch point count was {main.count(startup)}, expected 1')
