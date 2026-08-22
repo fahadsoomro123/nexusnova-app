@@ -67,7 +67,10 @@ jobs:
           grep -Fq 'private val backend by lazy(LazyThreadSafetyMode.SYNCHRONIZED)' "$VPN"
           grep -Fq 'private fun safeError(prefix: String, error: Throwable)' "$VPN"
           ! grep -REiq 'CallerSetupActivity|CallScreeningService|requestCallerRole|PhonebookStore|caller-id|ROLE_CALL_SCREENING' \
-            NexusNovaAndroid/app/src/main fresh-rebuild/src fresh-rebuild/index.html
+            NexusNovaAndroid/app/src/main/java \
+            NexusNovaAndroid/app/src/main/AndroidManifest.xml \
+            NexusNovaAndroid/app/src/main/res \
+            fresh-rebuild/src fresh-rebuild/index.html
 
       - name: Prepare fresh TEST bundle
         shell: bash
@@ -76,6 +79,8 @@ jobs:
           python NexusNovaAndroid/prepare_fresh_rebuild.py
           test -f NexusNovaAndroid/app/src/main/assets/www/FRESH-REBUILD-BUILD.txt
           grep -Fq 'NexusNova Fresh Rebuild TEST' NexusNovaAndroid/app/src/main/assets/www/FRESH-REBUILD-BUILD.txt
+          ! grep -REiq 'CallerSetupActivity|CallScreeningService|requestCallerRole|PhonebookStore|caller-id|ROLE_CALL_SCREENING' \
+            NexusNovaAndroid/app/src/main/assets/www
 
       - name: Build exact candidate APK
         working-directory: NexusNovaAndroid
