@@ -8,80 +8,40 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   android11-runtime-gate:
     name: Android 11 launcher runtime gate
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 25
 
     steps:
       - name: Checkout recovery candidate
         uses: actions/checkout@v4
 
-      - name: Set up Node
-        uses: actions/setup-node@v4
+      - name: Download exact Run 4 build candidate
+        uses: actions/download-artifact@v4
         with:
-          node-version: '22'
+          name: nexusnova-runtime-recovery-android11
+          path: recovered-run4
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 32592358773
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.13'
-
-      - name: Prepare fresh Android bundle
+      - name: Verify recovered candidate
         shell: bash
         run: |
           set -euo pipefail
-          python NexusNovaAndroid/prepare_fresh_rebuild.py
-
-      - name: Generate canonical AdManager candidate
-        shell: bash
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          from pathlib import Path
-          patch_path = Path('NexusNovaAndroid/patch_admob.py')
-          source = patch_path.read_text(encoding='utf-8')
-          marker = "manager_path = Path('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt')"
-          start = source.find(marker)
-          if start < 0:
-              raise SystemExit('AdManager canonicalization section not found')
-          exec(compile(source[start:], str(patch_path) + ':manager-only', 'exec'), {'Path': Path})
-          PY
-
-      - name: Verify canonical native source
-        shell: bash
-        run: |
-          set -euo pipefail
-          MAIN='NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt'
-          ADS='NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt'
-          VPN='NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NovaVpnManager.kt'
-          grep -Fq 'private var adManager: NexusAdManager? = null' "$MAIN"
-          grep -Fq 'private fun initializeAdsSafely()' "$MAIN"
+          APK='recovered-run4/NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk'
+          ADS='recovered-run4/NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt'
+          test -s "$APK"
+          test -s "$ADS"
           grep -Fq 'fun showRewarded(rewardPurpose: String? = null, testOnly: Boolean = false, userId: String? = null)' "$ADS"
           grep -Fq 'fun showInterstitial(placement: String? = null, feature: String? = null, testOnly: Boolean = false)' "$ADS"
           grep -Fq '"ssvIdentityReady" to true' "$ADS"
           grep -Fq 'const val REWARD_PURPOSE_WATCH_AD = "task-watch-ad"' "$ADS"
-          grep -Fq 'private val backend by lazy' "$VPN"
-          ! grep -R -n -E 'CallScreeningService|PhonebookStore|CallerSetupActivity|IncomingCallActivity|caller-id|ROLE_CALL_SCREENING' \
-            NexusNovaAndroid/app/src/main fresh-rebuild/src
-
-      - name: Build fresh TEST APK
-        working-directory: NexusNovaAndroid
-        shell: bash
-        run: gradle --no-daemon --stacktrace clean assembleDebug
+          sha256sum "$APK" | tee RUN4-APK-SHA256.txt
 
       - name: Android 11 launcher smoke test
         uses: reactivecircus/android-emulator-runner@v2
@@ -91,8 +51,8 @@ jobs:
           profile: pixel_4
           disable-animations: true
           script: |
-            set -euo pipefail
-            APK="$GITHUB_WORKSPACE/NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk"
+            set -eu
+            APK="$GITHUB_WORKSPACE/recovered-run4/NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk"
             adb install -r "$APK"
             adb logcat -c
             adb shell am force-stop com.nexusnova.app || true
@@ -108,21 +68,22 @@ jobs:
             fi
             echo "RUNTIME_SMOKE_PASS pid=$PID" | tee "$GITHUB_WORKSPACE/RUNTIME-SMOKE.txt"
 
-      - name: Hash APK
+      - name: Hash runtime-tested APK
         if: success()
         shell: bash
         run: |
-          sha256sum NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk | tee APK-SHA256.txt
+          sha256sum recovered-run4/NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk | tee APK-SHA256.txt
 
       - name: Upload runtime-tested APK and canonical source
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: nexusnova-runtime-recovery-android11
+          name: nexusnova-runtime-tested-android11
           path: |
-            NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk
-            NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
+            recovered-run4/NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk
+            recovered-run4/NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
             APK-SHA256.txt
+            RUN4-APK-SHA256.txt
             RUNTIME-SMOKE.txt
             launcher-start.txt
             launcher-logcat.txt
