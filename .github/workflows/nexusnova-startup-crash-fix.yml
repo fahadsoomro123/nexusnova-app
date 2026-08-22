@@ -1,0 +1,198 @@
+name: NexusNova Startup Crash Fix
+
+on:
+  push:
+    branches:
+      - nexusnova-fresh-rebuild-20260820
+    paths:
+      - '.github/workflows/nexusnova-startup-crash-fix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  fix-build-smoke-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply exact startup crash fix and self-clean helper
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          replacements = [
+              (
+                  Path('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt'),
+                  '        loadProductionApp()\n        webView.post { initializeAdsSafely() }\n',
+                  '        loadProductionApp()\n',
+                  'MainActivity automatic ad initialization',
+              ),
+              (
+                  Path('fresh-rebuild/src/core/native-ads.js'),
+                  '\n\nnativeAds.requestStatus();\n',
+                  '\n',
+                  'native-ads module-load status request',
+              ),
+              (
+                  Path('fresh-rebuild/src/core/ad-policy.js'),
+                  '\nreadSession();\nnativeAds.requestStatus();\n',
+                  '\nreadSession();\n',
+                  'ad-policy module-load status request',
+              ),
+          ]
+
+          for path, old, new, label in replacements:
+              text = path.read_text(encoding='utf-8')
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected exactly 1 match, found {count}')
+              path.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          main = Path('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt').read_text(encoding='utf-8')
+          native = Path('fresh-rebuild/src/core/native-ads.js').read_text(encoding='utf-8')
+          policy = Path('fresh-rebuild/src/core/ad-policy.js').read_text(encoding='utf-8')
+
+          if 'webView.post { initializeAdsSafely() }' in main:
+              raise SystemExit('startup ad init still present in MainActivity')
+          if native.rstrip().endswith('nativeAds.requestStatus();'):
+              raise SystemExit('native-ads still requests status at module load')
+          if policy.rstrip().endswith('nativeAds.requestStatus();'):
+              raise SystemExit('ad-policy still requests status at module load')
+
+          # Ads remain available on real user actions.
+          for required in ['ACTION_SHOW_REWARDED_AD', 'ACTION_SHOW_INTERSTITIAL_AD', 'initializeAdsSafely()']:
+              if required not in main:
+                  raise SystemExit(f'missing preserved native ad path: {required}')
+          if "post('adStatus')" not in native:
+              raise SystemExit('rewarded on-demand warm-up path was lost')
+          if 'nativeAds.requestStatus();' not in policy:
+              raise SystemExit('interstitial on-demand warm-up path was lost')
+          PY
+
+          rm .github/workflows/nexusnova-startup-crash-fix.yml
+          git config user.name 'NexusNova Crash Fix Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt \
+                  fresh-rebuild/src/core/native-ads.js \
+                  fresh-rebuild/src/core/ad-policy.js \
+                  .github/workflows/nexusnova-startup-crash-fix.yml
+          git commit -m 'fix(android): lazy-load ads after stable app launch'
+          FIX_SHA="$(git rev-parse HEAD)"
+          echo "FIX_SHA=$FIX_SHA" >> "$GITHUB_ENV"
+          git push origin HEAD:nexusnova-fresh-rebuild-20260820
+
+      - name: Verify changed scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git show --stat --oneline "$FIX_SHA"
+          test "$(git diff-tree --no-commit-id --name-only -r "$FIX_SHA" | sort | tr '\n' ' ')" = ".github/workflows/nexusnova-startup-crash-fix.yml NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt fresh-rebuild/src/core/ad-policy.js fresh-rebuild/src/core/native-ads.js "
+          node --check fresh-rebuild/src/core/native-ads.js
+          node --check fresh-rebuild/src/core/ad-policy.js
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle 8.13
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Prepare exact app bundle
+        env:
+          NEXUSNOVA_APP_CHECK_SITE_KEY: ${{ secrets.NEXUSNOVA_APP_CHECK_SITE_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python NexusNovaAndroid/prepare_fresh_rebuild.py
+          test -s NexusNovaAndroid/app/src/main/assets/www/FRESH-REBUILD-BUILD.txt
+
+      - name: Build crash-fix TEST APK
+        working-directory: NexusNovaAndroid
+        shell: bash
+        run: gradle --no-daemon --stacktrace clean assembleDebug
+
+      - name: Create 30-second launcher smoke
+        shell: bash
+        run: |
+          cat > startup-smoke.sh <<'BASH'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          APK="$GITHUB_WORKSPACE/NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          adb install -r "$APK" | tee "$GITHUB_WORKSPACE/adb-install.txt"
+          adb logcat -c
+          adb shell am force-stop com.nexusnova.app || true
+          adb shell am start -n com.nexusnova.app/.MainActivity | tee "$GITHUB_WORKSPACE/main-launch.txt"
+          sleep 30
+          PID="$(adb shell pidof com.nexusnova.app | tr -d '\r' | xargs)"
+          test -n "$PID"
+          adb logcat -d -v threadtime > "$GITHUB_WORKSPACE/main-30s-logcat.txt"
+          if grep -E -q 'FATAL EXCEPTION|AndroidRuntime: Process: com\.nexusnova\.app|ANR in com\.nexusnova\.app|Fatal signal.*com\.nexusnova\.app' "$GITHUB_WORKSPACE/main-30s-logcat.txt"; then
+            exit 1
+          fi
+          adb exec-out screencap -p > "$GITHUB_WORKSPACE/main-30s-screen.png"
+          test -s "$GITHUB_WORKSPACE/main-30s-screen.png"
+          echo "MAIN_30S_PASS pid=$PID" > "$GITHUB_WORKSPACE/STARTUP-SMOKE.txt"
+          BASH
+          chmod +x startup-smoke.sh
+
+      - name: Android 11 startup smoke
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          arch: x86_64
+          profile: pixel_4
+          disable-animations: true
+          script: bash "$GITHUB_WORKSPACE/startup-smoke.sh"
+
+      - name: Package crash-fix proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p startup-crash-fix-output
+          cp NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk startup-crash-fix-output/NexusNova-Startup-Crash-Fix-TEST.apk
+          sha256sum startup-crash-fix-output/NexusNova-Startup-Crash-Fix-TEST.apk > startup-crash-fix-output/SHA256.txt
+          cp STARTUP-SMOKE.txt adb-install.txt main-launch.txt main-30s-logcat.txt main-30s-screen.png startup-crash-fix-output/
+          {
+            echo 'NexusNova Startup Crash Fix TEST APK'
+            echo "Source commit: $FIX_SHA"
+            echo 'Startup ad initialization: removed'
+            echo 'Ads: preserved as on-demand lazy initialization'
+            echo 'Gradle build: PASS'
+            echo 'Android 11 MainActivity 30-second runtime: PASS'
+            echo 'Physical phone verification: REQUIRED'
+            echo 'RESULT: TEST READY'
+          } > startup-crash-fix-output/BUILD-STATUS.txt
+
+      - name: Publish crash-fix TEST APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'NexusNova Crash Fix Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git fetch origin apk-builds
+          rm -rf /tmp/nx-startup-fix
+          git worktree add /tmp/nx-startup-fix origin/apk-builds
+          cd /tmp/nx-startup-fix
+          rm -rf startup-crash-fix
+          mkdir -p startup-crash-fix
+          cp -a "$GITHUB_WORKSPACE/startup-crash-fix-output/." startup-crash-fix/
+          git add -A startup-crash-fix
+          git commit -m "Publish startup crash fix TEST $FIX_SHA"
+          git push origin HEAD:apk-builds
