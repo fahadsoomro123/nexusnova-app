@@ -1,4 +1,5 @@
 NexusNova Fresh Rebuild TEST APK validation
 Branch: nexusnova-fresh-rebuild-20260820
-Date: 2026-08-20
-Purpose: trigger isolated PR-based CI inspection without changing main or Golden backups.
+Date: 2026-08-23
+Purpose: trigger exact-source Android 11 CI validation without changing app source or Golden backups.
+Requested source base: 51e83e5517ab0e264aa2cebf5b4a17dd3b3f7082
