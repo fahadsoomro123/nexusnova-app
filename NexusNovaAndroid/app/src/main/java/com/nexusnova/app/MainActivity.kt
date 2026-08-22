@@ -32,7 +32,7 @@ import java.util.Locale
 class MainActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
-    private lateinit var adManager: NexusAdManager
+    private var adManager: NexusAdManager? = null
 
     private val assetLoader by lazy {
         WebViewAssetLoader.Builder()
@@ -107,23 +107,45 @@ class MainActivity : AppCompatActivity() {
         setContentView(webView)
 
         configureWebView()
-        installNativeMessageListener()
-        adManager = NexusAdManager(this, webView) { view -> isTrustedAppPage(view) }
-        if (BuildConfig.NEXUS_ADS_TEST_MODE) {
-            // Debug/development APKs always use Google's test inventory.
-            adManager.initialize()
-        } else {
-            // Release APKs cannot initialize/request production ads until UMP
-            // has refreshed consent state and says ad requests are allowed.
-            NexusAdConsentManager(this).gather { canRequestAds ->
-                if (canRequestAds) adManager.initialize()
-            }
+        try {
+            installNativeMessageListener()
+        } catch (error: Throwable) {
+            android.util.Log.e("NexusNovaStartup", "Native bridge setup failed", error)
         }
 
-        // The production GitHub Pages origin is also the registered web App
-        // Check origin. Loading it here means web and Android use one tested
-        // mining engine instead of maintaining two drifting copies.
+        // Keep the launcher path equivalent to the known-working Golden build:
+        // render NexusNova first, then initialize optional native monetization.
         loadProductionApp()
+        webView.post { initializeAdsSafely() }
+    }
+
+    private fun initializeAdsSafely() {
+        if (isFinishing || isDestroyed || adManager != null) return
+
+        val manager = try {
+            NexusAdManager(this, webView) { view -> isTrustedAppPage(view) }
+        } catch (error: Throwable) {
+            android.util.Log.e("NexusNovaStartup", "Ad manager creation failed", error)
+            return
+        }
+        adManager = manager
+
+        try {
+            if (BuildConfig.NEXUS_ADS_TEST_MODE) {
+                // Debug/development APKs always use Google's test inventory.
+                manager.initialize()
+            } else {
+                // Release APKs cannot initialize/request production ads until UMP
+                // has refreshed consent state and says ad requests are allowed.
+                NexusAdConsentManager(this).gather { canRequestAds ->
+                    if (canRequestAds && !isFinishing && !isDestroyed) {
+                        runCatching { manager.initialize() }
+                    }
+                }
+            }
+        } catch (error: Throwable) {
+            android.util.Log.e("NexusNovaStartup", "Optional ad initialization failed", error)
+        }
     }
 
     private fun configureWebView() {
@@ -442,22 +464,31 @@ class MainActivity : AppCompatActivity() {
                         Intent(this, NovaVpnActivity::class.java)
                             .putExtra(NovaVpnActivity.EXTRA_AUTH_TOKEN, authToken)
                     )
-                } catch (_: Exception) {
+                } catch (_: Throwable) {
                     // Keep the main app alive if the optional VPN control cannot launch.
                 }
             }
 
-            ACTION_SHOW_REWARDED_AD -> adManager.showRewarded(
-                rewardPurpose = message.optString("rewardPurpose").trim(),
-                testOnly = message.optBoolean("testOnly", false),
-                userId = message.optString("userId").trim()
-            )
-            ACTION_SHOW_INTERSTITIAL_AD -> adManager.showInterstitial(
-                placement = message.optString("placement", message.optString("reason")).trim(),
-                feature = message.optString("feature").trim(),
-                testOnly = message.optBoolean("testOnly", false)
-            )
-            ACTION_AD_STATUS -> adManager.publishStatus()
+            ACTION_SHOW_REWARDED_AD -> {
+                initializeAdsSafely()
+                adManager?.showRewarded(
+                    rewardPurpose = message.optString("rewardPurpose").trim(),
+                    testOnly = message.optBoolean("testOnly", false),
+                    userId = message.optString("userId").trim()
+                )
+            }
+            ACTION_SHOW_INTERSTITIAL_AD -> {
+                initializeAdsSafely()
+                adManager?.showInterstitial(
+                    placement = message.optString("placement", message.optString("reason")).trim(),
+                    feature = message.optString("feature").trim(),
+                    testOnly = message.optBoolean("testOnly", false)
+                )
+            }
+            ACTION_AD_STATUS -> {
+                initializeAdsSafely()
+                adManager?.publishStatus()
+            }
 
             ACTION_OPEN_EXTERNAL -> {
                 val url = message.optString("url").trim()
