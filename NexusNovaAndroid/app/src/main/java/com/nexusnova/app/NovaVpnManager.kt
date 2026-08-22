@@ -53,7 +53,7 @@ class NovaVpnManager private constructor(context: Context) {
     )
 
     private val appContext = context.applicationContext
-    private val backend = GoBackend(appContext)
+    private val backend by lazy(LazyThreadSafetyMode.SYNCHRONIZED) { GoBackend(appContext) }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val listeners = CopyOnWriteArraySet<(Snapshot) -> Unit>()
     private val lock = Any()
@@ -109,7 +109,7 @@ class NovaVpnManager private constructor(context: Context) {
                     val measuredCount = measured.count { it.latencyMs != null }
                     "${measured.size} production server${if (measured.size == 1) "" else "s"} loaded • $measuredCount latency checked"
                 }
-            } catch (error: Exception) {
+            } catch (error: Throwable) {
                 phase = if (state == Tunnel.State.UP) PHASE_CONNECTED else PHASE_ERROR
                 message = safeError("Could not load Nova VPN servers", error)
             }
@@ -188,7 +188,7 @@ class NovaVpnManager private constructor(context: Context) {
                 state = Tunnel.State.UP
                 phase = PHASE_CONNECTED
                 message = "Protected by ${server.name} • full-device WireGuard tunnel"
-            } catch (error: Exception) {
+            } catch (error: Throwable) {
                 runCatching {
                     synchronized(lock) {
                         backend.setState(tunnel, Tunnel.State.DOWN, null)
@@ -227,7 +227,7 @@ class NovaVpnManager private constructor(context: Context) {
                 phase = PHASE_IDLE
                 message = "Nova VPN is disconnected."
                 if (lease != null) revokeLeaseBestEffort(lease)
-            } catch (error: Exception) {
+            } catch (error: Throwable) {
                 phase = PHASE_ERROR
                 message = safeError("Nova VPN could not disconnect cleanly", error)
             }
@@ -490,7 +490,7 @@ class NovaVpnManager private constructor(context: Context) {
         return values.distinct()
     }
 
-    private fun safeError(prefix: String, error: Exception): String {
+    private fun safeError(prefix: String, error: Throwable): String {
         val detail = error.message?.trim()?.take(160).orEmpty()
         return if (detail.isBlank()) "$prefix." else "$prefix: $detail"
     }
