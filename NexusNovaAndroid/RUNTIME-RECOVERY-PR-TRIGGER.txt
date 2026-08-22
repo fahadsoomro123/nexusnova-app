@@ -1,1 +1,1 @@
-Trigger NexusNova Android 11 runtime recovery gate run 3 after removing the final stale Caller ID alias. No application behavior is changed by this marker.
+Trigger NexusNova Android 11 runtime recovery gate run 4 with exact canonical AdManager generation, clean build, and launcher smoke validation. No application behavior is changed by this marker.
