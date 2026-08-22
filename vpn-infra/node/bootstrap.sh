@@ -8,7 +8,7 @@ set -euo pipefail
 : "${NOVA_FIREBASE_WEB_API_KEY:?set NOVA_FIREBASE_WEB_API_KEY}"
 : "${NOVA_VPN_TLS_EMAIL:?set NOVA_VPN_TLS_EMAIL}"
 
-CAPACITY_MBPS="${NOVA_VPN_CAPACITY_MBPS:-1000}"
+CAPACITY_MBPS="${NOVA_VPN_CAPACITY_MBPS:-0}"
 WG_PORT="${NOVA_VPN_WG_PORT:-51820}"
 API_PORT="${NOVA_VPN_API_PORT:-8787}"
 WG_NET4="${NOVA_VPN_IPV4_NET:-10.77.0.0/24}"
@@ -16,6 +16,11 @@ WG_NET6="${NOVA_VPN_IPV6_NET:-fd42:77::/64}"
 WG_ADDR4="${WG_NET4%0/24}1/24"
 WG_ADDR6="${WG_NET6%::/64}::1/64"
 EGRESS_IF="$(ip route get 1.1.1.1 | awk '{for(i=1;i<=NF;i++) if($i=="dev") {print $(i+1); exit}}')"
+
+if ! [[ "$CAPACITY_MBPS" =~ ^[0-9]{1,6}$ ]] || (( CAPACITY_MBPS != 0 && (CAPACITY_MBPS < 100 || CAPACITY_MBPS > 100000) )); then
+  echo "NOVA_VPN_CAPACITY_MBPS must be 0 (unverified) or a verified value from 100 to 100000" >&2
+  exit 1
+fi
 
 if [[ -z "$EGRESS_IF" ]]; then
   echo "Could not determine VPS egress interface" >&2
@@ -176,5 +181,9 @@ echo "Nova VPN node ready"
 echo "Node: ${NOVA_VPN_NODE_ID}"
 echo "Host: ${NOVA_VPN_PUBLIC_HOST}"
 echo "WireGuard UDP: ${WG_PORT}"
-echo "Advertised capacity: ${CAPACITY_MBPS} Mbps"
+if (( CAPACITY_MBPS > 0 )); then
+  echo "Verified capacity: ${CAPACITY_MBPS} Mbps"
+else
+  echo "Capacity: unverified (benchmark before publishing)"
+fi
 echo "Health: https://${NOVA_VPN_PUBLIC_HOST}/health"
