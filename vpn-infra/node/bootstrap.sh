@@ -87,6 +87,9 @@ table ip6 nova_vpn_nat6 {
 EOF
 systemctl enable --now nftables
 
+# Bring the WireGuard interface up before Unbound binds to the tunnel addresses.
+systemctl enable --now wg-quick@wg0
+
 cat >/etc/unbound/unbound.conf.d/nova-vpn.conf <<EOF
 server:
   interface: 10.77.0.1
@@ -166,7 +169,6 @@ rm -f /etc/nginx/sites-enabled/default
 nginx -t
 systemctl reload nginx
 
-systemctl enable --now wg-quick@wg0
 systemctl enable --now nova-vpn-node
 
 # DNS must already point NOVA_VPN_PUBLIC_HOST to this VPS before this succeeds.
