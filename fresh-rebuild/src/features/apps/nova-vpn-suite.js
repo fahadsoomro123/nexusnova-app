@@ -1,4 +1,4 @@
-// Native Nova VPN launches Android VpnService control; the web layer never handles tunnel private keys.
+// Native Nova VPN launches Android VpnService/WireGuard control; web code passes only a short-lived verified account token and never tunnel private keys.
 import { requireFirebaseUser } from '../../core/firebase-backend.js';
 
 function node(html) {
