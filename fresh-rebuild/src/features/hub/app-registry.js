@@ -47,7 +47,6 @@ export const novaApps = Object.freeze([
   { id: 'habits', name: 'Habits', category: 'Personal', icon: 'habits', description: 'Habit tracking' },
   { id: 'savings', name: 'Savings', category: 'Personal', icon: 'savings', description: 'Savings planning tools' },
   { id: 'contacts', name: 'Contacts', category: 'Personal', icon: 'contacts', description: 'Account-scoped contacts' },
-  { id: 'caller-id', name: 'Caller ID', category: 'Personal', icon: 'caller', description: 'Android caller utilities' },
   { id: 'family', name: 'Family Hub', category: 'Personal', icon: 'family', description: 'Family-focused utilities' },
   { id: 'emergency', name: 'Family Emergency', category: 'Personal', icon: 'emergency', description: 'Account-scoped emergency contacts with direct calling' },
 
