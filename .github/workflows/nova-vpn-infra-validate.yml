@@ -1,0 +1,40 @@
+name: Nova VPN VPS Infrastructure Validate
+
+on:
+  push:
+    branches:
+      - nexusnova-fresh-rebuild-20260820
+    paths:
+      - 'vpn-infra/**'
+      - '.github/workflows/nova-vpn-infra-validate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate node software
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile vpn-infra/node/nova-vpn-node.py
+          bash -n vpn-infra/node/bootstrap.sh
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          data = json.loads(Path('vpn-infra/catalog/servers.production.template.json').read_text())
+          assert data['version'] == 1
+          assert data['protocol'] == 'wireguard'
+          assert data['routing'] == 'full-tunnel'
+          assert len(data['servers']) >= 4
+          assert all(server['enabled'] is False for server in data['servers'])
+          print('Nova VPN VPS infrastructure validation passed')
+          PY
