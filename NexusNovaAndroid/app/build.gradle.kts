@@ -23,7 +23,7 @@ android {
             manifestPlaceholders["admobAppId"] = "ca-app-pub-3940256099942544~3347511713"
         }
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
             buildConfigField("boolean", "NEXUS_ADS_TEST_MODE", "false")
             manifestPlaceholders["admobAppId"] = "ca-app-pub-5070673529890078~1824799663"
             proguardFiles(
