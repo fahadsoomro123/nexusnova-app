@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "service": "Nova VPN",
+  "protocol": "wireguard",
+  "routing": "full-tunnel",
+  "status": "production",
+  "servers": [
+    {
+      "id": "node-1",
+      "name": "Nova VPN Node 1",
+      "country": "SET_COUNTRY",
+      "city": "SET_CITY",
+      "healthUrl": "https://SET_NODE_1_HOST/health",
+      "provisionUrl": "https://SET_NODE_1_HOST/v1/lease",
+      "enabled": false
+    },
+    {
+      "id": "node-2",
+      "name": "Nova VPN Node 2",
+      "country": "SET_COUNTRY",
+      "city": "SET_CITY",
+      "healthUrl": "https://SET_NODE_2_HOST/health",
+      "provisionUrl": "https://SET_NODE_2_HOST/v1/lease",
+      "enabled": false
+    },
+    {
+      "id": "node-3",
+      "name": "Nova VPN Node 3",
+      "country": "SET_COUNTRY",
+      "city": "SET_CITY",
+      "healthUrl": "https://SET_NODE_3_HOST/health",
+      "provisionUrl": "https://SET_NODE_3_HOST/v1/lease",
+      "enabled": false
+    },
+    {
+      "id": "node-4",
+      "name": "Nova VPN Node 4",
+      "country": "SET_COUNTRY",
+      "city": "SET_CITY",
+      "healthUrl": "https://SET_NODE_4_HOST/health",
+      "provisionUrl": "https://SET_NODE_4_HOST/v1/lease",
+      "enabled": false
+    }
+  ]
+}
