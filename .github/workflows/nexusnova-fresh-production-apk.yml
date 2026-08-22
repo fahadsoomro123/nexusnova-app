@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: nexusnova-fresh-production-apk
@@ -31,7 +31,7 @@ jobs:
       - name: Checkout exact source
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -44,7 +44,7 @@ jobs:
           python-version: '3.12'
 
       - name: Set up Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
@@ -54,19 +54,31 @@ jobs:
         with:
           gradle-version: ${{ env.GRADLE_VERSION }}
 
-      - name: Validate fresh source
+      - name: Verify canonical source
         shell: bash
         run: |
           set -euo pipefail
-          python -m py_compile NexusNovaAndroid/prepare_fresh_rebuild.py NexusNovaAndroid/patch_admob.py
+          python -m py_compile NexusNovaAndroid/prepare_fresh_rebuild.py
           while IFS= read -r -d '' file; do
             node --check "$file"
           done < <(find fresh-rebuild/src -type f -name '*.js' -print0 | sort -z)
-          grep -Fq 'testOnly: status.testMode === true' fresh-rebuild/src/core/native-ads.js
-          if grep -Fq 'testOnly: true' fresh-rebuild/src/core/native-ads.js; then
-            echo 'Fresh native ad bridge still forces testOnly=true.' >&2
-            exit 1
-          fi
+
+          MAIN=NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          ADS=NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
+          VPN=NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NovaVpnManager.kt
+
+          grep -Fq 'private var adManager: NexusAdManager? = null' "$MAIN"
+          grep -Fq 'private fun initializeAdsSafely()' "$MAIN"
+          grep -Fq 'adManager?.showRewarded(' "$MAIN"
+          grep -Fq 'adManager?.showInterstitial(' "$MAIN"
+          grep -Fq 'val TEST_MODE = BuildConfig.NEXUS_ADS_TEST_MODE' "$ADS"
+          grep -Fq 'ServerSideVerificationOptions' "$ADS"
+          grep -Fq '"ssvIdentityReady" to true' "$ADS"
+          grep -Fq 'const val REWARD_PURPOSE_WATCH_AD = "task-watch-ad"' "$ADS"
+          grep -Fq 'private val backend by lazy(LazyThreadSafetyMode.SYNCHRONIZED)' "$VPN"
+          grep -Fq 'private fun safeError(prefix: String, error: Throwable)' "$VPN"
+          ! grep -REiq 'CallerSetupActivity|CallScreeningService|requestCallerRole|PhonebookStore|caller-id|ROLE_CALL_SCREENING' \
+            NexusNovaAndroid/app/src/main fresh-rebuild/src fresh-rebuild/index.html
 
       - name: Prepare isolated PRODUCTION bundle
         env:
@@ -77,13 +89,7 @@ jobs:
           set -euo pipefail
           python NexusNovaAndroid/prepare_fresh_rebuild.py
 
-      - name: Apply native AdMob bridge
-        shell: bash
-        run: |
-          set -euo pipefail
-          python NexusNovaAndroid/patch_admob.py
-
-      - name: Verify production ad contract
+      - name: Verify production contract
         shell: bash
         run: |
           set -euo pipefail
@@ -93,24 +99,24 @@ jobs:
           grep -Fq 'ca-app-pub-5070673529890078~1824799663' NexusNovaAndroid/app/build.gradle.kts
           grep -Fq 'val TEST_MODE = BuildConfig.NEXUS_ADS_TEST_MODE' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
           grep -Fq 'testOnly: status.testMode === true' "$WEB/src/core/native-ads.js"
-          if grep -Fq 'WATCH TEST AD' "$WEB/src/features/apps/core-apps.js"; then
-            echo 'Production bundle still exposes WATCH TEST AD.' >&2
+          if grep -Fq 'testOnly: true' "$WEB/src/core/native-ads.js"; then
+            echo 'Production bundle forces testOnly=true.' >&2
             exit 1
           fi
-          if grep -Fq 'Opening Google TEST rewarded ad' "$WEB/src/features/apps/core-apps.js"; then
-            echo 'Production bundle still exposes Google TEST copy.' >&2
+          if grep -Fq 'WATCH TEST AD' "$WEB/src/features/apps/core-apps.js"; then
+            echo 'Production bundle exposes WATCH TEST AD.' >&2
             exit 1
           fi
           node --check "$WEB/src/core/native-ads.js"
           node --check "$WEB/src/features/apps/core-apps.js"
-          echo 'PASS production AdMob separation.'
+          echo 'PASS canonical production contract.'
 
       - name: Build unsigned production release
         working-directory: NexusNovaAndroid
         shell: bash
         run: gradle --no-daemon --stacktrace clean assembleRelease
 
-      - name: Verify production APK exists
+      - name: Package production candidate
         shell: bash
         run: |
           set -euo pipefail
@@ -124,19 +130,8 @@ jobs:
             echo "Source commit: $GITHUB_SHA"
             echo 'Build type: release'
             echo 'AdMob: production IDs / NEXUS_ADS_TEST_MODE=false'
-            echo 'Signature: unsigned; signing happens after CI verification'
+            echo 'Signature: unsigned; signing happens after verification'
           } > production-build-output/BUILD-STATUS.txt
-
-      - name: Publish verified production candidate
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name 'NexusNova Production Build Bot'
-          git config user.email 'actions@users.noreply.github.com'
-          git add -f production-build-output/
-          git commit -m 'ci: publish production APK candidate [skip ci]'
-          git pull --rebase origin nexusnova-fresh-rebuild-20260820
-          git push origin HEAD:nexusnova-fresh-rebuild-20260820
 
       - name: Upload production candidate
         uses: actions/upload-artifact@v4
