@@ -1,10 +1,21 @@
 NexusNova Fresh Rebuild TEST APK
 Branch: nexusnova-fresh-rebuild-20260820
-Source commit: d96c1b0f98ba242c9d6e1f2c32109b9df6647bb4
+Source commit: b77543f36db83d1f7ad3d91cdd4dca0d40d7dc4e
 Edition: TEST/debug only
 Web validation: success
 Android preparation: success
-AdMob patch: success
-Android verification: success
-Gradle build: success
-RESULT: PASS — fresh TEST APK built successfully.
+AdMob patch: failure
+Android verification: skipped
+Gradle build: skipped
+RESULT: FAIL — inspect diagnostics below.
+
+===== web-validate.log =====
+Fresh architecture and ad coverage checks passed
+
+===== prepare-android.log =====
+Prepared fresh Android bundle: /home/runner/work/nexusnova-app/nexusnova-app/NexusNovaAndroid/app/src/main/assets/www
+Edition: TEST
+Fresh files: 90
+
+===== patch-admob.log =====
+Ad native-action insertion point not found
