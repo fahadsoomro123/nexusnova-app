@@ -32,6 +32,7 @@ import java.util.Locale
 class MainActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
+    private lateinit var adManager: NexusAdManager
 
     private val assetLoader by lazy {
         WebViewAssetLoader.Builder()
@@ -107,6 +108,17 @@ class MainActivity : AppCompatActivity() {
 
         configureWebView()
         installNativeMessageListener()
+        adManager = NexusAdManager(this, webView) { view -> isTrustedAppPage(view) }
+        if (BuildConfig.NEXUS_ADS_TEST_MODE) {
+            // Debug/development APKs always use Google's test inventory.
+            adManager.initialize()
+        } else {
+            // Release APKs cannot initialize/request production ads until UMP
+            // has refreshed consent state and says ad requests are allowed.
+            NexusAdConsentManager(this).gather { canRequestAds ->
+                if (canRequestAds) adManager.initialize()
+            }
+        }
 
         // The production GitHub Pages origin is also the registered web App
         // Check origin. Loading it here means web and Android use one tested
@@ -435,6 +447,18 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
+            ACTION_SHOW_REWARDED_AD -> adManager.showRewarded(
+                rewardPurpose = message.optString("rewardPurpose").trim(),
+                testOnly = message.optBoolean("testOnly", false),
+                userId = message.optString("userId").trim()
+            )
+            ACTION_SHOW_INTERSTITIAL_AD -> adManager.showInterstitial(
+                placement = message.optString("placement", message.optString("reason")).trim(),
+                feature = message.optString("feature").trim(),
+                testOnly = message.optBoolean("testOnly", false)
+            )
+            ACTION_AD_STATUS -> adManager.publishStatus()
+
             ACTION_OPEN_EXTERNAL -> {
                 val url = message.optString("url").trim()
                 if (url.length > MAX_EXTERNAL_URL_CHARS) return
@@ -638,6 +662,9 @@ class MainActivity : AppCompatActivity() {
 
         const val ACTION_OPEN_NOVA_VPN = "openNovaVpn"
         const val ACTION_OPEN_EXTERNAL = "openExternal"
+        const val ACTION_SHOW_REWARDED_AD = "showRewardedAd"
+        const val ACTION_SHOW_INTERSTITIAL_AD = "showInterstitialAd"
+        const val ACTION_AD_STATUS = "adStatus"
 
         const val MAX_BRIDGE_MESSAGE_CHARS = 8_192
         const val MAX_VPN_AUTH_TOKEN_CHARS = 7_000
