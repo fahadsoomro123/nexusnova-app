@@ -32,22 +32,6 @@ window.nexusPostNativeAction = window.nexusPostNativeAction || function(action, 
   }
 };
 
-let nativeAccountId = '';
-function syncNativeAccount(user) {
-  const uid = String(user?.uid || '').trim().slice(0, 128);
-  if (uid) {
-    nativeAccountId = uid;
-    window.nexusPostNativeAction('setActiveAccount', { accountId: uid });
-    return;
-  }
-  // Never erase a previous same-device marker merely because Firebase is still
-  // restoring at initial boot. Clear only after this runtime actually knew a UID.
-  if (nativeAccountId) {
-    window.nexusPostNativeAction('clearActiveAccount', { accountId: nativeAccountId });
-    nativeAccountId = '';
-  }
-}
-
 const labels = {
   mine: ['MINE', 'mine'],
   hub: ['NOVA HUB', 'hub']
@@ -154,8 +138,7 @@ const backToHub = () => {
 };
 const backToMine = () => router.render('mine');
 
-async function handleSignedIn(user) {
-  syncNativeAccount(user);
+async function handleSignedIn() {
   renderCinematicSplash('entry');
   await wait(POST_LOGIN_SPLASH_MS);
   await router.render('mine');
@@ -248,13 +231,11 @@ async function boot() {
     await router.render('auth');
     return;
   }
-  syncNativeAccount(user);
   const initial = router.initial();
   await router.render(initial === 'auth' || initial === 'app' ? 'mine' : initial);
 }
 
 authService.onChange(user => {
-  syncNativeAccount(user);
   if (!user && router.current && router.current !== 'auth') router.render('auth');
 });
 
