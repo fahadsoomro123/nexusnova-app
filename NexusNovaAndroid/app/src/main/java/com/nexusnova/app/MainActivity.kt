@@ -460,6 +460,19 @@ class MainActivity : AppCompatActivity() {
 
             ACTION_REQUEST_CALLER_ROLE -> requestCallerRole()
 
+            ACTION_OPEN_NOVA_VPN -> {
+                val authToken = message.optString("authToken").trim()
+                if (authToken.isBlank() || authToken.length > MAX_VPN_AUTH_TOKEN_CHARS) return
+                try {
+                    startActivity(
+                        Intent(this, NovaVpnActivity::class.java)
+                            .putExtra(NovaVpnActivity.EXTRA_AUTH_TOKEN, authToken)
+                    )
+                } catch (_: Exception) {
+                    // Keep the main app alive if the optional VPN control cannot launch.
+                }
+            }
+
             ACTION_OPEN_EXTERNAL -> {
                 val url = message.optString("url").trim()
                 if (url.length > MAX_EXTERNAL_URL_CHARS) return
@@ -697,9 +710,11 @@ class MainActivity : AppCompatActivity() {
         const val ACTION_SET_ACTIVE_ACCOUNT = "setActiveAccount"
         const val ACTION_CLEAR_ACTIVE_ACCOUNT = "clearActiveAccount"
         const val ACTION_REQUEST_CALLER_ROLE = "requestCallerRole"
+        const val ACTION_OPEN_NOVA_VPN = "openNovaVpn"
         const val ACTION_OPEN_EXTERNAL = "openExternal"
 
-        const val MAX_BRIDGE_MESSAGE_CHARS = 2_048
+        const val MAX_BRIDGE_MESSAGE_CHARS = 8_192
+        const val MAX_VPN_AUTH_TOKEN_CHARS = 7_000
         const val MAX_CONTACT_NAME_CHARS = 100
         const val MAX_CONTACT_ADDRESS_CHARS = 300
         const val MAX_EXTERNAL_URL_CHARS = 2_000

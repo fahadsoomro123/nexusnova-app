@@ -60,6 +60,7 @@ export const novaApps = Object.freeze([
   { id: 'growth', name: 'Growth Center', category: 'Money & Commerce', icon: 'growth', description: 'Referral and growth tools' },
 
   { id: 'nova-vault', name: 'Nova Vault + 10X', category: 'Mining', placement: 'mine', icon: 'vault', description: 'Server-backed vault rewards and secure 10X chance' },
+  { id: 'nova-vpn', name: 'Nova VPN', category: 'Security & System', icon: 'security', description: 'System-wide WireGuard VPN for browsers and apps' },
   { id: 'file-vault', name: 'File Vault', category: 'Security & System', icon: 'vault', description: 'Protected file workflow' },
   { id: 'security', name: 'Security', category: 'Security & System', icon: 'security', description: 'Security status and controls' },
   { id: 'notifications', name: 'Notifications', category: 'Security & System', icon: 'notifications', description: 'Notification preferences and status' },

@@ -44,6 +44,12 @@
             android:windowSoftInputMode="adjustResize" />
 
         <activity
+            android:name=".NovaVpnActivity"
+            android:exported="false"
+            android:label="Nova VPN"
+            android:configChanges="orientation|screenSize|keyboardHidden" />
+
+        <activity
             android:name=".CallerSetupActivity"
             android:exported="false"
             android:label="Caller ID Setup" />

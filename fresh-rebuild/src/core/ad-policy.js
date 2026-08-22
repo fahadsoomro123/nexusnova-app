@@ -20,7 +20,7 @@ const TEST_ELIGIBLE_BREAKS_BEFORE_FIRST = 1;
 // additions inherit the same protection automatically.
 const PROTECTED_APPS = new Set([
   'quran', 'hadith', 'bukhari', 'bible', 'qibla', 'security', 'emergency',
-  'health', 'contacts', 'about'
+  'health', 'contacts', 'about', 'nova-vpn'
 ]);
 
 // Every current non-protected Nova Hub app maps to a native allowlisted feature
@@ -80,6 +80,7 @@ const FEATURE_ALIAS = Object.freeze({
   orders:'mega-orders',
   growth:'finance',
   'nova-vault':'tools',
+  'nova-vpn':'tools',
   'file-vault':'tools',
   security:'tools',
   notifications:'tools',
