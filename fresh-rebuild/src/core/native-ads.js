@@ -29,6 +29,34 @@ function emit(detail) {
   });
 }
 
+function waitForRewardedReady(timeoutMs = 20_000) {
+  if (status.rewardedReady === true) return Promise.resolve();
+  post('adStatus');
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      listeners.delete(onEvent);
+      resolve();
+    };
+    const fail = () => {
+      if (settled) return;
+      settled = true;
+      listeners.delete(onEvent);
+      reject(new Error('Ad is still loading. Please try again in a moment.'));
+    };
+    const onEvent = detail => {
+      const type = String(detail?.event || '');
+      if (type === 'rewarded-ready') finish();
+      else if (type === 'status' && detail?.rewardedReady === true) finish();
+    };
+    listeners.add(onEvent);
+    const timer = setTimeout(fail, Math.max(3_000, Number(timeoutMs) || 20_000));
+  });
+}
+
 window.addEventListener('nexusnova:native-ad-event', event => {
   const detail = event?.detail || {};
   if (String(detail.provider || '') !== 'admob') return;
@@ -66,6 +94,12 @@ export const nativeAds = {
   async showRewarded({ purpose, userId = '', timeoutMs = 55_000 } = {}) {
     const rewardPurpose = String(purpose || '').slice(0, 80);
     if (!rewardPurpose) throw new Error('Reward purpose is required.');
+
+    // Do not fire a full-screen show request at an unloaded slot. Request native
+    // warm-up and wait for the real ready callback; this removes empty first/second
+    // attempts while still failing cleanly if Google has no inventory.
+    await waitForRewardedReady(Math.min(20_000, Math.max(3_000, Number(timeoutMs) - 5_000)));
+
     const testOnly = status.testMode === true;
     if (!post('showRewardedAd', { rewardPurpose, userId: String(userId || '').slice(0,128), testOnly })) {
       throw new Error('Rewarded ads require the NexusNova Android app.');
