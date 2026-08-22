@@ -5,7 +5,7 @@ This directory is the server-side counterpart of the Android Nova VPN client.
 ## Production target
 
 - WireGuard kernel tunnel on every VPS.
-- At least 1 Gbps advertised network capacity per production node.
+- Benchmark network capacity before publishing it; do not advertise an unmeasured Mbps value.
 - Public IPv4 and IPv6.
 - Minimum 2 vCPU / 2 GB RAM per node.
 - UDP 51820 open for WireGuard; HTTPS 443 open for health/provision/revoke API.
@@ -23,7 +23,7 @@ export NOVA_VPN_NODE_ID='node-1'
 export NOVA_VPN_PUBLIC_HOST='node-1.vpn.nexusnovatools.com'
 export NOVA_VPN_CITY='SET_CITY'
 export NOVA_VPN_COUNTRY='SET_COUNTRY'
-export NOVA_VPN_CAPACITY_MBPS='1000'
+export NOVA_VPN_CAPACITY_MBPS='0' # 0 means unverified until benchmarked
 export NOVA_FIREBASE_WEB_API_KEY='SET_EXISTING_NEXUSNOVA_FIREBASE_WEB_API_KEY'
 export NOVA_VPN_TLS_EMAIL='SET_TLS_EMAIL'
 bash bootstrap.sh
@@ -33,10 +33,10 @@ The bootstrap installs WireGuard, nftables forwarding/NAT, Unbound DNS, HTTPS, t
 
 ## Multi-node activation
 
-Repeat the bootstrap on independent VPS nodes. Use a unique host name and `NOVA_VPN_NODE_ID` for each. After the health URL for a node returns HTTP 200, add that node to `https://nexusnovatools.com/vpn/servers.json` and set `enabled: true`.
+Repeat the bootstrap on independent VPS nodes. Use a unique host name and `NOVA_VPN_NODE_ID` for each. After the health URL for a node returns HTTP 200, verify authenticated `/v1/lease`, benchmark the real node capacity, and only then add that node to `https://nexusnovatools.com/vpn/servers.json` with `enabled: true`.
 
 The live Android client currently accepts up to 24 servers and measures them in parallel before Smart Pick chooses the lowest-latency healthy server.
 
 ## Important operational rule
 
-Do not put placeholder, public/free VPN, or unowned WireGuard endpoints into the production catalog. A server becomes visible to users only after the VPS exists, TLS is valid, `/health` works, and `/v1/lease` successfully provisions an authenticated WireGuard peer.
+Do not put placeholder, public/free VPN, or unowned WireGuard endpoints into the production catalog. A server becomes visible to users only after the VPS exists, TLS is valid, `/health` works, `/v1/lease` successfully provisions an authenticated WireGuard peer, and any published capacity value has been measured.
