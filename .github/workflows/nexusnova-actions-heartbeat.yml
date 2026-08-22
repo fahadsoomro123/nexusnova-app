@@ -9,6 +9,7 @@ on:
       - 'fresh-rebuild/CI-HEARTBEAT-TRIGGER.txt'
 
 permissions:
+  actions: read
   contents: write
 
 jobs:
@@ -20,6 +21,18 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
+
+      - name: Capture recent Actions runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo -e 'run_id\tworkflow\thead_sha\tstatus\tconclusion\tevent\tcreated_at\tupdated_at'
+            gh api "repos/${GITHUB_REPOSITORY}/actions/runs?branch=nexusnova-fresh-rebuild-20260820&per_page=30" \
+              --jq '.workflow_runs[] | [.id,.name,.head_sha,.status,(.conclusion // ""),.event,.created_at,.updated_at] | @tsv'
+          } > recent-runs.tsv
 
       - name: Publish heartbeat
         shell: bash
@@ -38,6 +51,7 @@ jobs:
             echo "Run id: $GITHUB_RUN_ID"
             echo "Run attempt: $GITHUB_RUN_ATTEMPT"
           } > actions-heartbeat/latest.txt
-          git add actions-heartbeat/latest.txt
+          cp "$GITHUB_WORKSPACE/recent-runs.tsv" actions-heartbeat/recent-runs.tsv
+          git add actions-heartbeat/latest.txt actions-heartbeat/recent-runs.tsv
           git commit -m "CI heartbeat $GITHUB_SHA"
           git push origin HEAD:apk-builds
