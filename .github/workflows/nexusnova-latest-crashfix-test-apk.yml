@@ -1,0 +1,99 @@
+name: NexusNova Latest CrashFix TEST APK
+
+on:
+  push:
+    branches:
+      - nexusnova-fresh-rebuild-20260820
+    paths:
+      - '.github/workflows/nexusnova-latest-crashfix-test-apk.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Self-clean helper and pin clean source
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/nexusnova-latest-crashfix-test-apk.yml
+          git config user.name 'NexusNova Build Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add -A .github/workflows/nexusnova-latest-crashfix-test-apk.yml
+          git commit -m 'ci: cleanup latest crashfix test apk publisher'
+          CLEAN_SHA="$(git rev-parse HEAD)"
+          echo "CLEAN_SHA=$CLEAN_SHA" >> "$GITHUB_ENV"
+          git push origin HEAD:nexusnova-fresh-rebuild-20260820
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Prepare fresh bundle
+        env:
+          NEXUSNOVA_APP_CHECK_SITE_KEY: ${{ secrets.NEXUSNOVA_APP_CHECK_SITE_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python NexusNovaAndroid/prepare_fresh_rebuild.py
+          test -s NexusNovaAndroid/app/src/main/assets/www/FRESH-REBUILD-BUILD.txt
+
+      - name: Build TEST APK
+        working-directory: NexusNovaAndroid
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon --stacktrace clean assembleDebug
+          test -s app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Package
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p latest-crashfix-test
+          cp NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk latest-crashfix-test/NexusNova-CrashFix-Latest-TEST.apk
+          sha256sum latest-crashfix-test/NexusNova-CrashFix-Latest-TEST.apk > latest-crashfix-test/SHA256.txt
+          {
+            echo 'NexusNova CrashFix Latest TEST APK'
+            echo "Source commit: $CLEAN_SHA"
+            echo 'Gradle build: PASS'
+            echo 'Physical phone verification: REQUIRED'
+            echo 'RESULT: TEST READY'
+          } > latest-crashfix-test/BUILD-STATUS.txt
+
+      - name: Publish to apk-builds
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'NexusNova Build Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git fetch origin apk-builds
+          rm -rf /tmp/nx-crashfix-test
+          git worktree add /tmp/nx-crashfix-test origin/apk-builds
+          cd /tmp/nx-crashfix-test
+          rm -rf latest-crashfix-test
+          mkdir -p latest-crashfix-test
+          cp -a "$GITHUB_WORKSPACE/latest-crashfix-test/." latest-crashfix-test/
+          git add -A latest-crashfix-test
+          git commit -m "Publish latest crashfix TEST APK $CLEAN_SHA"
+          git push origin HEAD:apk-builds
