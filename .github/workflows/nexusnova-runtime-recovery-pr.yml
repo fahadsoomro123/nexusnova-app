@@ -43,6 +43,30 @@ jobs:
           grep -Fq 'const val REWARD_PURPOSE_WATCH_AD = "task-watch-ad"' "$ADS"
           sha256sum "$APK" | tee RUN4-APK-SHA256.txt
 
+      - name: Create runtime smoke script
+        shell: bash
+        run: |
+          cat > runtime-smoke.sh <<'BASH'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          APK="$GITHUB_WORKSPACE/recovered-run4/NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk"
+          adb install -r "$APK"
+          adb logcat -c
+          adb shell am force-stop com.nexusnova.app || true
+          adb shell am start -W -n com.nexusnova.app/.MainActivity | tee "$GITHUB_WORKSPACE/launcher-start.txt"
+          sleep 12
+          PID="$(adb shell pidof com.nexusnova.app | tr -d '\r' | xargs)"
+          test -n "$PID"
+          adb logcat -d -v threadtime > "$GITHUB_WORKSPACE/launcher-logcat.txt"
+          if grep -E -q 'FATAL EXCEPTION|AndroidRuntime: Process: com\.nexusnova\.app|Fatal signal.*com\.nexusnova\.app' "$GITHUB_WORKSPACE/launcher-logcat.txt"; then
+            echo 'NexusNova runtime crash detected'
+            grep -E -A 30 -B 10 'FATAL EXCEPTION|AndroidRuntime: Process: com\.nexusnova\.app|Fatal signal.*com\.nexusnova\.app' "$GITHUB_WORKSPACE/launcher-logcat.txt" || true
+            exit 1
+          fi
+          echo "RUNTIME_SMOKE_PASS pid=$PID" | tee "$GITHUB_WORKSPACE/RUNTIME-SMOKE.txt"
+          BASH
+          chmod +x runtime-smoke.sh
+
       - name: Android 11 launcher smoke test
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -50,23 +74,7 @@ jobs:
           arch: x86_64
           profile: pixel_4
           disable-animations: true
-          script: |
-            set -eu
-            APK="$GITHUB_WORKSPACE/recovered-run4/NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk"
-            adb install -r "$APK"
-            adb logcat -c
-            adb shell am force-stop com.nexusnova.app || true
-            adb shell am start -W -n com.nexusnova.app/.MainActivity | tee "$GITHUB_WORKSPACE/launcher-start.txt"
-            sleep 12
-            PID="$(adb shell pidof com.nexusnova.app | tr -d '\r' | xargs)"
-            test -n "$PID"
-            adb logcat -d -v threadtime > "$GITHUB_WORKSPACE/launcher-logcat.txt"
-            if grep -E -q 'FATAL EXCEPTION|AndroidRuntime: Process: com\.nexusnova\.app|Fatal signal.*com\.nexusnova\.app' "$GITHUB_WORKSPACE/launcher-logcat.txt"; then
-              echo 'NexusNova runtime crash detected'
-              grep -E -A 30 -B 10 'FATAL EXCEPTION|AndroidRuntime: Process: com\.nexusnova\.app|Fatal signal.*com\.nexusnova\.app' "$GITHUB_WORKSPACE/launcher-logcat.txt" || true
-              exit 1
-            fi
-            echo "RUNTIME_SMOKE_PASS pid=$PID" | tee "$GITHUB_WORKSPACE/RUNTIME-SMOKE.txt"
+          script: bash "$GITHUB_WORKSPACE/runtime-smoke.sh"
 
       - name: Hash runtime-tested APK
         if: success()
