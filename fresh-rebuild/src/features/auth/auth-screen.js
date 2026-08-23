@@ -32,12 +32,12 @@ export function authScreen({ onSignedIn } = {}) {
           <input type="password" name="password" autocomplete="current-password" minlength="6" placeholder="Minimum 6 characters" required>
         </label>
         <button class="nx-primary" type="submit" data-auth-submit>SIGN IN</button>
-        <p class="nx-form-status" data-auth-status role="status">Email/password sign-in is used for the fresh Android test build.</p>
+        <p class="nx-form-status" data-auth-status role="status">Secure email/password sign-in.</p>
       </form>
     </article>
 
     <div class="nx-auth__trust">
-      ${icon('vault')}<span>Firebase authenticated • value operations remain protected by existing security rules</span>
+      ${icon('vault')}<span>Firebase authenticated • secure account actions remain protected by backend rules</span>
     </div>
   `;
 
@@ -57,7 +57,7 @@ export function authScreen({ onSignedIn } = {}) {
     password.autocomplete = mode === 'register' ? 'new-password' : 'current-password';
     status.textContent = mode === 'register'
       ? 'A verification email will be sent after account creation.'
-      : 'Email/password sign-in is used for the fresh Android test build.';
+      : 'Secure email/password sign-in.';
   };
 
   buttons.forEach(button => button.addEventListener('click', () => setMode(button.dataset.authMode)));
