@@ -1,5 +1,5 @@
 name: NexusNova Export Full Project
-# Export marker: post-legacy-retirement canonical snapshot; archive records exact GITHUB_SHA.
+# Export marker: final clean single-source snapshot; archive records exact GITHUB_SHA.
 
 on:
   push:
@@ -37,9 +37,10 @@ jobs:
           CURRENT STATE:
           The Mine/WebView startup crash was fixed and physically confirmed on the user's phone.
           Subsequent work on this branch includes bounded WebView renderer recovery and repository cleanup.
+          Android assets/www is generated from fresh-rebuild during builds and is intentionally not tracked.
 
           SOURCE RULE:
-          fresh-rebuild/ is the canonical modern app source for APK packaging.
+          fresh-rebuild/ is the single canonical modern app source for APK packaging.
           The legacy root page2/js/css shell has been retired; root now redirects to fresh-rebuild/.
           Do not modify Golden backup branches during normal bug-fix work.
           EOF
