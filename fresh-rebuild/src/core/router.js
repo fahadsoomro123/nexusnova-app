@@ -1,12 +1,27 @@
 export function createRouter({ stage, routes, onRoute }) {
   let current = '';
+  let renderRevision = 0;
 
   async function render(route, payload = {}) {
+    const revision = ++renderRevision;
     const next = routes[route] ? route : 'mine';
     const factory = routes[next];
     current = next;
     stage.innerHTML = '';
-    const result = await factory(payload);
+
+    let result;
+    try {
+      result = await factory(payload);
+    } catch (error) {
+      if (revision !== renderRevision) return current;
+      throw error;
+    }
+
+    // Route factories can be asynchronous (auth, Mine data, lazy-loaded apps).
+    // If the user navigated again while this factory was waiting, its result is
+    // stale and must never replace the newer screen or rewrite its hash/state.
+    if (revision !== renderRevision) return current;
+
     if (typeof result === 'string') stage.innerHTML = result;
     else if (result instanceof Node) stage.appendChild(result);
     stage.dataset.route = next;
@@ -22,7 +37,7 @@ export function createRouter({ stage, routes, onRoute }) {
     return routes[hash] ? hash : 'mine';
   }
 
-  window.addEventListener('popstate', () => render(initial()));
+  window.addEventListener('popstate', () => { void render(initial()); });
 
   return {
     render,
