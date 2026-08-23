@@ -1,4 +1,5 @@
 name: NexusNova Export Full Project
+# Export marker: post-cleanup canonical snapshot; archive records exact GITHUB_SHA.
 
 on:
   push:
