@@ -1,8 +1,8 @@
-name: NexusNova Export Full Project
+name: NexusNova Golden Disaster Backup Export
 
 on:
   push:
-    branches: [nexusnova-latest-full-apk-recovery-20260823]
+    branches: [nexusnova-golden-export-20260823]
     paths: ['.github/workflows/nexusnova-export-full-project.yml']
   workflow_dispatch:
 
@@ -18,58 +18,53 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Create exact tracked project archive
+      - name: Create exact phone-PASS project archive
         shell: bash
         run: |
           set -euo pipefail
-          ZIP=NexusNova-LATEST-FULL-PROJECT-for-Grok.zip
-          git archive --format=zip --output="$ZIP" HEAD
-          cat > NEXUSNOVA-GROK-HANDOFF.txt <<EOF
-          NEXUSNOVA FULL PROJECT HANDOFF
+          SOURCE=e6176f721216e3e0c3130c8811a4123bcafce8cc
+          ZIP=NexusNova-GOLDEN-PHONE-PASS-20260823.zip
+          git archive --format=zip --output="$ZIP" "$SOURCE"
+          cat > NEXUSNOVA-GOLDEN-RESTORE.txt <<EOF
+          NEXUSNOVA GOLDEN DISASTER BACKUP
           Repository: fahadsoomro123/nexusnova-app
-          Branch: nexusnova-latest-full-apk-recovery-20260823
-          Source commit: $GITHUB_SHA
+          Golden branch: nexusnova-golden-phone-pass-20260823
+          Phone-PASS source commit: $SOURCE
           Canonical modern app: fresh-rebuild/
           Android project: NexusNovaAndroid/
-
-          IMPORTANT CURRENT BUG:
-          On the user's physical Android phone the latest full APK launches, renders the Mine screen, then exits/closes shortly afterward. Do not redesign the app. Diagnose the exact post-render Android/WebView/runtime crash and make the minimum targeted fix.
-
-          IMPORTANT SOURCE RULE:
-          The latest UI/features are in fresh-rebuild/. Do not package the legacy root page2 shell as the modern app.
-
-          Preserve all current premium features and visual work unless a change is strictly required for the crash fix.
+          Physical phone result: Mine crash fixed; app remained open on 23 Aug 2026.
+          Restore rule: restore this exact commit/branch first; do not mix partial files from later broken states.
           EOF
-          zip -q "$ZIP" NEXUSNOVA-GROK-HANDOFF.txt
-          sha256sum "$ZIP" > NexusNova-LATEST-FULL-PROJECT-for-Grok.sha256
-          printf 'source_commit=%s\nbranch=%s\narchive=git-archive-HEAD-plus-handoff\n' "$GITHUB_SHA" "$GITHUB_REF_NAME" > PROJECT-EXPORT-STATUS.txt
+          zip -q "$ZIP" NEXUSNOVA-GOLDEN-RESTORE.txt
+          sha256sum "$ZIP" > NexusNova-GOLDEN-PHONE-PASS-20260823.sha256
+          printf 'source_commit=%s\ngolden_branch=%s\nphone_pass=yes\narchive=git-archive-exact-source-plus-restore-note\n' "$SOURCE" 'nexusnova-golden-phone-pass-20260823' > GOLDEN-BACKUP-STATUS.txt
 
-      - name: Upload project artifact
+      - name: Upload golden artifact
         uses: actions/upload-artifact@v4
         with:
-          name: NexusNova-LATEST-FULL-PROJECT-for-Grok
+          name: NexusNova-GOLDEN-PHONE-PASS-20260823
           path: |
-            NexusNova-LATEST-FULL-PROJECT-for-Grok.zip
-            NexusNova-LATEST-FULL-PROJECT-for-Grok.sha256
-            PROJECT-EXPORT-STATUS.txt
-          retention-days: 14
+            NexusNova-GOLDEN-PHONE-PASS-20260823.zip
+            NexusNova-GOLDEN-PHONE-PASS-20260823.sha256
+            GOLDEN-BACKUP-STATUS.txt
+          retention-days: 30
 
-      - name: Publish project ZIP to apk-builds
+      - name: Publish golden ZIP to apk-builds
         shell: bash
         run: |
           set -euo pipefail
-          git config user.name 'NexusNova Export Bot'
+          git config user.name 'NexusNova Golden Backup Bot'
           git config user.email 'actions@users.noreply.github.com'
           git fetch origin apk-builds
-          rm -rf /tmp/nx-export
-          git worktree add /tmp/nx-export origin/apk-builds
-          cd /tmp/nx-export
-          rm -rf grok-project-export
-          mkdir -p grok-project-export
-          cp "$GITHUB_WORKSPACE/NexusNova-LATEST-FULL-PROJECT-for-Grok.zip" grok-project-export/
-          cp "$GITHUB_WORKSPACE/NexusNova-LATEST-FULL-PROJECT-for-Grok.sha256" grok-project-export/
-          cp "$GITHUB_WORKSPACE/PROJECT-EXPORT-STATUS.txt" grok-project-export/
-          git add -A grok-project-export
-          git commit -m "Publish full NexusNova project export $GITHUB_SHA"
+          rm -rf /tmp/nx-golden-export
+          git worktree add /tmp/nx-golden-export origin/apk-builds
+          cd /tmp/nx-golden-export
+          rm -rf golden-disaster-backup-20260823
+          mkdir -p golden-disaster-backup-20260823
+          cp "$GITHUB_WORKSPACE/NexusNova-GOLDEN-PHONE-PASS-20260823.zip" golden-disaster-backup-20260823/
+          cp "$GITHUB_WORKSPACE/NexusNova-GOLDEN-PHONE-PASS-20260823.sha256" golden-disaster-backup-20260823/
+          cp "$GITHUB_WORKSPACE/GOLDEN-BACKUP-STATUS.txt" golden-disaster-backup-20260823/
+          git add -A golden-disaster-backup-20260823
+          git commit -m "Publish Golden disaster backup e6176f721216e3e0c3130c8811a4123bcafce8cc"
           git pull --rebase origin apk-builds
           git push origin HEAD:apk-builds
