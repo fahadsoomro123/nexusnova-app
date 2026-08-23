@@ -75,23 +75,49 @@ jobs:
         shell: bash
         run: gradle --no-daemon --stacktrace clean assembleDebug 2>&1 | tee "$GITHUB_WORKSPACE/build-log.txt"
 
-      - name: Android 11 stay-alive and VPN smoke script
+      - name: Create Android 11 runtime smoke
         shell: bash
         run: |
           cat > frozen-smoke.sh <<'BASH'
           #!/usr/bin/env bash
           set -euo pipefail
           APK="$GITHUB_WORKSPACE/NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk"
-          adb install -r "$APK" | tee "$GITHUB_WORKSPACE/adb-install.txt"
+          test -s "$APK"
+
+          adb wait-for-device
+          for i in $(seq 1 60); do
+            BOOT="$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')"
+            [ "$BOOT" = "1" ] && break
+            sleep 2
+          done
+          test "$(adb shell getprop sys.boot_completed | tr -d '\r')" = "1"
+
+          adb shell am force-stop com.nexusnova.app || true
+          adb uninstall com.nexusnova.app >/dev/null 2>&1 || true
+
+          : > "$GITHUB_WORKSPACE/adb-install.txt"
+          if adb install --no-streaming -r "$APK" 2>&1 | tee -a "$GITHUB_WORKSPACE/adb-install.txt" | grep -q '^Success$'; then
+            echo 'INSTALL_METHOD=adb-no-streaming' >> "$GITHUB_WORKSPACE/adb-install.txt"
+          else
+            adb push "$APK" /data/local/tmp/nexusnova-test.apk 2>&1 | tee -a "$GITHUB_WORKSPACE/adb-install.txt"
+            adb shell pm install -r /data/local/tmp/nexusnova-test.apk 2>&1 | tee -a "$GITHUB_WORKSPACE/adb-install.txt"
+            grep -q 'Success' "$GITHUB_WORKSPACE/adb-install.txt"
+            echo 'INSTALL_METHOD=pm-install' >> "$GITHUB_WORKSPACE/adb-install.txt"
+          fi
+
           adb logcat -c
           adb shell am force-stop com.nexusnova.app || true
           adb shell am start -W -n com.nexusnova.app/.MainActivity | tee "$GITHUB_WORKSPACE/main-launch.txt"
+          grep -q 'Activity: com.nexusnova.app/.MainActivity' "$GITHUB_WORKSPACE/main-launch.txt"
+
+          : > "$GITHUB_WORKSPACE/stay-alive.txt"
           for i in 1 2 3 4 5 6; do
             sleep 10
             PID="$(adb shell pidof com.nexusnova.app | tr -d '\r' | xargs)"
             test -n "$PID"
             echo "sample=$i pid=$PID" >> "$GITHUB_WORKSPACE/stay-alive.txt"
           done
+
           adb logcat -d -v threadtime > "$GITHUB_WORKSPACE/main-logcat.txt"
           if grep -E -q 'FATAL EXCEPTION|AndroidRuntime: Process: com\.nexusnova\.app|ANR in com\.nexusnova\.app|Fatal signal.*com\.nexusnova\.app|WebView renderer gone' "$GITHUB_WORKSPACE/main-logcat.txt"; then
             exit 1
@@ -103,6 +129,7 @@ jobs:
 
           adb logcat -c
           adb shell am start -W -n com.nexusnova.app/.NovaVpnActivity --es nova_vpn_auth_token smoke-token | tee "$GITHUB_WORKSPACE/vpn-launch.txt"
+          grep -q 'Activity: com.nexusnova.app/.NovaVpnActivity' "$GITHUB_WORKSPACE/vpn-launch.txt"
           sleep 20
           test -n "$(adb shell pidof com.nexusnova.app | tr -d '\r' | xargs)"
           adb logcat -d -v threadtime > "$GITHUB_WORKSPACE/vpn-logcat.txt"
@@ -111,8 +138,10 @@ jobs:
           fi
           adb exec-out screencap -p > "$GITHUB_WORKSPACE/vpn-screen.png"
           test -s "$GITHUB_WORKSPACE/vpn-screen.png"
+
           {
             echo 'LOCAL_BUNDLED_STARTUP_PASS'
+            echo 'APK_INSTALL_PASS'
             echo 'MAIN_60S_STAY_ALIVE_PASS'
             echo 'NOVA_VPN_20S_LAUNCH_PASS'
             echo 'ANDROID_11_RUNTIME_PASS'
@@ -137,13 +166,14 @@ jobs:
           APK=NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk
           cp "$APK" frozen-recovery-output/NexusNova-Frozen-Recovery-Full-TEST.apk
           sha256sum frozen-recovery-output/NexusNova-Frozen-Recovery-Full-TEST.apk > frozen-recovery-output/SHA256.txt
-          cp LAUNCH-SMOKE.txt FEATURE-INVENTORY.txt LOCAL-BUNDLE.txt build-log.txt main-launch.txt stay-alive.txt main-logcat.txt main-state.txt main-screen.png vpn-launch.txt vpn-logcat.txt vpn-screen.png frozen-recovery-output/
+          cp LAUNCH-SMOKE.txt FEATURE-INVENTORY.txt LOCAL-BUNDLE.txt build-log.txt adb-install.txt main-launch.txt stay-alive.txt main-logcat.txt main-state.txt main-screen.png vpn-launch.txt vpn-logcat.txt vpn-screen.png frozen-recovery-output/
           {
             echo 'NexusNova Frozen Local Recovery Full TEST APK'
             echo "Source commit: $GITHUB_SHA"
             echo 'Startup source: APK bundled local app'
             echo 'Feature inventory: PASS'
             echo 'Gradle build: PASS'
+            echo 'Android 11 APK install: PASS'
             echo 'Android 11 MainActivity 60s: PASS'
             echo 'Android 11 Nova VPN 20s: PASS'
             echo 'RESULT: PHONE TEST READY'
