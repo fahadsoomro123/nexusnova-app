@@ -49,6 +49,7 @@ class MainActivity : AppCompatActivity() {
     private var mainFrameWatchdogToken = 0
     private var finishedWatchdogToken = -1
     private var webRecoveryAttempts = 0
+    private var rendererCrashRecoveries = 0
 
     private data class PendingGeolocation(
         val origin: String,
@@ -237,21 +238,33 @@ class MainActivity : AppCompatActivity() {
                 view: WebView?,
                 detail: RenderProcessGoneDetail?
             ): Boolean {
+                val didCrash = detail?.didCrash() == true
                 android.util.Log.e(
                     "NexusNovaWeb",
-                    "WebView renderer gone; didCrash=${detail?.didCrash() == true}"
+                    "WebView renderer gone; didCrash=$didCrash"
                 )
                 val target = view ?: return true
                 adManager = null
+                clearPendingWebCallbacks()
                 runCatching { target.stopLoading() }
                 runCatching { (target.parent as? android.view.ViewGroup)?.removeView(target) }
                 runCatching { target.removeAllViews() }
                 runCatching { target.destroy() }
-                if (!isFinishing && !isDestroyed) {
+
+                if (isFinishing || isDestroyed) return true
+
+                if (didCrash && rendererCrashRecoveries >= MAX_RENDERER_CRASH_RECOVERIES) {
                     window.decorView.post {
-                        if (!isFinishing && !isDestroyed) recreate()
+                        if (!isFinishing && !isDestroyed) showRendererRecoveryFailure()
                     }
+                    return true
                 }
+
+                if (didCrash) rendererCrashRecoveries += 1
+                val delayMs = if (didCrash) RENDERER_CRASH_RECOVERY_DELAY_MS else 0L
+                window.decorView.postDelayed({
+                    if (!isFinishing && !isDestroyed) rebuildWebViewAfterRendererExit()
+                }, delayMs)
                 return true
             }
         }
@@ -349,6 +362,50 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    @SuppressLint("SetJavaScriptEnabled")
+    private fun rebuildWebViewAfterRendererExit() {
+        if (isFinishing || isDestroyed) return
+        webView = WebView(this)
+        setContentView(webView)
+        configureWebView()
+        try {
+            installNativeMessageListener()
+        } catch (error: Throwable) {
+            android.util.Log.e("NexusNovaStartup", "Native bridge recovery setup failed", error)
+        }
+        loadProductionApp()
+    }
+
+    private fun showRendererRecoveryFailure() {
+        if (isFinishing || isDestroyed) return
+        setContentView(android.widget.FrameLayout(this))
+        android.app.AlertDialog.Builder(this)
+            .setTitle("NexusNova needs restart")
+            .setMessage("The Android WebView renderer stopped repeatedly. Restart NexusNova to continue.")
+            .setNegativeButton("CLOSE") { dialog, _ ->
+                dialog.dismiss()
+                finishAndRemoveTask()
+            }
+            .setPositiveButton("RESTART") { dialog, _ ->
+                dialog.dismiss()
+                recreate()
+            }
+            .setCancelable(false)
+            .show()
+    }
+
+    private fun clearPendingWebCallbacks() {
+        fileChooserCallback?.onReceiveValue(null)
+        fileChooserCallback = null
+        fileChooserAcceptTypes = emptySet()
+        pendingWebPermissionRequest?.deny()
+        pendingWebPermissionRequest = null
+        pendingGeolocation?.let { pending ->
+            pending.callback.invoke(pending.origin, false, false)
+        }
+        pendingGeolocation = null
     }
 
     private fun loadProductionApp(forceFresh: Boolean = false) {
@@ -662,11 +719,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        fileChooserCallback?.onReceiveValue(null)
-        fileChooserCallback = null
-        pendingWebPermissionRequest?.deny()
-        pendingWebPermissionRequest = null
-        pendingGeolocation = null
+        clearPendingWebCallbacks()
         super.onDestroy()
     }
 
@@ -730,6 +783,8 @@ class MainActivity : AppCompatActivity() {
         const val BLANK_SCREEN_GRACE_MS = 3_500L
         const val WEB_RECOVERY_RELOAD_DELAY_MS = 350L
         const val MAX_WEB_RECOVERY_ATTEMPTS = 1
+        const val RENDERER_CRASH_RECOVERY_DELAY_MS = 1_500L
+        const val MAX_RENDERER_CRASH_RECOVERIES = 1
         const val SYSTEM_BACK_SCRIPT = """
             (function(){
               try {
