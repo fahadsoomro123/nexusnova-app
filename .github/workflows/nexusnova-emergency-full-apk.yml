@@ -1,0 +1,68 @@
+name: NexusNova Emergency Full APK
+
+on:
+  push:
+    branches: [nexusnova-current-safety-20260823]
+    paths: ['.github/workflows/nexusnova-emergency-full-apk.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Freeze full-feature startup to bundled local app for this build
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt')
+          s=p.read_text()
+          old='        loadProductionApp()\n'
+          new='        usingOfflineFallback = true\n        webView.loadUrl(LOCAL_APP_URL)\n'
+          if old not in s:
+              raise SystemExit('startup anchor missing')
+          p.write_text(s.replace(old,new,1))
+          PY
+          grep -Fq 'webView.loadUrl(LOCAL_APP_URL)' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Build full-feature APK
+        working-directory: NexusNovaAndroid
+        run: gradle --no-daemon clean assembleDebug
+
+      - name: Publish full-feature APK immediately
+        shell: bash
+        run: |
+          APK="$GITHUB_WORKSPACE/NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          mkdir -p /tmp/full-fast
+          cp "$APK" /tmp/full-fast/NexusNova-FULL-PHONE-TEST.apk
+          sha256sum /tmp/full-fast/NexusNova-FULL-PHONE-TEST.apk > /tmp/full-fast/SHA256.txt
+          printf 'Source: %s\nBranch: nexusnova-current-safety-20260823\nStartup: bundled local app for this build\nGradle: PASS\nPurpose: emergency full-feature clean-install phone sign-in test\n' "$GITHUB_SHA" > /tmp/full-fast/BUILD-STATUS.txt
+          git config user.name 'NexusNova Deadline Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git fetch origin apk-builds
+          rm -rf /tmp/nx-full-fast
+          git worktree add /tmp/nx-full-fast origin/apk-builds
+          cd /tmp/nx-full-fast
+          rm -rf deadline-full-phone-test
+          mkdir -p deadline-full-phone-test
+          cp -a /tmp/full-fast/. deadline-full-phone-test/
+          git add -A deadline-full-phone-test
+          git commit -m "Publish emergency full-feature phone-test APK $GITHUB_SHA"
+          git push origin HEAD:apk-builds
