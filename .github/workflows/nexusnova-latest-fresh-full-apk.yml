@@ -3,7 +3,9 @@ name: NexusNova Latest Fresh Full APK
 on:
   push:
     branches: [nexusnova-latest-full-apk-recovery-20260823]
-    paths: ['.github/workflows/nexusnova-latest-fresh-full-apk.yml']
+    paths:
+      - '.github/workflows/nexusnova-latest-fresh-full-apk.yml'
+      - 'fresh-rebuild/**'
   workflow_dispatch:
 
 permissions:
@@ -24,6 +26,7 @@ jobs:
           set -euo pipefail
           test -s fresh-rebuild/index.html
           test -s fresh-rebuild/src/main.js
+          test -s fresh-rebuild/src/emergency-sos.js
           test -s fresh-rebuild/src/features/apps/premium-weather.js
           test -s fresh-rebuild/src/features/apps/premium-prayer-times.js
           test -s fresh-rebuild/src/features/apps/premium-qibla.js
@@ -33,6 +36,7 @@ jobs:
           test -s fresh-rebuild/src/features/apps/premium-drive-tools.js
           test -s fresh-rebuild/src/features/apps/nova-vpn-suite.js
           grep -Fq './src/main.js' fresh-rebuild/index.html
+          grep -Fq './src/emergency-sos.js' fresh-rebuild/index.html
 
       - name: Stage fresh-rebuild SPA into Android assets
         shell: bash
@@ -45,6 +49,7 @@ jobs:
           printf 'source_commit=%s\nsource_tree=fresh-rebuild\n' "$GITHUB_SHA" > "$WEB/NEXUSNOVA_SOURCE.txt"
           test -s "$WEB/index.html"
           test -s "$WEB/src/main.js"
+          test -s "$WEB/src/emergency-sos.js"
           test -s "$WEB/src/features/apps/premium-weather.js"
           test -s "$WEB/src/features/apps/nova-vpn-suite.js"
 
@@ -94,6 +99,7 @@ jobs:
           Canonical source: fresh-rebuild/
           Android assets staged from fresh-rebuild: PASS
           Premium feature tree: PASS
+          Emergency SOS: PASS
           Gradle build: PASS
           RESULT: LATEST FULL APK READY FOR PHONE TEST
           EOF
