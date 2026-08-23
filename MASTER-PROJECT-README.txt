@@ -1,19 +1,26 @@
-NexusNova Master Project — Clean Complete Package
+NexusNova Master Project — Current Clean Package
 
-This is the complete NexusNova project for continued development.
+Canonical modern app source:
+- fresh-rebuild/
 
-Kept intentionally:
-- Web/StackBlitz project
-- Android native project and build configuration
-- Firebase/backend files
-- JS/CSS/assets
-- service workers/manifests
-- feature modules and integration files
-- useful project documentation
+Android wrapper/build project:
+- NexusNovaAndroid/
 
-Removed only:
-- nested ZIP/archive copies
-- obvious logs/temp/backup/cache artifacts
-- OS metadata junk
+Backend and infrastructure retained:
+- functions/
+- firestore.rules
+- firebase.json / firebase-public/
+- vpn-infra/
 
-Nothing was removed merely because it is not currently needed by StackBlitz.
+Current development branch:
+- nexusnova-latest-full-apk-recovery-20260823
+
+Phone-PASS Golden baseline:
+- nexusnova-golden-phone-pass-20260823
+- commit e6176f721216e3e0c3130c8811a4123bcafce8cc
+
+Repository cleanup policy:
+- Keep canonical source, Android/native code, backend/infrastructure, active workflows, active security/readiness checks, and useful roadmap documentation.
+- Remove old APK outputs, logs, patch/prep scripts, obsolete self-modifying workflows, stale recovery/test workflows, duplicate status reports, and orphan helper scripts.
+- Do not treat legacy root page2 files as the canonical APK source.
+- Do not modify Golden backup branches during normal bug-fix work.
