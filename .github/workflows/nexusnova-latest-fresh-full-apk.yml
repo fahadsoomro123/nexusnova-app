@@ -38,6 +38,7 @@ jobs:
           test -s fresh-rebuild/src/features/apps/nova-vpn-suite.js
           grep -Fq './src/main.js' fresh-rebuild/index.html
           grep -Fq './src/emergency-sos.js' fresh-rebuild/index.html
+          test -s NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt
 
       - name: Stage fresh-rebuild SPA into Android assets
         shell: bash
@@ -54,22 +55,61 @@ jobs:
           test -s "$WEB/src/features/apps/premium-weather.js"
           test -s "$WEB/src/features/apps/nova-vpn-suite.js"
 
-      - name: Freeze launcher to bundled latest fresh SPA
+      - name: Wire verified web OTA into bundled launcher
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
-          p=Path('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt')
-          s=p.read_text(encoding='utf-8')
-          old='        loadProductionApp()\n'
-          new='        usingOfflineFallback = true\n        webView.loadUrl(LOCAL_APP_URL)\n'
-          if old not in s:
-              raise SystemExit('latest MainActivity startup anchor missing')
-          s=s.replace(old,new,1)
-          p.write_text(s,encoding='utf-8')
+
+          p = Path('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt')
+          s = p.read_text(encoding='utf-8')
+
+          def replace_once(old, new, label):
+              global s
+              if old not in s:
+                  raise SystemExit(f'OTA launcher anchor missing: {label}')
+              s = s.replace(old, new, 1)
+
+          replace_once(
+              '    private var rendererCrashRecoveries = 0\n',
+              '    private var rendererCrashRecoveries = 0\n'
+              '    private val otaWebManager by lazy { NexusOtaWebManager(this) }\n'
+              '    private var otaCheckStarted = false\n',
+              'fields'
+          )
+
+          replace_once(
+              '                return assetLoader.shouldInterceptRequest(uri)\n'
+              '                    ?: super.shouldInterceptRequest(view, request)\n',
+              '                return otaWebManager.intercept(uri)\n'
+              '                    ?: assetLoader.shouldInterceptRequest(uri)\n'
+              '                    ?: super.shouldInterceptRequest(view, request)\n',
+              'request interception'
+          )
+
+          old_finished = '''            override fun onPageFinished(view: WebView?, url: String?) {\n                super.onPageFinished(view, url)\n                val target = view ?: return\n                val uri = url?.let { runCatching { Uri.parse(it) }.getOrNull() } ?: return\n                if (!isProductionOrigin(uri) || usingOfflineFallback) return\n                finishedWatchdogToken = mainFrameWatchdogToken\n                scheduleBlankScreenCheck(target, mainFrameWatchdogToken)\n            }\n'''
+          new_finished = '''            override fun onPageFinished(view: WebView?, url: String?) {\n                super.onPageFinished(view, url)\n                val target = view ?: return\n                val uri = url?.let { runCatching { Uri.parse(it) }.getOrNull() } ?: return\n                if (!isLocalOrigin(uri) || otaCheckStarted) return\n                otaCheckStarted = true\n                otaWebManager.checkForUpdate { updated ->\n                    if (!updated) return@checkForUpdate\n                    runOnUiThread {\n                        if (!isFinishing && !isDestroyed && target === webView) {\n                            target.reload()\n                        }\n                    }\n                }\n            }\n'''
+          replace_once(old_finished, new_finished, 'page finished OTA check')
+
+          replace_once(
+              '                runCatching { target.destroy() }\n\n                if (isFinishing || isDestroyed) return true\n',
+              '                runCatching { target.destroy() }\n\n'
+              '                if (didCrash && otaWebManager.rollbackToBundled()) {\n'
+              '                    window.decorView.postDelayed({\n'
+              '                        if (!isFinishing && !isDestroyed) rebuildWebViewAfterRendererExit()\n'
+              '                    }, RENDERER_CRASH_RECOVERY_DELAY_MS)\n'
+              '                    return true\n'
+              '                }\n\n'
+              '                if (isFinishing || isDestroyed) return true\n',
+              'renderer OTA rollback'
+          )
+
+          p.write_text(s, encoding='utf-8')
           PY
-          grep -Fq 'webView.loadUrl(LOCAL_APP_URL)' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -Fq 'otaWebManager.intercept(uri)' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -Fq 'otaWebManager.checkForUpdate' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -Fq 'otaWebManager.rollbackToBundled()' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
 
       - uses: actions/setup-java@v5
         with:
@@ -99,10 +139,12 @@ jobs:
           Source commit: $GITHUB_SHA
           Canonical source: fresh-rebuild/
           Android assets staged from fresh-rebuild: PASS
+          Verified web OTA updater wired: PASS
+          Bundled fallback retained: PASS
           Premium feature tree: PASS
           Emergency SOS: PASS
           Gradle build: PASS
-          RESULT: LATEST FULL APK READY FOR PHONE TEST
+          RESULT: OTA-ENABLED APK READY FOR PHONE TEST
           EOF
           sed -i 's/^          //' /tmp/latest-full/BUILD-STATUS.txt
           git config user.name 'NexusNova Latest Build Bot'
