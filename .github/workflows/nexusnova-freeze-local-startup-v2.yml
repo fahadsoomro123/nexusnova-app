@@ -1,0 +1,215 @@
+name: NexusNova Freeze Local Startup v2
+
+on:
+  push:
+    branches: [nexusnova-fresh-rebuild-20260820]
+    paths:
+      - '.github/workflows/nexusnova-freeze-local-startup-v2.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nexusnova-freeze-local-startup-v2
+  cancel-in-progress: true
+
+jobs:
+  patch-build-runtime-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Freeze source to bundled local startup and self-clean
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt')
+          s = p.read_text(encoding='utf-8')
+          old = '        webView.loadUrl(PRODUCTION_APP_URL + suffix)\n'
+          new = '        webView.loadUrl(LOCAL_APP_URL)\n'
+          if s.count(old) != 1:
+              raise SystemExit(f'production startup anchor count={s.count(old)}, expected 1')
+          s = s.replace(old, new, 1)
+          p.write_text(s, encoding='utf-8')
+          PY
+
+          rm .github/workflows/nexusnova-freeze-local-startup-v2.yml
+          git config user.name 'NexusNova Recovery Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt .github/workflows/nexusnova-freeze-local-startup-v2.yml
+          git commit -m 'fix(android): freeze full-feature startup to bundled app'
+          FIX_SHA="$(git rev-parse HEAD)"
+          echo "FIX_SHA=$FIX_SHA" >> "$GITHUB_ENV"
+          git push origin HEAD:nexusnova-fresh-rebuild-20260820
+
+      - name: Verify source and feature contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          MAIN=NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -Fq 'webView.loadUrl(LOCAL_APP_URL)' "$MAIN"
+          ! grep -Fq 'webView.loadUrl(PRODUCTION_APP_URL + suffix)' "$MAIN"
+          grep -Fq 'override fun onRenderProcessGone(' "$MAIN"
+          node --check fresh-rebuild/src/main.js
+          ! grep -Fq "import { appScreen, cleanupAppScreen }" fresh-rebuild/src/main.js
+          grep -Fq "import('./features/apps/app-screen.js')" fresh-rebuild/src/main.js
+          test -s NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NovaVpnActivity.kt
+          test -s NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NovaVpnManager.kt
+          test -s fresh-rebuild/src/features/apps/premium-prayer-times.js
+          test -s fresh-rebuild/src/features/apps/premium-qibla.js
+          test -s fresh-rebuild/src/features/apps/premium-weather.js
+          test -s fresh-rebuild/src/features/apps/premium-drive-tools.js
+          test -s fresh-rebuild/src/features/apps/premium-world-clock.js
+          test -s fresh-rebuild/src/features/apps/premium-quran-reader.js
+          test -s fresh-rebuild/src/features/apps/premium-nova-internet-speed.js
+          grep -Fq 'com.wireguard.android:tunnel' NexusNovaAndroid/app/build.gradle.kts
+          grep -Fq 'NovaVpnActivity' NexusNovaAndroid/app/src/main/AndroidManifest.xml
+          echo 'SOURCE_AND_FEATURE_CONTRACTS_PASS' > FEATURE-INVENTORY.txt
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Prepare bundled web app
+        env:
+          NEXUSNOVA_APP_CHECK_SITE_KEY: ${{ secrets.NEXUSNOVA_APP_CHECK_SITE_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 NexusNovaAndroid/prepare_fresh_rebuild.py
+          test -s NexusNovaAndroid/app/src/main/assets/www/index.html
+          test -s NexusNovaAndroid/app/src/main/assets/www/src/features/apps/premium-prayer-times.js
+          test -s NexusNovaAndroid/app/src/main/assets/www/src/features/apps/premium-qibla.js
+          test -s NexusNovaAndroid/app/src/main/assets/www/src/features/apps/premium-weather.js
+          test -s NexusNovaAndroid/app/src/main/assets/www/src/features/apps/premium-drive-tools.js
+          test -s NexusNovaAndroid/app/src/main/assets/www/src/features/apps/nova-vpn-suite.js
+
+      - name: Build APK
+        working-directory: NexusNovaAndroid
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon --stacktrace clean assembleDebug 2>&1 | tee "$GITHUB_WORKSPACE/build-log.txt"
+          test -s app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Create Android 11 runtime smoke
+        shell: bash
+        run: |
+          cat > smoke.sh <<'BASH'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          APK="$GITHUB_WORKSPACE/NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk"
+          adb install -r "$APK" | tee "$GITHUB_WORKSPACE/adb-install.txt"
+          adb logcat -c
+          adb shell am force-stop com.nexusnova.app || true
+          adb shell am start -W -n com.nexusnova.app/.MainActivity | tee "$GITHUB_WORKSPACE/main-launch.txt"
+          : > "$GITHUB_WORKSPACE/stay-alive.txt"
+          for i in 1 2 3 4 5 6; do
+            sleep 10
+            PID="$(adb shell pidof com.nexusnova.app | tr -d '\r' | xargs)"
+            test -n "$PID"
+            echo "t=$((i*10))s pid=$PID" >> "$GITHUB_WORKSPACE/stay-alive.txt"
+          done
+          adb logcat -d -v threadtime > "$GITHUB_WORKSPACE/main-logcat.txt"
+          if grep -E -q 'FATAL EXCEPTION|AndroidRuntime: Process: com\.nexusnova\.app|ANR in com\.nexusnova\.app|Fatal signal.*com\.nexusnova\.app|WebView renderer gone' "$GITHUB_WORKSPACE/main-logcat.txt"; then exit 1; fi
+          adb shell dumpsys activity activities > "$GITHUB_WORKSPACE/main-state.txt"
+          grep -E -q 'mResumedActivity:.*com\.nexusnova\.app/.MainActivity|topResumedActivity=.*com\.nexusnova\.app/.MainActivity|ResumedActivity:.*com\.nexusnova\.app/.MainActivity' "$GITHUB_WORKSPACE/main-state.txt"
+          adb exec-out screencap -p > "$GITHUB_WORKSPACE/main-screen.png"
+          test -s "$GITHUB_WORKSPACE/main-screen.png"
+
+          adb logcat -c
+          adb shell am start -W -n com.nexusnova.app/.NovaVpnActivity --es nova_vpn_auth_token smoke-token | tee "$GITHUB_WORKSPACE/vpn-launch.txt"
+          sleep 20
+          test -n "$(adb shell pidof com.nexusnova.app | tr -d '\r' | xargs)"
+          adb logcat -d -v threadtime > "$GITHUB_WORKSPACE/vpn-logcat.txt"
+          if grep -E -q 'FATAL EXCEPTION|AndroidRuntime: Process: com\.nexusnova\.app|ANR in com\.nexusnova\.app|Fatal signal.*com\.nexusnova\.app' "$GITHUB_WORKSPACE/vpn-logcat.txt"; then exit 1; fi
+          adb exec-out screencap -p > "$GITHUB_WORKSPACE/vpn-screen.png"
+          test -s "$GITHUB_WORKSPACE/vpn-screen.png"
+          {
+            echo 'LOCAL_BUNDLED_STARTUP_PASS'
+            echo 'MAIN_60S_STAY_ALIVE_PASS'
+            echo 'NOVA_VPN_20S_LAUNCH_PASS'
+            echo 'ANDROID_11_RUNTIME_PASS'
+          } > "$GITHUB_WORKSPACE/LAUNCH-SMOKE.txt"
+          BASH
+          chmod +x smoke.sh
+
+      - name: Android 11 Main + VPN runtime
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          arch: x86_64
+          profile: pixel_4
+          disable-animations: true
+          script: bash "$GITHUB_WORKSPACE/smoke.sh"
+
+      - name: Publish PASS APK and proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p final-recovery-output
+          APK=NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk
+          cp "$APK" final-recovery-output/NexusNova-Full-Recovery-LocalFirst-TEST.apk
+          sha256sum final-recovery-output/NexusNova-Full-Recovery-LocalFirst-TEST.apk > final-recovery-output/SHA256.txt
+          cp FEATURE-INVENTORY.txt LAUNCH-SMOKE.txt build-log.txt adb-install.txt main-launch.txt stay-alive.txt main-logcat.txt main-state.txt main-screen.png vpn-launch.txt vpn-logcat.txt vpn-screen.png final-recovery-output/
+          {
+            echo 'NexusNova Full Recovery Local-First TEST APK'
+            echo "Source commit: $FIX_SHA"
+            echo 'Recovered full feature base: 7a70213dbd4d5027316ba8945f44658f07647f42'
+            echo 'Remote GitHub Pages startup: DISABLED'
+            echo 'Bundled local startup: PRIMARY'
+            echo 'Heavy startup app suite: DEFERRED'
+            echo 'WebView renderer recovery: ENABLED'
+            echo 'Feature inventory: PASS'
+            echo 'Gradle build: PASS'
+            echo 'Android 11 MainActivity 60s: PASS'
+            echo 'Android 11 Nova VPN 20s: PASS'
+            echo 'Physical signed-in phone verification: REQUIRED'
+            echo 'RESULT: PHONE TEST READY'
+          } > final-recovery-output/BUILD-STATUS.txt
+
+          git config user.name 'NexusNova Recovery Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git fetch origin apk-builds
+          rm -rf /tmp/nx-final-recovery
+          git worktree add /tmp/nx-final-recovery origin/apk-builds
+          cd /tmp/nx-final-recovery
+          rm -rf final-full-recovery final-full-recovery-failure
+          mkdir -p final-full-recovery
+          cp -a "$GITHUB_WORKSPACE/final-recovery-output/." final-full-recovery/
+          git add -A final-full-recovery final-full-recovery-failure
+          git commit -m "Publish final full recovery PASS $FIX_SHA"
+          git push origin HEAD:apk-builds
+
+      - name: Publish failure diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          set -u
+          mkdir -p fail
+          echo "Source: ${FIX_SHA:-$GITHUB_SHA}" > fail/FAILURE.txt
+          for f in FEATURE-INVENTORY.txt build-log.txt adb-install.txt main-launch.txt stay-alive.txt main-logcat.txt main-state.txt vpn-launch.txt vpn-logcat.txt; do [ -f "$f" ] && cp "$f" fail/ || true; done
+          git config user.name 'NexusNova Recovery Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git fetch origin apk-builds || exit 0
+          rm -rf /tmp/nx-final-recovery-fail
+          git worktree add /tmp/nx-final-recovery-fail origin/apk-builds || exit 0
+          cd /tmp/nx-final-recovery-fail
+          rm -rf final-full-recovery-failure
+          mkdir -p final-full-recovery-failure
+          cp -a "$GITHUB_WORKSPACE/fail/." final-full-recovery-failure/
+          git add -A final-full-recovery-failure
+          git commit -m "Publish final full recovery FAIL ${FIX_SHA:-$GITHUB_SHA}" || exit 0
+          git push origin HEAD:apk-builds || true
