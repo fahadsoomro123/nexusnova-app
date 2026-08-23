@@ -1,7 +1,0 @@
-NexusNova Fresh Rebuild TEST APK validation
-Branch: nexusnova-fresh-rebuild-20260820
-Date: 2026-08-23
-Purpose: exact-source Android 11 validation of phone startup stability fix.
-Source fix: e324ff2a51676c788e5c22daae0b2e94c314f34f
-Validation: build + install + MainActivity resumed + crash/ANR scan + NovaVpnActivity resumed + screenshots + SHA256.
-Trigger: phone-stability-exact-20260823-0501-PKT
