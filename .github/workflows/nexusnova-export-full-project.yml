@@ -22,35 +22,37 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ZIP=NexusNova-LATEST-FULL-PROJECT-for-Grok.zip
+          ZIP=NexusNova-CURRENT-CLEAN-PROJECT.zip
           git archive --format=zip --output="$ZIP" HEAD
-          cat > NEXUSNOVA-GROK-HANDOFF.txt <<EOF
-          NEXUSNOVA FULL PROJECT HANDOFF
+          cat > NEXUSNOVA-DISASTER-HANDOFF.txt <<EOF
+          NEXUSNOVA CURRENT CLEAN PROJECT HANDOFF
           Repository: fahadsoomro123/nexusnova-app
           Branch: nexusnova-latest-full-apk-recovery-20260823
           Source commit: $GITHUB_SHA
           Canonical modern app: fresh-rebuild/
           Android project: NexusNovaAndroid/
+          Phone-PASS Golden baseline: e6176f721216e3e0c3130c8811a4123bcafce8cc
 
-          IMPORTANT CURRENT BUG:
-          On the user's physical Android phone the latest full APK launches, renders the Mine screen, then exits/closes shortly afterward. Do not redesign the app. Diagnose the exact post-render Android/WebView/runtime crash and make the minimum targeted fix.
+          CURRENT STATE:
+          The Mine/WebView startup crash was fixed and physically confirmed on the user's phone.
+          Subsequent work on this branch includes bounded WebView renderer recovery and repository cleanup.
 
-          IMPORTANT SOURCE RULE:
-          The latest UI/features are in fresh-rebuild/. Do not package the legacy root page2 shell as the modern app.
-
-          Preserve all current premium features and visual work unless a change is strictly required for the crash fix.
+          SOURCE RULE:
+          fresh-rebuild/ is the canonical modern app source for APK packaging.
+          Do not replace it with the legacy root page2 shell.
+          Do not modify Golden backup branches during normal bug-fix work.
           EOF
-          zip -q "$ZIP" NEXUSNOVA-GROK-HANDOFF.txt
-          sha256sum "$ZIP" > NexusNova-LATEST-FULL-PROJECT-for-Grok.sha256
-          printf 'source_commit=%s\nbranch=%s\narchive=git-archive-HEAD-plus-handoff\n' "$GITHUB_SHA" "$GITHUB_REF_NAME" > PROJECT-EXPORT-STATUS.txt
+          zip -q "$ZIP" NEXUSNOVA-DISASTER-HANDOFF.txt
+          sha256sum "$ZIP" > NexusNova-CURRENT-CLEAN-PROJECT.sha256
+          printf 'source_commit=%s\nbranch=%s\narchive=git-archive-HEAD-plus-disaster-handoff\n' "$GITHUB_SHA" "$GITHUB_REF_NAME" > PROJECT-EXPORT-STATUS.txt
 
       - name: Upload project artifact
         uses: actions/upload-artifact@v4
         with:
-          name: NexusNova-LATEST-FULL-PROJECT-for-Grok
+          name: NexusNova-CURRENT-CLEAN-PROJECT
           path: |
-            NexusNova-LATEST-FULL-PROJECT-for-Grok.zip
-            NexusNova-LATEST-FULL-PROJECT-for-Grok.sha256
+            NexusNova-CURRENT-CLEAN-PROJECT.zip
+            NexusNova-CURRENT-CLEAN-PROJECT.sha256
             PROJECT-EXPORT-STATUS.txt
           retention-days: 14
 
@@ -64,12 +66,12 @@ jobs:
           rm -rf /tmp/nx-export
           git worktree add /tmp/nx-export origin/apk-builds
           cd /tmp/nx-export
-          rm -rf grok-project-export
-          mkdir -p grok-project-export
-          cp "$GITHUB_WORKSPACE/NexusNova-LATEST-FULL-PROJECT-for-Grok.zip" grok-project-export/
-          cp "$GITHUB_WORKSPACE/NexusNova-LATEST-FULL-PROJECT-for-Grok.sha256" grok-project-export/
-          cp "$GITHUB_WORKSPACE/PROJECT-EXPORT-STATUS.txt" grok-project-export/
-          git add -A grok-project-export
-          git commit -m "Publish full NexusNova project export $GITHUB_SHA"
+          rm -rf clean-project-export
+          mkdir -p clean-project-export
+          cp "$GITHUB_WORKSPACE/NexusNova-CURRENT-CLEAN-PROJECT.zip" clean-project-export/
+          cp "$GITHUB_WORKSPACE/NexusNova-CURRENT-CLEAN-PROJECT.sha256" clean-project-export/
+          cp "$GITHUB_WORKSPACE/PROJECT-EXPORT-STATUS.txt" clean-project-export/
+          git add -A clean-project-export
+          git commit -m "Publish current clean NexusNova project export $GITHUB_SHA"
           git pull --rebase origin apk-builds
           git push origin HEAD:apk-builds
