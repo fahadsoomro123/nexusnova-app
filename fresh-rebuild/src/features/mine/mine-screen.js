@@ -3,7 +3,6 @@ import { backend } from '../../core/backend-adapter.js';
 
 const DAY_SECONDS = 86_400;
 const DAY_MS = DAY_SECONDS * 1000;
-const DIAGNOSTIC_DISABLE_MINING_CLOCK = true;
 let cleanupCurrent = null;
 
 function formatClock(seconds) {
@@ -193,11 +192,7 @@ export async function mineScreen({ openHubApp, beforeMiningRenewal } = {}) {
   };
 
   render(state);
-  if (DIAGNOSTIC_DISABLE_MINING_CLOCK) {
-    console.warn('[NexusNova Diagnostic] one-second mining clock disabled for crash isolation');
-  } else {
-    clockTimer = setInterval(tick, 1000);
-  }
+  clockTimer = setInterval(tick, 1000);
   const off = backend.subscribeMining(render);
 
   const performMiningAction = async () => {
