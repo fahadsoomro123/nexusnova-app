@@ -1,0 +1,148 @@
+name: NexusNova Deadline Golden Local Core
+
+on:
+  push:
+    branches: [nexusnova-deadline-recovery-20260823]
+    paths: ['.github/workflows/nexusnova-deadline-local-core.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-test-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Freeze Golden startup to bundled local app for this test build
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt')
+          s=p.read_text()
+          old='        loadProductionApp()\n        showCallerSetupOnce()'
+          new='        usingOfflineFallback = true\n        webView.loadUrl(LOCAL_APP_URL)\n        showCallerSetupOnce()'
+          if old not in s: raise SystemExit('startup anchor missing')
+          p.write_text(s.replace(old,new,1))
+          PY
+          grep -Fq 'webView.loadUrl(LOCAL_APP_URL)' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          test -s NexusNovaAndroid/app/src/main/assets/www/index.html
+          test -s NexusNovaAndroid/app/src/main/assets/www/page2.html
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Build Golden local-core APK
+        working-directory: NexusNovaAndroid
+        run: gradle --no-daemon clean assembleDebug 2>&1 | tee "$GITHUB_WORKSPACE/build.log"
+
+      - name: Create Android 11 runtime smoke
+        shell: bash
+        run: |
+          cat > "$GITHUB_WORKSPACE/smoke.sh" <<'BASH'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          APK="$GITHUB_WORKSPACE/NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk"
+          adb wait-for-device
+          for i in $(seq 1 60); do
+            [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ] && break
+            sleep 2
+          done
+          adb uninstall com.nexusnova.app >/dev/null 2>&1 || true
+          adb install --no-streaming -r "$APK" | tee "$GITHUB_WORKSPACE/install.txt"
+          grep -q Success "$GITHUB_WORKSPACE/install.txt"
+          adb logcat -c
+          adb shell am start -W -n com.nexusnova.app/.MainActivity | tee "$GITHUB_WORKSPACE/launch.txt"
+          : > "$GITHUB_WORKSPACE/stay-alive.txt"
+          for i in 1 2 3 4 5 6; do
+            sleep 10
+            PID="$(adb shell pidof com.nexusnova.app | tr -d '\r' | xargs)"
+            test -n "$PID"
+            echo "sample=$i pid=$PID" >> "$GITHUB_WORKSPACE/stay-alive.txt"
+          done
+          adb logcat -d -v threadtime > "$GITHUB_WORKSPACE/logcat.txt"
+          if grep -E -q 'FATAL EXCEPTION|AndroidRuntime: Process: com\.nexusnova\.app|ANR in com\.nexusnova\.app|Fatal signal.*com\.nexusnova\.app|WebView renderer gone' "$GITHUB_WORKSPACE/logcat.txt"; then
+            exit 1
+          fi
+          echo 'ANDROID_11_60S_LOCAL_CORE_PASS' > "$GITHUB_WORKSPACE/LAUNCH-SMOKE.txt"
+          BASH
+          chmod +x "$GITHUB_WORKSPACE/smoke.sh"
+
+      - name: Android 11 runtime proof
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          arch: x86_64
+          profile: pixel_4
+          disable-animations: true
+          script: bash "$GITHUB_WORKSPACE/smoke.sh"
+
+      - name: Package output
+        shell: bash
+        run: |
+          mkdir -p deadline-output
+          cp NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk deadline-output/NexusNova-Golden-Local-Core-TEST.apk
+          sha256sum deadline-output/NexusNova-Golden-Local-Core-TEST.apk > deadline-output/SHA256.txt
+          cp build.log install.txt launch.txt stay-alive.txt logcat.txt LAUNCH-SMOKE.txt deadline-output/
+          {
+            echo 'NexusNova Deadline Golden Local Core TEST'
+            echo "Source branch commit: $GITHUB_SHA"
+            echo 'Base: Golden disaster recovery 484a50ee95259daac98beb8b1caf2e2bae9526fe'
+            echo 'Startup: bundled local app (test-build patch only)'
+            echo 'Gradle: PASS'
+            echo 'Android 11 install: PASS'
+            echo 'Android 11 60s stay-alive: PASS'
+            echo 'RESULT: PHONE SIGN-IN TEST READY'
+          } > deadline-output/BUILD-STATUS.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nexusnova-golden-local-core-test
+          path: deadline-output/
+          retention-days: 7
+
+      - name: Publish proof/APK
+        shell: bash
+        run: |
+          git config user.name 'NexusNova Deadline Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git fetch origin apk-builds
+          rm -rf /tmp/nx-deadline
+          git worktree add /tmp/nx-deadline origin/apk-builds
+          cd /tmp/nx-deadline
+          rm -rf deadline-golden-local-core deadline-golden-local-core-failure
+          mkdir -p deadline-golden-local-core
+          cp -a "$GITHUB_WORKSPACE/deadline-output/." deadline-golden-local-core/
+          git add -A deadline-golden-local-core deadline-golden-local-core-failure
+          git commit -m "Publish deadline Golden local-core PASS $GITHUB_SHA"
+          git push origin HEAD:apk-builds
+
+      - name: Publish failure diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          mkdir -p /tmp/deadline-fail
+          echo "Source: $GITHUB_SHA" > /tmp/deadline-fail/FAILURE.txt
+          for f in build.log install.txt launch.txt stay-alive.txt logcat.txt; do [ -f "$f" ] && cp "$f" /tmp/deadline-fail/ || true; done
+          git config user.name 'NexusNova Deadline Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git fetch origin apk-builds || exit 0
+          rm -rf /tmp/nx-deadline-fail
+          git worktree add /tmp/nx-deadline-fail origin/apk-builds || exit 0
+          cd /tmp/nx-deadline-fail
+          rm -rf deadline-golden-local-core-failure
+          mkdir -p deadline-golden-local-core-failure
+          cp -a /tmp/deadline-fail/. deadline-golden-local-core-failure/
+          git add -A deadline-golden-local-core-failure
+          git commit -m "Publish deadline Golden local-core FAIL $GITHUB_SHA" || exit 0
+          git push origin HEAD:apk-builds || true
