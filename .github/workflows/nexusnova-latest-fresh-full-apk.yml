@@ -5,7 +5,6 @@ on:
     branches: [nexusnova-latest-full-apk-recovery-20260823]
     paths:
       - '.github/workflows/nexusnova-latest-fresh-full-apk.yml'
-      - 'fresh-rebuild/**'
       - 'NexusNovaAndroid/**'
   workflow_dispatch:
 
