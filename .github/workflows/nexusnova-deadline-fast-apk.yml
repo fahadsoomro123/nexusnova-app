@@ -1,0 +1,67 @@
+name: NexusNova Deadline Fast APK
+
+on:
+  push:
+    branches: [nexusnova-deadline-recovery-20260823]
+    paths: ['.github/workflows/nexusnova-deadline-fast-apk.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Freeze Golden startup to bundled local app
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt')
+          s=p.read_text()
+          old='        loadProductionApp()\n        showCallerSetupOnce()'
+          new='        usingOfflineFallback = true\n        webView.loadUrl(LOCAL_APP_URL)\n        showCallerSetupOnce()'
+          if old not in s:
+              raise SystemExit('startup anchor missing')
+          p.write_text(s.replace(old,new,1))
+          PY
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Build APK
+        working-directory: NexusNovaAndroid
+        run: gradle --no-daemon clean assembleDebug
+
+      - name: Publish APK immediately
+        shell: bash
+        run: |
+          APK="$GITHUB_WORKSPACE/NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          mkdir -p /tmp/deadline-fast
+          cp "$APK" /tmp/deadline-fast/NexusNova-Golden-Local-Core-PHONE-TEST.apk
+          sha256sum /tmp/deadline-fast/NexusNova-Golden-Local-Core-PHONE-TEST.apk > /tmp/deadline-fast/SHA256.txt
+          printf 'Source: %s\nBase: Golden 484a50ee95259daac98beb8b1caf2e2bae9526fe\nStartup: bundled local app\nGradle: PASS\nPurpose: immediate clean-install phone sign-in test\n' "$GITHUB_SHA" > /tmp/deadline-fast/BUILD-STATUS.txt
+          git config user.name 'NexusNova Deadline Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git fetch origin apk-builds
+          rm -rf /tmp/nx-fast
+          git worktree add /tmp/nx-fast origin/apk-builds
+          cd /tmp/nx-fast
+          rm -rf deadline-fast-phone-test
+          mkdir -p deadline-fast-phone-test
+          cp -a /tmp/deadline-fast/. deadline-fast-phone-test/
+          git add -A deadline-fast-phone-test
+          git commit -m "Publish deadline fast phone-test APK $GITHUB_SHA"
+          git push origin HEAD:apk-builds
