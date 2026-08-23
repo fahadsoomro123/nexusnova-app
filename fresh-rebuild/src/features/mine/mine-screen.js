@@ -64,7 +64,7 @@ export async function mineScreen({ openHubApp, beforeMiningRenewal } = {}) {
           <span>NVX MINING</span>
           <strong><i data-rate-dot></i><b data-miner-state>SECURE READY</b></strong>
         </div>
-        <span class="nx-nebula-miner__sync">SERVER SYNCED</span>
+        <span class="nx-nebula-miner__sync" data-mining-sync>CONNECTING</span>
       </div>
 
       <div class="nx-nebula-miner__layout">
@@ -132,6 +132,7 @@ export async function mineScreen({ openHubApp, beforeMiningRenewal } = {}) {
     stage: root.querySelector('[data-stage]'),
     vaults: root.querySelector('[data-vaults]'),
     status: root.querySelector('[data-mining-status]'),
+    sync: root.querySelector('[data-mining-sync]'),
     button: root.querySelector('[data-mine-action]'),
     dot: root.querySelector('[data-mining-dot]'),
     rateDot: root.querySelector('[data-rate-dot]'),
@@ -172,12 +173,20 @@ export async function mineScreen({ openHubApp, beforeMiningRenewal } = {}) {
     refs.minerState.textContent = state.active ? 'LIVE' : 'READY';
     refs.status.textContent = state.statusText || 'Mining status unavailable';
 
+    const syncState = state.availability === 'ready'
+      ? 'SERVER SYNCED'
+      : state.availability === 'error'
+        ? 'SYNC ERROR'
+        : 'CONNECTING';
+    refs.sync.textContent = syncState;
+    refs.sync.dataset.state = state.availability || 'unbound';
+
     const remaining = remainingFromState(state);
     paintLiveProgress();
 
-    refs.button.disabled = busy || state.availability === 'unbound' || state.availability === 'error' || (state.active && remaining > 0);
-    if (busy) refs.button.textContent = 'WORKING…';
-    else if (state.availability === 'error') refs.button.textContent = 'SECURE MINING UNAVAILABLE';
+    refs.button.disabled = busy || state.availability === 'unbound' || (state.active && remaining > 0);
+    if (busy) refs.button.textContent = state.availability === 'error' ? 'RETRYING SYNC…' : 'WORKING…';
+    else if (state.availability === 'error') refs.button.textContent = 'RETRY SYNC';
     else if (state.active && remaining <= 0) refs.button.textContent = 'CLAIM & RENEW';
     else if (state.active) refs.button.textContent = 'MINING ACTIVE';
     else refs.button.textContent = 'START 24H MINING';
@@ -195,6 +204,20 @@ export async function mineScreen({ openHubApp, beforeMiningRenewal } = {}) {
   clockTimer = setInterval(tick, 1000);
   const off = backend.subscribeMining(render);
 
+  const retryMiningSync = async () => {
+    if (busy) return;
+    busy = true;
+    refs.status.textContent = 'Retrying secure mining sync…';
+    render(state);
+    try {
+      state = await backend.getMiningSnapshot();
+      render(state);
+    } finally {
+      busy = false;
+      render(state);
+    }
+  };
+
   const performMiningAction = async () => {
     try {
       state = await backend.toggleMining();
@@ -211,6 +234,11 @@ export async function mineScreen({ openHubApp, beforeMiningRenewal } = {}) {
 
   refs.button.addEventListener('click', () => {
     if (busy) return;
+    if (state.availability === 'error') {
+      void retryMiningSync();
+      return;
+    }
+
     const renewingCompletedSession = state.active && remainingFromState(state) <= 0;
     busy = true;
     render(state);
