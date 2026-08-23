@@ -1,2 +1,0 @@
-NexusNova mobile startup/auth centering fix v24.
-Production index now enforces full-width viewport, centered auth shell, fixed splash viewport, disabled mobile page scrolling, and scaled reCAPTCHA for narrow screens.
