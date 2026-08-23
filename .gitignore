@@ -1,0 +1,28 @@
+# Environment / local secrets
+.env
+.env.*
+!.env.example
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Android / Gradle
+.gradle/
+**/.gradle/
+**/build/
+*.apk
+*.aab
+
+# Generated logs / exports
+*.log
+fresh-build-output/
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+*.swp
+*.tmp
