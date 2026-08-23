@@ -1,0 +1,75 @@
+name: NexusNova Export Full Project
+
+on:
+  push:
+    branches: [nexusnova-latest-full-apk-recovery-20260823]
+    paths: ['.github/workflows/nexusnova-export-full-project.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create exact tracked project archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          ZIP=NexusNova-LATEST-FULL-PROJECT-for-Grok.zip
+          git archive --format=zip --output="$ZIP" HEAD
+          cat > NEXUSNOVA-GROK-HANDOFF.txt <<EOF
+          NEXUSNOVA FULL PROJECT HANDOFF
+          Repository: fahadsoomro123/nexusnova-app
+          Branch: nexusnova-latest-full-apk-recovery-20260823
+          Source commit: $GITHUB_SHA
+          Canonical modern app: fresh-rebuild/
+          Android project: NexusNovaAndroid/
+
+          IMPORTANT CURRENT BUG:
+          On the user's physical Android phone the latest full APK launches, renders the Mine screen, then exits/closes shortly afterward. Do not redesign the app. Diagnose the exact post-render Android/WebView/runtime crash and make the minimum targeted fix.
+
+          IMPORTANT SOURCE RULE:
+          The latest UI/features are in fresh-rebuild/. Do not package the legacy root page2 shell as the modern app.
+
+          Preserve all current premium features and visual work unless a change is strictly required for the crash fix.
+          EOF
+          zip -q "$ZIP" NEXUSNOVA-GROK-HANDOFF.txt
+          sha256sum "$ZIP" > NexusNova-LATEST-FULL-PROJECT-for-Grok.sha256
+          printf 'source_commit=%s\nbranch=%s\narchive=git-archive-HEAD-plus-handoff\n' "$GITHUB_SHA" "$GITHUB_REF_NAME" > PROJECT-EXPORT-STATUS.txt
+
+      - name: Upload project artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NexusNova-LATEST-FULL-PROJECT-for-Grok
+          path: |
+            NexusNova-LATEST-FULL-PROJECT-for-Grok.zip
+            NexusNova-LATEST-FULL-PROJECT-for-Grok.sha256
+            PROJECT-EXPORT-STATUS.txt
+          retention-days: 14
+
+      - name: Publish project ZIP to apk-builds
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'NexusNova Export Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git fetch origin apk-builds
+          rm -rf /tmp/nx-export
+          git worktree add /tmp/nx-export origin/apk-builds
+          cd /tmp/nx-export
+          rm -rf grok-project-export
+          mkdir -p grok-project-export
+          cp "$GITHUB_WORKSPACE/NexusNova-LATEST-FULL-PROJECT-for-Grok.zip" grok-project-export/
+          cp "$GITHUB_WORKSPACE/NexusNova-LATEST-FULL-PROJECT-for-Grok.sha256" grok-project-export/
+          cp "$GITHUB_WORKSPACE/PROJECT-EXPORT-STATUS.txt" grok-project-export/
+          git add -A grok-project-export
+          git commit -m "Publish full NexusNova project export $GITHUB_SHA"
+          git pull --rebase origin apk-builds
+          git push origin HEAD:apk-builds
