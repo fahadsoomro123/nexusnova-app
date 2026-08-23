@@ -1,1 +1,0 @@
-NexusNova selected reference assets for Nova Drive, Qibla and Prayer Times. Weather now uses the approved live code-driven real-scene implementation in premium-weather.js and premium-weather-real.css. These reference assets are user-approved visual specifications and must not be replaced without explicit approval.
