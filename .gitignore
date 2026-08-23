@@ -17,6 +17,9 @@ pnpm-debug.log*
 *.apk
 *.aab
 
+# Generated Android web assets (canonical source is fresh-rebuild/)
+NexusNovaAndroid/app/src/main/assets/www/
+
 # Generated logs / exports
 *.log
 fresh-build-output/

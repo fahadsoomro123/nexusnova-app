@@ -3,8 +3,6 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
-// Build refresh: secure-session sync watchdog validation (2026-08-15).
-// Build refresh: Android blank-screen self-recovery validation (v74).
 android {
     namespace = "com.nexusnova.app"
     compileSdk = 35
@@ -45,6 +43,23 @@ android {
 
 kotlin {
     jvmToolchain(17)
+}
+
+// Canonical web source lives once at repository-root/fresh-rebuild/.
+// Every local or CI Android build regenerates assets/www from that source.
+val freshWebSource = rootProject.projectDir.parentFile.resolve("fresh-rebuild")
+val syncFreshWebAssets = tasks.register<Sync>("syncFreshWebAssets") {
+    from(freshWebSource)
+    into(layout.projectDirectory.dir("src/main/assets/www"))
+    doFirst {
+        if (!freshWebSource.resolve("index.html").isFile) {
+            throw GradleException("Canonical fresh-rebuild/index.html is missing")
+        }
+    }
+}
+
+tasks.configureEach {
+    if (name == "preBuild") dependsOn(syncFreshWebAssets)
 }
 
 dependencies {
