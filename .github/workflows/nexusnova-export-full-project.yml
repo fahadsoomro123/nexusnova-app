@@ -1,5 +1,5 @@
 name: NexusNova Export Full Project
-# Export marker: post-cleanup canonical snapshot; archive records exact GITHUB_SHA.
+# Export marker: post-legacy-retirement canonical snapshot; archive records exact GITHUB_SHA.
 
 on:
   push:
@@ -40,7 +40,7 @@ jobs:
 
           SOURCE RULE:
           fresh-rebuild/ is the canonical modern app source for APK packaging.
-          Do not replace it with the legacy root page2 shell.
+          The legacy root page2/js/css shell has been retired; root now redirects to fresh-rebuild/.
           Do not modify Golden backup branches during normal bug-fix work.
           EOF
           zip -q "$ZIP" NEXUSNOVA-DISASTER-HANDOFF.txt
