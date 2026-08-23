@@ -355,7 +355,7 @@ class MainActivity : AppCompatActivity() {
         usingOfflineFallback = false
         if (forceFresh) webView.clearCache(true)
         val suffix = if (forceFresh) "?androidRecovery=${System.currentTimeMillis()}" else ""
-        webView.loadUrl(PRODUCTION_APP_URL + suffix)
+        webView.loadUrl(LOCAL_APP_URL)
     }
 
     private fun armMainFrameWatchdog(view: WebView) {
