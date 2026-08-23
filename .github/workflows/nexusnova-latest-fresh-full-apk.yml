@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/nexusnova-latest-fresh-full-apk.yml'
       - 'fresh-rebuild/**'
+      - 'NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt'
   workflow_dispatch:
 
 permissions:
