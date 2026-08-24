@@ -2,6 +2,7 @@ version: 2
 updates:
   - package-ecosystem: "github-actions"
     directory: "/"
+    target-branch: "nexusnova-latest-full-apk-recovery-20260823"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -11,6 +12,7 @@ updates:
 
   - package-ecosystem: "gradle"
     directory: "/NexusNovaAndroid"
+    target-branch: "nexusnova-latest-full-apk-recovery-20260823"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -20,6 +22,7 @@ updates:
 
   - package-ecosystem: "npm"
     directory: "/functions"
+    target-branch: "nexusnova-latest-full-apk-recovery-20260823"
     schedule:
       interval: "weekly"
       day: "monday"
