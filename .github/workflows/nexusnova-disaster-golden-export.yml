@@ -1,0 +1,104 @@
+name: NexusNova Disaster Golden Master Export
+
+on:
+  push:
+    branches: [nexusnova-disaster-golden-master-20260824]
+    paths:
+      - '.github/workflows/nexusnova-disaster-golden-export.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  RECOVERY_SOURCE_COMMIT: d8be5cc12b015a4c13e39ccea0d1a81b9e79ced3
+  RECOVERY_SOURCE_TREE: 6549cf1754652aacca3e4f6ae95acba05f265678
+  RECOVERY_BRANCH: nexusnova-disaster-golden-master-20260824
+
+jobs:
+  export-disaster-golden:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify immutable recovery anchor
+        shell: bash
+        run: |
+          set -euo pipefail
+          git cat-file -e "$RECOVERY_SOURCE_COMMIT^{commit}"
+          actual_tree="$(git rev-parse "$RECOVERY_SOURCE_COMMIT^{tree}")"
+          test "$actual_tree" = "$RECOVERY_SOURCE_TREE"
+          test -s RECOVERY/DISASTER-GOLDEN-MASTER-20260824.md
+          test -s RECOVERY/DISASTER-GOLDEN-MASTER-20260824.json
+          test -s RECOVERY/DO-NOT-MOVE-THIS-BRANCH.txt
+
+      - name: Build exact disaster recovery archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="$GITHUB_WORKSPACE/disaster-golden-output"
+          rm -rf "$OUT"
+          mkdir -p "$OUT"
+
+          ZIP="$OUT/NexusNova-DISASTER-GOLDEN-MASTER-20260824.zip"
+          git archive --format=zip --output="$ZIP" "$RECOVERY_SOURCE_COMMIT"
+
+          mkdir -p /tmp/nexusnova-recovery-docs/RECOVERY
+          cp RECOVERY/DISASTER-GOLDEN-MASTER-20260824.md /tmp/nexusnova-recovery-docs/RECOVERY/
+          cp RECOVERY/DISASTER-GOLDEN-MASTER-20260824.json /tmp/nexusnova-recovery-docs/RECOVERY/
+          cp RECOVERY/DO-NOT-MOVE-THIS-BRANCH.txt /tmp/nexusnova-recovery-docs/RECOVERY/
+          cat > /tmp/nexusnova-recovery-docs/RECOVERY/RECOVERY-SOURCE-ANCHOR.txt <<EOF
+          NEXUSNOVA DISASTER GOLDEN MASTER
+          Recovery branch: $RECOVERY_BRANCH
+          Exact source commit: $RECOVERY_SOURCE_COMMIT
+          Exact source tree: $RECOVERY_SOURCE_TREE
+          Archive built from exact source commit plus recovery documentation only.
+          Secrets/keystores are intentionally not included.
+          EOF
+          sed -i 's/^          //' /tmp/nexusnova-recovery-docs/RECOVERY/RECOVERY-SOURCE-ANCHOR.txt
+          (cd /tmp/nexusnova-recovery-docs && zip -q -r "$ZIP" RECOVERY)
+
+          sha256sum "$ZIP" > "$OUT/NexusNova-DISASTER-GOLDEN-MASTER-20260824.sha256"
+          cat > "$OUT/RECOVERY-EXPORT-STATUS.txt" <<EOF
+          NexusNova Disaster Golden Master Export
+          Recovery branch: $RECOVERY_BRANCH
+          Source commit: $RECOVERY_SOURCE_COMMIT
+          Source tree: $RECOVERY_SOURCE_TREE
+          Export workflow commit: $GITHUB_SHA
+          Runtime source modified: NO
+          Secrets included: NO
+          Integrity file: NexusNova-DISASTER-GOLDEN-MASTER-20260824.sha256
+          EOF
+          sed -i 's/^          //' "$OUT/RECOVERY-EXPORT-STATUS.txt"
+
+          test -s "$ZIP"
+          unzip -t "$ZIP" >/dev/null
+          sha256sum -c "$OUT/NexusNova-DISASTER-GOLDEN-MASTER-20260824.sha256"
+
+      - name: Upload disaster recovery artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NexusNova-DISASTER-GOLDEN-MASTER-20260824
+          path: disaster-golden-output/
+          retention-days: 90
+
+      - name: Publish persistent recovery copy to apk-builds
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'NexusNova Disaster Recovery Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git fetch origin apk-builds
+          rm -rf /tmp/nexusnova-disaster-publish
+          git worktree add /tmp/nexusnova-disaster-publish origin/apk-builds
+          cd /tmp/nexusnova-disaster-publish
+          rm -rf disaster-golden-master-20260824
+          mkdir -p disaster-golden-master-20260824
+          cp -a "$GITHUB_WORKSPACE/disaster-golden-output/." disaster-golden-master-20260824/
+          git add -A disaster-golden-master-20260824
+          git commit -m "Publish NexusNova disaster golden master 20260824 $RECOVERY_SOURCE_COMMIT"
+          git pull --rebase origin apk-builds
+          git push origin HEAD:apk-builds
