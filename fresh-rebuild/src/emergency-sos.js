@@ -3,6 +3,15 @@ const SOS_STYLE_ID = 'nx-emergency-sos-style-v1';
 const SOS_BUTTON_ID = 'nxEmergencySosButton';
 const SOS_MODAL_ID = 'nxEmergencySosModal';
 
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 function normalizePhone(raw) {
   let phone = String(raw || '').trim().replace(/[^\d+]/g, '');
   if (phone.startsWith('00')) phone = `+${phone.slice(2)}`;
@@ -10,12 +19,21 @@ function normalizePhone(raw) {
   return /^\+?\d{7,15}$/.test(phone) ? phone : '';
 }
 
-function familyContacts() {
+async function familyContacts() {
   const rows = [];
   const seen = new Set();
-  for (let i = 0; i < localStorage.length; i += 1) {
-    const key = localStorage.key(i) || '';
-    if (!key.startsWith('nexusnova_family_members_v1:') && !key.startsWith('nexus_fresh_family_v1_')) continue;
+  let uid = '';
+  try {
+    const { firebaseAuth } = await import('./core/firebase-backend.js');
+    uid = String(firebaseAuth?.currentUser?.uid || '').trim();
+  } catch {}
+  if (!uid) return rows;
+
+  const allowedKeys = new Set([
+    `nexusnova_family_members_v1:${uid}`,
+    `nexus_fresh_family_v1_${uid}`
+  ]);
+  for (const key of allowedKeys) {
     try {
       const parsed = JSON.parse(localStorage.getItem(key) || '[]');
       if (!Array.isArray(parsed)) continue;
@@ -113,7 +131,7 @@ async function copyFallback(text) {
 }
 
 async function sendTo(contact, button) {
-  if (!contact?.phone) return;
+  if (!contact?.phone || button.dataset.busy === '1') return;
   button.dataset.busy = '1';
   const original = button.textContent;
   button.textContent = 'GPS';
@@ -153,12 +171,15 @@ function setupModal(button) {
   const phone = modal.querySelector('[data-sos-phone]');
   const name = modal.querySelector('[data-sos-name]');
   const status = modal.querySelector('[data-sos-status]');
-  const refresh = () => {
-    const contacts = familyContacts();
-    select.innerHTML = '<option value="">Choose saved contact</option>' + contacts.map((item, i) => `<option value="${i}">${item.name}${item.relation ? ` — ${item.relation}` : ''} • ${item.phone}</option>`).join('');
+  let refreshRevision = 0;
+  const refresh = async () => {
+    const revision = ++refreshRevision;
+    select.innerHTML = '<option value="">Loading current account contacts…</option>';
+    const contacts = await familyContacts();
+    if (revision !== refreshRevision) return;
+    select.innerHTML = '<option value="">Choose saved contact</option>' + contacts.map((item, i) => `<option value="${i}">${escapeHtml(item.name)}${item.relation ? ` — ${escapeHtml(item.relation)}` : ''} • ${escapeHtml(item.phone)}</option>`).join('');
     select._contacts = contacts;
   };
-  refresh();
 
   select.addEventListener('change', () => {
     const item = select._contacts?.[Number(select.value)];
@@ -194,10 +215,11 @@ function bootEmergencySos() {
   const modal = setupModal(button);
 
   button.addEventListener('click', async () => {
+    if (button.dataset.busy === '1') return;
     const contact = storedContact();
     if (!contact) {
-      modal._refreshContacts?.();
       modal.hidden = false;
+      modal._refreshContacts?.();
       return;
     }
     await sendTo(contact, button);
