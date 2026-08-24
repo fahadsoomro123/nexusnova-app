@@ -1,5 +1,6 @@
 /* NexusNova Fresh Service Worker — fresh shell + FCM web push */
-const CACHE='nexusnova-fresh-shell-v1';
+const CACHE_PREFIX='nexusnova-fresh-shell-';
+const CACHE=`${CACHE_PREFIX}v2`;
 const ASSETS=[
   './','./index.html',
   './assets/styles/tokens.css','./assets/styles/app.css','./assets/styles/features.css','./assets/styles/core-apps.css','./assets/styles/discover-apps.css',
@@ -62,7 +63,9 @@ self.addEventListener('install',event=>{
 });
 
 self.addEventListener('activate',event=>{
-  event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim()));
+  event.waitUntil(caches.keys().then(keys=>Promise.all(
+    keys.filter(key=>key!==CACHE&&key.startsWith(CACHE_PREFIX)).map(key=>caches.delete(key))
+  )).then(()=>self.clients.claim()));
 });
 
 async function networkFirst(request){
