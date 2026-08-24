@@ -1,0 +1,1 @@
+Move Nova VPN CONNECT/DISCONNECT controls above the variable-length server list so DISCONNECT remains immediately reachable after connection.
