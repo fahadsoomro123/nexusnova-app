@@ -31,6 +31,15 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Verify approved release branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "nexusnova-latest-full-apk-recovery-20260823" || {
+            echo "Permanent signing is locked to nexusnova-latest-full-apk-recovery-20260823; got $GITHUB_REF_NAME" >&2
+            exit 1
+          }
+
       - name: Verify canonical fresh source
         shell: bash
         run: |
@@ -38,6 +47,11 @@ jobs:
           test -s fresh-rebuild/index.html
           test -s fresh-rebuild/src/main.js
           test -s NexusNovaAndroid/app/build.gradle.kts
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
 
       - name: Require permanent signing secrets
         shell: bash
@@ -59,11 +73,6 @@ jobs:
             -keystore "$NEXUSNOVA_SIGNING_STORE_FILE" \
             -storepass "$NEXUSNOVA_SIGNING_STORE_PASSWORD" \
             -alias "$NEXUSNOVA_SIGNING_KEY_ALIAS" >/dev/null
-
-      - uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: '17'
 
       - uses: gradle/actions/setup-gradle@v4
         with:
@@ -179,3 +188,9 @@ jobs:
           git commit -m "Publish permanent signed NexusNova ${VERSION_NAME} (${VERSION_CODE})"
           git pull --rebase origin apk-builds
           git push origin HEAD:apk-builds
+
+      - name: Secure cleanup signing material
+        if: always()
+        shell: bash
+        run: |
+          rm -f "$NEXUSNOVA_SIGNING_STORE_FILE"
