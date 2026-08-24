@@ -56,29 +56,35 @@ export function renderNovaVpn() {
   const button = root.querySelector('[data-vpn-open]');
   const status = root.querySelector('[data-vpn-status]');
   let busy = false;
+  let disposed = false;
 
   button.addEventListener('click', async () => {
-    if (busy) return;
+    if (busy || disposed) return;
     busy = true;
     button.disabled = true;
     status.textContent = 'Verifying your NexusNova session…';
     try {
       const user = await requireFirebaseUser({ verified:true });
+      if (disposed) return;
       const authToken = await user.getIdToken();
+      if (disposed) return;
       if (!authToken || authToken.length > 7000) throw new Error('Secure session token is unavailable.');
       if (typeof window.nexusPostNativeAction !== 'function' ||
           !window.nexusPostNativeAction('openNovaVpn', { authToken })) {
         throw new Error('Nova VPN requires the NexusNova Android app.');
       }
-      status.textContent = 'Opening native Nova VPN control…';
+      if (!disposed) status.textContent = 'Opening native Nova VPN control…';
     } catch (error) {
-      status.textContent = error?.message || 'Nova VPN could not open.';
+      if (!disposed) status.textContent = error?.message || 'Nova VPN could not open.';
     } finally {
       busy = false;
-      button.disabled = false;
+      if (!disposed) button.disabled = false;
     }
   });
 
+  root.__cleanup = () => {
+    disposed = true;
+  };
   return root;
 }
 
