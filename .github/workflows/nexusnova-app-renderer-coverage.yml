@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   renderer-coverage:
@@ -19,5 +19,41 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: Check every registered app has a routed renderer
-        run: python3 .github/scripts/app-renderer-coverage.py
+        with:
+          fetch-depth: 0
+
+      - name: Audit registered app renderer coverage
+        id: audit
+        shell: bash
+        run: |
+          set +e
+          python3 .github/scripts/app-renderer-coverage.py > /tmp/app-renderer-coverage.txt 2>&1
+          code=$?
+          set -e
+          cat /tmp/app-renderer-coverage.txt
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
+      - name: Publish audit report
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo
+            echo "Source commit: $GITHUB_SHA"
+          } >> /tmp/app-renderer-coverage.txt
+          git config user.name 'NexusNova App Audit Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git fetch origin apk-builds
+          rm -rf /tmp/nexusnova-app-audit
+          git worktree add /tmp/nexusnova-app-audit origin/apk-builds
+          cd /tmp/nexusnova-app-audit
+          mkdir -p app-audit
+          cp /tmp/app-renderer-coverage.txt app-audit/APP-RENDERER-COVERAGE.txt
+          git add app-audit/APP-RENDERER-COVERAGE.txt
+          git commit -m "Audit NexusNova app renderer coverage $GITHUB_SHA" || exit 0
+          git pull --rebase origin apk-builds
+          git push origin HEAD:apk-builds
+
+      - name: Fail on missing routed renderers
+        if: steps.audit.outputs.code != '0'
+        run: exit 1
