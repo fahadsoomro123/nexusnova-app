@@ -2,4 +2,4 @@ NexusNova permanent signed release trigger
 Version code: 2
 Version name: 1.0.1
 Purpose: package verified 25 Aug 2026 online-app fixes and current fresh-rebuild source.
-Attempt: 3 via merged PR push
+Attempt: 4 with signing diagnostic
