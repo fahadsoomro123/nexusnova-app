@@ -1,0 +1,23 @@
+name: NexusNova App Renderer Coverage
+
+on:
+  push:
+    branches: [nexusnova-latest-full-apk-recovery-20260823]
+    paths:
+      - 'fresh-rebuild/src/features/apps/**'
+      - 'fresh-rebuild/src/features/hub/app-registry.js'
+      - '.github/scripts/app-renderer-coverage.py'
+      - '.github/workflows/nexusnova-app-renderer-coverage.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  renderer-coverage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check every registered app has a routed renderer
+        run: python3 .github/scripts/app-renderer-coverage.py
