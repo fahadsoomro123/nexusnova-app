@@ -7,6 +7,7 @@ let silentRefreshInstalled=false;
 function node(html){const root=document.createElement('div');root.className='nx-app-body';root.innerHTML=html;return root;}
 function vapidKey(){return String(window.NEXUSNOVA_FCM_VAPID_KEY||window.NEXUSNOVA_PUBLIC_CONFIG?.fcmVapidKey||'').trim();}
 function notificationSupported(){return typeof globalThis.Notification==='function';}
+function requireIdle(){if(working)throw new Error('A push notification operation is already in progress. Please try again in a moment.');working=true;}
 
 async function parts(){
   const [functionsMod,messagingMod]=await Promise.all([
@@ -49,7 +50,7 @@ async function callable(ctx,name,data){
 }
 
 async function registerDevice(requestPermission=true){
-  if(working)return null;working=true;
+  requireIdle();
   try{
     const ctx=await context();
     const {token}=await tokenFor(ctx,requestPermission);
@@ -60,7 +61,7 @@ async function registerDevice(requestPermission=true){
 }
 
 async function sendTestPush(){
-  if(working)return null;working=true;
+  requireIdle();
   try{
     const ctx=await context();
     const {token}=await tokenFor(ctx,false);
@@ -71,7 +72,7 @@ async function sendTestPush(){
 }
 
 async function disableDevice(){
-  if(working)return null;working=true;
+  requireIdle();
   try{
     const ctx=await context();
     const stored=String(localStorage.getItem(TOKEN_KEY)||'').trim();
