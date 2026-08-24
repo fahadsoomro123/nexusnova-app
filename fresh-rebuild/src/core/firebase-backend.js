@@ -87,6 +87,16 @@ export async function readUserProfile(user = null) {
   return snap.data() || {};
 }
 
+function miningActionErrorText(error) {
+  const message = String(error?.message || 'Mining action failed.')
+    .replace(/^Firebase:\s*/i, '')
+    .trim();
+  const code = String(error?.code || '').trim();
+  return code && !message.includes(code)
+    ? `Action blocked: ${message} [${code}]`
+    : `Action blocked: ${message}`;
+}
+
 function normalize(raw = {}) {
   const balance = Number(raw.balance);
   const totalMined = Number(raw.totalMined);
@@ -174,17 +184,28 @@ export const firebaseBackend = {
   async toggleMining() {
     if (operation) return operation;
     operation = (async () => {
-      const user = await requireFirebaseUser({ write: true });
-      const raw = await readUserProfile(user);
-      const state = normalize(raw);
+      try {
+        const user = await requireFirebaseUser({ write: true });
+        const raw = await readUserProfile(user);
+        const state = normalize(raw);
 
-      if (state.active && state.sessionComplete) {
-        return normalize(await rolloverExpired(user));
+        if (state.active && state.sessionComplete) {
+          return normalize(await rolloverExpired(user));
+        }
+        if (!state.active) {
+          return normalize(await startFresh(user));
+        }
+        return state;
+      } catch (error) {
+        console.error('[NexusNova Fresh] mining action:', error);
+        try {
+          const user = await requireFirebaseUser();
+          const fallback = normalize(await readUserProfile(user));
+          return { ...fallback, statusText: miningActionErrorText(error) };
+        } catch (_) {
+          throw error;
+        }
       }
-      if (!state.active) {
-        return normalize(await startFresh(user));
-      }
-      return state;
     })().finally(() => { operation = null; });
     return operation;
   },
