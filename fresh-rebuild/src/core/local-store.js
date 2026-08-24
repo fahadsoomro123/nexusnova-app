@@ -8,7 +8,13 @@ export function loadJson(key, fallback) {
 }
 
 export function saveJson(key, value) {
-  localStorage.setItem(key, JSON.stringify(value));
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+    return true;
+  } catch (error) {
+    console.warn('[NexusNova Fresh] local storage write failed:', error);
+    return false;
+  }
 }
 
 export function uid(prefix = 'nx') {
