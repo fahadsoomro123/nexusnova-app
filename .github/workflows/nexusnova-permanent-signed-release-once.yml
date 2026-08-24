@@ -14,174 +14,58 @@ env:
   NEXUSNOVA_SIGNING_STORE_PASSWORD: ${{ secrets.NEXUSNOVA_KEYSTORE_PASSWORD }}
   NEXUSNOVA_SIGNING_KEY_ALIAS: ${{ secrets.NEXUSNOVA_KEY_ALIAS }}
   NEXUSNOVA_SIGNING_KEY_PASSWORD: ${{ secrets.NEXUSNOVA_KEY_PASSWORD }}
-  NEXUSNOVA_SIGNING_STORE_FILE: ${{ runner.temp }}/nexusnova-release.jks
   VERSION_CODE: '2'
   VERSION_NAME: '1.0.1'
 
 jobs:
   build-signed-release:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Verify approved release branch
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "$GITHUB_REF_NAME" = "nexusnova-latest-full-apk-recovery-20260823"
-          test -s fresh-rebuild/index.html
-          test -s fresh-rebuild/src/main.js
-          test -s NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt
-
-      - name: Stage latest fresh web into Android assets
-        shell: bash
-        run: |
-          set -euo pipefail
-          WEB=NexusNovaAndroid/app/src/main/assets/www
-          rm -rf "$WEB"
-          mkdir -p "$WEB"
-          cp -a fresh-rebuild/. "$WEB/"
-          printf 'source_commit=%s\nsource_tree=fresh-rebuild\n' "$GITHUB_SHA" > "$WEB/NEXUSNOVA_SOURCE.txt"
-          test -s "$WEB/src/features/apps/entertainment-resilient.js"
-          test -s "$WEB/src/features/apps/news-resilient.js"
-
-      - name: Wire OTA into signed launcher
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt')
-          s = p.read_text(encoding='utf-8')
-          def replace_once(old, new, label):
-              global s
-              if new in s:
-                  return
-              if old not in s:
-                  raise SystemExit(f'OTA launcher anchor missing: {label}')
-              s = s.replace(old, new, 1)
-          replace_once(
-              '    private var rendererCrashRecoveries = 0\n',
-              '    private var rendererCrashRecoveries = 0\n    private val otaWebManager by lazy { NexusOtaWebManager(this) }\n    private var otaCheckStarted = false\n',
-              'fields')
-          replace_once(
-              '                return assetLoader.shouldInterceptRequest(uri)\n                    ?: super.shouldInterceptRequest(view, request)\n',
-              '                return otaWebManager.intercept(uri)\n                    ?: assetLoader.shouldInterceptRequest(uri)\n                    ?: super.shouldInterceptRequest(view, request)\n',
-              'request interception')
-          old_finished = '''            override fun onPageFinished(view: WebView?, url: String?) {\n                super.onPageFinished(view, url)\n                val target = view ?: return\n                val uri = url?.let { runCatching { Uri.parse(it) }.getOrNull() } ?: return\n                if (!isProductionOrigin(uri) || usingOfflineFallback) return\n                finishedWatchdogToken = mainFrameWatchdogToken\n                scheduleBlankScreenCheck(target, mainFrameWatchdogToken)\n            }\n'''
-          new_finished = '''            override fun onPageFinished(view: WebView?, url: String?) {\n                super.onPageFinished(view, url)\n                val target = view ?: return\n                val uri = url?.let { runCatching { Uri.parse(it) }.getOrNull() } ?: return\n                if (!isLocalOrigin(uri) || otaCheckStarted) return\n                otaCheckStarted = true\n                otaWebManager.checkForUpdate { updated ->\n                    if (!updated) return@checkForUpdate\n                    runOnUiThread {\n                        if (!isFinishing && !isDestroyed && target === webView) target.reload()\n                    }\n                }\n            }\n'''
-          replace_once(old_finished, new_finished, 'page finished OTA check')
-          replace_once(
-              '                runCatching { target.destroy() }\n\n                if (isFinishing || isDestroyed) return true\n',
-              '                runCatching { target.destroy() }\n\n                if (didCrash && otaWebManager.rollbackToBundled()) {\n                    window.decorView.postDelayed({\n                        if (!isFinishing && !isDestroyed) rebuildWebViewAfterRendererExit()\n                    }, RENDERER_CRASH_RECOVERY_DELAY_MS)\n                    return true\n                }\n\n                if (isFinishing || isDestroyed) return true\n',
-              'renderer OTA rollback')
-          p.write_text(s, encoding='utf-8')
-          PY
-          grep -Fq 'otaWebManager.intercept(uri)' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
-          grep -Fq 'otaWebManager.checkForUpdate' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
 
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Require permanent signing secrets
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -n "$NEXUSNOVA_SIGNING_KEYSTORE_B64"
-          test -n "$NEXUSNOVA_SIGNING_STORE_PASSWORD"
-          test -n "$NEXUSNOVA_SIGNING_KEY_ALIAS"
-          test -n "$NEXUSNOVA_SIGNING_KEY_PASSWORD"
-
-      - name: Restore permanent signing keystore
-        shell: bash
-        run: |
-          set -euo pipefail
-          printf '%s' "$NEXUSNOVA_SIGNING_KEYSTORE_B64" | base64 --decode > "$NEXUSNOVA_SIGNING_STORE_FILE"
-          chmod 600 "$NEXUSNOVA_SIGNING_STORE_FILE"
-          keytool -list -keystore "$NEXUSNOVA_SIGNING_STORE_FILE" -storepass "$NEXUSNOVA_SIGNING_STORE_PASSWORD" -alias "$NEXUSNOVA_SIGNING_KEY_ALIAS" >/dev/null
-
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.13'
 
-      - name: Inject permanent release signing and version
+      - name: Build, verify and publish permanent signed APK
+        shell: bash
+        run: bash tools/build-permanent-signed-v4.sh
+
+      - name: Publish failure diagnostics
+        if: failure()
         shell: bash
         run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import os, re
-          from pathlib import Path
-          path = Path('NexusNovaAndroid/app/build.gradle.kts')
-          text = path.read_text(encoding='utf-8')
-          text, c1 = re.subn(r'versionCode\s*=\s*\d+', f'versionCode = {int(os.environ["VERSION_CODE"])}', text, count=1)
-          text, c2 = re.subn(r'versionName\s*=\s*"[^"]*"', f'versionName = "{os.environ["VERSION_NAME"]}"', text, count=1)
-          if c1 != 1 or c2 != 1:
-              raise SystemExit('Could not patch Android version fields')
-          signing_block = '''    signingConfigs {\n        create("nexusRelease") {\n            storeFile = file(System.getenv("NEXUSNOVA_SIGNING_STORE_FILE"))\n            storePassword = System.getenv("NEXUSNOVA_SIGNING_STORE_PASSWORD")\n            keyAlias = System.getenv("NEXUSNOVA_SIGNING_KEY_ALIAS")\n            keyPassword = System.getenv("NEXUSNOVA_SIGNING_KEY_PASSWORD")\n        }\n    }\n\n'''
-          if 'create("nexusRelease")' not in text:
-              text = text.replace('    buildTypes {\n', signing_block + '    buildTypes {\n', 1)
-          signing_line = '            signingConfig = signingConfigs.getByName("nexusRelease")\n'
-          if signing_line not in text:
-              text = text.replace('        release {\n', '        release {\n' + signing_line, 1)
-          path.write_text(text, encoding='utf-8')
-          PY
-
-      - name: Build permanent signed APK
-        working-directory: NexusNovaAndroid
-        run: gradle --no-daemon clean assembleRelease 2>&1 | tee "$GITHUB_WORKSPACE/permanent-signed-release.log"
-
-      - name: Verify APK signature
-        shell: bash
-        run: |
-          set -euo pipefail
-          APK="$GITHUB_WORKSPACE/NexusNovaAndroid/app/build/outputs/apk/release/app-release.apk"
-          test -s "$APK"
-          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
-          "$APKSIGNER" verify --verbose --print-certs "$APK" | tee "$GITHUB_WORKSPACE/permanent-signature.txt"
-          grep -Eq 'Verified using v(2|3) scheme.*true' "$GITHUB_WORKSPACE/permanent-signature.txt"
-
-      - name: Publish permanent signed APK
-        shell: bash
-        run: |
-          set -euo pipefail
-          APK="$GITHUB_WORKSPACE/NexusNovaAndroid/app/build/outputs/apk/release/app-release.apk"
-          OUT=/tmp/nexusnova-permanent-signed
+          set +e
+          OUT="$RUNNER_TEMP/nexusnova-permanent-signed-failure"
           rm -rf "$OUT" && mkdir -p "$OUT"
-          cp "$APK" "$OUT/NexusNova-PERMANENT-SIGNED-v${VERSION_NAME}-vc${VERSION_CODE}.apk"
-          sha256sum "$OUT"/*.apk > "$OUT/SHA256.txt"
-          cp "$GITHUB_WORKSPACE/permanent-signature.txt" "$OUT/signature.txt"
-          cat > "$OUT/BUILD-STATUS.txt" <<EOF
-          NexusNova PERMANENT SIGNED RELEASE
-          Source commit: $GITHUB_SHA
-          Version name: $VERSION_NAME
-          Version code: $VERSION_CODE
-          Canonical web source: fresh-rebuild/
-          Latest web staged into APK: PASS
-          OTA updater wired: PASS
-          Permanent signature verification: PASS
-          RESULT: PERMANENT-SIGNED APK READY
-          EOF
-          sed -i 's/^          //' "$OUT/BUILD-STATUS.txt"
-          git config user.name 'NexusNova Signed Release Bot'
+          {
+            echo "Source commit: $GITHUB_SHA"
+            echo "RESULT: FAIL"
+            test -s fresh-rebuild/index.html && echo 'CANONICAL_WEB=YES' || echo 'CANONICAL_WEB=NO'
+            test -s tools/build-permanent-signed-v4.sh && echo 'BUILD_SCRIPT=YES' || echo 'BUILD_SCRIPT=NO'
+            test -s NexusNovaAndroid/app/build/outputs/apk/release/app-release.apk && echo 'APK_CREATED=YES' || echo 'APK_CREATED=NO'
+          } > "$OUT/FAILURE.txt"
+          test -s "$GITHUB_WORKSPACE/permanent-signed-release.log" && cp "$GITHUB_WORKSPACE/permanent-signed-release.log" "$OUT/build.log"
+          test -s "$GITHUB_WORKSPACE/permanent-signature.txt" && cp "$GITHUB_WORKSPACE/permanent-signature.txt" "$OUT/signature.txt"
+          git config user.name 'NexusNova Signed Failure Bot'
           git config user.email 'actions@users.noreply.github.com'
-          git fetch origin apk-builds
-          rm -rf /tmp/nexusnova-apk-builds
-          git worktree add /tmp/nexusnova-apk-builds origin/apk-builds
-          cd /tmp/nexusnova-apk-builds
-          rm -rf permanent-signed-release
-          mkdir -p permanent-signed-release
-          cp -a "$OUT"/. permanent-signed-release/
-          git add -A permanent-signed-release
-          git commit -m "Publish permanent signed NexusNova ${VERSION_NAME} (${VERSION_CODE})"
-          git pull --rebase origin apk-builds
-          git push origin HEAD:apk-builds
-
-      - name: Secure cleanup signing material
-        if: always()
-        shell: bash
-        run: rm -f "$NEXUSNOVA_SIGNING_STORE_FILE"
+          git fetch origin apk-builds || exit 0
+          PUB="$RUNNER_TEMP/nexusnova-apk-failure"
+          rm -rf "$PUB"
+          git worktree add "$PUB" origin/apk-builds || exit 0
+          cd "$PUB"
+          rm -rf permanent-signed-release permanent-signed-release-failure
+          mkdir -p permanent-signed-release-failure
+          cp -a "$OUT"/. permanent-signed-release-failure/
+          git add -A permanent-signed-release permanent-signed-release-failure
+          git commit -m "Publish permanent signed failure $GITHUB_SHA" || exit 0
+          git pull --rebase origin apk-builds || true
+          git push origin HEAD:apk-builds || true
