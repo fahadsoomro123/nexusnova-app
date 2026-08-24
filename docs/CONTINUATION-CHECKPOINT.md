@@ -27,7 +27,26 @@ Disaster master: `apk-builds/full-disaster-master-20260824/NexusNova-FULL-DISAST
 - Firebase project: `nexusnova-6ade2`.
 - Android package: `com.nexusnova.app`.
 - Firebase App Check product enforcement remains OFF intentionally while broader metrics/verification continue.
+- Callable Functions are statically guarded by `.github/scripts/functions-appcheck-readiness.py`; value-bearing/authenticated callables must retain `enforceAppCheck:true`.
+- Provider S2S callbacks remain public by necessity but must retain provider cryptographic verification + transaction idempotency.
 - Do not randomly replace the currently working Firestore rules. The deployed rollover rule was phone-validated by successful CLAIM & RENEW.
+
+## Repository / CI security
+- The GitHub repository is currently PUBLIC because the existing OTA/raw release architecture depends on unauthenticated public delivery. Do not flip it private without first separating public release delivery from private source storage.
+- No private signing key/service-account/GitHub/OpenAI-style token was found in the current repository audit.
+- `.github/scripts/repo-secret-readiness.py` rejects tracked private signing/credential files and high-confidence secret signatures.
+- `.github/workflows/nexusnova-repo-secret-readiness.yml` runs the secret-readiness guard with `contents: read` only.
+- `.github/dependabot.yml` monitors GitHub Actions, Android/Gradle and Functions/npm dependencies weekly.
+- Android WebView security readiness was refreshed for the current architecture and now runs on the active branch.
+- Rewarded/backend CI now runs on the active branch and includes Functions syntax, App Check boundary and rewarded-ad invariant checks.
+- The Functions source runtime target is Node.js 22. This source change is NOT a live deployment by itself.
+
+## Branch protection limitation
+- `nexusnova-golden-phone-pass-20260823` still points to exact Golden commit `e6176f721216e3e0c3130c8811a4123bcafce8cc`.
+- GitHub reports the Golden branch as `protected: false`.
+- The working and disaster recovery branches have also been observed without GitHub branch protection.
+- Until GitHub branch rules are explicitly enabled, the no-force-push/no-move rule is a documented operational policy rather than an enforced repository rule.
+- Never force-move or develop on historical Golden/disaster branches.
 
 ## Mining / ad safety
 - Do not force-expire or otherwise disturb an active mining session.
