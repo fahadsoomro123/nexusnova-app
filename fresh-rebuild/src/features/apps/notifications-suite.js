@@ -85,9 +85,11 @@ async function disableDevice(){
 
 function installSilentRefresh(){
   if(silentRefreshInstalled)return;silentRefreshInstalled=true;
-  window.addEventListener('load',()=>setTimeout(()=>{
+  const refresh=()=>setTimeout(()=>{
     if('Notification'in window&&Notification.permission==='granted')registerDevice(false).catch(error=>console.warn('[NexusNova Fresh] FCM silent refresh:',error));
-  },3500),{once:true});
+  },3500);
+  if(document.readyState==='complete')refresh();
+  else window.addEventListener('load',refresh,{once:true});
 }
 installSilentRefresh();
 
