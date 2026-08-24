@@ -23,7 +23,10 @@ backend.attach(firebaseBackend);
 let appScreenModulePromise = null;
 function loadAppScreenModule() {
   if (!appScreenModulePromise) {
-    appScreenModulePromise = import('./features/apps/app-screen.js');
+    appScreenModulePromise = import('./features/apps/app-screen.js').catch(error => {
+      appScreenModulePromise = null;
+      throw error;
+    });
   }
   return appScreenModulePromise;
 }
@@ -145,6 +148,20 @@ const backToHub = () => {
 };
 const backToMine = () => router.render('mine');
 
+function appModuleFailureScreen(id, error) {
+  console.error('[NexusNova Fresh] app module load:', error);
+  const parent = parentRouteForApp(id);
+  const root = document.createElement('section');
+  root.className = 'nx-screen';
+  root.innerHTML = `<article class="nx-tool-card"><h2>App tools could not load</h2><p>The app module hit a temporary load error. You can retry the module or return to ${parent === 'mine' ? 'Mine' : 'Nova Hub'}.</p><div class="nx-action-row"><button class="nx-primary" type="button" data-app-module-retry>RETRY</button><button type="button" data-app-module-back>BACK</button></div></article>`;
+  root.querySelector('[data-app-module-retry]').addEventListener('click', () => router.render('app', { id }));
+  root.querySelector('[data-app-module-back]').addEventListener('click', () => {
+    if (parent === 'mine') router.render('mine');
+    else backToHub();
+  });
+  return root;
+}
+
 async function handleSignedIn() {
   renderCinematicSplash('entry');
   await wait(POST_LOGIN_SPLASH_MS);
@@ -162,7 +179,14 @@ router = createRouter({
       beforeMiningRenewal: continueMining => adPolicy.gateMiningRenewal(continueMining)
     }),
     hub: () => hubScreen({ openApp: openAppWithAd }),
-    app: async payload => { const { appScreen } = await loadAppScreenModule(); return appScreen({ id: payload.id, backToHub, backToMine }); }
+    app: async payload => {
+      try {
+        const { appScreen } = await loadAppScreenModule();
+        return appScreen({ id: payload.id, backToHub, backToMine });
+      } catch (error) {
+        return appModuleFailureScreen(payload.id, error);
+      }
+    }
   },
   onRoute(route, payload = {}) {
     setSplashMode(false);
