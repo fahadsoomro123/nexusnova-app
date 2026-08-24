@@ -285,10 +285,16 @@ export async function mineScreen({ openHubApp, beforeMiningRenewal } = {}) {
     button.addEventListener('click', () => openHubApp?.(button.dataset.openApp));
   });
 
-  cleanupCurrent = () => {
+  let cleaned = false;
+  const cleanupThis = () => {
+    if (cleaned) return;
+    cleaned = true;
     clearInterval(clockTimer);
     off?.();
+    if (cleanupCurrent === cleanupThis) cleanupCurrent = null;
   };
+  cleanupCurrent = cleanupThis;
+  root.__cleanup = cleanupThis;
 
   return root;
 }
