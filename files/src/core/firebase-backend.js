@@ -205,31 +205,6 @@ function normalize(raw = {}) {
   };
 }
 
-function rawType(value) {
-  if (value === undefined) return 'missing';
-  if (value === null) return 'null';
-  if (Number.isSafeInteger(value)) return 'int';
-  return typeof value;
-}
-
-function miningRulePreflight(user, raw = {}) {
-  const startedAt = Number(raw.miningStartedAt) || 0;
-  const elapsed = raw.miningActive === true && startedAt > 0
-    ? Math.max(0, Date.now() - startedAt)
-    : 0;
-  const vaultCompatible = raw.novaVaultPending === undefined
-    || (typeof raw.novaVaultPending === 'number' && Number.isFinite(raw.novaVaultPending));
-  const pass = user?.emailVerified === true
-    && raw.miningActive === true
-    && Number.isSafeInteger(raw.miningStartedAt)
-    && elapsed >= DAY
-    && typeof raw.balance === 'number' && Number.isFinite(raw.balance)
-    && typeof raw.totalMined === 'number' && Number.isFinite(raw.totalMined)
-    && vaultCompatible;
-
-  return `preflight=${pass ? 'PASS' : 'FAIL'}, verified=${user?.emailVerified === true ? 'yes' : 'no'}, active=${raw.miningActive === true ? 'yes' : 'no'}, startedAt=${rawType(raw.miningStartedAt)}, elapsed=${(elapsed / 3_600_000).toFixed(2)}h, balance=${rawType(raw.balance)}, total=${rawType(raw.totalMined)}, vault=${rawType(raw.novaVaultPending)}`;
-}
-
 async function startFresh(user) {
   const now = Date.now();
   const userRef = doc(firestoreDb, 'users', user.uid);
@@ -312,12 +287,8 @@ export const firebaseBackend = {
         console.error('[NexusNova Fresh] mining action:', error);
         try {
           const user = await requireFirebaseUser();
-          const raw = await readUserProfile(user);
-          const fallback = normalize(raw);
-          const base = miningActionErrorText(error);
-          const denied = String(error?.code || '').includes('permission-denied');
-          const statusText = denied ? `${base} • ${miningRulePreflight(user, raw)}` : base;
-          return { ...fallback, statusText };
+          const fallback = normalize(await readUserProfile(user));
+          return { ...fallback, statusText: miningActionErrorText(error) };
         } catch (_) {
           throw error;
         }
