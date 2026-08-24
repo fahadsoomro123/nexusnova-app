@@ -1,0 +1,52 @@
+{
+  "schema": 1,
+  "captured_at": "2026-08-24T12:43:00+05:00",
+  "repository": "fahadsoomro123/nexusnova-app",
+  "recovery_branch": "nexusnova-disaster-golden-master-20260824",
+  "source_commit": "d8be5cc12b015a4c13e39ccea0d1a81b9e79ced3",
+  "source_tree": "6549cf1754652aacca3e4f6ae95acba05f265678",
+  "active_branch_at_capture": "nexusnova-latest-full-apk-recovery-20260823",
+  "ota": {
+    "branch": "nexusnova-ota-release",
+    "source_version": "a5058be75d90b945825f85da5422a96bedde534a"
+  },
+  "previous_golden": {
+    "branch": "nexusnova-golden-phone-pass-20260823",
+    "commit": "e6176f721216e3e0c3130c8811a4123bcafce8cc",
+    "must_remain_untouched": true
+  },
+  "older_approved_backup": {
+    "branch": "nexusnova-master-backup-20260820-approved",
+    "commit": "484a50ee95259daac98beb8b1caf2e2bae9526fe"
+  },
+  "phone_verified": {
+    "app_open": true,
+    "login": true,
+    "native_app_check": true,
+    "mining_claim_and_renew": true,
+    "mining_restarted": true,
+    "community_chat_write": true,
+    "profile_write": true,
+    "marketplace_write": true
+  },
+  "pending": {
+    "app_check_enforcement": "OFF",
+    "next_natural_mining_claim_interstitial_verification": true,
+    "permanent_signing_keystore_created": false,
+    "permanent_signing_secrets_configured": false
+  },
+  "critical_blobs": {
+    "fresh-rebuild/src/core/firebase-backend.js": "824226d856cc2ace60805c50387ac2537b1bddc9",
+    "firestore.rules": "ca766a67dbd3771c29e89f9228e0ba34ffbee289",
+    "NexusNovaAndroid/app/build.gradle.kts": "3657e8ba747a344876e599508b1594d43dd24d10",
+    ".github/workflows/nexusnova-permanent-signed-release.yml": "b77fbed575f42c568b94b85ad373038fbd6ecde0"
+  },
+  "secrets_included": false,
+  "recovery_policy": {
+    "normal_web_changes": "OTA_ONLY",
+    "native_apk": "ONLY_FOR_NATIVE_CHANGES_WITH_SIGNING_CONTINUITY",
+    "force_expire_mining_for_tests": false,
+    "overwrite_existing_golden": false,
+    "require_phone_evidence_before_new_golden": true
+  }
+}
