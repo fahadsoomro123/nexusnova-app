@@ -62,7 +62,15 @@ export function appScreen({ id, backToHub, backToMine } = {}) {
       enhanceMiningApp(id, body);
       enhanceTravelApp(id, body);
       mount.appendChild(body);
-      cleanup = () => body.__cleanup?.();
+      let cleaned = false;
+      const bodyCleanup = () => {
+        if (cleaned) return;
+        cleaned = true;
+        body.__cleanup?.();
+        if (cleanup === bodyCleanup) cleanup = null;
+      };
+      cleanup = bodyCleanup;
+      root.__cleanup = bodyCleanup;
     } catch (error) {
       console.error(`[NexusNova Fresh] ${id} renderer:`, error);
       mount.innerHTML = `<article class="nx-tool-card"><h2>${app.name} could not initialize</h2><p>This tool hit a local runtime error. You can safely leave this screen and continue using other NexusNova areas.</p><button class="nx-secondary" type="button" data-app-error-back>BACK TO ${miningOwned ? 'MINE' : 'NOVA HUB'}</button></article>`;
