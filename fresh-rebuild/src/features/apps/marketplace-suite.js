@@ -109,9 +109,13 @@ export function renderMarketplaceSuite() {
   const postButton = root.querySelector('[data-listing-post]');
   let activeMode = 'browse';
   let busy = false;
+  let refreshRevision = 0;
+  let disposed = false;
+  const isCurrent = revision => !disposed && revision === refreshRevision;
 
-  const drawListings = async (rows, mode) => {
+  const drawListings = async (rows, mode, revision = refreshRevision) => {
     const user = await signedUser();
+    if (!isCurrent(revision)) return;
     const fav = new Set(readFavorites(user.uid));
     const visible = mode === 'browse' ? rows.filter(row => String(row.status || 'active') === 'active') : rows;
     if (!visible.length) {
@@ -138,6 +142,7 @@ export function renderMarketplaceSuite() {
       const ids = readFavorites(user.uid);
       const next = ids.includes(button.dataset.marketFav) ? ids.filter(id=>id!==button.dataset.marketFav) : [button.dataset.marketFav,...ids];
       writeFavorites(user.uid,next);
+      if (disposed) return;
       status.textContent = next.includes(button.dataset.marketFav) ? 'Saved to Marketplace favorites.' : 'Removed from favorites.';
       await refresh(activeMode);
     }));
@@ -162,12 +167,12 @@ export function renderMarketplaceSuite() {
           createdAt:serverTimestamp(),
           updatedAt:serverTimestamp()
         });
-        status.textContent = 'Real buy request sent to the seller. No payment was charged.';
+        if (!disposed) status.textContent = 'Real buy request sent to the seller. No payment was charged.';
       } catch (error) {
-        status.textContent = errorMessage(error,'Could not send buy request.');
+        if (!disposed) status.textContent = errorMessage(error,'Could not send buy request.');
       } finally {
         busy = false;
-        button.disabled = false;
+        if (!disposed) button.disabled = false;
       }
     }));
 
@@ -181,37 +186,44 @@ export function renderMarketplaceSuite() {
           status:button.dataset.marketNext,
           updatedAt:serverTimestamp()
         });
+        if (disposed) return;
         status.textContent = `Listing set to ${button.dataset.marketNext}.`;
         await refresh('mine');
       } catch (error) {
-        status.textContent = errorMessage(error,'Could not update listing.');
+        if (!disposed) status.textContent = errorMessage(error,'Could not update listing.');
       } finally {
         busy = false;
-        button.disabled = false;
+        if (!disposed) button.disabled = false;
       }
     }));
   };
 
   const refresh = async (mode = activeMode) => {
+    const revision = ++refreshRevision;
     activeMode = mode;
+    if (disposed) return;
     status.textContent = 'Loading real Marketplace records…';
     output.innerHTML = '<div class="nx-empty">Loading…</div>';
     try {
       const user = await signedUser();
+      if (!isCurrent(revision)) return;
       if (mode === 'mine') {
         const snap = await getDocs(query(collection(firestoreDb,LISTINGS), where('sellerUid','==',user.uid), limit(60)));
-        await drawListings(snap.docs.map(item=>({id:item.id,...item.data()})).sort((a,b)=>timeMs(b.createdAt)-timeMs(a.createdAt)),'mine');
+        if (!isCurrent(revision)) return;
+        await drawListings(snap.docs.map(item=>({id:item.id,...item.data()})).sort((a,b)=>timeMs(b.createdAt)-timeMs(a.createdAt)),'mine',revision);
       } else {
         const rows = await recentListings();
+        if (!isCurrent(revision)) return;
         if (mode === 'favorites') {
           const ids = new Set(readFavorites(user.uid));
-          await drawListings(rows.filter(row=>ids.has(row.id)),'favorites');
+          await drawListings(rows.filter(row=>ids.has(row.id)),'favorites',revision);
         } else {
-          await drawListings(rows,'browse');
+          await drawListings(rows,'browse',revision);
         }
       }
-      status.textContent = 'Marketplace synced from Firestore.';
+      if (isCurrent(revision)) status.textContent = 'Marketplace synced from Firestore.';
     } catch (error) {
+      if (!isCurrent(revision)) return;
       output.innerHTML = '<div class="nx-empty">Marketplace records are unavailable right now.</div>';
       status.textContent = errorMessage(error,'Marketplace unavailable.');
     }
@@ -220,6 +232,9 @@ export function renderMarketplaceSuite() {
   root.querySelectorAll('[data-market-mode]').forEach(button => button.addEventListener('click',()=>refresh(button.dataset.marketMode)));
 
   root.querySelector('[data-market-dashboard]').addEventListener('click', async () => {
+    const revision = ++refreshRevision;
+    activeMode = 'dashboard';
+    if (disposed) return;
     status.textContent = 'Building seller dashboard…';
     try {
       const user = await signedUser();
@@ -227,6 +242,7 @@ export function renderMarketplaceSuite() {
         getDocs(query(collection(firestoreDb,LISTINGS), where('sellerUid','==',user.uid), limit(100))),
         getDocs(query(collection(firestoreDb,ORDERS), where('sellerUid','==',user.uid), limit(100)))
       ]);
+      if (!isCurrent(revision)) return;
       const listings = listingSnap.docs.map(item=>item.data());
       const orders = orderSnap.docs.map(item=>item.data());
       output.innerHTML = `<section class="nx-summary-grid">
@@ -237,7 +253,7 @@ export function renderMarketplaceSuite() {
       </section>`;
       status.textContent = 'Seller dashboard uses your real Firestore records.';
     } catch (error) {
-      status.textContent = errorMessage(error,'Seller dashboard unavailable.');
+      if (isCurrent(revision)) status.textContent = errorMessage(error,'Seller dashboard unavailable.');
     }
   });
 
@@ -267,21 +283,28 @@ export function renderMarketplaceSuite() {
         createdAt:serverTimestamp(),
         updatedAt:serverTimestamp()
       });
+      if (disposed) return;
       title.value = '';
       price.value = '';
       description.value = '';
       status.textContent = 'Real Marketplace listing posted.';
       await refresh('mine');
     } catch (error) {
-      status.textContent = errorMessage(error,'Could not post listing.');
+      if (!disposed) status.textContent = errorMessage(error,'Could not post listing.');
     } finally {
       busy = false;
-      postButton.disabled = false;
-      postButton.textContent = 'POST REAL LISTING';
+      if (!disposed) {
+        postButton.disabled = false;
+        postButton.textContent = 'POST REAL LISTING';
+      }
     }
   });
 
   refresh('browse');
+  root.__cleanup = () => {
+    disposed = true;
+    refreshRevision += 1;
+  };
   return root;
 }
 
@@ -328,6 +351,9 @@ export function renderOrdersSuite() {
   let rows = [];
   let activeFilter = 'all';
   let busy = false;
+  let refreshRevision = 0;
+  let disposed = false;
+  const isCurrent = revision => !disposed && revision === refreshRevision;
 
   const filtered = filter => {
     if (filter === 'processing') return rows.filter(row=>['accepted','processing'].includes(row.status));
@@ -336,8 +362,9 @@ export function renderOrdersSuite() {
     return rows.filter(row=>row.status===filter);
   };
 
-  const draw = async () => {
+  const draw = async (revision = refreshRevision) => {
     const user = await signedUser();
+    if (!isCurrent(revision)) return;
     const visible = filtered(activeFilter);
     if (!visible.length) {
       output.innerHTML = '<div class="nx-empty">No matching real order records.</div>';
@@ -370,25 +397,31 @@ export function renderOrdersSuite() {
       try {
         await signedUser({write:true});
         await updateDoc(doc(firestoreDb,ORDERS,button.dataset.orderNext), { status:next, updatedAt:serverTimestamp() });
+        if (disposed) return;
         status.textContent = `Order updated to ${orderLabel(next)}. This is a NexusNova buyer/seller workflow state, not courier/payment proof.`;
         await refresh(activeFilter);
       } catch (error) {
-        status.textContent = errorMessage(error,'Could not update order.');
+        if (!disposed) status.textContent = errorMessage(error,'Could not update order.');
       } finally {
         busy = false;
-        button.disabled = false;
+        if (!disposed) button.disabled = false;
       }
     }));
   };
 
   const refresh = async (filter = activeFilter) => {
+    const revision = ++refreshRevision;
     activeFilter = filter;
+    if (disposed) return;
     status.textContent = 'Loading real buyer/seller order records…';
     try {
-      rows = await loadOrders();
-      await draw();
-      status.textContent = `${rows.length} real Marketplace order record${rows.length===1?'':'s'} loaded. Payment settlement and courier tracking are not claimed.`;
+      const nextRows = await loadOrders();
+      if (!isCurrent(revision)) return;
+      rows = nextRows;
+      await draw(revision);
+      if (isCurrent(revision)) status.textContent = `${rows.length} real Marketplace order record${rows.length===1?'':'s'} loaded. Payment settlement and courier tracking are not claimed.`;
     } catch (error) {
+      if (!isCurrent(revision)) return;
       rows = [];
       output.innerHTML = '<div class="nx-empty">Orders are unavailable right now.</div>';
       status.textContent = errorMessage(error,'Orders unavailable.');
@@ -397,6 +430,10 @@ export function renderOrdersSuite() {
 
   root.querySelectorAll('[data-order-filter]').forEach(button => button.addEventListener('click',()=>refresh(button.dataset.orderFilter)));
   refresh('all');
+  root.__cleanup = () => {
+    disposed = true;
+    refreshRevision += 1;
+  };
   return root;
 }
 
