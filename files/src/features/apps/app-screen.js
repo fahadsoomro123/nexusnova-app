@@ -66,7 +66,6 @@ export function appScreen({ id, backToHub, backToMine } = {}) {
       const bodyCleanup = () => {
         if (cleaned) return;
         cleaned = true;
-        try { window.speechSynthesis?.cancel?.(); } catch {}
         body.__cleanup?.();
         if (cleanup === bodyCleanup) cleanup = null;
       };
