@@ -80,7 +80,7 @@ dependencies {
 
     // GMA Next-Gen SDK. Debug builds use Google's test inventory; release builds
     // use NexusNova production IDs only after the production consent gate passes.
-    implementation("com.google.android.libraries.ads.mobile.sdk:ads-mobile-sdk:1.3.0")
+    implementation("com.google.android.libraries.ads.mobile.sdk:ads-mobile-sdk:1.4.0")
 
     // Google User Messaging Platform for production privacy/consent handling.
     implementation("com.google.android.ump:user-messaging-platform:4.0.0")
