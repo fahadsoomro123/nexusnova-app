@@ -39,6 +39,41 @@ jobs:
           fi
           echo "JavaScript syntax verified: $checked files"
 
+      - name: Verify registered app renderer coverage
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('fs');
+          const path = require('path');
+
+          const registryPath = 'fresh-rebuild/src/features/hub/app-registry.js';
+          const appsDir = 'fresh-rebuild/src/features/apps';
+          const registry = fs.readFileSync(registryPath, 'utf8');
+          const ids = [...registry.matchAll(/\bid\s*:\s*(['"])([^'"]+)\1/g)].map(match => match[2]);
+          if (!ids.length) throw new Error('No registered NexusNova app IDs were found.');
+
+          const rendered = new Set();
+          for (const name of fs.readdirSync(appsDir)) {
+            if (!name.endsWith('.js')) continue;
+            const text = fs.readFileSync(path.join(appsDir, name), 'utf8');
+            const maps = text.matchAll(/export\s+const\s+\w*Renderers\s*=\s*Object\.freeze\(\{([\s\S]*?)\}\);/g);
+            for (const map of maps) {
+              const body = map[1];
+              for (const match of body.matchAll(/(?:^|,)\s*(?:(['"])([^'"]+)\1|([A-Za-z_$][\w$-]*))\s*:/g)) {
+                rendered.add(match[2] || match[3]);
+              }
+            }
+          }
+
+          const missing = [...new Set(ids)].filter(id => !rendered.has(id));
+          if (missing.length) {
+            console.error(`Registered apps without a concrete renderer: ${missing.join(', ')}`);
+            process.exit(1);
+          }
+          console.log(`Renderer coverage verified: ${new Set(ids).size} registered apps.`);
+          NODE
+
       - name: Build verified cumulative differential OTA package
         shell: bash
         run: |
