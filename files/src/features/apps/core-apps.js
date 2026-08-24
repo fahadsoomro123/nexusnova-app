@@ -17,7 +17,7 @@ const CHAINS = {
   '0x1': { name:'Ethereum Mainnet', native:'ETH', tokens:{ USDT:['0xdAC17F958D2ee523a2206206994597C13D831ec7',6], USDC:['0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',6] } },
   '0x38': { name:'BNB Smart Chain', native:'BNB', tokens:{} },
   '0x89': { name:'Polygon PoS', native:'POL', tokens:{ USDC:['0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359',6] } },
-  '0xa4b1': { name:'Arbitrum One', native:'ETH', tokens:{ USDC:['0xaf88d065e77c8cC2239327C5EDb3A432268e5831',6] } },
+  '0xa4b1': { name:'Arbitrum One', native:'ETH', tokens:{ USDC:['0xaf88d065e77c8C2239327C5EDb3A432268e5831',6] } },
   '0xa': { name:'OP Mainnet', native:'ETH', tokens:{ USDC:['0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85',6] } },
   '0x2105': { name:'Base', native:'ETH', tokens:{ USDC:['0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',6] } },
   '0xa86a': { name:'Avalanche C-Chain', native:'AVAX', tokens:{ USDT:['0x9702230a8ea53601f5cd2dc00fdbc13d4df4a8c7',6], USDC:['0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E',6] } }
@@ -115,15 +115,19 @@ export function renderWallet() {
   const status = root.querySelector('[data-wallet-status]');
   const connect = root.querySelector('[data-wallet-connect]');
   let off = null;
+  let disposed = false;
 
   requireFirebaseUser().then(user => {
+    if (disposed) return;
     off = onSnapshot(doc(firestoreDb,'users',user.uid), snap => {
+      if (disposed) return;
       const balance = Number(snap.data()?.balance);
       nvx.textContent = Number.isFinite(balance) ? `${balance.toFixed(4)} NVX` : '—';
     });
-  }).catch(error => { status.textContent = error.message; });
+  }).catch(error => { if (!disposed) status.textContent = error.message; });
 
   const refresh = async ({ requestAccounts = false } = {}) => {
+    if (disposed) return;
     const p = provider();
     if (!p) {
       connect.disabled = true;
@@ -132,12 +136,14 @@ export function renderWallet() {
     }
     try {
       const accounts = await rpc(requestAccounts ? 'eth_requestAccounts' : 'eth_accounts');
+      if (disposed) return;
       const address = String(accounts?.[0] || '');
       if (!address) {
         status.textContent = 'Tap CONNECT and approve the wallet request.';
         return;
       }
       const chainId = String(await rpc('eth_chainId')).toLowerCase();
+      if (disposed) return;
       const chain = CHAINS[chainId];
       addressEl.textContent = `${address.slice(0,8)}…${address.slice(-6)}`;
       if (!chain) {
@@ -148,15 +154,18 @@ export function renderWallet() {
       }
       network.textContent = chain.name;
       const prices = await walletPrices();
+      if (disposed) return;
       const rows = [];
       let totalUsd = 0;
       const nativeRaw = await rpc('eth_getBalance',[address,'latest']);
+      if (disposed) return;
       const nativeAmount = hexBalance(nativeRaw,18);
       const nativeUsd = nativeAmount * Number(prices[chain.native] || 0);
       totalUsd += nativeUsd;
       rows.push([chain.native,nativeAmount,nativeUsd]);
       for (const [symbol,config] of Object.entries(chain.tokens)) {
         const raw = await erc20(address,config[0]);
+        if (disposed) return;
         const amount = hexBalance(raw,config[1]);
         const usd = amount * Number(prices[symbol] || 0);
         totalUsd += usd;
@@ -167,7 +176,7 @@ export function renderWallet() {
       status.textContent = `On-chain balances live • ${chain.name}`;
       connect.textContent = 'REFRESH';
     } catch (error) {
-      status.textContent = error?.message || 'Wallet connection failed.';
+      if (!disposed) status.textContent = error?.message || 'Wallet connection failed.';
     }
   };
   connect.addEventListener('click', () => refresh({ requestAccounts:true }));
@@ -178,6 +187,7 @@ export function renderWallet() {
   p?.on?.('accountsChanged', handleAccountsChanged);
   p?.on?.('chainChanged', handleChainChanged);
   root.__cleanup = () => {
+    disposed = true;
     off?.();
     p?.removeListener?.('accountsChanged', handleAccountsChanged);
     p?.removeListener?.('chainChanged', handleChainChanged);
@@ -198,8 +208,10 @@ export function renderMarket() {
   const status = root.querySelector('[data-market-status]');
   let coins = [];
   let busy = false;
+  let disposed = false;
 
   const draw = () => {
+    if (disposed) return;
     const q = search.value.trim().toLowerCase();
     const filtered = q ? coins.filter(coin => `${coin.name} ${coin.symbol}`.toLowerCase().includes(q)) : coins;
     list.innerHTML = filtered.length ? filtered.map((coin,index) => {
@@ -209,16 +221,20 @@ export function renderMarket() {
     }).join('') : '<div class="nx-empty">No matching assets.</div>';
   };
   const load = async () => {
-    if (busy) return; busy = true; status.textContent = 'Loading live top 100 market data…';
+    if (busy || disposed) return;
+    busy = true;
+    status.textContent = 'Loading live top 100 market data…';
     try {
       const response = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=100&page=1&sparkline=false&price_change_percentage=24h', { cache:'no-store' });
       if (!response.ok) throw new Error(`Market HTTP ${response.status}`);
       const data = await response.json();
+      if (disposed) return;
       if (!Array.isArray(data) || !data.length) throw new Error('Market returned no assets.');
       coins = data.slice(0,100);
       status.textContent = `${coins.length} live assets • updated ${new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}`;
       draw();
     } catch (error) {
+      if (disposed) return;
       coins = [];
       status.textContent = 'Live market unavailable. No fake prices are being shown.';
       draw();
@@ -228,6 +244,7 @@ export function renderMarket() {
   search.addEventListener('input',draw);
   root.querySelector('[data-market-refresh]').addEventListener('click',load);
   load();
+  root.__cleanup = () => { disposed = true; };
   return root;
 }
 
@@ -252,8 +269,10 @@ export function renderRewards() {
   let profile = null;
   let off = null;
   let timer = null;
+  let disposed = false;
 
   const paint = () => {
+    if (disposed) return;
     const value = Number(profile?.balance);
     balance.textContent = Number.isFinite(value) ? `${value.toFixed(4)} NVX` : '— NVX';
     streak.textContent = `Daily streak ${Math.max(0, Number(profile?.dailyRewardStreak) || 0)}`;
@@ -265,47 +284,57 @@ export function renderRewards() {
   };
 
   requireFirebaseUser().then(user => {
-    off = onSnapshot(doc(firestoreDb,'users',user.uid), snap => { profile = snap.data() || {}; paint(); });
-    timer = setInterval(paint,1000);
-  }).catch(error => { dailyStatus.textContent = error.message; });
+    if (disposed) return;
+    off = onSnapshot(doc(firestoreDb,'users',user.uid), snap => {
+      if (disposed) return;
+      profile = snap.data() || {};
+      paint();
+    });
+    if (!disposed) timer = setInterval(paint,1000);
+  }).catch(error => { if (!disposed) dailyStatus.textContent = error.message; });
 
   dailyBtn.addEventListener('click', async () => {
-    if (dailyBtn.disabled) return;
+    if (dailyBtn.disabled || disposed) return;
     dailyBtn.disabled = true;
     dailyStatus.textContent = 'Opening Google TEST rewarded ad…';
     try {
       const user = await requireFirebaseUser({ write:true });
       const ad = await nativeAds.showRewarded({ purpose:'daily-reward-test', userId:user.uid });
       if (!ad.earned) throw new Error('Ad closed before reward completion.');
-      dailyStatus.textContent = 'Ad completed • confirming Daily Reward with secure server…';
+      if (!disposed) dailyStatus.textContent = 'Ad completed • confirming Daily Reward with secure server…';
       const call = httpsCallable(getFunctions(firebaseApp,'us-central1'),'claimDailyReward');
       const response = await call({ source:'fresh-rebuild-daily-test-gate' });
       const data = response?.data || {};
       const reward = Number(data.reward);
       const nextBalance = Number(data.balance);
       if (!(reward > 0) || !Number.isFinite(nextBalance)) throw new Error('Secure Daily Reward response was invalid.');
-      dailyStatus.textContent = `✓ +${reward} NVX confirmed by secure server.`;
+      if (!disposed) dailyStatus.textContent = `✓ +${reward} NVX confirmed by secure server.`;
     } catch (error) {
-      dailyStatus.textContent = error?.message || 'Daily Reward could not be completed.';
+      if (!disposed) dailyStatus.textContent = error?.message || 'Daily Reward could not be completed.';
     } finally { paint(); }
   });
 
   watchBtn.addEventListener('click', async () => {
+    if (disposed) return;
     watchBtn.disabled = true;
     watchStatus.textContent = 'Opening Google TEST rewarded ad…';
     try {
       const user = await requireFirebaseUser({ verified:true });
       const result = await nativeAds.showRewarded({ purpose:'task-watch-ad', userId:user.uid });
-      watchStatus.textContent = result.earned
+      if (!disposed) watchStatus.textContent = result.earned
         ? '✓ TEST ad completed. +2.5 NVX was NOT credited in TEST mode.'
         : 'Ad closed before reward completion. No NVX was changed.';
     } catch (error) {
-      watchStatus.textContent = error?.message || 'Rewarded ad unavailable.';
-    } finally { watchBtn.disabled = false; }
+      if (!disposed) watchStatus.textContent = error?.message || 'Rewarded ad unavailable.';
+    } finally { if (!disposed) watchBtn.disabled = false; }
   });
 
   nativeAds.requestStatus();
-  root.__cleanup = () => { off?.(); clearInterval(timer); };
+  root.__cleanup = () => {
+    disposed = true;
+    off?.();
+    clearInterval(timer);
+  };
   return root;
 }
 
@@ -325,11 +354,13 @@ export function renderProfile() {
     avatar:root.querySelector('[data-profile-avatar]'), name:root.querySelector('[data-profile-name]'), email:root.querySelector('[data-profile-email]'), mined:root.querySelector('[data-profile-mined]'), tasks:root.querySelector('[data-profile-tasks]'),
     nameInput:root.querySelector('[data-profile-name-input]'), bio:root.querySelector('[data-profile-bio]'), city:root.querySelector('[data-profile-city]'), country:root.querySelector('[data-profile-country]'), status:root.querySelector('[data-profile-status]')
   };
-  let user = null, off = null;
+  let user = null, off = null, disposed = false;
   requireFirebaseUser().then(active => {
+    if (disposed) return;
     user = active;
     refs.email.textContent = active.email || '';
     off = onSnapshot(doc(firestoreDb,'users',active.uid), snap => {
+      if (disposed) return;
       const data = snap.data() || {};
       const name = String(data.name || active.displayName || 'NexusNova User');
       refs.name.textContent = name;
@@ -341,9 +372,10 @@ export function renderProfile() {
       refs.city.value = data.city || '';
       refs.country.value = data.country || '';
     });
-  }).catch(error => { refs.status.textContent = error.message; });
+  }).catch(error => { if (!disposed) refs.status.textContent = error.message; });
 
   root.querySelector('[data-profile-save]').addEventListener('click', async () => {
+    if (disposed) return;
     const button = root.querySelector('[data-profile-save]');
     button.disabled = true;
     refs.status.textContent = 'Saving profile…';
@@ -358,11 +390,17 @@ export function renderProfile() {
         country:refs.country.value.trim().slice(0,80),
         profileUpdatedAt:serverTimestamp()
       });
-      refs.status.textContent = '✓ Profile saved.';
-    } catch (error) { refs.status.textContent = error?.message || 'Profile could not be saved.'; }
-    finally { button.disabled = false; }
+      if (!disposed) refs.status.textContent = '✓ Profile saved.';
+    } catch (error) {
+      if (!disposed) refs.status.textContent = error?.message || 'Profile could not be saved.';
+    } finally {
+      if (!disposed) button.disabled = false;
+    }
   });
-  root.__cleanup = () => off?.();
+  root.__cleanup = () => {
+    disposed = true;
+    off?.();
+  };
   return root;
 }
 
@@ -382,7 +420,10 @@ export function renderSettings() {
   const verified = root.querySelector('[data-settings-verified]');
   const adBadge = root.querySelector('[data-settings-ads]');
   const status = root.querySelector('[data-settings-status]');
+  let disposed = false;
+  let adRefreshTimer = null;
   const paintAds = () => {
+    if (disposed) return;
     const ad = nativeAds.status();
     adBadge.textContent = !ad.configured ? 'WEB ONLY' : ad.testMode ? (ad.sdkReady ? 'TEST READY' : 'TEST LOADING') : 'PRODUCTION';
     adBadge.classList.toggle('good', ad.configured && ad.testMode && ad.sdkReady);
@@ -390,20 +431,36 @@ export function renderSettings() {
   const paintUser = async () => {
     const user = await requireFirebaseUser();
     await user.reload();
+    if (disposed) return;
     const active = firebaseAuth.currentUser || user;
     email.textContent = active.email || '';
     verified.textContent = active.emailVerified ? 'VERIFIED' : 'UNVERIFIED';
     verified.classList.toggle('good', active.emailVerified);
   };
-  paintUser().catch(error => { status.textContent = error.message; });
+  paintUser().catch(error => { if (!disposed) status.textContent = error.message; });
   paintAds();
   const offAds = nativeAds.subscribe(paintAds);
   root.querySelector('[data-settings-resend]').addEventListener('click', async () => {
-    try { await authService.resendVerification(); status.textContent = 'Verification email sent.'; } catch (error) { status.textContent = error.message; }
+    try {
+      await authService.resendVerification();
+      if (!disposed) status.textContent = 'Verification email sent.';
+    } catch (error) {
+      if (!disposed) status.textContent = error.message;
+    }
   });
-  root.querySelector('[data-settings-ad-status]').addEventListener('click', () => { nativeAds.requestStatus(); status.textContent = 'Requested native AdMob status.'; setTimeout(paintAds,500); });
+  root.querySelector('[data-settings-ad-status]').addEventListener('click', () => {
+    if (disposed) return;
+    nativeAds.requestStatus();
+    status.textContent = 'Requested native AdMob status.';
+    clearTimeout(adRefreshTimer);
+    adRefreshTimer = setTimeout(paintAds,500);
+  });
   root.querySelector('[data-settings-logout]').addEventListener('click', async () => { await authService.logout(); });
-  root.__cleanup = offAds;
+  root.__cleanup = () => {
+    disposed = true;
+    clearTimeout(adRefreshTimer);
+    offAds?.();
+  };
   return root;
 }
 
