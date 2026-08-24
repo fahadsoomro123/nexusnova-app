@@ -1,0 +1,181 @@
+name: NexusNova Permanent Signed Release APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_code:
+        description: Android versionCode (must increase for every installed update)
+        required: true
+        default: '2'
+      version_name:
+        description: Android versionName
+        required: true
+        default: '1.0.1'
+
+permissions:
+  contents: write
+
+env:
+  NEXUSNOVA_SIGNING_KEYSTORE_B64: ${{ secrets.NEXUSNOVA_SIGNING_KEYSTORE_B64 }}
+  NEXUSNOVA_SIGNING_STORE_PASSWORD: ${{ secrets.NEXUSNOVA_SIGNING_STORE_PASSWORD }}
+  NEXUSNOVA_SIGNING_KEY_ALIAS: ${{ secrets.NEXUSNOVA_SIGNING_KEY_ALIAS }}
+  NEXUSNOVA_SIGNING_KEY_PASSWORD: ${{ secrets.NEXUSNOVA_SIGNING_KEY_PASSWORD }}
+  NEXUSNOVA_SIGNING_STORE_FILE: ${{ runner.temp }}/nexusnova-release.jks
+
+jobs:
+  build-signed-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify canonical fresh source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s fresh-rebuild/index.html
+          test -s fresh-rebuild/src/main.js
+          test -s NexusNovaAndroid/app/build.gradle.kts
+
+      - name: Require permanent signing secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$NEXUSNOVA_SIGNING_KEYSTORE_B64" || { echo 'Missing NEXUSNOVA_SIGNING_KEYSTORE_B64' >&2; exit 1; }
+          test -n "$NEXUSNOVA_SIGNING_STORE_PASSWORD" || { echo 'Missing NEXUSNOVA_SIGNING_STORE_PASSWORD' >&2; exit 1; }
+          test -n "$NEXUSNOVA_SIGNING_KEY_ALIAS" || { echo 'Missing NEXUSNOVA_SIGNING_KEY_ALIAS' >&2; exit 1; }
+          test -n "$NEXUSNOVA_SIGNING_KEY_PASSWORD" || { echo 'Missing NEXUSNOVA_SIGNING_KEY_PASSWORD' >&2; exit 1; }
+
+      - name: Restore permanent signing keystore
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s' "$NEXUSNOVA_SIGNING_KEYSTORE_B64" | base64 --decode > "$NEXUSNOVA_SIGNING_STORE_FILE"
+          test -s "$NEXUSNOVA_SIGNING_STORE_FILE"
+          chmod 600 "$NEXUSNOVA_SIGNING_STORE_FILE"
+          keytool -list \
+            -keystore "$NEXUSNOVA_SIGNING_STORE_FILE" \
+            -storepass "$NEXUSNOVA_SIGNING_STORE_PASSWORD" \
+            -alias "$NEXUSNOVA_SIGNING_KEY_ALIAS" >/dev/null
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Inject release signing and requested version
+        shell: bash
+        env:
+          VERSION_CODE: ${{ inputs.version_code }}
+          VERSION_NAME: ${{ inputs.version_name }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os, re
+          from pathlib import Path
+
+          version_code = os.environ['VERSION_CODE'].strip()
+          version_name = os.environ['VERSION_NAME'].strip()
+          if not version_code.isdigit() or int(version_code) < 2:
+              raise SystemExit('version_code must be an integer >= 2')
+          if not re.fullmatch(r'[0-9A-Za-z._+-]{1,40}', version_name):
+              raise SystemExit('version_name contains unsupported characters')
+
+          path = Path('NexusNovaAndroid/app/build.gradle.kts')
+          text = path.read_text(encoding='utf-8')
+
+          text, count_code = re.subn(r'versionCode\s*=\s*\d+', f'versionCode = {int(version_code)}', text, count=1)
+          text, count_name = re.subn(r'versionName\s*=\s*"[^"]*"', f'versionName = "{version_name}"', text, count=1)
+          if count_code != 1 or count_name != 1:
+              raise SystemExit('Could not patch Android version fields safely')
+
+          signing_block = '''    signingConfigs {
+              create("nexusRelease") {
+                  storeFile = file(System.getenv("NEXUSNOVA_SIGNING_STORE_FILE"))
+                  storePassword = System.getenv("NEXUSNOVA_SIGNING_STORE_PASSWORD")
+                  keyAlias = System.getenv("NEXUSNOVA_SIGNING_KEY_ALIAS")
+                  keyPassword = System.getenv("NEXUSNOVA_SIGNING_KEY_PASSWORD")
+              }
+          }
+
+          '''
+          anchor = '    buildTypes {\n'
+          if 'create("nexusRelease")' not in text:
+              if anchor not in text:
+                  raise SystemExit('Android buildTypes anchor not found')
+              text = text.replace(anchor, signing_block + anchor, 1)
+
+          release_anchor = '        release {\n'
+          signing_line = '            signingConfig = signingConfigs.getByName("nexusRelease")\n'
+          if signing_line not in text:
+              if release_anchor not in text:
+                  raise SystemExit('Android release buildType anchor not found')
+              text = text.replace(release_anchor, release_anchor + signing_line, 1)
+
+          path.write_text(text, encoding='utf-8')
+          PY
+          grep -Fq 'create("nexusRelease")' NexusNovaAndroid/app/build.gradle.kts
+          grep -Fq 'signingConfig = signingConfigs.getByName("nexusRelease")' NexusNovaAndroid/app/build.gradle.kts
+
+      - name: Build permanently signed release APK
+        working-directory: NexusNovaAndroid
+        run: gradle --no-daemon clean assembleRelease 2>&1 | tee "$GITHUB_WORKSPACE/permanent-signed-release.log"
+
+      - name: Verify APK signature
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$GITHUB_WORKSPACE/NexusNovaAndroid/app/build/outputs/apk/release/app-release.apk"
+          test -s "$APK"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
+          test -n "$APKSIGNER"
+          "$APKSIGNER" verify --verbose --print-certs "$APK" | tee "$GITHUB_WORKSPACE/permanent-signature.txt"
+          grep -Fq 'Verified using v2 scheme (APK Signature Scheme v2): true' "$GITHUB_WORKSPACE/permanent-signature.txt" || \
+            grep -Fq 'Verified using v3 scheme (APK Signature Scheme v3): true' "$GITHUB_WORKSPACE/permanent-signature.txt"
+
+      - name: Publish permanent signed APK
+        shell: bash
+        env:
+          VERSION_CODE: ${{ inputs.version_code }}
+          VERSION_NAME: ${{ inputs.version_name }}
+        run: |
+          set -euo pipefail
+          APK="$GITHUB_WORKSPACE/NexusNovaAndroid/app/build/outputs/apk/release/app-release.apk"
+          OUT=/tmp/nexusnova-permanent-signed
+          rm -rf "$OUT"
+          mkdir -p "$OUT"
+          cp "$APK" "$OUT/NexusNova-PERMANENT-SIGNED-v${VERSION_NAME}-vc${VERSION_CODE}.apk"
+          sha256sum "$OUT"/*.apk > "$OUT/SHA256.txt"
+          cp "$GITHUB_WORKSPACE/permanent-signature.txt" "$OUT/signature.txt"
+          cp "$GITHUB_WORKSPACE/permanent-signed-release.log" "$OUT/build.log"
+          cat > "$OUT/BUILD-STATUS.txt" <<EOF
+          NexusNova PERMANENT SIGNED RELEASE
+          Source commit: $GITHUB_SHA
+          Version name: $VERSION_NAME
+          Version code: $VERSION_CODE
+          Canonical web source: fresh-rebuild/
+          Permanent keystore: GitHub encrypted secret
+          Release signature verification: PASS
+          RESULT: PERMANENT-SIGNED APK READY
+          EOF
+          sed -i 's/^          //' "$OUT/BUILD-STATUS.txt"
+
+          git config user.name 'NexusNova Signed Release Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git fetch origin apk-builds
+          rm -rf /tmp/nexusnova-apk-builds
+          git worktree add /tmp/nexusnova-apk-builds origin/apk-builds
+          cd /tmp/nexusnova-apk-builds
+          rm -rf permanent-signed-release
+          mkdir -p permanent-signed-release
+          cp -a "$OUT"/. permanent-signed-release/
+          git add -A permanent-signed-release
+          git commit -m "Publish permanent signed NexusNova ${VERSION_NAME} (${VERSION_CODE})"
+          git pull --rebase origin apk-builds
+          git push origin HEAD:apk-builds
