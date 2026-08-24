@@ -1,7 +1,7 @@
 import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js';
 import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js';
 import { getFirestore, doc, getDoc, onSnapshot, runTransaction } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js';
-import { getToken, initializeAppCheck, ReCaptchaEnterpriseProvider } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-app-check.js';
+import { CustomProvider, getToken, initializeAppCheck, ReCaptchaEnterpriseProvider } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-app-check.js';
 
 const DAY = 86_400_000;
 const MINING_REWARD = 24;
@@ -16,25 +16,112 @@ export const firebaseConfig = {
 };
 
 export const firebaseApp = getApps()[0] || initializeApp(firebaseConfig);
-export const firebaseAuth = getAuth(firebaseApp);
-export const firestoreDb = getFirestore(firebaseApp);
 let appCheck = null;
 let appCheckError = '';
 let unsubscribe = null;
 let operation = null;
 
 const siteKey = String(document.querySelector('meta[name="nexusnova-app-check-site-key"]')?.content || '').trim();
-if (siteKey) {
-  try {
+const nativeAppCheckBridge = globalThis.NexusAppCheckAndroid;
+const nativeAppCheckPending = new Map();
+let nativeAppCheckRequestCounter = 0;
+let nativeAppCheckListenerReady = false;
+
+function nativeAppCheckAvailable() {
+  return nativeAppCheckBridge && typeof nativeAppCheckBridge.postMessage === 'function';
+}
+
+function settleNativeAppCheck(requestId, payload) {
+  const pending = nativeAppCheckPending.get(requestId);
+  if (!pending) return;
+  nativeAppCheckPending.delete(requestId);
+  clearTimeout(pending.timer);
+
+  if (!payload?.ok) {
+    pending.reject(new Error(String(payload?.error || 'Native App Check verification failed.')));
+    return;
+  }
+
+  const token = String(payload.token || '').trim();
+  const expireTimeMillis = Number(payload.expireTimeMillis);
+  if (!token || !Number.isFinite(expireTimeMillis) || expireTimeMillis <= Date.now()) {
+    pending.reject(new Error('Native App Check returned an invalid token.'));
+    return;
+  }
+  pending.resolve({ token, expireTimeMillis });
+}
+
+function ensureNativeAppCheckListener() {
+  if (!nativeAppCheckAvailable() || nativeAppCheckListenerReady) return;
+  const listener = event => {
+    try {
+      const payload = JSON.parse(String(event?.data || ''));
+      settleNativeAppCheck(String(payload?.requestId || ''), payload);
+    } catch (error) {
+      console.error('[NexusNova Fresh] native App Check response:', error);
+    }
+  };
+  if (typeof nativeAppCheckBridge.addEventListener === 'function') {
+    nativeAppCheckBridge.addEventListener('message', listener);
+  } else {
+    nativeAppCheckBridge.onmessage = listener;
+  }
+  nativeAppCheckListenerReady = true;
+}
+
+function requestNativeAppCheckToken() {
+  ensureNativeAppCheckListener();
+  return new Promise((resolve, reject) => {
+    if (!nativeAppCheckAvailable()) {
+      reject(new Error('Native Android App Check bridge is unavailable.'));
+      return;
+    }
+
+    const requestId = `ac-${Date.now().toString(36)}-${(++nativeAppCheckRequestCounter).toString(36)}`;
+    const timer = setTimeout(() => {
+      nativeAppCheckPending.delete(requestId);
+      reject(new Error('Native Android App Check timed out.'));
+    }, 20_000);
+    nativeAppCheckPending.set(requestId, { resolve, reject, timer });
+
+    try {
+      nativeAppCheckBridge.postMessage(JSON.stringify({
+        action: 'getAppCheckToken',
+        requestId,
+        forceRefresh: true
+      }));
+    } catch (error) {
+      clearTimeout(timer);
+      nativeAppCheckPending.delete(requestId);
+      reject(error);
+    }
+  });
+}
+
+try {
+  if (nativeAppCheckAvailable()) {
+    appCheck = initializeAppCheck(firebaseApp, {
+      provider: new CustomProvider({ getToken: requestNativeAppCheckToken }),
+      isTokenAutoRefreshEnabled: true
+    });
+  } else if (siteKey) {
+    // Browser/GitHub Pages path keeps the registered Web reCAPTCHA provider.
     appCheck = initializeAppCheck(firebaseApp, {
       provider: new ReCaptchaEnterpriseProvider(siteKey),
       isTokenAutoRefreshEnabled: true
     });
-  } catch (error) {
-    appCheckError = 'App Check initialization failed.';
-    console.error('[NexusNova Fresh] App Check:', error);
+  } else {
+    appCheckError = 'App Check is not configured for this client.';
   }
+} catch (error) {
+  appCheckError = 'App Check initialization failed.';
+  console.error('[NexusNova Fresh] App Check:', error);
 }
+
+// Initialize Firebase services after App Check so Firestore can consume the
+// native Android token in the WebView shell.
+export const firebaseAuth = getAuth(firebaseApp);
+export const firestoreDb = getFirestore(firebaseApp);
 
 export function waitForFirebaseUser(timeout = 4200) {
   if (firebaseAuth.currentUser) return Promise.resolve(firebaseAuth.currentUser);
