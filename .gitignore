@@ -17,6 +17,12 @@ pnpm-debug.log*
 *.apk
 *.aab
 
+# Android signing material must never be committed
+*.jks
+*.keystore
+**/keystore.properties
+**/signing.properties
+
 # Generated Android web assets (canonical source is fresh-rebuild/)
 NexusNovaAndroid/app/src/main/assets/www/
 
