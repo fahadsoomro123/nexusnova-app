@@ -1,0 +1,61 @@
+name: NexusNova Native App Check Wire Once
+
+on:
+  push:
+    branches: [nexusnova-latest-full-apk-recovery-20260823]
+    paths:
+      - '.github/workflows/nexusnova-native-appcheck-wire-once.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  wire:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: nexusnova-latest-full-apk-recovery-20260823
+          fetch-depth: 0
+
+      - name: Wire native App Check bridge into MainActivity
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt')
+          s = p.read_text(encoding='utf-8')
+
+          init_anchor = '''        WindowCompat.setDecorFitsSystemWindows(window, false)\n\n        webView = WebView(this)\n'''
+          init_replacement = '''        WindowCompat.setDecorFitsSystemWindows(window, false)\n\n        try {\n            NexusNativeAppCheck.initialize(this)\n        } catch (error: Throwable) {\n            android.util.Log.e("NexusNovaAppCheck", "Native App Check initialization failed", error)\n        }\n\n        webView = WebView(this)\n'''
+          if 'NexusNativeAppCheck.initialize(this)' not in s:
+              if init_anchor not in s:
+                  raise SystemExit('MainActivity App Check init anchor missing')
+              s = s.replace(init_anchor, init_replacement, 1)
+
+          bridge_anchor = '''        WebViewCompat.addWebMessageListener(\n            webView,\n            BROWSER_BRIDGE_NAME,\n            trustedOrigins,\n            browserListener\n        )\n    }\n'''
+          bridge_replacement = '''        WebViewCompat.addWebMessageListener(\n            webView,\n            BROWSER_BRIDGE_NAME,\n            trustedOrigins,\n            browserListener\n        )\n\n        // App Check tokens are exposed only to the bundled/local NexusNova origin.\n        // Remote pages and browser iframes cannot access this bridge.\n        val appCheckListener = WebViewCompat.WebMessageListener { _, message, sourceOrigin, isMainFrame, replyProxy ->\n            if (isMainFrame && isLocalOrigin(sourceOrigin)) {\n                NexusNativeAppCheck.handleMessage(message.data, replyProxy)\n            }\n        }\n        WebViewCompat.addWebMessageListener(\n            webView,\n            NexusNativeAppCheck.JS_BRIDGE_NAME,\n            setOf(LOCAL_APP_ORIGIN),\n            appCheckListener\n        )\n    }\n'''
+          if 'NexusNativeAppCheck.handleMessage(message.data, replyProxy)' not in s:
+              if bridge_anchor not in s:
+                  raise SystemExit('MainActivity App Check bridge anchor missing')
+              s = s.replace(bridge_anchor, bridge_replacement, 1)
+
+          p.write_text(s, encoding='utf-8')
+          PY
+          grep -Fq 'NexusNativeAppCheck.initialize(this)' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -Fq 'NexusNativeAppCheck.handleMessage(message.data, replyProxy)' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+
+      - name: Commit source wiring and remove one-time workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/nexusnova-native-appcheck-wire-once.yml
+          git config user.name 'NexusNova App Check Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add -A NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt .github/workflows/nexusnova-native-appcheck-wire-once.yml
+          git commit -m 'fix: wire native Android App Check bridge'
+          git pull --rebase origin nexusnova-latest-full-apk-recovery-20260823
+          git push origin HEAD:nexusnova-latest-full-apk-recovery-20260823
