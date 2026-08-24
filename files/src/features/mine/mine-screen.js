@@ -5,6 +5,11 @@ const DAY_SECONDS = 86_400;
 const DAY_MS = DAY_SECONDS * 1000;
 let cleanupCurrent = null;
 
+export function cleanupMineScreen() {
+  cleanupCurrent?.();
+  cleanupCurrent = null;
+}
+
 function formatClock(seconds) {
   if (!Number.isFinite(seconds)) return '--:--:--';
   const safe = Math.max(0, Math.floor(seconds));
@@ -43,8 +48,7 @@ function sessionProgress(state) {
 }
 
 export async function mineScreen({ openHubApp, beforeMiningRenewal } = {}) {
-  cleanupCurrent?.();
-  cleanupCurrent = null;
+  cleanupMineScreen();
 
   const root = document.createElement('section');
   root.className = 'nx-screen';
