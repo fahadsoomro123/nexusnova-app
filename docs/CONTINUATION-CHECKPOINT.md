@@ -15,7 +15,10 @@ Disaster master: `apk-builds/full-disaster-master-20260824/NexusNova-FULL-DISAST
 - Community Chat message write physically works.
 - Profile save physically works.
 - Marketplace listing write physically works.
-- Current installed working debug APK integrity anchor: SHA256 `ba168d90c66ab0299208e55ab4f5fcc0afa31bd181efc8d94f47f96b8b540cf5`.
+- Current working debug APK integrity anchor: SHA256 `ba168d90c66ab0299208e55ab4f5fcc0afa31bd181efc8d94f47f96b8b540cf5`.
+- User confirmed the last APK installed and currently running on the phone was downloaded as `NexusNova-LATEST-FULL-PHONE-TEST-4.apk`; the pre-install file screenshot shows `27.85 MB`.
+- The repository artifact `apk-builds/latest-fresh-full-phone-test/NexusNova-LATEST-FULL-PHONE-TEST.apk` is exactly `27,848,088` bytes (27.85 MB), so filename base + displayed size align with the saved working artifact. The local `-4` suffix is a duplicate-download filename suffix, not an app version number.
+- Exact byte identity remains anchored by the repository SHA256 above unless a phone-side SHA256 is independently measured.
 
 ## Current app coverage
 - Registered Nova apps: 58.
