@@ -7,7 +7,9 @@ on:
       - '.github/workflows/nexusnova-main-permanent-signed-launcher-20260825.yml'
 
 permissions:
+  actions: read
   contents: write
+  statuses: write
 
 env:
   NEXUSNOVA_SIGNING_KEYSTORE_B64: ${{ secrets.NEXUSNOVA_KEYSTORE_BASE64 }}
@@ -22,6 +24,26 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
+      - name: Publish launcher run ID
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          jq -n \
+            --arg state pending \
+            --arg target_url "https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+            --arg description "Permanent signed build run ${GITHUB_RUN_ID} started" \
+            --arg context "NexusNova permanent signed launcher" \
+            '{state:$state,target_url:$target_url,description:$description,context:$context}' > /tmp/launcher-status.json
+          curl --fail-with-body --silent --show-error \
+            -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
+            -d @/tmp/launcher-status.json
+
       - uses: actions/checkout@v4
         with:
           ref: nexusnova-latest-full-apk-recovery-20260823
@@ -76,3 +98,47 @@ jobs:
           git commit -m "Publish permanent signed failure $SOURCE_SHA" || exit 0
           git pull --rebase origin apk-builds || true
           git push origin HEAD:apk-builds || true
+
+      - name: Publish launcher success status
+        if: success()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LAUNCHER_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          jq -n \
+            --arg state success \
+            --arg target_url "https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+            --arg description "Permanent signed build run ${GITHUB_RUN_ID} succeeded" \
+            --arg context "NexusNova permanent signed launcher" \
+            '{state:$state,target_url:$target_url,description:$description,context:$context}' > /tmp/launcher-status.json
+          curl --fail-with-body --silent --show-error \
+            -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${LAUNCHER_SHA}" \
+            -d @/tmp/launcher-status.json
+
+      - name: Publish launcher failure status
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LAUNCHER_SHA: ${{ github.sha }}
+        run: |
+          set +e
+          jq -n \
+            --arg state failure \
+            --arg target_url "https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+            --arg description "Permanent signed build run ${GITHUB_RUN_ID} failed" \
+            --arg context "NexusNova permanent signed launcher" \
+            '{state:$state,target_url:$target_url,description:$description,context:$context}' > /tmp/launcher-status.json
+          curl --silent --show-error \
+            -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${LAUNCHER_SHA}" \
+            -d @/tmp/launcher-status.json >/dev/null
