@@ -202,3 +202,5 @@ jobs:
             NexusNova-keystore-sha256.txt
           if-no-files-found: error
           retention-days: 14
+
+# trigger: permanent-signing retry after loader compatibility fix
