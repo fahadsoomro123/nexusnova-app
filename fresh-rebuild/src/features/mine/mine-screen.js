@@ -207,10 +207,17 @@ export async function mineScreen({ openHubApp, beforeMiningRenewal } = {}) {
   const retryMiningSync = async () => {
     if (busy) return;
     busy = true;
-    refs.status.textContent = 'Retrying secure mining sync…';
+    state = { ...state, statusText: 'Retrying secure mining sync…' };
     render(state);
     try {
       state = await backend.getMiningSnapshot();
+      render(state);
+    } catch (error) {
+      state = {
+        ...state,
+        availability: 'error',
+        statusText: error?.message || 'Secure mining sync failed.'
+      };
       render(state);
     } finally {
       busy = false;
@@ -223,8 +230,11 @@ export async function mineScreen({ openHubApp, beforeMiningRenewal } = {}) {
       state = await backend.toggleMining();
       render(state);
     } catch (error) {
-      refs.status.textContent = error?.message || 'Mining action failed.';
-      state = { ...state, availability: state.availability === 'unbound' ? 'error' : state.availability };
+      state = {
+        ...state,
+        availability: 'error',
+        statusText: error?.message || 'Mining action failed.'
+      };
       render(state);
     } finally {
       busy = false;
@@ -244,14 +254,19 @@ export async function mineScreen({ openHubApp, beforeMiningRenewal } = {}) {
     render(state);
 
     const proceed = () => {
-      refs.status.textContent = renewingCompletedSession
-        ? 'Starting the next secure 24-hour session…'
-        : 'Starting secure mining…';
+      state = {
+        ...state,
+        statusText: renewingCompletedSession
+          ? 'Starting the next secure 24-hour session…'
+          : 'Starting secure mining…'
+      };
+      render(state);
       performMiningAction();
     };
 
     if (renewingCompletedSession && typeof beforeMiningRenewal === 'function') {
-      refs.status.textContent = 'Opening ad before the next 24-hour session…';
+      state = { ...state, statusText: 'Opening ad before the next 24-hour session…' };
+      render(state);
       Promise.resolve(beforeMiningRenewal(proceed)).catch(error => {
         console.warn('[NexusNova Fresh] mining renewal ad gate:', error);
         proceed();
@@ -259,7 +274,6 @@ export async function mineScreen({ openHubApp, beforeMiningRenewal } = {}) {
       return;
     }
 
-    // Ordinary current-session start remains ad-free by the approved policy.
     proceed();
   });
 
