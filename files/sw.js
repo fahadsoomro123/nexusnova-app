@@ -9,11 +9,17 @@ const ASSETS=[
 
 function safeNotificationUrl(raw){
   try{
-    const target=new URL(String(raw||'./index.html'),self.location.origin);
-    if(target.origin!==self.location.origin)return './index.html';
-    if(/\/page2\.html$/i.test(target.pathname))return './index.html';
-    return `${target.pathname}${target.search}${target.hash}`;
-  }catch{return './index.html';}
+    const scopeUrl=new URL(String(self.registration?.scope||new URL('./',self.location.href).href));
+    const fallback=new URL('./index.html',scopeUrl);
+    const target=new URL(String(raw||'./index.html'),scopeUrl);
+    if(target.origin!==scopeUrl.origin)return fallback.href;
+    if(!target.pathname.startsWith(scopeUrl.pathname))return fallback.href;
+    if(/\/page2\.html$/i.test(target.pathname))return fallback.href;
+    return target.href;
+  }catch{
+    try{return new URL('./index.html',self.registration?.scope||self.location.href).href;}
+    catch{return './index.html';}
+  }
 }
 
 try{

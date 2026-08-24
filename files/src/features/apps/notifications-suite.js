@@ -1,6 +1,7 @@
-import { firebaseApp, requireFirebaseUser } from '../../core/firebase-backend.js';
+import { firebaseApp, firebaseAuth, requireFirebaseUser } from '../../core/firebase-backend.js';
 
-const TOKEN_KEY='nexusnova_fcm_token_v1';
+const LEGACY_TOKEN_KEY='nexusnova_fcm_token_v1';
+const TOKEN_PREFIX='nexusnova_fcm_token_v2:';
 let working=false;
 let silentRefreshInstalled=false;
 
@@ -8,6 +9,10 @@ function node(html){const root=document.createElement('div');root.className='nx-
 function vapidKey(){return String(window.NEXUSNOVA_FCM_VAPID_KEY||window.NEXUSNOVA_PUBLIC_CONFIG?.fcmVapidKey||'').trim();}
 function notificationSupported(){return typeof globalThis.Notification==='function';}
 function requireIdle(){if(working)throw new Error('A push notification operation is already in progress. Please try again in a moment.');working=true;}
+function tokenKey(uid){const id=String(uid||'').trim();return id?`${TOKEN_PREFIX}${id}`:'';}
+function storedToken(uid){const key=tokenKey(uid);return key?String(localStorage.getItem(key)||'').trim():'';}
+function saveToken(uid,token){const key=tokenKey(uid);if(!key)return;localStorage.setItem(key,String(token||''));localStorage.removeItem(LEGACY_TOKEN_KEY);}
+function clearToken(uid){const key=tokenKey(uid);if(key)localStorage.removeItem(key);localStorage.removeItem(LEGACY_TOKEN_KEY);}
 
 async function parts(){
   const [functionsMod,messagingMod]=await Promise.all([
@@ -21,8 +26,8 @@ async function context(){
   if(!notificationSupported()||!('serviceWorker'in navigator))throw new Error('Push notifications are not supported on this device/browser.');
   const modules=await parts();
   if(!(await modules.messagingMod.isSupported()))throw new Error('Firebase web push is not supported on this device/browser.');
-  await requireFirebaseUser({write:true});
-  return modules;
+  const user=await requireFirebaseUser({write:true});
+  return {...modules,user};
 }
 
 async function registration(){
@@ -55,8 +60,8 @@ async function registerDevice(requestPermission=true){
     const ctx=await context();
     const {token}=await tokenFor(ctx,requestPermission);
     await callable(ctx,'registerPushToken',{token,userAgent:navigator.userAgent||''});
-    localStorage.setItem(TOKEN_KEY,token);
-    return token;
+    saveToken(ctx.user.uid,token);
+    return {token,uid:ctx.user.uid};
   }finally{working=false;}
 }
 
@@ -66,7 +71,7 @@ async function sendTestPush(){
     const ctx=await context();
     const {token}=await tokenFor(ctx,false);
     await callable(ctx,'registerPushToken',{token,userAgent:navigator.userAgent||''});
-    localStorage.setItem(TOKEN_KEY,token);
+    saveToken(ctx.user.uid,token);
     return callable(ctx,'sendPushTest',{});
   }finally{working=false;}
 }
@@ -75,12 +80,12 @@ async function disableDevice(){
   requireIdle();
   try{
     const ctx=await context();
-    const stored=String(localStorage.getItem(TOKEN_KEY)||'').trim();
+    const stored=storedToken(ctx.user.uid);
     const obtained=stored?null:await tokenFor(ctx,false);
     const token=stored||obtained?.token;
     if(token)await callable(ctx,'removePushToken',{token});
     try{await ctx.messagingMod.deleteToken(ctx.messagingMod.getMessaging(firebaseApp));}catch(error){console.warn('[NexusNova Fresh] FCM local token delete:',error);}
-    localStorage.removeItem(TOKEN_KEY);
+    clearToken(ctx.user.uid);
     return true;
   }finally{working=false;}
 }
@@ -108,25 +113,30 @@ export function renderNotificationsSuite(){
       <p class="nx-tool-meta">A local test only checks this browser permission. “Send Real Test” calls the App Check protected FCM backend and is rate-limited server-side.</p>
     </section>`);
   const permission=root.querySelector('[data-push-permission]'),badge=root.querySelector('[data-push-badge]'),status=root.querySelector('[data-push-status]');
-  const paint=()=>{const value=notificationSupported()?Notification.permission:'unsupported';permission.textContent=value;const registered=Boolean(localStorage.getItem(TOKEN_KEY));badge.textContent=value==='granted'&&registered?'FCM ON':value.toUpperCase();badge.classList.toggle('good',value==='granted'&&registered);};
+  let active=true;
+  const paint=()=>{if(!active)return;const value=notificationSupported()?Notification.permission:'unsupported';permission.textContent=value;const uid=String(firebaseAuth.currentUser?.uid||'');const registered=Boolean(storedToken(uid));badge.textContent=value==='granted'&&registered?'FCM ON':value.toUpperCase();badge.classList.toggle('good',value==='granted'&&registered);};
   paint();
   root.querySelector('[data-push-enable]').addEventListener('click',async()=>{
     status.textContent='Connecting secure Firebase push…';
-    try{await registerDevice(true);status.textContent='Push notifications enabled for this device.';}catch(error){status.textContent=String(error?.message||error).slice(0,280);}finally{paint();}
+    try{await registerDevice(true);if(active)status.textContent='Push notifications enabled for this account on this device.';}catch(error){if(active)status.textContent=String(error?.message||error).slice(0,280);}finally{paint();}
   });
   root.querySelector('[data-push-test]').addEventListener('click',async()=>{
     status.textContent='Sending a real FCM test through the secure backend…';
-    try{const result=await sendTestPush();const sent=Number(result?.sent||0),failed=Number(result?.failed||0),pruned=Number(result?.pruned||0);status.textContent=`FCM test result: sent ${sent}, failed ${failed}, pruned ${pruned}.`;}catch(error){status.textContent=String(error?.message||error).slice(0,280);}finally{paint();}
+    try{const result=await sendTestPush();if(active){const sent=Number(result?.sent||0),failed=Number(result?.failed||0),pruned=Number(result?.pruned||0);status.textContent=`FCM test result: sent ${sent}, failed ${failed}, pruned ${pruned}.`;}}catch(error){if(active)status.textContent=String(error?.message||error).slice(0,280);}finally{paint();}
   });
   root.querySelector('[data-push-disable]').addEventListener('click',async()=>{
     status.textContent='Removing this device push token…';
-    try{await disableDevice();status.textContent='Push notifications disabled for this device.';}catch(error){status.textContent=String(error?.message||error).slice(0,280);}finally{paint();}
+    try{await disableDevice();if(active)status.textContent='Push notifications disabled for this device.';}catch(error){if(active)status.textContent=String(error?.message||error).slice(0,280);}finally{paint();}
   });
   root.querySelector('[data-local-test]').addEventListener('click',()=>{
     if(!notificationSupported()){status.textContent='Notifications are unsupported here.';return;}
     if(Notification.permission!=='granted'){status.textContent='Enable notification permission first.';return;}
     try{new Notification('NexusNova',{body:'Local notification test successful.'});status.textContent='Local notification displayed.';}catch(error){status.textContent='Local notification could not be displayed.';}
   });
+  if(notificationSupported()&&Notification.permission==='granted'&&firebaseAuth.currentUser&&!storedToken(firebaseAuth.currentUser.uid)){
+    registerDevice(false).then(()=>{if(active)status.textContent='Existing notification permission linked to this NexusNova account.';}).catch(()=>{}).finally(paint);
+  }
+  root.__cleanup=()=>{active=false;};
   return root;
 }
 
