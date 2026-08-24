@@ -6,6 +6,7 @@ let silentRefreshInstalled=false;
 
 function node(html){const root=document.createElement('div');root.className='nx-app-body';root.innerHTML=html;return root;}
 function vapidKey(){return String(window.NEXUSNOVA_FCM_VAPID_KEY||window.NEXUSNOVA_PUBLIC_CONFIG?.fcmVapidKey||'').trim();}
+function notificationSupported(){return typeof globalThis.Notification==='function';}
 
 async function parts(){
   const [functionsMod,messagingMod]=await Promise.all([
@@ -16,7 +17,7 @@ async function parts(){
 }
 
 async function context(){
-  if(!('Notification'in window)||!('serviceWorker'in navigator))throw new Error('Push notifications are not supported on this device/browser.');
+  if(!notificationSupported()||!('serviceWorker'in navigator))throw new Error('Push notifications are not supported on this device/browser.');
   const modules=await parts();
   if(!(await modules.messagingMod.isSupported()))throw new Error('Firebase web push is not supported on this device/browser.');
   await requireFirebaseUser({write:true});
@@ -86,7 +87,7 @@ async function disableDevice(){
 function installSilentRefresh(){
   if(silentRefreshInstalled)return;silentRefreshInstalled=true;
   const refresh=()=>setTimeout(()=>{
-    if('Notification'in window&&Notification.permission==='granted')registerDevice(false).catch(error=>console.warn('[NexusNova Fresh] FCM silent refresh:',error));
+    if(notificationSupported()&&Notification.permission==='granted')registerDevice(false).catch(error=>console.warn('[NexusNova Fresh] FCM silent refresh:',error));
   },3500);
   if(document.readyState==='complete')refresh();
   else window.addEventListener('load',refresh,{once:true});
@@ -96,7 +97,7 @@ installSilentRefresh();
 export function renderNotificationsSuite(){
   const root=node(`
     <section class="nx-tool-card">
-      <div class="nx-setting-row"><div><strong>Firebase Cloud Messaging</strong><span data-push-permission>${'Notification'in window?Notification.permission:'unsupported'}</span></div><span class="nx-badge" data-push-badge>CHECK</span></div>
+      <div class="nx-setting-row"><div><strong>Firebase Cloud Messaging</strong><span data-push-permission>${notificationSupported()?Notification.permission:'unsupported'}</span></div><span class="nx-badge" data-push-badge>CHECK</span></div>
       <div class="nx-action-row"><button class="nx-primary" type="button" data-push-enable>ENABLE PUSH</button><button type="button" data-push-test>SEND REAL TEST</button><button type="button" data-push-disable>DISABLE DEVICE</button></div>
       <p class="nx-tool-meta" data-push-status>Closed-app web push uses the existing Firebase backend. Permission is requested only after you press Enable.</p>
     </section>
@@ -106,7 +107,7 @@ export function renderNotificationsSuite(){
       <p class="nx-tool-meta">A local test only checks this browser permission. “Send Real Test” calls the App Check protected FCM backend and is rate-limited server-side.</p>
     </section>`);
   const permission=root.querySelector('[data-push-permission]'),badge=root.querySelector('[data-push-badge]'),status=root.querySelector('[data-push-status]');
-  const paint=()=>{const value='Notification'in window?Notification.permission:'unsupported';permission.textContent=value;const registered=Boolean(localStorage.getItem(TOKEN_KEY));badge.textContent=value==='granted'&&registered?'FCM ON':value.toUpperCase();badge.classList.toggle('good',value==='granted'&&registered);};
+  const paint=()=>{const value=notificationSupported()?Notification.permission:'unsupported';permission.textContent=value;const registered=Boolean(localStorage.getItem(TOKEN_KEY));badge.textContent=value==='granted'&&registered?'FCM ON':value.toUpperCase();badge.classList.toggle('good',value==='granted'&&registered);};
   paint();
   root.querySelector('[data-push-enable]').addEventListener('click',async()=>{
     status.textContent='Connecting secure Firebase push…';
@@ -121,7 +122,7 @@ export function renderNotificationsSuite(){
     try{await disableDevice();status.textContent='Push notifications disabled for this device.';}catch(error){status.textContent=String(error?.message||error).slice(0,280);}finally{paint();}
   });
   root.querySelector('[data-local-test]').addEventListener('click',()=>{
-    if(!('Notification'in window)){status.textContent='Notifications are unsupported here.';return;}
+    if(!notificationSupported()){status.textContent='Notifications are unsupported here.';return;}
     if(Notification.permission!=='granted'){status.textContent='Enable notification permission first.';return;}
     try{new Notification('NexusNova',{body:'Local notification test successful.'});status.textContent='Local notification displayed.';}catch(error){status.textContent='Local notification could not be displayed.';}
   });
