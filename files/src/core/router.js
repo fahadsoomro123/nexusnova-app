@@ -28,7 +28,11 @@ export function createRouter({ stage, routes, beforeRoute, onRoute }) {
     // Route factories can be asynchronous (auth, Mine data, lazy-loaded apps).
     // If the user navigated again while this factory was waiting, its result is
     // stale and must never replace the newer screen or rewrite its hash/state.
-    if (revision !== renderRevision) return current;
+    if (revision !== renderRevision) {
+      try { result?.__cleanup?.(); }
+      catch (error) { console.warn('[NexusNova Fresh] stale route cleanup:', error); }
+      return current;
+    }
 
     if (typeof result === 'string') stage.innerHTML = result;
     else if (result instanceof Node) stage.appendChild(result);
