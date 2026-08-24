@@ -1,6 +1,7 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -73,7 +74,11 @@ dependencies {
     implementation("androidx.webkit:webkit:1.10.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 
-    // GMA Next-Gen SDK. Debug builds use Google test inventory; release builds
+    // Native Firebase App Check for the Android WebView shell.
+    implementation(platform("com.google.firebase:firebase-bom:34.17.0"))
+    implementation("com.google.firebase:firebase-appcheck-recaptcha")
+
+    // GMA Next-Gen SDK. Debug builds use Google's test inventory; release builds
     // use NexusNova production IDs only after the production consent gate passes.
     implementation("com.google.android.libraries.ads.mobile.sdk:ads-mobile-sdk:1.3.0")
 
