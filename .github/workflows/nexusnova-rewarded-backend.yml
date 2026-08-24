@@ -9,6 +9,7 @@ on:
     paths:
       - 'functions/**'
       - '.github/scripts/rewarded-ads-backend-smoke.mjs'
+      - '.github/scripts/functions-appcheck-readiness.py'
       - '.github/workflows/nexusnova-rewarded-backend.yml'
   workflow_dispatch:
 
@@ -32,8 +33,19 @@ jobs:
         run: |
           node --check functions/rewardedAds.js
           node --check functions/admobRewardedSsv.js
+          node --check functions/admobRewardedSsvV2.js
+          node --check functions/novaVault10x.js
           node --check functions/notifications.js
+          node --check functions/travelSearch.js
+          node --check functions/hotelSearch.js
+          node --check functions/groundTransportSearch.js
+          node --check functions/learningSearch.js
+          node --check functions/entertainmentSearch.js
           node --check functions/index.js
+          node --check functions/main.js
+
+      - name: Verify callable App Check boundaries
+        run: python3 .github/scripts/functions-appcheck-readiness.py
 
       - name: Install Functions dependencies
         run: npm install --prefix functions --ignore-scripts --no-audit --no-fund
