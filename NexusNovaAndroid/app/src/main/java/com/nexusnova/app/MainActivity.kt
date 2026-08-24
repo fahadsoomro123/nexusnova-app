@@ -105,6 +105,12 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
+        try {
+            NexusNativeAppCheck.initialize(this)
+        } catch (error: Throwable) {
+            android.util.Log.e("NexusNovaAppCheck", "Native App Check initialization failed", error)
+        }
+
         webView = WebView(this)
         setContentView(webView)
 
@@ -494,6 +500,20 @@ class MainActivity : AppCompatActivity() {
             BROWSER_BRIDGE_NAME,
             trustedOrigins,
             browserListener
+        )
+
+        // App Check tokens are exposed only to the bundled/local NexusNova origin.
+        // Remote pages and browser iframes cannot access this bridge.
+        val appCheckListener = WebViewCompat.WebMessageListener { _, message, sourceOrigin, isMainFrame, replyProxy ->
+            if (isMainFrame && isLocalOrigin(sourceOrigin)) {
+                NexusNativeAppCheck.handleMessage(message.data, replyProxy)
+            }
+        }
+        WebViewCompat.addWebMessageListener(
+            webView,
+            NexusNativeAppCheck.JS_BRIDGE_NAME,
+            setOf(LOCAL_APP_ORIGIN),
+            appCheckListener
         )
     }
 
