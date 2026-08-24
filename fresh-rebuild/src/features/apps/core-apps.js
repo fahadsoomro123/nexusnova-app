@@ -173,9 +173,15 @@ export function renderWallet() {
   connect.addEventListener('click', () => refresh({ requestAccounts:true }));
   refresh();
   const p = provider();
-  p?.on?.('accountsChanged', () => refresh());
-  p?.on?.('chainChanged', () => refresh());
-  root.__cleanup = () => off?.();
+  const handleAccountsChanged = () => refresh();
+  const handleChainChanged = () => refresh();
+  p?.on?.('accountsChanged', handleAccountsChanged);
+  p?.on?.('chainChanged', handleChainChanged);
+  root.__cleanup = () => {
+    off?.();
+    p?.removeListener?.('accountsChanged', handleAccountsChanged);
+    p?.removeListener?.('chainChanged', handleChainChanged);
+  };
   return root;
 }
 
