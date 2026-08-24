@@ -56,8 +56,10 @@ function enhanceMiningNovaVault(root) {
   let profileOff = null;
   let credits = 0;
   let busy = false;
+  let active = true;
 
   const paint = () => {
+    if (!active) return;
     creditBadge.textContent = `${credits} CREDIT${credits === 1 ? '' : 'S'}`;
     creditBadge.classList.toggle('good', credits > 0);
     watchButton.disabled = busy;
@@ -68,47 +70,55 @@ function enhanceMiningNovaVault(root) {
   const bindCredits = async () => {
     try {
       const user = await requireFirebaseUser();
-      profileOff = onSnapshot(doc(firestoreDb, 'users', user.uid), snap => {
+      if (!active) return;
+      const unsubscribe = onSnapshot(doc(firestoreDb, 'users', user.uid), snap => {
+        if (!active) return;
         credits = Math.max(0, Math.floor(Number(snap.data()?.novaVaultBoostCredits) || 0));
         paint();
         if (!busy) status.textContent = credits > 0
           ? 'Secure 10X credit ready. One pending Nova Vault is also required.'
           : 'Watch the rewarded ad to unlock a secure 10X credit.';
+      }, error => {
+        if (active) status.textContent = error?.message || 'Could not read 10X credit status.';
       });
+      if (!active) unsubscribe();
+      else profileOff = unsubscribe;
     } catch (error) {
-      status.textContent = error?.message || 'Could not read 10X credit status.';
+      if (active) status.textContent = error?.message || 'Could not read 10X credit status.';
     }
   };
 
   const waitForCredit = async before => {
     const deadline = Date.now() + 12_000;
-    while (Date.now() < deadline) {
+    while (active && Date.now() < deadline) {
       if (credits > before) return true;
       await new Promise(resolve => setTimeout(resolve, 400));
     }
-    return credits > before;
+    return active && credits > before;
   };
 
   watchButton.addEventListener('click', async () => {
-    if (busy) return;
+    if (!active || busy) return;
     busy = true;
     paint();
     try {
       const user = await requireFirebaseUser({ write:true });
       const before = credits;
-      status.textContent = 'Opening rewarded ad for secure 10X verification…';
+      if (active) status.textContent = 'Opening rewarded ad for secure 10X verification…';
       const result = await nativeAds.showRewarded({ purpose:'nova-vault-10x', userId:user.uid });
       if (!result.earned) throw new Error('Ad closed before reward completion. No 10X credit was created.');
+      if (!active) return;
       if (result.testMode || nativeAds.status().testMode) {
         status.textContent = '✓ TEST ad completed. TEST ads do not create secure 10X credits; production SSV verification is required.';
         return;
       }
       status.textContent = 'Ad completed • waiting for signed server verification…';
       const verified = await waitForCredit(before);
+      if (!active) return;
       if (!verified) throw new Error('The signed 10X credit has not arrived yet. Check again shortly; no client-side credit was created.');
       status.textContent = '✓ Secure 10X credit verified. You can open the boosted Vault now.';
     } catch (error) {
-      status.textContent = error?.message || '10X rewarded flow could not be completed.';
+      if (active) status.textContent = error?.message || '10X rewarded flow could not be completed.';
     } finally {
       busy = false;
       paint();
@@ -116,19 +126,19 @@ function enhanceMiningNovaVault(root) {
   });
 
   openButton.addEventListener('click', async () => {
-    if (busy || credits < 1) return;
+    if (!active || busy || credits < 1) return;
     busy = true;
     paint();
-    status.textContent = 'Opening boosted Vault on the secure server…';
+    if (active) status.textContent = 'Opening boosted Vault on the secure server…';
     try {
       await requireFirebaseUser({ write:true });
       const call = httpsCallable(getFunctions(firebaseApp, 'us-central1'), 'openNovaVaultBoosted');
       const response = await call({ source:'fresh-rebuild-10x' });
       const data = response?.data || {};
       if (data.opened !== true || data.boosted !== true) throw new Error('Secure 10X Vault response was invalid.');
-      status.textContent = `✓ 10X Vault opened • ${rewardText(data.reward)}.`;
+      if (active) status.textContent = `✓ 10X Vault opened • ${rewardText(data.reward)}.`;
     } catch (error) {
-      status.textContent = String(error?.message || error).replace(/^FirebaseError:\s*/i, '').slice(0, 260);
+      if (active) status.textContent = String(error?.message || error).replace(/^FirebaseError:\s*/i, '').slice(0, 260);
     } finally {
       busy = false;
       paint();
@@ -139,7 +149,9 @@ function enhanceMiningNovaVault(root) {
   bindCredits();
   paint();
   root.__cleanup = () => {
+    active = false;
     profileOff?.();
+    profileOff = null;
     baseCleanup?.();
   };
 }
