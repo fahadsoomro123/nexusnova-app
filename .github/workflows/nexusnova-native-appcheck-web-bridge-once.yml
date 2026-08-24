@@ -1,0 +1,63 @@
+name: NexusNova Native App Check Web Bridge Once
+
+on:
+  push:
+    branches: [nexusnova-latest-full-apk-recovery-20260823]
+    paths:
+      - '.github/workflows/nexusnova-native-appcheck-web-bridge-once.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  wire:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: nexusnova-latest-full-apk-recovery-20260823
+          fetch-depth: 0
+
+      - name: Replace WebView reCAPTCHA with native-token CustomProvider
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('fresh-rebuild/src/core/firebase-backend.js')
+          s = p.read_text(encoding='utf-8')
+
+          old_import = "import { getToken, initializeAppCheck, ReCaptchaEnterpriseProvider } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-app-check.js';"
+          new_import = "import { CustomProvider, getToken, initializeAppCheck, ReCaptchaEnterpriseProvider } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-app-check.js';"
+          if old_import in s:
+              s = s.replace(old_import, new_import, 1)
+          elif new_import not in s:
+              raise SystemExit('App Check import anchor missing')
+
+          old_block = '''export const firebaseApp = getApps()[0] || initializeApp(firebaseConfig);\nexport const firebaseAuth = getAuth(firebaseApp);\nexport const firestoreDb = getFirestore(firebaseApp);\nlet appCheck = null;\nlet appCheckError = '';\nlet unsubscribe = null;\nlet operation = null;\n\nconst siteKey = String(document.querySelector('meta[name="nexusnova-app-check-site-key"]')?.content || '').trim();\nif (siteKey) {\n  try {\n    appCheck = initializeAppCheck(firebaseApp, {\n      provider: new ReCaptchaEnterpriseProvider(siteKey),\n      isTokenAutoRefreshEnabled: true\n    });\n  } catch (error) {\n    appCheckError = 'App Check initialization failed.';\n    console.error('[NexusNova Fresh] App Check:', error);\n  }\n}\n'''
+
+          new_block = '''export const firebaseApp = getApps()[0] || initializeApp(firebaseConfig);\nlet appCheck = null;\nlet appCheckError = '';\nlet unsubscribe = null;\nlet operation = null;\n\nconst siteKey = String(document.querySelector('meta[name="nexusnova-app-check-site-key"]')?.content || '').trim();\nconst nativeAppCheckBridge = globalThis.NexusAppCheckAndroid;\nconst nativeAppCheckPending = new Map();\nlet nativeAppCheckRequestCounter = 0;\nlet nativeAppCheckListenerReady = false;\n\nfunction nativeAppCheckAvailable() {\n  return nativeAppCheckBridge && typeof nativeAppCheckBridge.postMessage === 'function';\n}\n\nfunction settleNativeAppCheck(requestId, payload) {\n  const pending = nativeAppCheckPending.get(requestId);\n  if (!pending) return;\n  nativeAppCheckPending.delete(requestId);\n  clearTimeout(pending.timer);\n\n  if (!payload?.ok) {\n    pending.reject(new Error(String(payload?.error || 'Native App Check verification failed.')));\n    return;\n  }\n\n  const token = String(payload.token || '').trim();\n  const expireTimeMillis = Number(payload.expireTimeMillis);\n  if (!token || !Number.isFinite(expireTimeMillis) || expireTimeMillis <= Date.now()) {\n    pending.reject(new Error('Native App Check returned an invalid token.'));\n    return;\n  }\n  pending.resolve({ token, expireTimeMillis });\n}\n\nfunction ensureNativeAppCheckListener() {\n  if (!nativeAppCheckAvailable() || nativeAppCheckListenerReady) return;\n  const listener = event => {\n    try {\n      const payload = JSON.parse(String(event?.data || ''));\n      settleNativeAppCheck(String(payload?.requestId || ''), payload);\n    } catch (error) {\n      console.error('[NexusNova Fresh] native App Check response:', error);\n    }\n  };\n  if (typeof nativeAppCheckBridge.addEventListener === 'function') {\n    nativeAppCheckBridge.addEventListener('message', listener);\n  } else {\n    nativeAppCheckBridge.onmessage = listener;\n  }\n  nativeAppCheckListenerReady = true;\n}\n\nfunction requestNativeAppCheckToken() {\n  ensureNativeAppCheckListener();\n  return new Promise((resolve, reject) => {\n    if (!nativeAppCheckAvailable()) {\n      reject(new Error('Native Android App Check bridge is unavailable.'));\n      return;\n    }\n\n    const requestId = `ac-${Date.now().toString(36)}-${(++nativeAppCheckRequestCounter).toString(36)}`;\n    const timer = setTimeout(() => {\n      nativeAppCheckPending.delete(requestId);\n      reject(new Error('Native Android App Check timed out.'));\n    }, 20_000);\n    nativeAppCheckPending.set(requestId, { resolve, reject, timer });\n\n    try {\n      nativeAppCheckBridge.postMessage(JSON.stringify({\n        action: 'getAppCheckToken',\n        requestId,\n        forceRefresh: true\n      }));\n    } catch (error) {\n      clearTimeout(timer);\n      nativeAppCheckPending.delete(requestId);\n      reject(error);\n    }\n  });\n}\n\ntry {\n  if (nativeAppCheckAvailable()) {\n    appCheck = initializeAppCheck(firebaseApp, {\n      provider: new CustomProvider({ getToken: requestNativeAppCheckToken }),\n      isTokenAutoRefreshEnabled: true\n    });\n  } else if (siteKey) {\n    // Browser/GitHub Pages path keeps the registered Web reCAPTCHA provider.\n    appCheck = initializeAppCheck(firebaseApp, {\n      provider: new ReCaptchaEnterpriseProvider(siteKey),\n      isTokenAutoRefreshEnabled: true\n    });\n  } else {\n    appCheckError = 'App Check is not configured for this client.';\n  }\n} catch (error) {\n  appCheckError = 'App Check initialization failed.';\n  console.error('[NexusNova Fresh] App Check:', error);\n}\n\n// Initialize Firebase services after App Check so Firestore can consume the\n// native Android token in the WebView shell.\nexport const firebaseAuth = getAuth(firebaseApp);\nexport const firestoreDb = getFirestore(firebaseApp);\n'''
+
+          if 'function requestNativeAppCheckToken()' not in s:
+              if old_block not in s:
+                  raise SystemExit('Firebase App Check initialization block missing')
+              s = s.replace(old_block, new_block, 1)
+
+          p.write_text(s, encoding='utf-8')
+          PY
+          grep -Fq 'new CustomProvider({ getToken: requestNativeAppCheckToken })' fresh-rebuild/src/core/firebase-backend.js
+          grep -Fq "globalThis.NexusAppCheckAndroid" fresh-rebuild/src/core/firebase-backend.js
+
+      - name: Commit web bridge and remove one-time workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/nexusnova-native-appcheck-web-bridge-once.yml
+          git config user.name 'NexusNova App Check Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add -A fresh-rebuild/src/core/firebase-backend.js .github/workflows/nexusnova-native-appcheck-web-bridge-once.yml
+          git commit -m 'fix: use native Android App Check token in WebView'
+          git pull --rebase origin nexusnova-latest-full-apk-recovery-20260823
+          git push origin HEAD:nexusnova-latest-full-apk-recovery-20260823
