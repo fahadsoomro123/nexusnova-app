@@ -1,0 +1,1 @@
+Apply the isolated Nova VPN disconnect accessibility fix to nexusnova-vpn-disconnect-access-20260825.
