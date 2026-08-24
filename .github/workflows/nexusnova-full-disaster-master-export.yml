@@ -1,0 +1,220 @@
+name: NexusNova Full Disaster Master Export
+
+on:
+  push:
+    branches: [nexusnova-disaster-golden-master-20260824]
+    paths:
+      - '.github/workflows/nexusnova-full-disaster-master-export.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  PHONE_SOURCE_COMMIT: d8be5cc12b015a4c13e39czea0d1a81b9e79ced3
+  PHONE_SOURCE_COMMIT_REAL: d8be5cc12b015a4c13e39ccea0d1a81b9e79ced3
+  PHONE_SOURCE_TREE: 6549cf1754652aacca3e4f6ae95acba05f265678
+  LATEST_SOURCE_COMMIT: 5dc7e2325dc82c29cde62836d41bdde6e95fa5fc
+  OTA_COMMIT: 810a3977460e2dc52b5bdd03a92ac3bd235fc7e3
+  OTA_VERSION: a5058be75d90b945825f85da5422a96bedde534a
+  WORKING_APK_SHA256: ba168d90c66ab0299208e55ab4f5fcc0afa31bd181efc8d94f47f96b8b540cf5
+  OLD_GOLDEN_SHA256: 50c7c82346e8f508a2def3bb4d0839510aef1929d2c2e781f7e6decc97ff1428
+  OUTPUT_NAME: NexusNova-FULL-DISASTER-MASTER-20260824.zip
+
+jobs:
+  build-full-disaster-master:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch exact recovery refs
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin \
+            refs/heads/nexusnova-latest-full-apk-recovery-20260823:refs/remotes/origin/nexusnova-latest-full-apk-recovery-20260823 \
+            refs/heads/nexusnova-ota-release:refs/remotes/origin/nexusnova-ota-release \
+            refs/heads/apk-builds:refs/remotes/origin/apk-builds
+
+          test "$(git rev-parse origin/nexusnova-latest-full-apk-recovery-20260823)" = "$LATEST_SOURCE_COMMIT"
+          test "$(git rev-parse origin/nexusnova-ota-release)" = "$OTA_COMMIT"
+          test "$(git rev-parse "$PHONE_SOURCE_COMMIT_REAL^{tree}")" = "$PHONE_SOURCE_TREE"
+
+      - name: Stage exact source snapshots
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/full-disaster-master"
+          rm -rf "$ROOT"
+          mkdir -p "$ROOT"/{01-SOURCE,02-WORKING-APK,03-OTA,04-FIREBASE,05-PREVIOUS-GOLDEN,06-RECOVERY}
+
+          git archive --format=zip \
+            --output="$ROOT/01-SOURCE/NexusNova-PHONE-VERIFIED-SOURCE-d8be5cc.zip" \
+            "$PHONE_SOURCE_COMMIT_REAL"
+
+          git archive --format=zip \
+            --output="$ROOT/01-SOURCE/NexusNova-LATEST-ACTIVE-SOURCE-5dc7e232.zip" \
+            "$LATEST_SOURCE_COMMIT"
+
+          unzip -t "$ROOT/01-SOURCE/NexusNova-PHONE-VERIFIED-SOURCE-d8be5cc.zip" >/dev/null
+          unzip -t "$ROOT/01-SOURCE/NexusNova-LATEST-ACTIVE-SOURCE-5dc7e232.zip" >/dev/null
+
+      - name: Stage exact phone-working APK and previous Golden
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/full-disaster-master"
+          rm -rf /tmp/nx-apk-builds-read
+          git worktree add /tmp/nx-apk-builds-read origin/apk-builds
+
+          APK=/tmp/nx-apk-builds-read/latest-fresh-full-phone-test/NexusNova-LATEST-FULL-PHONE-TEST.apk
+          GOLDEN=/tmp/nx-apk-builds-read/golden-disaster-backup-20260823/NexusNova-GOLDEN-PHONE-PASS-20260823.zip
+          test -s "$APK"
+          test -s "$GOLDEN"
+          test "$(sha256sum "$APK" | awk '{print $1}')" = "$WORKING_APK_SHA256"
+          test "$(sha256sum "$GOLDEN" | awk '{print $1}')" = "$OLD_GOLDEN_SHA256"
+
+          cp "$APK" "$ROOT/02-WORKING-APK/NexusNova-CURRENT-WORKING-PHONE.apk"
+          cp /tmp/nx-apk-builds-read/latest-fresh-full-phone-test/BUILD-STATUS.txt "$ROOT/02-WORKING-APK/"
+          cp /tmp/nx-apk-builds-read/latest-fresh-full-phone-test/SHA256.txt "$ROOT/02-WORKING-APK/ORIGINAL-SHA256.txt"
+
+          cp "$GOLDEN" "$ROOT/05-PREVIOUS-GOLDEN/"
+          cp /tmp/nx-apk-builds-read/golden-disaster-backup-20260823/NexusNova-GOLDEN-PHONE-PASS-20260823.sha256 "$ROOT/05-PREVIOUS-GOLDEN/"
+          cp /tmp/nx-apk-builds-read/golden-disaster-backup-20260823/GOLDEN-BACKUP-STATUS.txt "$ROOT/05-PREVIOUS-GOLDEN/"
+
+      - name: Stage exact OTA snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/full-disaster-master"
+          git archive --format=zip \
+            --output="$ROOT/03-OTA/NexusNova-OTA-$OTA_VERSION.zip" \
+            "$OTA_COMMIT"
+          git show "$OTA_COMMIT:manifest.json" > "$ROOT/03-OTA/manifest.json"
+          grep -Fq '"version":"'$OTA_VERSION'"' "$ROOT/03-OTA/manifest.json"
+          unzip -t "$ROOT/03-OTA/NexusNova-OTA-$OTA_VERSION.zip" >/dev/null
+
+      - name: Stage Firebase and recovery configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/full-disaster-master"
+          git show "$PHONE_SOURCE_COMMIT_REAL:firestore.rules" > "$ROOT/04-FIREBASE/firestore.rules"
+          git show "$PHONE_SOURCE_COMMIT_REAL:firebase.json" > "$ROOT/04-FIREBASE/firebase.json"
+          git show "$PHONE_SOURCE_COMMIT_REAL:.firebaserc" > "$ROOT/04-FIREBASE/.firebaserc"
+          git show "$PHONE_SOURCE_COMMIT_REAL:NexusNovaAndroid/app/google-services.json" > "$ROOT/04-FIREBASE/google-services.json"
+
+          cp RECOVERY/DISASTER-GOLDEN-MASTER-20260824.md "$ROOT/06-RECOVERY/"
+          cp RECOVERY/DISASTER-GOLDEN-MASTER-20260824.json "$ROOT/06-RECOVERY/"
+          cp RECOVERY/DO-NOT-MOVE-THIS-BRANCH.txt "$ROOT/06-RECOVERY/"
+
+          cat > "$ROOT/06-RECOVERY/READ-ME-FIRST.txt" <<EOF
+          NEXUSNOVA FULL DISASTER MASTER — 24 AUG 2026
+
+          THIS ONE FILE IS THE APPLICATION RECOVERY MASTER.
+
+          INCLUDED:
+          1. Phone-verified tracked source snapshot: $PHONE_SOURCE_COMMIT_REAL
+          2. Latest active tracked source snapshot: $LATEST_SOURCE_COMMIT
+          3. Exact current phone-working native APK
+          4. Exact OTA snapshot: $OTA_VERSION / $OTA_COMMIT
+          5. Firestore rules + Firebase project/client configuration
+          6. Previous phone-PASS Golden backup
+          7. Recovery instructions + internal SHA256 integrity list
+
+          PHONE-WORKING APK SHA256:
+          $WORKING_APK_SHA256
+
+          IMPORTANT CLOUD/SECRET LIMIT:
+          Live Firestore documents, Firebase Auth user records, console-side App Check settings,
+          AdMob console state, GitHub encrypted secret VALUES, private signing keystores and
+          passwords are NOT embedded in this ZIP. Private signing material must remain in a
+          separate encrypted/offline backup once permanent signing is activated.
+
+          APP CHECK ENFORCEMENT AT CAPTURE: OFF
+          DO NOT FORCE-EXPIRE MINING FOR TESTS.
+          NORMAL WEB/UI/JS RECOVERY: OTA.
+          NATIVE APK RECOVERY: ONLY WHEN A NATIVE CHANGE IS REQUIRED AND SIGNING CONTINUITY IS KNOWN.
+          EOF
+          sed -i 's/^          //' "$ROOT/06-RECOVERY/READ-ME-FIRST.txt"
+
+          cat > "$ROOT/06-RECOVERY/RECOVERY-ANCHORS.txt" <<EOF
+          Repository: fahadsoomro123/nexusnova-app
+          Disaster branch: nexusnova-disaster-golden-master-20260824
+          Phone-verified source: $PHONE_SOURCE_COMMIT_REAL
+          Phone-verified tree: $PHONE_SOURCE_TREE
+          Latest active source: $LATEST_SOURCE_COMMIT
+          Working APK source: 8207656a68153c7eb5fcbe0f9d021898bf87263e
+          Working APK SHA256: $WORKING_APK_SHA256
+          OTA commit: $OTA_COMMIT
+          OTA version: $OTA_VERSION
+          Previous Golden branch: nexusnova-golden-phone-pass-20260823
+          Previous Golden commit: e6176f721216e3e0c3130c8811a4123bcafce8cc
+          Older approved commit: 484a50ee95259daac98beb8b1caf2e2bae9526fe
+          Firebase project: nexusnova-6ade2
+          Android package: com.nexusnova.app
+          App Check enforcement: OFF
+          EOF
+          sed -i 's/^          //' "$ROOT/06-RECOVERY/RECOVERY-ANCHORS.txt"
+
+      - name: Generate internal integrity manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/full-disaster-master"
+          cd "$ROOT"
+          find . -type f ! -name 'INTERNAL-SHA256.txt' -print0 \
+            | sort -z \
+            | xargs -0 sha256sum > INTERNAL-SHA256.txt
+          sha256sum -c INTERNAL-SHA256.txt
+
+      - name: Build and verify one-file disaster master
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE"
+          rm -f "$OUTPUT_NAME"
+          zip -q -9 -r "$OUTPUT_NAME" full-disaster-master
+          test -s "$OUTPUT_NAME"
+          unzip -t "$OUTPUT_NAME" >/dev/null
+          FINAL_SHA="$(sha256sum "$OUTPUT_NAME" | awk '{print $1}')"
+          FINAL_SIZE="$(stat -c '%s' "$OUTPUT_NAME")"
+          printf '%s\n' "$FINAL_SHA" > /tmp/nexusnova-full-disaster-final.sha256
+          printf '%s\n' "$FINAL_SIZE" > /tmp/nexusnova-full-disaster-final.size
+          echo "FINAL_SHA256=$FINAL_SHA" >> "$GITHUB_ENV"
+          echo "FINAL_SIZE=$FINAL_SIZE" >> "$GITHUB_ENV"
+
+      - name: Upload workflow artifact copy
+        uses: actions/upload-artifact@v4
+        with:
+          name: NexusNova-FULL-DISASTER-MASTER-20260824
+          path: NexusNova-FULL-DISASTER-MASTER-20260824.zip
+          retention-days: 90
+
+      - name: Publish persistent one-file browser download
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT_BRANCH=/tmp/nx-apk-builds-publish
+          rm -rf "$OUT_BRANCH"
+          git worktree remove --force /tmp/nx-apk-builds-read || true
+          git fetch origin apk-builds
+          git worktree add "$OUT_BRANCH" origin/apk-builds
+          cd "$OUT_BRANCH"
+          rm -rf full-disaster-master-20260824
+          mkdir -p full-disaster-master-20260824
+          cp "$GITHUB_WORKSPACE/$OUTPUT_NAME" full-disaster-master-20260824/
+
+          git config user.name 'NexusNova Full Disaster Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add full-disaster-master-20260824/$OUTPUT_NAME
+          git commit -m "Publish one-file full NexusNova disaster master 20260824"
+          git pull --rebase origin apk-builds
+          git push origin HEAD:apk-builds
+
+          echo "Published: $OUTPUT_NAME"
+          echo "Size: $FINAL_SIZE bytes"
+          echo "SHA256: $FINAL_SHA256"
