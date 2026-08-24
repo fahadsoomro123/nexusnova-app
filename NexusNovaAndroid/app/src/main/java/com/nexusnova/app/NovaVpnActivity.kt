@@ -120,6 +120,10 @@ class NovaVpnActivity : AppCompatActivity() {
         root.addView(buildHero())
         root.addView(space(10))
         root.addView(buildStatsCard())
+        root.addView(space(10))
+        // Keep CONNECT/DISCONNECT controls above the potentially long server list so
+        // an active tunnel can always be stopped without scrolling past every server.
+        root.addView(buildActionPanel())
         root.addView(space(17))
 
         val serverHead = LinearLayout(this).apply {
@@ -148,8 +152,6 @@ class NovaVpnActivity : AppCompatActivity() {
         serverList = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         root.addView(serverList)
 
-        root.addView(space(8))
-        root.addView(buildActionPanel())
         root.addView(space(10))
         root.addView(buildPrivacyCard())
 
