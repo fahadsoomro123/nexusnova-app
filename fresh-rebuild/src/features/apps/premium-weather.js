@@ -204,14 +204,19 @@ export function renderWeatherPremium() {
   let busy = false;
   let cancelled = false;
 
-  const paintRadar = () => { radar.src = windyUrl(state.lat, state.lon, state.layer); };
+  const paintRadar = () => {
+    if (cancelled) return;
+    radar.src = windyUrl(state.lat, state.lon, state.layer);
+  };
   const setLayer = layer => {
+    if (cancelled) return;
     state.layer = layer;
     root.querySelectorAll('[data-wx-layer]').forEach(button => button.classList.toggle('is-active', button.dataset.wxLayer === layer));
     paintRadar();
   };
 
   const loadPrayerStrip = async (lat, lon, place) => {
+    if (cancelled) return;
     prayerPlace.textContent = place;
     try {
       const now = new Date();
@@ -219,16 +224,17 @@ export function renderWeatherPremium() {
       const response = await fetch(`https://api.aladhan.com/v1/timings/${dateParam}?latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lon)}&method=3`, { cache:'no-store' });
       if (!response.ok) throw new Error(`Prayer HTTP ${response.status}`);
       const json = await response.json();
+      if (cancelled) return;
       const timings = json?.data?.timings || {};
       const rows = [['Fajr','◒'],['Sunrise','☀'],['Dhuhr','☀'],['Asr','☀'],['Maghrib','◉'],['Isha','☾']];
       prayerList.innerHTML = rows.map(([name, icon]) => `<article><b>${icon}</b><span>${name.toUpperCase()}</span><strong>${escapeHtml(to12Hour(timings[name]))}</strong></article>`).join('');
     } catch {
-      prayerList.innerHTML = '<div class="nx-empty">Prayer times unavailable.</div>';
+      if (!cancelled) prayerList.innerHTML = '<div class="nx-empty">Prayer times unavailable.</div>';
     }
   };
 
   const loadWeather = async ({ lat, lon, place }) => {
-    if (busy) return;
+    if (busy || cancelled) return;
     busy = true;
     status.textContent = `Loading live weather for ${place}…`;
     try {
@@ -291,9 +297,9 @@ export function renderWeatherPremium() {
 
       paintRadar();
       loadPrayerStrip(lat, lon, place);
-      status.textContent = `Updated ${new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })} • ${meta.label} • live location weather`;
+      if (!cancelled) status.textContent = `Updated ${new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })} • ${meta.label} • live location weather`;
     } catch (error) {
-      status.textContent = 'Live weather is unavailable right now. Check the connection and try again.';
+      if (!cancelled) status.textContent = 'Live weather is unavailable right now. Check the connection and try again.';
       console.warn('[NexusNova Premium] weather:', error);
     } finally {
       busy = false;
@@ -301,16 +307,19 @@ export function renderWeatherPremium() {
   };
 
   const useGps = async () => {
+    if (cancelled) return;
     status.textContent = 'Getting your current GPS location…';
     try {
       const position = await currentPosition({ enableHighAccuracy:false });
+      if (cancelled) return;
       await loadWeather({ lat:position.coords.latitude, lon:position.coords.longitude, place:'Current location' });
     } catch {
-      status.textContent = 'GPS permission is unavailable. Search for a city instead.';
+      if (!cancelled) status.textContent = 'GPS permission is unavailable. Search for a city instead.';
     }
   };
 
   const findPlaces = async () => {
+    if (cancelled) return;
     const query = search.value.trim();
     if (query.length < 2) {
       status.textContent = 'Enter at least 2 characters to search a location.';
@@ -321,6 +330,7 @@ export function renderWeatherPremium() {
       const response = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=10&language=en&format=json`, { cache:'no-store' });
       if (!response.ok) throw new Error(`Geocoding HTTP ${response.status}`);
       const json = await response.json();
+      if (cancelled) return;
       searchRows = Array.isArray(json.results) ? json.results : [];
       if (!searchRows.length) {
         results.hidden = true;
@@ -332,7 +342,7 @@ export function renderWeatherPremium() {
       const first = searchRows[0];
       await loadWeather({ lat:first.latitude, lon:first.longitude, place:[first.name, first.country].filter(Boolean).join(', ') });
     } catch (error) {
-      status.textContent = 'Location search is unavailable right now.';
+      if (!cancelled) status.textContent = 'Location search is unavailable right now.';
       console.warn('[NexusNova Premium] weather geocoding:', error);
     }
   };
@@ -341,6 +351,7 @@ export function renderWeatherPremium() {
   root.querySelector('[data-wx-search-go]').addEventListener('click', findPlaces);
   search.addEventListener('keydown', event => { if (event.key === 'Enter') findPlaces(); });
   results.addEventListener('change', () => {
+    if (cancelled) return;
     const item = searchRows[Number(results.value)];
     if (!item) return;
     loadWeather({ lat:item.latitude, lon:item.longitude, place:[item.name, item.country].filter(Boolean).join(', ') });
@@ -348,6 +359,7 @@ export function renderWeatherPremium() {
   root.querySelector('[data-wx-refresh]').addEventListener('click', () => loadWeather(state));
   root.querySelectorAll('[data-wx-layer]').forEach(button => button.addEventListener('click', () => setLayer(button.dataset.wxLayer)));
   root.querySelector('[data-wx-expand]').addEventListener('click', event => {
+    if (cancelled) return;
     const expanded = radarShell.classList.toggle('is-expanded');
     document.body.classList.toggle('nx-weather-map-open', expanded);
     event.currentTarget.textContent = expanded ? 'COLLAPSE' : 'EXPAND';
