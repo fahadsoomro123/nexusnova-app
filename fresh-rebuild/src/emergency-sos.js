@@ -1,7 +1,9 @@
 const SOS_CONTACT_KEY = 'nexusnova_emergency_sos_contact_v1';
 const SOS_STYLE_ID = 'nx-emergency-sos-style-v1';
 const SOS_BUTTON_ID = 'nxEmergencySosButton';
+const SOS_EDIT_ID = 'nxEmergencySosEdit';
 const SOS_MODAL_ID = 'nxEmergencySosModal';
+const SOS_ACTIVE_MS = 4000;
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -81,6 +83,8 @@ function injectStyles() {
 #${SOS_BUTTON_ID}{position:fixed;right:14px;bottom:calc(86px + env(safe-area-inset-bottom));z-index:2147483000;width:58px;height:58px;border:0;border-radius:50%;background:linear-gradient(145deg,#ff5252,#b60018 72%);color:#fff;font:900 17px/1 system-ui,-apple-system,sans-serif;letter-spacing:.7px;box-shadow:0 10px 30px rgba(181,0,24,.45),inset 0 1px 0 rgba(255,255,255,.35);display:grid;place-items:center;cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent}
 #${SOS_BUTTON_ID}:active{transform:scale(.94)}
 #${SOS_BUTTON_ID}[data-busy="1"]{opacity:.72;pointer-events:none}
+#${SOS_EDIT_ID}{position:fixed;right:20px;bottom:calc(136px + env(safe-area-inset-bottom));z-index:2147483001;width:32px;height:32px;border:1px solid rgba(255,255,255,.22);border-radius:50%;background:#152334;color:#fff;font:800 15px/1 system-ui,-apple-system,sans-serif;box-shadow:0 7px 20px rgba(0,0,0,.35);cursor:pointer}
+#${SOS_EDIT_ID}[hidden]{display:none}
 #${SOS_MODAL_ID}{position:fixed;inset:0;z-index:2147483200;background:rgba(1,7,15,.76);backdrop-filter:blur(7px);display:grid;place-items:center;padding:20px}
 #${SOS_MODAL_ID}[hidden]{display:none}
 .nx-sos-card{width:min(430px,100%);border:1px solid rgba(255,255,255,.12);border-radius:22px;background:#0b1624;color:#eef7ff;box-shadow:0 24px 80px rgba(0,0,0,.55);padding:20px}
@@ -133,6 +137,7 @@ async function copyFallback(text) {
 async function sendTo(contact, button) {
   if (!contact?.phone || button.dataset.busy === '1') return;
   button.dataset.busy = '1';
+  button.dataset.active = '1';
   const original = button.textContent;
   button.textContent = 'GPS';
   try { navigator.vibrate?.([90, 70, 90]); } catch {}
@@ -158,12 +163,12 @@ function setupModal(button) {
   modal.innerHTML = `
     <div class="nx-sos-card" role="dialog" aria-modal="true" aria-labelledby="nxSosTitle">
       <h2 id="nxSosTitle">Emergency SOS</h2>
-      <p>Choose one trusted contact. After setup, tapping the red SOS button gets your current GPS location and opens an emergency SMS to that contact.</p>
+      <p data-sos-copy>Choose one trusted contact. SOS reads GPS only when you send an emergency message.</p>
       <label class="nx-sos-field"><span>Family contact</span><select data-sos-select><option value="">Choose saved contact</option></select></label>
-      <label class="nx-sos-field"><span>Or phone number</span><input data-sos-phone inputmode="tel" maxlength="18" placeholder="03XXXXXXXXX"></label>
+      <label class="nx-sos-field"><span>Phone number</span><input data-sos-phone inputmode="tel" maxlength="18" placeholder="03XXXXXXXXX"></label>
       <label class="nx-sos-field"><span>Name</span><input data-sos-name maxlength="80" placeholder="Trusted person"></label>
-      <div class="nx-sos-actions"><button class="nx-sos-cancel" type="button" data-sos-cancel>CANCEL</button><button class="nx-sos-send" type="button" data-sos-save>SET & SEND SOS</button></div>
-      <p class="nx-sos-note" data-sos-status>Coordinates are read only when SOS is pressed and are not stored by this module.</p>
+      <div class="nx-sos-actions"><button class="nx-sos-cancel" type="button" data-sos-cancel>CANCEL</button><button class="nx-sos-send" type="button" data-sos-save>SAVE CONTACT</button></div>
+      <p class="nx-sos-note" data-sos-status>Coordinates are never stored by this module.</p>
     </div>`;
   document.body.appendChild(modal);
 
@@ -171,6 +176,8 @@ function setupModal(button) {
   const phone = modal.querySelector('[data-sos-phone]');
   const name = modal.querySelector('[data-sos-name]');
   const status = modal.querySelector('[data-sos-status]');
+  const copy = modal.querySelector('[data-sos-copy]');
+  const save = modal.querySelector('[data-sos-save]');
   let refreshRevision = 0;
   const refresh = async () => {
     const revision = ++refreshRevision;
@@ -189,17 +196,31 @@ function setupModal(button) {
   });
   modal.querySelector('[data-sos-cancel]').addEventListener('click', () => { modal.hidden = true; });
   modal.addEventListener('click', event => { if (event.target === modal) modal.hidden = true; });
-  modal.querySelector('[data-sos-save]').addEventListener('click', async () => {
+  save.addEventListener('click', async () => {
     const contact = { phone: normalizePhone(phone.value), name: name.value.trim() || phone.value.trim() };
     if (!contact.phone) {
       status.textContent = 'Enter or choose a valid phone number.';
       return;
     }
     saveContact(contact);
+    const sendAfterSave = modal.dataset.sendAfterSave === '1';
     modal.hidden = true;
-    await sendTo(contact, button);
+    if (sendAfterSave) await sendTo(contact, button);
   });
-  modal._refreshContacts = refresh;
+
+  modal._open = async ({ sendAfterSave = false } = {}) => {
+    modal.dataset.sendAfterSave = sendAfterSave ? '1' : '0';
+    const current = storedContact();
+    phone.value = current?.phone || '';
+    name.value = current?.name || '';
+    status.textContent = current ? 'Edit the saved SOS contact, then save.' : 'Choose or enter a trusted contact.';
+    copy.textContent = sendAfterSave
+      ? 'Save this trusted contact, then NexusNova will open an emergency SMS.'
+      : 'Edit your trusted SOS contact. Saving does not send an emergency message.';
+    save.textContent = sendAfterSave ? 'SAVE & SEND SOS' : 'SAVE CONTACT';
+    modal.hidden = false;
+    await refresh();
+  };
   return modal;
 }
 
@@ -210,19 +231,51 @@ function bootEmergencySos() {
   button.id = SOS_BUTTON_ID;
   button.type = 'button';
   button.textContent = 'SOS';
-  button.setAttribute('aria-label', 'Send emergency SOS to trusted contact');
+  button.setAttribute('aria-label', 'Activate emergency SOS');
   document.body.appendChild(button);
+
+  const editButton = document.createElement('button');
+  editButton.id = SOS_EDIT_ID;
+  editButton.type = 'button';
+  editButton.textContent = '✎';
+  editButton.hidden = true;
+  editButton.setAttribute('aria-label', 'Edit emergency SOS contact');
+  document.body.appendChild(editButton);
+
   const modal = setupModal(button);
+  let fadeTimer = null;
+  const deactivate = () => {
+    if (button.dataset.busy === '1') return;
+    delete button.dataset.active;
+    editButton.hidden = true;
+    button.setAttribute('aria-label', 'Activate emergency SOS');
+  };
+  const activate = () => {
+    button.dataset.active = '1';
+    editButton.hidden = false;
+    button.setAttribute('aria-label', 'Send emergency SOS');
+    clearTimeout(fadeTimer);
+    fadeTimer = setTimeout(deactivate, SOS_ACTIVE_MS);
+  };
 
   button.addEventListener('click', async () => {
     if (button.dataset.busy === '1') return;
+    if (button.dataset.active !== '1') {
+      activate();
+      return;
+    }
+    activate();
     const contact = storedContact();
     if (!contact) {
-      modal.hidden = false;
-      modal._refreshContacts?.();
+      await modal._open?.({ sendAfterSave:true });
       return;
     }
     await sendTo(contact, button);
+  });
+
+  editButton.addEventListener('click', async () => {
+    activate();
+    await modal._open?.({ sendAfterSave:false });
   });
 }
 
