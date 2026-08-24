@@ -199,6 +199,7 @@ router = createRouter({
     }
   },
   beforeRoute(next, payload = {}, previous) {
+    if (next !== 'app') adPolicy.cancelPendingHubNavigation();
     if (previous === 'app') cleanupActiveAppScreen();
     if (previous === 'mine' && next !== 'mine') cleanupMineScreen();
   },
