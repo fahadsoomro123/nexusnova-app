@@ -3,6 +3,7 @@ import { escapeHtml, loadJson, saveJson, uid } from '../../core/local-store.js';
 
 const ALERTS_KEY = 'nexus_price_alerts_v1';
 const LANG_KEY = 'nexus_ui_lang_v1';
+const PUBLIC_SHARE_URL = 'https://fahadsoomro123.github.io/nexusnova-app/';
 
 function currentLanguage() {
   return localStorage.getItem(LANG_KEY) === 'ur' ? 'ur' : 'en';
@@ -205,10 +206,10 @@ function renderSettingsEnhanced() {
     paintLang();
   });
   panel.querySelector('[data-share]').addEventListener('click', async () => {
-    const data = { title:'NexusNova', text:'NexusNova • one grid, every tool, your daily universe.', url:location.href };
+    const data = { title:'NexusNova', text:'NexusNova • one grid, every tool, your daily universe.', url:PUBLIC_SHARE_URL };
     try {
       if (navigator.share) await navigator.share(data);
-      else if (navigator.clipboard) { await navigator.clipboard.writeText(location.href); onlineStatus.textContent = 'NexusNova link copied.'; }
+      else if (navigator.clipboard) { await navigator.clipboard.writeText(PUBLIC_SHARE_URL); onlineStatus.textContent = 'NexusNova link copied.'; }
       else throw new Error('Share is unavailable on this device.');
     } catch (error) {
       if (error?.name !== 'AbortError') onlineStatus.textContent = error?.message || 'Share unavailable.';
