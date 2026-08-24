@@ -1,12 +1,16 @@
 /* Small compatibility guards for optional WebView/browser APIs.
-   These do not fake capabilities; they only prevent an absent optional global
-   from throwing before a feature can show its explicit unavailable state. */
+   These do not grant or simulate capabilities; they only provide an explicit
+   unsupported sentinel where older WebViews omit an optional global entirely. */
 
 if (!('Notification' in globalThis)) {
+  const unsupportedNotification = Object.freeze({
+    permission: 'unsupported',
+    requestPermission: async () => 'unsupported'
+  });
   Object.defineProperty(globalThis, 'Notification', {
     configurable: true,
     writable: true,
-    value: null
+    value: unsupportedNotification
   });
 }
 
