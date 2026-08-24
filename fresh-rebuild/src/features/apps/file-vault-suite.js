@@ -133,12 +133,13 @@ export function renderFileVaultSuite(){
         </article>`).join(''):'<div class="nx-empty">No encrypted files saved for this account.</div>';
 
       list.querySelectorAll('[data-vault-download]').forEach(button=>button.addEventListener('click',async()=>{
-        if(!pass.value){status.textContent='Enter the vault passphrase before downloading.';return;}
+        const passphrase=pass.value;
+        if(!passphrase){status.textContent='Enter the vault passphrase before downloading.';return;}
         try{
           const record=await getRecord(button.dataset.vaultDownload);
           if(!record||record.owner!==owner)throw new Error('File not found for this account.');
           status.textContent='Decrypting file in memory…';
-          const clear=await decryptRecord(record,pass.value);
+          const clear=await decryptRecord(record,passphrase);
           const blob=new Blob([clear],{type:record.type||'application/octet-stream'});
           const url=URL.createObjectURL(blob);
           const link=document.createElement('a');
@@ -163,19 +164,22 @@ export function renderFileVaultSuite(){
 
   save.addEventListener('click',async()=>{
     const selected=[...(files.files||[])];
+    const passphrase=pass.value;
     if(!selected.length){status.textContent='Choose one or more files first.';return;}
     if(selected.length>MAX_FILES){status.textContent=`Choose at most ${MAX_FILES} files per batch.`;return;}
-    if(pass.value.length<12){status.textContent='Use a passphrase with at least 12 characters for new files.';return;}
+    if(passphrase.length<12){status.textContent='Use a passphrase with at least 12 characters for new files.';return;}
     const tooLarge=selected.find(file=>file.size>MAX_FILE);
     if(tooLarge){status.textContent=`${tooLarge.name} is larger than 25 MB.`;return;}
     if(!crypto?.subtle||!window.indexedDB){status.textContent='Encrypted vault is not supported on this device.';return;}
     save.disabled=true;
+    pass.disabled=true;
+    files.disabled=true;
     try{
       owner=owner||await ownerId();
       for(let index=0;index<selected.length;index++){
         const file=selected[index];
         status.textContent=`Encrypting ${index+1}/${selected.length}: ${file.name}…`;
-        const payload=await encryptFile(file,pass.value);
+        const payload=await encryptFile(file,passphrase);
         await putRecord({
           id:crypto.randomUUID?crypto.randomUUID():`${Date.now()}-${Math.random().toString(36).slice(2)}`,
           owner,
@@ -194,11 +198,17 @@ export function renderFileVaultSuite(){
       status.textContent=`${selected.length} file(s) encrypted and saved locally.`;
       await draw();
     }catch(error){status.textContent='Could not encrypt/save the selected file(s).';console.warn('[NexusNova Fresh] vault save:',error);}
-    finally{clearPass();save.disabled=false;}
+    finally{
+      clearPass();
+      pass.disabled=false;
+      files.disabled=false;
+      save.disabled=false;
+    }
   });
 
   root.querySelector('[data-vault-refresh]').addEventListener('click',draw);
   draw();
+  root.__cleanup=()=>clearPass();
   return root;
 }
 

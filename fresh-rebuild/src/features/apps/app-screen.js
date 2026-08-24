@@ -8,10 +8,13 @@ import { coreRenderers } from './core-apps.js';
 import { coreEnhancementRenderers } from './core-enhancements.js';
 import { personalRenderers } from './personal-apps.js';
 import { discoverRenderers } from './discover-apps.js';
+import { browserSafeRenderers } from './browser-safe.js';
 import { articleRenderers } from './articles-suite.js';
 import { novaVpnRenderers } from './nova-vpn-suite.js';
 import { newsSuiteRenderers } from './news-suite.js';
 import { faithSecurityRenderers } from './faith-security-apps.js';
+import { novaVaultSafeRenderers } from './nova-vault-safe.js';
+import { hadithSafeRenderers } from './hadith-safe.js';
 import { deviceRenderers } from './device-apps.js';
 import { locationSuiteRenderers } from './location-suite.js';
 import { smartRenderers } from './smart-apps.js';
@@ -31,6 +34,7 @@ import { marketplaceSuiteRenderers } from './marketplace-suite.js';
 import { fileVaultSuiteRenderers } from './file-vault-suite.js';
 import { securityLockSuiteRenderers } from './security-lock-suite.js';
 import { notificationsSuiteRenderers } from './notifications-suite.js';
+import { entertainmentResilientRenderers } from './entertainment-resilient.js';
 import { entertainmentSuiteRenderers } from './entertainment-suite.js';
 import { entertainmentLiveRenderers } from './entertainment-live-suite.js';
 import { pakistanSuiteRenderers } from './pakistan-suite.js';
@@ -38,8 +42,10 @@ import { urduLibraryRenderers } from './urdu-library-suite.js';
 import { premiumWeatherRenderers } from './premium-weather.js';
 import { premiumNovaInternetSpeedRenderers } from './premium-nova-internet-speed.js';
 import { premiumQiblaRenderers } from './premium-qibla.js';
+import { premiumPrayerSafeRenderers } from './premium-prayer-safe.js';
 import { premiumPrayerRenderers } from './premium-prayer-times.js';
 import { premiumWorldClockRenderers } from './premium-world-clock.js';
+import { premiumDriveSafeRenderers } from './premium-drive-safe.js';
 import { premiumDriveRenderers } from './premium-drive-tools.js';
 import { premiumQuranRenderers } from './premium-quran-reader.js';
 
@@ -54,7 +60,7 @@ export function appScreen({ id, backToHub, backToMine } = {}) {
   root.innerHTML = `<header class="nx-app-head"><button class="nx-back" type="button" data-app-back aria-label="Back to ${parentName}">‹</button><span class="nx-app-head__icon">${icon(app.icon)}</span><div><p class="nx-eyebrow">${app.category}</p><h1>${app.name}</h1><p>${app.description}</p></div></header><div data-app-mount></div>`;
   root.querySelector('[data-app-back]').addEventListener('click', () => goBack?.());
   const mount = root.querySelector('[data-app-mount]');
-  const renderer = premiumNovaInternetSpeedRenderers[id] || premiumWeatherRenderers[id] || premiumQiblaRenderers[id] || premiumPrayerRenderers[id] || premiumWorldClockRenderers[id] || premiumDriveRenderers[id] || premiumQuranRenderers[id] || documentsLiveRenderers[id] || teacherAIRenderers[id] || pakistanSuiteRenderers[id] || articleRenderers[id] || novaVpnRenderers[id] || newsSuiteRenderers[id] || entertainmentLiveRenderers[id] || entertainmentSuiteRenderers[id] || urduLibraryRenderers[id] || locationSuiteRenderers[id] || notificationsSuiteRenderers[id] || securityLockSuiteRenderers[id] || fileVaultSuiteRenderers[id] || marketplaceSuiteRenderers[id] || coreEnhancementRenderers[id] || coreRenderers[id] || healthSuiteRenderers[id] || familySuiteRenderers[id] || personalRenderers[id] || teacherSuiteRenderers[id] || islamicSuiteRenderers[id] || documentsSuiteRenderers[id] || communityChatRenderers[id] || learningSuiteRenderers[id] || budgetSuiteRenderers[id] || billRenderers[id] || travelSuiteRenderers[id] || discoverRenderers[id] || faithSecurityRenderers[id] || deviceRenderers[id] || smartRenderers[id] || everydayRenderers[id] || liveRenderers[id];
+  const renderer = novaVaultSafeRenderers[id] || hadithSafeRenderers[id] || browserSafeRenderers[id] || premiumNovaInternetSpeedRenderers[id] || premiumWeatherRenderers[id] || premiumQiblaRenderers[id] || premiumPrayerSafeRenderers[id] || premiumPrayerRenderers[id] || premiumWorldClockRenderers[id] || premiumDriveSafeRenderers[id] || premiumDriveRenderers[id] || premiumQuranRenderers[id] || documentsLiveRenderers[id] || teacherAIRenderers[id] || pakistanSuiteRenderers[id] || articleRenderers[id] || novaVpnRenderers[id] || newsSuiteRenderers[id] || entertainmentResilientRenderers[id] || entertainmentLiveRenderers[id] || entertainmentSuiteRenderers[id] || urduLibraryRenderers[id] || locationSuiteRenderers[id] || notificationsSuiteRenderers[id] || securityLockSuiteRenderers[id] || fileVaultSuiteRenderers[id] || marketplaceSuiteRenderers[id] || coreEnhancementRenderers[id] || coreRenderers[id] || healthSuiteRenderers[id] || familySuiteRenderers[id] || personalRenderers[id] || teacherSuiteRenderers[id] || islamicSuiteRenderers[id] || documentsSuiteRenderers[id] || communityChatRenderers[id] || learningSuiteRenderers[id] || budgetSuiteRenderers[id] || billRenderers[id] || travelSuiteRenderers[id] || discoverRenderers[id] || faithSecurityRenderers[id] || deviceRenderers[id] || smartRenderers[id] || everydayRenderers[id] || liveRenderers[id];
   if (renderer) {
     try {
       const body = renderer();

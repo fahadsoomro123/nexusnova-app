@@ -51,6 +51,17 @@ function localHour(timeZone) {
   }
 }
 
+function dateParamForZone(timeZone) {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', { timeZone, year:'numeric', month:'numeric', day:'numeric' }).formatToParts(new Date());
+    const get = type => Number(parts.find(part => part.type === type)?.value);
+    const year = get('year'), month = get('month'), day = get('day');
+    if (year > 2000 && month >= 1 && month <= 12 && day >= 1 && day <= 31) return `${day}-${month}-${year}`;
+  } catch {}
+  const now = new Date();
+  return `${now.getDate()}-${now.getMonth() + 1}-${now.getFullYear()}`;
+}
+
 function phaseFor(timeZone, isDay) {
   const hour = localHour(timeZone);
   if (!Number(isDay) && (hour >= 20 || hour < 5)) return 'night';
@@ -201,8 +212,13 @@ export function renderWeatherPremium() {
 
   let state = { lat:24.8607, lon:67.0011, place:'Karachi', layer:'radar', timezone:'Asia/Karachi' };
   let searchRows = [];
-  let busy = false;
   let cancelled = false;
+  let weatherRevision = 0;
+  let searchRevision = 0;
+  let locationIntent = 0;
+  let weatherController = null;
+  let searchController = null;
+  let prayerController = null;
 
   const paintRadar = () => {
     if (cancelled) return;
@@ -215,27 +231,35 @@ export function renderWeatherPremium() {
     paintRadar();
   };
 
-  const loadPrayerStrip = async (lat, lon, place) => {
-    if (cancelled) return;
+  const loadPrayerStrip = async (lat, lon, place, timeZone, parentRevision) => {
+    if (cancelled || parentRevision !== weatherRevision) return;
+    prayerController?.abort();
+    const controller = new AbortController();
+    prayerController = controller;
     prayerPlace.textContent = place;
     try {
-      const now = new Date();
-      const dateParam = `${now.getDate()}-${now.getMonth() + 1}-${now.getFullYear()}`;
-      const response = await fetch(`https://api.aladhan.com/v1/timings/${dateParam}?latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lon)}&method=3`, { cache:'no-store' });
+      const dateParam = dateParamForZone(timeZone);
+      const response = await fetch(`https://api.aladhan.com/v1/timings/${dateParam}?latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lon)}&method=3`, { cache:'no-store', signal:controller.signal });
       if (!response.ok) throw new Error(`Prayer HTTP ${response.status}`);
       const json = await response.json();
-      if (cancelled) return;
+      if (cancelled || parentRevision !== weatherRevision || controller.signal.aborted) return;
       const timings = json?.data?.timings || {};
       const rows = [['Fajr','◒'],['Sunrise','☀'],['Dhuhr','☀'],['Asr','☀'],['Maghrib','◉'],['Isha','☾']];
       prayerList.innerHTML = rows.map(([name, icon]) => `<article><b>${icon}</b><span>${name.toUpperCase()}</span><strong>${escapeHtml(to12Hour(timings[name]))}</strong></article>`).join('');
-    } catch {
-      if (!cancelled) prayerList.innerHTML = '<div class="nx-empty">Prayer times unavailable.</div>';
+    } catch (error) {
+      if (!cancelled && parentRevision === weatherRevision && error?.name !== 'AbortError') prayerList.innerHTML = '<div class="nx-empty">Prayer times unavailable.</div>';
+    } finally {
+      if (prayerController === controller) prayerController = null;
     }
   };
 
   const loadWeather = async ({ lat, lon, place }) => {
-    if (busy || cancelled) return;
-    busy = true;
+    if (cancelled) return;
+    const revision = ++weatherRevision;
+    weatherController?.abort();
+    prayerController?.abort();
+    const controller = new AbortController();
+    weatherController = controller;
     status.textContent = `Loading live weather for ${place}…`;
     try {
       const params = new URLSearchParams({
@@ -245,10 +269,10 @@ export function renderWeatherPremium() {
         daily:'weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset',
         timezone:'auto', forecast_days:'7', forecast_hours:'12'
       });
-      const response = await fetch(`https://api.open-meteo.com/v1/forecast?${params.toString()}`, { cache:'no-store' });
+      const response = await fetch(`https://api.open-meteo.com/v1/forecast?${params.toString()}`, { cache:'no-store', signal:controller.signal });
       if (!response.ok) throw new Error(`Weather HTTP ${response.status}`);
       const data = await response.json();
-      if (cancelled) return;
+      if (cancelled || revision !== weatherRevision || controller.signal.aborted) return;
 
       const current = data.current || {};
       const meta = weatherMeta(current.weather_code);
@@ -286,35 +310,37 @@ export function renderWeatherPremium() {
 
       const hours = data.hourly?.time || [];
       refs.days.innerHTML = hours.slice(0, 9).map((time, index) => {
-        const date = new Date(time);
-        const label = index === 0 ? 'NOW' : date.toLocaleTimeString([], { hour:'numeric' });
+        const hourMatch = String(time || '').match(/T(\d{2}):(\d{2})/);
+        const hour = hourMatch ? Number(hourMatch[1]) : 12;
+        const label = index === 0 ? 'NOW' : to12Hour(hourMatch ? `${hourMatch[1]}:${hourMatch[2]}` : '--:--').replace(/:00\s/, ' ');
         const code = data.hourly.weather_code?.[index];
         const temp = Math.round(Number(data.hourly.temperature_2m?.[index]) || 0);
         const rain = Math.round(Number(data.hourly.precipitation_probability?.[index]) || 0);
-        const hour = date.getHours();
         return `<article><span>${escapeHtml(label)}</span><b>${weatherIcon(code, hour >= 20 || hour < 6)}</b><strong>${temp}°</strong><small>💧 ${rain}%</small></article>`;
       }).join('');
 
       paintRadar();
-      loadPrayerStrip(lat, lon, place);
-      if (!cancelled) status.textContent = `Updated ${new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })} • ${meta.label} • live location weather`;
+      void loadPrayerStrip(lat, lon, place, state.timezone, revision);
+      if (!cancelled && revision === weatherRevision) status.textContent = `Updated ${new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })} • ${meta.label} • live location weather`;
     } catch (error) {
-      if (!cancelled) status.textContent = 'Live weather is unavailable right now. Check the connection and try again.';
-      console.warn('[NexusNova Premium] weather:', error);
+      if (!cancelled && revision === weatherRevision && error?.name !== 'AbortError') status.textContent = 'Live weather is unavailable right now. Check the connection and try again.';
+      if (error?.name !== 'AbortError') console.warn('[NexusNova Premium] weather:', error);
     } finally {
-      busy = false;
+      if (weatherController === controller) weatherController = null;
     }
   };
 
   const useGps = async () => {
     if (cancelled) return;
+    const intent = ++locationIntent;
+    searchController?.abort();
     status.textContent = 'Getting your current GPS location…';
     try {
       const position = await currentPosition({ enableHighAccuracy:false });
-      if (cancelled) return;
+      if (cancelled || intent !== locationIntent) return;
       await loadWeather({ lat:position.coords.latitude, lon:position.coords.longitude, place:'Current location' });
     } catch {
-      if (!cancelled) status.textContent = 'GPS permission is unavailable. Search for a city instead.';
+      if (!cancelled && intent === locationIntent) status.textContent = 'GPS permission is unavailable. Search for a city instead.';
     }
   };
 
@@ -325,12 +351,17 @@ export function renderWeatherPremium() {
       status.textContent = 'Enter at least 2 characters to search a location.';
       return;
     }
+    const intent = ++locationIntent;
+    const revision = ++searchRevision;
+    searchController?.abort();
+    const controller = new AbortController();
+    searchController = controller;
     status.textContent = `Searching ${query}…`;
     try {
-      const response = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=10&language=en&format=json`, { cache:'no-store' });
+      const response = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=10&language=en&format=json`, { cache:'no-store', signal:controller.signal });
       if (!response.ok) throw new Error(`Geocoding HTTP ${response.status}`);
       const json = await response.json();
-      if (cancelled) return;
+      if (cancelled || intent !== locationIntent || revision !== searchRevision || controller.signal.aborted) return;
       searchRows = Array.isArray(json.results) ? json.results : [];
       if (!searchRows.length) {
         results.hidden = true;
@@ -342,19 +373,24 @@ export function renderWeatherPremium() {
       const first = searchRows[0];
       await loadWeather({ lat:first.latitude, lon:first.longitude, place:[first.name, first.country].filter(Boolean).join(', ') });
     } catch (error) {
-      if (!cancelled) status.textContent = 'Location search is unavailable right now.';
-      console.warn('[NexusNova Premium] weather geocoding:', error);
+      if (!cancelled && intent === locationIntent && revision === searchRevision && error?.name !== 'AbortError') status.textContent = 'Location search is unavailable right now.';
+      if (error?.name !== 'AbortError') console.warn('[NexusNova Premium] weather geocoding:', error);
+    } finally {
+      if (searchController === controller) searchController = null;
     }
   };
 
   root.querySelector('[data-wx-gps]').addEventListener('click', useGps);
   root.querySelector('[data-wx-search-go]').addEventListener('click', findPlaces);
-  search.addEventListener('keydown', event => { if (event.key === 'Enter') findPlaces(); });
+  search.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); findPlaces(); } });
   results.addEventListener('change', () => {
     if (cancelled) return;
+    locationIntent += 1;
+    searchRevision += 1;
+    searchController?.abort();
     const item = searchRows[Number(results.value)];
     if (!item) return;
-    loadWeather({ lat:item.latitude, lon:item.longitude, place:[item.name, item.country].filter(Boolean).join(', ') });
+    void loadWeather({ lat:item.latitude, lon:item.longitude, place:[item.name, item.country].filter(Boolean).join(', ') });
   });
   root.querySelector('[data-wx-refresh]').addEventListener('click', () => loadWeather(state));
   root.querySelectorAll('[data-wx-layer]').forEach(button => button.addEventListener('click', () => setLayer(button.dataset.wxLayer)));
@@ -365,10 +401,25 @@ export function renderWeatherPremium() {
     event.currentTarget.textContent = expanded ? 'COLLAPSE' : 'EXPAND';
   });
 
-  currentPosition({ enableHighAccuracy:false }).then(position => loadWeather({ lat:position.coords.latitude, lon:position.coords.longitude, place:'Current location' })).catch(() => loadWeather(state));
+  const bootstrapIntent = locationIntent;
+  currentPosition({ enableHighAccuracy:false })
+    .then(position => {
+      if (cancelled || locationIntent !== bootstrapIntent) return;
+      return loadWeather({ lat:position.coords.latitude, lon:position.coords.longitude, place:'Current location' });
+    })
+    .catch(() => {
+      if (cancelled || locationIntent !== bootstrapIntent) return;
+      return loadWeather(state);
+    });
 
   root.__cleanup = () => {
     cancelled = true;
+    locationIntent += 1;
+    weatherRevision += 1;
+    searchRevision += 1;
+    weatherController?.abort();
+    searchController?.abort();
+    prayerController?.abort();
     document.body.classList.remove('nx-weather-map-open');
     radar.removeAttribute('src');
   };

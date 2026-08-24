@@ -1,0 +1,101 @@
+name: NexusNova Web Safety Check
+
+on:
+  pull_request:
+    branches: [nexusnova-latest-full-apk-recovery-20260823]
+    paths:
+      - 'fresh-rebuild/**'
+      - 'functions/**'
+      - '.github/workflows/nexusnova-web-safety-check.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify JavaScript syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          checked=0
+          while IFS= read -r -d '' file; do
+            node --check "$file" >/dev/null
+            checked=$((checked + 1))
+          done < <(find fresh-rebuild functions -type f -name '*.js' -print0)
+          test "$checked" -gt 0
+          echo "JavaScript syntax verified: $checked files"
+      - name: Verify registered app renderer coverage
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('fs');
+          const path = require('path');
+          const registry = fs.readFileSync('fresh-rebuild/src/features/hub/app-registry.js', 'utf8');
+          const ids = [...registry.matchAll(/\bid\s*:\s*(['"])([^'"]+)\1/g)].map(match => match[2]);
+          if (!ids.length) throw new Error('No registered NexusNova app IDs were found.');
+          const rendered = new Set();
+          const appsDir = 'fresh-rebuild/src/features/apps';
+          for (const name of fs.readdirSync(appsDir)) {
+            if (!name.endsWith('.js')) continue;
+            const text = fs.readFileSync(path.join(appsDir, name), 'utf8');
+            const maps = text.matchAll(/export\s+const\s+\w*Renderers\s*=\s*Object\.freeze\(\{([\s\S]*?)\}\);/g);
+            for (const map of maps) {
+              for (const match of map[1].matchAll(/(?:^|,)\s*(?:(['"])([^'"]+)\1|([A-Za-z_$][\w$-]*))\s*:/g)) rendered.add(match[2] || match[3]);
+            }
+          }
+          const missing = [...new Set(ids)].filter(id => !rendered.has(id));
+          if (missing.length) throw new Error(`Registered apps without renderer: ${missing.join(', ')}`);
+          console.log(`Renderer coverage verified: ${new Set(ids).size} apps.`);
+          NODE
+      - name: Verify safe-module wiring
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q "novaVaultSafeRenderers" fresh-rebuild/src/features/apps/app-screen.js
+          grep -q "hadithSafeRenderers" fresh-rebuild/src/features/apps/app-screen.js
+          grep -q "browserSafeRenderers" fresh-rebuild/src/features/apps/app-screen.js
+          grep -q "premiumDriveSafeRenderers" fresh-rebuild/src/features/apps/app-screen.js
+          grep -q "premiumPrayerSafeRenderers" fresh-rebuild/src/features/apps/app-screen.js
+          grep -q "security-lock-suite.js" fresh-rebuild/index.html
+          echo 'Safety wrapper wiring verified.'
+      - name: Verify online provider callable contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('fs');
+          const path = require('path');
+          const expected = new Map([
+            ['searchWorldwideFlights', 'travelSearch.js'],
+            ['searchWorldwideHotels', 'hotelSearch.js'],
+            ['searchWorldwideGroundTransport', 'groundTransportSearch.js'],
+            ['searchLearningPapers', 'learningSearch.js'],
+            ['searchEntertainment', 'entertainmentSearch.js'],
+            ['getProviderHealth', 'providerHealth.js']
+          ]);
+          const main = fs.readFileSync('functions/main.js', 'utf8');
+          for (const [name, file] of expected) {
+            const target = path.join('functions', file);
+            if (!fs.existsSync(target)) throw new Error(`Missing backend module: ${target}`);
+            const text = fs.readFileSync(target, 'utf8');
+            if (!new RegExp(`exports\\.${name}\\s*=`).test(text)) throw new Error(`Missing callable export ${name} in ${file}`);
+            const requireName = `./${file.replace(/\.js$/, '')}`;
+            if (!main.includes(`require("${requireName}")`) && !main.includes(`require('${requireName}')`)) {
+              throw new Error(`functions/main.js does not load ${file}`);
+            }
+          }
+          const frontend = fs.readFileSync('fresh-rebuild/src/features/apps/travel-suite.js', 'utf8')
+            + fs.readFileSync('fresh-rebuild/src/features/apps/travel-hotels.js', 'utf8')
+            + fs.readFileSync('fresh-rebuild/src/features/apps/learning-suite.js', 'utf8')
+            + fs.readFileSync('fresh-rebuild/src/features/apps/entertainment-live-suite.js', 'utf8');
+          for (const name of ['searchWorldwideFlights','searchWorldwideHotels','searchLearningPapers','searchEntertainment']) {
+            if (!frontend.includes(`'${name}'`) && !frontend.includes(`"${name}"`)) throw new Error(`Frontend does not reference ${name}`);
+          }
+          console.log('Online provider callable contracts verified.');
+          NODE
