@@ -115,6 +115,7 @@ export function hubScreen({ openApp } = {}) {
   if (restoreScroll) {
     const savedScrollY = Math.max(0, Number(hubState.scrollY) || 0);
     requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (!root.isConnected) return;
       window.scrollTo({ top: savedScrollY, behavior: 'instant' });
     }));
   }
