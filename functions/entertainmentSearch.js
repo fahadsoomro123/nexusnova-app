@@ -93,7 +93,51 @@ async function searchYouTube(query, key, {live = false} = {}) {
   }
 }
 
-async function searchDailymotion(query) {
+async function searchSepia(query) {
+  try {
+    const params = new URLSearchParams({
+      search: query,
+      start: "0",
+      count: "12",
+      sort: "-match",
+      nsfw: "false"
+    });
+    const json = await fetchJson(`https://sepiasearch.org/api/v1/search/videos?${params.toString()}`);
+    const results = (Array.isArray(json?.data) ? json.data : []).map(item => {
+      const uuid = String(item?.uuid || "").trim();
+      const sourceUrl = String(item?.url || "").trim();
+      let host = "";
+      try { host = new URL(sourceUrl).hostname; } catch {}
+      const thumbnailPath = String(item?.thumbnailPath || item?.previewPath || "").trim();
+      let thumbnail = "";
+      if (thumbnailPath) {
+        try {
+          const origin = sourceUrl ? new URL(sourceUrl).origin : "";
+          thumbnail = origin ? new URL(thumbnailPath, origin).href : "";
+        } catch {}
+      }
+      if (!uuid || !sourceUrl.startsWith("https://")) return null;
+      return {
+        kind: "video",
+        provider: "PeerTube / Sepia Search",
+        live: item?.isLive === true,
+        id: uuid,
+        title: String(item?.name || "PeerTube video").slice(0, 220),
+        creator: String(item?.account?.displayName || item?.account?.name || item?.channel?.displayName || host || "PeerTube").slice(0, 120),
+        description: String(item?.description || "").replace(/\s+/g, " ").trim().slice(0, 500),
+        publishedAt: String(item?.publishedAt || item?.createdAt || ""),
+        durationSeconds: Number(item?.duration) || 0,
+        thumbnail,
+        externalUrl: sourceUrl
+      };
+    }).filter(Boolean);
+    return {provider: "PeerTube / Sepia Search", status: "connected", results};
+  } catch (error) {
+    return {provider: "PeerTube / Sepia Search", status: "error", message: String(error.message || error).slice(0, 180), results: []};
+  }
+}
+
+async function searchDailymotionLegacy(query) {
   try {
     const params = new URLSearchParams({
       search: query,
@@ -106,7 +150,7 @@ async function searchDailymotion(query) {
       if (!/^[A-Za-z0-9]+$/.test(id)) return null;
       return {
         kind: "video",
-        provider: "Dailymotion",
+        provider: "Dailymotion Legacy",
         live: false,
         id,
         title: String(item?.title || "Dailymotion video").slice(0, 220),
@@ -117,9 +161,9 @@ async function searchDailymotion(query) {
         embedUrl: String(item?.embed_url || `https://www.dailymotion.com/embed/video/${id}`)
       };
     }).filter(Boolean);
-    return {provider: "Dailymotion", status: "connected", results};
+    return {provider: "Dailymotion Legacy", status: "connected", results};
   } catch (error) {
-    return {provider: "Dailymotion", status: "error", message: String(error.message || error).slice(0, 180), results: []};
+    return {provider: "Dailymotion Legacy", status: "legacy-unavailable", message: String(error.message || error).slice(0, 180), results: []};
   }
 }
 
@@ -174,7 +218,8 @@ exports.searchEntertainment = onCall({
     ? [await searchYouTube(query, config.youtubeKey, {live: true})]
     : await Promise.all([
       searchYouTube(query, config.youtubeKey),
-      searchDailymotion(query),
+      searchSepia(query),
+      searchDailymotionLegacy(query),
       searchTmdb(query, config.tmdbToken)
     ]);
 
