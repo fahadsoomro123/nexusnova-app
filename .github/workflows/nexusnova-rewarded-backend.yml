@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - codex-final-audit
+      - nexusnova-latest-full-apk-recovery-20260823
     paths:
       - 'functions/**'
       - '.github/scripts/rewarded-ads-backend-smoke.mjs'
