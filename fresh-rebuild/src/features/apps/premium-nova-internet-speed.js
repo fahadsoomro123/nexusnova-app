@@ -372,8 +372,12 @@ export function renderNovaInternetSpeed() {
   const loadPrevious = () => {
     try {
       const saved = JSON.parse(localStorage.getItem(NIS_RESULT_KEY) || 'null');
-      if (saved && Number.isFinite(saved.download) && Number.isFinite(saved.upload)) applyResult(saved);
+      if (saved && Number.isFinite(saved.download) && Number.isFinite(saved.upload)) {
+        applyResult(saved);
+        return saved;
+      }
     } catch {}
+    return null;
   };
 
   const runTest = async () => {
@@ -402,7 +406,9 @@ export function renderNovaInternetSpeed() {
   run.addEventListener('click', runTest);
   window.addEventListener('online', updateOnline);
   window.addEventListener('offline', updateOnline);
-  updateOnline(); loadPrevious(); paintMeter(Number(localStorage.getItem(NIS_RESULT_KEY) ? JSON.parse(localStorage.getItem(NIS_RESULT_KEY)).download : 0) || 0, 'DOWNLOAD');
+  updateOnline();
+  const previous = loadPrevious();
+  paintMeter(Number(previous?.download) || 0, 'DOWNLOAD');
 
   root.__cleanup = () => {
     controllers.forEach(controller => controller.abort());
