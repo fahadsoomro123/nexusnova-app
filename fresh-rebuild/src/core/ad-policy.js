@@ -255,13 +255,26 @@ function gateHubApp(appId, open) {
   });
 }
 
-function gateMiningRenewal(continueMining) {
+async function gateMiningRenewal(continueMining) {
   // A full-screen transition is already satisfying the natural break. Never
   // leave the completed-session button locked behind a second pending ad.
   if (inFlight) {
     continueMining?.();
-    return Promise.resolve({ shown:false, reason:'transition-pending' });
+    return { shown:false, reason:'transition-pending' };
   }
+
+  // A completed 24H session is an infrequent natural break. Give the native
+  // interstitial slot a brief chance to finish loading before deciding there is
+  // no inventory. This avoids silently skipping an ad just because status was
+  // sampled a moment too early.
+  if (nativeAds.status().interstitialReady !== true) {
+    try {
+      await nativeAds.waitForInterstitialReady(8_000);
+    } catch (error) {
+      console.warn('[NexusNova Fresh] mining interstitial readiness:', error);
+    }
+  }
+
   return startGate({
     placement:MINING_PLACEMENT,
     feature:'',
