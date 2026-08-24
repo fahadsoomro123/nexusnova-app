@@ -1,0 +1,1 @@
+Run simplified VPN disconnect accessibility patch on the isolated fix branch.
