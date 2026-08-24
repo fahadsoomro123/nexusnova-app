@@ -49,8 +49,10 @@ export function renderCommunityChat() {
   let unsubscribe = null;
   let busy = false;
   let activeUid = '';
+  let disposed = false;
 
   const draw = rows => {
+    if (disposed) return;
     if (!rows.length) {
       messages.innerHTML = '<div class="nx-empty">No community messages yet.</div>';
       return;
@@ -69,18 +71,22 @@ export function renderCommunityChat() {
   const connect = async () => {
     try {
       const user = await requireFirebaseUser();
+      if (disposed) return;
       activeUid = user.uid;
       const feed = query(collection(firestoreDb, 'chatMessages'), orderBy('createdAt', 'desc'), limit(100));
       unsubscribe = onSnapshot(feed, snapshot => {
+        if (disposed) return;
         const rows = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).reverse();
         draw(rows);
         status.textContent = `Live • ${rows.length} message${rows.length === 1 ? '' : 's'} loaded`;
       }, error => {
+        if (disposed) return;
         messages.innerHTML = '<div class="nx-empty">Community chat could not be loaded.</div>';
         status.textContent = String(error?.message || 'Chat listener failed.').slice(0, 220);
         console.warn('[NexusNova Fresh] community chat listener:', error);
       });
     } catch (error) {
+      if (disposed) return;
       messages.innerHTML = '<div class="nx-empty">Sign in to view community chat.</div>';
       status.textContent = String(error?.message || error).slice(0, 220);
     }
@@ -88,7 +94,7 @@ export function renderCommunityChat() {
 
   const submit = async () => {
     const text = input.value.trim();
-    if (!text || busy) return;
+    if (!text || busy || disposed) return;
     if (text.length > 500) {
       status.textContent = 'Message must be 500 characters or fewer.';
       return;
@@ -106,16 +112,20 @@ export function renderCommunityChat() {
         text,
         createdAt: serverTimestamp()
       });
+      if (disposed) return;
       input.value = '';
       count.textContent = '0 / 500';
       status.textContent = 'Message sent.';
     } catch (error) {
+      if (disposed) return;
       status.textContent = String(error?.message || 'Message could not be sent.').replace(/^FirebaseError:\s*/i, '').slice(0, 240);
       console.warn('[NexusNova Fresh] community chat send:', error);
     } finally {
       busy = false;
-      send.disabled = false;
-      send.textContent = 'SEND';
+      if (!disposed) {
+        send.disabled = false;
+        send.textContent = 'SEND';
+      }
     }
   };
 
@@ -132,6 +142,7 @@ export function renderCommunityChat() {
   connect();
 
   root.__cleanup = () => {
+    disposed = true;
     unsubscribe?.();
     unsubscribe = null;
   };
