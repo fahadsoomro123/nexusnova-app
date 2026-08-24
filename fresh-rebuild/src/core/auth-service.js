@@ -53,6 +53,13 @@ async function ensureProfile(user, requestedName = '') {
   return profile;
 }
 
+async function resetPartialSession(message, cause) {
+  try { await signOut(auth); } catch (signOutError) { console.warn('[NexusNova Fresh] partial auth cleanup:', signOutError); }
+  const error = new Error(message);
+  error.cause = cause;
+  throw error;
+}
+
 export const authService = {
   get currentUser() { return auth.currentUser; },
 
@@ -82,18 +89,26 @@ export const authService = {
 
   async signIn(email, password) {
     const credential = await signInWithEmailAndPassword(auth, String(email || '').trim(), String(password || ''));
-    await ensureProfile(credential.user);
-    return credential.user;
+    try {
+      await ensureProfile(credential.user);
+      return credential.user;
+    } catch (error) {
+      return resetPartialSession('Sign-in succeeded, but the NexusNova profile could not be prepared. Please sign in again after checking the connection.', error);
+    }
   },
 
   async register({ name, email, password }) {
     const safeName = cleanName(name);
     if (!safeName) throw new Error('Enter your name.');
     const credential = await createUserWithEmailAndPassword(auth, String(email || '').trim(), String(password || ''));
-    await updateProfile(credential.user, { displayName: safeName });
-    await ensureProfile(credential.user, safeName);
-    await sendEmailVerification(credential.user);
-    return credential.user;
+    try {
+      await updateProfile(credential.user, { displayName: safeName });
+      await ensureProfile(credential.user, safeName);
+      await sendEmailVerification(credential.user);
+      return credential.user;
+    } catch (error) {
+      return resetPartialSession('Your account was created, but setup did not finish. Sign in with the same email, then resend verification if needed.', error);
+    }
   },
 
   async resendVerification() {
