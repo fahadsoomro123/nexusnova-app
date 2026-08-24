@@ -6,7 +6,7 @@ import { firebaseBackend } from './core/firebase-backend.js';
 import { authService } from './core/auth-service.js';
 import { adPolicy } from './core/ad-policy.js';
 import { authScreen } from './features/auth/auth-screen.js';
-import { mineScreen } from './features/mine/mine-screen.js';
+import { mineScreen, cleanupMineScreen } from './features/mine/mine-screen.js';
 import { hubScreen, requestHubReturnRestore } from './features/hub/hub-screen.js';
 import { mineApps } from './features/hub/app-registry.js';
 
@@ -21,14 +21,24 @@ const bootSplashStartedAt = performance.now();
 backend.attach(firebaseBackend);
 
 let appScreenModulePromise = null;
+let appScreenModule = null;
 function loadAppScreenModule() {
   if (!appScreenModulePromise) {
-    appScreenModulePromise = import('./features/apps/app-screen.js').catch(error => {
+    appScreenModulePromise = import('./features/apps/app-screen.js').then(module => {
+      appScreenModule = module;
+      return module;
+    }).catch(error => {
       appScreenModulePromise = null;
+      appScreenModule = null;
       throw error;
     });
   }
   return appScreenModulePromise;
+}
+
+function cleanupActiveAppScreen() {
+  try { appScreenModule?.cleanupAppScreen?.(); }
+  catch (error) { console.warn('[NexusNova Fresh] app cleanup:', error); }
 }
 
 window.nexusPostNativeAction = window.nexusPostNativeAction || function(action, payload = {}) {
@@ -187,6 +197,10 @@ router = createRouter({
         return appModuleFailureScreen(payload.id, error);
       }
     }
+  },
+  beforeRoute(next, payload = {}, previous) {
+    if (previous === 'app') cleanupActiveAppScreen();
+    if (previous === 'mine' && next !== 'mine') cleanupMineScreen();
   },
   onRoute(route, payload = {}) {
     setSplashMode(false);
