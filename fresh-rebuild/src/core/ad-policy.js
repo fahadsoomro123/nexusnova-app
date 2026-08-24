@@ -168,6 +168,16 @@ function finish(reason = 'complete') {
   }
 }
 
+function cancelPendingHubNavigation() {
+  if (!inFlight || inFlight.placement !== HUB_PLACEMENT) return false;
+  // The native ad itself may already be opening and cannot be force-dismissed
+  // safely from web code. Drop only the stale route continuation; keep native
+  // ad lifecycle accounting intact until its normal terminal event arrives.
+  inFlight.continue = null;
+  inFlight.requestedFeature = '';
+  return true;
+}
+
 function markAdStarted() {
   const active = inFlight;
   if (!active || active.adStarted) return;
@@ -316,6 +326,7 @@ readSession();
 export const adPolicy = Object.freeze({
   gateHubApp,
   gateMiningRenewal,
+  cancelPendingHubNavigation,
   isProtected,
   isEligibleHubApp,
   adFeatureFor,
