@@ -47,6 +47,10 @@ object NexusNativeAppCheck {
             replyError(replyProxy, requestId, "Invalid App Check request id")
             return
         }
+        if (!initialized) {
+            replyError(replyProxy, requestId, "Native App Check is not initialized")
+            return
+        }
 
         val forceRefresh = request.optBoolean("forceRefresh", true)
         FirebaseAppCheck.getInstance()
