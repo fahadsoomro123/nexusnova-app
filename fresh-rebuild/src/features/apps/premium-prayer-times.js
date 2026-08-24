@@ -182,8 +182,11 @@ export function renderPrayerTimesPremium() {
     </section>
   `);
 
+  let disposed = false;
   document.body.classList.add('nx-prayer-immersive');
-  queueMicrotask(() => root.closest('.nx-screen')?.classList.add('nx-prayer-screen'));
+  queueMicrotask(() => {
+    if (!disposed) root.closest('.nx-screen')?.classList.add('nx-prayer-screen');
+  });
 
   const search = root.querySelector('[data-prayer-search]');
   const results = root.querySelector('[data-prayer-results]');
@@ -204,12 +207,13 @@ export function renderPrayerTimesPremium() {
   let busy = false;
 
   const showStatus = message => {
+    if (disposed) return;
     status.hidden = false;
     status.textContent = message;
   };
 
   const paintNext = () => {
-    if (!timings) return;
+    if (disposed || !timings) return;
     const now = new Date();
     let nextName = NEXT_PRAYER_SEQUENCE.find(name => {
       const at = timeToday(timings[name]);
@@ -244,6 +248,7 @@ export function renderPrayerTimesPremium() {
   };
 
   const drawTimings = () => {
+    if (disposed) return;
     list.innerHTML = PRAYERS.map(([key, label], index) => {
       const parts = timeParts(timings?.[key]);
       return `<article class="nxprayer-card nxprayer-card--${index}" data-prayer-key="${key}">
@@ -259,7 +264,7 @@ export function renderPrayerTimesPremium() {
   };
 
   const load = async ({ lat, lon, place }) => {
-    if (busy) return;
+    if (busy || disposed) return;
     busy = true;
     showStatus(`Loading prayer times for ${place}…`);
     try {
@@ -268,6 +273,7 @@ export function renderPrayerTimesPremium() {
       const response = await fetch(`https://api.aladhan.com/v1/timings/${dateParam}?latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lon)}&method=3`, { cache:'no-store' });
       if (!response.ok) throw new Error(`Prayer HTTP ${response.status}`);
       const json = await response.json();
+      if (disposed) return;
       timings = json?.data?.timings || null;
       if (!timings) throw new Error('Prayer timings missing');
       state = { lat:Number(lat), lon:Number(lon), place:String(place || 'Selected city') };
@@ -276,11 +282,12 @@ export function renderPrayerTimesPremium() {
       const hijri = json?.data?.date?.hijri;
       hijriEl.textContent = hijri ? `${hijri.day} ${String(hijri.month?.en || '').toUpperCase()} ${hijri.year} AH` : 'LIVE CALCULATION';
       drawTimings();
+      if (disposed) return;
       status.hidden = true;
       clearInterval(timer);
       timer = setInterval(paintNext, 1000);
     } catch (error) {
-      showStatus('Prayer times are unavailable right now. Check the connection and try again.');
+      if (!disposed) showStatus('Prayer times are unavailable right now. Check the connection and try again.');
       console.warn('[NexusNova Premium] prayer times:', error);
     } finally {
       busy = false;
@@ -288,20 +295,24 @@ export function renderPrayerTimesPremium() {
   };
 
   const loadGps = async () => {
+    if (disposed) return;
     showStatus('Getting your GPS location…');
     try {
       const pos = await currentPosition();
+      if (disposed) return;
       const lat = pos.coords.latitude;
       const lon = pos.coords.longitude;
       const place = await reversePlace(lat, lon);
+      if (disposed) return;
       await load({ lat, lon, place });
     } catch (error) {
-      showStatus('GPS permission is unavailable. Search for a city instead.');
+      if (!disposed) showStatus('GPS permission is unavailable. Search for a city instead.');
       console.warn('[NexusNova Premium] prayer GPS:', error);
     }
   };
 
   const findPlaces = async () => {
+    if (disposed) return;
     const query = search.value.trim();
     if (query.length < 2) {
       showStatus('Enter at least 2 characters to search a city.');
@@ -312,6 +323,7 @@ export function renderPrayerTimesPremium() {
       const response = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=12&language=en&format=json`, { cache:'no-store' });
       if (!response.ok) throw new Error(`Geocoding HTTP ${response.status}`);
       const json = await response.json();
+      if (disposed) return;
       searchRows = Array.isArray(json.results) ? json.results : [];
       if (!searchRows.length) {
         results.hidden = true;
@@ -323,7 +335,7 @@ export function renderPrayerTimesPremium() {
       const first = searchRows[0];
       await load({ lat:first.latitude, lon:first.longitude, place:compactPlace([first.name, first.admin1, first.country]) });
     } catch (error) {
-      showStatus('City search is unavailable right now.');
+      if (!disposed) showStatus('City search is unavailable right now.');
       console.warn('[NexusNova Premium] prayer city search:', error);
     }
   };
@@ -332,6 +344,7 @@ export function renderPrayerTimesPremium() {
   root.querySelector('[data-prayer-search-go]').addEventListener('click', findPlaces);
   search.addEventListener('keydown', event => { if (event.key === 'Enter') findPlaces(); });
   results.addEventListener('change', () => {
+    if (disposed) return;
     const item = searchRows[Number(results.value)];
     if (!item) return;
     load({ lat:item.latitude, lon:item.longitude, place:compactPlace([item.name, item.admin1, item.country]) });
@@ -341,6 +354,7 @@ export function renderPrayerTimesPremium() {
   loadGps().catch(() => load(state));
 
   root.__cleanup = () => {
+    disposed = true;
     clearInterval(timer);
     root.closest('.nx-screen')?.classList.remove('nx-prayer-screen');
     document.body.classList.remove('nx-prayer-immersive');
