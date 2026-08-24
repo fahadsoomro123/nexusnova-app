@@ -11,6 +11,10 @@ on:
 permissions:
   contents: write
 
+env:
+  # Exact web source bundled inside the phone-PASS OTA APK.
+  OTA_BUNDLED_BASE: 006759906f400598a697a10194c23f32c51c711c
+
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -20,13 +24,38 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Build verified OTA package
+      - name: Build verified cumulative differential OTA package
         shell: bash
         run: |
           set -euo pipefail
+          BASE="$OTA_BUNDLED_BASE"
+          git cat-file -e "$BASE^{commit}"
+
+          deleted="$(git diff --name-only --diff-filter=D "$BASE" "$GITHUB_SHA" -- fresh-rebuild/)"
+          if [ -n "$deleted" ]; then
+            echo 'OTA v1 cannot safely represent deleted bundled web files:' >&2
+            printf '%s\n' "$deleted" >&2
+            exit 1
+          fi
+
           rm -rf /tmp/nexusnova-ota-package
           mkdir -p /tmp/nexusnova-ota-package/files
-          cp -a fresh-rebuild/. /tmp/nexusnova-ota-package/files/
+
+          count=0
+          while IFS= read -r full; do
+            [ -n "$full" ] || continue
+            rel="${full#fresh-rebuild/}"
+            test -f "$full"
+            mkdir -p "/tmp/nexusnova-ota-package/files/$(dirname "$rel")"
+            cp "$full" "/tmp/nexusnova-ota-package/files/$rel"
+            count=$((count + 1))
+          done < <(git diff --name-only --diff-filter=ACMRT "$BASE" "$GITHUB_SHA" -- fresh-rebuild/)
+
+          if [ "$count" -lt 1 ]; then
+            echo 'No web files differ from the bundled OTA baseline.' >&2
+            exit 1
+          fi
+
           python3 - <<'PY'
           import hashlib, json, os
           from pathlib import Path
@@ -52,12 +81,12 @@ jobs:
               json.dumps(manifest, separators=(',', ':'), sort_keys=True),
               encoding='utf-8'
           )
-          print(f"OTA files: {len(files)}")
-          print(f"OTA bytes: {sum(item['size'] for item in files)}")
+          print(f"Differential OTA files: {len(files)}")
+          print(f"Differential OTA bytes: {sum(item['size'] for item in files)}")
           PY
+
           test -s /tmp/nexusnova-ota-package/manifest.json
           test -s /tmp/nexusnova-ota-package/files/index.html
-          test -s /tmp/nexusnova-ota-package/files/src/main.js
 
       - name: Publish OTA branch
         shell: bash
@@ -72,6 +101,6 @@ jobs:
           git rm -rf .
           cp -a /tmp/nexusnova-ota-package/. .
           git add -A
-          git commit -m "Publish NexusNova web OTA $GITHUB_SHA"
+          git commit -m "Publish NexusNova differential web OTA $GITHUB_SHA"
           git pull --rebase origin nexusnova-ota-release
           git push origin HEAD:nexusnova-ota-release
