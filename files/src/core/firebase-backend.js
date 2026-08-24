@@ -124,7 +124,7 @@ async function startFresh(user) {
   });
 }
 
-async function finishExpired(user) {
+async function rolloverExpired(user) {
   const now = Date.now();
   const userRef = doc(firestoreDb, 'users', user.uid);
   return runTransaction(firestoreDb, async tx => {
@@ -135,23 +135,26 @@ async function finishExpired(user) {
     if (state.balance == null || state.totalMined == null) throw new Error('Account mining values need repair. No balance was changed.');
     if (!state.active || state.startedAt <= 0) return raw;
     if (now - state.startedAt < DAY) return raw;
+
     const nextBalance = state.balance + MINING_REWARD;
     const nextTotal = state.totalMined + MINING_REWARD;
     const nextVaultPending = state.novaVaultPending + 1;
+
     tx.update(userRef, {
       balance: nextBalance,
       totalMined: nextTotal,
-      miningActive: false,
-      miningStartedAt: 0,
+      miningActive: true,
+      miningStartedAt: now,
       miningLastUpdate: now,
       novaVaultPending: nextVaultPending
     });
+
     return {
       ...raw,
       balance: nextBalance,
       totalMined: nextTotal,
-      miningActive: false,
-      miningStartedAt: 0,
+      miningActive: true,
+      miningStartedAt: now,
       miningLastUpdate: now,
       novaVaultPending: nextVaultPending
     };
@@ -172,14 +175,16 @@ export const firebaseBackend = {
     if (operation) return operation;
     operation = (async () => {
       const user = await requireFirebaseUser({ write: true });
-      let raw = await readUserProfile(user);
-      let state = normalize(raw);
+      const raw = await readUserProfile(user);
+      const state = normalize(raw);
+
       if (state.active && state.sessionComplete) {
-        raw = await finishExpired(user);
-        state = normalize(raw);
+        return normalize(await rolloverExpired(user));
       }
-      if (!state.active) raw = await startFresh(user);
-      return normalize(raw);
+      if (!state.active) {
+        return normalize(await startFresh(user));
+      }
+      return state;
     })().finally(() => { operation = null; });
     return operation;
   },
