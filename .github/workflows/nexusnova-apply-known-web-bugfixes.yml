@@ -1,3 +1,4 @@
+# Triggered after initial workflow registration so the push event can execute it.
 name: NexusNova Apply Known Web Bugfixes
 
 on:
