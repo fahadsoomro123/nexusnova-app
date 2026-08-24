@@ -1,4 +1,4 @@
-# Triggered after initial workflow registration so the push event can execute it.
+# One-shot safety workflow for two exact, code-confirmed web runtime bugs.
 name: NexusNova Apply Known Web Bugfixes
 
 on:
@@ -20,10 +20,11 @@ jobs:
           ref: nexusnova-latest-full-apk-recovery-20260823
           fetch-depth: 0
 
-      - name: Apply exact isolated fixes
+      - name: Patch, verify, report and commit
         shell: bash
         run: |
-          python3 - <<'PY'
+          set +e
+          python3 - <<'PY' > /tmp/nexusnova-runtime-patch.log 2>&1
           from pathlib import Path
 
           speed = Path('fresh-rebuild/src/features/apps/premium-nova-internet-speed.js')
@@ -78,24 +79,42 @@ jobs:
           if text.count(old) != 1:
               raise SystemExit(f'Wallet listener anchor count was {text.count(old)}, expected 1')
           wallet.write_text(text.replace(old, new, 1), encoding='utf-8')
+          print('Exact anchors patched successfully.')
           PY
+          code=$?
 
-      - name: Verify diff and syntax
-        shell: bash
-        run: |
-          set -euo pipefail
-          git diff --check
-          git diff -- fresh-rebuild/src/features/apps/premium-nova-internet-speed.js fresh-rebuild/src/features/apps/core-apps.js
-          node --input-type=module --check < fresh-rebuild/src/features/apps/premium-nova-internet-speed.js
-          node --input-type=module --check < fresh-rebuild/src/features/apps/core-apps.js
+          if [ "$code" -eq 0 ]; then
+            {
+              git diff --check
+              node --input-type=module --check < fresh-rebuild/src/features/apps/premium-nova-internet-speed.js
+              node --input-type=module --check < fresh-rebuild/src/features/apps/core-apps.js
+            } >> /tmp/nexusnova-runtime-patch.log 2>&1
+            code=$?
+          fi
 
-      - name: Commit exact fixes
-        shell: bash
-        run: |
-          set -euo pipefail
+          if [ "$code" -ne 0 ]; then
+            git checkout -- fresh-rebuild/src/features/apps/premium-nova-internet-speed.js fresh-rebuild/src/features/apps/core-apps.js
+          fi
+
+          {
+            echo "NexusNova known web bugfix workflow"
+            echo "UTC: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            echo "Source: $GITHUB_SHA"
+            if [ "$code" -eq 0 ]; then echo "Result: PASS"; else echo "Result: FAIL"; fi
+            echo
+            cat /tmp/nexusnova-runtime-patch.log
+          } > .github/runtime-patch-status.txt
+
           git config user.name 'NexusNova Bugfix Bot'
           git config user.email 'actions@users.noreply.github.com'
-          git add fresh-rebuild/src/features/apps/premium-nova-internet-speed.js fresh-rebuild/src/features/apps/core-apps.js
-          git commit -m 'fix: clean web runtime edge cases'
+          git add .github/runtime-patch-status.txt
+          if [ "$code" -eq 0 ]; then
+            git add fresh-rebuild/src/features/apps/premium-nova-internet-speed.js fresh-rebuild/src/features/apps/core-apps.js
+            message='fix: clean web runtime edge cases'
+          else
+            message='ci: record known web bugfix failure'
+          fi
+          git commit -m "$message"
           git pull --rebase origin nexusnova-latest-full-apk-recovery-20260823
           git push origin HEAD:nexusnova-latest-full-apk-recovery-20260823
+          exit "$code"
