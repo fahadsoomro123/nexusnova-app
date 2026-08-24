@@ -2,7 +2,11 @@
    Mining is intentionally NOT handled here. The sole mining owner is
    rewards-security-v1.js (single-owner-v3), backed directly by Firestore
    Security Rules. This file preserves the StackBlitz news proxy behavior,
-   boots critical non-mining modules, then loads the defensive integrity UI. */
+   boots critical non-mining modules, then loads the defensive integrity UI.
+
+   Loader ownership note: nexusnova-ad-placements-v1.js and
+   nexusnova-watch-ad-reward-v1.js are owned by nexusnova-page2-after-core-v2.js
+   and intentionally are not loaded a second time from this critical bootstrap. */
 (async () => {
   'use strict';
 
