@@ -1,5 +1,5 @@
 NexusNova permanent signed release trigger
 Version code: 2
 Version name: 1.0.1
-Purpose: package verified 25 Aug 2026 online-app fixes and current fresh-rebuild source.
-Attempt: 5 with corrected signing secret names
+Purpose: package verified 25 Aug 2026 web fixes plus accessible native Nova VPN disconnect control.
+Attempt: 6 robust workflow using shell RUNNER_TEMP and permanent signing secrets.
