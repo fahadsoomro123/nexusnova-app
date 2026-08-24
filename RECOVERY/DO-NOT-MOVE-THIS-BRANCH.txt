@@ -1,0 +1,15 @@
+NEXUSNOVA DISASTER GOLDEN MASTER
+
+Branch: nexusnova-disaster-golden-master-20260824
+Recoverable source commit: d8be5cc12b015a4c13e39ccea0d1a81b9e79ced3
+Recoverable source tree: 6549cf1754652aacca3e4f6ae95acba05f265678
+Captured: 24 Aug 2026, 12:43 PKT
+
+ARCHIVAL RULES
+- DO NOT force-push this branch.
+- DO NOT use this branch for feature development.
+- DO NOT overwrite historical Golden branches.
+- DO NOT store keystores, passwords, service-account private keys, or provider secrets here.
+- For a newer phone-confirmed state, create a NEW dated Golden/Disaster branch.
+
+The exact source commit above is the canonical disaster restore point. Documentation commits added on this recovery branch do not change that source anchor.
