@@ -81,7 +81,7 @@ export function renderReminders() {
   const list = root.querySelector('[data-rem-list]');
   const status = root.querySelector('[data-rem-status]');
   time.value = nowLocalInput(3_600_000);
-  let key = '', timer = null;
+  let key = '', timer = null, disposed = false;
 
   const notify = item => {
     if (Notification?.permission === 'granted') {
@@ -91,7 +91,7 @@ export function renderReminders() {
   };
 
   const checkDue = () => {
-    if (!key) return;
+    if (!key || disposed) return;
     const items = loadJson(key, []);
     let changed = false;
     items.forEach(item => {
@@ -104,25 +104,35 @@ export function renderReminders() {
   };
 
   const draw = () => {
-    if (!key) return;
+    if (!key || disposed) return;
     const items = loadJson(key, []).sort((a,b) => new Date(a.at) - new Date(b.at));
     list.innerHTML = items.length ? items.map(item => `
       <article class="nx-list-card"><div class="nx-list-card__head"><strong>${escapeHtml(item.title)}</strong><button class="nx-icon-button" type="button" data-rem-delete="${escapeHtml(item.id)}">×</button></div><p>${new Date(item.at).toLocaleString()} • ${item.fired ? 'Completed' : 'Scheduled'}</p></article>`).join('') : '<div class="nx-empty">No reminders set.</div>';
     list.querySelectorAll('[data-rem-delete]').forEach(button => button.addEventListener('click', () => { saveJson(key, loadJson(key, []).filter(item => item.id !== button.dataset.remDelete)); draw(); }));
   };
-  scopedKey('reminders_v1').then(value => { key = value; draw(); timer = setInterval(checkDue,15_000); checkDue(); });
+  scopedKey('reminders_v1').then(value => {
+    if (disposed) return;
+    key = value;
+    draw();
+    timer = setInterval(checkDue,15_000);
+    checkDue();
+  });
   root.querySelector('[data-rem-add]').addEventListener('click', async () => {
-    if (!key) return;
+    if (!key || disposed) return;
     const name = title.value.trim();
     const at = new Date(time.value).getTime();
     if (!name || !Number.isFinite(at) || at <= Date.now()) { status.textContent = 'Choose a future reminder time.'; return; }
     if ('Notification' in window && Notification.permission === 'default') {
       try { await Notification.requestPermission(); } catch {}
     }
+    if (disposed) return;
     const items = loadJson(key, []); items.push({ id:uid('reminder'), title:name, at:new Date(at).toISOString(), fired:false }); saveJson(key,items.slice(-500));
     title.value=''; time.value=nowLocalInput(3_600_000); status.textContent='Reminder saved on this device.'; draw();
   });
-  root.__cleanup = () => clearInterval(timer);
+  root.__cleanup = () => {
+    disposed = true;
+    clearInterval(timer);
+  };
   return root;
 }
 
