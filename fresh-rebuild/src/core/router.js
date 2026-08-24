@@ -1,11 +1,19 @@
-export function createRouter({ stage, routes, onRoute }) {
+export function createRouter({ stage, routes, beforeRoute, onRoute }) {
   let current = '';
   let renderRevision = 0;
 
   async function render(route, payload = {}) {
     const revision = ++renderRevision;
+    const previous = current;
     const next = routes[route] ? route : 'mine';
     const factory = routes[next];
+
+    // Tear down route-owned timers/listeners before removing the old DOM. Some
+    // route factories (notably Mine) are asynchronous, so waiting until the new
+    // screen has rendered can leave detached work running in the background.
+    try { beforeRoute?.(next, payload, previous); }
+    catch (error) { console.warn('[NexusNova Fresh] route cleanup:', error); }
+
     current = next;
     stage.innerHTML = '';
 
