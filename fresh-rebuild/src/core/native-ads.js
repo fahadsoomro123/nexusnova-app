@@ -57,6 +57,34 @@ function waitForRewardedReady(timeoutMs = 20_000) {
   });
 }
 
+function waitForInterstitialReady(timeoutMs = 8_000) {
+  if (status.interstitialReady === true) return Promise.resolve();
+  post('adStatus');
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      listeners.delete(onEvent);
+      resolve();
+    };
+    const fail = () => {
+      if (settled) return;
+      settled = true;
+      listeners.delete(onEvent);
+      reject(new Error('Interstitial ad is still loading.'));
+    };
+    const onEvent = detail => {
+      const type = String(detail?.event || '');
+      if (type === 'interstitial-ready') finish();
+      else if (type === 'status' && detail?.interstitialReady === true) finish();
+    };
+    listeners.add(onEvent);
+    const timer = setTimeout(fail, Math.max(3_000, Number(timeoutMs) || 8_000));
+  });
+}
+
 window.addEventListener('nexusnova:native-ad-event', event => {
   const detail = event?.detail || {};
   if (String(detail.provider || '') !== 'admob') return;
@@ -89,6 +117,10 @@ export const nativeAds = {
   requestStatus() {
     status.configured = post('adStatus') || status.configured;
     return status.configured;
+  },
+
+  waitForInterstitialReady(timeoutMs = 8_000) {
+    return waitForInterstitialReady(timeoutMs);
   },
 
   async showRewarded({ purpose, userId = '', timeoutMs = 55_000 } = {}) {
