@@ -260,6 +260,9 @@ export function renderSmartHub() {
     if (!speak(lastBrief)) briefStatus.textContent = 'Speech is unavailable on this device.';
   });
 
+  root.__cleanup = () => {
+    try { window.speechSynthesis?.cancel?.(); } catch {}
+  };
   return root;
 }
 
