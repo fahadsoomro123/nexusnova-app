@@ -65,7 +65,7 @@ export function appScreen({ id, backToHub, backToMine } = {}) {
       cleanup = () => body.__cleanup?.();
     } catch (error) {
       console.error(`[NexusNova Fresh] ${id} renderer:`, error);
-      mount.innerHTML = `<article class="nx-tool-card"><h2>${app.name} could not initialize</h2><p>This tool hit a local runtime error. Your account, mining balance and other NexusNova apps were not changed.</p><button class="nx-secondary" type="button" data-app-error-back>BACK TO ${miningOwned ? 'MINE' : 'NOVA HUB'}</button></article>`;
+      mount.innerHTML = `<article class="nx-tool-card"><h2>${app.name} could not initialize</h2><p>This tool hit a local runtime error. You can safely leave this screen and continue using other NexusNova areas.</p><button class="nx-secondary" type="button" data-app-error-back>BACK TO ${miningOwned ? 'MINE' : 'NOVA HUB'}</button></article>`;
       mount.querySelector('[data-app-error-back]')?.addEventListener('click', () => goBack?.());
     }
   } else mount.innerHTML = `<article class="nx-tool-card nx-migration-card"><span class="nx-app-head__icon">${icon(app.icon)}</span><h2>${app.name} fresh migration</h2><p>This module exists in the current NexusNova codebase, but its old presentation layer is intentionally not being loaded here. Its verified logic/native/provider contracts will be connected to this fresh screen without carrying the legacy UI.</p><div class="nx-migration-status"><i></i><span>Fresh architecture migration queued</span></div></article>`;
