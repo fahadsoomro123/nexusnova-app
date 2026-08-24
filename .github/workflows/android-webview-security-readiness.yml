@@ -4,12 +4,14 @@ on:
   push:
     branches:
       - main
+      - nexusnova-latest-full-apk-recovery-20260823
     paths:
       - 'NexusNovaAndroid/app/src/main/AndroidManifest.xml'
       - 'NexusNovaAndroid/app/src/main/res/xml/network_security_config.xml'
       - 'NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt'
       - 'NexusNovaAndroid/app/src/main/java/com/nexusnova/app/BrowserActivity.kt'
-      - 'NexusNovaAndroid/app/src/main/java/com/nexusnova/app/PhonebookStore.kt'
+      - 'NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusApp.kt'
+      - 'NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusNativeAppCheck.kt'
       - '.github/scripts/android-webview-security-readiness.py'
       - '.github/workflows/android-webview-security-readiness.yml'
   workflow_dispatch:
