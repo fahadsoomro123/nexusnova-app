@@ -1,0 +1,37 @@
+name: NOVA AI Power v6 Check
+
+on:
+  pull_request:
+    paths:
+      - 'js/nexusnova-ai-v6.js'
+      - 'js/nexusnova-android-callerid-v1.js'
+      - 'NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ai-v6.js'
+      - 'NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-android-callerid-v1.js'
+      - '.github/workflows/nova-ai-power-v6.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  client-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Check NOVA AI V6 JavaScript syntax
+        run: |
+          node --check js/nexusnova-ai-v6.js
+          node --check js/nexusnova-android-callerid-v1.js
+          node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ai-v6.js
+          node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-android-callerid-v1.js
+      - name: Verify V6 loader and Builder wiring
+        run: |
+          grep -q 'nexusnova-ai-v6.js' js/nexusnova-android-callerid-v1.js
+          grep -q 'nexusnova-ai-v6.js' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-android-callerid-v1.js
+          grep -q "builder" js/nexusnova-ai-v6.js
+          grep -q "POWER V6" js/nexusnova-ai-v6.js
+          cmp -s js/nexusnova-ai-v6.js NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ai-v6.js
