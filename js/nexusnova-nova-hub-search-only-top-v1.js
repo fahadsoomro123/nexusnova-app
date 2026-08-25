@@ -1,13 +1,14 @@
-/* NexusNova Nova Hub search-only top v1
+/* NexusNova Nova Hub search-only top v2
    Presentation-only cleanup requested by the user:
    - Keep the Nova Hub search input.
-   - Remove non-interactive title/kicker/description content above it.
-   - Leave category chips, cards, navigation and feature logic untouched.
+   - Remove intro/title/description above Search.
+   - Remove the category/filter chip row below Search.
+   - Leave app cards, navigation and feature logic untouched.
 */
 (() => {
   'use strict';
-  if (window.__nxNovaHubSearchOnlyTopV1) return;
-  window.__nxNovaHubSearchOnlyTopV1 = true;
+  if (window.__nxNovaHubSearchOnlyTopV2) return;
+  window.__nxNovaHubSearchOnlyTopV2 = true;
 
   const findHubSearch = menu => Array.from(menu?.querySelectorAll('input') || []).find(input => {
     const placeholder = String(input.getAttribute('placeholder') || '').trim();
@@ -17,11 +18,19 @@
            input.id === 'nxAllAppsSmartSearch';
   }) || null;
 
+  const cleanText = node => String(node?.textContent || '').replace(/\s+/g, ' ').trim();
+
   function isNonInteractive(node) {
     if (!(node instanceof Element)) return false;
     if (node.matches('script,style,template')) return false;
     return !node.matches('button,a,input,select,textarea,[role="button"],[tabindex]') &&
            !node.querySelector('button,a,input,select,textarea,[role="button"],[tabindex]');
+  }
+
+  function hideNode(node, marker = '1') {
+    if (!(node instanceof Element)) return;
+    node.style.setProperty('display', 'none', 'important');
+    node.dataset.nxNovaHubTopHidden = marker;
   }
 
   function hideBeforeSearch(search, boundary) {
@@ -31,9 +40,7 @@
       if (!parent) break;
       for (const sibling of Array.from(parent.children)) {
         if (sibling === current) break;
-        if (!isNonInteractive(sibling)) continue;
-        sibling.style.setProperty('display', 'none', 'important');
-        sibling.dataset.nxNovaHubTopHidden = '1';
+        if (isNonInteractive(sibling)) hideNode(sibling);
       }
       current = parent;
     }
@@ -53,11 +60,39 @@
     menu.querySelectorAll('h1,h2,h3,p,small,span,div').forEach(node => {
       if (node === search || node.contains(search) || search.contains(node)) return;
       if (!(node.compareDocumentPosition(search) & Node.DOCUMENT_POSITION_FOLLOWING)) return;
-      const text = String(node.textContent || '').replace(/\s+/g, ' ').trim();
+      const text = cleanText(node);
       if (!text || text.length > 140) return;
-      if (!patterns.some(rx => rx.test(text))) return;
-      node.style.setProperty('display', 'none', 'important');
-      node.dataset.nxNovaHubTopHidden = '1';
+      if (patterns.some(rx => rx.test(text))) hideNode(node);
+    });
+  }
+
+  function hideCategoryChips(menu, search) {
+    const labels = [
+      /^all$/i,
+      /^core$/i,
+      /^everyday tools$/i,
+      /^live\s*&\s*local$/i,
+      /^discover$/i,
+      /^faith\s*&\s*(read|reading|reach)$/i
+    ];
+
+    const matches = Array.from(menu.querySelectorAll('button,[role="button"]')).filter(node => {
+      if (node.classList.contains('more-item') || node.closest('.bottom-dock')) return false;
+      if (!(search.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING)) return false;
+      const text = cleanText(node);
+      return labels.some(rx => rx.test(text));
+    });
+
+    matches.forEach(node => hideNode(node, 'category'));
+
+    /* Hide the shared chip-strip wrapper too, but only when it contains no app cards. */
+    const parents = new Set(matches.map(node => node.parentElement).filter(Boolean));
+    parents.forEach(parent => {
+      if (parent.querySelector('.more-item')) return;
+      const interactive = Array.from(parent.querySelectorAll('button,[role="button"]'));
+      if (interactive.length && interactive.every(node => node.dataset.nxNovaHubTopHidden === 'category')) {
+        hideNode(parent, 'categories');
+      }
     });
   }
 
@@ -67,8 +102,11 @@
     const search = findHubSearch(menu);
     if (!search) return false;
     const inner = menu.querySelector('.more-inner') || menu;
+
     hideBeforeSearch(search, inner);
     hideKnownIntroText(menu, search);
+    hideCategoryChips(menu, search);
+
     search.style.removeProperty('display');
     search.removeAttribute('data-nx-nova-hub-top-hidden');
     return true;
@@ -79,7 +117,7 @@
     [0, 80, 250, 700, 1500, 3000].forEach(ms => setTimeout(cleanHubTop, ms));
 
     const menu = document.getElementById('moreMenu');
-    if (menu && !menu.__nxNovaHubTopObserver) {
+    if (menu && !menu.__nxNovaHubTopObserverV2) {
       let queued = false;
       const observer = new MutationObserver(() => {
         if (queued) return;
@@ -90,7 +128,7 @@
         });
       });
       observer.observe(menu, { childList: true, subtree: true });
-      menu.__nxNovaHubTopObserver = observer;
+      menu.__nxNovaHubTopObserverV2 = observer;
     }
   }
 
