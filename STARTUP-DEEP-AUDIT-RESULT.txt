@@ -1,5 +1,5 @@
-source_commit=42fb618b915220f226af2d26fed7703abe3ac037
-run_id=32883985194
+source_commit=46de2b3e0115a5a29cbcbcf6ccb0e2a676a19326
+run_id=32884558746
 job_status=failure
 target=success
 static=failure
@@ -10,4 +10,4 @@ deprecated_secondary_shield=absent
 apk_built=no
 external_network_during_runtime=blocked
 test_manually_hides_splash=no
-checked_at=2026-08-25T18:29:36Z
+checked_at=2026-08-25T18:35:08Z
