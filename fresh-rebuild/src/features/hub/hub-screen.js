@@ -1,4 +1,3 @@
-import { icon } from '../../components/icons.js';
 import { categories, hubApps } from './app-registry.js';
 
 const ALL_CATEGORY = 'All';
@@ -76,9 +75,10 @@ export function hubScreen({ openApp } = {}) {
           const isLastOpened = app.id === hubState.lastAppId;
           return `
             <button class="nx-app-card${isLastOpened ? ' is-last-opened' : ''}" type="button" data-app-id="${app.id}"${isLastOpened ? ' data-last-opened="true"' : ''} aria-label="Open ${app.name}">
-              <span class="nx-app-card__icon">${icon(app.icon)}</span>
+              <span class="nx-app-card__icon" aria-hidden="true">
+                <img src="./assets/icons/nova-hub/${app.id}.webp" alt="" width="192" height="192" loading="lazy" decoding="async" draggable="false">
+              </span>
               <strong>${app.name}</strong>
-              <span>${app.description}</span>
             </button>
           `;
         }).join('')}
