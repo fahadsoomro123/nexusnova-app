@@ -33,6 +33,11 @@ if (!window.__nxFastDashboardLauncherV4) {
     console.error('NexusNova Nova Hub compact layout:', error);
   });
 
+  // Standalone semantic assets for the 28 Nova Hub icons that were previously missing.
+  void import('./nexusnova-nova-hub-missing-icon-assets-v1.js?v=1').catch(error => {
+    console.error('NexusNova Nova Hub missing icon assets:', error);
+  });
+
   // Keep only the Search box above Nova Hub app cards; intro text and category chips are hidden.
   void import('./nexusnova-nova-hub-search-only-top-v1.js?v=2').catch(error => {
     console.error('NexusNova Nova Hub search-only top:', error);
