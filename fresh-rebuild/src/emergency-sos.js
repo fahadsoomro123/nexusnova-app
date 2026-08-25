@@ -91,6 +91,9 @@ function injectStyles() {
 .nx-sos-card h2{margin:0 0 8px;font:800 24px/1.15 system-ui,-apple-system,sans-serif}.nx-sos-card p{margin:0 0 16px;color:#a9bac8;font:500 14px/1.55 system-ui,-apple-system,sans-serif}
 .nx-sos-field{display:grid;gap:7px;margin:12px 0}.nx-sos-field span{font:700 12px/1 system-ui,-apple-system,sans-serif;color:#c9d6e0}.nx-sos-field select,.nx-sos-field input{width:100%;box-sizing:border-box;border:1px solid #26394b;border-radius:12px;background:#07111d;color:#fff;padding:13px 12px;font:600 15px system-ui,-apple-system,sans-serif;outline:none}
 .nx-sos-actions{display:grid;grid-template-columns:1fr 1.25fr;gap:10px;margin-top:16px}.nx-sos-actions button{border:0;border-radius:13px;padding:13px 10px;font:800 13px system-ui,-apple-system,sans-serif;cursor:pointer}.nx-sos-cancel{background:#172638;color:#dbe8f2}.nx-sos-send{background:#d90c27;color:#fff}.nx-sos-note{margin-top:12px!important;font-size:12px!important;color:#8da1b2!important}
+#${SOS_BUTTON_ID}{width:36px;height:48px;right:0;bottom:calc(102px + env(safe-area-inset-bottom));border-radius:18px 0 0 18px;opacity:.34;font-size:10px;transition:width .16s ease,height .16s ease,right .16s ease,opacity .16s ease,border-radius .16s ease,font-size .16s ease}
+#${SOS_BUTTON_ID}[data-active="1"],#${SOS_BUTTON_ID}[data-busy="1"]{width:56px;height:56px;right:10px;border-radius:50%;opacity:1;font-size:15px}
+#${SOS_EDIT_ID}{right:15px;bottom:calc(158px + env(safe-area-inset-bottom))}
 `;
   document.head.appendChild(style);
 }
