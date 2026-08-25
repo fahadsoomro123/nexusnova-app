@@ -27,6 +27,11 @@ if (!window.__nxFastDashboardLauncherV4) {
     console.error('NexusNova Nova Hub premium icons:', error);
   });
 
+  // Keep only the Search box above Nova Hub categories/cards.
+  void import('./nexusnova-nova-hub-search-only-top-v1.js?v=1').catch(error => {
+    console.error('NexusNova Nova Hub search-only top:', error);
+  });
+
   // Start optional features without blocking the document/module completion path.
   void import('./nexusnova-page2-after-core-v2.js?v=1').catch(error => {
     console.error('NexusNova detached after-core bootstrap:', error);
