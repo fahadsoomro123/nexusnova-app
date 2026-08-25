@@ -1,0 +1,117 @@
+/* NexusNova Nova Hub compact icon layout v2
+   Presentation-only. Mine/mining styles and app navigation are intentionally untouched. */
+
+.nx-hub-screen .nx-hub-toolbar {
+  margin: 0;
+  padding: 3px 0 7px;
+  border-bottom: 1px solid rgba(116,205,255,.055);
+}
+
+.nx-hub-screen .nx-hub-content {
+  padding: 8px 0 2px;
+}
+
+.nx-hub-screen .nx-app-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+  align-items: start;
+  gap: 10px 6px;
+}
+
+.nx-hub-screen .nx-app-card {
+  min-width: 0;
+  min-height: 0;
+  padding: 2px 0 5px;
+  border: 0;
+  border-radius: 0;
+  overflow: visible;
+  background: transparent;
+  box-shadow: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 5px;
+  color: var(--nx-text);
+  text-align: center;
+}
+
+.nx-hub-screen .nx-app-card:hover,
+.nx-hub-screen .nx-app-card:focus-visible {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.nx-hub-screen .nx-app-card:active {
+  transform: scale(.975);
+}
+
+/* 68px visible icon + exactly 3px backing on each side. */
+.nx-hub-screen .nx-app-card__icon {
+  position: relative;
+  flex: 0 0 74px;
+  width: 74px;
+  height: 74px;
+  padding: 3px;
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  margin: 0 auto;
+  border: 0;
+  border-radius: 18px;
+  background: rgba(5, 13, 23, .54);
+  box-shadow: 0 7px 15px rgba(0,0,0,.18);
+  transform: translateZ(0);
+  transition: transform var(--nx-fast) var(--nx-ease), filter var(--nx-fast) linear;
+}
+
+.nx-hub-screen .nx-app-card__icon img {
+  display: block;
+  width: 68px;
+  height: 68px;
+  max-width: 68px;
+  max-height: 68px;
+  object-fit: contain;
+  margin: 0;
+  filter: drop-shadow(0 5px 8px rgba(0,0,0,.24));
+  pointer-events: none;
+  user-select: none;
+}
+
+.nx-hub-screen .nx-app-card:hover .nx-app-card__icon,
+.nx-hub-screen .nx-app-card:focus-visible .nx-app-card__icon {
+  transform: translateY(-1px);
+  filter: saturate(1.06) brightness(1.03);
+}
+
+.nx-hub-screen .nx-app-card:active .nx-app-card__icon {
+  transform: scale(.96);
+}
+
+.nx-hub-screen .nx-app-card strong {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0 2px;
+  box-sizing: border-box;
+  color: var(--nx-text);
+  font-size: 10.5px;
+  font-weight: 850;
+  line-height: 1.18;
+  letter-spacing: -.01em;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.nx-hub-screen .nx-app-card.is-last-opened .nx-app-card__icon {
+  outline: 1px solid rgba(80, 194, 232, .28);
+  outline-offset: 1px;
+}
+
+@media (max-width: 330px) {
+  .nx-hub-screen .nx-app-grid {
+    grid-template-columns: repeat(auto-fill, minmax(74px, 1fr));
+    gap-inline: 4px;
+  }
+}
