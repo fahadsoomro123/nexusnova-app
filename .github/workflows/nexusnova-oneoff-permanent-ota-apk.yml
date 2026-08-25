@@ -67,7 +67,7 @@ jobs:
           PY
           grep -Fq 'otaWebManager.intercept(uri)' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
           grep -Fq 'otaWebManager.checkForUpdate' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
-          grep -Fq 'nexusnovatools.com/ota/manifest.json' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt
+          grep -Fq 'raw.githubusercontent.com/fahadsoomro123/nexusnova-website/main/ota/manifest.json' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt
 
       - uses: actions/setup-java@v5
         with:
