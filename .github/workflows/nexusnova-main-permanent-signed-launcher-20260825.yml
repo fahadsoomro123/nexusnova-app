@@ -64,7 +64,7 @@ jobs:
           set -euo pipefail
           SOURCE_SHA="$(git rev-parse HEAD)"
           echo "Building active source $SOURCE_SHA"
-          GITHUB_SHA="$SOURCE_SHA" bash tools/build-permanent-signed-v4.sh
+          GITHUB_SHA="$SOURCE_SHA" bash tools/run-permanent-signed-v4-safe.sh
 
       - name: Publish active branch build failure diagnostics
         if: failure()
@@ -94,7 +94,7 @@ jobs:
           rm -rf permanent-signed-release permanent-signed-release-failure
           mkdir -p permanent-signed-release-failure
           cp -a "$OUT"/. permanent-signed-release-failure/
-          git add -A permanent-signed-release permanent-signed-release-failure
+          git add -A
           git commit -m "Publish permanent signed failure $SOURCE_SHA" || exit 0
           git pull --rebase origin apk-builds || true
           git push origin HEAD:apk-builds || true
