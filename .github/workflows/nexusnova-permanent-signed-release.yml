@@ -74,7 +74,7 @@ jobs:
             -storepass "$NEXUSNOVA_SIGNING_STORE_PASSWORD" \
             -alias "$NEXUSNOVA_SIGNING_KEY_ALIAS" >/dev/null
 
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: '8.13'
 
