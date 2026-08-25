@@ -56,7 +56,7 @@ jobs:
           marker = '.nx-sos-note{margin-top:12px!important;font-size:12px!important;color:#8da1b2!important}\n'
           if s.count(marker) != 1:
               raise SystemExit('SOS style marker missing/not unique')
-          override = marker + f'''#${{SOS_BUTTON_ID}}{{width:36px;height:48px;right:0;bottom:calc(102px + env(safe-area-inset-bottom));border-radius:18px 0 0 18px;opacity:.34;font-size:10px;transition:width .16s ease,height .16s ease,right .16s ease,opacity .16s ease,border-radius .16s ease,font-size .16s ease}}\n#${{SOS_BUTTON_ID}}[data-active="1"],#${{SOS_BUTTON_ID}}[data-busy="1"]{{width:56px;height:56px;right:10px;border-radius:50%;opacity:1;font-size:15px}}\n#${{SOS_EDIT_ID}}{{right:15px;bottom:calc(158px + env(safe-area-inset-bottom))}}\n'''
+          override = marker + '''#${SOS_BUTTON_ID}{width:36px;height:48px;right:0;bottom:calc(102px + env(safe-area-inset-bottom));border-radius:18px 0 0 18px;opacity:.34;font-size:10px;transition:width .16s ease,height .16s ease,right .16s ease,opacity .16s ease,border-radius .16s ease,font-size .16s ease}\n#${SOS_BUTTON_ID}[data-active="1"],#${SOS_BUTTON_ID}[data-busy="1"]{width:56px;height:56px;right:10px;border-radius:50%;opacity:1;font-size:15px}\n#${SOS_EDIT_ID}{right:15px;bottom:calc(158px + env(safe-area-inset-bottom))}\n'''
           s = s.replace(marker, override, 1)
           sos.write_text(s)
           PY
