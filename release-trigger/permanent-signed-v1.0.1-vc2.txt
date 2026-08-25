@@ -1,5 +1,5 @@
 NexusNova permanent signed release trigger
-Version code: 2
-Version name: 1.0.1
-Purpose: package verified 25 Aug 2026 web fixes plus accessible native Nova VPN disconnect control.
-Attempt: 6 robust workflow using shell RUNNER_TEMP and permanent signing secrets.
+Version code: 5
+Version name: 1.0.4
+Purpose: build branded NexusNova launcher update with current verified web fixes, native Nova VPN controls, OTA wiring, and permanent signing.
+Attempt: branded vc5 release using proven build-permanent-signed-v4.sh path.
