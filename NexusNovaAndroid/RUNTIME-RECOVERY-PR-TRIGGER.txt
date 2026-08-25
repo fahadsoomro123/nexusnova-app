@@ -1,0 +1,1 @@
+Rerun the final NexusNova Android 11 gate after separating canonical-source verification from prepared-bundle verification. Fresh build, MainActivity runtime, NovaVpnActivity runtime, fatal/ANR scan, and screenshots required.
