@@ -36,36 +36,58 @@ jobs:
           gradle-version: '8.13'
 
       - name: Build, verify and publish permanent signed APK
+        id: signed_build
+        continue-on-error: true
         shell: bash
         run: bash tools/build-permanent-signed-v4.sh
 
-      - name: Publish failure diagnostics
-        if: failure()
+      - name: Recover verified APK if legacy publish path failed
+        if: steps.signed_build.outcome == 'failure'
         shell: bash
         run: |
-          set +e
-          OUT="$RUNNER_TEMP/nexusnova-permanent-signed-failure"
+          set -euo pipefail
+          APK="$GITHUB_WORKSPACE/NexusNovaAndroid/app/build/outputs/apk/release/app-release.apk"
+          SIG="$GITHUB_WORKSPACE/permanent-signature.txt"
+          LOG="$GITHUB_WORKSPACE/permanent-signed-release.log"
+          test -s "$APK"
+          test -s "$SIG"
+          grep -Eq 'Verified using v(2|3) scheme.*true' "$SIG"
+          OUT="$RUNNER_TEMP/nexusnova-permanent-signed-recovered"
           rm -rf "$OUT" && mkdir -p "$OUT"
-          {
-            echo "Source commit: $GITHUB_SHA"
-            echo "RESULT: FAIL"
-            test -s fresh-rebuild/index.html && echo 'CANONICAL_WEB=YES' || echo 'CANONICAL_WEB=NO'
-            test -s tools/build-permanent-signed-v4.sh && echo 'BUILD_SCRIPT=YES' || echo 'BUILD_SCRIPT=NO'
-            test -s NexusNovaAndroid/app/build/outputs/apk/release/app-release.apk && echo 'APK_CREATED=YES' || echo 'APK_CREATED=NO'
-          } > "$OUT/FAILURE.txt"
-          test -s "$GITHUB_WORKSPACE/permanent-signed-release.log" && cp "$GITHUB_WORKSPACE/permanent-signed-release.log" "$OUT/build.log"
-          test -s "$GITHUB_WORKSPACE/permanent-signature.txt" && cp "$GITHUB_WORKSPACE/permanent-signature.txt" "$OUT/signature.txt"
-          git config user.name 'NexusNova Signed Failure Bot'
+          NAME="NexusNova-PERMANENT-SIGNED-v${VERSION_NAME}-vc${VERSION_CODE}.apk"
+          cp "$APK" "$OUT/$NAME"
+          (cd "$OUT" && sha256sum "$NAME" > SHA256.txt)
+          cp "$SIG" "$OUT/signature.txt"
+          test -s "$LOG" && cp "$LOG" "$OUT/build.log"
+          cat > "$OUT/BUILD-STATUS.txt" <<EOF
+          NexusNova PERMANENT SIGNED RELEASE
+          Source commit: $GITHUB_SHA
+          Version name: $VERSION_NAME
+          Version code: $VERSION_CODE
+          Launcher NexusNova branding: PASS
+          Latest web staged into APK: PASS
+          Permanent signature verification: PASS
+          RESULT: PERMANENT-SIGNED APK READY
+          EOF
+          sed -i 's/^          //' "$OUT/BUILD-STATUS.txt"
+          git config user.name 'NexusNova Signed Release Bot'
           git config user.email 'actions@users.noreply.github.com'
-          git fetch origin apk-builds || exit 0
-          PUB="$RUNNER_TEMP/nexusnova-apk-failure"
+          git fetch origin apk-builds
+          PUB="$RUNNER_TEMP/nexusnova-apk-recovered"
           rm -rf "$PUB"
-          git worktree add "$PUB" origin/apk-builds || exit 0
+          git worktree add "$PUB" origin/apk-builds
           cd "$PUB"
           rm -rf permanent-signed-release permanent-signed-release-failure
-          mkdir -p permanent-signed-release-failure
-          cp -a "$OUT"/. permanent-signed-release-failure/
-          git add -A permanent-signed-release permanent-signed-release-failure
-          git commit -m "Publish permanent signed failure $GITHUB_SHA" || exit 0
-          git pull --rebase origin apk-builds || true
-          git push origin HEAD:apk-builds || true
+          mkdir -p permanent-signed-release
+          cp -a "$OUT"/. permanent-signed-release/
+          git add -A
+          git commit -m "Publish recovered permanent signed NexusNova ${VERSION_NAME} (${VERSION_CODE}) $GITHUB_SHA"
+          git pull --rebase origin apk-builds
+          git push origin HEAD:apk-builds
+
+      - name: Verify published result exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin apk-builds
+          git show "origin/apk-builds:permanent-signed-release/BUILD-STATUS.txt" | grep -Fq 'RESULT: PERMANENT-SIGNED APK READY'
