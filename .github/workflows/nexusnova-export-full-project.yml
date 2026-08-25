@@ -49,7 +49,7 @@ jobs:
           printf 'source_commit=%s\nbranch=%s\narchive=git-archive-HEAD-plus-disaster-handoff\n' "$GITHUB_SHA" "$GITHUB_REF_NAME" > PROJECT-EXPORT-STATUS.txt
 
       - name: Upload project artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: NexusNova-CURRENT-CLEAN-PROJECT
           path: |
