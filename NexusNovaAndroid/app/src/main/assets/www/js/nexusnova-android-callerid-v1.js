@@ -77,8 +77,26 @@
     current = wrap(current);
   }
 
+  function loadNovaAIEnhancements() {
+    if (window.__nxNovaAILoaderV1) return;
+    window.__nxNovaAILoaderV1 = true;
+    const load = (src, id) => new Promise(resolve => {
+      if (document.getElementById(id)) return resolve();
+      const s = document.createElement("script");
+      s.id = id;
+      s.src = src;
+      s.defer = true;
+      s.onload = () => resolve();
+      s.onerror = () => { console.warn("NOVA AI module unavailable:", src); resolve(); };
+      document.head.appendChild(s);
+    });
+    load("./js/nexusnova-ai-mobile-v1.js?v=1", "nxNovaAIMobileV1Script")
+      .then(() => load("./js/nexusnova-ai-website-mode-v1.js?v=1", "nxNovaAIWebsiteModeV1Script"));
+  }
+
   installLogoutClearHook();
   window.addEventListener("nexusaccountready", syncActiveAccount);
   window.addEventListener("nexusaccountcleared", syncActiveAccount);
   syncActiveAccount();
+  loadNovaAIEnhancements();
 })();
