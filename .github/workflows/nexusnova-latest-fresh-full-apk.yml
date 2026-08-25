@@ -180,3 +180,5 @@ jobs:
           git commit -m "Publish latest fresh full APK failure $GITHUB_SHA" || exit 0
           git pull --rebase origin apk-builds || true
           git push origin HEAD:apk-builds || true
+
+# Rebuild trigger: public OTA endpoint fix 2026-08-26
