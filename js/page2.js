@@ -27,8 +27,8 @@ if (!window.__nxFastDashboardLauncherV4) {
     console.error('NexusNova Nova Hub premium icons:', error);
   });
 
-  // Keep only the Search box above Nova Hub categories/cards.
-  void import('./nexusnova-nova-hub-search-only-top-v1.js?v=1').catch(error => {
+  // Keep only the Search box above Nova Hub app cards; intro text and category chips are hidden.
+  void import('./nexusnova-nova-hub-search-only-top-v1.js?v=2').catch(error => {
     console.error('NexusNova Nova Hub search-only top:', error);
   });
 
