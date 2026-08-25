@@ -39,7 +39,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout canonical VPN source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Validate deployment inputs
         shell: bash
