@@ -10,6 +10,7 @@
   const $=id=>document.getElementById(id);
 
   const tasks={
+    auto:'Meri NexusNova website ko khud deeply inspect karo. Current useful trends aur search demand ko web se research karo, repo ka technical/SEO/design/content audit karo, phir sabse high-value safe improvements khud choose karke implement karo. Mujhse file names, code, keywords ya implementation details mat poochna jab repo/web research se pata chal sakta ho. Working features mat torna. Random/mass content mat banana. Branch banao, relevant files khud choose karo, useful design/SEO/content/internal-link/performance fixes karo, checks chalao, diff verify karo aur clean commit banao. GitHub writes armed hon to PR ready karo; main branch ko direct push mat karna.',
     design:'Meri website ko inspect karo aur jo page/section main next message me bataun uska design modern, beautiful, mobile-friendly aur fast banao. Working features ko break mat karna. Repo khud inspect karke required files khud choose karo.',
     seo:'Meri website ka SEO audit karo aur jo high-value safe improvements tum khud kar sakte ho wo implement karo. Technical SEO, titles/meta, internal linking, crawl discovery, useful content aur performance dekho. Mass/fake keyword pages mat banana. Branch, checks aur diff khud handle karo.',
     article:'Meri website ke niche aur current useful trends ko research karo. Ek genuinely useful, original, publish-ready article choose karke likho aur website ke existing article system me properly add karo. Canonical/meta/structured data/internal links/article hub/sitemap/feed jahan relevant ho update karo.',
@@ -34,7 +35,8 @@
       #tab-ai .nx-nova-website-actions::-webkit-scrollbar{display:none}
       #tab-ai .nx-nova-website-actions.show{display:flex}
       #tab-ai .nx-nova-webtask{height:31px;padding:0 10px;border:1px solid #35373c;border-radius:10px;background:#202125;color:#c9cbd0;font:650 10px/1 system-ui;white-space:nowrap}
-      #tab-ai .nx-nova-webtask:active{background:#2d2f34;color:#fff}
+      #tab-ai .nx-nova-webtask.auto{background:#f1f1f1;color:#111;border-color:#f1f1f1;font-weight:800}
+      #tab-ai .nx-nova-webtask:active{transform:translateY(1px)}
       #tab-ai .nx-nova-website-hint{display:none;margin:0 12px 8px;padding:9px 10px;border:1px solid rgba(183,157,255,.22);border-radius:12px;background:rgba(159,126,255,.07);color:#a9aab0;font:500 10px/1.45 system-ui}
       #tab-ai .nx-nova-website-hint.show{display:block}
       #tab-ai .nx-nova-website-hint strong{color:#e8e0ff;font-weight:700}
@@ -69,13 +71,13 @@
     }
     if(!$('nxNovaWebsiteActions')){
       const bar=document.createElement('div');bar.id='nxNovaWebsiteActions';bar.className='nx-nova-website-actions';
-      bar.innerHTML='<button class="nx-nova-webtask" data-webtask="design">Design</button><button class="nx-nova-webtask" data-webtask="seo">SEO</button><button class="nx-nova-webtask" data-webtask="article">Article</button><button class="nx-nova-webtask" data-webtask="fix">Fix</button><button class="nx-nova-webtask" data-webtask="audit">Full Audit</button><button class="nx-nova-webtask" data-webtask="publish">PR / Publish</button>';
+      bar.innerHTML='<button class="nx-nova-webtask auto" data-webtask="auto">Auto Improve</button><button class="nx-nova-webtask" data-webtask="design">Design</button><button class="nx-nova-webtask" data-webtask="seo">SEO</button><button class="nx-nova-webtask" data-webtask="article">Article</button><button class="nx-nova-webtask" data-webtask="fix">Fix</button><button class="nx-nova-webtask" data-webtask="audit">Full Audit</button><button class="nx-nova-webtask" data-webtask="publish">PR / Publish</button>';
       modes.insertAdjacentElement('afterend',bar);
       bar.addEventListener('click',e=>{const b=e.target.closest('[data-webtask]');if(b)putTask(b.dataset.webtask)});
     }
     if(!$('nxNovaWebsiteHint')){
       const hint=document.createElement('div');hint.id='nxNovaWebsiteHint';hint.className='nx-nova-website-hint';
-      hint.innerHTML='<strong>Easy Website Mode:</strong> bas likho “homepage better karo”, “ye color change karo”, “new article likho”, “SEO fix karo” — NOVA AI files aur technical steps khud handle karegi.';
+      hint.innerHTML='<strong>Easy Website Mode:</strong> “bhai website khud check karke jo zaruri ho kar do” bhi kaafi hai. <strong>Auto Improve</strong> trends + SEO + design + content + technical audit karke high-value safe work choose karega.';
       $('nxNovaWebsiteActions')?.insertAdjacentElement('afterend',hint);
     }
     update();return true;
