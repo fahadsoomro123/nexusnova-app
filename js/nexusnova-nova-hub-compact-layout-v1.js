@@ -2,7 +2,7 @@
    Presentation-only override for Nova Hub.
    - Keeps mining/session logic untouched.
    - Removes the oversized visible card box around hub icons.
-   - Displays 68px icons inside a 74px wrapper: exactly 3px per side.
+   - Displays 68px icons inside a 74px transparent wrapper: exactly 3px per side.
    - Uses a denser responsive grid without changing any button target or handler.
 */
 (() => {
@@ -70,12 +70,13 @@
         display:grid!important;
         place-items:center!important;
         margin:0 auto!important;
-        padding:2px!important;
-        border:1px solid rgba(255,255,255,.08)!important;
-        border-radius:20px!important;
-        background:rgba(3,10,20,.42)!important;
+        padding:3px!important;
+        border:0!important;
+        border-radius:0!important;
+        background:transparent!important;
+        background-color:transparent!important;
         background-image:none!important;
-        box-shadow:0 5px 14px rgba(0,0,0,.20),inset 0 1px 0 rgba(255,255,255,.035)!important;
+        box-shadow:none!important;
         overflow:visible!important;
         line-height:0!important;
         position:relative!important;
@@ -104,7 +105,7 @@
         inset:auto!important;
         transform:none!important;
         overflow:visible!important;
-        filter:drop-shadow(0 6px 9px rgba(0,0,0,.30)) drop-shadow(0 0 7px rgba(82,160,255,.11))!important;
+        filter:drop-shadow(0 7px 9px rgba(0,0,0,.34)) drop-shadow(0 0 7px rgba(82,160,255,.12))!important;
       }
 
       #moreMenu .more-inner[data-nx-compact-hub-grid="1"] .more-item[data-nx-premium-hub-card="1"] > .nx-hub-title{
