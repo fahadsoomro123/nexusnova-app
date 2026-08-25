@@ -123,12 +123,109 @@
 }
 .nx-app-card:active { transform: scale(.975); }
 .nx-app-card:hover { border-color: rgba(116,196,255,.22); }
-.nx-app-card__icon {
-  width: 34px; height: 34px; display: grid; place-items: center; border-radius: 10px;
-  background: rgba(14,42,64,.72); border: 1px solid rgba(91,202,235,.14);
-  box-shadow: inset 0 1px rgba(255,255,255,.035);
+/* Premium Style B — compact glass/3D Nova Hub icons. */
+.nx-app-card {
+  --nx-icon-a: #43a8ff;
+  --nx-icon-b: #2854d8;
+  --nx-icon-glow: rgba(52, 145, 255, .32);
+  --nx-icon-ink: #f8fcff;
 }
-.nx-app-card__icon svg { width: 18px; height: 18px; color: #55c9e7; }
+.nx-app-card__icon {
+  position: relative; isolation: isolate; overflow: hidden;
+  width: 32px; height: 32px; display: grid; place-items: center; border-radius: 10px;
+  color: var(--nx-icon-ink);
+  background:
+    radial-gradient(circle at 27% 16%, rgba(255,255,255,.58), rgba(255,255,255,.14) 19%, transparent 43%),
+    linear-gradient(145deg, var(--nx-icon-a), var(--nx-icon-b));
+  border: 1px solid rgba(220,243,255,.30);
+  box-shadow:
+    0 7px 14px var(--nx-icon-glow),
+    0 3px 7px rgba(0,0,0,.30),
+    inset 0 1px 0 rgba(255,255,255,.48),
+    inset 0 -2px 5px rgba(0,0,0,.20);
+  transform: translateZ(0);
+  transition: transform var(--nx-fast) var(--nx-ease), filter var(--nx-fast) linear;
+}
+.nx-app-card__icon::before {
+  content: ""; position: absolute; z-index: -1; pointer-events: none;
+  inset: 1px 1px auto; height: 45%; border-radius: 8px 8px 6px 6px;
+  background: linear-gradient(180deg, rgba(255,255,255,.30), rgba(255,255,255,0));
+}
+.nx-app-card__icon::after {
+  content: ""; position: absolute; z-index: -1; pointer-events: none;
+  right: 3px; bottom: 3px; width: 6px; height: 6px; border-radius: 50%;
+  background: rgba(255,255,255,.18);
+  box-shadow: -13px -13px 11px rgba(255,255,255,.11);
+}
+.nx-app-card__icon svg {
+  position: relative; z-index: 1; width: 17px; height: 17px;
+  color: inherit; stroke-width: 1.78;
+  filter: drop-shadow(0 2px 2px rgba(0,0,0,.28));
+}
+.nx-app-card:hover .nx-app-card__icon { transform: translateY(-1px); filter: saturate(1.08) brightness(1.04); }
+.nx-app-card:active .nx-app-card__icon { transform: scale(.94); }
+
+/* One function, one visual identity. The app IDs are presentation hooks only. */
+.nx-app-card[data-app-id="profile"] { --nx-icon-a:#9c7cff; --nx-icon-b:#5032c7; --nx-icon-glow:rgba(129,93,255,.34); }
+.nx-app-card[data-app-id="notes"] { --nx-icon-a:#58b9ff; --nx-icon-b:#2362d7; --nx-icon-glow:rgba(57,143,255,.32); }
+.nx-app-card[data-app-id="todo"] { --nx-icon-a:#47e0a1; --nx-icon-b:#128967; --nx-icon-glow:rgba(39,226,164,.28); }
+.nx-app-card[data-app-id="calculator"] { --nx-icon-a:#ffbe66; --nx-icon-b:#e06b28; --nx-icon-glow:rgba(255,157,73,.30); }
+.nx-app-card[data-app-id="unit-converter"] { --nx-icon-a:#55e4ee; --nx-icon-b:#1981b6; --nx-icon-glow:rgba(66,211,255,.30); }
+.nx-app-card[data-app-id="expenses"] { --nx-icon-a:#ff8d91; --nx-icon-b:#cc405d; --nx-icon-glow:rgba(255,101,119,.29); }
+.nx-app-card[data-app-id="pomodoro"] { --nx-icon-a:#b491ff; --nx-icon-b:#6844d9; --nx-icon-glow:rgba(139,92,246,.31); }
+.nx-app-card[data-app-id="bmi"] { --nx-icon-a:#ff7d9f; --nx-icon-b:#d73569; --nx-icon-glow:rgba(255,84,135,.30); }
+.nx-app-card[data-app-id="tip"] { --nx-icon-a:#ffd36f; --nx-icon-b:#dc8c1d; --nx-icon-glow:rgba(255,189,85,.31); }
+.nx-app-card[data-app-id="world-clock"] { --nx-icon-a:#7ea5ff; --nx-icon-b:#4543bd; --nx-icon-glow:rgba(95,111,255,.31); }
+.nx-app-card[data-app-id="qr"] { --nx-icon-a:#c48bff; --nx-icon-b:#7136c8; --nx-icon-glow:rgba(159,79,255,.30); }
+
+.nx-app-card[data-app-id="weather"] { --nx-icon-a:#58d7ff; --nx-icon-b:#237ad7; --nx-icon-glow:rgba(66,194,255,.34); }
+.nx-app-card[data-app-id="qibla"] { --nx-icon-a:#63e5b1; --nx-icon-b:#15906e; --nx-icon-glow:rgba(39,226,164,.29); }
+.nx-app-card[data-app-id="prayer-times"] { --nx-icon-a:#7de1a4; --nx-icon-b:#26844e; --nx-icon-glow:rgba(66,207,124,.28); }
+.nx-app-card[data-app-id="nova-internet-speed"] { --nx-icon-a:#55e9f2; --nx-icon-b:#137ca7; --nx-icon-glow:rgba(66,211,255,.34); }
+.nx-app-card[data-app-id="pakistan"] { --nx-icon-a:#5cdb8c; --nx-icon-b:#13743d; --nx-icon-glow:rgba(55,204,113,.29); }
+.nx-app-card[data-app-id="news"] { --nx-icon-a:#ff7c74; --nx-icon-b:#c73b3f; --nx-icon-glow:rgba(255,94,94,.29); }
+.nx-app-card[data-app-id="articles"] { --nx-icon-a:#ffbd69; --nx-icon-b:#c56b25; --nx-icon-glow:rgba(255,159,68,.29); }
+.nx-app-card[data-app-id="location"] { --nx-icon-a:#57c7ff; --nx-icon-b:#2860d1; --nx-icon-glow:rgba(62,153,255,.31); }
+.nx-app-card[data-app-id="nova-drive"] { --nx-icon-a:#5d9eff; --nx-icon-b:#294ab5; --nx-icon-glow:rgba(70,114,255,.30); }
+.nx-app-card[data-app-id="nova-track"] { --nx-icon-a:#5ee4bb; --nx-icon-b:#147d72; --nx-icon-glow:rgba(52,215,174,.28); }
+
+.nx-app-card[data-app-id="ai"] { --nx-icon-a:#b37dff; --nx-icon-b:#5361e8; --nx-icon-glow:rgba(139,92,246,.36); }
+.nx-app-card[data-app-id="smart"] { --nx-icon-a:#67e3f4; --nx-icon-b:#6843d8; --nx-icon-glow:rgba(99,102,241,.34); }
+.nx-app-card[data-app-id="chat"] { --nx-icon-a:#67b9ff; --nx-icon-b:#8f48db; --nx-icon-glow:rgba(100,102,246,.32); }
+.nx-app-card[data-app-id="browser"] { --nx-icon-a:#48d6ed; --nx-icon-b:#235fd0; --nx-icon-glow:rgba(50,154,242,.33); }
+.nx-app-card[data-app-id="travel"] { --nx-icon-a:#65d9ff; --nx-icon-b:#2369bf; --nx-icon-glow:rgba(65,174,242,.31); }
+.nx-app-card[data-app-id="learning"] { --nx-icon-a:#8fa7ff; --nx-icon-b:#5250c6; --nx-icon-glow:rgba(99,102,241,.31); }
+.nx-app-card[data-app-id="teacher"] { --nx-icon-a:#ffc66c; --nx-icon-b:#d57029; --nx-icon-glow:rgba(255,169,71,.31); }
+.nx-app-card[data-app-id="documents"] { --nx-icon-a:#70b8ff; --nx-icon-b:#3260c5; --nx-icon-glow:rgba(73,136,244,.30); }
+.nx-app-card[data-app-id="entertainment"] { --nx-icon-a:#ff83c8; --nx-icon-b:#a942ad; --nx-icon-glow:rgba(234,76,190,.31); }
+
+.nx-app-card[data-app-id="islamic"] { --nx-icon-a:#60dda1; --nx-icon-b:#167652; --nx-icon-glow:rgba(49,196,126,.29); }
+.nx-app-card[data-app-id="quran"] { --nx-icon-a:#4fe2a0; --nx-icon-b:#0c7a55; --nx-icon-glow:rgba(39,226,164,.31); }
+.nx-app-card[data-app-id="hadith"] { --nx-icon-a:#ffd278; --nx-icon-b:#b97822; --nx-icon-glow:rgba(255,189,85,.30); }
+.nx-app-card[data-app-id="urdu-library"] { --nx-icon-a:#b58dff; --nx-icon-b:#6341bd; --nx-icon-glow:rgba(139,92,246,.30); }
+
+.nx-app-card[data-app-id="health"] { --nx-icon-a:#ff7f9b; --nx-icon-b:#cb365f; --nx-icon-glow:rgba(255,86,132,.31); }
+.nx-app-card[data-app-id="calendar"] { --nx-icon-a:#6db6ff; --nx-icon-b:#3456c7; --nx-icon-glow:rgba(71,126,240,.30); }
+.nx-app-card[data-app-id="reminders"] { --nx-icon-a:#ffba6a; --nx-icon-b:#d05c2b; --nx-icon-glow:rgba(255,143,72,.29); }
+.nx-app-card[data-app-id="habits"] { --nx-icon-a:#5ce0a5; --nx-icon-b:#168568; --nx-icon-glow:rgba(39,210,151,.28); }
+.nx-app-card[data-app-id="savings"] { --nx-icon-a:#ffd56f; --nx-icon-b:#bc7c18; --nx-icon-glow:rgba(255,189,85,.31); }
+.nx-app-card[data-app-id="contacts"] { --nx-icon-a:#58d8e7; --nx-icon-b:#247da8; --nx-icon-glow:rgba(50,190,218,.29); }
+.nx-app-card[data-app-id="family"] { --nx-icon-a:#ff91bd; --nx-icon-b:#b84681; --nx-icon-glow:rgba(243,92,160,.29); }
+.nx-app-card[data-app-id="emergency"] { --nx-icon-a:#ff7c78; --nx-icon-b:#b92f43; --nx-icon-glow:rgba(255,83,91,.33); }
+
+.nx-app-card[data-app-id="finance"] { --nx-icon-a:#5fe0ad; --nx-icon-b:#187d68; --nx-icon-glow:rgba(43,205,154,.29); }
+.nx-app-card[data-app-id="budget"] { --nx-icon-a:#62dfd0; --nx-icon-b:#1c7d78; --nx-icon-glow:rgba(51,208,191,.28); }
+.nx-app-card[data-app-id="bills"] { --nx-icon-a:#ffbd70; --nx-icon-b:#bd6328; --nx-icon-glow:rgba(255,157,71,.29); }
+.nx-app-card[data-app-id="shopping"] { --nx-icon-a:#ff91bd; --nx-icon-b:#b84488; --nx-icon-glow:rgba(241,81,164,.29); }
+.nx-app-card[data-app-id="marketplace"] { --nx-icon-a:#b889ff; --nx-icon-b:#663bc4; --nx-icon-glow:rgba(142,80,241,.30); }
+.nx-app-card[data-app-id="orders"] { --nx-icon-a:#68b8ff; --nx-icon-b:#2a58bd; --nx-icon-glow:rgba(67,127,237,.30); }
+.nx-app-card[data-app-id="growth"] { --nx-icon-a:#61e49b; --nx-icon-b:#198550; --nx-icon-glow:rgba(49,214,127,.29); }
+
+.nx-app-card[data-app-id="nova-vpn"] { --nx-icon-a:#6fe4ff; --nx-icon-b:#3c52ce; --nx-icon-glow:rgba(70,139,255,.34); }
+.nx-app-card[data-app-id="file-vault"] { --nx-icon-a:#aa8bff; --nx-icon-b:#5138af; --nx-icon-glow:rgba(123,89,230,.31); }
+.nx-app-card[data-app-id="security"] { --nx-icon-a:#55d9ed; --nx-icon-b:#2466b8; --nx-icon-glow:rgba(55,160,225,.31); }
+.nx-app-card[data-app-id="notifications"] { --nx-icon-a:#ff91ad; --nx-icon-b:#c14372; --nx-icon-glow:rgba(241,73,130,.29); }
+.nx-app-card[data-app-id="settings"] { --nx-icon-a:#88a8ce; --nx-icon-b:#485f8f; --nx-icon-glow:rgba(89,127,182,.27); }
 .nx-app-card strong { display: block; margin-top: 6px; overflow: hidden; font-size: 9.8px; line-height: 1.18; text-overflow: ellipsis; white-space: nowrap; }
 .nx-app-card > span:last-child { display: -webkit-box; margin-top: 3px; overflow: hidden; color: var(--nx-text-3); font-size: 7.8px; line-height: 1.24; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .nx-app-card.is-last-opened {
@@ -167,8 +264,8 @@
 @media (max-width: 390px) {
   .nx-app-grid { gap: 7px; }
   .nx-app-card { min-height: 86px; padding: 8px 7px; border-radius: 14px; }
-  .nx-app-card__icon { width: 32px; height: 32px; }
-  .nx-app-card__icon svg { width: 17px; height: 17px; }
+  .nx-app-card__icon { width: 30px; height: 30px; border-radius: 9px; }
+  .nx-app-card__icon svg { width: 16px; height: 16px; }
   .nx-app-card strong { font-size: 9.3px; }
   .nx-app-card > span:last-child { font-size: 7.5px; -webkit-line-clamp: 1; }
   .nx-mining-tool { padding: 10px 9px; gap: 8px; min-height: 80px; }
