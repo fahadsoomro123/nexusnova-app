@@ -1,0 +1,9 @@
+NexusNova Nova Hub real OTA v2
+Scope: Nova Hub presentation only
+- Search-only top
+- Category chips removed
+- 68px visible icons
+- 74px icon backing (3px each side)
+- Giant card backgrounds removed
+- Title-only labels
+- Mine/mining logic untouched
