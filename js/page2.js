@@ -22,12 +22,17 @@ if (!window.__nxFastDashboardLauncherV4) {
     }));
   }
 
-  // Premium Nova Hub icons are presentation-only and never block dashboard readiness.
+  // Premium Nova Hub vectors are the safe fallback and never block dashboard readiness.
   void import('./nexusnova-nova-hub-icons-v1.js?v=1').catch(error => {
     console.error('NexusNova Nova Hub premium icons:', error);
   });
 
-  // Compact Nova Hub presentation: 68px icons inside a 74px visible wrapper.
+  // Exact user-supplied glossy designs for the 26 available Nova Hub icons.
+  void import('./nexusnova-nova-hub-original-icon-sprite-v1.js?v=1').catch(error => {
+    console.error('NexusNova Nova Hub original icon sprite:', error);
+  });
+
+  // Compact Nova Hub presentation: 68px icons inside a 74px transparent wrapper.
   // This module only changes Nova Hub presentation and never touches Mine/mining/session logic.
   void import('./nexusnova-nova-hub-compact-layout-v1.js?v=1').catch(error => {
     console.error('NexusNova Nova Hub compact layout:', error);
