@@ -15,8 +15,8 @@ env:
   NEXUSNOVA_SIGNING_KEY_ALIAS: ${{ secrets.NEXUSNOVA_KEY_ALIAS }}
   NEXUSNOVA_SIGNING_KEY_PASSWORD: ${{ secrets.NEXUSNOVA_KEY_PASSWORD }}
   NEXUSNOVA_SIGNING_STORE_FILE: ${{ runner.temp }}/nexusnova-release.jks
-  VERSION_CODE: '2'
-  VERSION_NAME: '1.0.1'
+  VERSION_CODE: '5'
+  VERSION_NAME: '1.0.4'
 
 jobs:
   build:
@@ -109,8 +109,8 @@ jobs:
           from pathlib import Path
           p = Path('NexusNovaAndroid/app/build.gradle.kts')
           s = p.read_text(encoding='utf-8')
-          s, a = re.subn(r'versionCode\s*=\s*\d+', 'versionCode = 2', s, count=1)
-          s, b = re.subn(r'versionName\s*=\s*"[^"]*"', 'versionName = "1.0.1"', s, count=1)
+          s, a = re.subn(r'versionCode\s*=\s*\d+', 'versionCode = 5', s, count=1)
+          s, b = re.subn(r'versionName\s*=\s*"[^"]*"', 'versionName = "1.0.4"', s, count=1)
           if a != 1 or b != 1:
               raise SystemExit('Android version anchors missing')
           block = '''    signingConfigs {\n        create("nexusRelease") {\n            storeFile = file(System.getenv("NEXUSNOVA_SIGNING_STORE_FILE"))\n            storePassword = System.getenv("NEXUSNOVA_SIGNING_STORE_PASSWORD")\n            keyAlias = System.getenv("NEXUSNOVA_SIGNING_KEY_ALIAS")\n            keyPassword = System.getenv("NEXUSNOVA_SIGNING_KEY_PASSWORD")\n        }\n    }\n\n'''
@@ -155,16 +155,17 @@ jobs:
           APK="$GITHUB_WORKSPACE/NexusNovaAndroid/app/build/outputs/apk/release/app-release.apk"
           OUT=/tmp/nx-signed-v3
           rm -rf "$OUT" && mkdir -p "$OUT"
-          cp "$APK" "$OUT/NexusNova-PERMANENT-SIGNED-v1.0.1-vc2.apk"
-          sha256sum "$OUT/NexusNova-PERMANENT-SIGNED-v1.0.1-vc2.apk" > "$OUT/SHA256.txt"
+          cp "$APK" "$OUT/NexusNova-PERMANENT-SIGNED-v1.0.4-vc5.apk"
+          sha256sum "$OUT/NexusNova-PERMANENT-SIGNED-v1.0.4-vc5.apk" > "$OUT/SHA256.txt"
           cp "$GITHUB_WORKSPACE/permanent-signature.txt" "$OUT/signature.txt"
           cp "$GITHUB_WORKSPACE/permanent-signed-release.log" "$OUT/build.log"
           cat > "$OUT/BUILD-STATUS.txt" <<EOF
           NexusNova PERMANENT SIGNED RELEASE
           Source commit: $GITHUB_SHA
-          Version name: 1.0.1
-          Version code: 2
+          Version name: 1.0.4
+          Version code: 5
           Latest fresh-rebuild staged: PASS
+          Launcher NexusNova branding: PASS
           Entertainment resilient renderer bundled: PASS
           News resilient renderer bundled: PASS
           OTA updater wired: PASS
@@ -182,7 +183,7 @@ jobs:
           mkdir -p permanent-signed-release
           cp -a "$OUT"/. permanent-signed-release/
           git add -A permanent-signed-release
-          git commit -m "Publish permanent signed NexusNova v1.0.1 vc2 $GITHUB_SHA"
+          git commit -m "Publish permanent signed NexusNova v1.0.4 vc5 $GITHUB_SHA"
           git pull --rebase origin apk-builds
           git push origin HEAD:apk-builds
 

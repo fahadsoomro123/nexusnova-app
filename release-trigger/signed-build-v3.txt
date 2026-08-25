@@ -1,2 +1,2 @@
-Build NexusNova permanent signed v1.0.1 vc2 with current fresh-rebuild and OTA wiring.
-Retriggered 2026-08-25 02:00 PKT after confirming no prior PASS/failure publication.
+Build NexusNova permanent signed v1.0.4 vc5 with restored NexusNova launcher branding, current fresh-rebuild and OTA wiring.
+Triggered 2026-08-25 after launcher icon manifest fix.
