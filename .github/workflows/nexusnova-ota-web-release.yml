@@ -1,5 +1,6 @@
 name: NexusNova OTA Web Release
 
+# Manual OTA publish trigger: Nova Hub compact icons v2 — 2026-08-26.
 on:
   push:
     branches: [nexusnova-latest-full-apk-recovery-20260823]
