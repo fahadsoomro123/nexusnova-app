@@ -22,6 +22,11 @@ if (!window.__nxFastDashboardLauncherV4) {
     }));
   }
 
+  // Premium Nova Hub icons are presentation-only and never block dashboard readiness.
+  void import('./nexusnova-nova-hub-icons-v1.js?v=1').catch(error => {
+    console.error('NexusNova Nova Hub premium icons:', error);
+  });
+
   // Start optional features without blocking the document/module completion path.
   void import('./nexusnova-page2-after-core-v2.js?v=1').catch(error => {
     console.error('NexusNova detached after-core bootstrap:', error);
