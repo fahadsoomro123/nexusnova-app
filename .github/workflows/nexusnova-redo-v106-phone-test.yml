@@ -1,0 +1,235 @@
+name: NexusNova Redo v1.0.6 Phone Test
+
+on:
+  push:
+    branches: [all-bugs-redo-v2]
+    paths:
+      - '.github/workflows/nexusnova-redo-v106-phone-test.yml'
+      - 'release-trigger/redo-v106.txt'
+      - 'fresh-rebuild/**'
+      - 'NexusNovaAndroid/**'
+      - 'scripts/patch-native-drive.py'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-sign-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      NEXUSNOVA_SIGNING_KEYSTORE_B64: ${{ secrets.NEXUSNOVA_KEYSTORE_BASE64 }}
+      NEXUSNOVA_SIGNING_STORE_PASSWORD: ${{ secrets.NEXUSNOVA_KEYSTORE_PASSWORD }}
+      NEXUSNOVA_SIGNING_KEY_ALIAS: ${{ secrets.NEXUSNOVA_KEY_ALIAS }}
+      NEXUSNOVA_SIGNING_KEY_PASSWORD: ${{ secrets.NEXUSNOVA_KEY_PASSWORD }}
+      NEXUSNOVA_SIGNING_STORE_FILE: /tmp/nexusnova-redo-v106-release.jks
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify restored redo source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "all-bugs-redo-v2"
+          test -s fresh-rebuild/assets/styles/bugfix-redo-v2.css
+          test -s fresh-rebuild/src/dock-scroll-v2.js
+          test -s fresh-rebuild/src/features/apps/premium-speed-safe-v2.js
+          test -s fresh-rebuild/src/features/apps/premium-qibla-safe-v2.js
+          test -s fresh-rebuild/src/features/apps/premium-drive-native-v2.js
+          test -s fresh-rebuild/src/features/apps/news-resilient.js
+          test -s fresh-rebuild/src/features/apps/articles-suite.js
+          test -s NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusDriveForegroundService.kt
+          test -s scripts/patch-native-drive.py
+          grep -Fq "speedSafeV2Renderers" fresh-rebuild/src/features/apps/app-screen.js
+          grep -Fq "qiblaSafeV2Renderers" fresh-rebuild/src/features/apps/app-screen.js
+          grep -Fq "driveNativeV2Renderers" fresh-rebuild/src/features/apps/app-screen.js
+          grep -Fq "FOREGROUND_SERVICE_LOCATION" NexusNovaAndroid/app/src/main/AndroidManifest.xml
+          grep -Fq "bugfix-redo-v2.css" fresh-rebuild/index.html
+          node --check fresh-rebuild/src/dock-scroll-v2.js
+          node --check fresh-rebuild/src/features/apps/premium-speed-safe-v2.js
+          node --check fresh-rebuild/src/features/apps/premium-qibla-safe-v2.js
+          node --check fresh-rebuild/src/features/apps/premium-drive-native-v2.js
+          node --check fresh-rebuild/src/features/apps/news-resilient.js
+          node --check fresh-rebuild/src/features/apps/articles-suite.js
+          node --check fresh-rebuild/src/features/apps/app-screen.js
+
+      - name: Stage Fresh app into Android assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          WEB=NexusNovaAndroid/app/src/main/assets/www
+          rm -rf "$WEB"
+          mkdir -p "$WEB"
+          cp -a fresh-rebuild/. "$WEB/"
+          printf 'source_commit=%s\nsource_tree=fresh-rebuild\nrelease=v1.0.6-vc7-redo-phone-test\n' "$GITHUB_SHA" > "$WEB/NEXUSNOVA_SOURCE.txt"
+          test -s "$WEB/src/features/apps/premium-drive-tools.js"
+          test -s "$WEB/src/features/apps/premium-drive-native-v2.js"
+          test -s "$WEB/assets/styles/bugfix-redo-v2.css"
+
+      - name: Wire verified OTA launcher
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt')
+          s = p.read_text(encoding='utf-8')
+          def ensure(old, new, label):
+              global s
+              if new in s:
+                  return
+              if old not in s:
+                  raise SystemExit(f'OTA launcher anchor missing: {label}')
+              s = s.replace(old, new, 1)
+          ensure(
+              '    private var rendererCrashRecoveries = 0\n',
+              '    private var rendererCrashRecoveries = 0\n    private val otaWebManager by lazy { NexusOtaWebManager(this) }\n    private var otaCheckStarted = false\n',
+              'fields')
+          ensure(
+              '                return assetLoader.shouldInterceptRequest(uri)\n                    ?: super.shouldInterceptRequest(view, request)\n',
+              '                return otaWebManager.intercept(uri)\n                    ?: assetLoader.shouldInterceptRequest(uri)\n                    ?: super.shouldInterceptRequest(view, request)\n',
+              'request interception')
+          old_finished = '''            override fun onPageFinished(view: WebView?, url: String?) {\n                super.onPageFinished(view, url)\n                val target = view ?: return\n                val uri = url?.let { runCatching { Uri.parse(it) }.getOrNull() } ?: return\n                if (!isProductionOrigin(uri) || usingOfflineFallback) return\n                finishedWatchdogToken = mainFrameWatchdogToken\n                scheduleBlankScreenCheck(target, mainFrameWatchdogToken)\n            }\n'''
+          new_finished = '''            override fun onPageFinished(view: WebView?, url: String?) {\n                super.onPageFinished(view, url)\n                val target = view ?: return\n                val uri = url?.let { runCatching { Uri.parse(it) }.getOrNull() } ?: return\n                if (!isLocalOrigin(uri) || otaCheckStarted) return\n                otaCheckStarted = true\n                otaWebManager.checkForUpdate { updated ->\n                    if (!updated) return@checkForUpdate\n                    runOnUiThread {\n                        if (!isFinishing && !isDestroyed && target === webView) target.reload()\n                    }\n                }\n            }\n'''
+          ensure(old_finished, new_finished, 'page finished')
+          ensure(
+              '                runCatching { target.destroy() }\n\n                if (isFinishing || isDestroyed) return true\n',
+              '                runCatching { target.destroy() }\n\n                if (didCrash && otaWebManager.rollbackToBundled()) {\n                    window.decorView.postDelayed({\n                        if (!isFinishing && !isDestroyed) rebuildWebViewAfterRendererExit()\n                    }, RENDERER_CRASH_RECOVERY_DELAY_MS)\n                    return true\n                }\n\n                if (isFinishing || isDestroyed) return true\n',
+              'renderer rollback')
+          p.write_text(s, encoding='utf-8')
+          PY
+          grep -Fq 'otaWebManager.intercept(uri)' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -Fq 'otaWebManager.checkForUpdate' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -Fq 'otaWebManager.rollbackToBundled()' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+
+      - name: Wire native Nova Drive bridge
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/patch-native-drive.py
+          grep -Fq 'ACTION_NATIVE_DRIVE_START' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -Fq 'NexusDriveForegroundService.start(this)' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Restore permanent signing key
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$NEXUSNOVA_SIGNING_KEYSTORE_B64"
+          test -n "$NEXUSNOVA_SIGNING_STORE_PASSWORD"
+          test -n "$NEXUSNOVA_SIGNING_KEY_ALIAS"
+          test -n "$NEXUSNOVA_SIGNING_KEY_PASSWORD"
+          printf '%s' "$NEXUSNOVA_SIGNING_KEYSTORE_B64" | base64 --decode > "$NEXUSNOVA_SIGNING_STORE_FILE"
+          test -s "$NEXUSNOVA_SIGNING_STORE_FILE"
+          chmod 600 "$NEXUSNOVA_SIGNING_STORE_FILE"
+          keytool -list -keystore "$NEXUSNOVA_SIGNING_STORE_FILE" -storepass "$NEXUSNOVA_SIGNING_STORE_PASSWORD" -alias "$NEXUSNOVA_SIGNING_KEY_ALIAS" >/dev/null
+
+      - name: Inject v1.0.6 vc7 release signing
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          p = Path('NexusNovaAndroid/app/build.gradle.kts')
+          s = p.read_text(encoding='utf-8')
+          s, a = re.subn(r'versionCode\s*=\s*\d+', 'versionCode = 7', s, count=1)
+          s, b = re.subn(r'versionName\s*=\s*"[^"]*"', 'versionName = "1.0.6"', s, count=1)
+          if a != 1 or b != 1:
+              raise SystemExit('Version anchors missing')
+          block = '''    signingConfigs {\n        create("nexusRelease") {\n            storeFile = file(System.getenv("NEXUSNOVA_SIGNING_STORE_FILE"))\n            storePassword = System.getenv("NEXUSNOVA_SIGNING_STORE_PASSWORD")\n            keyAlias = System.getenv("NEXUSNOVA_SIGNING_KEY_ALIAS")\n            keyPassword = System.getenv("NEXUSNOVA_SIGNING_KEY_PASSWORD")\n        }\n    }\n\n'''
+          if 'create("nexusRelease")' not in s:
+              s = s.replace('    buildTypes {\n', block + '    buildTypes {\n', 1)
+          line = '            signingConfig = signingConfigs.getByName("nexusRelease")\n'
+          if line not in s:
+              s = s.replace('        release {\n', '        release {\n' + line, 1)
+          p.write_text(s, encoding='utf-8')
+          PY
+          grep -Fq 'versionCode = 7' NexusNovaAndroid/app/build.gradle.kts
+          grep -Fq 'versionName = "1.0.6"' NexusNovaAndroid/app/build.gradle.kts
+
+      - name: Build permanent-signed phone-test APK
+        working-directory: NexusNovaAndroid
+        shell: bash
+        run: |
+          set -o pipefail
+          gradle --no-daemon clean assembleRelease 2>&1 | tee "$GITHUB_WORKSPACE/redo-v106-build.log"
+
+      - name: Verify APK signature and source
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$GITHUB_WORKSPACE/NexusNovaAndroid/app/build/outputs/apk/release/app-release.apk"
+          test -s "$APK"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
+          test -n "$APKSIGNER"
+          "$APKSIGNER" verify --verbose --print-certs "$APK" | tee "$GITHUB_WORKSPACE/redo-v106-signature.txt"
+          grep -Eq 'Verified using v(2|3) scheme.*true' "$GITHUB_WORKSPACE/redo-v106-signature.txt"
+          unzip -p "$APK" assets/www/NEXUSNOVA_SOURCE.txt | tee "$GITHUB_WORKSPACE/redo-v106-source.txt"
+          grep -Fq "source_commit=$GITHUB_SHA" "$GITHUB_WORKSPACE/redo-v106-source.txt"
+          unzip -l "$APK" | grep -Fq 'assets/www/src/features/apps/premium-drive-tools.js'
+          unzip -l "$APK" | grep -Fq 'assets/www/src/features/apps/premium-drive-native-v2.js'
+          unzip -l "$APK" | grep -Fq 'assets/www/assets/styles/bugfix-redo-v2.css'
+
+      - name: Publish verified phone-test APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT=/tmp/nexusnova-redo-v106
+          rm -rf "$OUT"
+          mkdir -p "$OUT"
+          cp NexusNovaAndroid/app/build/outputs/apk/release/app-release.apk "$OUT/NexusNova-v1.0.6-vc7-REDO-PHONE-TEST-SIGNED.apk"
+          sha256sum "$OUT/NexusNova-v1.0.6-vc7-REDO-PHONE-TEST-SIGNED.apk" > "$OUT/SHA256.txt"
+          cp "$GITHUB_WORKSPACE/redo-v106-build.log" "$OUT/build.log"
+          cp "$GITHUB_WORKSPACE/redo-v106-signature.txt" "$OUT/signature.txt"
+          cp "$GITHUB_WORKSPACE/redo-v106-source.txt" "$OUT/source.txt"
+          cat > "$OUT/BUILD-STATUS.txt" <<EOF
+          NexusNova v1.0.6 vc7 REDO PHONE TEST
+          Source commit: $GITHUB_SHA
+          Original Drive meter/UI preserved: SOURCE CHECK PASS
+          Native Drive background service/bridge: BUILD PASS
+          Speed memory-safe stream adapter: SYNTAX PASS
+          Qibla static-face/single-heading adapter: SYNTAX PASS
+          Thin bottom dock + downward scroll-away: SOURCE CHECK PASS
+          Live News + Articles feed code: SYNTAX PASS
+          Release compile: PASS
+          Permanent signature verification: PASS
+          RESULT: SIGNED APK READY FOR PHONE TEST; FUNCTIONAL BUGS REQUIRE DEVICE CONFIRMATION
+          EOF
+          sed -i 's/^          //' "$OUT/BUILD-STATUS.txt"
+          git config user.name 'NexusNova Signed Release Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git fetch origin apk-builds
+          rm -rf /tmp/nx-redo-v106-publish
+          git worktree add /tmp/nx-redo-v106-publish origin/apk-builds
+          cd /tmp/nx-redo-v106-publish
+          rm -rf redo-v1.0.6-vc7
+          mkdir -p redo-v1.0.6-vc7
+          cp -a "$OUT"/. redo-v1.0.6-vc7/
+          git add -A redo-v1.0.6-vc7
+          git commit -m "Publish NexusNova redo v1.0.6 vc7 phone-test $GITHUB_SHA"
+          git pull --rebase origin apk-builds
+          git push origin HEAD:apk-builds
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NexusNova-v1.0.6-vc7-REDO-PHONE-TEST-SIGNED
+          path: /tmp/nexusnova-redo-v106/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Remove signing material
+        if: always()
+        shell: bash
+        run: rm -f "$NEXUSNOVA_SIGNING_STORE_FILE"
