@@ -39,7 +39,8 @@
       .then(()=>load("./js/nexusnova-ai-v6-connection-test-v1.js?v=1","nxNovaAIV6ConnectionTestV1Script"))
       .then(()=>load("./js/nexusnova-ai-chatstyle-v1.js?v=1","nxNovaAIChatStyleV1Script"))
       .then(()=>load("./js/nexusnova-ai-sol57-v1.js?v=1","nxNovaAISol57V1Script"))
-      .then(()=>load("./js/nexusnova-ai-sol57-context-v1.js?v=1","nxNovaAISol57ContextV1Script"));
+      .then(()=>load("./js/nexusnova-ai-sol57-context-v1.js?v=1","nxNovaAISol57ContextV1Script"))
+      .then(()=>load("./js/nexusnova-ai-sol57-files-v1.js?v=1","nxNovaAISol57FilesV1Script"));
   }
 
   installLogoutClearHook();
