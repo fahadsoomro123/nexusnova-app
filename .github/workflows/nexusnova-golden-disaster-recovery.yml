@@ -1,0 +1,143 @@
+name: NexusNova Golden Disaster Recovery
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/nexusnova-golden-disaster-recovery.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout full NexusNova app history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch every app branch and tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin '+refs/heads/*:refs/remotes/origin/*' --tags --force
+          mkdir -p golden
+          git bundle create golden/nexusnova-app-all-history.bundle --all
+          git bundle verify golden/nexusnova-app-all-history.bundle
+          git for-each-ref --format='%(refname) %(objectname)' refs/heads refs/remotes/origin refs/tags | sort > golden/APP_REFS.txt
+          git log -1 --format='main=%H%nmain_date=%cI%nmain_subject=%s' main > golden/APP_CURRENT.txt
+          git log -1 --format='recovery=%H%nrecovery_date=%cI%nrecovery_subject=%s' origin/nexusnova-latest-full-apk-recovery-20260823 >> golden/APP_CURRENT.txt
+
+      - name: Bundle public website and OTA history
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --mirror https://github.com/fahadsoomro123/nexusnova-website.git /tmp/nexusnova-website.git
+          git -C /tmp/nexusnova-website.git bundle create "$GITHUB_WORKSPACE/golden/nexusnova-website-all-history.bundle" --all
+          git -C /tmp/nexusnova-website.git bundle verify "$GITHUB_WORKSPACE/golden/nexusnova-website-all-history.bundle"
+          git -C /tmp/nexusnova-website.git for-each-ref --format='%(refname) %(objectname)' | sort > golden/WEBSITE_REFS.txt
+          git -C /tmp/nexusnova-website.git log -1 --format='website_main=%H%nwebsite_date=%cI%nwebsite_subject=%s' refs/heads/main > golden/WEBSITE_CURRENT.txt
+          git --git-dir=/tmp/nexusnova-website.git show refs/heads/main:ota/manifest.json > golden/OTA_MANIFEST.json
+
+      - name: Download known-good permanent APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 4 --retry-delay 2 \
+            'https://raw.githubusercontent.com/fahadsoomro123/nexusnova-website/main/downloads/NexusNova-PERMANENT-SIGNED-OTA-v1.0.4.apk' \
+            -o golden/NexusNova-PERMANENT-SIGNED-OTA-v1.0.4.apk
+          test -s golden/NexusNova-PERMANENT-SIGNED-OTA-v1.0.4.apk
+
+      - name: Write recovery instructions
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > golden/RECOVER_WINDOWS.bat <<'BAT'
+          @echo off
+          setlocal
+          echo NexusNova Golden Disaster Recovery
+          echo.
+          where git >nul 2>&1 || (echo ERROR: Git is required. Install Git for Windows first.& pause & exit /b 1)
+          if exist nexusnova-app-restored rmdir /s /q nexusnova-app-restored
+          git clone nexusnova-app-all-history.bundle nexusnova-app-restored || goto :fail
+          cd nexusnova-app-restored
+          git checkout -B nexusnova-latest-full-apk-recovery-20260823 origin/nexusnova-latest-full-apk-recovery-20260823 2>nul || git checkout nexusnova-latest-full-apk-recovery-20260823
+          echo.
+          echo SOURCE RESTORED: %CD%
+          echo Known-good APK is beside this script.
+          echo For update-compatible future APKs, restore the ORIGINAL permanent signing secrets/keystore before building.
+          pause
+          exit /b 0
+          :fail
+          echo RECOVERY FAILED. Read READ_ME_FIRST.txt.
+          pause
+          exit /b 1
+          BAT
+
+          cat > golden/READ_ME_FIRST.txt <<'TXT'
+          NEXUSNOVA GOLDEN DISASTER MASTER RECOVERY
+
+          PURPOSE
+          - Offline master recovery for NexusNova app source/history and the public website/OTA repository.
+          - Includes a known-good permanently signed APK for emergency reinstall/testing.
+          - Includes exact Git refs and SHA256 checksums.
+
+          FAST WINDOWS SOURCE RECOVERY
+          1) Extract this recovery package to a folder.
+          2) Install Git for Windows if Git is not already installed.
+          3) Double-click RECOVER_WINDOWS.bat.
+          4) The app repository will be recreated as nexusnova-app-restored.
+
+          MANUAL APP RECOVERY
+          git clone nexusnova-app-all-history.bundle nexusnova-app-restored
+          cd nexusnova-app-restored
+          git checkout nexusnova-latest-full-apk-recovery-20260823
+
+          MANUAL WEBSITE/OTA RECOVERY
+          git clone nexusnova-website-all-history.bundle nexusnova-website-restored
+
+          APK
+          NexusNova-PERMANENT-SIGNED-OTA-v1.0.4.apk is the known-good permanent-signed emergency APK captured with this recovery set.
+
+          SIGNING KEY — CRITICAL LIMIT
+          The private Android signing keystore/passwords are intentionally NOT exported into this archive.
+          Putting an unencrypted production signing key into a portable ZIP would let anyone who obtains the ZIP sign malicious NexusNova updates.
+          Keep the original permanent signing keystore and passwords in a separate secure offline backup/password manager.
+          Without the same private signing key, Android cannot make an in-place update over installations signed with that key.
+
+          FIREBASE / CLOUD SERVICES
+          Repository recovery does not itself recreate deleted Firebase/Google/Cloudflare account-side data, secrets, databases or console configuration.
+          Keep separate provider backups/exports for those services.
+
+          VERIFY
+          Run VERIFY_WINDOWS.bat after extraction. Every included file must report OK.
+          TXT
+
+          cat > golden/VERIFY_WINDOWS.bat <<'BAT'
+          @echo off
+          setlocal
+          where certutil >nul 2>&1 || (echo ERROR: certutil unavailable.& pause & exit /b 1)
+          powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $bad=$false; Get-Content 'SHA256SUMS.txt' | ForEach-Object { if ($_ -match '^([0-9a-fA-F]{64})  (.+)$') { $expected=$matches[1].ToLower(); $file=$matches[2]; if (!(Test-Path -LiteralPath $file)) { Write-Host ('MISSING  '+$file); $bad=$true } else { $actual=(Get-FileHash -Algorithm SHA256 -LiteralPath $file).Hash.ToLower(); if ($actual -eq $expected) { Write-Host ('OK       '+$file) } else { Write-Host ('BAD HASH '+$file); $bad=$true } } } }; if($bad){exit 1}"
+          if errorlevel 1 (echo VERIFY FAILED & pause & exit /b 1)
+          echo ALL RECOVERY FILES VERIFIED OK
+          pause
+          BAT
+
+      - name: Create checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd golden
+          sha256sum nexusnova-app-all-history.bundle nexusnova-website-all-history.bundle NexusNova-PERMANENT-SIGNED-OTA-v1.0.4.apk APP_REFS.txt APP_CURRENT.txt WEBSITE_REFS.txt WEBSITE_CURRENT.txt OTA_MANIFEST.json READ_ME_FIRST.txt RECOVER_WINDOWS.bat VERIFY_WINDOWS.bat > SHA256SUMS.txt
+          sha256sum -c SHA256SUMS.txt
+
+      - name: Upload Golden recovery core
+        uses: actions/upload-artifact@v4
+        with:
+          name: NexusNova-GOLDEN-DISASTER-RECOVERY-CORE-2026-08-26
+          path: golden/*
+          retention-days: 90
