@@ -57,6 +57,18 @@ val syncFreshWebAssets = tasks.register<Sync>("syncFreshWebAssets") {
             throw GradleException("Canonical fresh-rebuild/index.html is missing")
         }
     }
+    // CI release provenance must be written after Sync, otherwise the Sync task
+    // removes any marker staged into assets/www before the Android build starts.
+    doLast {
+        val sourceCommit = System.getenv("GITHUB_SHA")?.trim().orEmpty().ifBlank { "local" }
+        val marker = layout.projectDirectory.file("src/main/assets/www/NEXUSNOVA_SOURCE.txt").asFile
+        marker.parentFile.mkdirs()
+        marker.writeText(
+            "source_commit=$sourceCommit\n" +
+                "source_tree=fresh-rebuild\n" +
+                "release=v1.0.5-vc6\n"
+        )
+    }
 }
 
 tasks.configureEach {
