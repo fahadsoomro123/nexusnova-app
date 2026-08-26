@@ -131,3 +131,52 @@
     gap-inline: 4px;
   }
 }
+
+/* Approved global minimal dock — full-width, thin and safe-area aware.
+   Navigation behavior stays unchanged; this only changes presentation/motion. */
+:root {
+  --nx-dock-height: 48px;
+}
+
+.nx-stage {
+  padding-bottom: calc(var(--nx-dock-height) + var(--nx-safe-bottom) + 10px) !important;
+  scroll-padding-bottom: calc(var(--nx-dock-height) + var(--nx-safe-bottom) + 10px) !important;
+}
+
+.nx-dock {
+  bottom: max(2px, var(--nx-safe-bottom)) !important;
+  width: min(100%, 760px) !important;
+  min-height: 46px !important;
+  padding: 3px 5px !important;
+  gap: 4px !important;
+  border-radius: 13px 13px 0 0 !important;
+  border-color: rgba(110, 198, 255, .15) !important;
+  background: linear-gradient(180deg, rgba(8, 24, 40, .96), rgba(4, 13, 24, .97)) !important;
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, .22), inset 0 1px rgba(255,255,255,.035) !important;
+  transition: transform 190ms var(--nx-ease), opacity 150ms linear !important;
+}
+
+.nx-dock__item {
+  min-height: 38px !important;
+  border-radius: 10px !important;
+  gap: 5px !important;
+  padding: 2px 8px !important;
+  font-size: 8.5px !important;
+  letter-spacing: .07em !important;
+}
+
+.nx-dock__item svg {
+  width: 17px !important;
+  height: 17px !important;
+}
+
+.nx-dock.nx-dock--scroll-away {
+  transform: translate(-50%, calc(100% + var(--nx-safe-bottom) + 8px)) !important;
+  opacity: .98;
+  pointer-events: none;
+}
+
+/* Qibla WebView compositor stability: only the needle moves; no animated SVG blur. */
+[data-qb-pointer] {
+  filter: none !important;
+}
