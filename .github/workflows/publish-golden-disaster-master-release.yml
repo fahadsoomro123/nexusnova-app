@@ -1,0 +1,194 @@
+name: Publish Golden Disaster Master Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-golden-disaster-master-release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  TAG: golden-disaster-recovery-2026-08-26
+  ASSET: NexusNova-GOLDEN-DISASTER-MASTER-RECOVERY-2026-08-26.zip
+  RECOVERY_BRANCH: nexusnova-latest-full-apk-recovery-20260823
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout complete app repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch all app refs
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --all --tags --prune
+          git fetch origin '+refs/heads/*:refs/remotes/origin/*'
+
+      - name: Build app history bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p master/APP-RECOVERY master/WEBSITE-OTA-RECOVERY master/APK master/NOVA-HUB-NEW-54-ICONS
+          git bundle create master/APP-RECOVERY/nexusnova-app-all-history.bundle --all
+          git bundle verify master/APP-RECOVERY/nexusnova-app-all-history.bundle
+          printf 'main=%s\nrecovery_branch=%s\nrecovery_commit=%s\n' \
+            "$(git rev-parse origin/main)" "$RECOVERY_BRANCH" "$(git rev-parse origin/$RECOVERY_BRANCH)" \
+            > master/APP-RECOVERY/GOLDEN-APP-POINTERS.txt
+
+      - name: Bundle website and OTA history
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git clone --mirror https://github.com/fahadsoomro123/nexusnova-website.git /tmp/nexusnova-website.git
+          git -C /tmp/nexusnova-website.git bundle create "$GITHUB_WORKSPACE/master/WEBSITE-OTA-RECOVERY/nexusnova-website-all-history.bundle" --all
+          git -C /tmp/nexusnova-website.git bundle verify "$GITHUB_WORKSPACE/master/WEBSITE-OTA-RECOVERY/nexusnova-website-all-history.bundle"
+          printf 'website_main=%s\nota_manifest=https://raw.githubusercontent.com/fahadsoomro123/nexusnova-website/main/ota/manifest.json\n' \
+            "$(git -C /tmp/nexusnova-website.git rev-parse refs/heads/main)" \
+            > master/WEBSITE-OTA-RECOVERY/GOLDEN-WEBSITE-POINTERS.txt
+
+      - name: Extract exactly 54 active current Nova Hub icons
+        shell: bash
+        run: |
+          set -euo pipefail
+          git worktree add --detach /tmp/golden-source "origin/$RECOVERY_BRANCH"
+          python3 - <<'PY'
+          import re, shutil
+          from pathlib import Path
+          src = Path('/tmp/golden-source')
+          registry = (src/'fresh-rebuild/src/features/hub/app-registry.js').read_text(encoding='utf-8')
+          ids=[]
+          for line in registry.splitlines():
+              m=re.search(r"\{ id: '([^']+)'", line)
+              if not m or "placement: 'mine'" in line:
+                  continue
+              ids.append(m.group(1))
+          if len(ids) != 54:
+              raise SystemExit(f'Expected 54 active Hub apps, got {len(ids)}')
+          out=Path('master/NOVA-HUB-NEW-54-ICONS')
+          for app_id in ids:
+              p=src/f'fresh-rebuild/assets/icons/nova-hub/{app_id}.webp'
+              if not p.is_file():
+                  raise SystemExit(f'Missing active icon: {app_id}.webp')
+              shutil.copy2(p, out/f'{app_id}.webp')
+          (out/'ACTIVE-54-ICON-IDS.txt').write_text('\n'.join(ids)+'\n',encoding='utf-8')
+          count=len(list(out.glob('*.webp')))
+          if count != 54:
+              raise SystemExit(f'Expected exactly 54 copied icons, got {count}')
+          PY
+
+      - name: Download known-good installed-base permanent APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 4 --retry-delay 2 \
+            https://nexusnovatools.com/downloads/NexusNova-PERMANENT-SIGNED-OTA-v1.0.4.apk \
+            -o master/APK/NexusNova-PERMANENT-SIGNED-OTA-v1.0.4.apk
+          test -s master/APK/NexusNova-PERMANENT-SIGNED-OTA-v1.0.4.apk
+
+      - name: Write disaster recovery guide
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > master/READ-ME-FIRST-GOLDEN-RECOVERY.txt <<'EOF'
+          NEXUSNOVA GOLDEN DISASTER MASTER RECOVERY — 2026-08-26
+
+          PURPOSE
+          This single archive is an offline recovery anchor for catastrophic loss, corruption, deletion or hostile modification.
+
+          INCLUDED
+          1) APP-RECOVERY/nexusnova-app-all-history.bundle
+             Complete Git bundle captured from the private NexusNova app repository with fetched branches/tags/history.
+          2) WEBSITE-OTA-RECOVERY/nexusnova-website-all-history.bundle
+             Git bundle of the public website + OTA repository.
+          3) APK/NexusNova-PERMANENT-SIGNED-OTA-v1.0.4.apk
+             Known-good permanent-signed installed-base APK used before later experimental builds.
+          4) NOVA-HUB-NEW-54-ICONS/
+             EXACTLY the 54 active current Nova Hub .webp icon files from the golden recovery branch. Old/unused icon packs are intentionally excluded.
+          5) SHA256SUMS.txt
+             Integrity hashes for every payload file in this archive.
+
+          GOLDEN APP RECOVERY BRANCH
+          nexusnova-latest-full-apk-recovery-20260823
+
+          SAFE RESTORE EXAMPLE
+          git clone nexusnova-app-all-history.bundle nexusnova-app-restored
+          cd nexusnova-app-restored
+          git branch -a
+          git checkout nexusnova-latest-full-apk-recovery-20260823
+
+          WEBSITE/OTA RESTORE EXAMPLE
+          git clone nexusnova-website-all-history.bundle nexusnova-website-restored
+
+          IMPORTANT SIGNING NOTE
+          Android signing private keys/passwords are NOT stored in this archive in plaintext.
+          Permanent signing is intentionally kept in GitHub Actions secrets. If those secrets are lost, a same-signer Android update cannot be recreated from this ZIP alone.
+          Keep a separately protected offline backup of the permanent keystore and its passwords in a secure password manager/offline vault.
+
+          FIREBASE / EXTERNAL SERVICES
+          Cloud-side Firebase data, provider accounts, DNS/Cloudflare account state and third-party secrets are not physically contained in this source archive. Their account-level backups/access must be protected separately.
+          EOF
+
+      - name: Create and verify checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd master && find . -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS.txt)
+          (cd master && sha256sum -c SHA256SUMS.txt)
+          test "$(find master/NOVA-HUB-NEW-54-ICONS -maxdepth 1 -type f -name '*.webp' | wc -l)" -eq 54
+          ! find master -type f \( -iname '*old*icon*' -o -iname '*original*icon*zip' -o -iname '*contact*sheet*' -o -iname '*unique32*' \) | grep -q .
+
+      - name: Seal single Golden master ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import zipfile
+          from pathlib import Path
+          root=Path('master')
+          out=Path('NexusNova-GOLDEN-DISASTER-MASTER-RECOVERY-2026-08-26.zip')
+          with zipfile.ZipFile(out,'w',compression=zipfile.ZIP_DEFLATED,allowZip64=True) as z:
+              for p in sorted(root.rglob('*')):
+                  if p.is_file():
+                      z.write(p, Path('NexusNova-GOLDEN-DISASTER-MASTER-RECOVERY-2026-08-26')/p.relative_to(root))
+          with zipfile.ZipFile(out) as z:
+              bad=z.testzip()
+              if bad: raise SystemExit(f'ZIP integrity failure: {bad}')
+              icons=[n for n in z.namelist() if '/NOVA-HUB-NEW-54-ICONS/' in n and n.endswith('.webp')]
+              if len(icons)!=54: raise SystemExit(f'ZIP expected 54 icons, got {len(icons)}')
+          PY
+          sha256sum "$ASSET" > "$ASSET.sha256"
+          ls -lh "$ASSET" "$ASSET.sha256"
+
+      - name: Replace stable Golden release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release delete "$TAG" --yes --cleanup-tag
+          fi
+          gh release create "$TAG" \
+            "$ASSET" "$ASSET.sha256" \
+            --title 'NexusNova Golden Disaster Master Recovery — 2026-08-26' \
+            --notes 'Golden disaster recovery master. Contains complete app Git history bundle, website/OTA history bundle, known-good permanent APK, and exactly 54 active current Nova Hub icons. Old icon packs are excluded. Keep an offline copy.'
+
+      - name: Verify release asset exists
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release view "$TAG" --json assets,url,tagName > /tmp/release.json
+          cat /tmp/release.json
+          grep -Fq "$ASSET" /tmp/release.json
