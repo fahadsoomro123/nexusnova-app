@@ -40,7 +40,8 @@
       .then(()=>load("./js/nexusnova-ai-chatstyle-v1.js?v=1","nxNovaAIChatStyleV1Script"))
       .then(()=>load("./js/nexusnova-ai-sol57-v1.js?v=1","nxNovaAISol57V1Script"))
       .then(()=>load("./js/nexusnova-ai-sol57-context-v1.js?v=1","nxNovaAISol57ContextV1Script"))
-      .then(()=>load("./js/nexusnova-ai-sol57-files-v1.js?v=1","nxNovaAISol57FilesV1Script"));
+      .then(()=>load("./js/nexusnova-ai-sol57-files-v1.js?v=1","nxNovaAISol57FilesV1Script"))
+      .then(()=>load("./js/nexusnova-ai-sol57-interface-v1.js?v=1","nxNovaAISol57InterfaceV1Script"));
   }
 
   installLogoutClearHook();window.addEventListener("nexusaccountready",syncActiveAccount);window.addEventListener("nexusaccountcleared",syncActiveAccount);syncActiveAccount();loadNovaAIEnhancements();
