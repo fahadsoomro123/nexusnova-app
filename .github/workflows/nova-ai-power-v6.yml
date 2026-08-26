@@ -9,6 +9,7 @@ on:
       - 'js/nexusnova-ai-sol57-context-v1.js'
       - 'js/nexusnova-ai-sol57-files-v1.js'
       - 'js/nexusnova-ai-sol57-interface-v1.js'
+      - 'js/nexusnova-ai-sol57-features-v1.js'
       - 'js/nexusnova-android-callerid-v1.js'
       - 'NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ai-v6.js'
       - 'NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ai-v6-connection-test-v1.js'
@@ -16,6 +17,7 @@ on:
       - 'NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ai-sol57-context-v1.js'
       - 'NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ai-sol57-files-v1.js'
       - 'NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ai-sol57-interface-v1.js'
+      - 'NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ai-sol57-features-v1.js'
       - 'NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-android-callerid-v1.js'
       - '.github/workflows/nova-ai-power-v6.yml'
   workflow_dispatch:
@@ -40,6 +42,7 @@ jobs:
           node --check js/nexusnova-ai-sol57-context-v1.js
           node --check js/nexusnova-ai-sol57-files-v1.js
           node --check js/nexusnova-ai-sol57-interface-v1.js
+          node --check js/nexusnova-ai-sol57-features-v1.js
           node --check js/nexusnova-android-callerid-v1.js
           node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ai-v6.js
           node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ai-v6-connection-test-v1.js
@@ -47,6 +50,7 @@ jobs:
           node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ai-sol57-context-v1.js
           node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ai-sol57-files-v1.js
           node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ai-sol57-interface-v1.js
+          node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ai-sol57-features-v1.js
           node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-android-callerid-v1.js
       - name: Verify V6 loader, Work MAX and NOVA 5.7 Sol wiring
         run: |
@@ -58,7 +62,9 @@ jobs:
           grep -q 'nexusnova-ai-sol57-context-v1.js' js/nexusnova-android-callerid-v1.js
           grep -q 'nexusnova-ai-sol57-files-v1.js' js/nexusnova-android-callerid-v1.js
           grep -q 'nexusnova-ai-sol57-interface-v1.js' js/nexusnova-android-callerid-v1.js
+          grep -q 'nexusnova-ai-sol57-features-v1.js' js/nexusnova-android-callerid-v1.js
           grep -q 'nexusnova-ai-sol57-interface-v1.js' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-android-callerid-v1.js
+          grep -q 'nexusnova-ai-sol57-features-v1.js' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-android-callerid-v1.js
           grep -q "X-NexusNova-Token" js/nexusnova-ai-v6-connection-test-v1.js
           grep -q "'/api/chat'" js/nexusnova-ai-v6-connection-test-v1.js
           grep -q "builder" js/nexusnova-ai-v6.js
@@ -86,9 +92,19 @@ jobs:
           grep -q "uiIntelligence" js/nexusnova-ai-sol57-interface-v1.js
           grep -q "nx-sol57-desktop-sidebar" js/nexusnova-ai-sol57-interface-v1.js
           grep -q "nova_ui" js/nexusnova-ai-sol57-interface-v1.js
+          grep -q "Camera" js/nexusnova-ai-sol57-features-v1.js
+          grep -q "Photos" js/nexusnova-ai-sol57-features-v1.js
+          grep -q "Library" js/nexusnova-ai-sol57-features-v1.js
+          grep -q "Projects" js/nexusnova-ai-sol57-features-v1.js
+          grep -q "Remote" js/nexusnova-ai-sol57-features-v1.js
+          grep -q "Scheduled" js/nexusnova-ai-sol57-features-v1.js
+          grep -q "Plugins" js/nexusnova-ai-sol57-features-v1.js
+          grep -q "Think harder" js/nexusnova-ai-sol57-features-v1.js
+          grep -q "NexusNovaSol57Features" js/nexusnova-ai-sol57-features-v1.js
           cmp -s js/nexusnova-ai-v6.js NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ai-v6.js
           cmp -s js/nexusnova-ai-v6-connection-test-v1.js NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ai-v6-connection-test-v1.js
           cmp -s js/nexusnova-ai-sol57-v1.js NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ai-sol57-v1.js
           cmp -s js/nexusnova-ai-sol57-context-v1.js NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ai-sol57-context-v1.js
           cmp -s js/nexusnova-ai-sol57-files-v1.js NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ai-sol57-files-v1.js
           cmp -s js/nexusnova-ai-sol57-interface-v1.js NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ai-sol57-interface-v1.js
+          cmp -s js/nexusnova-ai-sol57-features-v1.js NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ai-sol57-features-v1.js

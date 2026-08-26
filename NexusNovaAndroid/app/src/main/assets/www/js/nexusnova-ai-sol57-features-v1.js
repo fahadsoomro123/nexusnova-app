@@ -18,7 +18,7 @@
   function saveCfg(p){const v={...readCfg(),...p};try{localStorage.setItem(CFG,JSON.stringify(v))}catch(_){};window.NexusNovaSol57Interface?.refresh?.();window.NexusNovaSol57?.refresh?.();return v}
   function readList(key){try{const v=JSON.parse(localStorage.getItem(key)||'[]');return Array.isArray(v)?v:[]}catch(_){return []}}
   function saveList(key,v){try{localStorage.setItem(key,JSON.stringify(v))}catch(_){}return v}
-  function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[c]))}
+  function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
   function uid(p='nx'){return `${p}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,8)}`}
   function status(t){const e=$('nxNovaAIStatus');if(e)e.textContent=t}
   function setInput(t){const i=$('aiInput');if(!i)return;i.value=t;i.dispatchEvent(new Event('input',{bubbles:true}));i.focus();i.setSelectionRange?.(i.value.length,i.value.length)}
