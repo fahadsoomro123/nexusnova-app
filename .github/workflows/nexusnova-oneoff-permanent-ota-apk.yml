@@ -27,13 +27,18 @@ jobs:
           set -euo pipefail
           test -s fresh-rebuild/index.html
           test -s fresh-rebuild/src/main.js
+          test -s fresh-rebuild/assets/styles/nova-hub-compact-icons-v2.css
+          ! grep -Fq 'ALL APPS • DIRECT ACCESS' fresh-rebuild/src/features/hub/hub-screen.js
+          ! grep -Fq 'nx-hub-filters' fresh-rebuild/src/features/hub/hub-screen.js
+          ICON_COUNT="$(find fresh-rebuild/assets/icons/nova-hub -maxdepth 1 -type f -name '*.webp' | wc -l)"
+          test "$ICON_COUNT" -ge 54
           WEB=NexusNovaAndroid/app/src/main/assets/www
           rm -rf "$WEB"
           mkdir -p "$WEB"
           cp -a fresh-rebuild/. "$WEB/"
           printf 'source_commit=%s\nsource_tree=fresh-rebuild\n' "$(git rev-parse HEAD)" > "$WEB/NEXUSNOVA_SOURCE.txt"
 
-      - name: Wire OTA manager into launcher
+      - name: Wire OTA manager and one-time stale Hub cache reset
         shell: bash
         run: |
           set -euo pipefail
@@ -50,14 +55,14 @@ jobs:
               s = s.replace(old, new, 1)
           ensure(
               '    private var rendererCrashRecoveries = 0\n',
-              '    private var rendererCrashRecoveries = 0\n    private val otaWebManager by lazy { NexusOtaWebManager(this) }\n    private var otaCheckStarted = false\n',
+              '    private var rendererCrashRecoveries = 0\n    private val otaWebManager by lazy { NexusOtaWebManager(this) }\n    private var otaCheckStarted = false\n    private var shellResetStarted = false\n',
               'fields')
           ensure(
               '                return assetLoader.shouldInterceptRequest(uri)\n                    ?: super.shouldInterceptRequest(view, request)\n',
               '                return otaWebManager.intercept(uri)\n                    ?: assetLoader.shouldInterceptRequest(uri)\n                    ?: super.shouldInterceptRequest(view, request)\n',
               'intercept')
           old_finished = '''            override fun onPageFinished(view: WebView?, url: String?) {\n                super.onPageFinished(view, url)\n                val target = view ?: return\n                val uri = url?.let { runCatching { Uri.parse(it) }.getOrNull() } ?: return\n                if (!isProductionOrigin(uri) || usingOfflineFallback) return\n                finishedWatchdogToken = mainFrameWatchdogToken\n                scheduleBlankScreenCheck(target, mainFrameWatchdogToken)\n            }\n'''
-          new_finished = '''            override fun onPageFinished(view: WebView?, url: String?) {\n                super.onPageFinished(view, url)\n                val target = view ?: return\n                val uri = url?.let { runCatching { Uri.parse(it) }.getOrNull() } ?: return\n                if (!isLocalOrigin(uri) || otaCheckStarted) return\n                otaCheckStarted = true\n                otaWebManager.checkForUpdate { updated ->\n                    if (!updated) return@checkForUpdate\n                    runOnUiThread {\n                        if (!isFinishing && !isDestroyed && target === webView) target.reload()\n                    }\n                }\n            }\n'''
+          new_finished = '''            override fun onPageFinished(view: WebView?, url: String?) {\n                super.onPageFinished(view, url)\n                val target = view ?: return\n                val uri = url?.let { runCatching { Uri.parse(it) }.getOrNull() } ?: return\n                if (!isLocalOrigin(uri)) return\n\n                if (!shellResetStarted) {\n                    shellResetStarted = true\n                    val resetScript = \"\"\"\n                        (async function(){\n                          try {\n                            const marker = 'nexusnova_shell_reset_v105';\n                            if (localStorage.getItem(marker) === '1') return 'ready';\n                            localStorage.setItem(marker, '1');\n                            if ('caches' in window) {\n                              const keys = await caches.keys();\n                              await Promise.all(keys.map(key => caches.delete(key)));\n                            }\n                            if ('serviceWorker' in navigator) {\n                              const regs = await navigator.serviceWorker.getRegistrations();\n                              await Promise.all(regs.map(reg => reg.unregister()));\n                            }\n                            setTimeout(function(){ location.reload(); }, 60);\n                            return 'reloading';\n                          } catch (error) {\n                            try { localStorage.setItem('nexusnova_shell_reset_v105', '1'); } catch (_) {}\n                            return 'error';\n                          }\n                        })();\n                    \"\"\".trimIndent()\n                    target.evaluateJavascript(resetScript) { raw ->\n                        if (raw?.contains(\"reloading\") == true) return@evaluateJavascript\n                        if (otaCheckStarted) return@evaluateJavascript\n                        otaCheckStarted = true\n                        otaWebManager.checkForUpdate { updated ->\n                            if (!updated) return@checkForUpdate\n                            runOnUiThread {\n                                if (!isFinishing && !isDestroyed && target === webView) target.reload()\n                            }\n                        }\n                    }\n                    return\n                }\n\n                if (otaCheckStarted) return\n                otaCheckStarted = true\n                otaWebManager.checkForUpdate { updated ->\n                    if (!updated) return@checkForUpdate\n                    runOnUiThread {\n                        if (!isFinishing && !isDestroyed && target === webView) target.reload()\n                    }\n                }\n            }\n'''
           ensure(old_finished, new_finished, 'page finished')
           ensure(
               '                runCatching { target.destroy() }\n\n                if (isFinishing || isDestroyed) return true\n',
@@ -67,6 +72,7 @@ jobs:
           PY
           grep -Fq 'otaWebManager.intercept(uri)' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
           grep -Fq 'otaWebManager.checkForUpdate' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -Fq 'nexusnova_shell_reset_v105' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
           grep -Fq 'raw.githubusercontent.com/fahadsoomro123/nexusnova-website/main/ota/manifest.json' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt
 
       - uses: actions/setup-java@v5
@@ -103,8 +109,8 @@ jobs:
           from pathlib import Path
           p = Path('NexusNovaAndroid/app/build.gradle.kts')
           s = p.read_text(encoding='utf-8')
-          s, a = re.subn(r'versionCode\s*=\s*\d+', 'versionCode = 5', s, count=1)
-          s, b = re.subn(r'versionName\s*=\s*"[^"]*"', 'versionName = "1.0.4"', s, count=1)
+          s, a = re.subn(r'versionCode\s*=\s*\d+', 'versionCode = 6', s, count=1)
+          s, b = re.subn(r'versionName\s*=\s*\"[^\"]*\"', 'versionName = \"1.0.5\"', s, count=1)
           if a != 1 or b != 1:
               raise SystemExit('version anchors missing')
           signing = '''    signingConfigs {\n        create("nexusRelease") {\n            storeFile = file(System.getenv("NEXUSNOVA_SIGNING_STORE_FILE"))\n            storePassword = System.getenv("NEXUSNOVA_SIGNING_STORE_PASSWORD")\n            keyAlias = System.getenv("NEXUSNOVA_SIGNING_KEY_ALIAS")\n            keyPassword = System.getenv("NEXUSNOVA_SIGNING_KEY_PASSWORD")\n        }\n    }\n\n'''
@@ -137,12 +143,12 @@ jobs:
           APK=NexusNovaAndroid/app/build/outputs/apk/release/app-release.apk
           test -s "$APK"
           mkdir -p out
-          cp "$APK" out/NexusNova-PERMANENT-SIGNED-OTA-v1.0.4.apk
-          sha256sum out/NexusNova-PERMANENT-SIGNED-OTA-v1.0.4.apk > out/SHA256.txt
+          cp "$APK" out/NexusNova-PERMANENT-SIGNED-OTA-v1.0.5.apk
+          sha256sum out/NexusNova-PERMANENT-SIGNED-OTA-v1.0.5.apk > out/SHA256.txt
 
       - name: Upload signed APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: NexusNova-PERMANENT-SIGNED-OTA-v1.0.4
+          name: NexusNova-PERMANENT-SIGNED-OTA-v1.0.5
           path: out/*
           retention-days: 90
