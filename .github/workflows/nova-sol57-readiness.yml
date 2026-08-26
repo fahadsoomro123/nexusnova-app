@@ -1,0 +1,39 @@
+name: NOVA 5.7 Sol Readiness Check
+
+on:
+  pull_request:
+    paths:
+      - 'js/nexusnova-ai-sol57-readiness-v1.js'
+      - 'js/nexusnova-android-callerid-v1.js'
+      - 'NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ai-sol57-readiness-v1.js'
+      - 'NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-android-callerid-v1.js'
+      - '.github/workflows/nova-sol57-readiness.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  readiness-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Check readiness module syntax
+        run: |
+          node --check js/nexusnova-ai-sol57-readiness-v1.js
+          node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ai-sol57-readiness-v1.js
+          node --check js/nexusnova-android-callerid-v1.js
+          node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-android-callerid-v1.js
+      - name: Verify wiring and mirror
+        run: |
+          grep -q 'nexusnova-ai-sol57-readiness-v1.js' js/nexusnova-android-callerid-v1.js
+          grep -q 'nexusnova-ai-sol57-readiness-v1.js' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-android-callerid-v1.js
+          grep -q 'NOVA System Check' js/nexusnova-ai-sol57-readiness-v1.js
+          grep -q 'prompt_draft' js/nexusnova-ai-sol57-readiness-v1.js
+          grep -q 'Research mode routes to NOVA' js/nexusnova-ai-sol57-readiness-v1.js
+          grep -q 'NexusNovaSol57Readiness' js/nexusnova-ai-sol57-readiness-v1.js
+          cmp -s js/nexusnova-ai-sol57-readiness-v1.js NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ai-sol57-readiness-v1.js
