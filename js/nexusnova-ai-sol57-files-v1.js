@@ -56,13 +56,20 @@
     };
   }
 
+  function wrapSend(){
+    const current=window.sendAIMessage;if(typeof current!=='function'||current.__nxSol57FilesWrapped)return;
+    const wrapped=function(...args){const had=manifest.length>0;let result;try{result=current.apply(this,args)}catch(e){if(had)manifest=[];throw e}
+      if(had)Promise.resolve(result).finally(()=>{manifest=[]});return result};
+    wrapped.__nxSol57FilesWrapped=true;wrapped.__nxNovaMobileWrapper=current.__nxNovaMobileWrapper;wrapped.__nxNovaOptionsGuard=current.__nxNovaOptionsGuard;wrapped.__nxMemoryWrapped=current.__nxMemoryWrapped;window.sendAIMessage=wrapped;
+  }
+
   function addMenu(){
     const menu=document.querySelector('#tab-ai .nx-nova-plus-menu');if(!menu||menu.querySelector('[data-sol57files="multi"]'))return;
     const b=document.createElement('button');b.type='button';b.className='nx-nova-plus-item';b.dataset.sol57files='multi';
     b.innerHTML='<span style="width:18px;text-align:center">▤</span><span>Attach multiple files<small class="nx-v6-mini">Up to 6 text/code files • safe size limits</small></span>';
     b.onclick=e=>{e.preventDefault();e.stopPropagation();menu.remove();ensureInput().click()};menu.appendChild(b);
   }
-  function init(){ensureInput();installFetchBridge();addMenu();const tab=$('tab-ai');if(tab&&!tab.__nxSol57FilesObs){const o=new MutationObserver(addMenu);o.observe(tab,{childList:true,subtree:true});tab.__nxSol57FilesObs=o}}
+  function init(){ensureInput();installFetchBridge();wrapSend();addMenu();const tab=$('tab-ai');if(tab&&!tab.__nxSol57FilesObs){const o=new MutationObserver(()=>{wrapSend();addMenu()});o.observe(tab,{childList:true,subtree:true});tab.__nxSol57FilesObs=o}}
 
   window.NexusNovaSol57Files=Object.freeze({version:'1.0.0',open:()=>ensureInput().click(),attach:attachFiles,manifest:()=>manifest.map(x=>({...x}))});
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
