@@ -2,7 +2,7 @@ name: NexusNova All Bugs Signed v1.0.5
 
 on:
   push:
-    branches: [all-bugs-native-drive-v1]
+    branches: [all-bugs-native-drive-v1, nexusnova-latest-full-apk-recovery-20260823]
     paths:
       - '.github/workflows/nexusnova-all-bugs-signed-v105.yml'
       - 'release-trigger/all-bugs-v105.txt'
@@ -34,7 +34,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$GITHUB_REF_NAME" = "all-bugs-native-drive-v1"
+          case "$GITHUB_REF_NAME" in
+            all-bugs-native-drive-v1|nexusnova-latest-full-apk-recovery-20260823) ;;
+            *) echo "Unexpected build branch: $GITHUB_REF_NAME"; exit 1 ;;
+          esac
           test -s fresh-rebuild/src/runtime-bugfixes-v1.js
           test -s fresh-rebuild/src/features/apps/native-drive-suite.js
           test -s fresh-rebuild/src/features/apps/news-resilient.js
