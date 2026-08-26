@@ -23,8 +23,13 @@
   }
   const runtimeKey=()=>`nexusnova_sol57_runtime_v1:${accountKey()}`;
 
-  function readArray(key,limit=24){
-    try{const x=JSON.parse(localStorage.getItem(key)||'[]');return Array.isArray(x)?x.map(v=>String(v||'').trim()).filter(v=>v&&!SENSITIVE.test(v)).slice(-limit):[]}catch(_){return []}
+  function readArray(key,limit=12){
+    try{const x=JSON.parse(localStorage.getItem(key)||'[]');return Array.isArray(x)?x.map(v=>String(v||'').trim().slice(0,800)).filter(v=>v&&!SENSITIVE.test(v)).slice(-limit):[]}catch(_){return []}
+  }
+  function compactHistory(rows,maxChars=48000){
+    if(!Array.isArray(rows))return [];const out=[];let used=0;
+    for(let i=rows.length-1;i>=0;i--){const row=rows[i];if(!row||!['user','assistant','model'].includes(row.role))continue;const content=String(row.content||row.text||'').slice(0,7000);if(!content)continue;const cost=content.length+32;if(out.length&&used+cost>maxChars)break;used+=cost;out.push({...row,content})}
+    return out.reverse();
   }
   function readThread(){
     try{const x=JSON.parse(localStorage.getItem(THREAD_KEY)||'[]');return Array.isArray(x)?x.filter(r=>r&&['user','assistant'].includes(r.role)&&typeof r.content==='string').slice(-40):[]}catch(_){return []}
@@ -60,7 +65,8 @@
         if(isChat&&init&&typeof init.body==='string'){
           const body=JSON.parse(init.body),ctx=ownerContext(),text=ownerText();
           if(body&&typeof body==='object'){
-            body.nova_context={owner_context:ctx,account_scope:accountKey(),source:'nova-5.7-sol-client'};
+            if(Array.isArray(body.history))body.history=compactHistory(body.history);
+            body.nova_context={owner_context:ctx,account_scope:accountKey(),source:'nova-5.7-sol-client',history_turns:Array.isArray(body.history)?body.history.length:0,owner_chars:text.length};
             if(text){const existing=String(body.app_context||'').trim();body.app_context=existing?`${existing}\n\n${text}`:text;}
             init={...init,body:JSON.stringify(body)};
           }
@@ -83,7 +89,8 @@
   }
   function showContext(){
     const c=ownerContext(),r=runtimeText();
-    alert(`NOVA 5.7 Sol Context\n\nOwner rules: ${c.rules.length}\nRemembered items: ${c.memory.length}\nAccount scope: ${accountKey()}${r?`\n\n${r}`:''}\n\nOnly backend-returned provider/model fields are shown as verified runtime data.`);
+    const chars=ownerText().length;
+    alert(`NOVA 5.7 Sol Context\n\nOwner rules: ${c.rules.length}\nRemembered items: ${c.memory.length}\nOwner context: ${chars.toLocaleString()} chars\nAccount scope: ${accountKey()}${r?`\n\n${r}`:''}\n\nHistory is bounded before local requests. Only backend-returned provider/model fields are shown as verified runtime data.`);
   }
 
   function exportChat(){
