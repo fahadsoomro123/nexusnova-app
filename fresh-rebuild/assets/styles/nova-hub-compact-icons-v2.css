@@ -109,6 +109,22 @@
   outline-offset: 1px;
 }
 
+/* Backward-compatible cleanup for older bundled Hub markup.
+   CSS-only so search/navigation/tool logic remains untouched. */
+.nx-hub-screen .nx-hub-head,
+.nx-hub-screen .nx-hub-filters {
+  display: none !important;
+}
+
+.nx-hub-screen .nx-app-card > span:not(.nx-app-card__icon) {
+  display: none !important;
+}
+
+.nx-hub-screen .nx-hub-toolbar {
+  position: relative;
+  z-index: 2;
+}
+
 @media (max-width: 330px) {
   .nx-hub-screen .nx-app-grid {
     grid-template-columns: repeat(auto-fill, minmax(74px, 1fr));
