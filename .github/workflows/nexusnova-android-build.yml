@@ -89,6 +89,7 @@ jobs:
 
       - name: Verify native shell before compile
         run: |
+          set -x
           grep -q 'nxAndroidNativeShellBootstrap' NexusNovaAndroid/app/src/main/assets/www/page2.html
           grep -q 'window.__nexusInteractiveReady = true' NexusNovaAndroid/app/src/main/assets/www/page2.html
           grep -q '!window.__nexusAndroidShell' NexusNovaAndroid/app/src/main/assets/www/page2.html
