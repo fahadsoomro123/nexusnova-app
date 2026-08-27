@@ -5,6 +5,9 @@ on:
     branches: [all-bugs-redo-v2]
     paths:
       - '.github/workflows/nexusnova-stable-v109.yml'
+      - 'NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusNativeNews.kt'
+      - 'NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusNativeAppCheck.kt'
+      - 'fresh-rebuild/src/features/apps/premium-qibla-safe-v2.js'
   workflow_dispatch:
 
 permissions:
