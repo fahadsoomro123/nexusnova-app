@@ -25,11 +25,16 @@ jobs:
           set -euo pipefail
           test "$GITHUB_REF_NAME" = "all-bugs-redo-v2"
 
-          # Internet Speed is intentionally removed.
-          test ! -e fresh-rebuild/src/features/apps/premium-speed-safe-v2.js
-          test ! -e fresh-rebuild/src/features/apps/premium-nova-internet-speed.js
+          # Internet Speed is intentionally removed from the current UI, but
+          # its historical module paths stay as empty compatibility tombstones.
+          # Older cached app-screen.js versions statically import these paths;
+          # deleting them can make the entire Nova Hub app module fail to load.
+          test -s fresh-rebuild/src/features/apps/premium-speed-safe-v2.js
+          test -s fresh-rebuild/src/features/apps/premium-nova-internet-speed.js
           ! grep -Fq "nova-internet-speed" fresh-rebuild/src/features/hub/app-registry.js
           ! grep -Fq "speedSafeV2Renderers" fresh-rebuild/src/features/apps/app-screen.js
+          grep -Fq "export const speedSafeV2Renderers = Object.freeze({});" fresh-rebuild/src/features/apps/premium-speed-safe-v2.js
+          grep -Fq "export const premiumNovaInternetSpeedRenderers = Object.freeze({});" fresh-rebuild/src/features/apps/premium-nova-internet-speed.js
 
           # Current bugfix modules must exist and be wired.
           test -s fresh-rebuild/src/features/apps/premium-qibla-safe-v2.js
@@ -45,6 +50,8 @@ jobs:
           # Parse every JS file touched by this bugfix batch.
           node --check fresh-rebuild/src/features/hub/app-registry.js
           node --check fresh-rebuild/src/features/apps/app-screen.js
+          node --check fresh-rebuild/src/features/apps/premium-speed-safe-v2.js
+          node --check fresh-rebuild/src/features/apps/premium-nova-internet-speed.js
           node --check fresh-rebuild/src/features/apps/premium-qibla-safe-v2.js
           node --check fresh-rebuild/src/features/apps/news-resilient.js
           node --check fresh-rebuild/src/features/apps/articles-suite.js
