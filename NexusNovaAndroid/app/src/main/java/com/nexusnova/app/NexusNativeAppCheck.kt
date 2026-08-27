@@ -276,8 +276,9 @@ object NexusNativeAppCheck {
     }
 
     private fun replyJson(replyProxy: JavaScriptReplyProxy, response: JSONObject) {
-        val send = { runCatching { replyProxy.postMessage(response.toString()) } }
-        if (Looper.myLooper() == Looper.getMainLooper()) send() else mainHandler.post(send)
+        val message = response.toString()
+        val send = Runnable { runCatching { replyProxy.postMessage(message) } }
+        if (Looper.myLooper() == Looper.getMainLooper()) send.run() else mainHandler.post(send)
     }
 
     private fun replyError(replyProxy: JavaScriptReplyProxy, requestId: String, message: String) {
