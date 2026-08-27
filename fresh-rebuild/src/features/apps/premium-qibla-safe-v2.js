@@ -8,11 +8,20 @@ function normalizedHeading(event) {
   return NaN;
 }
 
-function smoothCircular(previous, next, factor = 0.34) {
+function shortestDelta(from, to) {
+  return ((to - from + 540) % 360) - 180;
+}
+
+function easedAngle(previous, next, alpha) {
   if (!Number.isFinite(previous)) return next;
-  let delta = ((next - previous + 540) % 360) - 180;
-  if (Math.abs(delta) < 0.65) return previous;
-  return (previous + delta * factor + 360) % 360;
+  const delta = shortestDelta(previous, next);
+  if (Math.abs(delta) < 0.04) return previous;
+  return previous + delta * alpha;
+}
+
+function rotateValue(value) {
+  const match = String(value || '').match(/rotate\(\s*(-?\d+(?:\.\d+)?)/i);
+  return match ? Number(match[1]) : NaN;
 }
 
 export function renderQiblaSafeV2() {
@@ -21,12 +30,13 @@ export function renderQiblaSafeV2() {
   if (!(root instanceof HTMLElement)) return root;
 
   const rotor = root.querySelector('[data-qb-rotor]');
+  const pointer = root.querySelector('[data-qb-pointer]');
   let restoreRotor = null;
+  let restorePointer = null;
 
-  // The original screen re-applies rotate(0) to the entire large, filtered
-  // compass face on every sensor tick. It is visually static, so blocking only
-  // that redundant transform prevents Android WebView from re-compositing the
-  // artwork. Qibla math and the original SVG remain untouched.
+  // The compass artwork itself never needs to rotate. Keeping this large,
+  // filtered SVG group completely static prevents Android WebView from
+  // re-rasterizing the whole face on every sensor sample.
   if (rotor instanceof SVGElement) {
     const ownSetAttribute = rotor.setAttribute;
     const nativeSetAttribute = ownSetAttribute.bind(rotor);
@@ -41,44 +51,110 @@ export function renderQiblaSafeV2() {
     };
   }
 
+  let targetPointer = NaN;
+  let displayedPointer = NaN;
+
+  // Move only the small needle. The original SVG glow filter on the moving
+  // group is deliberately disabled while live because several Android WebView
+  // GPU drivers corrupt filtered SVG layers during rapid transforms. The
+  // original artwork, bearing math and compass face are otherwise untouched.
+  if (pointer instanceof SVGElement) {
+    const ownSetAttribute = pointer.setAttribute;
+    const nativeSetAttribute = ownSetAttribute.bind(pointer);
+    const initial = rotateValue(pointer.getAttribute('transform'));
+    if (Number.isFinite(initial)) targetPointer = displayedPointer = initial;
+    pointer.removeAttribute('transform');
+    pointer.removeAttribute('filter');
+    pointer.style.transformBox = 'view-box';
+    pointer.style.transformOrigin = '50% 50%';
+    pointer.style.willChange = 'transform';
+    pointer.style.backfaceVisibility = 'hidden';
+    if (Number.isFinite(displayedPointer)) pointer.style.transform = `rotate(${displayedPointer.toFixed(3)}deg)`;
+
+    pointer.setAttribute = (name, value) => {
+      if (String(name).toLowerCase() === 'transform') {
+        const angle = rotateValue(value);
+        if (Number.isFinite(angle)) {
+          targetPointer = angle;
+          if (!Number.isFinite(displayedPointer)) displayedPointer = angle;
+        }
+        return;
+      }
+      if (String(name).toLowerCase() === 'filter') return;
+      nativeSetAttribute(name, value);
+    };
+
+    restorePointer = () => {
+      try { delete pointer.setAttribute; } catch { pointer.setAttribute = ownSetAttribute; }
+      pointer.style.willChange = '';
+      pointer.style.backfaceVisibility = '';
+    };
+  }
+
   let disposed = false;
-  let smoothed = NaN;
+  let targetHeading = NaN;
+  let displayedHeading = NaN;
   let lastAbsoluteAt = 0;
+  let lastFrameAt = performance.now();
   let lastEmitAt = 0;
+  let frameId = 0;
 
   const emit = heading => {
     const synthetic = new Event('deviceorientation');
     Object.defineProperty(synthetic, '__nxQiblaNormalized', { value: true });
-    Object.defineProperty(synthetic, 'webkitCompassHeading', { value: heading });
-    Object.defineProperty(synthetic, 'alpha', { value: 360 - heading });
+    Object.defineProperty(synthetic, 'webkitCompassHeading', { value: ((heading % 360) + 360) % 360 });
+    Object.defineProperty(synthetic, 'alpha', { value: 360 - (((heading % 360) + 360) % 360) });
     window.dispatchEvent(synthetic);
   };
 
   const intercept = event => {
     if (disposed || event?.__nxQiblaNormalized) return;
-
     const now = performance.now();
     const isAbsolute = event.type === 'deviceorientationabsolute' || event.absolute === true;
     if (isAbsolute) lastAbsoluteAt = now;
-    else if (now - lastAbsoluteAt < 1400) {
+    else if (now - lastAbsoluteAt < 1500) {
       event.stopImmediatePropagation();
       return;
     }
 
     const heading = normalizedHeading(event);
     if (!Number.isFinite(heading)) return;
-
-    // Stop the two raw orientation streams from independently driving the same
-    // needle. Emit one throttled, circularly-smoothed heading instead.
     event.stopImmediatePropagation();
-    smoothed = smoothCircular(smoothed, heading);
-    if (now - lastEmitAt < 65) return;
-    lastEmitAt = now;
-    emit(smoothed);
+    targetHeading = heading;
+    if (!Number.isFinite(displayedHeading)) displayedHeading = heading;
   };
 
+  const animate = now => {
+    if (disposed) return;
+    const dt = Math.max(1, Math.min(50, now - lastFrameAt));
+    lastFrameAt = now;
+
+    if (Number.isFinite(targetHeading)) {
+      // Time-based low-pass interpolation feels like a damped gimbal instead
+      // of following noisy sensor samples one-for-one.
+      const headingAlpha = 1 - Math.exp(-dt / 145);
+      displayedHeading = easedAngle(displayedHeading, targetHeading, headingAlpha);
+      if (now - lastEmitAt >= 32) {
+        lastEmitAt = now;
+        emit(displayedHeading);
+      }
+    }
+
+    if (pointer instanceof SVGElement && Number.isFinite(targetPointer)) {
+      const pointerAlpha = 1 - Math.exp(-dt / 90);
+      displayedPointer = easedAngle(displayedPointer, targetPointer, pointerAlpha);
+      pointer.style.transform = `rotate(${displayedPointer.toFixed(3)}deg)`;
+    }
+
+    frameId = requestAnimationFrame(animate);
+  };
+
+  // Capture the raw streams before the original listener. Only one normalized,
+  // smoothed stream is allowed through, so duplicate absolute/relative events
+  // can no longer fight each other and make the needle jitter.
   window.addEventListener('deviceorientationabsolute', intercept, true);
   window.addEventListener('deviceorientation', intercept, true);
+  frameId = requestAnimationFrame(animate);
 
   const baseCleanup = root.__cleanup;
   let cleaned = false;
@@ -86,9 +162,11 @@ export function renderQiblaSafeV2() {
     if (cleaned) return;
     cleaned = true;
     disposed = true;
+    cancelAnimationFrame(frameId);
     window.removeEventListener('deviceorientationabsolute', intercept, true);
     window.removeEventListener('deviceorientation', intercept, true);
     restoreRotor?.();
+    restorePointer?.();
     baseCleanup?.();
   };
 
