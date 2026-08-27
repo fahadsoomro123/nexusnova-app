@@ -1,5 +1,6 @@
 import { loadJson, saveJson } from '../../core/local-store.js';
 import { requireFirebaseUser } from '../../core/firebase-backend.js';
+import { pushDriveCloudStore, syncDriveCloudStore } from '../../core/drive-cloud-store.js';
 import { premiumDriveRenderers } from './premium-drive-tools.js';
 
 const HISTORY_LIMIT = 90;
@@ -39,13 +40,42 @@ function readStore(key) {
   };
 }
 
+function announceStoreUpdate() {
+  window.dispatchEvent(new Event('nexusnova:drive-track-updated'));
+}
+
+async function hydrateCloudStore() {
+  const key = await storeKey();
+  if (key.endsWith(':device')) return false;
+  const local = readStore(key);
+  const result = await syncDriveCloudStore(local);
+  if (!result?.cloud) return false;
+  saveJson(key, result.store);
+  announceStoreUpdate();
+  return true;
+}
+
+async function persistCloudStore(key, store) {
+  if (!key || key.endsWith(':device')) return false;
+  const result = await pushDriveCloudStore(store);
+  if (!result?.cloud) return false;
+  saveJson(key, result.store);
+  announceStoreUpdate();
+  return true;
+}
+
 async function importCompletedTrip(completed) {
   if (!completed || typeof completed !== 'object') return false;
   const nativeId = String(completed.nativeId || '').trim();
   if (!nativeId) return false;
   const key = await storeKey();
   const store = readStore(key);
-  if (store.trips.some(row => row?.nativeId === nativeId)) return false;
+  if (store.trips.some(row => row?.nativeId === nativeId)) {
+    // A restored/local copy may already contain this native trip. Still make
+    // sure the cloud state is caught up, then do not double-count it.
+    persistCloudStore(key, store).catch(() => {});
+    return false;
+  }
 
   const atMs = Number(completed.at) || Date.now();
   const distanceM = Math.max(0, Number(completed.distanceM) || 0);
@@ -71,7 +101,8 @@ async function importCompletedTrip(completed) {
   });
   store.trips = store.trips.slice(0, HISTORY_LIMIT);
   saveJson(key, store);
-  window.dispatchEvent(new Event('nexusnova:drive-track-updated'));
+  announceStoreUpdate();
+  try { await persistCloudStore(key, store); } catch {}
   return true;
 }
 
@@ -180,6 +211,10 @@ export function renderNovaDriveNativeV2() {
   const onNative = event => paint(event?.detail);
   window.addEventListener('nexusnova:native-drive', onNative);
 
+  // Restore protected account data after reinstall/sign-in without delaying the
+  // live native tracker. Existing local history is merged, never blindly erased.
+  hydrateCloudStore().catch(() => {});
+
   main.addEventListener('click', async () => {
     if (disposed) return;
     if (!snapshot.active) {
@@ -228,6 +263,7 @@ export function renderNovaTrackNativeV2() {
     if (completed) importCompletedTrip(completed).catch(() => {});
   };
   window.addEventListener('nexusnova:native-drive', onNative);
+  hydrateCloudStore().catch(() => {});
   post('nativeDriveStatus');
   const baseCleanup = root.__cleanup;
   root.__cleanup = () => {
