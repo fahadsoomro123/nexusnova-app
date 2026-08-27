@@ -1,20 +1,16 @@
-/* NOVA 5.7 premium viewport root fix.
-   Global .nx-stage reserves dock + safe-area + 58px for generic screens.
-   NOVA is a fixed chat surface, so that generic extra 58px becomes visible as
-   a black strip. Give NOVA its own compact 10px dock gap instead of reserving
-   the generic buffer twice. */
+/* NOVA 5.7 premium viewport + stage compatibility fix.
+   Older Android WebViews may not support :has(), so NOVA gets an explicit
+   runtime stage class instead of relying on parent-selector support. */
 
-@supports selector(.nx-stage:has(> .nx57-shell-premium)) {
-  .nx-stage:has(> .nx57-shell-premium) {
-    padding-bottom: calc(var(--nx-dock-height) + var(--nx-safe-bottom) + 10px);
-    scroll-padding-bottom: calc(var(--nx-dock-height) + var(--nx-safe-bottom) + 10px);
-  }
+.nx-stage.nx57-stage-active {
+  padding-bottom: calc(var(--nx-dock-height) + var(--nx-safe-bottom) + 8px);
+  scroll-padding-bottom: calc(var(--nx-dock-height) + var(--nx-safe-bottom) + 8px);
 }
 
 .nx57-shell-premium {
-  height: calc(100dvh - var(--nx-pad) - var(--nx-dock-height) - var(--nx-safe-bottom) - 10px);
+  height: calc(100dvh - var(--nx-pad) - var(--nx-dock-height) - var(--nx-safe-bottom) - 8px);
   min-height: 0;
-  max-height: calc(100dvh - var(--nx-pad) - var(--nx-dock-height) - var(--nx-safe-bottom) - 10px);
+  max-height: calc(100dvh - var(--nx-pad) - var(--nx-dock-height) - var(--nx-safe-bottom) - 8px);
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   overflow: hidden;
@@ -67,6 +63,52 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* NOVA-only SOS placement: keep emergency access in the header lane, not over chat. */
+html.nx57-stage-active #nxEmergencySosButton {
+  top: calc(var(--nx-pad) + 7px) !important;
+  right: 64px !important;
+  bottom: auto !important;
+  width: 32px !important;
+  height: 32px !important;
+  border-radius: 11px !important;
+  opacity: .82 !important;
+  font-size: 7px !important;
+  letter-spacing: .35px !important;
+}
+
+html.nx57-stage-active #nxEmergencySosButton[data-active="1"],
+html.nx57-stage-active #nxEmergencySosButton[data-busy="1"] {
+  top: calc(var(--nx-pad) + 5px) !important;
+  right: 62px !important;
+  width: 36px !important;
+  height: 36px !important;
+  border-radius: 12px !important;
+  opacity: 1 !important;
+  font-size: 8px !important;
+}
+
+html.nx57-stage-active #nxEmergencySosEdit {
+  top: calc(var(--nx-pad) + 10px) !important;
+  right: 104px !important;
+  bottom: auto !important;
+  width: 26px !important;
+  height: 26px !important;
+  font-size: 11px !important;
+}
+
+@media (max-width: 390px) {
+  html.nx57-stage-active #nxEmergencySosButton {
+    right: 58px !important;
+  }
+  html.nx57-stage-active #nxEmergencySosButton[data-active="1"],
+  html.nx57-stage-active #nxEmergencySosButton[data-busy="1"] {
+    right: 56px !important;
+  }
+  html.nx57-stage-active #nxEmergencySosEdit {
+    right: 96px !important;
+  }
 }
 
 @media (max-width: 520px) {
