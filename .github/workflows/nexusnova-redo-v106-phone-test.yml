@@ -1,14 +1,8 @@
 name: NexusNova Redo v1.0.6 Phone Test
 
+# Phone-test APKs are intentionally manual-only. Source bugfix pushes must not
+# build, sign or publish a new APK until the user explicitly asks for one.
 on:
-  push:
-    branches: [all-bugs-redo-v2]
-    paths:
-      - '.github/workflows/nexusnova-redo-v106-phone-test.yml'
-      - 'release-trigger/redo-v106.txt'
-      - 'fresh-rebuild/**'
-      - 'NexusNovaAndroid/**'
-      - 'scripts/patch-native-drive.py'
   workflow_dispatch:
 
 permissions:
@@ -29,33 +23,40 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verify restored redo source
+      - name: Verify current redo source
         shell: bash
         run: |
           set -euo pipefail
           test "$GITHUB_REF_NAME" = "all-bugs-redo-v2"
           test -s fresh-rebuild/assets/styles/bugfix-redo-v2.css
           test -s fresh-rebuild/src/dock-scroll-v2.js
-          test -s fresh-rebuild/src/features/apps/premium-speed-safe-v2.js
           test -s fresh-rebuild/src/features/apps/premium-qibla-safe-v2.js
           test -s fresh-rebuild/src/features/apps/premium-drive-native-v2.js
           test -s fresh-rebuild/src/features/apps/premium-drive-tools.js
+          test -s fresh-rebuild/src/core/drive-cloud-store.js
           test -s fresh-rebuild/src/features/apps/news-resilient.js
           test -s fresh-rebuild/src/features/apps/articles-suite.js
           test -s NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusDriveForegroundService.kt
           test -s scripts/patch-native-drive.py
-          grep -Fq "speedSafeV2Renderers" fresh-rebuild/src/features/apps/app-screen.js
+          test ! -e fresh-rebuild/src/features/apps/premium-speed-safe-v2.js
+          test ! -e fresh-rebuild/src/features/apps/premium-nova-internet-speed.js
+          ! grep -Fq "nova-internet-speed" fresh-rebuild/src/features/hub/app-registry.js
+          ! grep -Fq "speedSafeV2Renderers" fresh-rebuild/src/features/apps/app-screen.js
+          ! grep -Fq "premiumNovaInternetSpeedRenderers" fresh-rebuild/src/features/apps/app-screen.js
           grep -Fq "qiblaSafeV2Renderers" fresh-rebuild/src/features/apps/app-screen.js
           grep -Fq "driveNativeV2Renderers" fresh-rebuild/src/features/apps/app-screen.js
+          grep -Fq "syncDriveCloudStore" fresh-rebuild/src/features/apps/premium-drive-native-v2.js
+          grep -Fq "match /users/{uid}/driveData/{docId}" firestore.rules
           grep -Fq "FOREGROUND_SERVICE_LOCATION" NexusNovaAndroid/app/src/main/AndroidManifest.xml
           grep -Fq "bugfix-redo-v2.css" fresh-rebuild/index.html
           node --check fresh-rebuild/src/dock-scroll-v2.js
-          node --check fresh-rebuild/src/features/apps/premium-speed-safe-v2.js
           node --check fresh-rebuild/src/features/apps/premium-qibla-safe-v2.js
           node --check fresh-rebuild/src/features/apps/premium-drive-native-v2.js
+          node --check fresh-rebuild/src/core/drive-cloud-store.js
           node --check fresh-rebuild/src/features/apps/news-resilient.js
           node --check fresh-rebuild/src/features/apps/articles-suite.js
           node --check fresh-rebuild/src/features/apps/app-screen.js
+          node --check fresh-rebuild/src/features/hub/app-registry.js
 
       - name: Wire verified OTA launcher
         shell: bash
@@ -166,14 +167,16 @@ jobs:
           grep -Eq 'Verified using v(2|3) scheme.*true' "$GITHUB_WORKSPACE/redo-v106-signature.txt"
           unzip -l "$APK" | grep -Fq 'assets/www/src/features/apps/premium-drive-tools.js'
           unzip -l "$APK" | grep -Fq 'assets/www/src/features/apps/premium-drive-native-v2.js'
+          unzip -l "$APK" | grep -Fq 'assets/www/src/core/drive-cloud-store.js'
           unzip -l "$APK" | grep -Fq 'assets/www/src/features/apps/premium-qibla-safe-v2.js'
-          unzip -l "$APK" | grep -Fq 'assets/www/src/features/apps/premium-speed-safe-v2.js'
           unzip -l "$APK" | grep -Fq 'assets/www/src/features/apps/news-resilient.js'
           unzip -l "$APK" | grep -Fq 'assets/www/src/features/apps/articles-suite.js'
           unzip -l "$APK" | grep -Fq 'assets/www/assets/styles/bugfix-redo-v2.css'
+          ! unzip -l "$APK" | grep -Fq 'assets/www/src/features/apps/premium-speed-safe-v2.js'
+          ! unzip -l "$APK" | grep -Fq 'assets/www/src/features/apps/premium-nova-internet-speed.js'
           unzip -p "$APK" assets/www/src/features/apps/app-screen.js | grep -Fq 'driveNativeV2Renderers'
           unzip -p "$APK" assets/www/src/features/apps/app-screen.js | grep -Fq 'qiblaSafeV2Renderers'
-          unzip -p "$APK" assets/www/src/features/apps/app-screen.js | grep -Fq 'speedSafeV2Renderers'
+          ! unzip -p "$APK" assets/www/src/features/apps/app-screen.js | grep -Fq 'speedSafeV2Renderers'
           printf 'source_commit=%s\nrelease=v1.0.6-vc7-redo-phone-test\n' "$GITHUB_SHA" > "$GITHUB_WORKSPACE/redo-v106-source.txt"
 
       - name: Publish verified phone-test APK
@@ -191,10 +194,11 @@ jobs:
           cat > "$OUT/BUILD-STATUS.txt" <<EOF
           NexusNova v1.0.6 vc7 REDO PHONE TEST
           Source commit: $GITHUB_SHA
+          Internet Speed feature: REMOVED
           Original Drive meter/UI preserved: SOURCE CHECK PASS
           Native Drive background service/bridge: BUILD PASS
-          Speed memory-safe stream adapter: SYNTAX PASS
-          Qibla static-face/single-heading adapter: SYNTAX PASS
+          Drive/Track account cloud persistence: SOURCE CHECK PASS
+          Qibla static-face/gimbal adapter: SYNTAX PASS
           Thin bottom dock + downward scroll-away: SOURCE CHECK PASS
           Live News + Articles feed code: SYNTAX PASS
           Release compile: PASS
