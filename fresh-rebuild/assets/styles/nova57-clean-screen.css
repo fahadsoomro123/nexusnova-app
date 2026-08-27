@@ -1,0 +1,492 @@
+/* NOVA 5.7 clean chat screen.
+   This is a real screen layout, not a visual patch over the generic app card.
+   It activates only while NOVA is open and restores the normal NexusNova shell on cleanup. */
+
+html.nx57-clean-mode,
+html.nx57-clean-mode body {
+  background:#000 !important;
+  overflow:hidden !important;
+}
+
+html.nx57-clean-mode #nx-app,
+html.nx57-clean-mode .nx-stage,
+html.nx57-clean-mode .nx-screen,
+html.nx57-clean-mode .nx-screen > [data-app-mount] {
+  width:100% !important;
+  height:100dvh !important;
+  min-height:0 !important;
+  max-height:100dvh !important;
+  margin:0 !important;
+}
+
+html.nx57-clean-mode .nx-stage {
+  padding:0 !important;
+  scroll-padding-bottom:0 !important;
+  overflow:hidden !important;
+  background:#000 !important;
+}
+
+html.nx57-clean-mode .nx-screen {
+  animation:none !important;
+  overflow:hidden !important;
+}
+
+html.nx57-clean-mode .nx-screen > .nx-app-head,
+html.nx57-clean-mode .nx-dock,
+html.nx57-clean-mode #nxEmergencySosButton,
+html.nx57-clean-mode #nxEmergencySosEdit {
+  display:none !important;
+}
+
+html.nx57-clean-mode .nx-screen > [data-app-mount] {
+  display:block !important;
+  overflow:hidden !important;
+}
+
+.nx-app-body.nx57-clean-screen {
+  height:100% !important;
+  min-height:0 !important;
+  display:grid !important;
+  grid-template-rows:auto minmax(0,1fr) auto !important;
+  gap:0 !important;
+  overflow:hidden !important;
+  background:#000 !important;
+  color:#f5f5f5;
+  font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+
+.nx57-clean-header {
+  display:grid;
+  grid-template-columns:54px minmax(0,1fr) 54px;
+  align-items:center;
+  gap:18px;
+  padding:max(18px,env(safe-area-inset-top)) 20px 12px;
+  background:#000;
+}
+
+.nx57-clean-circle {
+  width:54px;
+  height:54px;
+  border:1px solid rgba(255,255,255,.16);
+  border-radius:50%;
+  background:#202020;
+  color:#fff;
+  display:grid;
+  place-items:center;
+  padding:0;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05);
+  cursor:pointer;
+}
+
+.nx57-clean-circle:active { transform:scale(.96); }
+.nx57-clean-circle svg { width:25px;height:25px;display:block; }
+
+.nx57-clean-seg {
+  justify-self:center;
+  width:min(100%,286px);
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:4px;
+  padding:5px;
+  border-radius:999px;
+  background:#494949;
+}
+
+.nx57-clean-seg button {
+  min-height:44px;
+  border:0;
+  border-radius:999px;
+  background:transparent;
+  color:#fff;
+  font-size:17px;
+  font-weight:500;
+  letter-spacing:-.01em;
+  cursor:pointer;
+}
+
+.nx57-clean-seg button.is-active {
+  background:#242424;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.04);
+}
+
+.nx57-clean-main {
+  min-height:0;
+  position:relative;
+  display:grid;
+  grid-template-rows:minmax(0,1fr) auto;
+  overflow:hidden;
+}
+
+.nx57-clean-messages {
+  min-height:0;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  scrollbar-width:none;
+  display:flex;
+  flex-direction:column;
+  gap:22px;
+  padding:22px 28px 20px;
+  scroll-padding-bottom:26px;
+}
+
+.nx57-clean-messages::-webkit-scrollbar { display:none; }
+
+.nx57-clean-msg {
+  width:min(100%,720px);
+  font-size:17px;
+  line-height:1.58;
+  overflow-wrap:anywhere;
+}
+
+.nx57-clean-msg.bot {
+  align-self:center;
+  color:#f2f2f2;
+}
+
+.nx57-clean-msg.user {
+  align-self:flex-end;
+  width:auto;
+  max-width:min(86%,620px);
+  padding:12px 16px;
+  border-radius:23px;
+  background:#242424;
+  color:#fff;
+}
+
+.nx57-clean-msg strong {
+  display:none;
+}
+
+.nx57-clean-msg p {
+  margin:0;
+  white-space:pre-wrap;
+}
+
+.nx57-clean-empty {
+  margin:auto auto 0;
+  width:min(100%,590px);
+  padding:0 0 8px;
+  display:grid;
+  gap:2px;
+}
+
+.nx57-clean-empty[hidden] { display:none; }
+
+.nx57-clean-quick {
+  width:100%;
+  border:0;
+  border-top:1px solid rgba(255,255,255,.08);
+  background:transparent;
+  color:#d7d7d7;
+  text-align:left;
+  padding:15px 2px;
+  font-size:15px;
+  line-height:1.4;
+  cursor:pointer;
+}
+
+.nx57-clean-quick:first-child { border-top:0; }
+
+.nx57-clean-files {
+  display:flex;
+  gap:7px;
+  flex-wrap:wrap;
+  padding:0 20px 8px;
+}
+
+.nx57-clean-files:empty { display:none; }
+
+.nx57-clean-chip {
+  display:flex;
+  align-items:center;
+  gap:7px;
+  max-width:100%;
+  padding:7px 10px;
+  border:1px solid rgba(255,255,255,.1);
+  border-radius:999px;
+  background:#171717;
+  color:#d7d7d7;
+  font-size:11px;
+}
+
+.nx57-clean-chip button {
+  border:0;
+  background:transparent;
+  color:#aaa;
+  font-size:15px;
+  line-height:1;
+  padding:0;
+}
+
+.nx57-clean-compose-wrap {
+  position:relative;
+  padding:8px 20px max(18px,env(safe-area-inset-bottom));
+  background:linear-gradient(180deg,rgba(0,0,0,0),#000 18%);
+}
+
+.nx57-clean-compose {
+  width:min(100%,720px);
+  margin:0 auto;
+  min-height:66px;
+  display:grid;
+  grid-template-columns:44px minmax(0,1fr) 44px 48px;
+  align-items:end;
+  gap:7px;
+  padding:8px;
+  border:1px solid rgba(255,255,255,.14);
+  border-radius:32px;
+  background:#202020;
+  box-shadow:0 10px 38px rgba(0,0,0,.36),inset 0 1px 0 rgba(255,255,255,.04);
+}
+
+.nx57-clean-compose textarea {
+  width:100%;
+  min-height:44px;
+  max-height:150px;
+  resize:none;
+  border:0;
+  outline:0;
+  background:transparent;
+  color:#fff;
+  padding:10px 4px 7px;
+  font:400 17px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+
+.nx57-clean-compose textarea::placeholder { color:#a9a9a9; }
+
+.nx57-clean-compose button {
+  border:0;
+  cursor:pointer;
+}
+
+.nx57-clean-plus,
+.nx57-clean-mic {
+  width:44px;
+  height:44px;
+  border-radius:50%;
+  background:transparent;
+  color:#fff;
+  display:grid;
+  place-items:center;
+  font-size:32px;
+  font-weight:300;
+}
+
+.nx57-clean-mic svg { width:25px;height:25px; }
+
+.nx57-clean-send {
+  width:48px;
+  height:48px;
+  border-radius:50%;
+  background:#2f80ff;
+  color:#fff;
+  display:grid;
+  place-items:center;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.2);
+}
+
+.nx57-clean-send svg { width:23px;height:23px; }
+.nx57-clean-send:disabled { opacity:.42; }
+
+.nx57-clean-pop {
+  position:absolute;
+  left:20px;
+  bottom:calc(max(18px,env(safe-area-inset-bottom)) + 82px);
+  z-index:60;
+  width:min(310px,calc(100vw - 40px));
+  max-height:min(56dvh,440px);
+  overflow:auto;
+  padding:7px;
+  border:1px solid rgba(255,255,255,.13);
+  border-radius:18px;
+  background:#171717;
+  box-shadow:0 22px 70px rgba(0,0,0,.62);
+}
+
+.nx57-clean-pop[hidden] { display:none; }
+
+.nx57-clean-pop-title {
+  padding:8px 10px 5px;
+  color:#8e8e8e;
+  font-size:10px;
+  font-weight:700;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+
+.nx57-clean-pop button {
+  width:100%;
+  min-height:44px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:9px 11px;
+  border:0;
+  border-radius:12px;
+  background:transparent;
+  color:#ededed;
+  text-align:left;
+  font-size:14px;
+}
+
+.nx57-clean-pop button:active { background:#242424; }
+.nx57-clean-pop small { color:#858585;font-size:10px; }
+
+.nx57-clean-status {
+  position:absolute !important;
+  width:1px !important;
+  height:1px !important;
+  overflow:hidden !important;
+  clip-path:inset(50%) !important;
+  white-space:nowrap !important;
+}
+
+.nx57-clean-drawer-backdrop {
+  position:fixed;
+  inset:0;
+  z-index:2147483600;
+  background:rgba(0,0,0,.62);
+  backdrop-filter:blur(5px);
+  -webkit-backdrop-filter:blur(5px);
+}
+
+.nx57-clean-drawer-backdrop[hidden] { display:none; }
+
+.nx57-clean-drawer {
+  width:min(84vw,328px);
+  height:100dvh;
+  box-sizing:border-box;
+  overflow-y:auto;
+  padding:max(18px,env(safe-area-inset-top)) 14px max(18px,env(safe-area-inset-bottom));
+  border-right:1px solid rgba(255,255,255,.1);
+  border-radius:0 24px 24px 0;
+  background:#101010;
+  box-shadow:26px 0 70px rgba(0,0,0,.58);
+}
+
+.nx57-clean-drawer-head {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:0 2px 14px;
+}
+
+.nx57-clean-drawer-head strong { font-size:19px; }
+.nx57-clean-drawer-head span { display:block;margin-top:3px;color:#878787;font-size:11px; }
+
+.nx57-clean-drawer-close {
+  width:38px;
+  height:38px;
+  border:1px solid rgba(255,255,255,.11);
+  border-radius:50%;
+  background:#202020;
+  color:#fff;
+  font-size:23px;
+}
+
+.nx57-clean-nav {
+  display:grid;
+  gap:3px;
+  padding:4px 0 12px;
+}
+
+.nx57-clean-nav button {
+  min-height:46px;
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  align-items:center;
+  gap:10px;
+  border:0;
+  border-radius:13px;
+  background:transparent;
+  color:#eee;
+  padding:10px 12px;
+  text-align:left;
+  font-size:14px;
+}
+
+.nx57-clean-nav button.is-active { background:#202020; }
+.nx57-clean-nav small { color:#777;font-size:9px;text-transform:uppercase;letter-spacing:.05em; }
+
+.nx57-clean-panel {
+  display:none;
+  border-top:1px solid rgba(255,255,255,.08);
+  padding:14px 4px 4px;
+}
+
+.nx57-clean-panel.is-open { display:block; }
+
+.nx57-clean-search {
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:7px;
+}
+
+.nx57-clean-search input,
+.nx57-clean-setting select {
+  width:100%;
+  box-sizing:border-box;
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:13px;
+  background:#191919;
+  color:#fff;
+  padding:11px 12px;
+  outline:none;
+}
+
+.nx57-clean-search button {
+  border:0;
+  border-radius:13px;
+  background:#252525;
+  color:#fff;
+  padding:0 13px;
+  font-weight:700;
+}
+
+.nx57-clean-history {
+  display:grid;
+  gap:6px;
+  margin-top:9px;
+  max-height:45dvh;
+  overflow:auto;
+}
+
+.nx57-clean-history button {
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:13px;
+  background:#171717;
+  color:#ddd;
+  padding:10px 11px;
+  text-align:left;
+  font-size:11px;
+  line-height:1.45;
+}
+
+.nx57-clean-setting { display:grid;gap:6px;margin:0 0 12px; }
+.nx57-clean-setting span { color:#8b8b8b;font-size:10px;text-transform:uppercase;letter-spacing:.07em; }
+.nx57-clean-note,.nx57-clean-system { color:#bdbdbd;font-size:12px;line-height:1.65; }
+.nx57-clean-note b,.nx57-clean-system b { color:#f1f1f1; }
+.nx57-clean-provider { margin-top:12px;padding:10px 11px;border-radius:13px;background:#181818;color:#929292;font-size:10px;line-height:1.5; }
+
+@media(max-width:430px) {
+  .nx57-clean-header { grid-template-columns:50px minmax(0,1fr) 50px;gap:12px;padding-left:20px;padding-right:20px; }
+  .nx57-clean-circle { width:50px;height:50px; }
+  .nx57-clean-seg { width:min(100%,246px); }
+  .nx57-clean-seg button { min-height:42px;font-size:15px; }
+  .nx57-clean-messages { padding-left:20px;padding-right:20px; }
+  .nx57-clean-compose-wrap { padding-left:20px;padding-right:20px; }
+  .nx57-clean-compose { grid-template-columns:42px minmax(0,1fr) 42px 46px;gap:4px; }
+  .nx57-clean-plus,.nx57-clean-mic { width:42px;height:42px; }
+  .nx57-clean-send { width:46px;height:46px; }
+}
+
+@media(max-width:360px) {
+  .nx57-clean-header { grid-template-columns:46px minmax(0,1fr) 46px;gap:9px;padding-left:14px;padding-right:14px; }
+  .nx57-clean-circle { width:46px;height:46px; }
+  .nx57-clean-seg { width:min(100%,220px);padding:4px; }
+  .nx57-clean-seg button { min-height:39px;font-size:14px; }
+  .nx57-clean-compose-wrap { padding-left:12px;padding-right:12px; }
+  .nx57-clean-messages { padding-left:16px;padding-right:16px; }
+}
