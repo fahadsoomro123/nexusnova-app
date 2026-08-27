@@ -211,7 +211,10 @@ object NexusNativeNews {
     }
 
     private fun replyJson(replyProxy: JavaScriptReplyProxy, response: JSONObject) {
-        val send = { runCatching { replyProxy.postMessage(response.toString()) } }
+        val send: () -> Unit = {
+            runCatching { replyProxy.postMessage(response.toString()) }
+            Unit
+        }
         if (Looper.myLooper() == Looper.getMainLooper()) send() else mainHandler.post(send)
     }
 
