@@ -1,0 +1,69 @@
+/* NOVA 5.7 phone viewport fit: remove the unused black gap above the persistent dock. */
+.nx57-shell-premium {
+  min-height: calc(100dvh - var(--nx-pad) - var(--nx-dock-height) - var(--nx-safe-bottom));
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.nx57-shell-premium > [data-app-mount] {
+  min-height: 0;
+  display: grid;
+}
+
+.nx57-shell-premium > [data-app-mount] > .nx-app-body.nx57 {
+  min-height: 0;
+  height: 100%;
+  display: grid;
+}
+
+.nx57-shell-premium .nx-app-body.nx57 > .nx-panel.nx57 {
+  min-height: 100%;
+  height: 100%;
+  overflow: hidden;
+  grid-template-rows: auto minmax(0, 1fr) auto auto auto;
+}
+
+.nx57-shell-premium .nx57-messages {
+  min-height: 0 !important;
+  max-height: none !important;
+  height: auto;
+  overscroll-behavior: contain;
+}
+
+.nx57-shell-premium .nx57-status {
+  justify-self: start;
+  max-width: calc(100% - 8px);
+  margin: 0 4px 2px;
+  padding: 5px 9px;
+  border: 1px solid rgba(126, 151, 181, .10);
+  border-radius: 999px;
+  background: rgba(8, 24, 40, .68);
+  color: #9fb3c8;
+  opacity: .88;
+  font-size: 9px;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 520px) {
+  .nx57-shell-premium .nx57-messages {
+    min-height: 0 !important;
+    max-height: none !important;
+  }
+}
+
+@media (max-height: 700px) {
+  .nx57-shell-premium {
+    min-height: auto;
+  }
+  .nx57-shell-premium .nx-app-body.nx57 > .nx-panel.nx57 {
+    min-height: 0;
+    height: auto;
+  }
+  .nx57-shell-premium .nx57-messages {
+    min-height: 230px !important;
+    max-height: 46dvh !important;
+  }
+}
