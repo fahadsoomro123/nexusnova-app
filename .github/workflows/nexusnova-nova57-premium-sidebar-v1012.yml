@@ -1,0 +1,228 @@
+name: NexusNova v1.0.12 NOVA 5.7 Premium Sidebar Signed
+
+on:
+  push:
+    branches: [nova-sol57-premium-sidebar-v113]
+    paths:
+      - '.github/workflows/nexusnova-nova57-premium-sidebar-v1012.yml'
+      - 'fresh-rebuild/src/features/apps/app-screen.js'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-sign-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      NEXUSNOVA_SIGNING_KEYSTORE_B64: ${{ secrets.NEXUSNOVA_KEYSTORE_BASE64 }}
+      NEXUSNOVA_SIGNING_STORE_PASSWORD: ${{ secrets.NEXUSNOVA_KEYSTORE_PASSWORD }}
+      NEXUSNOVA_SIGNING_KEY_ALIAS: ${{ secrets.NEXUSNOVA_KEY_ALIAS }}
+      NEXUSNOVA_SIGNING_KEY_PASSWORD: ${{ secrets.NEXUSNOVA_KEY_PASSWORD }}
+      NEXUSNOVA_SIGNING_STORE_FILE: /tmp/nexusnova-v1012-premium-sidebar-release.jks
+      PREMIUM_BASE: c93fe06470c5e8fde3de1ecc3214f2d2137a4250
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify premium sidebar isolated delta
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "nova-sol57-premium-sidebar-v113"
+          git cat-file -e "$PREMIUM_BASE^{commit}"
+          mapfile -t changed < <(git diff --name-only "$PREMIUM_BASE" HEAD)
+          printf 'Changed files:\n%s\n' "${changed[*]}"
+          for f in "${changed[@]}"; do
+            case "$f" in
+              .github/workflows/nexusnova-nova57-premium-sidebar-v1012.yml|\
+              fresh-rebuild/src/features/apps/app-screen.js) ;;
+              *) echo "Unexpected premium sidebar change: $f"; exit 1 ;;
+            esac
+          done
+          git diff --quiet "$PREMIUM_BASE" HEAD -- fresh-rebuild/src/emergency-sos.js
+          git diff --quiet "$PREMIUM_BASE" HEAD -- functions
+          git diff --quiet "$PREMIUM_BASE" HEAD -- NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt
+          git diff --quiet "$PREMIUM_BASE" HEAD -- fresh-rebuild/src/features/apps/nova-sol57-fresh.js
+          node --check fresh-rebuild/src/features/apps/app-screen.js
+          node --check fresh-rebuild/src/features/apps/nova-sol57-fresh.js
+          grep -Fq 'nx57-header-menu' fresh-rebuild/src/features/apps/app-screen.js
+          grep -Fq 'nx57-portal-drawer' fresh-rebuild/src/features/apps/app-screen.js
+          grep -Fq 'document.body.appendChild(drawer)' fresh-rebuild/src/features/apps/app-screen.js
+          grep -Fq 'grid-template-columns:minmax(0,1fr) 76px' fresh-rebuild/src/features/apps/app-screen.js
+          grep -Fq 'nx57-drawer-open #nxEmergencySosButton' fresh-rebuild/src/features/apps/app-screen.js
+          grep -Fq 'data-nx57-action="sidebar"' fresh-rebuild/src/features/apps/app-screen.js
+          grep -Fq 'data-nx57-drawer' fresh-rebuild/src/features/apps/nova-sol57-fresh.js
+          grep -Fq 'fun intercept(uri: Uri): WebResourceResponse? = null' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt
+          ! grep -Fq 'otaWebManager' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          test ! -e fresh-rebuild/src/features/apps/premium-speed-safe-v2.js
+          test ! -e fresh-rebuild/src/features/apps/premium-nova-internet-speed.js
+          ! grep -Fq 'nova-internet-speed' fresh-rebuild/src/features/hub/app-registry.js
+
+      - name: Wire existing native Nova Drive bridge
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/patch-native-drive.py
+          grep -Fq 'ACTION_NATIVE_DRIVE_START' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -Fq 'NexusDriveForegroundService.start(this)' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          ! grep -Fq 'otaWebManager' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Restore permanent signing key
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$NEXUSNOVA_SIGNING_KEYSTORE_B64"
+          test -n "$NEXUSNOVA_SIGNING_STORE_PASSWORD"
+          test -n "$NEXUSNOVA_SIGNING_KEY_ALIAS"
+          test -n "$NEXUSNOVA_SIGNING_KEY_PASSWORD"
+          printf '%s' "$NEXUSNOVA_SIGNING_KEYSTORE_B64" | base64 --decode > "$NEXUSNOVA_SIGNING_STORE_FILE"
+          chmod 600 "$NEXUSNOVA_SIGNING_STORE_FILE"
+          keytool -list -keystore "$NEXUSNOVA_SIGNING_STORE_FILE" -storepass "$NEXUSNOVA_SIGNING_STORE_PASSWORD" -alias "$NEXUSNOVA_SIGNING_KEY_ALIAS" >/dev/null
+
+      - name: Inject v1.0.12 vc13 release signing
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          p = Path('NexusNovaAndroid/app/build.gradle.kts')
+          s = p.read_text(encoding='utf-8')
+          s, a = re.subn(r'versionCode\s*=\s*\d+', 'versionCode = 13', s, count=1)
+          s, b = re.subn(r'versionName\s*=\s*"[^"]*"', 'versionName = "1.0.12"', s, count=1)
+          if a != 1 or b != 1:
+              raise SystemExit('Version anchors missing')
+          block = '''    signingConfigs {\n        create("nexusRelease") {\n            storeFile = file(System.getenv("NEXUSNOVA_SIGNING_STORE_FILE"))\n            storePassword = System.getenv("NEXUSNOVA_SIGNING_STORE_PASSWORD")\n            keyAlias = System.getenv("NEXUSNOVA_SIGNING_KEY_ALIAS")\n            keyPassword = System.getenv("NEXUSNOVA_SIGNING_KEY_PASSWORD")\n        }\n    }\n\n'''
+          if 'create("nexusRelease")' not in s:
+              s = s.replace('    buildTypes {\n', block + '    buildTypes {\n', 1)
+          line = '            signingConfig = signingConfigs.getByName("nexusRelease")\n'
+          if line not in s:
+              s = s.replace('        release {\n', '        release {\n' + line, 1)
+          p.write_text(s, encoding='utf-8')
+          PY
+
+      - name: Build permanent-signed premium sidebar APK
+        working-directory: NexusNovaAndroid
+        shell: bash
+        run: |
+          set -o pipefail
+          gradle --no-daemon clean assembleRelease 2>&1 | tee "$GITHUB_WORKSPACE/nova57-premium-sidebar-v1012-build.log"
+
+      - name: Verify signature and premium sidebar bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$GITHUB_WORKSPACE/NexusNovaAndroid/app/build/outputs/apk/release/app-release.apk"
+          test -s "$APK"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
+          "$APKSIGNER" verify --verbose --print-certs "$APK" | tee "$GITHUB_WORKSPACE/nova57-premium-sidebar-v1012-signature.txt"
+          grep -Eq 'Verified using v(2|3) scheme.*true' "$GITHUB_WORKSPACE/nova57-premium-sidebar-v1012-signature.txt"
+          APK="$APK" python3 - <<'PY'
+          import os, zipfile
+          apk = os.environ['APK']
+          required = {
+              'assets/www/src/features/apps/nova-sol57-fresh.js',
+              'assets/www/src/features/apps/app-screen.js',
+              'assets/www/src/emergency-sos.js',
+              'assets/www/src/features/apps/premium-qibla-safe-v2.js',
+              'assets/www/src/features/apps/news-resilient.js',
+              'assets/www/src/features/apps/premium-drive-native-v2.js',
+          }
+          forbidden = {
+              'assets/www/src/features/apps/premium-speed-safe-v2.js',
+              'assets/www/src/features/apps/premium-nova-internet-speed.js',
+          }
+          with zipfile.ZipFile(apk) as z:
+              names = set(z.namelist())
+              missing = sorted(required - names)
+              bad = sorted(forbidden & names)
+              if missing:
+                  raise SystemExit(f'Missing bundled files: {missing}')
+              if bad:
+                  raise SystemExit(f'Forbidden files bundled: {bad}')
+              app = z.read('assets/www/src/features/apps/app-screen.js').decode('utf-8')
+              nova = z.read('assets/www/src/features/apps/nova-sol57-fresh.js').decode('utf-8')
+              registry = z.read('assets/www/src/features/hub/app-registry.js').decode('utf-8')
+              for marker in ('nx57-header-menu','nx57-portal-drawer','document.body.appendChild(drawer)','grid-template-columns:minmax(0,1fr) 76px','nx57-drawer-open #nxEmergencySosButton'):
+                  if marker not in app:
+                      raise SystemExit(f'Premium sidebar marker missing: {marker}')
+              for marker in ('data-nx57-plus','data-nx57-model-button','data-nx57-drawer'):
+                  if marker not in nova:
+                      raise SystemExit(f'NOVA marker missing: {marker}')
+              if 'class="nx57-controls"' in nova:
+                  raise SystemExit('Legacy giant control grid returned')
+              if 'nova-internet-speed' in registry:
+                  raise SystemExit('Internet Speed registry entry returned')
+          print('NOVA 5.7 premium sidebar APK bundle checks: PASS')
+          PY
+
+      - name: Prepare verified update
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT=/tmp/nexusnova-v1012-premium-sidebar
+          rm -rf "$OUT"
+          mkdir -p "$OUT"
+          cp NexusNovaAndroid/app/build/outputs/apk/release/app-release.apk "$OUT/NexusNova-v1.0.12-vc13-NOVA-5.7-Premium-Sidebar-SIGNED.apk"
+          sha256sum "$OUT/NexusNova-v1.0.12-vc13-NOVA-5.7-Premium-Sidebar-SIGNED.apk" > "$OUT/SHA256.txt"
+          cp "$GITHUB_WORKSPACE/nova57-premium-sidebar-v1012-build.log" "$OUT/build.log"
+          cp "$GITHUB_WORKSPACE/nova57-premium-sidebar-v1012-signature.txt" "$OUT/signature.txt"
+          cat > "$OUT/BUILD-STATUS.txt" <<EOF
+          NexusNova v1.0.12 vc13
+          NOVA AI: 5.7 Sol premium true sidebar
+          Premium sidebar base commit: $PREMIUM_BASE
+          Source commit: $GITHUB_SHA
+          Full-app remote OTA override: DISABLED
+          Mining/reward/core source delta: NONE
+          Sidebar viewport portal: VERIFIED IN BUNDLE
+          Direct premium menu button: VERIFIED IN BUNDLE
+          Search layout overflow guard: VERIFIED IN BUNDLE
+          Sidebar SOS suppression: VERIFIED IN BUNDLE
+          SOS functionality source: UNCHANGED
+          Permanent signature verification: PASS
+          RESULT: SIGNED PREMIUM SIDEBAR APK READY FOR PHONE TEST
+          EOF
+          sed -i 's/^          //' "$OUT/BUILD-STATUS.txt"
+
+      - name: Publish verified APK to apk-builds branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'NexusNova Signed Release Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git fetch origin apk-builds
+          rm -rf /tmp/nx-v1012-publish
+          git worktree add /tmp/nx-v1012-publish origin/apk-builds
+          cd /tmp/nx-v1012-publish
+          rm -rf nova-v1.0.12-premium-sidebar
+          mkdir -p nova-v1.0.12-premium-sidebar
+          cp -a /tmp/nexusnova-v1012-premium-sidebar/. nova-v1.0.12-premium-sidebar/
+          git add -A nova-v1.0.12-premium-sidebar
+          git commit -m "Publish NexusNova v1.0.12 NOVA 5.7 premium sidebar $GITHUB_SHA"
+          git pull --rebase origin apk-builds
+          git push origin HEAD:apk-builds
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NexusNova-v1.0.12-vc13-NOVA-5.7-Premium-Sidebar-SIGNED
+          path: /tmp/nexusnova-v1012-premium-sidebar/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Remove signing material
+        if: always()
+        shell: bash
+        run: rm -f "$NEXUSNOVA_SIGNING_STORE_FILE"
