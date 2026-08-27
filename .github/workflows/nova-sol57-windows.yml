@@ -1,0 +1,63 @@
+name: NOVA 5.7 Sol Windows
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'NOVA-PC/**'
+      - '.github/workflows/nova-sol57-windows.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Prepare icon
+        shell: pwsh
+        run: Copy-Item 'icons/icon-512.png' 'NOVA-PC/icon.png' -Force
+
+      - name: Install dependencies
+        working-directory: NOVA-PC
+        run: npm install --no-audit --no-fund
+
+      - name: Validate desktop code
+        working-directory: NOVA-PC
+        run: node --check main.js
+
+      - name: Build Windows installer
+        working-directory: NOVA-PC
+        run: npm run dist
+
+      - name: Collect installer
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release-windows | Out-Null
+          Copy-Item 'NOVA-PC/dist/*.exe' release-windows/ -Force
+          Get-ChildItem 'release-windows/*.exe' | ForEach-Object {
+            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash
+            "$($_.Name)  $hash" | Add-Content release-windows/SHA256.txt
+          }
+          'NOVA 5.7 Sol Windows installer - local Ollama bridge enabled - Windows code signing not configured' | Set-Content release-windows/BUILD-STATUS.txt
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: NOVA-5.7-Sol-Windows
+          path: release-windows/
+          if-no-files-found: error
+          retention-days: 14
