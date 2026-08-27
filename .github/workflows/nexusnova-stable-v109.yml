@@ -120,17 +120,41 @@ jobs:
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
           "$APKSIGNER" verify --verbose --print-certs "$APK" | tee "$GITHUB_WORKSPACE/stable-v109-signature.txt"
           grep -Eq 'Verified using v(2|3) scheme.*true' "$GITHUB_WORKSPACE/stable-v109-signature.txt"
-          unzip -l "$APK" | grep -Fq 'assets/www/src/features/apps/premium-qibla-safe-v2.js'
-          unzip -l "$APK" | grep -Fq 'assets/www/src/features/apps/news-resilient.js'
-          unzip -l "$APK" | grep -Fq 'assets/www/src/features/apps/articles-suite.js'
-          unzip -l "$APK" | grep -Fq 'assets/www/src/features/apps/premium-drive-native-v2.js'
-          ! unzip -l "$APK" | grep -Fq 'assets/www/src/features/apps/premium-speed-safe-v2.js'
-          ! unzip -l "$APK" | grep -Fq 'assets/www/src/features/apps/premium-nova-internet-speed.js'
-          unzip -p "$APK" assets/www/src/features/apps/premium-qibla-safe-v2.js | grep -Fq 'EMIT_INTERVAL_MS = 52'
-          ! unzip -p "$APK" assets/www/src/features/apps/premium-qibla-safe-v2.js | grep -Fq 'requestAnimationFrame'
-          unzip -p "$APK" assets/www/src/features/apps/news-resilient.js | grep -Fq 'bridgeFeed(query)'
-          ! unzip -p "$APK" assets/www/src/features/hub/app-registry.js | grep -Fq 'nova-internet-speed'
-          unzip -p "$APK" classes.dex | strings | grep -Fq 'NexusNativeNews'
+          APK="$APK" python3 - <<'PY'
+          import os, zipfile
+          apk = os.environ['APK']
+          required = {
+              'assets/www/src/features/apps/premium-qibla-safe-v2.js',
+              'assets/www/src/features/apps/news-resilient.js',
+              'assets/www/src/features/apps/articles-suite.js',
+              'assets/www/src/features/apps/premium-drive-native-v2.js',
+          }
+          forbidden = {
+              'assets/www/src/features/apps/premium-speed-safe-v2.js',
+              'assets/www/src/features/apps/premium-nova-internet-speed.js',
+          }
+          with zipfile.ZipFile(apk) as z:
+              names = set(z.namelist())
+              missing = sorted(required - names)
+              present_forbidden = sorted(forbidden & names)
+              if missing:
+                  raise SystemExit(f'Missing bundled files: {missing}')
+              if present_forbidden:
+                  raise SystemExit(f'Forbidden speed files still bundled: {present_forbidden}')
+              qibla = z.read('assets/www/src/features/apps/premium-qibla-safe-v2.js').decode('utf-8')
+              news = z.read('assets/www/src/features/apps/news-resilient.js').decode('utf-8')
+              registry = z.read('assets/www/src/features/hub/app-registry.js').decode('utf-8')
+              if 'EMIT_INTERVAL_MS = 52' not in qibla or 'requestAnimationFrame' in qibla:
+                  raise SystemExit('Qibla stability guard verification failed')
+              if 'bridgeFeed(query)' not in news:
+                  raise SystemExit('News bridge verification failed')
+              if 'nova-internet-speed' in registry:
+                  raise SystemExit('Internet Speed registry entry still present')
+              dex = b''.join(z.read(n) for n in names if n.startswith('classes') and n.endswith('.dex'))
+              if b'NexusNativeNews' not in dex:
+                  raise SystemExit('Native News class not found in compiled dex')
+          print('APK bundled stability checks: PASS')
+          PY
           printf 'source_commit=%s\nrelease=v1.0.9-vc10-stable\nota_remote_override=disabled\n' "$GITHUB_SHA" > "$GITHUB_WORKSPACE/stable-v109-source.txt"
 
       - name: Publish verified stable APK
