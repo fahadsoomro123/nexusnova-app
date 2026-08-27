@@ -112,8 +112,9 @@
   function scopeVoiceLauncher() {
     const launch = $('nxSol57VoiceLaunch');
     if (!launch) return;
-    launch.setAttribute('aria-label', 'Open NOVA Live Voice');
-    launch.style.display = aiVisible() || liveVoiceOpen() ? '' : 'none';
+    if (launch.getAttribute('aria-label') !== 'Open NOVA Live Voice') launch.setAttribute('aria-label', 'Open NOVA Live Voice');
+    const wanted = aiVisible() || liveVoiceOpen() ? '' : 'none';
+    if (launch.style.display !== wanted) launch.style.display = wanted;
   }
 
   function makeReadinessRow(label, state, detail) {
@@ -168,17 +169,19 @@
     if (!paired() || !navigator.onLine || now - lastHealthProbe < 30000) return;
     lastHealthProbe = now;
     const c = readCfg();
-    let endpoint = String(c.endpoint || '').trim().replace(/\/+$/, '');
+    const endpoint = String(c.endpoint || '').trim().replace(/\/+$/, '');
     if (!endpoint) return;
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 6000);
     try {
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 6000);
       const r = await fetch(endpoint + '/health', { cache: 'no-store', signal: ctrl.signal });
-      clearTimeout(timer);
       if (!r.ok) return;
       const d = await r.json().catch(() => ({}));
       if (d?.model) saveCfg({ localObservedModel: String(d.model).slice(0, 160), localModelVerifiedAt: Date.now() });
-    } catch (_) {}
+    } catch (_) {
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   function sync() {
@@ -209,7 +212,7 @@
   }
 
   window.NexusNovaSol57Final = Object.freeze({
-    version: '1.0.0',
+    version: '1.0.1',
     sync,
     paired,
     liveVoiceOpen,
