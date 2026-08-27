@@ -31,33 +31,45 @@ export function renderQiblaSafeV2() {
 
   const rotor = root.querySelector('[data-qb-rotor]');
   const pointer = root.querySelector('[data-qb-pointer]');
+  const svg = pointer?.ownerSVGElement || rotor?.ownerSVGElement || null;
   let restoreRotor = null;
   let restorePointer = null;
 
-  // The compass artwork itself never needs to rotate. Keeping this large,
-  // filtered SVG group completely static prevents Android WebView from
-  // re-rasterizing the whole face on every sensor sample.
+  // Keep the large compass face completely static. Android WebView can corrupt
+  // SVG tiles when a large filtered group shares a composited surface with a
+  // continuously transformed child. Removing only the face shadow/filter keeps
+  // the original artwork/math while preventing that re-rasterization path.
   if (rotor instanceof SVGElement) {
     const ownSetAttribute = rotor.setAttribute;
     const nativeSetAttribute = ownSetAttribute.bind(rotor);
     rotor.removeAttribute('transform');
+    rotor.removeAttribute('filter');
     rotor.setAttribute = (name, value) => {
-      if (String(name).toLowerCase() === 'transform') return;
+      const key = String(name).toLowerCase();
+      if (key === 'transform' || key === 'filter') return;
       nativeSetAttribute(name, value);
     };
     restoreRotor = () => {
       try { delete rotor.setAttribute; } catch { rotor.setAttribute = ownSetAttribute; }
       rotor.removeAttribute('transform');
+      rotor.removeAttribute('filter');
     };
+  }
+
+  if (svg instanceof SVGElement) {
+    // Do not promote the whole 1000x1000 compass into a GPU layer. Only the
+    // needle receives a transform; the face remains a normal static paint.
+    svg.style.willChange = 'auto';
+    svg.style.backfaceVisibility = 'visible';
+    svg.style.transform = 'none';
   }
 
   let targetPointer = NaN;
   let displayedPointer = NaN;
 
-  // Move only the small needle. The original SVG glow filter on the moving
-  // group is deliberately disabled while live because several Android WebView
-  // GPU drivers corrupt filtered SVG layers during rapid transforms. The
-  // original artwork, bearing math and compass face are otherwise untouched.
+  // Move only the small needle. The glow filter and forced will-change layer
+  // are disabled because both are known to trigger broken SVG tile composition
+  // on older Android WebView/GPU combinations.
   if (pointer instanceof SVGElement) {
     const ownSetAttribute = pointer.setAttribute;
     const nativeSetAttribute = ownSetAttribute.bind(pointer);
@@ -67,12 +79,13 @@ export function renderQiblaSafeV2() {
     pointer.removeAttribute('filter');
     pointer.style.transformBox = 'view-box';
     pointer.style.transformOrigin = '50% 50%';
-    pointer.style.willChange = 'transform';
-    pointer.style.backfaceVisibility = 'hidden';
+    pointer.style.willChange = 'auto';
+    pointer.style.backfaceVisibility = 'visible';
     if (Number.isFinite(displayedPointer)) pointer.style.transform = `rotate(${displayedPointer.toFixed(3)}deg)`;
 
     pointer.setAttribute = (name, value) => {
-      if (String(name).toLowerCase() === 'transform') {
+      const key = String(name).toLowerCase();
+      if (key === 'transform') {
         const angle = rotateValue(value);
         if (Number.isFinite(angle)) {
           targetPointer = angle;
@@ -80,7 +93,7 @@ export function renderQiblaSafeV2() {
         }
         return;
       }
-      if (String(name).toLowerCase() === 'filter') return;
+      if (key === 'filter') return;
       nativeSetAttribute(name, value);
     };
 
@@ -130,8 +143,6 @@ export function renderQiblaSafeV2() {
     lastFrameAt = now;
 
     if (Number.isFinite(targetHeading)) {
-      // Time-based low-pass interpolation feels like a damped gimbal instead
-      // of following noisy sensor samples one-for-one.
       const headingAlpha = 1 - Math.exp(-dt / 145);
       displayedHeading = easedAngle(displayedHeading, targetHeading, headingAlpha);
       if (now - lastEmitAt >= 32) {
@@ -149,9 +160,6 @@ export function renderQiblaSafeV2() {
     frameId = requestAnimationFrame(animate);
   };
 
-  // Capture the raw streams before the original listener. Only one normalized,
-  // smoothed stream is allowed through, so duplicate absolute/relative events
-  // can no longer fight each other and make the needle jitter.
   window.addEventListener('deviceorientationabsolute', intercept, true);
   window.addEventListener('deviceorientation', intercept, true);
   frameId = requestAnimationFrame(animate);
