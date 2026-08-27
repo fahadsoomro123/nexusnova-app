@@ -5,9 +5,11 @@ on:
     paths:
       - 'js/nexusnova-ai-sol57-readiness-v1.js'
       - 'js/nexusnova-ai-sol57-live-voice-v1.js'
+      - 'js/nexusnova-ai-sol57-final-v1.js'
       - 'js/nexusnova-android-callerid-v1.js'
       - 'NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ai-sol57-readiness-v1.js'
       - 'NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ai-sol57-live-voice-v1.js'
+      - 'NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ai-sol57-final-v1.js'
       - 'NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-android-callerid-v1.js'
       - '.github/workflows/nova-sol57-readiness.yml'
   workflow_dispatch:
@@ -24,12 +26,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Check readiness and live voice syntax
+      - name: Check readiness, live voice and final integration syntax
         run: |
           node --check js/nexusnova-ai-sol57-readiness-v1.js
           node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ai-sol57-readiness-v1.js
           node --check js/nexusnova-ai-sol57-live-voice-v1.js
           node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ai-sol57-live-voice-v1.js
+          node --check js/nexusnova-ai-sol57-final-v1.js
+          node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ai-sol57-final-v1.js
           node --check js/nexusnova-android-callerid-v1.js
           node --check NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-android-callerid-v1.js
       - name: Verify wiring, truthful tiers and mirrors
@@ -38,6 +42,8 @@ jobs:
           grep -q 'nexusnova-ai-sol57-readiness-v1.js' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-android-callerid-v1.js
           grep -q 'nexusnova-ai-sol57-live-voice-v1.js' js/nexusnova-android-callerid-v1.js
           grep -q 'nexusnova-ai-sol57-live-voice-v1.js' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-android-callerid-v1.js
+          grep -q 'nexusnova-ai-sol57-final-v1.js' js/nexusnova-android-callerid-v1.js
+          grep -q 'nexusnova-ai-sol57-final-v1.js' NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-android-callerid-v1.js
           grep -q 'NOVA System Check' js/nexusnova-ai-sol57-readiness-v1.js
           grep -q 'prompt_draft' js/nexusnova-ai-sol57-readiness-v1.js
           grep -q 'Research mode routes to NOVA' js/nexusnova-ai-sol57-readiness-v1.js
@@ -49,5 +55,10 @@ jobs:
           grep -q 'Google Cloud neural voice' js/nexusnova-ai-sol57-live-voice-v1.js
           grep -q '/api/voice/synthesize' js/nexusnova-ai-sol57-live-voice-v1.js
           grep -q 'NexusNovaSol57LiveVoice' js/nexusnova-ai-sol57-live-voice-v1.js
+          grep -q 'local Ollama model' js/nexusnova-ai-sol57-final-v1.js
+          grep -q '__nxSol57SavedConfig' js/nexusnova-ai-sol57-final-v1.js
+          grep -q 'prevents duplicate TTS' js/nexusnova-ai-sol57-final-v1.js
+          grep -q 'NexusNovaSol57Final' js/nexusnova-ai-sol57-final-v1.js
           cmp -s js/nexusnova-ai-sol57-readiness-v1.js NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ai-sol57-readiness-v1.js
           cmp -s js/nexusnova-ai-sol57-live-voice-v1.js NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ai-sol57-live-voice-v1.js
+          cmp -s js/nexusnova-ai-sol57-final-v1.js NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ai-sol57-final-v1.js
