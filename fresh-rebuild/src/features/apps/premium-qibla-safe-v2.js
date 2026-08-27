@@ -64,7 +64,7 @@ export function renderQiblaSafeV2() {
   }
 
   // Only the small needle moves. CSS transition gives the same damped/gimbal
-  // feel without a permanent requestAnimationFrame loop, which removes the
+  // feel without a permanent continuous frame loop, which removes the
   // continuous CPU/GPU load that could take down the WebView renderer.
   let visualPointer = NaN;
   if (pointer instanceof SVGElement) {
