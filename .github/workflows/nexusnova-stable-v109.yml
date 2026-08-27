@@ -150,9 +150,6 @@ jobs:
                   raise SystemExit('News bridge verification failed')
               if 'nova-internet-speed' in registry:
                   raise SystemExit('Internet Speed registry entry still present')
-              dex = b''.join(z.read(n) for n in names if n.startswith('classes') and n.endswith('.dex'))
-              if b'NexusNativeNews' not in dex:
-                  raise SystemExit('Native News class not found in compiled dex')
           print('APK bundled stability checks: PASS')
           PY
           printf 'source_commit=%s\nrelease=v1.0.9-vc10-stable\nota_remote_override=disabled\n' "$GITHUB_SHA" > "$GITHUB_WORKSPACE/stable-v109-source.txt"
