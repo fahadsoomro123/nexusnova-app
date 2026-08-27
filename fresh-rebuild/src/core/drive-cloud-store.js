@@ -4,6 +4,8 @@ import { firestoreDb, waitForFirebaseUser } from './firebase-backend.js';
 const CLOUD_VERSION = 2;
 const MAX_TRIPS = 90;
 const MAX_DAYS = 400;
+const lastSyncedSignature = new Map();
+const syncInFlight = new Map();
 
 function finiteNonNegative(value) {
   const number = Number(value);
@@ -63,6 +65,10 @@ export function normalizeDriveStore(raw) {
     .sort((a, b) => new Date(b.endedAt).getTime() - new Date(a.endedAt).getTime())
     .slice(0, MAX_TRIPS);
   return { version:CLOUD_VERSION, days:normalizeDays(raw?.days), trips };
+}
+
+function signature(store) {
+  return JSON.stringify(normalizeDriveStore(store));
 }
 
 function aggregateTrips(trips) {
@@ -133,16 +139,32 @@ async function writeRemote(user, store) {
     trips:normalized.trips,
     updatedAt:serverTimestamp()
   });
+  lastSyncedSignature.set(user.uid, signature(normalized));
   return normalized;
+}
+
+async function mergeAndWrite(user, local) {
+  const existing = syncInFlight.get(user.uid);
+  if (existing) return existing;
+  const operation = (async () => {
+    const remote = await readRemote(user);
+    const merged = mergeDriveStores(local, remote);
+    const mergedSignature = signature(merged);
+    if (lastSyncedSignature.get(user.uid) === mergedSignature) return merged;
+    return writeRemote(user, merged);
+  })().finally(() => {
+    if (syncInFlight.get(user.uid) === operation) syncInFlight.delete(user.uid);
+  });
+  syncInFlight.set(user.uid, operation);
+  return operation;
 }
 
 export async function syncDriveCloudStore(localRaw) {
   const local = normalizeDriveStore(localRaw);
   const user = await activeUser();
   if (!user) return { store:local, cloud:false };
-  const remote = await readRemote(user);
-  const merged = mergeDriveStores(local, remote);
-  await writeRemote(user, merged);
+  const merged = await mergeAndWrite(user, local);
+  lastSyncedSignature.set(user.uid, signature(merged));
   return { store:merged, cloud:true };
 }
 
@@ -150,8 +172,9 @@ export async function pushDriveCloudStore(localRaw) {
   const local = normalizeDriveStore(localRaw);
   const user = await activeUser();
   if (!user) return { store:local, cloud:false };
-  const remote = await readRemote(user);
-  const merged = mergeDriveStores(local, remote);
-  await writeRemote(user, merged);
+  const localSignature = signature(local);
+  if (lastSyncedSignature.get(user.uid) === localSignature) return { store:local, cloud:true, unchanged:true };
+  const merged = await mergeAndWrite(user, local);
+  lastSyncedSignature.set(user.uid, signature(merged));
   return { store:merged, cloud:true };
 }
