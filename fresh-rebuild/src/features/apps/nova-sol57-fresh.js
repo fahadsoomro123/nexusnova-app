@@ -11,97 +11,9 @@ const SETTINGS_KEY = 'nexus_nova57_settings_v1';
 const HISTORY_PREFIX = 'nexus_nova57_history_v1_';
 const NOTES_KEY = 'nexus_nova57_notes_v1';
 
-function ensureStyle() {
-  if (document.getElementById('nx-nova57-style')) return;
-  const style = document.createElement('style');
-  style.id = 'nx-nova57-style';
-  style.textContent = `
-    .nx57{display:grid;gap:10px;position:relative;min-height:0}
-    .nx57-top{display:flex;justify-content:center;align-items:center;padding:2px 0 4px}
-    .nx57-seg{display:flex;padding:3px;border:1px solid rgba(148,163,184,.16);border-radius:999px;background:rgba(7,17,31,.55)}
-    .nx57-seg button{min-width:86px;border:0;background:transparent;color:inherit;padding:8px 14px;border-radius:999px;font-weight:850;font-size:12px;letter-spacing:.02em}
-    .nx57-seg button.is-active{background:rgba(74,110,255,.22);box-shadow:inset 0 0 0 1px rgba(100,130,255,.25)}
-    .nx57-messages{display:grid;align-content:start;gap:14px;min-height:300px;max-height:56vh;overflow:auto;padding:4px 3px 8px;scrollbar-width:thin}
-    .nx57-msg{max-width:min(92%,760px);line-height:1.52;overflow-wrap:anywhere}
-    .nx57-msg.user{justify-self:end;padding:10px 12px;border-radius:18px;background:rgba(49,82,168,.25);border:1px solid rgba(126,151,255,.14)}
-    .nx57-msg.bot{justify-self:start;padding:2px 2px}
-    .nx57-msg strong{display:block;font-size:10px;opacity:.58;margin-bottom:5px;text-transform:uppercase;letter-spacing:.07em}
-    .nx57-msg p{white-space:pre-wrap;margin:0}
-    .nx57-attachments{display:flex;gap:6px;flex-wrap:wrap}
-    .nx57-chip{display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:10px;background:rgba(42,70,100,.25);border:1px solid rgba(148,163,184,.12);font-size:10px}
-    .nx57-chip button{border:0;background:transparent;color:inherit;font-size:14px;padding:0 1px}
-    .nx57-compose{position:relative;border:1px solid rgba(148,163,184,.2);border-radius:22px;background:#091728;box-shadow:0 10px 28px rgba(0,0,0,.16);padding:10px}
-    .nx57-compose textarea{display:block;width:100%;box-sizing:border-box;resize:none;min-height:42px;max-height:150px;border:0;outline:0;background:transparent;color:#f4f8ff;padding:2px 4px 8px;font:500 15px/1.45 system-ui,-apple-system,sans-serif}
-    .nx57-compose-row{display:flex;align-items:center;gap:7px;min-width:0}
-    .nx57-iconbtn,.nx57-modelbtn{border:1px solid rgba(148,163,184,.17);background:#10243b;color:#fff;height:38px;border-radius:12px;font-weight:800}
-    .nx57-iconbtn{width:38px;display:grid;place-items:center;font-size:17px;flex:0 0 auto}
-    .nx57-modelbtn{max-width:190px;min-width:0;padding:0 11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}
-    .nx57-compose-spacer{flex:1 1 auto}
-    .nx57-send{width:38px;height:38px;border-radius:50%;border:0;background:linear-gradient(145deg,#2468ff,#30c7b9);color:#fff;font-size:17px;display:grid;place-items:center;flex:0 0 auto}
-    .nx57-send:disabled{opacity:.45}
-    .nx57-pop{position:absolute;left:10px;bottom:56px;z-index:40;width:min(320px,calc(100vw - 48px));max-height:min(55vh,430px);overflow:auto;border:1px solid rgba(148,163,184,.17);border-radius:16px;background:#0b1726;color:#eef6ff;box-shadow:0 20px 55px rgba(0,0,0,.45);padding:8px}
-    .nx57-pop[hidden]{display:none}
-    .nx57-modelpop{left:54px}
-    .nx57-menu-title{font-size:10px;opacity:.6;text-transform:uppercase;letter-spacing:.08em;padding:7px 9px 4px}
-    .nx57-menu-btn{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;border:0;background:transparent;color:inherit;border-radius:11px;padding:10px;text-align:left;font-weight:700;font-size:12px}
-    .nx57-menu-btn:hover,.nx57-menu-btn:focus{background:rgba(80,112,150,.16);outline:0}
-    .nx57-menu-btn small{font-weight:600;opacity:.58}
-    .nx57-menu-btn[disabled]{opacity:.45}
-    .nx57-setting{display:grid;gap:6px;padding:8px 9px}
-    .nx57-setting span{font-size:10px;opacity:.62;text-transform:uppercase;letter-spacing:.07em}
-    .nx57-setting select{width:100%;border:1px solid rgba(148,163,184,.18);border-radius:11px;background:#081421;color:#fff;padding:9px 10px}
-    .nx57-route-note{margin:4px 9px 9px;padding:8px 9px;border-radius:10px;background:rgba(45,70,105,.2);font-size:10px;line-height:1.45;opacity:.78}
-    .nx57-status{font-size:10px;opacity:.68;margin:0;padding:0 4px;line-height:1.4}
-    .nx57-drawer-backdrop{position:fixed;inset:0;z-index:2147482500;background:rgba(1,7,15,.58);backdrop-filter:blur(2px)}
-    .nx57-drawer-backdrop[hidden]{display:none}
-    .nx57-drawer{position:absolute;left:0;top:0;bottom:0;width:min(88vw,350px);background:#081421;border-right:1px solid rgba(148,163,184,.16);box-shadow:20px 0 60px rgba(0,0,0,.42);padding:14px;overflow:auto}
-    .nx57-drawer-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px}
-    .nx57-drawer-head strong{font-size:15px}.nx57-drawer-head span{display:block;font-size:10px;opacity:.58;margin-top:2px}
-    .nx57-drawer-close{width:34px;height:34px;border-radius:11px;border:1px solid rgba(148,163,184,.16);background:#10243b;color:#fff}
-    .nx57-side-nav{display:grid;gap:5px;margin:9px 0 12px}
-    .nx57-side-nav button{display:flex;justify-content:space-between;gap:10px;border:0;border-radius:11px;background:transparent;color:inherit;text-align:left;padding:10px;font-weight:750}
-    .nx57-side-nav button.is-active{background:rgba(74,110,255,.16)}
-    .nx57-side-nav small{opacity:.52}
-    .nx57-side-panel{display:none;border-top:1px solid rgba(148,163,184,.12);padding-top:12px}
-    .nx57-side-panel.is-open{display:block}
-    .nx57-search{display:grid;grid-template-columns:1fr auto;gap:7px}
-    .nx57-search input{border:1px solid rgba(148,163,184,.18);border-radius:11px;background:#091728;color:#fff;padding:10px}
-    .nx57-search button{border:0;border-radius:11px;background:#16304d;color:#fff;padding:0 12px;font-weight:800}
-    .nx57-history{display:grid;gap:6px;max-height:46vh;overflow:auto;margin-top:8px}
-    .nx57-history button{text-align:left;border:1px solid rgba(148,163,184,.11);border-radius:11px;background:rgba(17,37,58,.65);color:inherit;padding:9px;font-size:11px}
-    .nx57-note{font-size:11px;opacity:.76;line-height:1.5}
-    .nx57-system{font-size:11px;line-height:1.65}
-    .nx57-system b{font-weight:800}
-    @media(max-width:520px){
-      .nx57-messages{min-height:270px;max-height:52vh}
-      .nx57-modelbtn{max-width:145px}
-      .nx57-pop{width:min(300px,calc(100vw - 34px))}
-      .nx57-drawer{width:min(91vw,340px)}
-    }
-
-    /* NOVA-screen-only safe placement override: keeps SOS away from composer, dock and keyboard. */
-    #nxEmergencySosButton{
-      top:clamp(150px,38vh,320px)!important;
-      bottom:auto!important;
-      right:0!important;
-    }
-    #nxEmergencySosButton[data-active="1"],#nxEmergencySosButton[data-busy="1"]{
-      top:clamp(150px,38vh,320px)!important;
-      bottom:auto!important;
-      right:10px!important;
-    }
-    #nxEmergencySosEdit{
-      top:calc(clamp(150px,38vh,320px) - 42px)!important;
-      bottom:auto!important;
-      right:15px!important;
-    }
-  `;
-  document.head.appendChild(style);
-}
-
 function node(html) {
   const root = document.createElement('div');
-  root.className = 'nx-app-body nx57';
+  root.className = 'nx-app-body nx57-clean-screen';
   root.innerHTML = html;
   return root;
 }
@@ -110,9 +22,9 @@ function safeSettings() {
   const value = loadJson(SETTINGS_KEY, {});
   return {
     mode: value.mode === 'work' ? 'work' : 'chat',
-    model: ['NOVA 5.7 Sol','Terra','Luna','NOVA 5.6'].includes(value.model) ? value.model : 'NOVA 5.7 Sol',
+    model: ['NOVA 5.7 Sol', 'Terra', 'Luna', 'NOVA 5.6'].includes(value.model) ? value.model : 'NOVA 5.7 Sol',
     speed: value.speed === 'Fast' ? 'Fast' : 'Standard',
-    intelligence: ['Max','Extra High','High','Medium','Light'].includes(value.intelligence) ? value.intelligence : 'High'
+    intelligence: ['Max', 'Extra High', 'High', 'Medium', 'Light'].includes(value.intelligence) ? value.intelligence : 'High'
   };
 }
 
@@ -165,7 +77,7 @@ async function deterministic(text) {
     const p = await readUserProfile();
     const n = Number(p.balance);
     return Number.isFinite(n)
-      ? `Your current NexusNova balance is ${n.toLocaleString(undefined,{maximumFractionDigits:4})} NVX.`
+      ? `Your current NexusNova balance is ${n.toLocaleString(undefined, { maximumFractionDigits: 4 })} NVX.`
       : 'Your NVX balance is unavailable right now.';
   }
   if (/mining.*(status|active|timer)|(?:status|active).*mining/i.test(t)) {
@@ -188,10 +100,7 @@ function systemInstruction(settings) {
   const work = settings.mode === 'work'
     ? 'Work mode is active. Prioritize structured coding, website, SEO, research, planning and debugging help.'
     : 'Chat mode is active. Be conversational, useful and concise.';
-  return `You are ${PRODUCT}, the NexusNova AI assistant. ${work}
-Match the user's language. The UI profile is ${settings.model}; speed preference is ${settings.speed}; intelligence preference is ${settings.intelligence}.
-Never claim to be an OpenAI proprietary model. Never invent account balances, mining data, transactions, live prices, rewards, provider results or completed actions.
-Never ask for passwords, seed phrases or private keys. For current/live research, clearly say when live browsing/provider access is not available.`;
+  return `You are ${PRODUCT}, the NexusNova AI assistant. ${work}\nMatch the user's language. The UI profile is ${settings.model}; speed preference is ${settings.speed}; intelligence preference is ${settings.intelligence}.\nNever claim to be an OpenAI proprietary model. Never invent account balances, mining data, transactions, live prices, rewards, provider results or completed actions.\nNever ask for passwords, seed phrases or private keys. For current/live research, clearly say when live browsing/provider access is not available.`;
 }
 
 async function providerReply(text, settings, history, attachments) {
@@ -217,93 +126,111 @@ async function providerReply(text, settings, history, attachments) {
 }
 
 export function renderNovaSol57() {
-  ensureStyle();
+  document.documentElement.classList.add('nx57-clean-mode');
   const settings = safeSettings();
   const root = node(`
-    <section class="nx-panel nx57">
-      <div class="nx57-top">
-        <div class="nx57-seg" role="tablist" aria-label="NOVA mode">
-          <button type="button" data-nx57-mode="chat">CHAT</button>
-          <button type="button" data-nx57-mode="work">WORK</button>
+    <header class="nx57-clean-header" aria-label="NOVA controls">
+      <button class="nx57-clean-circle" type="button" data-nx57-clean-menu aria-label="Open NOVA sidebar">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 8h14M5 16h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+      <div class="nx57-clean-seg" role="tablist" aria-label="NOVA mode">
+        <button type="button" data-nx57-mode="chat">Chat</button>
+        <button type="button" data-nx57-mode="work">Work</button>
+      </div>
+      <button class="nx57-clean-circle" type="button" data-nx57-new aria-label="New NOVA chat">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 11.5a7 7 0 1 1-2.05-4.95M19 5v6h-6" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </header>
+
+    <main class="nx57-clean-main">
+      <div class="nx57-clean-messages" data-nx57-messages>
+        <div class="nx57-clean-empty" data-nx57-empty>
+          <button class="nx57-clean-quick" type="button" data-nx57-quick="Check build workflow changes">Check build workflow changes</button>
+          <button class="nx57-clean-quick" type="button" data-nx57-quick="Review my NexusNova project status">Review NexusNova project status</button>
+          <button class="nx57-clean-quick" type="button" data-nx57-quick="Help me with my next NexusNova task">Continue my next NexusNova task</button>
         </div>
       </div>
 
-      <div class="nx57-messages" data-nx57-messages></div>
-      <div class="nx57-attachments" data-nx57-files></div>
-
-      <div class="nx57-compose">
-        <textarea rows="1" maxlength="5000" data-nx57-input placeholder="Message NOVA 5.7 Sol…"></textarea>
-        <div class="nx57-compose-row">
-          <button class="nx57-iconbtn" type="button" data-nx57-plus aria-label="Open tools">＋</button>
-          <button class="nx57-modelbtn" type="button" data-nx57-model-button aria-label="Model and intelligence settings"></button>
-          <span class="nx57-compose-spacer"></span>
-          <button class="nx57-iconbtn" type="button" data-nx57-mic aria-label="Voice input">🎙</button>
-          <button class="nx57-send" type="button" data-nx57-send aria-label="Send">➤</button>
-        </div>
-
-        <div class="nx57-pop" data-nx57-tools hidden>
-          <div class="nx57-menu-title">Add & tools</div>
-          <button class="nx57-menu-btn" type="button" data-nx57-action="files"><span>📎 Files / photos</span><small>metadata only</small></button>
-          <button class="nx57-menu-btn" type="button" data-nx57-action="camera"><span>📷 Camera</span><small>where supported</small></button>
-          <button class="nx57-menu-btn" type="button" data-nx57-action="sidebar"><span>☰ Search / Library</span><small>recents & tools</small></button>
-          <button class="nx57-menu-btn" type="button" data-nx57-action="system"><span>✓ System Check</span><small>real capability state</small></button>
-          <button class="nx57-menu-btn" type="button" data-nx57-action="video"><span>🎬 Video Studio</span><small>backend not connected</small></button>
-          <button class="nx57-menu-btn" type="button" data-nx57-action="remember"><span>✦ Remember note</span><small>this device</small></button>
-          <button class="nx57-menu-btn" type="button" data-nx57-action="speak"><span>🔊 Speak last</span><small>device TTS</small></button>
-          <button class="nx57-menu-btn" type="button" data-nx57-action="clear"><span>＋ New chat</span><small>clear local history</small></button>
-        </div>
-
-        <div class="nx57-pop nx57-modelpop" data-nx57-model-menu hidden>
-          <div class="nx57-menu-title">NOVA controls</div>
-          <label class="nx57-setting"><span>Model</span><select data-nx57-model><option>NOVA 5.7 Sol</option><option>Terra</option><option>Luna</option><option>NOVA 5.6</option></select></label>
-          <label class="nx57-setting"><span>Speed</span><select data-nx57-speed><option>Standard</option><option>Fast</option></select></label>
-          <label class="nx57-setting"><span>Intelligence</span><select data-nx57-intelligence><option>Max</option><option>Extra High</option><option>High</option><option>Medium</option><option>Light</option></select></label>
-          <p class="nx57-route-note">Provider in this build: Firebase AI → Google AI backend → ${PROVIDER_MODEL}. Local PC/Ollama and GitHub agent are not connected yet.</p>
-        </div>
-      </div>
-
-      <input type="file" data-nx57-picker multiple hidden>
-      <input type="file" data-nx57-camera accept="image/*" capture="environment" hidden>
-      <p class="nx57-status" data-nx57-status>${PRODUCT} ready • Cloud route available on demand.</p>
-
-      <div class="nx57-drawer-backdrop" data-nx57-drawer hidden>
-        <aside class="nx57-drawer" role="dialog" aria-modal="true" aria-label="NOVA library and tools">
-          <div class="nx57-drawer-head">
-            <div><strong>${PRODUCT}</strong><span>Search, recents & tools</span></div>
-            <button class="nx57-drawer-close" type="button" data-nx57-drawer-close aria-label="Close">×</button>
+      <div class="nx57-clean-footer">
+        <div class="nx57-clean-files" data-nx57-files></div>
+        <div class="nx57-clean-compose-wrap">
+          <div class="nx57-clean-compose">
+            <button class="nx57-clean-plus" type="button" data-nx57-plus aria-label="Open tools">＋</button>
+            <textarea rows="1" maxlength="5000" data-nx57-input placeholder="Ask NOVA"></textarea>
+            <button class="nx57-clean-mic" type="button" data-nx57-mic aria-label="Voice input">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Zm-6 9a6 6 0 0 0 12 0M12 18v3M9 21h6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            </button>
+            <button class="nx57-clean-send" type="button" data-nx57-send aria-label="Send">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 14-7-4.5 14-2.5-5-7-2Z" fill="currentColor"/><path d="m12 14 7-9" fill="none" stroke="#fff" stroke-width="1.4" stroke-linecap="round"/></svg>
+            </button>
           </div>
-          <nav class="nx57-side-nav">
-            <button type="button" data-nx57-side="history">Search & Recents <small>local</small></button>
-            <button type="button" data-nx57-side="projects">Projects <small>not connected</small></button>
-            <button type="button" data-nx57-side="remote">Remote / GitHub <small>Phase B</small></button>
-            <button type="button" data-nx57-side="scheduled">Scheduled <small>not connected</small></button>
-            <button type="button" data-nx57-side="plugins">Plugins / Tools <small>current</small></button>
-            <button type="button" data-nx57-side="system">System Check <small>live state</small></button>
-          </nav>
 
-          <section class="nx57-side-panel" data-nx57-side-panel="history">
-            <div class="nx57-search"><input data-nx57-search placeholder="Search recent NOVA messages"><button type="button" data-nx57-search-go>SEARCH</button></div>
-            <div class="nx57-history" data-nx57-history></div>
-          </section>
-          <section class="nx57-side-panel" data-nx57-side-panel="projects">
-            <p class="nx57-note"><b>Projects</b><br>No remote project workspace is connected in this build. Local chat history remains available.</p>
-          </section>
-          <section class="nx57-side-panel" data-nx57-side-panel="remote">
-            <p class="nx57-note"><b>Remote / GitHub</b><br>Not connected. NOVA cannot read, branch, commit or create PRs from the app yet. This is Phase B.</p>
-          </section>
-          <section class="nx57-side-panel" data-nx57-side-panel="scheduled">
-            <p class="nx57-note"><b>Scheduled</b><br>No NOVA scheduler backend is connected in this Android build.</p>
-          </section>
-          <section class="nx57-side-panel" data-nx57-side-panel="plugins">
-            <p class="nx57-note"><b>Available now</b><br>File picker (metadata only), camera picker where supported, device speech output, WebView voice recognition where exposed, local notes, recent-message search and System Check.</p>
-          </section>
-          <section class="nx57-side-panel nx57-system" data-nx57-side-panel="system"></section>
-        </aside>
+          <div class="nx57-clean-pop" data-nx57-tools hidden>
+            <div class="nx57-clean-pop-title">Add & tools</div>
+            <button type="button" data-nx57-action="files"><span>Files / photos</span><small>metadata only</small></button>
+            <button type="button" data-nx57-action="camera"><span>Camera</span><small>where supported</small></button>
+            <button type="button" data-nx57-action="search"><span>Search & recents</span><small>local</small></button>
+            <button type="button" data-nx57-action="settings"><span>NOVA settings</span><small>model & intelligence</small></button>
+            <button type="button" data-nx57-action="remember"><span>Remember note</span><small>this device</small></button>
+            <button type="button" data-nx57-action="speak"><span>Speak last reply</span><small>device TTS</small></button>
+            <button type="button" data-nx57-action="system"><span>System check</span><small>live capability state</small></button>
+          </div>
+        </div>
       </div>
-    </section>
+    </main>
+
+    <input type="file" data-nx57-picker multiple hidden>
+    <input type="file" data-nx57-camera accept="image/*" capture="environment" hidden>
+    <p class="nx57-clean-status" data-nx57-status aria-live="polite">${PRODUCT} ready.</p>
+
+    <div class="nx57-clean-drawer-backdrop" data-nx57-clean-drawer hidden>
+      <aside class="nx57-clean-drawer" role="dialog" aria-modal="true" aria-label="NOVA sidebar">
+        <div class="nx57-clean-drawer-head">
+          <div><strong>${PRODUCT}</strong><span>Search, tools & workspace</span></div>
+          <button class="nx57-clean-drawer-close" type="button" data-nx57-clean-drawer-close aria-label="Close">×</button>
+        </div>
+
+        <nav class="nx57-clean-nav">
+          <button type="button" data-nx57-clean-side="history"><span>Search & Recents</span><small>local</small></button>
+          <button type="button" data-nx57-clean-side="settings"><span>NOVA Settings</span><small>local</small></button>
+          <button type="button" data-nx57-clean-side="remote"><span>Remote / GitHub</span><small>not connected</small></button>
+          <button type="button" data-nx57-clean-side="scheduled"><span>Scheduled</span><small>not connected</small></button>
+          <button type="button" data-nx57-clean-side="tools"><span>Plugins / Tools</span><small>current</small></button>
+          <button type="button" data-nx57-clean-side="system"><span>System Check</span><small>live</small></button>
+          <button type="button" data-nx57-clean-side="hub"><span>Back to Nova Hub</span><small>exit</small></button>
+        </nav>
+
+        <section class="nx57-clean-panel" data-nx57-clean-panel="history">
+          <div class="nx57-clean-search"><input data-nx57-search placeholder="Search recent NOVA messages"><button type="button" data-nx57-search-go>Search</button></div>
+          <div class="nx57-clean-history" data-nx57-history></div>
+        </section>
+
+        <section class="nx57-clean-panel" data-nx57-clean-panel="settings">
+          <label class="nx57-clean-setting"><span>Model</span><select data-nx57-model><option>NOVA 5.7 Sol</option><option>Terra</option><option>Luna</option><option>NOVA 5.6</option></select></label>
+          <label class="nx57-clean-setting"><span>Speed</span><select data-nx57-speed><option>Standard</option><option>Fast</option></select></label>
+          <label class="nx57-clean-setting"><span>Intelligence</span><select data-nx57-intelligence><option>Max</option><option>Extra High</option><option>High</option><option>Medium</option><option>Light</option></select></label>
+          <div class="nx57-clean-provider">Current cloud provider: Firebase AI → Google AI backend → ${PROVIDER_MODEL}. Local PC/Ollama and GitHub agent are not connected yet.</div>
+        </section>
+
+        <section class="nx57-clean-panel" data-nx57-clean-panel="remote">
+          <p class="nx57-clean-note"><b>Remote / GitHub</b><br>Not connected. NOVA cannot read repositories, create branches, commit changes or create PRs from the app yet.</p>
+        </section>
+
+        <section class="nx57-clean-panel" data-nx57-clean-panel="scheduled">
+          <p class="nx57-clean-note"><b>Scheduled</b><br>No NOVA scheduler backend is connected in this Android build.</p>
+        </section>
+
+        <section class="nx57-clean-panel" data-nx57-clean-panel="tools">
+          <p class="nx57-clean-note"><b>Available now</b><br>Local recents, file picker metadata, camera picker where supported, device speech output, WebView voice recognition where exposed, local notes and system check.</p>
+        </section>
+
+        <section class="nx57-clean-panel nx57-clean-system" data-nx57-clean-panel="system"></section>
+      </aside>
+    </div>
   `);
 
   const messages = root.querySelector('[data-nx57-messages]');
+  const empty = root.querySelector('[data-nx57-empty]');
   const input = root.querySelector('[data-nx57-input]');
   const send = root.querySelector('[data-nx57-send]');
   const picker = root.querySelector('[data-nx57-picker]');
@@ -311,12 +238,10 @@ export function renderNovaSol57() {
   const filesBox = root.querySelector('[data-nx57-files]');
   const status = root.querySelector('[data-nx57-status]');
   const toolsMenu = root.querySelector('[data-nx57-tools]');
-  const modelMenu = root.querySelector('[data-nx57-model-menu]');
-  const modelButton = root.querySelector('[data-nx57-model-button]');
-  const drawer = root.querySelector('[data-nx57-drawer]');
+  const drawer = root.querySelector('[data-nx57-clean-drawer]');
   const search = root.querySelector('[data-nx57-search]');
   const historyBox = root.querySelector('[data-nx57-history]');
-  const systemPanel = root.querySelector('[data-nx57-side-panel="system"]');
+  const systemPanel = root.querySelector('[data-nx57-clean-panel="system"]');
 
   let key = '';
   let history = [];
@@ -325,22 +250,25 @@ export function renderNovaSol57() {
   let busy = false;
   let recognition = null;
 
-  const closeMenus = () => {
-    toolsMenu.hidden = true;
-    modelMenu.hidden = true;
-  };
+  const closeTools = () => { toolsMenu.hidden = true; };
+  const closeDrawer = () => { drawer.hidden = true; };
 
   const autoSize = () => {
     input.style.height = 'auto';
     input.style.height = `${Math.min(input.scrollHeight, 150)}px`;
   };
 
+  const syncEmpty = () => {
+    empty.hidden = Boolean(messages.querySelector('.nx57-clean-msg'));
+  };
+
   const addMessage = (text, role, persist = true) => {
     const div = document.createElement('article');
-    div.className = `nx57-msg ${role === 'user' ? 'user' : 'bot'}`;
+    div.className = `nx57-clean-msg ${role === 'user' ? 'user' : 'bot'}`;
     div.innerHTML = `<strong>${role === 'user' ? 'You' : PRODUCT}</strong><p></p>`;
     div.querySelector('p').textContent = text;
-    messages.appendChild(div);
+    messages.insertBefore(div, empty);
+    syncEmpty();
     messages.scrollTop = messages.scrollHeight;
     if (persist && key) {
       history.push({ id: uid('nova57'), role, text: String(text).slice(0, 12000), at: Date.now() });
@@ -354,46 +282,18 @@ export function renderNovaSol57() {
     const rows = history.filter(turn => !q || turn.text.toLowerCase().includes(q)).slice().reverse();
     historyBox.innerHTML = rows.length
       ? rows.map(turn => `<button type="button" data-nx57-history-id="${escapeHtml(turn.id)}"><b>${turn.role === 'user' ? 'You' : PRODUCT}</b><br>${escapeHtml(turn.text.slice(0, 180))}</button>`).join('')
-      : '<p class="nx57-note">No matching recent messages.</p>';
+      : '<p class="nx57-clean-note">No matching recent messages.</p>';
     historyBox.querySelectorAll('[data-nx57-history-id]').forEach(button => button.addEventListener('click', () => {
       const turn = history.find(x => x.id === button.dataset.nx57HistoryId);
-      if (turn) {
-        input.value = turn.text;
-        autoSize();
-        drawer.hidden = true;
-        input.focus();
-      }
+      if (!turn) return;
+      input.value = turn.text;
+      autoSize();
+      closeDrawer();
+      input.focus();
     }));
   };
 
-  const openSide = name => {
-    drawer.hidden = false;
-    root.querySelectorAll('[data-nx57-side]').forEach(button => button.classList.toggle('is-active', button.dataset.nx57Side === name));
-    root.querySelectorAll('[data-nx57-side-panel]').forEach(panel => panel.classList.toggle('is-open', panel.dataset.nx57SidePanel === name));
-    if (name === 'history') renderHistory(search.value);
-    if (name === 'system') renderSystem();
-  };
-
-  const applySettings = () => {
-    root.querySelectorAll('[data-nx57-mode]').forEach(button => button.classList.toggle('is-active', button.dataset.nx57Mode === settings.mode));
-    root.querySelector('[data-nx57-model]').value = settings.model;
-    root.querySelector('[data-nx57-speed]').value = settings.speed;
-    root.querySelector('[data-nx57-intelligence]').value = settings.intelligence;
-    modelButton.textContent = `${settings.model} · ${settings.intelligence} ▾`;
-    saveSettings(settings);
-  };
-
-  const renderFiles = () => {
-    filesBox.innerHTML = attachments.map((file, index) =>
-      `<span class="nx57-chip">${escapeHtml(file.name)} • ${formatBytes(file.size)} <button type="button" data-nx57-remove="${index}" aria-label="Remove">×</button></span>`
-    ).join('');
-    filesBox.querySelectorAll('[data-nx57-remove]').forEach(button => button.addEventListener('click', () => {
-      attachments.splice(Number(button.dataset.nx57Remove), 1);
-      renderFiles();
-    }));
-  };
-
-  function renderSystem() {
+  const renderSystem = () => {
     systemPanel.innerHTML = `
       <b>System Check</b><br>
       Product: ${PRODUCT}<br>
@@ -407,7 +307,40 @@ export function renderNovaSol57() {
       File content processing: metadata only in this build<br>
       Video provider: not configured
     `;
-  }
+  };
+
+  const openPanel = name => {
+    if (name === 'hub') {
+      closeDrawer();
+      const hub = document.querySelector('.nx-dock__item[data-route="hub"]');
+      if (hub) hub.click();
+      else window.history.back();
+      return;
+    }
+    drawer.hidden = false;
+    root.querySelectorAll('[data-nx57-clean-side]').forEach(button => button.classList.toggle('is-active', button.dataset.nx57CleanSide === name));
+    root.querySelectorAll('[data-nx57-clean-panel]').forEach(panel => panel.classList.toggle('is-open', panel.dataset.nx57CleanPanel === name));
+    if (name === 'history') renderHistory(search.value);
+    if (name === 'system') renderSystem();
+  };
+
+  const applySettings = () => {
+    root.querySelectorAll('[data-nx57-mode]').forEach(button => button.classList.toggle('is-active', button.dataset.nx57Mode === settings.mode));
+    root.querySelector('[data-nx57-model]').value = settings.model;
+    root.querySelector('[data-nx57-speed]').value = settings.speed;
+    root.querySelector('[data-nx57-intelligence]').value = settings.intelligence;
+    saveSettings(settings);
+  };
+
+  const renderFiles = () => {
+    filesBox.innerHTML = attachments.map((file, index) =>
+      `<span class="nx57-clean-chip">${escapeHtml(file.name)} • ${formatBytes(file.size)} <button type="button" data-nx57-remove="${index}" aria-label="Remove">×</button></span>`
+    ).join('');
+    filesBox.querySelectorAll('[data-nx57-remove]').forEach(button => button.addEventListener('click', () => {
+      attachments.splice(Number(button.dataset.nx57Remove), 1);
+      renderFiles();
+    }));
+  };
 
   const addPickedFiles = picked => {
     let total = attachments.reduce((sum, f) => sum + f.size, 0);
@@ -419,8 +352,22 @@ export function renderNovaSol57() {
     }
     renderFiles();
     status.textContent = attachments.length
-      ? `${attachments.length} attachment(s) selected • this build sends metadata only.`
+      ? `${attachments.length} attachment(s) selected. This build sends metadata only.`
       : `${PRODUCT} ready.`;
+  };
+
+  const clearChat = () => {
+    history = [];
+    if (key) saveJson(key, history);
+    messages.querySelectorAll('.nx57-clean-msg').forEach(message => message.remove());
+    lastReply = '';
+    closeTools();
+    closeDrawer();
+    syncEmpty();
+    status.textContent = `${PRODUCT} ready.`;
+    input.value = '';
+    autoSize();
+    input.focus();
   };
 
   const ask = async () => {
@@ -428,7 +375,7 @@ export function renderNovaSol57() {
     if (!text || busy) return;
     busy = true;
     send.disabled = true;
-    closeMenus();
+    closeTools();
     status.textContent = `${PRODUCT} thinking…`;
     addMessage(text, 'user');
     input.value = '';
@@ -461,9 +408,8 @@ export function renderNovaSol57() {
   historyKey().then(value => {
     key = value;
     history = normalizeHistory(loadJson(key, []));
-    const recent = history.slice(-10);
-    if (recent.length) recent.forEach(turn => addMessage(turn.text, turn.role, false));
-    else addMessage(`Assalam-o-Alaikum. I am ${PRODUCT}. Chat ya Work choose karke apna task bhejein.`, 'assistant', false);
+    history.slice(-10).forEach(turn => addMessage(turn.text, turn.role, false));
+    syncEmpty();
   });
 
   root.querySelectorAll('[data-nx57-mode]').forEach(button => button.addEventListener('click', () => {
@@ -471,35 +417,28 @@ export function renderNovaSol57() {
     applySettings();
   }));
 
+  root.querySelector('[data-nx57-clean-menu]').addEventListener('click', () => openPanel('history'));
+  root.querySelector('[data-nx57-new]').addEventListener('click', clearChat);
+
+  root.querySelectorAll('[data-nx57-quick]').forEach(button => button.addEventListener('click', () => {
+    input.value = button.dataset.nx57Quick || '';
+    autoSize();
+    input.focus();
+  }));
+
   root.querySelector('[data-nx57-plus]').addEventListener('click', event => {
     event.stopPropagation();
-    const opening = toolsMenu.hidden;
-    closeMenus();
-    toolsMenu.hidden = !opening;
+    toolsMenu.hidden = !toolsMenu.hidden;
   });
-
-  modelButton.addEventListener('click', event => {
-    event.stopPropagation();
-    const opening = modelMenu.hidden;
-    closeMenus();
-    modelMenu.hidden = !opening;
-  });
-
-  root.querySelector('[data-nx57-model]').addEventListener('change', event => { settings.model = event.target.value; applySettings(); });
-  root.querySelector('[data-nx57-speed]').addEventListener('change', event => { settings.speed = event.target.value; applySettings(); });
-  root.querySelector('[data-nx57-intelligence]').addEventListener('change', event => { settings.intelligence = event.target.value; applySettings(); });
 
   root.querySelectorAll('[data-nx57-action]').forEach(button => button.addEventListener('click', () => {
     const action = button.dataset.nx57Action;
-    closeMenus();
+    closeTools();
     if (action === 'files') picker.click();
     if (action === 'camera') camera.click();
-    if (action === 'sidebar') openSide('history');
-    if (action === 'system') openSide('system');
-    if (action === 'video') {
-      openSide('plugins');
-      status.textContent = 'Video Studio backend is not configured in this build.';
-    }
+    if (action === 'search') openPanel('history');
+    if (action === 'settings') openPanel('settings');
+    if (action === 'system') openPanel('system');
     if (action === 'remember') {
       const text = input.value.trim();
       if (!text) {
@@ -512,16 +451,18 @@ export function renderNovaSol57() {
       }
     }
     if (action === 'speak') status.textContent = speak(lastReply) ? 'Speaking last NOVA reply…' : 'Speech output is unavailable.';
-    if (action === 'clear') {
-      history = [];
-      if (key) saveJson(key, history);
-      messages.innerHTML = '';
-      lastReply = '';
-      addMessage(`New ${PRODUCT} chat started.`, 'assistant', false);
-      renderHistory();
-      status.textContent = `${PRODUCT} ready.`;
-    }
   }));
+
+  root.querySelectorAll('[data-nx57-clean-side]').forEach(button => button.addEventListener('click', () => openPanel(button.dataset.nx57CleanSide)));
+  root.querySelector('[data-nx57-clean-drawer-close]').addEventListener('click', closeDrawer);
+  drawer.addEventListener('click', event => { if (event.target === drawer) closeDrawer(); });
+
+  root.querySelector('[data-nx57-model]').addEventListener('change', event => { settings.model = event.target.value; applySettings(); });
+  root.querySelector('[data-nx57-speed]').addEventListener('change', event => { settings.speed = event.target.value; applySettings(); });
+  root.querySelector('[data-nx57-intelligence]').addEventListener('change', event => { settings.intelligence = event.target.value; applySettings(); });
+
+  root.querySelector('[data-nx57-search-go]').addEventListener('click', () => renderHistory(search.value));
+  search.addEventListener('keydown', event => { if (event.key === 'Enter') renderHistory(search.value); });
 
   picker.addEventListener('change', () => {
     addPickedFiles([...(picker.files || [])]);
@@ -532,13 +473,6 @@ export function renderNovaSol57() {
     addPickedFiles([...(camera.files || [])]);
     camera.value = '';
   });
-
-  root.querySelectorAll('[data-nx57-side]').forEach(button => button.addEventListener('click', () => openSide(button.dataset.nx57Side)));
-  root.querySelector('[data-nx57-drawer-close]').addEventListener('click', () => { drawer.hidden = true; });
-  drawer.addEventListener('click', event => { if (event.target === drawer) drawer.hidden = true; });
-
-  root.querySelector('[data-nx57-search-go]').addEventListener('click', () => renderHistory(search.value));
-  search.addEventListener('keydown', event => { if (event.key === 'Enter') renderHistory(search.value); });
 
   root.querySelector('[data-nx57-mic]').addEventListener('click', () => {
     const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -572,15 +506,15 @@ export function renderNovaSol57() {
   send.addEventListener('click', ask);
 
   root.addEventListener('click', event => {
-    if (!event.target.closest('[data-nx57-tools]') && !event.target.closest('[data-nx57-plus]') &&
-        !event.target.closest('[data-nx57-model-menu]') && !event.target.closest('[data-nx57-model-button]')) {
-      closeMenus();
-    }
+    if (!event.target.closest('[data-nx57-tools]') && !event.target.closest('[data-nx57-plus]')) closeTools();
   });
 
   applySettings();
   autoSize();
+  syncEmpty();
+
   root.__cleanup = () => {
+    document.documentElement.classList.remove('nx57-clean-mode');
     try { recognition?.stop?.(); } catch {}
     try { window.speechSynthesis?.cancel?.(); } catch {}
   };
