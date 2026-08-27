@@ -37,7 +37,17 @@
       .then(()=>load("./js/nexusnova-ai-power-v2.js?v=1","nxNovaAIPowerV2Script"))
       .then(()=>load("./js/nexusnova-ai-v6.js?v=6","nxNovaAIV6Script"))
       .then(()=>load("./js/nexusnova-ai-v6-connection-test-v1.js?v=1","nxNovaAIV6ConnectionTestV1Script"))
-      .then(()=>load("./js/nexusnova-ai-chatstyle-v1.js?v=1","nxNovaAIChatStyleV1Script"));
+      .then(()=>load("./js/nexusnova-ai-chatstyle-v1.js?v=1","nxNovaAIChatStyleV1Script"))
+      .then(()=>load("./js/nexusnova-ai-sol57-v1.js?v=1","nxNovaAISol57V1Script"))
+      .then(()=>load("./js/nexusnova-ai-sol57-context-v1.js?v=1","nxNovaAISol57ContextV1Script"))
+      .then(()=>load("./js/nexusnova-ai-sol57-files-v1.js?v=1","nxNovaAISol57FilesV1Script"))
+      .then(()=>load("./js/nexusnova-ai-sol57-interface-v1.js?v=1","nxNovaAISol57InterfaceV1Script"))
+      .then(()=>load("./js/nexusnova-ai-sol57-history-v1.js?v=1","nxNovaAISol57HistoryV1Script"))
+      .then(()=>load("./js/nexusnova-ai-sol57-features-v1.js?v=1","nxNovaAISol57FeaturesV1Script"))
+      .then(()=>load("./js/nexusnova-ai-sol57-video-v1.js?v=1","nxNovaAISol57VideoV1Script"))
+      .then(()=>load("./js/nexusnova-ai-sol57-live-voice-v1.js?v=1","nxNovaAISol57LiveVoiceV1Script"))
+      .then(()=>load("./js/nexusnova-ai-sol57-readiness-v1.js?v=1","nxNovaAISol57ReadinessV1Script"))
+      .then(()=>load("./js/nexusnova-ai-sol57-final-v1.js?v=1","nxNovaAISol57FinalV1Script"));
   }
 
   installLogoutClearHook();window.addEventListener("nexusaccountready",syncActiveAccount);window.addEventListener("nexusaccountcleared",syncActiveAccount);syncActiveAccount();loadNovaAIEnhancements();
