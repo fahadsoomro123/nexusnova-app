@@ -39,6 +39,7 @@ jobs:
           test -s fresh-rebuild/src/features/apps/premium-speed-safe-v2.js
           test -s fresh-rebuild/src/features/apps/premium-qibla-safe-v2.js
           test -s fresh-rebuild/src/features/apps/premium-drive-native-v2.js
+          test -s fresh-rebuild/src/features/apps/premium-drive-tools.js
           test -s fresh-rebuild/src/features/apps/news-resilient.js
           test -s fresh-rebuild/src/features/apps/articles-suite.js
           test -s NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusDriveForegroundService.kt
@@ -55,19 +56,6 @@ jobs:
           node --check fresh-rebuild/src/features/apps/news-resilient.js
           node --check fresh-rebuild/src/features/apps/articles-suite.js
           node --check fresh-rebuild/src/features/apps/app-screen.js
-
-      - name: Stage Fresh app into Android assets
-        shell: bash
-        run: |
-          set -euo pipefail
-          WEB=NexusNovaAndroid/app/src/main/assets/www
-          rm -rf "$WEB"
-          mkdir -p "$WEB"
-          cp -a fresh-rebuild/. "$WEB/"
-          printf 'source_commit=%s\nsource_tree=fresh-rebuild\nrelease=v1.0.6-vc7-redo-phone-test\n' "$GITHUB_SHA" > "$WEB/NEXUSNOVA_SOURCE.txt"
-          test -s "$WEB/src/features/apps/premium-drive-tools.js"
-          test -s "$WEB/src/features/apps/premium-drive-native-v2.js"
-          test -s "$WEB/assets/styles/bugfix-redo-v2.css"
 
       - name: Wire verified OTA launcher
         shell: bash
@@ -166,7 +154,7 @@ jobs:
           set -o pipefail
           gradle --no-daemon clean assembleRelease 2>&1 | tee "$GITHUB_WORKSPACE/redo-v106-build.log"
 
-      - name: Verify APK signature and source
+      - name: Verify APK signature and bundled bugfix source
         shell: bash
         run: |
           set -euo pipefail
@@ -176,11 +164,17 @@ jobs:
           test -n "$APKSIGNER"
           "$APKSIGNER" verify --verbose --print-certs "$APK" | tee "$GITHUB_WORKSPACE/redo-v106-signature.txt"
           grep -Eq 'Verified using v(2|3) scheme.*true' "$GITHUB_WORKSPACE/redo-v106-signature.txt"
-          unzip -p "$APK" assets/www/NEXUSNOVA_SOURCE.txt | tee "$GITHUB_WORKSPACE/redo-v106-source.txt"
-          grep -Fq "source_commit=$GITHUB_SHA" "$GITHUB_WORKSPACE/redo-v106-source.txt"
           unzip -l "$APK" | grep -Fq 'assets/www/src/features/apps/premium-drive-tools.js'
           unzip -l "$APK" | grep -Fq 'assets/www/src/features/apps/premium-drive-native-v2.js'
+          unzip -l "$APK" | grep -Fq 'assets/www/src/features/apps/premium-qibla-safe-v2.js'
+          unzip -l "$APK" | grep -Fq 'assets/www/src/features/apps/premium-speed-safe-v2.js'
+          unzip -l "$APK" | grep -Fq 'assets/www/src/features/apps/news-resilient.js'
+          unzip -l "$APK" | grep -Fq 'assets/www/src/features/apps/articles-suite.js'
           unzip -l "$APK" | grep -Fq 'assets/www/assets/styles/bugfix-redo-v2.css'
+          unzip -p "$APK" assets/www/src/features/apps/app-screen.js | grep -Fq 'driveNativeV2Renderers'
+          unzip -p "$APK" assets/www/src/features/apps/app-screen.js | grep -Fq 'qiblaSafeV2Renderers'
+          unzip -p "$APK" assets/www/src/features/apps/app-screen.js | grep -Fq 'speedSafeV2Renderers'
+          printf 'source_commit=%s\nrelease=v1.0.6-vc7-redo-phone-test\n' "$GITHUB_SHA" > "$GITHUB_WORKSPACE/redo-v106-source.txt"
 
       - name: Publish verified phone-test APK
         shell: bash
