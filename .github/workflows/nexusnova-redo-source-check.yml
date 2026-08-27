@@ -7,6 +7,7 @@ on:
       - 'fresh-rebuild/**'
       - 'firestore.rules'
       - 'NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt'
+      - 'NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusNativeAppCheck.kt'
       - '.github/workflows/nexusnova-redo-source-check.yml'
   workflow_dispatch:
 
@@ -43,6 +44,15 @@ jobs:
           grep -Fq "driveNativeV2Renderers" fresh-rebuild/src/features/apps/app-screen.js
           grep -Fq "syncDriveCloudStore" fresh-rebuild/src/features/apps/premium-drive-native-v2.js
           grep -Fq "match /users/{uid}/driveData/{docId}" firestore.rules
+
+          # Qibla keeps the gimbal path but removes the large filtered face layer.
+          grep -Fq "rotor.removeAttribute('filter')" fresh-rebuild/src/features/apps/premium-qibla-safe-v2.js
+          grep -Fq "pointer.style.willChange = 'auto'" fresh-rebuild/src/features/apps/premium-qibla-safe-v2.js
+
+          # Android News uses the trusted native bridge before WebView network fallback.
+          grep -Fq "bridgeFeed(query)" fresh-rebuild/src/features/apps/news-resilient.js
+          grep -Fq 'ACTION_FETCH_NEWS = "fetchNews"' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusNativeAppCheck.kt
+          grep -Fq 'news.google.com/rss/search' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusNativeAppCheck.kt
 
           # Stable APK must not allow stale remote web files to override signed assets.
           grep -Fq "fun intercept(uri: Uri): WebResourceResponse? = null" NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt
