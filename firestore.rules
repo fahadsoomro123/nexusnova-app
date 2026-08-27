@@ -382,6 +382,17 @@ service cloud.firestore {
         && (sellerOrderTransitionAllowed() || buyerOrderTransitionAllowed());
     }
 
+    function validDriveDataState() {
+      return request.resource.data.keys().hasAll(['version','days','trips','updatedAt'])
+        && request.resource.data.keys().hasOnly(['version','days','trips','updatedAt'])
+        && request.resource.data.version == 2
+        && request.resource.data.days is map
+        && request.resource.data.days.size() <= 400
+        && request.resource.data.trips is list
+        && request.resource.data.trips.size() <= 90
+        && request.resource.data.updatedAt == request.time;
+    }
+
     match /users/{uid} {
       allow read: if owns(uid);
       allow create: if owns(uid) && validProfileCreate(uid);
@@ -392,6 +403,12 @@ service cloud.firestore {
           || validMiningRollover()
           || validMiningRepair()
         ));
+      allow delete: if false;
+    }
+
+    match /users/{uid}/driveData/{docId} {
+      allow read: if owns(uid) && docId == 'state';
+      allow create, update: if owns(uid) && docId == 'state' && validDriveDataState();
       allow delete: if false;
     }
 
