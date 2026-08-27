@@ -14,14 +14,16 @@ function shortestDelta(from, to) {
 
 function easedAngle(previous, next, alpha) {
   if (!Number.isFinite(previous)) return next;
-  const delta = shortestDelta(previous, next);
-  if (Math.abs(delta) < 0.04) return previous;
-  return previous + delta * alpha;
+  return previous + shortestDelta(previous, next) * alpha;
 }
 
 function rotateValue(value) {
   const match = String(value || '').match(/rotate\(\s*(-?\d+(?:\.\d+)?)/i);
   return match ? Number(match[1]) : NaN;
+}
+
+function normalized(value) {
+  return ((Number(value) % 360) + 360) % 360;
 }
 
 export function renderQiblaSafeV2() {
@@ -35,10 +37,9 @@ export function renderQiblaSafeV2() {
   let restoreRotor = null;
   let restorePointer = null;
 
-  // Keep the large compass face completely static. Android WebView can corrupt
-  // SVG tiles when a large filtered group shares a composited surface with a
-  // continuously transformed child. Removing only the face shadow/filter keeps
-  // the original artwork/math while preventing that re-rasterization path.
+  // The face never moves. Removing only the large SVG filter keeps the artwork
+  // intact while avoiding the Android WebView tile-corruption path seen on the
+  // tested device.
   if (rotor instanceof SVGElement) {
     const ownSetAttribute = rotor.setAttribute;
     const nativeSetAttribute = ownSetAttribute.bind(rotor);
@@ -57,39 +58,37 @@ export function renderQiblaSafeV2() {
   }
 
   if (svg instanceof SVGElement) {
-    // Do not promote the whole 1000x1000 compass into a GPU layer. Only the
-    // needle receives a transform; the face remains a normal static paint.
     svg.style.willChange = 'auto';
-    svg.style.backfaceVisibility = 'visible';
     svg.style.transform = 'none';
+    svg.style.backfaceVisibility = 'visible';
   }
 
-  let targetPointer = NaN;
-  let displayedPointer = NaN;
-
-  // Move only the small needle. The glow filter and forced will-change layer
-  // are disabled because both are known to trigger broken SVG tile composition
-  // on older Android WebView/GPU combinations.
+  // Only the small needle moves. CSS transition gives the same damped/gimbal
+  // feel without a permanent requestAnimationFrame loop, which removes the
+  // continuous CPU/GPU load that could take down the WebView renderer.
+  let visualPointer = NaN;
   if (pointer instanceof SVGElement) {
     const ownSetAttribute = pointer.setAttribute;
     const nativeSetAttribute = ownSetAttribute.bind(pointer);
     const initial = rotateValue(pointer.getAttribute('transform'));
-    if (Number.isFinite(initial)) targetPointer = displayedPointer = initial;
+    if (Number.isFinite(initial)) visualPointer = initial;
     pointer.removeAttribute('transform');
     pointer.removeAttribute('filter');
     pointer.style.transformBox = 'view-box';
     pointer.style.transformOrigin = '50% 50%';
+    pointer.style.transition = 'transform 125ms cubic-bezier(.22,.72,.22,1)';
     pointer.style.willChange = 'auto';
     pointer.style.backfaceVisibility = 'visible';
-    if (Number.isFinite(displayedPointer)) pointer.style.transform = `rotate(${displayedPointer.toFixed(3)}deg)`;
+    if (Number.isFinite(visualPointer)) pointer.style.transform = `rotate(${visualPointer.toFixed(3)}deg)`;
 
     pointer.setAttribute = (name, value) => {
       const key = String(name).toLowerCase();
       if (key === 'transform') {
         const angle = rotateValue(value);
         if (Number.isFinite(angle)) {
-          targetPointer = angle;
-          if (!Number.isFinite(displayedPointer)) displayedPointer = angle;
+          if (!Number.isFinite(visualPointer)) visualPointer = angle;
+          else visualPointer += shortestDelta(normalized(visualPointer), normalized(angle));
+          pointer.style.transform = `rotate(${visualPointer.toFixed(3)}deg)`;
         }
         return;
       }
@@ -99,25 +98,47 @@ export function renderQiblaSafeV2() {
 
     restorePointer = () => {
       try { delete pointer.setAttribute; } catch { pointer.setAttribute = ownSetAttribute; }
+      pointer.style.transition = '';
       pointer.style.willChange = '';
       pointer.style.backfaceVisibility = '';
     };
   }
 
   let disposed = false;
-  let targetHeading = NaN;
-  let displayedHeading = NaN;
+  let smoothedHeading = NaN;
+  let pendingHeading = NaN;
   let lastAbsoluteAt = 0;
-  let lastFrameAt = performance.now();
   let lastEmitAt = 0;
-  let frameId = 0;
+  let emitTimer = 0;
+  const EMIT_INTERVAL_MS = 52;
 
   const emit = heading => {
+    if (disposed || !Number.isFinite(heading)) return;
+    lastEmitAt = performance.now();
+    const value = normalized(heading);
     const synthetic = new Event('deviceorientation');
     Object.defineProperty(synthetic, '__nxQiblaNormalized', { value: true });
-    Object.defineProperty(synthetic, 'webkitCompassHeading', { value: ((heading % 360) + 360) % 360 });
-    Object.defineProperty(synthetic, 'alpha', { value: 360 - (((heading % 360) + 360) % 360) });
+    Object.defineProperty(synthetic, 'webkitCompassHeading', { value });
+    Object.defineProperty(synthetic, 'alpha', { value: 360 - value });
     window.dispatchEvent(synthetic);
+  };
+
+  const scheduleEmit = heading => {
+    pendingHeading = heading;
+    const elapsed = performance.now() - lastEmitAt;
+    if (elapsed >= EMIT_INTERVAL_MS && !emitTimer) {
+      const next = pendingHeading;
+      pendingHeading = NaN;
+      emit(next);
+      return;
+    }
+    if (emitTimer) return;
+    emitTimer = window.setTimeout(() => {
+      emitTimer = 0;
+      const next = pendingHeading;
+      pendingHeading = NaN;
+      emit(next);
+    }, Math.max(1, EMIT_INTERVAL_MS - elapsed));
   };
 
   const intercept = event => {
@@ -133,36 +154,12 @@ export function renderQiblaSafeV2() {
     const heading = normalizedHeading(event);
     if (!Number.isFinite(heading)) return;
     event.stopImmediatePropagation();
-    targetHeading = heading;
-    if (!Number.isFinite(displayedHeading)) displayedHeading = heading;
-  };
-
-  const animate = now => {
-    if (disposed) return;
-    const dt = Math.max(1, Math.min(50, now - lastFrameAt));
-    lastFrameAt = now;
-
-    if (Number.isFinite(targetHeading)) {
-      const headingAlpha = 1 - Math.exp(-dt / 145);
-      displayedHeading = easedAngle(displayedHeading, targetHeading, headingAlpha);
-      if (now - lastEmitAt >= 32) {
-        lastEmitAt = now;
-        emit(displayedHeading);
-      }
-    }
-
-    if (pointer instanceof SVGElement && Number.isFinite(targetPointer)) {
-      const pointerAlpha = 1 - Math.exp(-dt / 90);
-      displayedPointer = easedAngle(displayedPointer, targetPointer, pointerAlpha);
-      pointer.style.transform = `rotate(${displayedPointer.toFixed(3)}deg)`;
-    }
-
-    frameId = requestAnimationFrame(animate);
+    smoothedHeading = easedAngle(smoothedHeading, heading, 0.24);
+    scheduleEmit(smoothedHeading);
   };
 
   window.addEventListener('deviceorientationabsolute', intercept, true);
   window.addEventListener('deviceorientation', intercept, true);
-  frameId = requestAnimationFrame(animate);
 
   const baseCleanup = root.__cleanup;
   let cleaned = false;
@@ -170,7 +167,8 @@ export function renderQiblaSafeV2() {
     if (cleaned) return;
     cleaned = true;
     disposed = true;
-    cancelAnimationFrame(frameId);
+    if (emitTimer) clearTimeout(emitTimer);
+    emitTimer = 0;
     window.removeEventListener('deviceorientationabsolute', intercept, true);
     window.removeEventListener('deviceorientation', intercept, true);
     restoreRotor?.();
