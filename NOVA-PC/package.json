@@ -6,7 +6,7 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --win nsis portable --x64"
+    "dist": "electron-builder --win nsis --x64"
   },
   "devDependencies": {
     "electron": "latest",
@@ -15,7 +15,7 @@
   "build": {
     "appId": "com.nexusnova.nova57sol",
     "productName": "NOVA 5.7 Sol",
-    "artifactName": "${productName}-${version}-${arch}.${ext}",
+    "artifactName": "NOVA-5.7-Sol-Setup-${version}-${arch}.${ext}",
     "files": [
       "main.js",
       "icon.png"
@@ -25,10 +25,6 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
-        },
-        {
-          "target": "portable",
           "arch": ["x64"]
         }
       ]
