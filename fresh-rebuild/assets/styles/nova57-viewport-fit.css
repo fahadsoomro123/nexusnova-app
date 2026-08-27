@@ -1,16 +1,20 @@
-/* NOVA 5.7 premium viewport + stage compatibility fix.
-   Older Android WebViews may not support :has(), so NOVA gets an explicit
-   runtime stage class instead of relying on parent-selector support. */
+/* NOVA 5.7 measured premium fit.
+   Android WebView viewport units can differ from the actual fixed dock geometry.
+   The runtime bridge measures the real dock top and supplies --nx57-measured-height,
+   so NOVA ends with one deliberate 8px premium gap instead of a black strip. */
 
 .nx-stage.nx57-stage-active {
-  padding-bottom: calc(var(--nx-dock-height) + var(--nx-safe-bottom) + 8px);
-  scroll-padding-bottom: calc(var(--nx-dock-height) + var(--nx-safe-bottom) + 8px);
+  height: 100dvh;
+  min-height: 0;
+  padding-bottom: 0;
+  scroll-padding-bottom: 0;
+  overflow: hidden;
 }
 
 .nx57-shell-premium {
-  height: calc(100dvh - var(--nx-pad) - var(--nx-dock-height) - var(--nx-safe-bottom) - 8px);
+  height: var(--nx57-measured-height, calc(100dvh - var(--nx-pad) - var(--nx-dock-height) - var(--nx-safe-bottom) - 8px));
   min-height: 0;
-  max-height: calc(100dvh - var(--nx-pad) - var(--nx-dock-height) - var(--nx-safe-bottom) - 8px);
+  max-height: var(--nx57-measured-height, calc(100dvh - var(--nx-pad) - var(--nx-dock-height) - var(--nx-safe-bottom) - 8px));
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   overflow: hidden;
@@ -65,49 +69,49 @@
   white-space: nowrap;
 }
 
-/* NOVA-only SOS placement: keep emergency access in the header lane, not over chat. */
+/* NOVA-only SOS placement: compact and outside the chat/message lane. */
 html.nx57-stage-active #nxEmergencySosButton {
-  top: calc(var(--nx-pad) + 7px) !important;
-  right: 64px !important;
+  top: calc(var(--nx-pad) + 9px) !important;
+  right: 70px !important;
   bottom: auto !important;
-  width: 32px !important;
-  height: 32px !important;
-  border-radius: 11px !important;
-  opacity: .82 !important;
-  font-size: 7px !important;
-  letter-spacing: .35px !important;
+  width: 28px !important;
+  height: 28px !important;
+  border-radius: 10px !important;
+  opacity: .78 !important;
+  font-size: 6.5px !important;
+  letter-spacing: .3px !important;
 }
 
 html.nx57-stage-active #nxEmergencySosButton[data-active="1"],
 html.nx57-stage-active #nxEmergencySosButton[data-busy="1"] {
-  top: calc(var(--nx-pad) + 5px) !important;
-  right: 62px !important;
-  width: 36px !important;
-  height: 36px !important;
-  border-radius: 12px !important;
+  top: calc(var(--nx-pad) + 7px) !important;
+  right: 68px !important;
+  width: 32px !important;
+  height: 32px !important;
+  border-radius: 11px !important;
   opacity: 1 !important;
-  font-size: 8px !important;
+  font-size: 7px !important;
 }
 
 html.nx57-stage-active #nxEmergencySosEdit {
   top: calc(var(--nx-pad) + 10px) !important;
-  right: 104px !important;
+  right: 106px !important;
   bottom: auto !important;
-  width: 26px !important;
-  height: 26px !important;
-  font-size: 11px !important;
+  width: 24px !important;
+  height: 24px !important;
+  font-size: 10px !important;
 }
 
 @media (max-width: 390px) {
   html.nx57-stage-active #nxEmergencySosButton {
-    right: 58px !important;
+    right: 66px !important;
   }
   html.nx57-stage-active #nxEmergencySosButton[data-active="1"],
   html.nx57-stage-active #nxEmergencySosButton[data-busy="1"] {
-    right: 56px !important;
+    right: 64px !important;
   }
   html.nx57-stage-active #nxEmergencySosEdit {
-    right: 96px !important;
+    right: 100px !important;
   }
 }
 
