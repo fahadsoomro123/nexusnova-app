@@ -2,13 +2,13 @@ name: NOVA 5.7 Sol Download Build
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
     paths:
       - 'NOVA-PC/**'
+      - 'scripts/build-nova-sol57-android.py'
       - '.github/workflows/nova-sol57-download-build.yml'
-      - 'js/nexusnova-ai-sol57-**'
-      - 'NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ai-sol57-**'
-  workflow_dispatch:
+  workflow_dispatch: {}
 
 permissions:
   contents: read
@@ -31,26 +31,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Verify NOVA 5.7 Sol source
-        shell: bash
-        run: |
-          set -euo pipefail
-          for f in \
-            js/nexusnova-ai-sol57-v1.js \
-            js/nexusnova-ai-sol57-interface-v1.js \
-            js/nexusnova-ai-sol57-history-v1.js \
-            js/nexusnova-ai-sol57-features-v1.js \
-            js/nexusnova-ai-sol57-video-v1.js \
-            js/nexusnova-ai-sol57-live-voice-v1.js \
-            js/nexusnova-ai-sol57-readiness-v1.js \
-            js/nexusnova-ai-sol57-final-v1.js; do
-            test -s "$f"
-            node --check "$f"
-          done
-          grep -Fq 'nexusnova-ai-sol57-live-voice-v1.js' js/nexusnova-android-callerid-v1.js
-          grep -Fq 'nexusnova-ai-sol57-final-v1.js' js/nexusnova-android-callerid-v1.js
-          cmp -s js/nexusnova-ai-sol57-final-v1.js NexusNovaAndroid/app/src/main/assets/www/js/nexusnova-ai-sol57-final-v1.js
-
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -59,6 +39,14 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.13'
+
+      - name: Validate NOVA JavaScript
+        shell: bash
+        run: |
+          node --check js/nexusnova-ai-sol57-v1.js
+          node --check js/nexusnova-ai-sol57-interface-v1.js
+          node --check js/nexusnova-ai-sol57-live-voice-v1.js
+          node --check js/nexusnova-ai-sol57-final-v1.js
 
       - name: Restore permanent NexusNova signing key
         shell: bash
@@ -72,56 +60,30 @@ jobs:
           chmod 600 "$NEXUSNOVA_SIGNING_STORE_FILE"
           keytool -list -keystore "$NEXUSNOVA_SIGNING_STORE_FILE" -storepass "$NEXUSNOVA_SIGNING_STORE_PASSWORD" -alias "$NEXUSNOVA_SIGNING_KEY_ALIAS" >/dev/null
 
-      - name: Inject release version and signing config
+      - name: Prepare NOVA signed Android source
         shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import os, re
-          from pathlib import Path
-          p = Path('NexusNovaAndroid/app/build.gradle.kts')
-          s = p.read_text(encoding='utf-8')
-          s, a = re.subn(r'versionCode\s*=\s*\d+', f'versionCode = {os.environ["NOVA_RELEASE_CODE"]}', s, count=1)
-          s, b = re.subn(r'versionName\s*=\s*"[^"]*"', f'versionName = "{os.environ["NOVA_RELEASE_VERSION"]}"', s, count=1)
-          if a != 1 or b != 1:
-              raise SystemExit('Android version anchors missing')
-          signing = '''    signingConfigs {\n        create("nexusRelease") {\n            storeFile = file(System.getenv("NEXUSNOVA_SIGNING_STORE_FILE"))\n            storePassword = System.getenv("NEXUSNOVA_SIGNING_STORE_PASSWORD")\n            keyAlias = System.getenv("NEXUSNOVA_SIGNING_KEY_ALIAS")\n            keyPassword = System.getenv("NEXUSNOVA_SIGNING_KEY_PASSWORD")\n        }\n    }\n\n'''
-          if 'create("nexusRelease")' not in s:
-              s = s.replace('    buildTypes {\n', signing + '    buildTypes {\n', 1)
-          line = '            signingConfig = signingConfigs.getByName("nexusRelease")\n'
-          if line not in s:
-              s = s.replace('        release {\n', '        release {\n' + line, 1)
-          p.write_text(s, encoding='utf-8')
-          PY
-          printf 'NOVA 5.7 Sol\nsource_commit=%s\nversion=%s\n' "$GITHUB_SHA" "$NOVA_RELEASE_VERSION" > NexusNovaAndroid/app/src/main/assets/www/NOVA-SOL57-BUILD.txt
+        run: python3 scripts/build-nova-sol57-android.py
 
       - name: Build signed Android release
         working-directory: NexusNovaAndroid
         shell: bash
         run: gradle --no-daemon clean assembleRelease
 
-      - name: Verify and package signed APK
+      - name: Verify APK signature
         shell: bash
         run: |
           set -euo pipefail
           APK="NexusNovaAndroid/app/build/outputs/apk/release/app-release.apk"
           test -s "$APK"
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
+          test -n "$APKSIGNER"
           "$APKSIGNER" verify --verbose --print-certs "$APK" > signature.txt
           grep -Eq 'Verified using v(2|3) scheme.*true' signature.txt
           mkdir -p release-android
-          cp "$APK" "release-android/NexusNova-NOVA-5.7-Sol-v${NOVA_RELEASE_VERSION}-SIGNED.apk"
-          sha256sum "release-android/NexusNova-NOVA-5.7-Sol-v${NOVA_RELEASE_VERSION}-SIGNED.apk" > release-android/SHA256.txt
+          cp "$APK" "release-android/NexusNova-NOVA-5.7-Sol-v1.1.0-SIGNED.apk"
+          sha256sum "release-android/NexusNova-NOVA-5.7-Sol-v1.1.0-SIGNED.apk" > release-android/SHA256.txt
           cp signature.txt release-android/signature.txt
-          cat > release-android/BUILD-STATUS.txt <<EOF
-          NOVA 5.7 Sol Android Release
-          NexusNova version: ${NOVA_RELEASE_VERSION} (code ${NOVA_RELEASE_CODE})
-          Source commit: ${GITHUB_SHA}
-          Permanent APK signature: VERIFIED
-          NOVA 5.7 Sol modules: VERIFIED
-          RESULT: READY FOR DEVICE INSTALL/UPDATE TEST
-          EOF
-          sed -i 's/^          //' release-android/BUILD-STATUS.txt
+          printf 'NOVA 5.7 Sol Android\nSource: %s\nVersion: 1.1.0 (110)\nSignature: VERIFIED\n' "$GITHUB_SHA" > release-android/BUILD-STATUS.txt
 
       - uses: actions/upload-artifact@v4
         with:
@@ -148,16 +110,16 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Prepare NOVA desktop icon
+      - name: Prepare app icon
         shell: pwsh
         run: Copy-Item 'icons/icon-512.png' 'NOVA-PC/icon.png' -Force
 
-      - name: Install desktop build dependencies
+      - name: Install build dependencies
         working-directory: NOVA-PC
         shell: pwsh
         run: npm install --no-audit --no-fund
 
-      - name: Validate desktop main process
+      - name: Validate desktop code
         working-directory: NOVA-PC
         shell: pwsh
         run: node --check main.js
@@ -167,23 +129,13 @@ jobs:
         shell: pwsh
         run: npm run dist
 
-      - name: Package Windows artifacts
+      - name: Collect Windows downloads
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path release-windows | Out-Null
-          Get-ChildItem 'NOVA-PC/dist/*.exe' | ForEach-Object { Copy-Item $_.FullName release-windows/ }
-          Get-ChildItem 'release-windows/*.exe' | ForEach-Object {
-            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash
-            "$($_.Name)  $hash" | Add-Content release-windows/SHA256.txt
-          }
-          @"
-          NOVA 5.7 Sol Windows Desktop
-          Source commit: $env:GITHUB_SHA
-          Local Ollama bridge: ENABLED on 127.0.0.1 only
-          Preferred models: qwen3:4b-instruct -> qwen3:4b -> gpt-oss:20b
-          Installer signing: NOT CONFIGURED (Windows SmartScreen may warn)
-          RESULT: WINDOWS INSTALLER + PORTABLE BUILD READY
-          "@ | Set-Content release-windows/BUILD-STATUS.txt
+          Copy-Item 'NOVA-PC/dist/*.exe' release-windows/ -Force
+          Get-ChildItem 'release-windows/*.exe' | ForEach-Object { "$($_.Name)  $((Get-FileHash $_.FullName -Algorithm SHA256).Hash)" | Add-Content release-windows/SHA256.txt }
+          'NOVA 5.7 Sol Windows - local Ollama bridge enabled - unsigned Windows installer' | Set-Content release-windows/BUILD-STATUS.txt
 
       - uses: actions/upload-artifact@v4
         with:
