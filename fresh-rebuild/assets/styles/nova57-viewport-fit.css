@@ -1,23 +1,31 @@
-/* NOVA 5.7 phone viewport fit: remove the unused black gap above the persistent dock. */
+/* NOVA 5.7 dock-safe viewport fit.
+   The stage already reserves the persistent dock plus an extra 58px bottom buffer.
+   Keep the whole NOVA screen inside that exact content box so the composer never
+   slips under the Mine / Nova Hub dock while the message list absorbs overflow. */
 .nx57-shell-premium {
-  min-height: calc(100dvh - var(--nx-pad) - var(--nx-dock-height) - var(--nx-safe-bottom));
+  height: calc(100dvh - var(--nx-pad) - var(--nx-dock-height) - var(--nx-safe-bottom) - 58px);
+  min-height: 0;
+  max-height: calc(100dvh - var(--nx-pad) - var(--nx-dock-height) - var(--nx-safe-bottom) - 58px);
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
 }
 
 .nx57-shell-premium > [data-app-mount] {
   min-height: 0;
   display: grid;
+  overflow: hidden;
 }
 
 .nx57-shell-premium > [data-app-mount] > .nx-app-body.nx57 {
   min-height: 0;
   height: 100%;
   display: grid;
+  overflow: hidden;
 }
 
 .nx57-shell-premium .nx-app-body.nx57 > .nx-panel.nx57 {
-  min-height: 100%;
+  min-height: 0;
   height: 100%;
   overflow: hidden;
   grid-template-rows: auto minmax(0, 1fr) auto auto auto;
@@ -27,7 +35,12 @@
   min-height: 0 !important;
   max-height: none !important;
   height: auto;
+  overflow-y: auto;
   overscroll-behavior: contain;
+}
+
+.nx57-shell-premium .nx57-compose {
+  flex: 0 0 auto;
 }
 
 .nx57-shell-premium .nx57-status {
@@ -51,19 +64,5 @@
   .nx57-shell-premium .nx57-messages {
     min-height: 0 !important;
     max-height: none !important;
-  }
-}
-
-@media (max-height: 700px) {
-  .nx57-shell-premium {
-    min-height: auto;
-  }
-  .nx57-shell-premium .nx-app-body.nx57 > .nx-panel.nx57 {
-    min-height: 0;
-    height: auto;
-  }
-  .nx57-shell-premium .nx57-messages {
-    min-height: 230px !important;
-    max-height: 46dvh !important;
   }
 }
