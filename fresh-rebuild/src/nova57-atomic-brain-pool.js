@@ -104,6 +104,12 @@ function errorKind(error) {
   return 'failed';
 }
 
+function backendOutcome(kind) {
+  if (kind === 'quality') return 'quality-failure';
+  if (kind === 'failed') return 'failure';
+  return kind;
+}
+
 function markSuccess(route, latencyMs) {
   const s = stat(route);
   s.ok += 1;
@@ -141,11 +147,11 @@ function dynamicRoutes() {
   const raw = Array.isArray(globalThis.__NOVA_KEYLESS_ROUTE_POOL__) ? globalThis.__NOVA_KEYLESS_ROUTE_POOL__ : [];
   const out = [];
   for (const value of raw) {
-    const text = String(value || '');
-    const split = text.indexOf(':');
+    const valueText = String(value || '');
+    const split = valueText.indexOf(':');
     if (split <= 0) continue;
-    const provider = text.slice(0, split);
-    const model = text.slice(split + 1);
+    const provider = valueText.slice(0, split);
+    const model = valueText.slice(split + 1);
     if (!model || /embed|rerank|guard|moderation|stable.?diffusion|whisper|tts|speech|audio|lyria|image|flux|sdxl/i.test(model)) continue;
     if (provider === 'Kilo') out.push({ provider, model, base: KILO_BASE, priority: 118 });
     else if (provider === 'OVHcloud') out.push({ provider, model, base: OVH_BASE, priority: 108 });
@@ -243,13 +249,13 @@ async function callRoute(route, prompt, options, timeoutMs, delayMs = 0) {
       throw error;
     }
     const content = data?.choices?.[0]?.message?.content ?? data?.choices?.[0]?.text ?? data?.output_text ?? data?.text;
-    const text = typeof content === 'string'
+    const answerText = typeof content === 'string'
       ? content.trim()
       : Array.isArray(content)
         ? content.map(part => typeof part === 'string' ? part : String(part?.text || part?.content || '')).join('').trim()
         : '';
-    if (!text) throw new Error(`${route.provider}/${route.model} returned no usable text.`);
-    const quality = assessAtomicResponseQuality(text);
+    if (!answerText) throw new Error(`${route.provider}/${route.model} returned no usable text.`);
+    const quality = assessAtomicResponseQuality(answerText);
     if (!quality.ok) {
       const error = new Error(`${route.provider}/${route.model} quality reject: ${quality.reason}.`);
       error.code = 'NOVA_QUALITY_REJECT';
@@ -258,9 +264,18 @@ async function callRoute(route, prompt, options, timeoutMs, delayMs = 0) {
     }
     const latencyMs = Date.now() - started;
     markSuccess(route, latencyMs);
-    return { text, route, latencyMs };
+    return { text: answerText, route, latencyMs };
   } catch (error) {
+    const kind = errorKind(error);
     markFailure(route, error);
+    error.__novaAtomicFailure = {
+      provider: route.provider,
+      model: route.model,
+      routeKey: keyOf(route),
+      latencyMs: Date.now() - started,
+      outcome: backendOutcome(kind),
+      quality: 0
+    };
     throw error;
   } finally {
     clearTimeout(timer);
@@ -272,9 +287,6 @@ function laneSlice(candidates, lane, hedgeWidth) {
   if (!candidates.length) return [];
   const safeLane = Math.max(0, Math.min(15, Number(lane) || 0));
   const start = safeLane * width;
-  // Strict lane isolation: never wrap/fallback to lane 0. If a unique lane has
-  // no candidate left, that ARIM branch must skip instead of reusing a brain
-  // and pretending the mesh expanded independently.
   if (start >= candidates.length) return [];
   return candidates.slice(start, start + width);
 }
@@ -290,9 +302,7 @@ export async function runAtomicBrain(prompt, options = {}, control = {}) {
   if (!candidates.length) throw new Error(`No healthy ACRM/ARIM ${capability} candidates.`);
 
   const selected = laneSlice(candidates, lane, hedgeWidth);
-  if (!selected.length) {
-    throw new Error(`No distinct ACRM/ARIM ${capability} candidate remains for lane ${lane}.`);
-  }
+  if (!selected.length) throw new Error(`No distinct ACRM/ARIM ${capability} candidate remains for lane ${lane}.`);
   const started = Date.now();
   const attempts = selected.map((route, index) => callRoute(route, prompt, options, timeoutMs, index * 110));
   try {
@@ -322,6 +332,9 @@ export async function runAtomicBrain(prompt, options = {}, control = {}) {
   } catch (aggregate) {
     const error = new Error(`ACRM/ARIM ${capability} lane ${lane} failed across ${selected.length} route(s).`);
     error.cause = aggregate;
+    error.__novaAtomicFailures = Array.isArray(aggregate?.errors)
+      ? aggregate.errors.map(item => item?.__novaAtomicFailure).filter(Boolean)
+      : [];
     throw error;
   }
 }
