@@ -1,0 +1,88 @@
+name: NOVA 5.7 One-Time Cloudflare ARIM Integration Smoke
+
+on:
+  push:
+    branches: [nova-sol57-pro-v128]
+    paths:
+      - '.github/workflows/nova57-cloudflare-arim-integration-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  integration-and-self-clean:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 5
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          package-manager-cache: false
+
+      - name: Cloudflare shortlist to live ARIM route
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          const storage = new Map();
+          globalThis.localStorage = {
+            getItem: key => storage.get(key) || null,
+            setItem: (key, value) => storage.set(key, String(value)),
+            removeItem: key => storage.delete(key)
+          };
+
+          const bridge = await import('./fresh-rebuild/src/nova57-atomic-backend-client.js');
+          const pool = await import('./fresh-rebuild/src/nova57-atomic-brain-pool.js');
+          const plan = await bridge.getAtomicBackendPlan('Prove a hard logic constraint carefully and independently.');
+          if (!plan || plan.source !== 'cloudflare-d1') throw new Error('Cloudflare D1 plan unavailable.');
+          if (!Array.isArray(plan.candidates) || plan.candidates.length < 2) throw new Error('Cloudflare D1 shortlist too small.');
+
+          const preferred = plan.candidates
+            .map(row => `${String(row.provider || row.source || '')}::${String(row.modelId || row.model || '')}`)
+            .filter(key => !key.startsWith('::'));
+          const preferredSet = new Set(preferred);
+          const ranked = pool.atomicCandidates('reasoning', [], preferred);
+          const topKeys = ranked.slice(0, 7).map(row => `${row.provider}::${row.model}`);
+          const rankingOverlap = topKeys.filter(key => preferredSet.has(key));
+          if (!rankingOverlap.length) throw new Error('Cloudflare preferred shortlist is not influencing ARIM ranking.');
+
+          const result = await pool.runAtomicBrain(
+            'Reply with exactly: CLOUD ARIM OK',
+            { generationConfig: { temperature: 0.1, maxOutputTokens: 24 } },
+            { capability: 'reasoning', preferredKeys: preferred, lane: 0, hedgeWidth: 2, maxWaves: 2, timeoutMs: 6200 }
+          );
+          const answer = String(result?.response?.text?.() || '').trim();
+          const brain = result?.__novaAtomicBrain || {};
+          const selected = Array.isArray(brain.selected) ? brain.selected : [];
+          const selectedPreferred = selected.filter(key => preferredSet.has(key));
+          if (!selectedPreferred.length) throw new Error('Live ARIM route did not attempt a Cloudflare-preferred brain.');
+          const quality = pool.assessAtomicResponseQuality(answer);
+          if (!quality.ok) throw new Error(`Live ARIM answer failed quality gate: ${quality.reason}`);
+
+          console.log(JSON.stringify({
+            ok: true,
+            backend: plan.source,
+            candidateCount: plan.candidates.length,
+            rankingOverlap: rankingOverlap.slice(0, 5),
+            selectedPreferred,
+            winner: `${brain.provider || ''}::${brain.model || ''}`,
+            attempts: brain.attempts || selected.length,
+            latencyMs: brain.latencyMs || 0,
+            wallMs: brain.wallMs || 0,
+            answer
+          }, null, 2));
+          NODE
+
+      - name: Self-clean integration runner
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/nova57-cloudflare-arim-integration-once.yml
+          git config user.name 'NexusNova Integration Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git commit -m 'Remove one-time Cloudflare ARIM integration runner'
+          git push origin HEAD:nova-sol57-pro-v128
