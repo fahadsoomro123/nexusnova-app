@@ -1,6 +1,7 @@
-// NOVA 5.7 Pro — low-latency hedge layer.
-// Races at most two strong anonymous free Kilo routes, then falls back to the
-// broader adaptive multi-provider router. No API key or secret is embedded.
+// NOVA 5.7 Pro — low-latency hedge + hard-reasoning jury layer.
+// Quick/standard requests stay fast. Hard requests collect several stronger free
+// candidates and prefer consensus/quality instead of blindly accepting the first
+// response. No provider API key or secret is embedded.
 
 import {
   GoogleAIBackend as BaseGoogleAIBackend,
@@ -51,24 +52,24 @@ function profile(prompt) {
 }
 
 function timeoutFor(kind) {
-  if (kind === 'quick') return 3300;
-  if (kind === 'hard') return 5600;
-  return 4300;
+  if (kind === 'quick') return 3200;
+  if (kind === 'hard') return 5400;
+  return 4200;
 }
 
 function hardQuality(model) {
-  if (model === 'stepfun/step-3.7-flash:free') return 42;
-  if (model === 'openrouter/free') return 36;
-  if (model === 'tencent/hy3:free') return 30;
-  if (model === 'kilo-auto/free') return 20;
-  if (model === 'poolside/laguna-s-2.1:free') return 8;
-  return 0;
+  if (model === 'stepfun/step-3.7-flash:free') return 60;
+  if (model === 'openrouter/free') return 52;
+  if (model === 'tencent/hy3:free') return 44;
+  if (model === 'kilo-auto/free') return 32;
+  if (model === 'poolside/laguna-s-2.1:free') return 10;
+  return 4;
 }
 
 function modelScore(model, mode) {
   const s = perf.get(model) || { ok: 0, fail: 0, ewma: 0, lastOk: 0 };
-  const good = model === lastGood ? (mode === 'hard' ? 35 : 100) : 0;
-  const fresh = s.lastOk && Date.now() - s.lastOk < 10 * 60_000 ? 25 : 0;
+  const good = model === lastGood ? (mode === 'hard' ? 18 : 100) : 0;
+  const fresh = s.lastOk && Date.now() - s.lastOk < 10 * 60_000 ? 18 : 0;
   const latency = s.ewma ? Math.min(35, s.ewma / 180) : 0;
   const order = mode === 'hard' ? HARD_MODELS : FAST_MODELS;
   const orderPenalty = Math.max(0, order.indexOf(model)) * 2;
@@ -150,18 +151,93 @@ async function callKilo(model, prompt, options, timeoutMs, delayMs = 0) {
   }
 }
 
+function normalizedAnswer(text) {
+  return String(text || '')
+    .trim()
+    .replace(/^```[a-z]*\s*/i, '')
+    .replace(/```$/i, '')
+    .replace(/\s+/g, ' ')
+    .toUpperCase();
+}
+
+function shortConstrainedOutput(prompt, answer) {
+  const request = String(prompt || '').toLowerCase();
+  return answer.length <= 96 && /\b(return|answer|output)\s+(?:only|just)\b|no\s+(?:spaces?|explanation|words?)/i.test(request);
+}
+
+async function hardJury(prompt, options = {}) {
+  const timeoutMs = timeoutFor('hard');
+  const models = availableModels('hard').slice(0, 4);
+  if (!models.length) throw new Error('No hard-reasoning routes are healthy.');
+
+  const source = options?.generationConfig || {};
+  const hardOptions = {
+    ...options,
+    generationConfig: {
+      ...source,
+      temperature: Math.min(0.22, Number(source.temperature ?? 0.22)),
+      maxOutputTokens: Math.max(220, Math.min(900, Number(source.maxOutputTokens ?? 700)))
+    }
+  };
+
+  const started = Date.now();
+  const settled = await Promise.allSettled(
+    models.map((model, index) => callKilo(model, prompt, hardOptions, timeoutMs, index * 70))
+  );
+  const good = settled
+    .filter(item => item.status === 'fulfilled')
+    .map(item => item.value);
+  if (!good.length) throw new Error(`Hard jury failed across ${models.length} route(s).`);
+
+  const groups = new Map();
+  for (const item of good) {
+    const key = normalizedAnswer(item.text);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(item);
+  }
+  const consensus = [...groups.values()].sort((a, b) => {
+    if (b.length !== a.length) return b.length - a.length;
+    return hardQuality(b[0].model) - hardQuality(a[0].model);
+  })[0];
+
+  let winner;
+  const consensusText = normalizedAnswer(consensus?.[0]?.text || '');
+  if (consensus && consensus.length >= 2 && shortConstrainedOutput(prompt, consensusText)) {
+    winner = consensus.slice().sort((a, b) => hardQuality(b.model) - hardQuality(a.model))[0];
+  } else {
+    winner = good.slice().sort((a, b) => {
+      const qualityDelta = hardQuality(b.model) - hardQuality(a.model);
+      return qualityDelta || a.latencyMs - b.latencyMs;
+    })[0];
+  }
+
+  globalThis.__NOVA_BRAIN_LAST__ = {
+    provider: 'Kilo',
+    model: winner.model,
+    attempts: models.length,
+    successfulCandidates: good.length,
+    latencyMs: winner.latencyMs,
+    wallMs: Date.now() - started,
+    profile: 'hard',
+    hedged: models.length > 1,
+    jury: true,
+    consensus: Boolean(consensus && consensus.length >= 2),
+    selected: models,
+    at: new Date().toISOString()
+  };
+  return winner.text;
+}
+
 async function fastHedge(prompt, options = {}) {
   const mode = profile(prompt);
   const timeoutMs = timeoutFor(mode);
   const models = availableModels(mode);
   if (!models.length) throw new Error('No fast anonymous routes are healthy.');
 
-  // Keep simple chat cheap and fast. For hard reasoning, race two stronger free
-  // routes immediately so latency and answer quality are not tied to one model.
-  const width = mode === 'hard' ? Math.min(2, models.length) : (lastGood ? 1 : Math.min(2, models.length));
+  const width = lastGood ? 1 : Math.min(2, models.length);
   const selected = models.slice(0, width);
   const started = Date.now();
-  const promises = selected.map((model, index) => callKilo(model, prompt, options, timeoutMs, mode === 'hard' ? index * 90 : index * 180));
+  const promises = selected.map((model, index) => callKilo(model, prompt, options, timeoutMs, index * 160));
   try {
     const winner = await Promise.any(promises);
     globalThis.__NOVA_BRAIN_LAST__ = {
@@ -172,6 +248,7 @@ async function fastHedge(prompt, options = {}) {
       wallMs: Date.now() - started,
       profile: mode,
       hedged: selected.length > 1,
+      jury: false,
       selected,
       at: new Date().toISOString()
     };
@@ -187,18 +264,21 @@ export class GoogleAIBackend extends BaseGoogleAIBackend {}
 
 export function getAI(firebaseApp, config = {}) {
   const base = baseGetAI(firebaseApp, config);
-  return { ...base, __novaHedgeRouter: true };
+  return { ...base, __novaHedgeRouter: true, __novaHardJury: true };
 }
 
 export function getGenerativeModel(ai, options = {}) {
   const baseModel = baseGetGenerativeModel(ai, options);
   return {
     async generateContent(prompt) {
+      const mode = profile(prompt);
       try {
-        const text = await fastHedge(prompt, options);
+        const text = mode === 'hard'
+          ? await hardJury(prompt, options)
+          : await fastHedge(prompt, options);
         return { response: { text: () => text } };
       } catch (fastError) {
-        console.warn('[NOVA Hedge] fast routes unavailable; using broad adaptive router.', fastError);
+        console.warn(`[NOVA Hedge] ${mode} foreground routes unavailable; using broad adaptive router.`, fastError);
         return baseModel.generateContent(prompt);
       }
     }
