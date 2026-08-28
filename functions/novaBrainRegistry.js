@@ -6,7 +6,7 @@ const { createHash } = require('node:crypto');
 const db = getFirestore();
 const MAX_REGISTRY = 200000;
 const HF_PAGE_SIZE = 100;
-const HF_PAGES_PER_TICK = 20;
+const HF_PAGES_PER_TICK = 40;
 const SOURCE_TIMEOUT_MS = 12000;
 const REGISTRY = 'novaBrainRegistry';
 const CATALOG_SHARDS = 'novaBrainCatalogShards';
@@ -61,9 +61,7 @@ async function fetchJson(url, init = {}, timeoutMs = SOURCE_TIMEOUT_MS) {
     try { data = raw ? JSON.parse(raw) : null; } catch {}
     if (!res.ok) throw new Error(`${res.status} ${text(data?.error?.message || data?.message || raw).slice(0, 220)}`);
     return { data, headers: res.headers };
-  } finally {
-    clearTimeout(timer);
-  }
+  } finally { clearTimeout(timer); }
 }
 
 function nextLink(headers) {
@@ -292,7 +290,7 @@ async function ingestHuggingFaceIncremental() {
 
 async function refreshRegistry() {
   // Hugging Face's 200K universe is compactly sharded. The smaller provider
-  // catalogs use fingerprints, so an unchanged hourly refresh costs only a few
+  // catalogs use fingerprints, so an unchanged refresh costs only a few
   // metadata writes instead of rewriting every model and erasing learned health.
   const [hf, openRouter, horde, pollinations] = await Promise.all([
     ingestHuggingFaceIncremental(),
@@ -315,7 +313,7 @@ async function refreshRegistry() {
 }
 
 exports.novaBrainDiscoveryRefresh = onSchedule({
-  schedule: 'every 60 minutes',
+  schedule: 'every 30 minutes',
   timeoutSeconds: 540,
   memory: '1GiB'
 }, refreshRegistry);
@@ -357,5 +355,6 @@ exports.__novaBrainRegistryInternals = {
   taskCapability,
   fingerprintRecords,
   compactHuggingFaceRecord,
-  hashId
+  hashId,
+  refreshRegistry
 };
