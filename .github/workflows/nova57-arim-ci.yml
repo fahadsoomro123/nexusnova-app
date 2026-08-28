@@ -7,6 +7,7 @@ on:
     paths:
       - 'fresh-rebuild/src/nova57-atomic-brain-pool.js'
       - 'fresh-rebuild/src/nova57-atomic-chain.js'
+      - 'fresh-rebuild/src/nova57-pro-orchestrator.js'
       - 'functions/novaAtomicChain.js'
       - '.github/workflows/nova57-arim-ci.yml'
 
@@ -19,7 +20,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 20
 
@@ -27,6 +28,7 @@ jobs:
         run: |
           node --check fresh-rebuild/src/nova57-atomic-brain-pool.js
           node --check fresh-rebuild/src/nova57-atomic-chain.js
+          node --check fresh-rebuild/src/nova57-pro-orchestrator.js
           node --check functions/novaAtomicChain.js
 
       - name: Verify adaptive multiplying mesh contract
@@ -35,6 +37,7 @@ jobs:
           const fs = require('fs');
           const chain = fs.readFileSync('fresh-rebuild/src/nova57-atomic-chain.js', 'utf8');
           const pool = fs.readFileSync('fresh-rebuild/src/nova57-atomic-brain-pool.js', 'utf8');
+          const orchestrator = fs.readFileSync('fresh-rebuild/src/nova57-pro-orchestrator.js', 'utf8');
           const backend = fs.readFileSync('functions/novaAtomicChain.js', 'utf8');
           const requiredChain = [
             'MAX_MESH_BRAINS = 9',
@@ -58,10 +61,18 @@ jobs:
             'backendOutcome',
             'quality: 0'
           ];
+          const requiredOrchestrator = [
+            'const groundedPrompt = original + evidenceContext(evidence)',
+            'const atomic = shouldUseAtomicChain(request)',
+            'runAtomicChain({',
+            'prompt: groundedPrompt',
+            'generate: nextPrompt => hedgeModel.generateContent(nextPrompt)'
+          ];
           const requiredBackend = ["strategy: 'ARIM'", 'buildGenerations', 'widths: [2, 2, 4]', 'novaRecordBrainOutcome'];
           const missing = [
             ...requiredChain.filter(x => !chain.includes(x)).map(x => `chain:${x}`),
             ...requiredPool.filter(x => !pool.includes(x)).map(x => `pool:${x}`),
+            ...requiredOrchestrator.filter(x => !orchestrator.includes(x)).map(x => `orchestrator:${x}`),
             ...requiredBackend.filter(x => !backend.includes(x)).map(x => `backend:${x}`)
           ];
           if (missing.length) {
@@ -72,7 +83,7 @@ jobs:
             console.error('Legacy single-slice lane selector must not return.');
             process.exit(1);
           }
-          console.log('ARIM topology, multi-wave lane failover, isolation and learning contracts present.');
+          console.log('ARIM topology, grounded research, multi-wave failover, isolation and learning contracts present.');
           NODE
 
       - name: Verify privacy-safe route memory and failure telemetry
