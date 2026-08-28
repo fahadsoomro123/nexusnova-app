@@ -70,13 +70,15 @@ jobs:
           const response = await fetch(endpoint);
           if (!response.ok) throw new Error(`status HTTP ${response.status}`);
           const data = await response.json();
-          for (const key of ['catalogSize', 'callableRoutes', 'healthyRoutes']) {
+          for (const key of ['catalogRecords', 'activeRoutes', 'healthyRoutes', 'semanticallyEvaluatedRoutes', 'semanticBenchmarkAttempts']) {
             if (!Number.isFinite(Number(data[key]))) throw new Error(`missing metric: ${key}`);
           }
           console.log(JSON.stringify({
             ok: true,
-            catalogSize: Number(data.catalogSize),
-            callableRoutes: Number(data.callableRoutes),
-            healthyRoutes: Number(data.healthyRoutes)
+            catalogRecords: Number(data.catalogRecords),
+            activeRoutes: Number(data.activeRoutes),
+            healthyRoutes: Number(data.healthyRoutes),
+            semanticallyEvaluatedRoutes: Number(data.semanticallyEvaluatedRoutes),
+            semanticBenchmarkAttempts: Number(data.semanticBenchmarkAttempts)
           }));
           NODE
