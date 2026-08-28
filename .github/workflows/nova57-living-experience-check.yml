@@ -27,6 +27,11 @@ jobs:
           grep -Fq 'nx57-has-text' fresh-rebuild/src/nova57-living-experience.js
           grep -Fq 'nx57-alive-scrolled' fresh-rebuild/src/nova57-living-experience.js
           grep -Fq 'navigator?.vibrate' fresh-rebuild/src/nova57-living-experience.js
+          grep -Fq 'nx57-is-busy' fresh-rebuild/src/nova57-living-experience.js
+          grep -Fq 'nx57-jump-latest' fresh-rebuild/src/nova57-living-experience.js
+          grep -Fq 'Retry' fresh-rebuild/src/nova57-living-experience.js
+          grep -Fq 'navigator.onLine' fresh-rebuild/src/nova57-living-experience.js
+          grep -Fq 'nx57WorkingEdge' fresh-rebuild/assets/styles/nova57-living-experience.css
           ! grep -Fq 'position:fixed' fresh-rebuild/assets/styles/nova57-living-experience.css
           ! grep -Fq 'innerHTML =' fresh-rebuild/src/nova57-living-experience.js
           echo 'NOVA living experience source checks: PASS'
