@@ -1,0 +1,30 @@
+name: NOVA 5.7 Native Polish Check
+
+on:
+  push:
+    branches: [nova-sol57-polish-v127]
+    paths:
+      - 'fresh-rebuild/src/features/apps/nova-sol57-fresh.js'
+      - 'fresh-rebuild/src/features/apps/nova57-task-status.js'
+      - 'fresh-rebuild/assets/styles/nova57-chatgpt-native.css'
+      - 'fresh-rebuild/index.html'
+      - '.github/workflows/nova57-polish-check.yml'
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify real renderer implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module --check < fresh-rebuild/src/features/apps/nova-sol57-fresh.js
+          node --input-type=module --check < fresh-rebuild/src/features/apps/nova57-task-status.js
+          grep -Fq 'nova57-chatgpt-native.css' fresh-rebuild/index.html
+          grep -Fq 'createTaskStatus' fresh-rebuild/src/features/apps/nova-sol57-fresh.js
+          grep -Fq 'data-nx57-side-action="remote"' fresh-rebuild/src/features/apps/nova-sol57-fresh.js
+          grep -Fq 'nx57-native-drawer' fresh-rebuild/assets/styles/nova57-chatgpt-native.css
+          ! grep -Fq 'otaWebManager' fresh-rebuild/src/features/apps/nova-sol57-fresh.js
+          echo 'NOVA native polish source checks: PASS'
