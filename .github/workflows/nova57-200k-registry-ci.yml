@@ -5,6 +5,8 @@ on:
     branches: [nova-sol57-pro-v128]
     paths:
       - 'functions/novaBrainRegistry.js'
+      - 'functions/novaBrainProfiler.js'
+      - 'functions/novaAtomicChain.js'
       - 'functions/main.js'
       - '.github/workflows/nova57-200k-registry-ci.yml'
   workflow_dispatch:
@@ -21,6 +23,8 @@ jobs:
         run: |
           set -euo pipefail
           node --check functions/novaBrainRegistry.js
+          node --check functions/novaBrainProfiler.js
+          node --check functions/novaAtomicChain.js
           node --check functions/main.js
       - name: Registry architecture wiring checks
         run: |
@@ -35,10 +39,39 @@ jobs:
           grep -Fq 'ingestHorde' functions/novaBrainRegistry.js
           grep -Fq 'ingestPollinations' functions/novaBrainRegistry.js
           grep -Fq 'require("./novaBrainRegistry")' functions/main.js
-      - name: Confirm mining module was not modified by registry commits
+      - name: Cost-safe profiler and leaderboard checks
         run: |
-          git diff --name-only HEAD~2..HEAD | tee /tmp/changed.txt
+          set -euo pipefail
+          grep -Fq 'const PROBE_LIMIT = 8' functions/novaBrainProfiler.js
+          grep -Fq "schedule: 'every 2 hours'" functions/novaBrainProfiler.js
+          grep -Fq 'discoverPublicInferenceRoutes' functions/novaBrainProfiler.js
+          grep -Fq 'rebuildLeaderboards' functions/novaBrainProfiler.js
+          grep -Fq "provider: 'Kilo'" functions/novaBrainProfiler.js
+          grep -Fq "provider: 'OVHcloud'" functions/novaBrainProfiler.js
+          grep -Fq "probeEligible: true" functions/novaBrainProfiler.js
+          grep -Fq "content: 'Reply exactly with NOVA_OK and nothing else.'" functions/novaBrainProfiler.js
+          grep -Fq 'novaBrainProfilerRefresh' functions/novaBrainProfiler.js
+          grep -Fq 'novaBrainProfilerStatus' functions/novaBrainProfiler.js
+          grep -Fq 'require("./novaBrainProfiler")' functions/main.js
+      - name: Confirm no raw user prompt persistence in profiler
+        run: |
+          set -euo pipefail
+          if grep -Eq "\.set\([^\n]*(prompt|messages)|prompt\s*:|userPrompt|rawPrompt" functions/novaBrainProfiler.js; then
+            echo 'Profiler must never persist user prompts.' >&2
+            exit 1
+          fi
+      - name: Confirm protected mining/reward files untouched in this commit
+        run: |
+          set -euo pipefail
+          git diff-tree --no-commit-id --name-only -r HEAD | tee /tmp/changed.txt
           if grep -Eq '^functions/(index.js|novaVault10x.js|admobRewardedSsv.*\.js)$' /tmp/changed.txt; then
             echo 'Protected mining/reward file changed unexpectedly.' >&2
+            exit 1
+          fi
+      - name: Keep registry CI storage-free
+        run: |
+          set -euo pipefail
+          if grep -Eq 'upload-artifact|actions/cache' .github/workflows/nova57-200k-registry-ci.yml; then
+            echo 'Registry CI must not upload artifacts or caches.' >&2
             exit 1
           fi
