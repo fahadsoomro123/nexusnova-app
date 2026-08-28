@@ -11,6 +11,7 @@ on:
       - 'fresh-rebuild/src/features/apps/nova-sol57-fresh.js'
       - 'fresh-rebuild/src/features/apps/app-screen.js'
       - 'functions/novaAtomicChain.js'
+      - 'scripts/nova57-hard-benchmark.mjs'
       - '.github/workflows/nova57-arim-ci.yml'
 
 permissions:
@@ -34,6 +35,7 @@ jobs:
           node --check fresh-rebuild/src/features/apps/nova-sol57-fresh.js
           node --check fresh-rebuild/src/features/apps/app-screen.js
           node --check functions/novaAtomicChain.js
+          node --check scripts/nova57-hard-benchmark.mjs
 
       - name: Verify adaptive multiplying mesh contract
         run: |
@@ -134,6 +136,26 @@ jobs:
             if (result.ok !== expected) throw new Error(`${name} quality expectation failed: ${JSON.stringify(result)}`);
           }
           console.log('Internal reasoning/meta/transport leaks are rejected; clean answer passes.');
+          NODE
+
+      - name: Verify hard benchmark cannot false-pass live web
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const bench = fs.readFileSync('scripts/nova57-hard-benchmark.mjs', 'utf8');
+          const required = [
+            'const routeWorked = Boolean(state.route?.provider && state.route?.model)',
+            'const notFallback = !/',
+            'const hasOpenAISource = /(?:platform\\.)?openai\\.com/i.test(value)',
+            'const hasCapability = /',
+            'passed: toolWorked && routeWorked && notFallback && hasOpenAISource && hasCapability && conciseEnough',
+            'globalThis.__NOVA_ATOMIC_CHAIN_LAST__ = null'
+          ];
+          const missing = required.filter(value => !bench.includes(value));
+          if (missing.length) throw new Error(`Hard benchmark verifier regression: ${missing.join(', ')}`);
+          const weakPattern = /passed:\s*toolWorked\s*&&\s*value\.length\s*>=\s*35/;
+          if (weakPattern.test(bench)) throw new Error('Legacy weak live-web verifier returned.');
+          console.log('Live-web benchmark requires a real answer route, non-fallback answer, source/domain, and capability evidence.');
           NODE
 
       - name: Verify privacy-safe route memory and failure telemetry
