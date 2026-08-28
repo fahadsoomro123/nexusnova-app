@@ -1,0 +1,25 @@
+name: NOVA 5.7 ACRM Live Two-Hop Smoke
+
+on:
+  push:
+    branches: [nova-sol57-pro-v128]
+    paths:
+      - 'scripts/nova57-acrm-live-smoke.mjs'
+      - '.github/workflows/nova57-acrm-live-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax check
+        run: node --check scripts/nova57-acrm-live-smoke.mjs
+      - name: Run live two-hop ACRM diagnostic
+        run: node scripts/nova57-acrm-live-smoke.mjs
