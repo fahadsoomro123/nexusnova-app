@@ -1,0 +1,70 @@
+/* NOVA 5.7 Sol — premium runtime feedback.
+   Lightweight and device-aware. Reduced/lite mode removes expensive motion
+   while preserving the same layout and controls. */
+
+html.nx57-clean-mode .nx57-runtime-toast {
+  position:absolute;
+  left:50%;
+  bottom:calc(112px + env(safe-area-inset-bottom,0px));
+  z-index:18;
+  max-width:min(84vw,340px);
+  padding:7px 11px;
+  border:1px solid rgba(255,255,255,.1);
+  border-radius:999px;
+  background:rgba(24,24,24,.94);
+  color:#d7d7d7;
+  box-shadow:0 10px 30px rgba(0,0,0,.34),inset 0 1px 0 rgba(255,255,255,.04);
+  font:600 11px/1.15 var(--nova-chat-font,system-ui,sans-serif);
+  letter-spacing:.01em;
+  opacity:0;
+  pointer-events:none;
+  transform:translate(-50%,7px) scale(.97);
+  transition:opacity 160ms ease,transform 180ms cubic-bezier(.22,1,.36,1);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+html.nx57-clean-mode .nx57-runtime-toast.is-visible {
+  opacity:.92;
+  transform:translate(-50%,0) scale(1);
+}
+
+html.nx57-clean-mode .nx57-premium-runtime-ready .nx57-clean-compose {
+  will-change:border-color,box-shadow;
+}
+
+html.nx57-clean-mode .nx57-performance-lite .nx57-clean-msg,
+html.nx57-clean-mode .nx57-performance-lite .nx57-clean-pop:not([hidden]),
+html.nx57-clean-mode .nx57-performance-lite .nx57-clean-drawer-backdrop:not([hidden]),
+html.nx57-clean-mode .nx57-performance-lite .nx57-clean-drawer-backdrop:not([hidden]) .nx57-native-drawer,
+html.nx57-clean-mode .nx57-performance-lite .nx57-clean-chip,
+html.nx57-clean-mode .nx57-performance-lite .nx57-task-status:not([hidden]),
+html.nx57-clean-mode .nx57-performance-lite.nx57-is-busy .nx57-clean-compose {
+  animation:none !important;
+}
+
+html.nx57-clean-mode .nx57-performance-lite .nx57-clean-messages {
+  scroll-behavior:auto;
+}
+
+html.nx57-clean-mode .nx57-performance-lite .nx57-clean-compose,
+html.nx57-clean-mode .nx57-performance-lite .nx57-clean-seg,
+html.nx57-clean-mode .nx57-performance-lite .nx57-clean-send,
+html.nx57-clean-mode .nx57-performance-lite .nx57-jump-latest,
+html.nx57-clean-mode .nx57-performance-lite .nx57-runtime-toast {
+  box-shadow:none;
+}
+
+@media (max-width:430px) {
+  html.nx57-clean-mode .nx57-runtime-toast {
+    bottom:calc(104px + env(safe-area-inset-bottom,0px));
+    max-width:88vw;
+  }
+}
+
+@media (prefers-reduced-motion:reduce) {
+  html.nx57-clean-mode .nx57-runtime-toast {
+    transition:none;
+  }
+}
