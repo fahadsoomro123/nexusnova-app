@@ -50,6 +50,18 @@ function searchQuery(prompt) {
     .slice(0, MAX_QUERY_CHARS);
 }
 
+function runtimeContext() {
+  const now = new Date();
+  return `\n\n[NOVA RUNTIME FACTS]\n` +
+    `Current device/runtime UTC timestamp: ${now.toISOString()}\n` +
+    `Current year: ${now.getUTCFullYear()}\n` +
+    `Capability: NOVA can attempt live web research for explicit latest/current/today/research/search requests.\n` +
+    `Capability: NOVA has live public GitHub read support for public repositories.\n` +
+    `Truth rules: Do not claim a fixed training-knowledge cutoff or say live web research is unavailable merely because the underlying language model is older. ` +
+    `When freshness matters, rely on the live tool result if present. If the live tool fails, state that specific failure instead of inventing current facts. ` +
+    `Do not invent browsing actions, sources, dates, repository contents or completed tool actions.`;
+}
+
 async function liveWebSearch(query) {
   if (!query) throw new Error('Empty web research query.');
   const key = query.toLowerCase();
@@ -119,6 +131,16 @@ function researchErrorContext(query, error) {
 function cleanAssistantText(text) {
   let out = String(text || '').trim();
   out = out.replace(/^(?:NOVA\s*5\.7\s*Sol\s*:\s*){1,3}/i, '');
+
+  const falseCapability = /(knowledge\s*(?:cutoff|up\s*to)|training\s+knowledge|up\s+to\s+(?:early\s+)?202[0-5]|live\s+(?:web\s+)?browsing.{0,45}(?:not\s+available|available\s+nahi|nahi\s+hai)|web\s+browsing.{0,45}(?:not\s+available|available\s+nahi|nahi\s+hai))/i;
+  if (falseCapability.test(out)) {
+    const sentences = out.split(/(?<=[.!?])\s+|\n{2,}/).filter(Boolean);
+    const kept = sentences.filter(sentence => !falseCapability.test(sentence));
+    out = kept.join(' ').trim();
+    const correction = 'NOVA live web research ko latest/current request par attempt kar sakta hai; current facts ko live evidence se verify kiya jata hai.';
+    out = out ? `${correction}\n\n${out}` : correction;
+  }
+
   return out.trim();
 }
 
@@ -139,7 +161,7 @@ export class GoogleAIBackend extends BaseGoogleAIBackend {}
 
 export function getAI(firebaseApp, config = {}) {
   const base = baseGetAI(firebaseApp, config);
-  return { ...base, __novaWebResearch: true };
+  return { ...base, __novaWebResearch: true, __novaCurrentGrounding: true };
 }
 
 export function getGenerativeModel(ai, options = {}) {
@@ -148,6 +170,7 @@ export function getGenerativeModel(ai, options = {}) {
     async generateContent(prompt) {
       let augmented = String(prompt || '');
       const shouldResearch = researchIntent(augmented) && !isGitHubIntent(augmented);
+      augmented += runtimeContext();
       if (shouldResearch) {
         const query = searchQuery(augmented);
         try {
