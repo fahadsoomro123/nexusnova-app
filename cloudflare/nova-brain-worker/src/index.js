@@ -453,6 +453,8 @@ async function probeRoute(provider, modelId) {
 async function maybeProbe(env) {
   const last = Number(await getMeta(env, 'last_probe_at', '0')) || 0;
   if (now() - last < PROBE_INTERVAL_MS) return { skipped: true, probed: 0 };
+  // Acquire a lightweight D1 lease before network calls so concurrent plans cannot duplicate probes.
+  await setMeta(env, 'last_probe_at', now());
   const rows = await env.DB.prepare(`SELECT provider,model_id,capability FROM route_health
     WHERE provider IN ('Kilo','OVHcloud') AND quarantine_until < ?1
     ORDER BY last_seen_at DESC, health_score DESC LIMIT ?2`).bind(now(), MAX_PROBES).all();
@@ -527,6 +529,8 @@ async function handle(request, env, ctx) {
     let body = {};
     try { body = await request.json(); } catch {}
     const capability = ALLOWED_CAPABILITIES.has(text(body?.capability, 30)) ? text(body.capability, 30) : 'general';
+    // Real planning traffic may start a bounded, prompt-free semantic probe cycle.
+    ctx.waitUntil(maybeProbe(env).catch(error => console.error('[NOVA semantic probe]', error)));
     return json(await plan(env, capability));
   }
 
