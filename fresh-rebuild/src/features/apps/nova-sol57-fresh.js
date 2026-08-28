@@ -1,9 +1,14 @@
 import { firebaseApp, readUserProfile, requireFirebaseUser } from '../../core/firebase-backend.js';
 import { escapeHtml, loadJson, saveJson, uid } from '../../core/local-store.js';
 import { createTaskStatus } from './nova57-task-status.js';
+import {
+  GoogleAIBackend as NovaAIBackend,
+  getAI as getNovaAI,
+  getGenerativeModel as getNovaModel
+} from '../../nova57-pro-orchestrator.js';
 
 const PRODUCT = 'NOVA 5.7 Sol';
-const PROVIDER_MODEL = 'gemini-3.6-flash';
+const ROUTER_PROFILE = 'NOVA 5.7 Sol / ARIM';
 const MAX_HISTORY = 80;
 const MAX_CONTEXT_TURNS = 14;
 const MAX_FILES = 5;
@@ -105,14 +110,13 @@ function systemInstruction(settings) {
 }
 
 async function providerReply(text, settings, history, attachments) {
-  const { getAI, getGenerativeModel, GoogleAIBackend } = await import('https://www.gstatic.com/firebasejs/12.1.0/firebase-ai.js');
-  const ai = getAI(firebaseApp, { backend: new GoogleAIBackend() });
+  const ai = getNovaAI(firebaseApp, { backend: new NovaAIBackend() });
   const normalTokens = { Max: 1450, 'Extra High': 1200, High: 950, Medium: 760, Light: 560 };
   const fastTokens = { Max: 1000, 'Extra High': 900, High: 760, Medium: 620, Light: 480 };
   const tempMap = { Max: .35, 'Extra High': .4, High: .5, Medium: .6, Light: .7 };
   const tokenMap = settings.speed === 'Fast' ? fastTokens : normalTokens;
-  const model = getGenerativeModel(ai, {
-    model: PROVIDER_MODEL,
+  const model = getNovaModel(ai, {
+    model: ROUTER_PROFILE,
     systemInstruction: { parts: [{ text: systemInstruction(settings) }] },
     generationConfig: {
       temperature: tempMap[settings.intelligence] ?? .5,
