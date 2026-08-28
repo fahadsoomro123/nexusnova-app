@@ -136,15 +136,17 @@ export function getGenerativeModel(ai, options = {}) {
       }
 
       const dna = atomicTaskDNA(request);
-      emit('Thinking', { capability: dna.capability, complexity: dna.complexity, atomic: dna.maxHops > 1 });
-      const result = shouldUseAtomicChain(request)
+      const atomic = shouldUseAtomicChain(request);
+      emit('Thinking', { capability: dna.capability, complexity: dna.complexity, atomic });
+      const result = atomic
         ? await runAtomicChain({
             prompt: original,
             request,
+            options,
             generate: nextPrompt => hedgeModel.generateContent(nextPrompt)
           })
         : await hedgeModel.generateContent(original);
-      emit('Finalizing', { atomic: shouldUseAtomicChain(request) });
+      emit('Finalizing', { atomic });
       return result;
     }
   };
