@@ -272,8 +272,11 @@ function laneSlice(candidates, lane, hedgeWidth) {
   if (!candidates.length) return [];
   const safeLane = Math.max(0, Math.min(15, Number(lane) || 0));
   const start = safeLane * width;
-  const sliced = candidates.slice(start, start + width);
-  return sliced.length ? sliced : candidates.slice(0, Math.min(width, candidates.length));
+  // Strict lane isolation: never wrap/fallback to lane 0. If a unique lane has
+  // no candidate left, that ARIM branch must skip instead of reusing a brain
+  // and pretending the mesh expanded independently.
+  if (start >= candidates.length) return [];
+  return candidates.slice(start, start + width);
 }
 
 export async function runAtomicBrain(prompt, options = {}, control = {}) {
@@ -287,6 +290,9 @@ export async function runAtomicBrain(prompt, options = {}, control = {}) {
   if (!candidates.length) throw new Error(`No healthy ACRM/ARIM ${capability} candidates.`);
 
   const selected = laneSlice(candidates, lane, hedgeWidth);
+  if (!selected.length) {
+    throw new Error(`No distinct ACRM/ARIM ${capability} candidate remains for lane ${lane}.`);
+  }
   const started = Date.now();
   const attempts = selected.map((route, index) => callRoute(route, prompt, options, timeoutMs, index * 110));
   try {
