@@ -31,8 +31,8 @@ export function assessAtomicResponseQuality(value) {
   if (!text) return { ok: false, reason: 'empty' };
   const head = text.slice(0, 520).replace(/^\s+/, '');
   const internalMeta = [
-    /^<think>\b/i,
-    /^<analysis>\b/i,
+    /^<think>(?:\s|$)/i,
+    /^<analysis>(?:\s|$)/i,
     /^#{1,4}\s*(?:analysis|reasoning|chain of thought)\b/i,
     /^(?:the\s+)?user\s+(?:asks|wants|is asking|requested)\b/i,
     /^we\s+(?:need|should|must)\s+(?:to\s+)?(?:respond|answer|solve|craft|provide|analy[sz]e|figure out|comply)\b/i,

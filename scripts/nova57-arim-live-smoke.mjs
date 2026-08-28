@@ -104,12 +104,14 @@ const qualityUnit = {
   clean: pool.assessAtomicResponseQuality('NOVA mesh route is alive.'),
   leakUser: pool.assessAtomicResponseQuality('The user asks: confirm this route is alive.'),
   leakWeNeed: pool.assessAtomicResponseQuality('We need to respond with a concise confirmation.'),
-  rawJson: pool.assessAtomicResponseQuality('{"choices":[{"message":{"content":"hi"}}]}')
+  rawJson: pool.assessAtomicResponseQuality('{"choices":[{"message":{"content":"hi"}}]}'),
+  leakThink: pool.assessAtomicResponseQuality('<think>\ninternal reasoning must never reach the user')
 };
 qualityUnit.pass = qualityUnit.clean.ok === true
   && qualityUnit.leakUser.ok === false
   && qualityUnit.leakWeNeed.ok === false
-  && qualityUnit.rawJson.ok === false;
+  && qualityUnit.rawJson.ok === false
+  && qualityUnit.leakThink.ok === false;
 
 function textOf(result) {
   try { return String(result?.response?.text?.() || '').trim(); }
