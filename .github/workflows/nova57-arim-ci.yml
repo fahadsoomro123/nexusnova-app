@@ -47,7 +47,16 @@ jobs:
             'remainingMs()',
             "strategy: 'ARIM'"
           ];
-          const requiredPool = ['laneSlice', 'control.lane', 'hedgeWidth', '__novaAtomicBrain'];
+          const requiredPool = [
+            'laneSlice',
+            'control.lane',
+            'hedgeWidth',
+            '__novaAtomicBrain',
+            '__novaAtomicFailures',
+            'reportBackendFailures',
+            'backendOutcome',
+            'quality: 0'
+          ];
           const requiredBackend = ["strategy: 'ARIM'", 'buildGenerations', 'widths: [2, 2, 4]', 'novaRecordBrainOutcome'];
           const missing = [
             ...requiredChain.filter(x => !chain.includes(x)).map(x => `chain:${x}`),
@@ -58,10 +67,10 @@ jobs:
             console.error('Missing ARIM contracts:', missing);
             process.exit(1);
           }
-          console.log('ARIM topology/learning/lane contracts present.');
+          console.log('ARIM topology, lane isolation, success/failure learning contracts present.');
           NODE
 
-      - name: Verify privacy-safe route memory
+      - name: Verify privacy-safe route memory and failure telemetry
         run: |
           node <<'NODE'
           const fs = require('fs');
@@ -69,7 +78,15 @@ jobs:
           const chain = fs.readFileSync('fresh-rebuild/src/nova57-atomic-chain.js', 'utf8');
           if (!pool.includes("JSON.stringify({ version: 1, routes: rows })")) throw new Error('Expected route-stat-only memory payload missing.');
           if (/localStorage|sessionStorage|indexedDB/i.test(chain)) throw new Error('Chain module must not persist user prompts.');
-          console.log('ARIM persists route stats only; chain prompt data is not persisted.');
+          const start = pool.indexOf('function reportBackendFailures');
+          const end = pool.indexOf('function markSuccess', start);
+          if (start < 0 || end < 0) throw new Error('Failure telemetry function missing.');
+          const feedback = pool.slice(start, end);
+          if (/prompt|messages|answerText|raw/i.test(feedback)) throw new Error('Failure telemetry must contain route stats only, never prompt/output text.');
+          for (const required of ['provider', 'modelId', 'capability', 'outcome', 'latencyMs', 'quality']) {
+            if (!feedback.includes(required)) throw new Error(`Failure telemetry field missing: ${required}`);
+          }
+          console.log('ARIM persists and reports route stats only; prompt/output data is excluded.');
           NODE
 
       - name: Protected mining reward wallet NVX guard
