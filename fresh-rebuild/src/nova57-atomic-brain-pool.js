@@ -2,8 +2,8 @@
 // Keeps only route health/latency counters in localStorage; never stores prompts.
 // The pool can absorb dynamically discovered Kilo/OVH routes published by the
 // keyless router, while known-good routes provide a cold-start safety net.
-// ARIM lanes deliberately partition ranked candidates so parallel branches do
-// not all race the same model and pretend to be independent intelligence.
+// ARIM lanes partition and provider-interleave ranked candidates so parallel
+// branches do not all depend on one model/provider failure domain.
 
 const KILO_BASE = 'https://api.kilo.ai/api/gateway';
 const OVH_BASE = 'https://oai.endpoints.kepler.ai.cloud.ovh.net/v1';
@@ -105,8 +105,6 @@ function errorKind(error) {
 }
 
 function backendOutcome(kind) {
-  // Backend keeps a deliberately small outcome vocabulary. The phone retains
-  // the more specific quality reason locally; only route health telemetry leaves.
   if (kind === 'quality' || kind === 'failed') return 'failure';
   return kind;
 }
@@ -208,7 +206,16 @@ function fitBonus(route, capability) {
   return /instruct|chat|nemotron|mistral|minimax|openrouter\/free/.test(id) ? 12 : 0;
 }
 
-function routeScore(route, capability, preferredIndex) {
+function providerSetFromKeys(keys) {
+  const providers = new Set();
+  for (const key of keys || []) {
+    const split = String(key || '').indexOf('::');
+    if (split > 0) providers.add(String(key).slice(0, split));
+  }
+  return providers;
+}
+
+function routeScore(route, capability, preferredIndex, excludedProviders) {
   const s = stat(route);
   const attempts = s.ok + s.fail;
   const successRate = attempts ? s.ok / attempts : 0.5;
@@ -218,16 +225,44 @@ function routeScore(route, capability, preferredIndex) {
   const qualityPenalty = s.lastErrorKind === 'quality' && s.lastFail > s.lastOk ? 70 : 0;
   const preferredAt = preferredIndex.get(keyOf(route));
   const backendBonus = Number.isInteger(preferredAt) ? Math.max(36, 90 - preferredAt * 8) : 0;
-  return route.priority + fitBonus(route, capability) + backendBonus + freshness + successRate * 24 - latencyPenalty - failurePenalty - qualityPenalty;
+  const providerDiversity = excludedProviders.size === 1 && !excludedProviders.has(route.provider) ? 52 : 0;
+  return route.priority + fitBonus(route, capability) + backendBonus + providerDiversity + freshness + successRate * 24 - latencyPenalty - failurePenalty - qualityPenalty;
+}
+
+function interleaveProviders(routes) {
+  const providerOrder = [];
+  const groups = new Map();
+  for (const route of routes) {
+    if (!groups.has(route.provider)) {
+      groups.set(route.provider, []);
+      providerOrder.push(route.provider);
+    }
+    groups.get(route.provider).push(route);
+  }
+  if (providerOrder.length < 2) return routes;
+  const output = [];
+  let added = true;
+  while (added) {
+    added = false;
+    for (const provider of providerOrder) {
+      const group = groups.get(provider);
+      if (!group?.length) continue;
+      output.push(group.shift());
+      added = true;
+    }
+  }
+  return output;
 }
 
 export function atomicCandidates(capability = 'general', excludeKeys = [], preferredKeys = []) {
   loadMemory();
   const excluded = new Set(excludeKeys || []);
+  const excludedProviders = providerSetFromKeys(excludeKeys);
   const preferredIndex = new Map((preferredKeys || []).map((key, index) => [String(key), index]));
-  return dedupe([...KNOWN_FAST, ...dynamicRoutes()])
+  const ranked = dedupe([...KNOWN_FAST, ...dynamicRoutes()])
     .filter(route => !excluded.has(keyOf(route)) && !isQuarantined(route))
-    .sort((a, b) => routeScore(b, capability, preferredIndex) - routeScore(a, capability, preferredIndex));
+    .sort((a, b) => routeScore(b, capability, preferredIndex, excludedProviders) - routeScore(a, capability, preferredIndex, excludedProviders));
+  return interleaveProviders(ranked);
 }
 
 function generationConfig(options = {}) {
