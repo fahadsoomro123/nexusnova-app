@@ -76,6 +76,7 @@ class NexusDriveForegroundService : Service(), LocationListener {
         super.onCreate()
         locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
         createNotificationChannel()
+        restoreActiveSnapshot()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -97,9 +98,65 @@ class NexusDriveForegroundService : Service(), LocationListener {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        if (active) persistSnapshot()
         handler.removeCallbacks(ticker)
         stopLocationUpdates()
         super.onDestroy()
+    }
+
+    /**
+     * Android can recreate a START_STICKY service after its process is killed.
+     * The old implementation wrote a snapshot every second but never reloaded it,
+     * so a process crash reset the in-memory trip to zero. Restore only aggregate
+     * values here; coordinates remain intentionally non-persistent.
+     */
+    private fun restoreActiveSnapshot() {
+        val raw = prefs().getString(KEY_SNAPSHOT, null)
+        if (raw.isNullOrBlank()) return
+        val snapshot = runCatching { JSONObject(raw) }.getOrNull() ?: return
+        if (!snapshot.optBoolean("active", false)) return
+
+        val now = System.currentTimeMillis()
+        val restoredStart = snapshot.optLong("startedAt", 0L)
+        if (restoredStart <= 0L || restoredStart > now) return
+
+        val updatedAt = snapshot.optLong("updatedAt", restoredStart)
+        val restartGap = max(0L, now - updatedAt)
+        val wasPaused = snapshot.optBoolean("paused", false)
+        val pauseForSafety = restartGap > RESTORE_AUTO_RESUME_MAX_GAP_MS
+
+        tripId = snapshot.optString("tripId").trim().ifBlank { "native-restored-$restoredStart" }
+        active = true
+        paused = wasPaused || pauseForSafety
+        startedAt = restoredStart
+        pausedMs = max(0L, snapshot.optLong("pausedMs", 0L))
+        if (paused) {
+            // The persisted pausedMs already includes time up to updatedAt. Treat
+            // the process-down gap as paused as well so duration never inflates.
+            pausedMs += restartGap
+            pausedAt = now
+        } else {
+            pausedAt = 0L
+        }
+        distanceM = snapshot.optDouble("distanceM", 0.0).let { if (it.isFinite() && it >= 0.0) it else 0.0 }
+        movingMs = max(0L, snapshot.optLong("movingMs", 0L))
+        speedKmh = 0.0
+        topKmh = snapshot.optDouble("topKmh", 0.0).let { if (it.isFinite() && it >= 0.0) it else 0.0 }
+        accuracyM = snapshot.optDouble("accuracy", Double.NaN).let { if (it.isFinite() && it >= 0.0) it else Double.NaN }
+        headingDeg = snapshot.optDouble("heading", Double.NaN).let { if (it.isFinite()) normalizeHeading(it) else Double.NaN }
+        lastFix = null
+        lastStatus = if (paused) {
+            "Drive restored after app restart • paused safely"
+        } else {
+            "Drive restored after app restart • waiting for clean GPS fix"
+        }
+
+        ensureForeground()
+        if (!paused && hasLocationPermission()) startLocationUpdates()
+        handler.removeCallbacks(ticker)
+        handler.post(ticker)
+        persistSnapshot()
+        refreshNotification()
     }
 
     private fun startTracking() {
@@ -125,6 +182,9 @@ class NexusDriveForegroundService : Service(), LocationListener {
             lastFix = null
             lastStatus = "Starting precision GPS…"
             clearCompletedTrip()
+        } else if (paused) {
+            resumeTracking()
+            return
         }
 
         ensureForeground()
@@ -344,17 +404,22 @@ class NexusDriveForegroundService : Service(), LocationListener {
             Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val toggleAction = if (paused) ACTION_RESUME else ACTION_PAUSE
-        val toggleLabel = if (paused) "Resume" else "Pause"
-        val toggle = PendingIntent.getService(
+        val startOrResume = PendingIntent.getService(
             this,
             1,
-            Intent(this, NexusDriveForegroundService::class.java).setAction(toggleAction),
+            Intent(this, NexusDriveForegroundService::class.java)
+                .setAction(if (paused) ACTION_RESUME else ACTION_START),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val pause = PendingIntent.getService(
+            this,
+            2,
+            Intent(this, NexusDriveForegroundService::class.java).setAction(ACTION_PAUSE),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val stop = PendingIntent.getService(
             this,
-            2,
+            3,
             Intent(this, NexusDriveForegroundService::class.java).setAction(ACTION_STOP),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -362,6 +427,7 @@ class NexusDriveForegroundService : Service(), LocationListener {
         val state = if (paused) "Paused" else "Tracking"
         val line = "${speedKmh.toInt()} km/h • ${formatDistance(distanceM)} • ${formatDuration(activeDuration(System.currentTimeMillis()))}"
         val detail = if (accuracyM.isFinite()) "GPS ±${accuracyM.toInt()} m • coordinates not stored" else "Precision GPS • coordinates not stored"
+        val startLabel = if (paused) "Resume" else "Start"
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_menu_mylocation)
@@ -373,7 +439,8 @@ class NexusDriveForegroundService : Service(), LocationListener {
             .setOnlyAlertOnce(true)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .addAction(0, toggleLabel, toggle)
+            .addAction(0, startLabel, startOrResume)
+            .addAction(0, "Pause", pause)
             .addAction(0, "Stop", stop)
             .build()
     }
@@ -478,6 +545,7 @@ class NexusDriveForegroundService : Service(), LocationListener {
         private const val MIN_MOVING_KMH = 2.5
         private const val MIN_SAVED_TRIP_M = 15.0
         private const val MIN_SAVED_MOVING_MS = 3_000L
+        private const val RESTORE_AUTO_RESUME_MAX_GAP_MS = 5L * 60L * 1000L
 
         fun start(context: Context) {
             ContextCompat.startForegroundService(

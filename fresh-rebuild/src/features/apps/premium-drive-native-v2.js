@@ -1,6 +1,4 @@
-import { loadJson, saveJson } from '../../core/local-store.js';
-import { requireFirebaseUser } from '../../core/firebase-backend.js';
-import { pushDriveCloudStore, syncDriveCloudStore } from '../../core/drive-cloud-store.js';
+import { hydrateDriveTrackState, loadDriveTrackState, persistDriveTrackState } from '../../core/drive-track-persistence.js';
 import { premiumDriveRenderers } from './premium-drive-tools.js';
 
 const HISTORY_LIMIT = 90;
@@ -13,67 +11,26 @@ function post(action) {
   return window.nexusPostNativeAction?.(action) === true;
 }
 
-async function accountId() {
-  try {
-    const user = await requireFirebaseUser();
-    return String(user?.uid || '').trim() || 'device';
-  } catch {
-    return 'device';
-  }
-}
-
-async function storeKey() {
-  return `nexusnova_drive_track_v1:${await accountId()}`;
-}
-
 function localDayKey(value = new Date()) {
   const d = new Date(value);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-function readStore(key) {
-  const raw = loadJson(key, null);
-  return {
-    version: 1,
-    days: raw?.days && typeof raw.days === 'object' ? raw.days : {},
-    trips: Array.isArray(raw?.trips) ? raw.trips.slice(0, HISTORY_LIMIT) : []
-  };
 }
 
 function announceStoreUpdate() {
   window.dispatchEvent(new Event('nexusnova:drive-track-updated'));
 }
 
-async function hydrateCloudStore() {
-  const key = await storeKey();
-  if (key.endsWith(':device')) return false;
-  const local = readStore(key);
-  const result = await syncDriveCloudStore(local);
-  if (!result?.cloud) return false;
-  saveJson(key, result.store);
-  announceStoreUpdate();
-  return true;
-}
-
-async function persistCloudStore(key, store) {
-  if (!key || key.endsWith(':device')) return false;
-  const result = await pushDriveCloudStore(store);
-  if (!result?.cloud) return false;
-  saveJson(key, result.store);
-  announceStoreUpdate();
-  return true;
-}
-
 async function importCompletedTrip(completed) {
   if (!completed || typeof completed !== 'object') return false;
   const nativeId = String(completed.nativeId || '').trim();
   if (!nativeId) return false;
-  const key = await storeKey();
-  const store = readStore(key);
+
+  const state = await loadDriveTrackState();
+  const store = state.store;
   if (store.trips.some(row => row?.nativeId === nativeId)) {
     // A restored/local copy may already contain this native trip. Still make
     // sure the cloud state is caught up, then do not double-count it.
-    persistCloudStore(key, store).catch(() => {});
+    persistDriveTrackState(store).catch(() => {});
     return false;
   }
 
@@ -100,9 +57,11 @@ async function importCompletedTrip(completed) {
     topKmh
   });
   store.trips = store.trips.slice(0, HISTORY_LIMIT);
-  saveJson(key, store);
+
+  // Save locally first and cloud-back it up through the isolated persistence
+  // coordinator. If auth/network is not ready, it is staged and migrated later.
   announceStoreUpdate();
-  try { await persistCloudStore(key, store); } catch {}
+  try { await persistDriveTrackState(store); } catch {}
   return true;
 }
 
@@ -211,9 +170,9 @@ export function renderNovaDriveNativeV2() {
   const onNative = event => paint(event?.detail);
   window.addEventListener('nexusnova:native-drive', onNative);
 
-  // Restore protected account data after reinstall/sign-in without delaying the
-  // live native tracker. Existing local history is merged, never blindly erased.
-  hydrateCloudStore().catch(() => {});
+  // Reinstall-safe account restore. Existing local/device history is merged into
+  // the signed-in account and never blindly replaced by an empty local store.
+  hydrateDriveTrackState().catch(() => {});
 
   main.addEventListener('click', async () => {
     if (disposed) return;
@@ -263,7 +222,7 @@ export function renderNovaTrackNativeV2() {
     if (completed) importCompletedTrip(completed).catch(() => {});
   };
   window.addEventListener('nexusnova:native-drive', onNative);
-  hydrateCloudStore().catch(() => {});
+  hydrateDriveTrackState().catch(() => {});
   post('nativeDriveStatus');
   const baseCleanup = root.__cleanup;
   root.__cleanup = () => {

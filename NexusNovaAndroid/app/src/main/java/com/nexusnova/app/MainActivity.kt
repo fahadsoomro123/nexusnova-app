@@ -589,6 +589,38 @@ class MainActivity : AppCompatActivity() {
                 adManager?.publishStatus()
             }
 
+            ACTION_NATIVE_DRIVE_START -> {
+                if (!hasLocationPermission()) {
+                    publishNativeDriveSnapshot("Location permission is required for Nova Drive.")
+                    return
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                    ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                ) {
+                    runCatching { requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), NATIVE_DRIVE_NOTIFICATION_REQUEST_CODE) }
+                }
+                runCatching { NexusDriveForegroundService.start(this) }
+                    .onFailure { publishNativeDriveSnapshot("Could not start background Drive tracking: ${it.message ?: "system restriction"}") }
+                webView.postDelayed({ publishNativeDriveSnapshot() }, 180L)
+            }
+
+            ACTION_NATIVE_DRIVE_PAUSE -> {
+                NexusDriveForegroundService.command(this, NexusDriveForegroundService.ACTION_PAUSE)
+                webView.postDelayed({ publishNativeDriveSnapshot() }, 120L)
+            }
+
+            ACTION_NATIVE_DRIVE_RESUME -> {
+                NexusDriveForegroundService.command(this, NexusDriveForegroundService.ACTION_RESUME)
+                webView.postDelayed({ publishNativeDriveSnapshot() }, 120L)
+            }
+
+            ACTION_NATIVE_DRIVE_STOP -> {
+                NexusDriveForegroundService.command(this, NexusDriveForegroundService.ACTION_STOP)
+                webView.postDelayed({ publishNativeDriveSnapshot() }, 280L)
+            }
+
+            ACTION_NATIVE_DRIVE_STATUS -> publishNativeDriveSnapshot()
+
             ACTION_OPEN_EXTERNAL -> {
                 val url = message.optString("url").trim()
                 if (url.length > MAX_EXTERNAL_URL_CHARS) return
@@ -598,6 +630,21 @@ class MainActivity : AppCompatActivity() {
                     return
                 }
                 if (isHttpUri(uri)) openExternalUri(uri)
+            }
+        }
+    }
+
+    private fun publishNativeDriveSnapshot(error: String? = null) {
+        if (!::webView.isInitialized || isFinishing || isDestroyed) return
+        val snapshot = NexusDriveForegroundService.readSnapshot(this)
+        if (!error.isNullOrBlank()) {
+            snapshot.put("error", error)
+            snapshot.put("status", error)
+        }
+        val script = "window.dispatchEvent(new CustomEvent('nexusnova:native-drive',{detail:${snapshot}}));"
+        webView.post {
+            if (!isFinishing && !isDestroyed && ::webView.isInitialized) {
+                runCatching { webView.evaluateJavascript(script, null) }
             }
         }
     }
@@ -791,6 +838,12 @@ class MainActivity : AppCompatActivity() {
         const val ACTION_SHOW_REWARDED_AD = "showRewardedAd"
         const val ACTION_SHOW_INTERSTITIAL_AD = "showInterstitialAd"
         const val ACTION_AD_STATUS = "adStatus"
+        const val ACTION_NATIVE_DRIVE_START = "nativeDriveStart"
+        const val ACTION_NATIVE_DRIVE_PAUSE = "nativeDrivePause"
+        const val ACTION_NATIVE_DRIVE_RESUME = "nativeDriveResume"
+        const val ACTION_NATIVE_DRIVE_STOP = "nativeDriveStop"
+        const val ACTION_NATIVE_DRIVE_STATUS = "nativeDriveStatus"
+        const val NATIVE_DRIVE_NOTIFICATION_REQUEST_CODE = 2608
 
         const val MAX_BRIDGE_MESSAGE_CHARS = 8_192
         const val MAX_VPN_AUTH_TOKEN_CHARS = 7_000
