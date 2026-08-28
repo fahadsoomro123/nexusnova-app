@@ -124,16 +124,43 @@ jobs:
           printf '%s' "$REFRESH_KEY" | wrangler secret put REFRESH_KEY --config="$CF_DIR/wrangler.runtime.toml"
           echo "REFRESH_KEY=$REFRESH_KEY" >> "$GITHUB_ENV"
 
+      - name: Wait for workers.dev propagation
+        shell: bash
+        run: |
+          set -euo pipefail
+          READY=0
+          for attempt in $(seq 1 15); do
+            HTTP=$(curl -sS -o "$RUNNER_TEMP/readiness.json" -w '%{http_code}' "$WORKER_URL/v1/status" || true)
+            if [ "$HTTP" = "200" ] && jq -e '.ok == true and .targetCatalog == 200000' "$RUNNER_TEMP/readiness.json" >/dev/null 2>&1; then
+              READY=1
+              echo "Worker ready on attempt $attempt."
+              break
+            fi
+            echo "Worker not ready yet (HTTP $HTTP), attempt $attempt/15."
+            sleep 2
+          done
+          test "$READY" = "1"
+
       - name: Bootstrap registry and active routes
         shell: bash
         run: |
           set -euo pipefail
           for i in 1 2 3; do
             echo "Bootstrap cycle $i"
-            curl -fsS "$WORKER_URL/v1/refresh" \
-              -X POST \
-              -H "x-nova-refresh-key: $REFRESH_KEY" > "$RUNNER_TEMP/bootstrap-$i.json"
-            jq -e '.ok == true' "$RUNNER_TEMP/bootstrap-$i.json" >/dev/null
+            OK=0
+            for attempt in 1 2 3; do
+              HTTP=$(curl -sS -o "$RUNNER_TEMP/bootstrap-$i.json" -w '%{http_code}' "$WORKER_URL/v1/refresh" \
+                -X POST \
+                -H "x-nova-refresh-key: $REFRESH_KEY" || true)
+              if [ "$HTTP" = "200" ] && jq -e '.ok == true' "$RUNNER_TEMP/bootstrap-$i.json" >/dev/null 2>&1; then
+                OK=1
+                break
+              fi
+              echo "Refresh retry $attempt for cycle $i returned HTTP $HTTP."
+              if [ -s "$RUNNER_TEMP/bootstrap-$i.json" ]; then cat "$RUNNER_TEMP/bootstrap-$i.json"; fi
+              sleep 2
+            done
+            test "$OK" = "1"
           done
 
       - name: Live Worker and D1 verification
@@ -162,8 +189,12 @@ jobs:
           placeholder = '__NOVA_CLOUDFLARE_BRAIN_BACKEND_URL__'
           url = os.environ['WORKER_URL']
           if placeholder not in source:
-              raise SystemExit('Cloudflare backend URL placeholder missing.')
-          path.write_text(source.replace(placeholder, url, 1), encoding='utf-8')
+              if url in source:
+                  print('Cloudflare backend URL already wired.')
+              else:
+                  raise SystemExit('Cloudflare backend URL placeholder missing.')
+          else:
+              path.write_text(source.replace(placeholder, url, 1), encoding='utf-8')
           PY
           node --check fresh-rebuild/src/nova57-atomic-backend-client.js
           grep -Fq "$WORKER_URL" fresh-rebuild/src/nova57-atomic-backend-client.js
@@ -180,7 +211,7 @@ jobs:
         shell: bash
         run: |
           rm -f "$CF_DIR/wrangler.runtime.toml" \
-            "$RUNNER_TEMP"/cf-subdomain.json \
+            "$RUNNER_TEMP"/cf-subdomain.json "$RUNNER_TEMP"/readiness.json \
             "$RUNNER_TEMP"/d1-list.json "$RUNNER_TEMP"/d1-create.json \
             "$RUNNER_TEMP"/worker-subdomain-enable.json \
             "$RUNNER_TEMP"/bootstrap-*.json "$RUNNER_TEMP"/status.json "$RUNNER_TEMP"/plan.json
