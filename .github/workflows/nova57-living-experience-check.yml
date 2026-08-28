@@ -5,7 +5,10 @@ on:
     branches: [nova-sol57-runtime-recovery-v128]
     paths:
       - 'fresh-rebuild/assets/styles/nova57-living-experience.css'
+      - 'fresh-rebuild/assets/styles/nova57-premium-runtime.css'
       - 'fresh-rebuild/src/nova57-living-experience.js'
+      - 'fresh-rebuild/src/nova57-premium-runtime.js'
+      - 'fresh-rebuild/src/nova57-adaptive-client-router-compat.js'
       - 'fresh-rebuild/index.html'
       - '.github/workflows/nova57-living-experience-check.yml'
   workflow_dispatch:
@@ -20,8 +23,12 @@ jobs:
         run: |
           set -euo pipefail
           node --check fresh-rebuild/src/nova57-living-experience.js
+          node --check fresh-rebuild/src/nova57-premium-runtime.js
+          node --check fresh-rebuild/src/nova57-adaptive-client-router-compat.js
           grep -Fq './assets/styles/nova57-living-experience.css' fresh-rebuild/index.html
+          grep -Fq './assets/styles/nova57-premium-runtime.css' fresh-rebuild/index.html
           grep -Fq './src/nova57-living-experience.js' fresh-rebuild/index.html
+          grep -Fq './src/nova57-premium-runtime.js' fresh-rebuild/index.html
           grep -Fq './src/nova57-adaptive-client-router-compat.js' fresh-rebuild/index.html
           grep -Fq 'prefers-reduced-motion:reduce' fresh-rebuild/assets/styles/nova57-living-experience.css
           grep -Fq 'nx57-has-text' fresh-rebuild/src/nova57-living-experience.js
@@ -32,6 +39,12 @@ jobs:
           grep -Fq 'Retry' fresh-rebuild/src/nova57-living-experience.js
           grep -Fq 'navigator.onLine' fresh-rebuild/src/nova57-living-experience.js
           grep -Fq 'nx57WorkingEdge' fresh-rebuild/assets/styles/nova57-living-experience.css
+          grep -Fq 'DRAFT_KEY' fresh-rebuild/src/nova57-premium-runtime.js
+          grep -Fq 'nx57-performance-lite' fresh-rebuild/src/nova57-premium-runtime.js
+          grep -Fq 'nx57-runtime-toast' fresh-rebuild/assets/styles/nova57-premium-runtime.css
+          grep -Fq 'STICKY_WINNER_TTL_MS' fresh-rebuild/src/nova57-adaptive-client-router-compat.js
+          grep -Fq 'EXACT_CACHE_TTL_MS' fresh-rebuild/src/nova57-adaptive-client-router-compat.js
           ! grep -Fq 'position:fixed' fresh-rebuild/assets/styles/nova57-living-experience.css
+          ! grep -Fq 'position:fixed' fresh-rebuild/assets/styles/nova57-premium-runtime.css
           ! grep -Fq 'innerHTML =' fresh-rebuild/src/nova57-living-experience.js
-          echo 'NOVA living experience source checks: PASS'
+          echo 'NOVA living experience + premium runtime source checks: PASS'
