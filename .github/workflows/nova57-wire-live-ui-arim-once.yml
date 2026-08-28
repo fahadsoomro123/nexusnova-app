@@ -1,0 +1,93 @@
+name: NOVA 5.7 One-Time Live UI ARIM Wiring
+
+on:
+  push:
+    branches: [nova-sol57-pro-v128]
+    paths:
+      - '.github/workflows/nova57-wire-live-ui-arim-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  wire-and-self-clean:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 5
+
+      - name: Wire actual NOVA screen to Pro Orchestrator
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('fresh-rebuild/src/features/apps/nova-sol57-fresh.js')
+          text = path.read_text(encoding='utf-8')
+
+          import_anchor = "import { createTaskStatus } from './nova57-task-status.js';\n"
+          import_block = """import { createTaskStatus } from './nova57-task-status.js';
+          import {
+            GoogleAIBackend as NovaAIBackend,
+            getAI as getNovaAI,
+            getGenerativeModel as getNovaModel
+          } from '../../nova57-pro-orchestrator.js';
+          """
+          if "from '../../nova57-pro-orchestrator.js'" not in text:
+              if text.count(import_anchor) != 1:
+                  raise SystemExit('Expected NOVA import anchor exactly once.')
+              text = text.replace(import_anchor, import_block, 1)
+
+          text = text.replace("const PROVIDER_MODEL = 'gemini-3.6-flash';\n", "const ROUTER_PROFILE = 'NOVA 5.7 Sol / ARIM';\n", 1)
+
+          old = """async function providerReply(text, settings, history, attachments) {
+            const { getAI, getGenerativeModel, GoogleAIBackend } = await import('https://www.gstatic.com/firebasejs/12.1.0/firebase-ai.js');
+            const ai = getAI(firebaseApp, { backend: new GoogleAIBackend() });
+          """
+          new = """async function providerReply(text, settings, history, attachments) {
+            const ai = getNovaAI(firebaseApp, { backend: new NovaAIBackend() });
+          """
+          if old not in text:
+              raise SystemExit('Direct Firebase AI provider block was not found exactly as expected.')
+          text = text.replace(old, new, 1)
+
+          old_model = """  const model = getGenerativeModel(ai, {
+              model: PROVIDER_MODEL,
+          """
+          new_model = """  const model = getNovaModel(ai, {
+              model: ROUTER_PROFILE,
+          """
+          if old_model not in text:
+              raise SystemExit('Direct model construction block was not found.')
+          text = text.replace(old_model, new_model, 1)
+
+          path.write_text(text, encoding='utf-8')
+          PY
+
+          node --check fresh-rebuild/src/features/apps/nova-sol57-fresh.js
+          grep -Fq "from '../../nova57-pro-orchestrator.js'" fresh-rebuild/src/features/apps/nova-sol57-fresh.js
+          grep -Fq 'getNovaAI(firebaseApp' fresh-rebuild/src/features/apps/nova-sol57-fresh.js
+          grep -Fq 'getNovaModel(ai' fresh-rebuild/src/features/apps/nova-sol57-fresh.js
+          if grep -Fq 'firebase-ai.js' fresh-rebuild/src/features/apps/nova-sol57-fresh.js; then
+            echo 'Actual NOVA screen still contains direct Firebase AI SDK routing.' >&2
+            exit 1
+          fi
+
+      - name: Verify protected domains unchanged and self-clean
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --name-only
+          if git diff --name-only | grep -Ei '(^|/)(mining|mine|rewards?|wallet|nvx)(/|\.|-|_)'; then
+            echo 'Protected mining/reward/wallet/NVX path changed.' >&2
+            exit 1
+          fi
+          git rm .github/workflows/nova57-wire-live-ui-arim-once.yml
+          git config user.name 'NexusNova ARIM Wiring Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add fresh-rebuild/src/features/apps/nova-sol57-fresh.js
+          git commit -m 'Wire actual NOVA UI to ARIM Pro Orchestrator'
+          git push origin HEAD:nova-sol57-pro-v128
