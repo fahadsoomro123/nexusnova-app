@@ -50,6 +50,9 @@ jobs:
           grep -q "MEMORY_KEY = 'nova57:atomic-brain-memory:v1'" fresh-rebuild/src/nova57-atomic-brain-pool.js
           grep -q "__NOVA_KEYLESS_ROUTE_POOL__" fresh-rebuild/src/nova57-atomic-brain-pool.js
           grep -q "preferredKeys" fresh-rebuild/src/nova57-atomic-brain-pool.js
+          grep -q "assessAtomicResponseQuality" fresh-rebuild/src/nova57-atomic-brain-pool.js
+          grep -q "NOVA_QUALITY_REJECT" fresh-rebuild/src/nova57-atomic-brain-pool.js
+          grep -q "kind === 'quality'" fresh-rebuild/src/nova57-atomic-brain-pool.js
           grep -q "httpsCallable(functions, 'novaAtomicPlan')" fresh-rebuild/src/nova57-atomic-backend-client.js
           grep -q "httpsCallable(functions, 'novaRecordBrainOutcome')" fresh-rebuild/src/nova57-atomic-backend-client.js
           grep -q "novaAtomicPlan" functions/novaAtomicChain.js
