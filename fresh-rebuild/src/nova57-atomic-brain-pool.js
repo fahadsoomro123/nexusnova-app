@@ -24,6 +24,30 @@ const KNOWN_FAST = [
 const keyOf = route => `${route.provider}::${route.model}`;
 const clip = (value, max = 500) => String(value || '').slice(0, max);
 
+export function assessAtomicResponseQuality(value) {
+  const text = String(value || '').trim();
+  if (!text) return { ok: false, reason: 'empty' };
+  const head = text.slice(0, 520).replace(/^\s+/, '');
+  const internalMeta = [
+    /^<think>\b/i,
+    /^<analysis>\b/i,
+    /^#{1,4}\s*(?:analysis|reasoning|chain of thought)\b/i,
+    /^(?:the\s+)?user\s+(?:asks|wants|is asking|requested)\b/i,
+    /^we\s+(?:need|should|must)\s+(?:to\s+)?(?:respond|answer|solve|craft|provide|analy[sz]e|figure out|comply)\b/i,
+    /^we\s+need\s+(?:an?\s+)?(?:answer|response|solution)\b/i,
+    /^i\s+need\s+to\s+(?:respond|answer|solve|craft|provide|analy[sz]e)\b/i,
+    /^the\s+task\s+is\b/i,
+    /^task\s*:\s*(?:respond|answer|solve|craft|provide|analy[sz]e)\b/i
+  ];
+  if (internalMeta.some(pattern => pattern.test(head))) {
+    return { ok: false, reason: 'internal-meta-leak' };
+  }
+  if (/^\s*[\[{]\s*"(?:choices|error|model|object|usage|created|id)"\s*:/i.test(head)) {
+    return { ok: false, reason: 'raw-transport-json' };
+  }
+  return { ok: true, reason: 'ok' };
+}
+
 function loadMemory() {
   if (memoryLoaded) return;
   memoryLoaded = true;
@@ -70,7 +94,9 @@ function stat(route) {
 
 function errorKind(error) {
   const status = Number(error?.status || 0);
+  const code = String(error?.code || '');
   const msg = String(error?.message || error || '').toLowerCase();
+  if (code === 'NOVA_QUALITY_REJECT' || /quality reject|internal-meta-leak|raw-transport-json/.test(msg)) return 'quality';
   if (status === 429 || /rate.?limit|quota/.test(msg)) return 'rate-limit';
   if (status === 401 || status === 403 || /auth|forbidden/.test(msg)) return 'auth';
   if (/timeout|abort/.test(msg)) return 'timeout';
@@ -97,6 +123,7 @@ function markFailure(route, error) {
 
 function quarantineMs(kind) {
   if (kind === 'auth') return 30 * 60_000;
+  if (kind === 'quality') return 3 * 60_000;
   if (kind === 'rate-limit') return 90_000;
   if (kind === 'timeout') return 40_000;
   if (kind === 'empty') return 75_000;
@@ -164,9 +191,10 @@ function routeScore(route, capability, preferredIndex) {
   const freshness = s.lastOk && Date.now() - s.lastOk < 15 * 60_000 ? 20 : 0;
   const latencyPenalty = s.ewma ? Math.min(42, s.ewma / 120) : 0;
   const failurePenalty = Math.min(35, s.fail * 4);
+  const qualityPenalty = s.lastErrorKind === 'quality' && s.lastFail > s.lastOk ? 70 : 0;
   const preferredAt = preferredIndex.get(keyOf(route));
   const backendBonus = Number.isInteger(preferredAt) ? Math.max(36, 90 - preferredAt * 8) : 0;
-  return route.priority + fitBonus(route, capability) + backendBonus + freshness + successRate * 24 - latencyPenalty - failurePenalty;
+  return route.priority + fitBonus(route, capability) + backendBonus + freshness + successRate * 24 - latencyPenalty - failurePenalty - qualityPenalty;
 }
 
 export function atomicCandidates(capability = 'general', excludeKeys = [], preferredKeys = []) {
@@ -229,6 +257,13 @@ async function callRoute(route, prompt, options, timeoutMs, delayMs = 0) {
         ? content.map(part => typeof part === 'string' ? part : String(part?.text || part?.content || '')).join('').trim()
         : '';
     if (!text) throw new Error(`${route.provider}/${route.model} returned no usable text.`);
+    const quality = assessAtomicResponseQuality(text);
+    if (!quality.ok) {
+      const error = new Error(`${route.provider}/${route.model} quality reject: ${quality.reason}.`);
+      error.code = 'NOVA_QUALITY_REJECT';
+      error.qualityReason = quality.reason;
+      throw error;
+    }
     const latencyMs = Date.now() - started;
     markSuccess(route, latencyMs);
     return { text, route, latencyMs };
