@@ -436,11 +436,18 @@ async function probeRoute(provider, modelId) {
     }, 5000);
     const content = data?.choices?.[0]?.message?.content ?? data?.choices?.[0]?.text ?? '';
     const answer = String(content || '').trim();
+    const exact = answer === benchmark.expected ? 1 : 0;
     return {
       outcome: answer ? 'success' : 'failure',
       latencyMs: now() - started,
       capability: benchmark.capability,
-      semanticQuality: answer === benchmark.expected ? 1 : 0,
+      semanticQuality: exact,
+      semanticDimensions: {
+        correctness: exact,
+        completeness: exact,
+        hallucination: exact,
+        instructionFollowing: exact
+      },
       evaluator: 'benchmark'
     };
   } catch (error) {
@@ -469,6 +476,7 @@ async function maybeProbe(env) {
         outcome: result.outcome,
         latencyMs: result.latencyMs,
         semanticQuality: result.semanticQuality,
+        semanticDimensions: result.semanticDimensions,
         evaluator: result.evaluator
       });
       count += 1;
