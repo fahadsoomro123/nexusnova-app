@@ -2,7 +2,7 @@
 // Only a locally classified capability is sent for planning; raw user prompts are
 // not sent to or stored by the registry. Outcome learning contains route stats only.
 
-const BACKEND_URL = '__NOVA_CLOUDFLARE_BRAIN_BACKEND_URL__';
+const BACKEND_URL = 'https://nexusnova-brain-router.fahadsoomro123.workers.dev';
 let backendCoolingUntil = 0;
 
 function bounded(promise, timeoutMs) {
