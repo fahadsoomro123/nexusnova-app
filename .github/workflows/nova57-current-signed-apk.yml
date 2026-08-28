@@ -1,0 +1,79 @@
+name: NOVA 5.7 Current Signed APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_code:
+        description: Android versionCode
+        required: true
+        default: '20260829'
+      version_name:
+        description: Android versionName
+        required: true
+        default: '1.5.7.20260829'
+  push:
+    branches: [nova-sol57-pro-v128]
+    paths:
+      - '.github/workflows/nova57-current-signed-apk.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nova57-current-signed-apk-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  NEXUSNOVA_SIGNING_KEYSTORE_B64: ${{ secrets.NEXUSNOVA_SIGNING_KEYSTORE_B64 }}
+  NEXUSNOVA_SIGNING_STORE_PASSWORD: ${{ secrets.NEXUSNOVA_SIGNING_STORE_PASSWORD }}
+  NEXUSNOVA_SIGNING_KEY_ALIAS: ${{ secrets.NEXUSNOVA_SIGNING_KEY_ALIAS }}
+  NEXUSNOVA_SIGNING_KEY_PASSWORD: ${{ secrets.NEXUSNOVA_SIGNING_KEY_PASSWORD }}
+  VERSION_CODE: ${{ github.event_name == 'workflow_dispatch' && inputs.version_code || '20260829' }}
+  VERSION_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.version_name || '1.5.7.20260829' }}
+
+jobs:
+  build-current-signed-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout current NOVA branch
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Verify current NOVA release source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "nova-sol57-pro-v128"
+          test -s fresh-rebuild/index.html
+          test -s fresh-rebuild/src/main.js
+          test -s fresh-rebuild/src/nova57-atomic-chain.js
+          test -s fresh-rebuild/src/nova57-atomic-backend-client.js
+          test -s fresh-rebuild/src/features/apps/nova-sol57-fresh.js
+          test -s fresh-rebuild/src/features/apps/nova57-control-center.js
+          test -s cloudflare/nova-brain-worker/src/index.js
+          test -s NexusNovaAndroid/app/build.gradle.kts
+          grep -Fq "NOVA 5.7 Sol / ARIM" fresh-rebuild/src/features/apps/nova-sol57-fresh.js
+          grep -Fq "mountNovaControlCenter" fresh-rebuild/src/features/apps/nova-sol57-fresh.js
+          grep -Fq "FINALIZER_RESERVE_MS" fresh-rebuild/src/nova57-atomic-chain.js
+          grep -Fq "judge-rescue" fresh-rebuild/src/nova57-atomic-chain.js
+          grep -Fq "PROBE_INTERVAL_MS = 60 * 60 * 1000" cloudflare/nova-brain-worker/src/index.js
+          grep -Fq "route_semantic_dimensions" cloudflare/nova-brain-worker/src/index.js
+          grep -Fq "semantic-quarantine" cloudflare/nova-brain-worker/src/index.js
+          echo "Current NOVA intelligence, control center and semantic-learning release anchors: PASS"
+
+      - name: Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Gradle 8.13
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Build, sign, verify and publish APK
+        shell: bash
+        run: bash tools/build-permanent-signed-v4.sh
