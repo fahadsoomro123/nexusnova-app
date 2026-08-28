@@ -3,7 +3,7 @@ import {
   getAI,
   getGenerativeModel,
   GoogleAIBackend
-} from '../fresh-rebuild/src/nova57-pro-tool-router.js';
+} from '../fresh-rebuild/src/nova57-pro-orchestrator.js';
 
 const startedSuite = Date.now();
 const fakeFirebaseApp = { name: 'nova57-ci-benchmark' };
