@@ -16,11 +16,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  validate:
-    uses: ./.github/workflows/nova57-cloudflare-brain-ci.yml
-
   deploy:
-    needs: validate
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: production
@@ -37,6 +33,14 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: '22'
+
+      - name: Validate Worker and schema
+        shell: bash
+        run: |
+          node --check src/index.js
+          grep -F 'CREATE TABLE IF NOT EXISTS route_semantics' schema.sql >/dev/null
+          grep -F 'CREATE TABLE IF NOT EXISTS route_semantic_dimensions' schema.sql >/dev/null
+          grep -F 'database_id = "__D1_DATABASE_ID__"' wrangler.template.toml >/dev/null
 
       - name: Validate deployment credentials
         shell: bash
