@@ -8,6 +8,8 @@ on:
       - 'fresh-rebuild/src/nova57-atomic-brain-pool.js'
       - 'fresh-rebuild/src/nova57-atomic-chain.js'
       - 'fresh-rebuild/src/nova57-pro-orchestrator.js'
+      - 'fresh-rebuild/src/features/apps/nova-sol57-fresh.js'
+      - 'fresh-rebuild/src/features/apps/app-screen.js'
       - 'functions/novaAtomicChain.js'
       - '.github/workflows/nova57-arim-ci.yml'
 
@@ -29,6 +31,8 @@ jobs:
           node --check fresh-rebuild/src/nova57-atomic-brain-pool.js
           node --check fresh-rebuild/src/nova57-atomic-chain.js
           node --check fresh-rebuild/src/nova57-pro-orchestrator.js
+          node --check fresh-rebuild/src/features/apps/nova-sol57-fresh.js
+          node --check fresh-rebuild/src/features/apps/app-screen.js
           node --check functions/novaAtomicChain.js
 
       - name: Verify adaptive multiplying mesh contract
@@ -84,6 +88,52 @@ jobs:
             process.exit(1);
           }
           console.log('ARIM topology, grounded research, multi-wave failover, isolation and learning contracts present.');
+          NODE
+
+      - name: Verify live NOVA screen uses ARIM router
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const nova = fs.readFileSync('fresh-rebuild/src/features/apps/nova-sol57-fresh.js', 'utf8');
+          const screen = fs.readFileSync('fresh-rebuild/src/features/apps/app-screen.js', 'utf8');
+          const required = [
+            "from '../../nova57-pro-orchestrator.js'",
+            'getNovaAI(firebaseApp',
+            'new NovaAIBackend()',
+            'getNovaModel(ai',
+            "const ROUTER_PROFILE = 'NOVA 5.7 Sol / ARIM'"
+          ];
+          const missing = required.filter(value => !nova.includes(value));
+          if (missing.length) throw new Error(`Actual NOVA screen routing missing: ${missing.join(', ')}`);
+          if (nova.includes('firebase-ai.js') || nova.includes("PROVIDER_MODEL = 'gemini")) {
+            throw new Error('Actual NOVA screen must not bypass ARIM through direct Firebase AI routing.');
+          }
+          if (!screen.includes('const renderer = novaSol57Renderers[id] ||')) {
+            throw new Error('NOVA 5.7 renderer is not first-priority for the AI app screen.');
+          }
+          console.log('Actual AI app screen resolves to NOVA 5.7 ARIM Pro Orchestrator.');
+          NODE
+
+      - name: Verify internal reasoning leak rejection
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const source = fs.readFileSync('fresh-rebuild/src/nova57-atomic-brain-pool.js', 'utf8');
+          const encoded = Buffer.from(source, 'utf8').toString('base64');
+          const pool = await import(`data:text/javascript;base64,${encoded}`);
+          const cases = [
+            ['clean', 'NOVA clean answer.', true],
+            ['think', '<think>\nprivate reasoning', false],
+            ['analysis', '<analysis>\nprivate reasoning', false],
+            ['meta-user', 'The user asks: do something', false],
+            ['meta-we', 'We need to respond with an answer.', false],
+            ['transport', '{"choices":[{"message":{"content":"hi"}}]}', false]
+          ];
+          for (const [name, value, expected] of cases) {
+            const result = pool.assessAtomicResponseQuality(value);
+            if (result.ok !== expected) throw new Error(`${name} quality expectation failed: ${JSON.stringify(result)}`);
+          }
+          console.log('Internal reasoning/meta/transport leaks are rejected; clean answer passes.');
           NODE
 
       - name: Verify privacy-safe route memory and failure telemetry
