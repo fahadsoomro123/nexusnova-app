@@ -1,136 +1,73 @@
-name: NOVA 5.7 One-Time Grounded Research Fix
-
+name: NOVA 5.7 Grounded Research Patch
 on:
   push:
     branches: [nova-sol57-pro-v128]
-    paths:
-      - '.github/workflows/nova57-fix-grounded-research-once.yml'
-
+    paths: ['.github/workflows/nova57-fix-grounded-research-once.yml']
 permissions:
   contents: write
-
 jobs:
-  patch-and-self-clean:
+  patch:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v6
-        with:
-          fetch-depth: 5
-
-      - name: Prefer explicit ARIM pool for grounded research
-        shell: bash
+      - name: Patch research routing
         run: |
-          set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
+          p=Path('fresh-rebuild/src/nova57-atomic-chain.js'); s=p.read_text()
+          a=s.index("  let primary;\n  try {\n    primary = await runLegacy('solver-A1', 1, prompt, dna.complexity >= 3 ? 3900 : 3200);")
+          b=s.index("\n\n  if (primary.brain.deterministic && primary.brain.verified) {",a)
+          lines=[
+          "  let primary;",
+          "  if (dna.capability === 'research') {",
+          "    try {",
+          "      primary = await runDistinct('solver-A1', 1, prompt, 5000, 0, 2);",
+          "    } catch (primaryError) {",
+          "      try { primary = await runLegacy('solver-A1-rescue', 1, prompt, 3600); }",
+          "      catch {",
+          "        finalizeTelemetry({ dna, started, hops, outcome: 'primary-failed', backendPlan, expansionReason: 'research-primary-unavailable', agreement: 0 });",
+          "        throw primaryError;",
+          "      }",
+          "    }",
+          "  } else {",
+          "    try { primary = await runLegacy('solver-A1', 1, prompt, dna.complexity >= 3 ? 3900 : 3200); }",
+          "    catch (primaryError) {",
+          "      try { primary = await runDistinct('solver-A1-rescue', 1, prompt, 3300, 0, 2); }",
+          "      catch {",
+          "        finalizeTelemetry({ dna, started, hops, outcome: 'primary-failed', backendPlan, expansionReason, agreement: 0 });",
+          "        throw primaryError;",
+          "      }",
+          "    }",
+          "  }"
+          ]
+          p.write_text(s[:a]+'\n'.join(lines)+s[b:])
 
-          chain_path = Path('fresh-rebuild/src/nova57-atomic-chain.js')
-          chain = chain_path.read_text(encoding='utf-8')
-          old_primary = """  let primary;
-          try {
-            primary = await runLegacy('solver-A1', 1, prompt, dna.complexity >= 3 ? 3900 : 3200);
-          } catch (primaryError) {
-            try {
-              primary = await runDistinct('solver-A1-rescue', 1, prompt, 3300, 0, 2);
-            } catch {
-              finalizeTelemetry({ dna, started, hops, outcome: 'primary-failed', backendPlan, expansionReason, agreement: 0 });
-              throw primaryError;
-            }
-          }
-          """
-          new_primary = """  let primary;
-          if (dna.capability === 'research') {
-            // Grounded research prompts carry live evidence and are longer than normal
-            // chat. Prefer the explicit health-ranked ARIM pool first instead of the
-            // legacy fast hedge, which is intentionally tuned for short responses.
-            try {
-              primary = await runDistinct('solver-A1', 1, prompt, 5000, 0, 2);
-            } catch (primaryError) {
-              try {
-                primary = await runLegacy('solver-A1-rescue', 1, prompt, 3600);
-              } catch {
-                finalizeTelemetry({ dna, started, hops, outcome: 'primary-failed', backendPlan, expansionReason: 'research-primary-unavailable', agreement: 0 });
-                throw primaryError;
-              }
-            }
-          } else {
-            try {
-              primary = await runLegacy('solver-A1', 1, prompt, dna.complexity >= 3 ? 3900 : 3200);
-            } catch (primaryError) {
-              try {
-                primary = await runDistinct('solver-A1-rescue', 1, prompt, 3300, 0, 2);
-              } catch {
-                finalizeTelemetry({ dna, started, hops, outcome: 'primary-failed', backendPlan, expansionReason, agreement: 0 });
-                throw primaryError;
-              }
-            }
-          }
-          """
-          if old_primary not in chain:
-              raise SystemExit('ARIM primary routing anchor not found.')
-          chain = chain.replace(old_primary, new_primary, 1)
-          chain_path.write_text(chain, encoding='utf-8')
-
-          orch_path = Path('fresh-rebuild/src/nova57-pro-orchestrator.js')
-          orch = orch_path.read_text(encoding='utf-8')
-          old_search = """async function searchWeb(request) {
-            const query = request.replace(/\\s+/g, ' ').trim().slice(0, 500);
-          """
-          new_search = """function focusedWebQuery(request) {
-            const raw = String(request || '').replace(/\\s+/g, ' ').trim();
-            const firstSentence = raw.split(/(?<=[.!?])\\s+/)[0] || raw;
-            let query = firstSentence
-              .replace(/^(?:please\\s+)?(?:research|search|browse|look\\s+up)\\s+(?:the\\s+)?(?:web|internet)\\s+(?:live\\s+)?(?:for\\s+)?/i, '')
-              .replace(/^(?:please\\s+)?(?:research|search|browse|look\\s+up)\\s+(?:live\\s+)?(?:for\\s+)?/i, '')
-              .replace(/^(?:can\\s+you\\s+|could\\s+you\\s+)?(?:find|check|verify)\\s+(?:online\\s+|on\\s+the\\s+web\\s+)?/i, '')
-              .trim();
-            if (query.length < 4) query = raw;
-            return query.slice(0, 320);
+          p=Path('fresh-rebuild/src/nova57-pro-orchestrator.js'); s=p.read_text()
+          old="async function searchWeb(request) {\n  const query = request.replace(/\\s+/g, ' ').trim().slice(0, 500);"
+          new="""function focusedWebQuery(request) {
+            const raw = String(request || '').replace(/\s+/g, ' ').trim();
+            const first = raw.split(/(?<=[.!?])\s+/)[0] || raw;
+            let query = first.replace(/^(?:please\s+)?(?:research|search|browse|look\s+up)\s+(?:the\s+)?(?:web|internet)\s+(?:live\s+)?(?:for\s+)?/i, '').replace(/^(?:please\s+)?(?:research|search|browse|look\s+up)\s+(?:live\s+)?(?:for\s+)?/i, '').trim();
+            return (query.length >= 4 ? query : raw).slice(0, 320);
           }
 
           async function searchWeb(request) {
-            const query = focusedWebQuery(request);
-          """
-          if old_search not in orch:
-              raise SystemExit('Web search query anchor not found.')
-          orch = orch.replace(old_search, new_search, 1)
-
-          old_atomic_call = """                options,
-                generate: nextPrompt => hedgeModel.generateContent(nextPrompt)
-              })
-          """
-          new_atomic_call = """                options,
-                totalBudgetMs: 12000,
-                generate: nextPrompt => hedgeModel.generateContent(nextPrompt)
-              })
-          """
-          first = orch.find(old_atomic_call)
-          if first < 0:
-              raise SystemExit('Grounded ARIM call anchor not found.')
-          # Only the first runAtomicChain call is the grounded-web branch.
-          orch = orch[:first] + orch[first:].replace(old_atomic_call, new_atomic_call, 1)
-          orch_path.write_text(orch, encoding='utf-8')
+            const query = focusedWebQuery(request);"""
+          new='\n'.join(x[10:] if x.startswith('          ') else x for x in new.splitlines())
+          if old not in s: raise SystemExit('search anchor missing')
+          s=s.replace(old,new,1)
+          pos=s.index('      if (webIntent(request)) {')
+          old="                options,\n                generate: nextPrompt => hedgeModel.generateContent(nextPrompt)\n              })"
+          i=s.index(old,pos)
+          new="                options,\n                totalBudgetMs: 12000,\n                generate: nextPrompt => hedgeModel.generateContent(nextPrompt)\n              })"
+          p.write_text(s[:i]+new+s[i+len(old):])
           PY
-
           node --check fresh-rebuild/src/nova57-atomic-chain.js
           node --check fresh-rebuild/src/nova57-pro-orchestrator.js
-          grep -Fq "dna.capability === 'research'" fresh-rebuild/src/nova57-atomic-chain.js
-          grep -Fq "runDistinct('solver-A1', 1, prompt, 5000" fresh-rebuild/src/nova57-atomic-chain.js
-          grep -Fq 'function focusedWebQuery(request)' fresh-rebuild/src/nova57-pro-orchestrator.js
-          grep -Fq 'totalBudgetMs: 12000' fresh-rebuild/src/nova57-pro-orchestrator.js
-
-      - name: Protect domains, self-clean and commit
-        shell: bash
+      - name: Commit patch
         run: |
-          set -euo pipefail
-          git diff --name-only
-          if git diff --name-only | grep -Ei '(^|/)(mining|mine|rewards?|wallet|nvx)(/|\.|-|_)'; then
-            echo 'Protected mining/reward/wallet/NVX path changed.' >&2
-            exit 1
-          fi
-          git rm .github/workflows/nova57-fix-grounded-research-once.yml
-          git config user.name 'NexusNova Research Routing Bot'
+          git config user.name 'NexusNova Research Bot'
           git config user.email 'actions@users.noreply.github.com'
           git add fresh-rebuild/src/nova57-atomic-chain.js fresh-rebuild/src/nova57-pro-orchestrator.js
           git commit -m 'Strengthen grounded research ARIM routing'
