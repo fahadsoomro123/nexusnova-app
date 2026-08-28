@@ -2,6 +2,8 @@
 // The chain is intentionally bounded: simple tasks stop after one good answer;
 // difficult tasks may add verifier/arbiter hops. No prompt or user text is persisted.
 
+import { runAtomicBrain } from './nova57-atomic-brain-pool.js';
+
 const MAX_CHAIN_HOPS = 4;
 const DEFAULT_TOTAL_BUDGET_MS = 7600;
 
@@ -36,6 +38,10 @@ function brainSnapshot() {
   };
 }
 
+function routeKey(brain) {
+  return brain?.provider && brain?.model ? `${brain.provider}::${brain.model}` : '';
+}
+
 export function atomicTaskDNA(request) {
   const s = lower(request);
   const length = String(request || '').length;
@@ -67,8 +73,7 @@ export function atomicTaskDNA(request) {
 }
 
 export function shouldUseAtomicChain(request) {
-  const dna = atomicTaskDNA(request);
-  return dna.maxHops > 1;
+  return atomicTaskDNA(request).maxHops > 1;
 }
 
 function verifierPrompt(originalPrompt, draft, dna) {
@@ -111,7 +116,7 @@ async function bounded(factory, timeoutMs) {
 }
 
 function finalizeTelemetry({ dna, started, hops, outcome }) {
-  const distinct = new Set(hops.map(h => `${h.provider}:${h.model}`).filter(x => !x.endsWith(':')));
+  const distinct = new Set(hops.map(h => h.routeKey).filter(Boolean));
   globalThis.__NOVA_ATOMIC_CHAIN_LAST__ = {
     module: 'AI Atomic Chain Reaction Module',
     capability: dna.capability,
@@ -126,14 +131,33 @@ function finalizeTelemetry({ dna, started, hops, outcome }) {
   };
 }
 
-export async function runAtomicChain({ prompt, request, generate, totalBudgetMs = DEFAULT_TOTAL_BUDGET_MS }) {
+export async function runAtomicChain({ prompt, request, generate, options = {}, totalBudgetMs = DEFAULT_TOTAL_BUDGET_MS }) {
   if (typeof generate !== 'function') throw new TypeError('ACRM generate callback is required.');
   const dna = atomicTaskDNA(request || prompt);
   const started = Date.now();
   const deadline = started + Math.max(2500, Number(totalBudgetMs) || DEFAULT_TOTAL_BUDGET_MS);
   const hops = [];
+  const used = new Set();
 
-  const runHop = async (stage, stagePrompt, preferredMs) => {
+  const recordHop = (stage, result, text, hopStarted) => {
+    const brain = brainSnapshot();
+    const explicitKey = String(result?.__novaAtomicRouteKey || '');
+    const key = explicitKey || routeKey(brain);
+    if (key) used.add(key);
+    const row = {
+      stage,
+      provider: brain.provider,
+      model: brain.model,
+      routeKey: key,
+      latencyMs: brain.latencyMs || Date.now() - hopStarted,
+      deterministic: brain.deterministic,
+      verified: brain.verified
+    };
+    hops.push(row);
+    return { result, text, brain, row };
+  };
+
+  const runLegacyHop = async (stage, stagePrompt, preferredMs) => {
     const remaining = deadline - Date.now();
     if (remaining < 700) throw new Error('Atomic chain budget exhausted.');
     emit(`Atomic ${stage}`, { capability: dna.capability, hop: hops.length + 1 });
@@ -141,24 +165,37 @@ export async function runAtomicChain({ prompt, request, generate, totalBudgetMs 
     const result = await bounded(() => generate(stagePrompt), Math.max(650, Math.min(preferredMs, remaining)));
     const text = readText(result);
     if (!text) throw new Error(`Atomic ${stage} hop returned no usable text.`);
-    const brain = brainSnapshot();
-    hops.push({
-      stage,
-      provider: brain.provider,
-      model: brain.model,
-      latencyMs: brain.latencyMs || Date.now() - hopStarted,
-      deterministic: brain.deterministic,
-      verified: brain.verified
-    });
-    return { result, text, brain };
+    return recordHop(stage, result, text, hopStarted);
+  };
+
+  const runDistinctHop = async (stage, stagePrompt, preferredMs) => {
+    const remaining = deadline - Date.now();
+    if (remaining < 700) throw new Error('Atomic chain budget exhausted.');
+    emit(`Atomic ${stage}`, { capability: dna.capability, hop: hops.length + 1, distinct: true });
+    const hopStarted = Date.now();
+    const result = await bounded(() => runAtomicBrain(stagePrompt, options, {
+      capability: dna.capability,
+      excludeKeys: [...used],
+      timeoutMs: Math.max(850, Math.min(preferredMs, remaining))
+    }), Math.max(900, Math.min(preferredMs + 250, remaining)));
+    const text = readText(result);
+    if (!text) throw new Error(`Atomic ${stage} hop returned no usable text.`);
+    return recordHop(stage, result, text, hopStarted);
   };
 
   let primary;
   try {
-    primary = await runHop('primary', prompt, dna.complexity >= 3 ? 4300 : 3400);
-  } catch (error) {
-    finalizeTelemetry({ dna, started, hops, outcome: 'primary-failed' });
-    throw error;
+    // Preserve the existing deterministic solver and hard jury for the first hop.
+    primary = await runLegacyHop('primary', prompt, dna.complexity >= 3 ? 4300 : 3400);
+  } catch (primaryError) {
+    // If the legacy layer itself collapses, ACRM still has an independent fast
+    // route pool rather than failing with it.
+    try {
+      primary = await runDistinctHop('primary-rescue', prompt, 3600);
+    } catch {
+      finalizeTelemetry({ dna, started, hops, outcome: 'primary-failed' });
+      throw primaryError;
+    }
   }
 
   // A mechanically verified local answer is already stronger than asking another
@@ -175,7 +212,7 @@ export async function runAtomicChain({ prompt, request, generate, totalBudgetMs 
 
   let verifier;
   try {
-    verifier = await runHop('verifier', verifierPrompt(prompt, primary.text, dna), 2300);
+    verifier = await runDistinctHop('verifier', verifierPrompt(prompt, primary.text, dna), 2300);
   } catch {
     // Verification is additive, never a reason to throw away an otherwise valid
     // primary response when the verifier route itself is unavailable.
@@ -196,7 +233,7 @@ export async function runAtomicChain({ prompt, request, generate, totalBudgetMs 
 
   if (dna.maxHops >= 3 && Date.now() < deadline - 700) {
     try {
-      const arbiter = await runHop('arbiter', arbiterPrompt(prompt, primary.text, verifier.text, dna), 2400);
+      const arbiter = await runDistinctHop('arbiter', arbiterPrompt(prompt, primary.text, verifier.text, dna), 2400);
       finalizeTelemetry({ dna, started, hops, outcome: 'arbiter-final' });
       return arbiter.result;
     } catch {}
@@ -216,5 +253,6 @@ export const __novaAtomicInternals = {
   DEFAULT_TOTAL_BUDGET_MS,
   parseVerifier,
   verifierPrompt,
-  arbiterPrompt
+  arbiterPrompt,
+  routeKey
 };
