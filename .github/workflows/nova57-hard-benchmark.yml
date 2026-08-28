@@ -1,0 +1,43 @@
+name: NOVA 5.7 Hard Live Benchmark
+
+on:
+  push:
+    branches: [nova-sol57-pro-v128]
+    paths:
+      - 'scripts/nova57-hard-benchmark.mjs'
+      - 'fresh-rebuild/src/nova57-keyless-max-router-compat.js'
+      - 'fresh-rebuild/src/nova57-puter-keyless-provider.js'
+      - 'fresh-rebuild/src/nova57-github-public-router-compat.js'
+      - 'fresh-rebuild/src/nova57-web-research-router-compat.js'
+      - '.github/workflows/nova57-hard-benchmark.yml'
+  workflow_dispatch:
+
+jobs:
+  hard-live-benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax check benchmark and NOVA routing modules
+        run: |
+          set -euo pipefail
+          node --check scripts/nova57-hard-benchmark.mjs
+          node --input-type=module --check < fresh-rebuild/src/nova57-keyless-max-router-compat.js
+          node --input-type=module --check < fresh-rebuild/src/nova57-puter-keyless-provider.js
+          node --input-type=module --check < fresh-rebuild/src/nova57-github-public-router-compat.js
+          node --input-type=module --check < fresh-rebuild/src/nova57-web-research-router-compat.js
+      - name: Ask NOVA real questions and hard tool tasks
+        run: node scripts/nova57-hard-benchmark.mjs
+      - name: Show benchmark results
+        if: always()
+        run: cat nova57-hard-benchmark-results.json || true
+      - name: Upload benchmark report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nova57-hard-benchmark-results
+          path: nova57-hard-benchmark-results.json
+          if-no-files-found: warn
