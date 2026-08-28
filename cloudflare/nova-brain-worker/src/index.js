@@ -1,7 +1,7 @@
 const TARGET_CATALOG = 200000;
 const HF_PAGE_SIZE = 100;
 const HF_PAGES_PER_REFRESH = 10;
-const PROBE_INTERVAL_MS = 2 * 60 * 60 * 1000;
+const PROBE_INTERVAL_MS = 60 * 60 * 1000;
 const MAX_PROBES = 4;
 const ALLOWED_CAPABILITIES = new Set(['general', 'coding', 'reasoning', 'research', 'multilingual']);
 const ALLOWED_PROVIDERS = new Set(['Kilo', 'OVHcloud', 'AI Horde', 'OpenRouter', 'Pollinations']);
