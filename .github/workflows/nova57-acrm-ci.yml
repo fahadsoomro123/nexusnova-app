@@ -1,0 +1,63 @@
+name: NOVA 5.7 Atomic Chain CI
+
+on:
+  push:
+    branches: [nova-sol57-pro-v128]
+    paths:
+      - 'fresh-rebuild/src/nova57-atomic-chain.js'
+      - 'fresh-rebuild/src/nova57-atomic-brain-pool.js'
+      - 'fresh-rebuild/src/nova57-pro-orchestrator.js'
+      - 'functions/novaAtomicChain.js'
+      - 'functions/novaBrainRegistry.js'
+      - 'functions/main.js'
+      - '.github/workflows/nova57-acrm-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  acrm-ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Syntax checks
+        run: |
+          node --check fresh-rebuild/src/nova57-atomic-chain.js
+          node --check fresh-rebuild/src/nova57-atomic-brain-pool.js
+          node --check fresh-rebuild/src/nova57-pro-orchestrator.js
+          node --check functions/novaAtomicChain.js
+          node --check functions/novaBrainRegistry.js
+          node --check functions/main.js
+
+      - name: Atomic architecture contract
+        run: |
+          grep -q "MAX_CHAIN_HOPS = 4" fresh-rebuild/src/nova57-atomic-chain.js
+          grep -q "runAtomicBrain" fresh-rebuild/src/nova57-atomic-chain.js
+          grep -q "excludeKeys: \[...used\]" fresh-rebuild/src/nova57-atomic-chain.js
+          grep -q "MEMORY_KEY = 'nova57:atomic-brain-memory:v1'" fresh-rebuild/src/nova57-atomic-brain-pool.js
+          grep -q "__NOVA_KEYLESS_ROUTE_POOL__" fresh-rebuild/src/nova57-atomic-brain-pool.js
+          grep -q "novaAtomicPlan" functions/novaAtomicChain.js
+          grep -q "novaRecordBrainOutcome" functions/novaAtomicChain.js
+          grep -q "novaBrainRegistry" functions/novaAtomicChain.js
+          grep -q 'require("./novaAtomicChain")' functions/main.js
+          grep -q "runAtomicChain" fresh-rebuild/src/nova57-pro-orchestrator.js
+
+      - name: No prompt persistence or embedded provider secrets in ACRM
+        run: |
+          ! grep -E "localStorage.*prompt|setItem\([^,]*prompt|sk-[A-Za-z0-9_-]{12,}|AIza[0-9A-Za-z_-]{20,}" fresh-rebuild/src/nova57-atomic-*.js functions/novaAtomicChain.js
+
+      - name: Protected mining and rewards unchanged since registry baseline
+        run: |
+          git diff --exit-code b0370308124f1ad87fa59409c7d0244d0fc94180..HEAD -- \
+            functions/index.js \
+            functions/novaVault10x.js \
+            functions/admobRewardedSsv.js \
+            functions/admobRewardedSsvV2.js
