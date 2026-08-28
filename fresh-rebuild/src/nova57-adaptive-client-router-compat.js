@@ -1,8 +1,7 @@
 // NOVA 5.7 Sol — adaptive client gateway.
-// This wrapper activates the private server-side adaptive router only when it
-// has been positively health-checked. If the callable is absent, slow or
-// unavailable, foreground generation immediately stays on the existing
-// runtime-recovery router. No user request waits for background discovery.
+// The private adaptive router is used only when positively health-checked.
+// Foreground chat never waits on background brain discovery and can hedge the
+// adaptive lane against the existing recovery router for a faster first result.
 
 import {
   GoogleAIBackend as BaseGoogleAIBackend,
@@ -14,10 +13,14 @@ import {
   httpsCallable
 } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-functions.js';
 
-const PROBE_SOFT_WAIT_MS = 260;
-const PROBE_HARD_TIMEOUT_MS = 2_500;
-const CALL_TIMEOUT_MS = 18_000;
-const UNAVAILABLE_TTL_MS = 5 * 60_000;
+const PROBE_SOFT_WAIT_MS = 80;
+const PROBE_HARD_TIMEOUT_MS = 1_800;
+const ADAPTIVE_CALL_TIMEOUT_MS = 7_200;
+const FOREGROUND_HEDGE_DELAY_MS = 650;
+const SLOW_ADAPTIVE_MS = 3_600;
+const SLOW_COOLDOWN_MS = 90_000;
+const FAILURE_COOLDOWN_MS = 25_000;
+const UNAVAILABLE_TTL_MS = 3 * 60_000;
 const AVAILABLE_TTL_MS = 60_000;
 const stateByApp = new WeakMap();
 
@@ -29,6 +32,10 @@ function withTimeout(promise, ms, label) {
       timer = setTimeout(() => reject(new Error(`${label} timed out.`)), ms);
     })
   ]);
+}
+
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 function latestUserRequest(prompt) {
@@ -59,7 +66,10 @@ function appState(app) {
       checkedAt: 0,
       probe: null,
       statusFn: null,
-      generateFn: null
+      generateFn: null,
+      failureStreak: 0,
+      slowUntil: 0,
+      lastAdaptiveLatencyMs: 0
     };
     stateByApp.set(app, state);
   }
@@ -72,7 +82,7 @@ function functionsFor(app, state) {
     state.statusFn = httpsCallable(functions, 'getNovaAdaptiveRouterStatus', { timeout: PROBE_HARD_TIMEOUT_MS });
   }
   if (!state.generateFn) {
-    state.generateFn = httpsCallable(functions, 'novaGenerateAdaptive', { timeout: CALL_TIMEOUT_MS });
+    state.generateFn = httpsCallable(functions, 'novaGenerateAdaptive', { timeout: ADAPTIVE_CALL_TIMEOUT_MS });
   }
   return state;
 }
@@ -90,6 +100,7 @@ async function runProbe(app) {
       const ok = result?.data?.ok === true && result?.data?.foregroundIsolation === true;
       state.status = ok ? 'available' : 'unavailable';
       state.checkedAt = Date.now();
+      if (ok) state.failureStreak = 0;
       globalThis.__NOVA_ADAPTIVE_GATEWAY__ = {
         available: ok,
         architecture: String(result?.data?.architecture || ''),
@@ -115,6 +126,7 @@ async function runProbe(app) {
 async function adaptiveReadyWithoutForegroundDelay(app) {
   const state = appState(app);
   const now = Date.now();
+  if (state.slowUntil > now) return false;
   if (state.status === 'available' && now - state.checkedAt < AVAILABLE_TTL_MS) return true;
   if (state.status === 'unavailable' && now - state.checkedAt < UNAVAILABLE_TTL_MS) return false;
 
@@ -139,22 +151,30 @@ async function adaptiveGenerate(app, prompt) {
     history: [],
     dataClass: 'public',
     cacheable
-  }), CALL_TIMEOUT_MS, 'Adaptive generation');
+  }), ADAPTIVE_CALL_TIMEOUT_MS, 'Adaptive generation');
   const data = result?.data || {};
   const text = cleanText(data.text);
+  const latencyMs = Number(data.latencyMs || Math.round(performance.now() - started));
+  state.lastAdaptiveLatencyMs = latencyMs;
+  state.failureStreak = 0;
+  if (latencyMs >= SLOW_ADAPTIVE_MS) state.slowUntil = Date.now() + SLOW_COOLDOWN_MS;
+  return {text, data, latencyMs};
+}
+
+function markAdaptiveWinner(outcome) {
+  const data = outcome?.data || {};
   globalThis.__NOVA_BRAIN_LAST__ = {
     provider: String(data?.route?.provider || 'adaptive'),
     model: String(data?.route?.model || 'unknown'),
     mode: `adaptive-${String(data.reasoningMode || 'unknown')}`,
     taskClass: String(data.taskClass || 'unknown'),
-    latencyMs: Number(data.latencyMs || Math.round(performance.now() - started)),
+    latencyMs: Number(outcome?.latencyMs || data.latencyMs || 0),
     cached: data.cached === true,
     hedged: data.hedged === true,
     discoveredPool: Number(data.discoveredPool || 0),
     verifiedLive: Number(data.verifiedLive || 0),
     at: new Date().toISOString()
   };
-  return text;
 }
 
 function textResult(text) {
@@ -162,12 +182,55 @@ function textResult(text) {
   return { response: { text: () => cleaned } };
 }
 
+async function hedgedForegroundGenerate(app, baseModel, prompt) {
+  const state = appState(app);
+  let releaseBase;
+  let basePromise = null;
+  const earlyBase = new Promise(resolve => { releaseBase = resolve; });
+  const startBase = () => {
+    if (!basePromise) basePromise = Promise.resolve().then(() => baseModel.generateContent(prompt));
+    return basePromise;
+  };
+
+  const adaptivePromise = adaptiveGenerate(app, prompt)
+    .then(outcome => ({kind: 'adaptive', result: textResult(outcome.text), outcome}))
+    .catch(error => {
+      state.failureStreak += 1;
+      state.slowUntil = Date.now() + FAILURE_COOLDOWN_MS * Math.min(3, state.failureStreak);
+      if (state.failureStreak >= 2) {
+        state.status = 'unavailable';
+        state.checkedAt = Date.now();
+      }
+      releaseBase();
+      throw error;
+    });
+
+  const basePromiseDelayed = Promise.race([
+    delay(FOREGROUND_HEDGE_DELAY_MS),
+    earlyBase
+  ]).then(startBase).then(result => ({kind: 'recovery', result}));
+
+  const started = performance.now();
+  const winner = await Promise.any([adaptivePromise, basePromiseDelayed]);
+  const elapsedMs = Math.round(performance.now() - started);
+  globalThis.__NOVA_FOREGROUND_RACE__ = {
+    winner: winner.kind,
+    elapsedMs,
+    hedgeDelayMs: FOREGROUND_HEDGE_DELAY_MS,
+    adaptiveFailureStreak: state.failureStreak,
+    adaptiveCooldown: state.slowUntil > Date.now(),
+    at: new Date().toISOString()
+  };
+  if (winner.kind === 'adaptive') markAdaptiveWinner(winner.outcome);
+  return winner.result;
+}
+
 export class GoogleAIBackend extends BaseGoogleAIBackend {}
 
 export function getAI(firebaseApp, config = {}) {
   const base = baseGetAI(firebaseApp, config);
-  // Start a non-blocking capability probe. The first user request never waits
-  // beyond the tiny soft budget above; unavailable deployments are cached.
+  // Probe in the background when NOVA initializes. Foreground requests get only
+  // the tiny soft wait above if the status is still unknown.
   queueMicrotask(() => { runProbe(firebaseApp).catch(() => {}); });
   return { ...base, firebaseApp, __novaAdaptiveClientGateway: true };
 }
@@ -177,21 +240,16 @@ export function getGenerativeModel(ai, options = {}) {
   return {
     async generateContent(prompt) {
       const app = ai?.firebaseApp;
-      // Sensitive-looking requests are never promoted to the public adaptive
-      // registry. They stay on the existing app path until trusted-private
-      // routes are explicitly implemented and verified.
+      // Sensitive-looking requests never enter the public adaptive registry.
       if (!app || obviouslySensitive(prompt)) return baseModel.generateContent(prompt);
 
       const ready = await adaptiveReadyWithoutForegroundDelay(app);
       if (!ready) return baseModel.generateContent(prompt);
 
       try {
-        return textResult(await adaptiveGenerate(app, prompt));
+        return await hedgedForegroundGenerate(app, baseModel, prompt);
       } catch (error) {
-        console.warn('[NOVA Adaptive Client] server fast lane failed; keeping foreground available.', error);
-        const state = appState(app);
-        state.status = 'unavailable';
-        state.checkedAt = Date.now();
+        console.warn('[NOVA Adaptive Client] all foreground lanes failed; recovery path will retry.', error);
         return baseModel.generateContent(prompt);
       }
     }
