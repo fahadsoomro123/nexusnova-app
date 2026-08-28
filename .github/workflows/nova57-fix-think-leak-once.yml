@@ -28,8 +28,8 @@ jobs:
           pool_path = Path('fresh-rebuild/src/nova57-atomic-brain-pool.js')
           pool = pool_path.read_text(encoding='utf-8')
           replacements = {
-              r"/^<think>\\b/i,": r"/^<think>(?:\\s|$)/i,",
-              r"/^<analysis>\\b/i,": r"/^<analysis>(?:\\s|$)/i,",
+              r"/^<think>\b/i,": r"/^<think>(?:\s|$)/i,",
+              r"/^<analysis>\b/i,": r"/^<analysis>(?:\s|$)/i,",
           }
           for old, new in replacements.items():
               if old not in pool:
