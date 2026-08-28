@@ -24,11 +24,15 @@ async function hop(label, prompt, control) {
     const result = await mod.runAtomicBrain(prompt, {
       generationConfig: { temperature: 0.1, maxOutputTokens: 48 }
     }, control);
+    const fullText = readText(result);
+    const quality = mod.assessAtomicResponseQuality(fullText);
     return {
       label,
       ok: true,
+      clean: quality.ok === true,
+      qualityReason: quality.reason,
       routeKey: result.__novaAtomicRouteKey || '',
-      text: readText(result).slice(0, 160),
+      text: fullText.slice(0, 180),
       wallMs: Date.now() - started,
       brain: globalThis.__NOVA_BRAIN_LAST__ || null
     };
@@ -36,6 +40,7 @@ async function hop(label, prompt, control) {
     return {
       label,
       ok: false,
+      clean: false,
       routeKey: '',
       error: String(error?.message || error).slice(0, 300),
       wallMs: Date.now() - started
@@ -43,31 +48,44 @@ async function hop(label, prompt, control) {
   }
 }
 
+const qualityUnit = {
+  clean: mod.assessAtomicResponseQuality('ACRM brain is alive.'),
+  leakUser: mod.assessAtomicResponseQuality('The user asks: please confirm this route is alive.'),
+  leakWeNeed: mod.assessAtomicResponseQuality('We need to respond with a concise confirmation.'),
+  rawJson: mod.assessAtomicResponseQuality('{"choices":[{"message":{"content":"hi"}}]}')
+};
+qualityUnit.pass = qualityUnit.clean.ok === true
+  && qualityUnit.leakUser.ok === false
+  && qualityUnit.leakWeNeed.ok === false
+  && qualityUnit.rawJson.ok === false;
+
 const first = await hop(
   'primary',
-  'Reply with a short sentence confirming that the first ACRM brain is alive.',
-  { capability: 'general', timeoutMs: 4200 }
+  'Reply with one short user-facing sentence confirming that the first ACRM brain is alive. Do not describe your reasoning or the request.',
+  { capability: 'general', timeoutMs: 5000 }
 );
 
 const excludeKeys = first.routeKey ? [first.routeKey] : [];
 const second = await hop(
   'verifier',
-  'Reply with a short sentence confirming that the second distinct ACRM brain is alive.',
-  { capability: 'reasoning', excludeKeys, timeoutMs: 4200 }
+  'Reply with one short user-facing sentence confirming that the second distinct ACRM brain is alive. Do not describe your reasoning or the request.',
+  { capability: 'reasoning', excludeKeys, timeoutMs: 5000 }
 );
 
+const distinct = Boolean(first.routeKey && second.routeKey && first.routeKey !== second.routeKey);
 const result = {
   at: new Date().toISOString(),
+  qualityUnit,
   primary: first,
   verifier: second,
-  distinct: Boolean(first.routeKey && second.routeKey && first.routeKey !== second.routeKey),
-  liveTwoHopPass: Boolean(first.ok && second.ok && first.routeKey && second.routeKey && first.routeKey !== second.routeKey),
+  distinct,
+  liveTwoHopPass: Boolean(qualityUnit.pass && first.ok && first.clean && second.ok && second.clean && distinct),
   localMemoryRows: mod.atomicBrainMemorySnapshot().length
 };
 
 console.log('\n=== NOVA ACRM LIVE TWO-HOP SMOKE ===');
 console.log(JSON.stringify(result, null, 2));
 
-// Diagnostic workflow: provider volatility should be visible in logs without
-// polluting the repository with a red CI gate. Static ACRM CI remains the gate.
+// Diagnostic workflow: provider volatility remains visible without making free
+// provider outages a release-blocking red workflow. Read liveTwoHopPass in logs.
 process.exitCode = 0;
