@@ -5,6 +5,15 @@ const PROBE_INTERVAL_MS = 2 * 60 * 60 * 1000;
 const MAX_PROBES = 4;
 const ALLOWED_CAPABILITIES = new Set(['general', 'coding', 'reasoning', 'research', 'multilingual']);
 const ALLOWED_PROVIDERS = new Set(['Kilo', 'OVHcloud', 'AI Horde', 'OpenRouter', 'Pollinations']);
+const CALLABLE_CLIENT_PROVIDERS = new Set(['Kilo', 'OVHcloud']);
+const SEMANTIC_EVALUATORS = new Set(['benchmark', 'deterministic-verifier', 'judge-crosscheck']);
+const BENCHMARKS = [
+  { capability: 'reasoning', prompt: 'Compute 17 multiplied by 19. Reply exactly NOVA_323.', expected: 'NOVA_323' },
+  { capability: 'coding', prompt: 'JavaScript: let x=2; for(let i=0;i<3;i++) x*=2; Reply exactly NOVA_16.', expected: 'NOVA_16' },
+  { capability: 'general', prompt: 'Follow this instruction: reply exactly NOVA_BLUE. No other text.', expected: 'NOVA_BLUE' },
+  { capability: 'multilingual', prompt: 'Urdu word kitab means book in English. Reply exactly NOVA_BOOK.', expected: 'NOVA_BOOK' },
+  { capability: 'reasoning', prompt: 'Sequence 2, 6, 12, 20, 30. Reply with the next number exactly as NOVA_42.', expected: 'NOVA_42' }
+];
 
 const KILO_BASE = 'https://api.kilo.ai/api/gateway';
 const OVH_BASE = 'https://oai.endpoints.kepler.ai.cloud.ovh.net/v1';
@@ -246,7 +255,7 @@ async function seedRoute(env, provider, modelId, priority = 0) {
   const capability = routeCapability(modelId);
   const baseHealth = Math.max(0.25, Math.min(0.7, 0.42 + priority / 500));
   await env.DB.prepare(`INSERT INTO route_health(route_key,provider,model_id,capability,health_score,quality,last_seen_at)
-    VALUES(?1,?2,?3,?4,?5,0.50,?6)
+    VALUES(?1,?2,?3,?4,?5,0,?6)
     ON CONFLICT(route_key) DO UPDATE SET provider=excluded.provider, model_id=excluded.model_id,
       capability=CASE WHEN route_health.capability='general' THEN excluded.capability ELSE route_health.capability END,
       last_seen_at=excluded.last_seen_at`)
@@ -307,7 +316,9 @@ async function applyOutcome(env, body) {
   const capability = ALLOWED_CAPABILITIES.has(text(body?.capability, 30)) ? text(body.capability, 30) : 'general';
   const outcome = ['success', 'failure', 'timeout', 'rate-limit', 'auth'].includes(text(body?.outcome, 30)) ? text(body.outcome, 30) : 'failure';
   const latency = Math.max(0, Math.min(120000, Number(body?.latencyMs || 0) || 0));
-  const quality = Math.max(0, Math.min(1, Number(body?.quality ?? (outcome === 'success' ? 0.8 : 0))));
+  const evaluator = text(body?.evaluator, 40);
+  const hasSemanticScore = Number.isFinite(body?.semanticQuality) && SEMANTIC_EVALUATORS.has(evaluator);
+  const semanticQuality = hasSemanticScore ? Math.max(0, Math.min(1, Number(body.semanticQuality))) : null;
   const success = outcome === 'success' ? 1 : 0;
   const failure = success ? 0 : 1;
   const penalty = outcome === 'rate-limit' ? 0.16 : outcome === 'auth' ? 0.25 : outcome === 'timeout' ? 0.12 : failure ? 0.10 : 0;
@@ -326,26 +337,51 @@ async function applyOutcome(env, body) {
       failures=route_health.failures + excluded.failures,
       ewma_latency=CASE WHEN excluded.ewma_latency<=0 THEN route_health.ewma_latency
         WHEN route_health.ewma_latency<=0 THEN excluded.ewma_latency ELSE route_health.ewma_latency*0.72+excluded.ewma_latency*0.28 END,
-      quality=route_health.quality*0.75+excluded.quality*0.25,
       health_score=MIN(1.0,MAX(0.02, route_health.health_score*0.82 + excluded.health_score*0.18)),
       last_outcome=excluded.last_outcome,
       last_seen_at=excluded.last_seen_at,
       quarantine_until=MAX(route_health.quarantine_until,excluded.quarantine_until)`)
     .bind(
-      routeKey, provider, modelId, capability, success, failure, latency, quality,
-      Math.max(0.02, Math.min(1, success ? 0.70 + quality * 0.25 - Math.min(latency / 40000, 0.12) : 0.45 - penalty)),
+      routeKey, provider, modelId, capability, success, failure, latency, 0.5,
+      Math.max(0.02, Math.min(1, success ? 0.82 - Math.min(latency / 30000, 0.18) : 0.45 - penalty)),
       outcome, now(), now() + quarantineMs
     ).run();
 
-  return { ok: true };
+  if (hasSemanticScore) {
+    await env.DB.prepare(`INSERT INTO route_semantics(
+        route_key,capability,attempts,semantic_ewma,wrong_answers,last_score,last_evaluator,updated_at)
+      VALUES(?1,?2,1,?3,?4,?3,?5,?6)
+      ON CONFLICT(route_key,capability) DO UPDATE SET
+        attempts=route_semantics.attempts+1,
+        semantic_ewma=CASE WHEN route_semantics.attempts=0 THEN excluded.semantic_ewma
+          ELSE route_semantics.semantic_ewma*0.80+excluded.semantic_ewma*0.20 END,
+        wrong_answers=route_semantics.wrong_answers+excluded.wrong_answers,
+        last_score=excluded.last_score,
+        last_evaluator=excluded.last_evaluator,
+        updated_at=excluded.updated_at`)
+      .bind(routeKey, capability, semanticQuality, semanticQuality < 0.35 ? 1 : 0, evaluator, now()).run();
+    const semantic = await env.DB.prepare(`SELECT wrong_answers FROM route_semantics
+      WHERE route_key=?1 AND capability=?2`).bind(routeKey, capability).first();
+    if (Number(semantic?.wrong_answers || 0) >= 3) {
+      await env.DB.prepare(`UPDATE route_health SET quarantine_until=MAX(quarantine_until,?2), last_outcome='semantic-quarantine'
+        WHERE route_key=?1`).bind(routeKey, now() + 24 * 60 * 60_000).run();
+    }
+  }
+
+  return { ok: true, semanticQualityAccepted: hasSemanticScore };
 }
 
 async function plan(env, capability) {
   const cap = ALLOWED_CAPABILITIES.has(capability) ? capability : 'general';
-  const rows = await env.DB.prepare(`SELECT provider,model_id,capability,health_score,quality,ewma_latency,successes,failures,last_outcome
-    FROM route_health
-    WHERE quarantine_until < ?1 AND (capability = ?2 OR capability = 'general')
-    ORDER BY (CASE WHEN capability=?2 THEN 0.10 ELSE 0 END)+health_score DESC, quality DESC,
+  const rows = await env.DB.prepare(`SELECT h.provider,h.model_id,h.capability,h.health_score,h.ewma_latency,h.successes,h.failures,h.last_outcome,
+      COALESCE(s.semantic_ewma,0) AS semantic_score, COALESCE(s.attempts,0) AS semantic_attempts,
+      COALESCE(s.wrong_answers,0) AS wrong_answers
+    FROM route_health h
+    LEFT JOIN route_semantics s ON s.route_key=h.route_key AND s.capability=?2
+    WHERE h.provider IN ('Kilo','OVHcloud') AND h.quarantine_until < ?1 AND (h.capability = ?2 OR h.capability = 'general')
+    ORDER BY (CASE WHEN h.capability=?2 THEN 0.10 ELSE 0 END)+h.health_score+
+      (CASE WHEN COALESCE(s.attempts,0)>0 THEN s.semantic_ewma*MIN(1.0,s.attempts/20.0)*0.70 ELSE 0 END)-
+      MIN(0.70,COALESCE(s.wrong_answers,0)*0.12) DESC,
       CASE WHEN ewma_latency>0 THEN ewma_latency ELSE 999999 END ASC
     LIMIT 24`).bind(now(), cap).all();
   return {
@@ -358,7 +394,9 @@ async function plan(env, capability) {
       modelId: row.model_id,
       capability: row.capability,
       healthScore: Number(row.health_score || 0),
-      quality: Number(row.quality || 0),
+      semanticScore: Number(row.semantic_score || 0),
+      semanticAttempts: Number(row.semantic_attempts || 0),
+      wrongAnswers: Number(row.wrong_answers || 0),
       latencyMs: Number(row.ewma_latency || 0),
       successes: Number(row.successes || 0),
       failures: Number(row.failures || 0),
@@ -372,13 +410,23 @@ async function probeRoute(provider, modelId) {
   const base = provider === 'Kilo' ? KILO_BASE : OVH_BASE;
   const started = now();
   try {
+    const seed = [...String(modelId)].reduce((sum, char) => sum + char.charCodeAt(0), 0);
+    const cycle = Math.floor(now() / PROBE_INTERVAL_MS);
+    const benchmark = BENCHMARKS[(seed + cycle) % BENCHMARKS.length];
     const { data } = await fetchJson(`${base}/chat/completions`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ model: modelId, messages: [{ role: 'user', content: 'Reply with exactly: OK' }], max_tokens: 8, temperature: 0.1, stream: false })
+      body: JSON.stringify({ model: modelId, messages: [{ role: 'user', content: benchmark.prompt }], max_tokens: 16, temperature: 0.1, stream: false })
     }, 5000);
     const content = data?.choices?.[0]?.message?.content ?? data?.choices?.[0]?.text ?? '';
-    return { outcome: String(content || '').trim() ? 'success' : 'failure', latencyMs: now() - started };
+    const answer = String(content || '').trim();
+    return {
+      outcome: answer ? 'success' : 'failure',
+      latencyMs: now() - started,
+      capability: benchmark.capability,
+      semanticQuality: answer === benchmark.expected ? 1 : 0,
+      evaluator: 'benchmark'
+    };
   } catch (error) {
     const message = lower(error?.message || error);
     const outcome = /429|rate.?limit|quota/.test(message) ? 'rate-limit' : /401|403|auth|forbidden/.test(message) ? 'auth' : /abort|timeout/.test(message) ? 'timeout' : 'failure';
@@ -396,7 +444,15 @@ async function maybeProbe(env) {
   for (const row of rows?.results || []) {
     const result = await probeRoute(row.provider, row.model_id);
     if (result.outcome !== 'skipped') {
-      await applyOutcome(env, { provider: row.provider, modelId: row.model_id, capability: row.capability, outcome: result.outcome, latencyMs: result.latencyMs, quality: result.outcome === 'success' ? 0.85 : 0 });
+      await applyOutcome(env, {
+        provider: row.provider,
+        modelId: row.model_id,
+        capability: result.capability || row.capability,
+        outcome: result.outcome,
+        latencyMs: result.latencyMs,
+        semanticQuality: result.semanticQuality,
+        evaluator: result.evaluator
+      });
       count += 1;
     }
   }
@@ -419,6 +475,8 @@ async function status(env) {
   const shardRow = await env.DB.prepare('SELECT COUNT(*) AS count, COALESCE(SUM(record_count),0) AS records FROM catalog_shards').first();
   const routeRow = await env.DB.prepare('SELECT COUNT(*) AS count FROM route_health').first();
   const healthyRow = await env.DB.prepare('SELECT COUNT(*) AS count FROM route_health WHERE quarantine_until < ?1 AND health_score >= 0.45').bind(now()).first();
+  const semanticRow = await env.DB.prepare(`SELECT COUNT(DISTINCT route_key) AS routes, COALESCE(SUM(attempts),0) AS attempts,
+    COALESCE(SUM(wrong_answers),0) AS wrong FROM route_semantics`).first();
   return {
     ok: true,
     service: 'NOVA 5.7 Sol Brain Registry',
@@ -429,6 +487,9 @@ async function status(env) {
     shardCount: Number(shardRow?.count || 0),
     activeRoutes: Number(routeRow?.count || 0),
     healthyRoutes: Number(healthyRow?.count || 0),
+    semanticallyEvaluatedRoutes: Number(semanticRow?.routes || 0),
+    semanticBenchmarkAttempts: Number(semanticRow?.attempts || 0),
+    semanticWrongAnswers: Number(semanticRow?.wrong || 0),
     complete: hfTotal >= TARGET_CATALOG,
     lastRefreshAt: Number(await getMeta(env, 'last_refresh_at', '0')) || 0,
     providerRefreshAt: Number(await getMeta(env, 'provider_refresh_at', '0')) || 0,

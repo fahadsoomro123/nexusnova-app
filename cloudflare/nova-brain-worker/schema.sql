@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS route_health (
   successes INTEGER NOT NULL DEFAULT 0,
   failures INTEGER NOT NULL DEFAULT 0,
   ewma_latency REAL NOT NULL DEFAULT 0,
-  quality REAL NOT NULL DEFAULT 0.50,
+  quality REAL NOT NULL DEFAULT 0,
   health_score REAL NOT NULL DEFAULT 0.45,
   last_outcome TEXT NOT NULL DEFAULT '',
   last_seen_at INTEGER NOT NULL DEFAULT 0,
@@ -36,11 +36,28 @@ CREATE INDEX IF NOT EXISTS idx_route_health_rank
 CREATE INDEX IF NOT EXISTS idx_route_health_provider
   ON route_health(provider, last_seen_at DESC);
 
+-- Semantic intelligence is intentionally separate from network availability.
+-- Only aggregate scores are stored; benchmark prompts and model outputs are not.
+CREATE TABLE IF NOT EXISTS route_semantics (
+  route_key TEXT NOT NULL,
+  capability TEXT NOT NULL,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  semantic_ewma REAL NOT NULL DEFAULT 0,
+  wrong_answers INTEGER NOT NULL DEFAULT 0,
+  last_score REAL,
+  last_evaluator TEXT NOT NULL DEFAULT '',
+  updated_at INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (route_key, capability)
+);
+
+CREATE INDEX IF NOT EXISTS idx_route_semantics_rank
+  ON route_semantics(capability, semantic_ewma DESC, attempts DESC);
+
 INSERT OR IGNORE INTO route_health(route_key,provider,model_id,capability,health_score,quality,last_outcome,last_seen_at)
 VALUES
-  ('Kilo::openrouter/free','Kilo','openrouter/free','general',0.58,0.62,'seed',0),
-  ('Kilo::nvidia/nemotron-3-super-120b-a12b:free','Kilo','nvidia/nemotron-3-super-120b-a12b:free','reasoning',0.60,0.68,'seed',0),
-  ('Kilo::nvidia/nemotron-3-ultra-550b-a55b:free','Kilo','nvidia/nemotron-3-ultra-550b-a55b:free','reasoning',0.59,0.68,'seed',0),
-  ('OVHcloud::Mistral-Small-3.2-24B-Instruct-2506','OVHcloud','Mistral-Small-3.2-24B-Instruct-2506','general',0.64,0.72,'seed',0),
-  ('OVHcloud::Mistral-7B-Instruct-v0.3','OVHcloud','Mistral-7B-Instruct-v0.3','general',0.61,0.66,'seed',0),
-  ('OVHcloud::Mistral-Nemo-Instruct-2407','OVHcloud','Mistral-Nemo-Instruct-2407','general',0.62,0.69,'seed',0);
+  ('Kilo::openrouter/free','Kilo','openrouter/free','general',0.58,0,'seed',0),
+  ('Kilo::nvidia/nemotron-3-super-120b-a12b:free','Kilo','nvidia/nemotron-3-super-120b-a12b:free','reasoning',0.60,0,'seed',0),
+  ('Kilo::nvidia/nemotron-3-ultra-550b-a55b:free','Kilo','nvidia/nemotron-3-ultra-550b-a55b:free','reasoning',0.59,0,'seed',0),
+  ('OVHcloud::Mistral-Small-3.2-24B-Instruct-2506','OVHcloud','Mistral-Small-3.2-24B-Instruct-2506','general',0.64,0,'seed',0),
+  ('OVHcloud::Mistral-7B-Instruct-v0.3','OVHcloud','Mistral-7B-Instruct-v0.3','general',0.61,0,'seed',0),
+  ('OVHcloud::Mistral-Nemo-Instruct-2407','OVHcloud','Mistral-Nemo-Instruct-2407','general',0.62,0,'seed',0);

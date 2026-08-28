@@ -42,7 +42,7 @@ jobs:
             'maybeProbe',
             "source: 'cloudflare-d1'"
           ]) if (!worker.includes(token)) throw new Error(`Missing Worker contract: ${token}`);
-          for (const token of ['CREATE TABLE IF NOT EXISTS catalog_shards', 'CREATE TABLE IF NOT EXISTS route_health']) {
+          for (const token of ['CREATE TABLE IF NOT EXISTS catalog_shards', 'CREATE TABLE IF NOT EXISTS route_health', 'CREATE TABLE IF NOT EXISTS route_semantics']) {
             if (!schema.includes(token)) throw new Error(`Missing D1 schema contract: ${token}`);
           }
           if (!config.includes('crons = ["*/15 * * * *"]')) throw new Error('Expected bounded 15-minute discovery cadence.');
@@ -65,13 +65,36 @@ jobs:
           if (/JSON\.stringify\([^)]*prompt|body\s*:\s*.*prompt/i.test(plan)) throw new Error('Raw prompt must not be sent to registry planning.');
           const outcomeStart = client.indexOf('export function reportAtomicOutcome');
           const outcome = client.slice(outcomeStart);
-          for (const field of ['provider', 'modelId', 'capability', 'outcome', 'latencyMs', 'quality']) {
+          for (const field of ['provider', 'modelId', 'capability', 'outcome', 'transportOutcome', 'latencyMs', 'semanticQuality', 'evaluator']) {
             if (!outcome.includes(field)) throw new Error(`Outcome field missing: ${field}`);
           }
+          if (/payload\.quality\s*\?\?\s*0\.8/.test(client)) throw new Error('Successful transport must not fabricate semantic quality.');
           if (!client.includes("import('./core/firebase-backend.js')")) throw new Error('Feedback must obtain App Check from existing Firebase client runtime.');
           if (!client.includes('requireFreshAppCheck')) throw new Error('Fresh App Check proof is not requested.');
           if (!client.includes("'X-Firebase-AppCheck': appCheckToken")) throw new Error('App Check token must travel only in the custom header.');
           console.log('Planning sends capability only; learning sends route stats with App Check proof; raw prompt is excluded.');
+          NODE
+
+      - name: Verify semantic benchmark learning
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const worker = fs.readFileSync('cloudflare/nova-brain-worker/src/index.js', 'utf8');
+          const schema = fs.readFileSync('cloudflare/nova-brain-worker/schema.sql', 'utf8');
+          for (const token of [
+            'BENCHMARKS = [',
+            'SEMANTIC_EVALUATORS',
+            'semanticQualityAccepted',
+            'semantic_ewma',
+            'wrong_answers',
+            "provider IN ('Kilo','OVHcloud')",
+            "evaluator: 'benchmark'"
+          ]) if (!worker.includes(token) && !schema.includes(token)) throw new Error(`Missing semantic learning guard: ${token}`);
+          if (/body\?\.quality\s*\?\?\s*\(outcome === 'success'\s*\?\s*0\.8/.test(worker)) {
+            throw new Error('Cloudflare Worker still equates transport success with intelligence.');
+          }
+          if (!schema.includes('PRIMARY KEY (route_key, capability)')) throw new Error('Task-specific semantic leaderboard key missing.');
+          console.log('Privacy-safe task benchmarks, wrong-answer penalties and separate semantic ranking are present.');
           NODE
 
       - name: Verify App Check protected learning endpoint
