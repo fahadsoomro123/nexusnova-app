@@ -1,0 +1,34 @@
+name: NOVA 5.7 Adaptive Router Source Check
+
+on:
+  push:
+    branches: [nova-sol57-runtime-recovery-v128]
+    paths:
+      - 'functions/novaAdaptiveRouter.js'
+      - 'functions/novaBrainDiscovery.js'
+      - 'functions/main.js'
+      - '.github/workflows/nova57-adaptive-router-check.yml'
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify adaptive foreground architecture
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check functions/novaAdaptiveRouter.js
+          node --check functions/novaBrainDiscovery.js
+          grep -Fq 'require("./novaAdaptiveRouter")' functions/main.js
+          grep -Fq 'novaGenerateAdaptive' functions/novaAdaptiveRouter.js
+          grep -Fq 'mixture-of-brains' functions/novaAdaptiveRouter.js
+          grep -Fq 'hedgedGenerate' functions/novaAdaptiveRouter.js
+          grep -Fq 'compactContext' functions/novaAdaptiveRouter.js
+          grep -Fq 'taskProfile' functions/novaAdaptiveRouter.js
+          grep -Fq 'novaAdaptiveRouteStats' functions/novaAdaptiveRouter.js
+          grep -Fq 'foregroundIsolation: true' functions/novaAdaptiveRouter.js
+          grep -Fq "schedule: 'every 30 minutes'" functions/novaBrainDiscovery.js
+          ! grep -R -nE 'NEXUSNOVA_(KEY|TOKEN|SECRET)\s*=\s*["'"'][^"'"']+' functions/novaAdaptiveRouter.js functions/novaBrainDiscovery.js
+          echo 'NOVA adaptive router source checks: PASS'
