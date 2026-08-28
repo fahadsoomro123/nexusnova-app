@@ -9,7 +9,7 @@ const startedSuite = Date.now();
 const fakeFirebaseApp = { name: 'nova57-ci-benchmark' };
 const ai = getAI(fakeFirebaseApp, { backend: new GoogleAIBackend() });
 const model = getGenerativeModel(ai, {
-  model: 'gemini-3.6-flash',
+  model: 'NOVA 5.7 Sol / ARIM',
   systemInstruction: {
     parts: [{
       text: 'You are NOVA 5.7 Sol under a production benchmark. Be concise, obey exact output constraints, use connected live tools when requested, and never invent tool results.'
@@ -32,6 +32,7 @@ async function ask(name, prompt, verify) {
   globalThis.__NOVA_WEB_LAST__ = null;
   globalThis.__NOVA_GITHUB_LAST__ = null;
   globalThis.__NOVA_BRAIN_LAST__ = null;
+  globalThis.__NOVA_ATOMIC_CHAIN_LAST__ = null;
   try {
     const result = await model.generateContent(prompt);
     text = String(result?.response?.text?.() || '').trim();
@@ -40,13 +41,14 @@ async function ask(name, prompt, verify) {
   }
   const elapsedMs = Math.round(performance.now() - t0);
   const route = globalThis.__NOVA_BRAIN_LAST__ ? { ...globalThis.__NOVA_BRAIN_LAST__ } : null;
+  const atomic = globalThis.__NOVA_ATOMIC_CHAIN_LAST__ ? { ...globalThis.__NOVA_ATOMIC_CHAIN_LAST__ } : null;
   const web = globalThis.__NOVA_WEB_LAST__ ? { ...globalThis.__NOVA_WEB_LAST__ } : null;
   const github = globalThis.__NOVA_GITHUB_LAST__ ? { ...globalThis.__NOVA_GITHUB_LAST__ } : null;
   let passed = false;
   let reason = '';
   if (!error) {
     try {
-      const verdict = await verify(text, { route, web, github, elapsedMs });
+      const verdict = await verify(text, { route, atomic, web, github, elapsedMs });
       passed = Boolean(verdict?.passed);
       reason = String(verdict?.reason || '');
     } catch (e) {
@@ -63,6 +65,8 @@ async function ask(name, prompt, verify) {
     provider: route?.provider || null,
     model: route?.model || null,
     attempts: route?.attempts || null,
+    atomicOutcome: atomic?.outcome || null,
+    atomicDistinctBrains: Number(atomic?.distinctBrains || 0) || null,
     reason,
     response: normalize(text).slice(0, 1200),
     web,
@@ -123,9 +127,18 @@ tests.push(await ask(
   'Hard tool task / live web grounding',
   'Research the web live for the current OpenAI API documentation. State one currently documented API capability and name the source/domain you found. Keep it under 100 words. If live search fails, say it failed rather than guessing.',
   async (text, state) => {
-    const toolWorked = /live-web-search/.test(String(state.web?.mode || '')) && !state.web?.error;
     const value = normalize(text);
-    return { passed: toolWorked && value.length >= 35, reason: `liveWebTool=${toolWorked}; responseChars=${value.length}` };
+    const lowerValue = value.toLowerCase();
+    const toolWorked = /live-web-search/.test(String(state.web?.mode || '')) && !state.web?.error;
+    const routeWorked = Boolean(state.route?.provider && state.route?.model);
+    const notFallback = !/(live research succeeded, but the answer model was temporarily unavailable|live web research failed|could not be summarized safely)/i.test(value);
+    const hasOpenAISource = /(?:platform\.)?openai\.com/i.test(value);
+    const hasCapability = /\b(responses?|chat completions?|embeddings?|realtime|function calling|tools?|audio|speech|images?|vision|batch|files?)\b/i.test(lowerValue);
+    const conciseEnough = value.length >= 35 && value.length <= 900;
+    return {
+      passed: toolWorked && routeWorked && notFallback && hasOpenAISource && hasCapability && conciseEnough,
+      reason: `liveWebTool=${toolWorked}; answerRoute=${routeWorked}; notFallback=${notFallback}; openaiSource=${hasOpenAISource}; capability=${hasCapability}; responseChars=${value.length}`
+    };
   }
 ));
 
@@ -139,7 +152,7 @@ const summary = {
   avgMs,
   p95Ms,
   suiteMs: Date.now() - startedSuite,
-  note: 'elapsedMs is full-response latency. Exact local tools, live tools, and a non-tool LLM logic test are all included.'
+  note: 'elapsedMs is full-response latency. Exact local tools, live tools, an ARIM-aware route proof, and a non-tool LLM logic test are included.'
 };
 console.log('\n=== BENCHMARK SUMMARY ===');
 console.log(JSON.stringify(summary, null, 2));
