@@ -1,1 +1,1 @@
-f9c2df4740efd9055f3a8421b0711f91ec07a5d7fcb835e99361cd38a82f0494  /home/runner/work/nexusnova-app/nexusnova-app/phone-apk/NexusNova-NOVA57-LATEST-phone-test.apk
+10f8376b8ea55c3f098628bbb4599eb4e649c74a015b144c42f04a09d53454c7  /home/runner/work/nexusnova-app/nexusnova-app/phone-apk/NexusNova-NOVA57-LATEST-phone-test.apk

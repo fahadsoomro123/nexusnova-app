@@ -1,4 +1,5 @@
-Source commit: 369fc9952125afab1cced51faabd5edc63ab8f74
+Source commit: 500c06034fde7b7b7634a6d0f8d35f16d59aba0e
 Branch: nova-sol57-pro-v128
 Build type: debug/installable phone test
 NOVA 5.7 ARIM source staged: PASS
+Full reference-style dashboard source staged: PASS
