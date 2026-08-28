@@ -1,0 +1,90 @@
+name: NOVA 5.7 Cloudflare Brain Backend Gate
+
+on:
+  push:
+    branches: [nova-sol57-pro-v128]
+    paths:
+      - 'cloudflare/nova-brain-worker/**'
+      - 'fresh-rebuild/src/nova57-atomic-backend-client.js'
+      - '.github/workflows/nova57-cloudflare-brain-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  cloudflare-brain-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 5
+
+      - name: JavaScript syntax
+        run: |
+          node --check cloudflare/nova-brain-worker/src/index.js
+          node --check fresh-rebuild/src/nova57-atomic-backend-client.js
+
+      - name: Verify 200K sharded D1 architecture
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const worker = fs.readFileSync('cloudflare/nova-brain-worker/src/index.js', 'utf8');
+          const schema = fs.readFileSync('cloudflare/nova-brain-worker/schema.sql', 'utf8');
+          const config = fs.readFileSync('cloudflare/nova-brain-worker/wrangler.template.toml', 'utf8');
+          for (const token of [
+            'TARGET_CATALOG = 200000',
+            'HF_PAGES_PER_REFRESH = 10',
+            'catalog_shards',
+            'route_health',
+            'refreshHuggingFace',
+            'refreshProviderCatalogs',
+            'maybeProbe',
+            "source: 'cloudflare-d1'"
+          ]) if (!worker.includes(token)) throw new Error(`Missing Worker contract: ${token}`);
+          for (const token of ['CREATE TABLE IF NOT EXISTS catalog_shards', 'CREATE TABLE IF NOT EXISTS route_health']) {
+            if (!schema.includes(token)) throw new Error(`Missing D1 schema contract: ${token}`);
+          }
+          if (!config.includes('crons = ["*/15 * * * *"]')) throw new Error('Expected bounded 15-minute discovery cadence.');
+          if (!config.includes('database_id = "__D1_DATABASE_ID__"')) throw new Error('Deployment-time D1 binding placeholder missing.');
+          console.log('200K sharded D1 catalog + active route health architecture present.');
+          NODE
+
+      - name: Verify privacy-safe Cloudflare bridge
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const client = fs.readFileSync('fresh-rebuild/src/nova57-atomic-backend-client.js', 'utf8');
+          if (/firebase-functions|httpsCallable|getFunctions\(/.test(client)) throw new Error('Firebase callable bridge must not return.');
+          if (!client.includes("post('/v1/plan', { capability }")) throw new Error('Planning must send local capability only.');
+          const planStart = client.indexOf('export async function getAtomicBackendPlan');
+          const planEnd = client.indexOf('export function reportAtomicOutcome', planStart);
+          const plan = client.slice(planStart, planEnd);
+          if (/JSON\.stringify\([^)]*prompt|body\s*:\s*.*prompt/i.test(plan)) throw new Error('Raw prompt must not be sent to registry planning.');
+          const outcomeStart = client.indexOf('export function reportAtomicOutcome');
+          const outcome = client.slice(outcomeStart);
+          for (const field of ['provider', 'modelId', 'capability', 'outcome', 'latencyMs', 'quality']) {
+            if (!outcome.includes(field)) throw new Error(`Outcome field missing: ${field}`);
+          }
+          console.log('Cloudflare bridge sends capability for planning and route stats for learning; raw prompt is excluded.');
+          NODE
+
+      - name: Protected mining reward wallet NVX guard
+        run: |
+          BASE=$(git rev-parse HEAD~1)
+          CHANGED=$(git diff --name-only "$BASE" HEAD)
+          echo "$CHANGED"
+          if echo "$CHANGED" | grep -Ei '(^|/)(mining|mine|rewards?|wallet|nvx)(/|\.|-|_)'; then
+            echo 'Protected mining/reward/wallet/NVX path changed.' >&2
+            exit 1
+          fi
+          echo 'Protected domains untouched.'
+
+      - name: No artifact or cache storage
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const yml = fs.readFileSync('.github/workflows/nova57-cloudflare-brain-ci.yml', 'utf8');
+          if (yml.includes('actions/cache') || yml.includes('upload-artifact')) throw new Error('Cloudflare gate must remain artifact/cache free.');
+          console.log('No artifact/cache storage in Cloudflare gate.');
+          NODE
