@@ -1,7 +1,6 @@
 // NOVA 5.7 Sol — isolated public GitHub read compatibility layer.
-// Keeps the v1.0.21 keyless AI router and clean UI untouched, while adding
-// live, anonymous read-only inspection for PUBLIC GitHub repositories.
-// No GitHub token, PAT, OAuth secret, write capability or private-repo access.
+// Keeps the hardened keyless AI router while adding live anonymous read-only
+// inspection for PUBLIC GitHub repositories. No token, PAT or write access.
 
 import {
   GoogleAIBackend as BaseGoogleAIBackend,
@@ -17,7 +16,14 @@ const FETCH_TIMEOUT_MS = 7_000;
 const MAX_ROOT_ENTRIES = 70;
 const MAX_FILES = 4;
 const MAX_FILE_CHARS = 900;
+const ACTIVITY_EVENT = 'nova57:activity';
 const cache = new Map();
+
+function emitActivity(stage, detail = {}) {
+  try {
+    window.dispatchEvent(new CustomEvent(ACTIVITY_EVENT, { detail: { stage, source: 'github-public-read', ...detail } }));
+  } catch {}
+}
 
 function timeoutSignal(ms = FETCH_TIMEOUT_MS) {
   const controller = new AbortController();
@@ -89,8 +95,6 @@ function requestedRepo(prompt) {
     return { owner: DEFAULT_OWNER, repo: DEFAULT_WEBSITE_REPO };
   }
 
-  // The current keyless phone test is intentionally scoped to the public
-  // NexusNova website unless a public GitHub URL is supplied explicitly.
   return { owner: DEFAULT_OWNER, repo: DEFAULT_WEBSITE_REPO };
 }
 
@@ -132,8 +136,12 @@ async function publicSnapshot(owner, repo) {
   if (!validRepoPart(owner) || !validRepoPart(repo)) throw new Error('Invalid GitHub repository name.');
   const key = `${owner}/${repo}`.toLowerCase();
   const hit = cache.get(key);
-  if (hit && Date.now() - hit.at < SNAPSHOT_TTL_MS) return hit.value;
+  if (hit && Date.now() - hit.at < SNAPSHOT_TTL_MS) {
+    emitActivity('Verifying', { repository: `${owner}/${repo}`, cached: true });
+    return hit.value;
+  }
 
+  emitActivity('Checking GitHub', { repository: `${owner}/${repo}` });
   let metaResult;
   try {
     metaResult = await fetchJson(`${GITHUB_API}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`);
@@ -171,6 +179,7 @@ async function publicSnapshot(owner, repo) {
     .sort((a, b) => filePriority(b.name) - filePriority(a.name))
     .slice(0, MAX_FILES);
 
+  if (selected.length) emitActivity('Reading files', { repository: `${owner}/${repo}`, files: selected.length });
   const fileReads = await Promise.allSettled(selected.map(async entry => ({
     path: entry.path,
     text: await fetchText(rawUrl(owner, repo, branch, entry.path))
@@ -208,6 +217,7 @@ async function publicSnapshot(owner, repo) {
     fetchedAt: snapshot.fetchedAt,
     rateRemaining: snapshot.rateRemaining
   };
+  emitActivity('Verifying', { repository: snapshot.repo });
   return snapshot;
 }
 
@@ -241,19 +251,17 @@ function snapshotContext(snapshot) {
     `This tool is READ-ONLY: do not claim you committed, edited, pushed, opened a PR, or accessed private repositories.`;
 }
 
-function toolErrorContext(owner, repo, error) {
-  return `\n\n[LIVE NOVA GITHUB PUBLIC-READ TOOL ERROR]\n` +
-    `Target: ${owner}/${repo}\n` +
-    `Result: ${String(error?.message || error).slice(0, 500)}\n` +
-    `This is a real tool result. Explain it briefly and truthfully. ` +
-    `Do not claim a private repository was read. Do not invent repository contents.`;
+function toolErrorResult(owner, repo, error) {
+  const reason = String(error?.message || error || 'unknown error').replace(/\s+/g, ' ').trim().slice(0, 260);
+  const text = `Live public GitHub read failed for ${owner}/${repo}, so I won't invent repository contents or claim a successful check. ${reason}`;
+  return { response: { text: () => text } };
 }
 
 export class GoogleAIBackend extends BaseGoogleAIBackend {}
 
 export function getAI(firebaseApp, config = {}) {
   const base = baseGetAI(firebaseApp, config);
-  return { ...base, __novaGithubPublicRead: true };
+  return { ...base, __novaGithubPublicRead: true, __novaGithubFailClosed: true };
 }
 
 export function getGenerativeModel(ai, options = {}) {
@@ -273,10 +281,14 @@ export function getGenerativeModel(ai, options = {}) {
             error: String(error?.message || error).slice(0, 300),
             fetchedAt: new Date().toISOString()
           };
-          augmented += toolErrorContext(target.owner, target.repo, error);
+          emitActivity('Finalizing', { repository: `${target.owner}/${target.repo}`, failed: true });
+          return toolErrorResult(target.owner, target.repo, error);
         }
       }
-      return baseModel.generateContent(augmented);
+      emitActivity('Thinking');
+      const result = await baseModel.generateContent(augmented);
+      emitActivity('Finalizing');
+      return result;
     }
   };
 }
