@@ -1,0 +1,32 @@
+name: NOVA 5.7 Living Experience Source Check
+
+on:
+  push:
+    branches: [nova-sol57-runtime-recovery-v128]
+    paths:
+      - 'fresh-rebuild/assets/styles/nova57-living-experience.css'
+      - 'fresh-rebuild/src/nova57-living-experience.js'
+      - 'fresh-rebuild/index.html'
+      - '.github/workflows/nova57-living-experience-check.yml'
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify premium living experience wiring
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check fresh-rebuild/src/nova57-living-experience.js
+          grep -Fq './assets/styles/nova57-living-experience.css' fresh-rebuild/index.html
+          grep -Fq './src/nova57-living-experience.js' fresh-rebuild/index.html
+          grep -Fq './src/nova57-adaptive-client-router-compat.js' fresh-rebuild/index.html
+          grep -Fq 'prefers-reduced-motion:reduce' fresh-rebuild/assets/styles/nova57-living-experience.css
+          grep -Fq 'nx57-has-text' fresh-rebuild/src/nova57-living-experience.js
+          grep -Fq 'nx57-alive-scrolled' fresh-rebuild/src/nova57-living-experience.js
+          grep -Fq 'navigator?.vibrate' fresh-rebuild/src/nova57-living-experience.js
+          ! grep -Fq 'position:fixed' fresh-rebuild/assets/styles/nova57-living-experience.css
+          ! grep -Fq 'innerHTML =' fresh-rebuild/src/nova57-living-experience.js
+          echo 'NOVA living experience source checks: PASS'
