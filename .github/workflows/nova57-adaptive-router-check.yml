@@ -30,5 +30,14 @@ jobs:
           grep -Fq 'novaAdaptiveRouteStats' functions/novaAdaptiveRouter.js
           grep -Fq 'foregroundIsolation: true' functions/novaAdaptiveRouter.js
           grep -Fq "schedule: 'every 30 minutes'" functions/novaBrainDiscovery.js
-          ! grep -R -nE 'NEXUSNOVA_(KEY|TOKEN|SECRET)\s*=\s*["'"'][^"'"']+' functions/novaAdaptiveRouter.js functions/novaBrainDiscovery.js
+          node - <<'NODE'
+          const fs = require('fs');
+          const files = ['functions/novaAdaptiveRouter.js','functions/novaBrainDiscovery.js'];
+          for (const file of files) {
+            const s = fs.readFileSync(file, 'utf8');
+            if (/NEXUSNOVA_(KEY|TOKEN|SECRET)\s*=\s*["'][^"']+/i.test(s)) {
+              throw new Error(`Embedded NOVA secret marker found in ${file}`);
+            }
+          }
+          NODE
           echo 'NOVA adaptive router source checks: PASS'
