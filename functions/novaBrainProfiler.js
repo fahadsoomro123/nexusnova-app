@@ -368,5 +368,6 @@ exports.__novaBrainProfilerInternals = {
   isTextModel,
   qualityOk,
   capabilityScore,
-  hashId
+  hashId,
+  profileCycle
 };
