@@ -26,7 +26,6 @@ jobs:
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      NOVA_D1_DATABASE_ID: ${{ secrets.NOVA_D1_DATABASE_ID }}
     steps:
       - uses: actions/checkout@v6
 
@@ -46,13 +45,26 @@ jobs:
         shell: bash
         run: |
           missing=0
-          for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID NOVA_D1_DATABASE_ID; do
+          for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID; do
             if [ -z "${!name}" ]; then
               echo "::error::Required GitHub environment secret is missing: $name"
               missing=1
             fi
           done
           test "$missing" -eq 0
+
+      - name: Resolve existing D1 database
+        shell: bash
+        run: |
+          npx --yes wrangler@4 d1 list --json > d1-databases.json
+          node - <<'NODE'
+          const fs = require('fs');
+          const databases = JSON.parse(fs.readFileSync('d1-databases.json', 'utf8'));
+          const database = databases.find((item) => item.name === 'nexusnova-brain-registry');
+          if (!database?.uuid) throw new Error('Existing D1 database nexusnova-brain-registry was not found.');
+          fs.appendFileSync(process.env.GITHUB_ENV, `NOVA_D1_DATABASE_ID=${database.uuid}\n`);
+          console.log('Existing NOVA D1 database resolved.');
+          NODE
 
       - name: Build deployment config
         shell: bash
