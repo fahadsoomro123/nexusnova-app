@@ -87,8 +87,8 @@ jobs:
           fi
           test -n "$DB_ID"
           echo "D1_DATABASE_ID=$DB_ID" >> "$GITHUB_ENV"
-          sed "s/__D1_DATABASE_ID__/$DB_ID/g" "$CF_DIR/wrangler.template.toml" > "$RUNNER_TEMP/wrangler.nova.toml"
-          grep -Fq "$DB_ID" "$RUNNER_TEMP/wrangler.nova.toml"
+          sed "s/__D1_DATABASE_ID__/$DB_ID/g" "$CF_DIR/wrangler.template.toml" > "$CF_DIR/wrangler.runtime.toml"
+          grep -Fq "$DB_ID" "$CF_DIR/wrangler.runtime.toml"
           echo "D1 registry ready: $DB_NAME"
 
       - name: Apply D1 schema
@@ -97,13 +97,13 @@ jobs:
           set -euo pipefail
           wrangler d1 execute "$DB_NAME" --remote --yes \
             --file="$CF_DIR/schema.sql" \
-            --config="$RUNNER_TEMP/wrangler.nova.toml"
+            --config="$CF_DIR/wrangler.runtime.toml"
 
       - name: Deploy NOVA brain Worker
         shell: bash
         run: |
           set -euo pipefail
-          wrangler deploy --config="$RUNNER_TEMP/wrangler.nova.toml"
+          wrangler deploy --config="$CF_DIR/wrangler.runtime.toml"
           curl -fsS "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/$WORKER_NAME/subdomain" \
             -X POST \
             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
@@ -121,7 +121,7 @@ jobs:
           set -euo pipefail
           REFRESH_KEY=$(openssl rand -hex 32)
           echo "::add-mask::$REFRESH_KEY"
-          printf '%s' "$REFRESH_KEY" | wrangler secret put REFRESH_KEY --config="$RUNNER_TEMP/wrangler.nova.toml"
+          printf '%s' "$REFRESH_KEY" | wrangler secret put REFRESH_KEY --config="$CF_DIR/wrangler.runtime.toml"
           echo "REFRESH_KEY=$REFRESH_KEY" >> "$GITHUB_ENV"
 
       - name: Bootstrap registry and active routes
@@ -167,6 +167,7 @@ jobs:
           PY
           node --check fresh-rebuild/src/nova57-atomic-backend-client.js
           grep -Fq "$WORKER_URL" fresh-rebuild/src/nova57-atomic-backend-client.js
+          rm -f "$CF_DIR/wrangler.runtime.toml"
           git rm .github/workflows/nova57-cloudflare-brain-deploy-once.yml
           git config user.name 'NexusNova Cloudflare Deploy Bot'
           git config user.email 'actions@users.noreply.github.com'
@@ -178,7 +179,8 @@ jobs:
         if: always()
         shell: bash
         run: |
-          rm -f "$RUNNER_TEMP"/cf-subdomain.json \
+          rm -f "$CF_DIR/wrangler.runtime.toml" \
+            "$RUNNER_TEMP"/cf-subdomain.json \
             "$RUNNER_TEMP"/d1-list.json "$RUNNER_TEMP"/d1-create.json \
-            "$RUNNER_TEMP"/worker-subdomain-enable.json "$RUNNER_TEMP"/wrangler.nova.toml \
+            "$RUNNER_TEMP"/worker-subdomain-enable.json \
             "$RUNNER_TEMP"/bootstrap-*.json "$RUNNER_TEMP"/status.json "$RUNNER_TEMP"/plan.json
