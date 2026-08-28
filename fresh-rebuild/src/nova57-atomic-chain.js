@@ -327,14 +327,24 @@ export async function runAtomicChain({ prompt, request, generate, options = {}, 
   };
 
   let primary;
-  try {
-    primary = await runLegacy('solver-A1', 1, prompt, dna.complexity >= 3 ? 3900 : 3200);
-  } catch (primaryError) {
+  if (dna.capability === 'research') {
     try {
-      primary = await runDistinct('solver-A1-rescue', 1, prompt, 3300, 0, 2);
-    } catch {
-      finalizeTelemetry({ dna, started, hops, outcome: 'primary-failed', backendPlan, expansionReason, agreement: 0 });
-      throw primaryError;
+      primary = await runDistinct('solver-A1', 1, prompt, 5000, 0, 2);
+    } catch (primaryError) {
+      try { primary = await runLegacy('solver-A1-rescue', 1, prompt, 3600); }
+      catch {
+        finalizeTelemetry({ dna, started, hops, outcome: 'primary-failed', backendPlan, expansionReason: 'research-primary-unavailable', agreement: 0 });
+        throw primaryError;
+      }
+    }
+  } else {
+    try { primary = await runLegacy('solver-A1', 1, prompt, dna.complexity >= 3 ? 3900 : 3200); }
+    catch (primaryError) {
+      try { primary = await runDistinct('solver-A1-rescue', 1, prompt, 3300, 0, 2); }
+      catch {
+        finalizeTelemetry({ dna, started, hops, outcome: 'primary-failed', backendPlan, expansionReason, agreement: 0 });
+        throw primaryError;
+      }
     }
   }
 

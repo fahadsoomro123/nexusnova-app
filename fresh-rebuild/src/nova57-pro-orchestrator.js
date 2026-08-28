@@ -56,8 +56,15 @@ async function timedFetch(url, init = {}, timeoutMs = 6500) {
   finally { clearTimeout(timer); }
 }
 
+function focusedWebQuery(request) {
+  const raw = String(request || '').replace(/\s+/g, ' ').trim();
+  const first = raw.split(/(?<=[.!?])\s+/)[0] || raw;
+  let query = first.replace(/^(?:please\s+)?(?:research|search|browse|look\s+up)\s+(?:the\s+)?(?:web|internet)\s+(?:live\s+)?(?:for\s+)?/i, '').replace(/^(?:please\s+)?(?:research|search|browse|look\s+up)\s+(?:live\s+)?(?:for\s+)?/i, '').trim();
+  return (query.length >= 4 ? query : raw).slice(0, 320);
+}
+
 async function searchWeb(request) {
-  const query = request.replace(/\s+/g, ' ').trim().slice(0, 500);
+  const query = focusedWebQuery(request);
   const key = query.toLowerCase();
   const hit = webCache.get(key);
   if (hit && Date.now() - hit.at < CACHE_TTL) {
@@ -135,6 +142,7 @@ export function getGenerativeModel(ai, options = {}) {
                 prompt: groundedPrompt,
                 request,
                 options,
+                totalBudgetMs: 12000,
                 generate: nextPrompt => hedgeModel.generateContent(nextPrompt)
               })
             : await hedgeModel.generateContent(groundedPrompt);
