@@ -1,6 +1,6 @@
 // NOVA 5.7 Pro — high-speed orchestration entrypoint.
-// Exact/GitHub tools stay deterministic. General reasoning and web summaries use
-// the hedged inference layer so one stalled free route does not freeze the UI.
+// Exact/GitHub tools stay deterministic. General reasoning and grounded research
+// can use ARIM so one stalled/free route does not freeze or dominate the answer.
 
 import {
   GoogleAIBackend as ToolBackend,
@@ -123,13 +123,25 @@ export function getGenerativeModel(ai, options = {}) {
           globalThis.__NOVA_WEB_LAST__ = { query: request.slice(0, 500), mode: 'live-web-search', error: message, fetchedAt: new Date().toISOString() };
           return { response: { text: () => `Live web research failed, so I won't invent a current result. ${message}` } };
         }
-        emit('Thinking', { grounded: true });
+
+        const groundedPrompt = original + evidenceContext(evidence);
+        const dna = atomicTaskDNA(request);
+        const atomic = shouldUseAtomicChain(request);
+        emit('Thinking', { grounded: true, capability: dna.capability, complexity: dna.complexity, atomic });
+
         try {
-          const result = await hedgeModel.generateContent(original + evidenceContext(evidence));
-          emit('Finalizing');
+          const result = atomic
+            ? await runAtomicChain({
+                prompt: groundedPrompt,
+                request,
+                options,
+                generate: nextPrompt => hedgeModel.generateContent(nextPrompt)
+              })
+            : await hedgeModel.generateContent(groundedPrompt);
+          emit('Finalizing', { grounded: true, atomic });
           return result;
         } catch {
-          emit('Finalizing', { fallback: true });
+          emit('Finalizing', { grounded: true, fallback: true, atomic });
           const fallback = evidencePreview(evidence);
           return { response: { text: () => fallback } };
         }
