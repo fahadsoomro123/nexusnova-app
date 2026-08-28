@@ -7,6 +7,8 @@ on:
       - 'functions/novaAdaptiveRouter.js'
       - 'functions/novaBrainDiscovery.js'
       - 'functions/main.js'
+      - 'fresh-rebuild/index.html'
+      - 'fresh-rebuild/src/nova57-adaptive-client-router-compat.js'
       - '.github/workflows/nova57-adaptive-router-check.yml'
   workflow_dispatch:
 
@@ -21,6 +23,7 @@ jobs:
           set -euo pipefail
           node --check functions/novaAdaptiveRouter.js
           node --check functions/novaBrainDiscovery.js
+          node --input-type=module --check < fresh-rebuild/src/nova57-adaptive-client-router-compat.js
           grep -Fq 'require("./novaAdaptiveRouter")' functions/main.js
           grep -Fq 'novaGenerateAdaptive' functions/novaAdaptiveRouter.js
           grep -Fq 'mixture-of-brains' functions/novaAdaptiveRouter.js
@@ -30,9 +33,18 @@ jobs:
           grep -Fq 'novaAdaptiveRouteStats' functions/novaAdaptiveRouter.js
           grep -Fq 'foregroundIsolation: true' functions/novaAdaptiveRouter.js
           grep -Fq "schedule: 'every 30 minutes'" functions/novaBrainDiscovery.js
+          grep -Fq 'nova57-adaptive-client-router-compat.js' fresh-rebuild/index.html
+          grep -Fq 'PROBE_SOFT_WAIT_MS' fresh-rebuild/src/nova57-adaptive-client-router-compat.js
+          grep -Fq 'adaptiveReadyWithoutForegroundDelay' fresh-rebuild/src/nova57-adaptive-client-router-compat.js
+          grep -Fq 'obviouslySensitive' fresh-rebuild/src/nova57-adaptive-client-router-compat.js
+          grep -Fq 'queueMicrotask' fresh-rebuild/src/nova57-adaptive-client-router-compat.js
           node - <<'NODE'
           const fs = require('fs');
-          const files = ['functions/novaAdaptiveRouter.js','functions/novaBrainDiscovery.js'];
+          const files = [
+            'functions/novaAdaptiveRouter.js',
+            'functions/novaBrainDiscovery.js',
+            'fresh-rebuild/src/nova57-adaptive-client-router-compat.js'
+          ];
           for (const file of files) {
             const s = fs.readFileSync(file, 'utf8');
             if (/NEXUSNOVA_(KEY|TOKEN|SECRET)\s*=\s*["'][^"']+/i.test(s)) {
