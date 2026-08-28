@@ -1,15 +1,21 @@
-// NOVA 5.7 Sol — renderer-owned task status controller.
-// Shows concise activity states only. It never exposes private chain-of-thought.
-// Status changes are tied to the requested operation / real request lifecycle;
-// there is no fake timed progression through invented stages.
+// NOVA 5.7 Sol — renderer-owned truthful activity controller.
+// Only real lifecycle/tool events may change the visible activity label.
+// It never exposes or reconstructs private chain-of-thought.
 
-function workStageForRequest(text = '') {
-  const value = String(text || '').toLowerCase();
-  if (/github|repo|repository|commit|branch|pull request|\bpr\b/.test(value)) return 'Checking GitHub';
-  if (/research|search|latest|current|today|news|trend|web|internet/.test(value)) return 'Searching web';
-  if (/file|pdf|document|image|photo|attachment/.test(value)) return 'Reading files';
-  if (/code|bug|fix|website|build|deploy|workflow/.test(value)) return 'Working';
-  return 'Thinking';
+const ACTIVITY_EVENT = 'nova57:activity';
+const SAFE_STAGES = new Set([
+  'Thinking',
+  'Searching web',
+  'Checking GitHub',
+  'Reading files',
+  'Verifying',
+  'Working',
+  'Finalizing'
+]);
+
+function safeStage(value) {
+  const stage = String(value || '').trim();
+  return SAFE_STAGES.has(stage) ? stage : 'Working';
 }
 
 export function createTaskStatus(messagesRoot) {
@@ -24,7 +30,6 @@ export function createTaskStatus(messagesRoot) {
   messagesRoot.appendChild(row);
 
   const label = row.querySelector('.nx57-task-status__label');
-  let frame = 0;
   let active = false;
 
   const scrollIntoView = () => {
@@ -32,37 +37,28 @@ export function createTaskStatus(messagesRoot) {
     catch { messagesRoot.scrollTop = messagesRoot.scrollHeight; }
   };
 
-  function cancelFrame() {
-    if (frame) cancelAnimationFrame(frame);
-    frame = 0;
-  }
-
   function setStage(next) {
     if (!active) return;
-    label.textContent = String(next || 'Thinking');
+    label.textContent = safeStage(next);
     scrollIntoView();
   }
 
-  function start(requestText) {
-    cancelFrame();
+  function onActivity(event) {
+    if (!active) return;
+    const stage = event?.detail?.stage;
+    if (stage) setStage(stage);
+  }
+
+  try { window.addEventListener(ACTIVITY_EVENT, onActivity); } catch {}
+
+  function start() {
     active = true;
     row.hidden = false;
     label.textContent = 'Thinking';
     scrollIntoView();
-
-    const workStage = workStageForRequest(requestText);
-    if (workStage !== 'Thinking') {
-      // Allow the initial Thinking state to paint once, then show the actual
-      // operation that this request is entering. No periodic/fake cycling.
-      frame = requestAnimationFrame(() => {
-        frame = 0;
-        if (active) setStage(workStage);
-      });
-    }
   }
 
   function finish() {
-    cancelFrame();
     active = false;
     row.hidden = true;
   }
@@ -72,8 +68,8 @@ export function createTaskStatus(messagesRoot) {
   }
 
   function destroy() {
-    cancelFrame();
     active = false;
+    try { window.removeEventListener(ACTIVITY_EVENT, onActivity); } catch {}
     row.remove();
   }
 
