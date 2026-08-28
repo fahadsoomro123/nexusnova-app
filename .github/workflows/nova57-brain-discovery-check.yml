@@ -1,0 +1,34 @@
+name: NOVA 5.7 Brain Discovery Source Check
+
+on:
+  push:
+    branches: [nova-sol57-runtime-recovery-v128]
+    paths:
+      - 'functions/novaBrainDiscovery.js'
+      - 'functions/main.js'
+      - '.github/workflows/nova57-brain-discovery-check.yml'
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify private background discovery architecture
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check functions/novaBrainDiscovery.js
+          node --check functions/main.js
+          grep -Fq 'novaBrainDiscoverySweep' functions/novaBrainDiscovery.js
+          grep -Fq 'onSchedule' functions/novaBrainDiscovery.js
+          grep -Fq "schedule: 'every 30 minutes'" functions/novaBrainDiscovery.js
+          grep -Fq "privacyRule: 'synthetic-probes-only'" functions/novaBrainDiscovery.js
+          grep -Fq 'foregroundIsolation: true' functions/novaBrainDiscovery.js
+          grep -Fq 'getNovaBrainDiscoveryStatus' functions/novaBrainDiscovery.js
+          grep -Fq 'KILO_PROBE_LIMIT = 6' functions/novaBrainDiscovery.js
+          grep -Fq 'HORDE_PROBE_LIMIT = 1' functions/novaBrainDiscovery.js
+          grep -Fq 'Object.assign(exports, require("./novaBrainDiscovery"));' functions/main.js
+          ! grep -Eq '(sk-|ghp_|github_pat_|AIza[0-9A-Za-z_-]{20,})' functions/novaBrainDiscovery.js
+          git diff --quiet HEAD~3 HEAD -- fresh-rebuild/src/features/apps/mining-integrations.js || true
+          echo 'NOVA brain discovery source checks: PASS'
