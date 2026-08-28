@@ -6,3 +6,4 @@ Object.assign(exports, require("./learningSearch"));
 Object.assign(exports, require("./entertainmentSearch"));
 Object.assign(exports, require("./providerHealth"));
 Object.assign(exports, require("./novaBrainRegistry"));
+Object.assign(exports, require("./novaAtomicChain"));
