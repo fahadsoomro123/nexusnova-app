@@ -6,32 +6,39 @@ on:
     paths:
       - 'functions/novaBrainRegistry.js'
       - 'functions/novaBrainProfiler.js'
+      - 'functions/novaBrainBootstrap.cjs'
       - 'functions/novaAtomicChain.js'
       - 'functions/main.js'
       - '.github/workflows/nova57-200k-registry-ci.yml'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   registry-ci:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: '22'
+          package-manager-cache: false
       - name: Syntax checks
         run: |
           set -euo pipefail
           node --check functions/novaBrainRegistry.js
           node --check functions/novaBrainProfiler.js
+          node --check functions/novaBrainBootstrap.cjs
           node --check functions/novaAtomicChain.js
           node --check functions/main.js
       - name: Sharded registry architecture checks
         run: |
           set -euo pipefail
           grep -Fq 'const MAX_REGISTRY = 200000' functions/novaBrainRegistry.js
+          grep -Fq 'const HF_PAGES_PER_TICK = 40' functions/novaBrainRegistry.js
           grep -Fq "const CATALOG_SHARDS = 'novaBrainCatalogShards'" functions/novaBrainRegistry.js
-          grep -Fq "schedule: 'every 60 minutes'" functions/novaBrainRegistry.js
+          grep -Fq "schedule: 'every 30 minutes'" functions/novaBrainRegistry.js
           grep -Fq "storageMode: 'sharded-catalog-v2'" functions/novaBrainRegistry.js
           grep -Fq 'writeHuggingFaceShard' functions/novaBrainRegistry.js
           grep -Fq 'fingerprintRecords' functions/novaBrainRegistry.js
@@ -43,7 +50,19 @@ jobs:
           grep -Fq 'ingestOpenRouter' functions/novaBrainRegistry.js
           grep -Fq 'ingestHorde' functions/novaBrainRegistry.js
           grep -Fq 'ingestPollinations' functions/novaBrainRegistry.js
+          grep -Fq 'refreshRegistry' functions/novaBrainRegistry.js
           grep -Fq 'require("./novaBrainRegistry")' functions/main.js
+      - name: Verify bounded bootstrap hooks
+        run: |
+          set -euo pipefail
+          grep -Fq 'profileCycle' functions/novaBrainProfiler.js
+          grep -Fq 'refreshRegistry' functions/novaBrainBootstrap.cjs
+          grep -Fq 'profileCycle' functions/novaBrainBootstrap.cjs
+          grep -Fq 'Math.min(5' functions/novaBrainBootstrap.cjs
+          if grep -Eqi '(private_key|client_secret|BEGIN PRIVATE KEY)' functions/novaBrainBootstrap.cjs; then
+            echo 'Bootstrap must use application-default credentials, never embedded credentials.' >&2
+            exit 1
+          fi
       - name: Protect learned health from catalog refresh
         run: |
           set -euo pipefail
