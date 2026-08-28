@@ -6,7 +6,9 @@ on:
     paths:
       - 'scripts/nova57-hard-benchmark.mjs'
       - 'fresh-rebuild/src/nova57-pro-keyless-router.js'
+      - 'fresh-rebuild/src/nova57-pro-hedge-router.js'
       - 'fresh-rebuild/src/nova57-pro-tool-router.js'
+      - 'fresh-rebuild/src/nova57-pro-orchestrator.js'
       - 'fresh-rebuild/index.html'
       - '.github/workflows/nova57-hard-benchmark.yml'
   workflow_dispatch:
@@ -25,10 +27,14 @@ jobs:
           set -euo pipefail
           node --check scripts/nova57-hard-benchmark.mjs
           node --input-type=module --check < fresh-rebuild/src/nova57-pro-keyless-router.js
+          node --input-type=module --check < fresh-rebuild/src/nova57-pro-hedge-router.js
           node --input-type=module --check < fresh-rebuild/src/nova57-pro-tool-router.js
-          grep -Fq './src/nova57-pro-tool-router.js' fresh-rebuild/index.html
+          node --input-type=module --check < fresh-rebuild/src/nova57-pro-orchestrator.js
+          grep -Fq './src/nova57-pro-orchestrator.js' fresh-rebuild/index.html
           grep -Fq 'openrouter/free' fresh-rebuild/src/nova57-pro-keyless-router.js
+          grep -Fq 'poolside/laguna-xs-2.1:free' fresh-rebuild/src/nova57-pro-hedge-router.js
           grep -Fq 'simpleGithubFactsRequest' fresh-rebuild/src/nova57-pro-tool-router.js
+          grep -Fq '__novaProOrchestrator' fresh-rebuild/src/nova57-pro-orchestrator.js
       - name: Ask NOVA real questions and hard tool tasks
         run: node scripts/nova57-hard-benchmark.mjs
       - name: Show benchmark results
