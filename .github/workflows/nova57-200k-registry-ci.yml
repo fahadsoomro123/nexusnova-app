@@ -26,11 +26,16 @@ jobs:
           node --check functions/novaBrainProfiler.js
           node --check functions/novaAtomicChain.js
           node --check functions/main.js
-      - name: Registry architecture wiring checks
+      - name: Sharded registry architecture checks
         run: |
           set -euo pipefail
           grep -Fq 'const MAX_REGISTRY = 200000' functions/novaBrainRegistry.js
-          grep -Fq "schedule: 'every 15 minutes'" functions/novaBrainRegistry.js
+          grep -Fq "const CATALOG_SHARDS = 'novaBrainCatalogShards'" functions/novaBrainRegistry.js
+          grep -Fq "schedule: 'every 60 minutes'" functions/novaBrainRegistry.js
+          grep -Fq "storageMode: 'sharded-catalog-v2'" functions/novaBrainRegistry.js
+          grep -Fq 'writeHuggingFaceShard' functions/novaBrainRegistry.js
+          grep -Fq 'fingerprintRecords' functions/novaBrainRegistry.js
+          grep -Fq 'upsertActiveCatalog' functions/novaBrainRegistry.js
           grep -Fq 'novaBrainDiscoveryRefresh' functions/novaBrainRegistry.js
           grep -Fq 'novaBrainRegistryStatus' functions/novaBrainRegistry.js
           grep -Fq 'novaSelectBrains' functions/novaBrainRegistry.js
@@ -39,6 +44,21 @@ jobs:
           grep -Fq 'ingestHorde' functions/novaBrainRegistry.js
           grep -Fq 'ingestPollinations' functions/novaBrainRegistry.js
           grep -Fq 'require("./novaBrainRegistry")' functions/main.js
+      - name: Protect learned health from catalog refresh
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          s = Path('functions/novaBrainRegistry.js').read_text(encoding='utf-8')
+          start = s.index('function normalizeCatalogRecord')
+          end = s.index('function fingerprintRecords')
+          block = s[start:end]
+          forbidden = ['healthScore:', 'latencyEwmaMs:', 'successes:', 'failures:']
+          bad = [x for x in forbidden if x in block]
+          if bad:
+              raise SystemExit(f'Catalog metadata must not reset learned health: {bad}')
+          print('Catalog metadata is isolated from learned health counters.')
+          PY
       - name: Cost-safe profiler and leaderboard checks
         run: |
           set -euo pipefail
