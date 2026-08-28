@@ -121,6 +121,9 @@ jobs:
           if (!backend.includes('CALLABLE_CLIENT_PROVIDERS') || !backend.includes("new Set(['Kilo', 'OVHcloud'])")) {
             throw new Error('Backend plan must only return providers with client adapters.');
           }
+          for (const required of ['[NOVA_EVAL]', 'parseJudgeEvaluation', 'reportJudgeFeedback', 'semanticDimensions']) {
+            if (!chain.includes(required) && !bridge.includes(required)) throw new Error(`Judge feedback loop missing: ${required}`);
+          }
           console.log('Semantic quality stays unknown until evaluated; finalizer reserve and callable-adapter guards are present.');
           NODE
 

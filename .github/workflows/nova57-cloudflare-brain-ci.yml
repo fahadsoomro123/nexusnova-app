@@ -42,7 +42,7 @@ jobs:
             'maybeProbe',
             "source: 'cloudflare-d1'"
           ]) if (!worker.includes(token)) throw new Error(`Missing Worker contract: ${token}`);
-          for (const token of ['CREATE TABLE IF NOT EXISTS catalog_shards', 'CREATE TABLE IF NOT EXISTS route_health', 'CREATE TABLE IF NOT EXISTS route_semantics']) {
+          for (const token of ['CREATE TABLE IF NOT EXISTS catalog_shards', 'CREATE TABLE IF NOT EXISTS route_health', 'CREATE TABLE IF NOT EXISTS route_semantics', 'CREATE TABLE IF NOT EXISTS route_semantic_dimensions']) {
             if (!schema.includes(token)) throw new Error(`Missing D1 schema contract: ${token}`);
           }
           if (!config.includes('crons = ["*/15 * * * *"]')) throw new Error('Expected bounded 15-minute discovery cadence.');
@@ -87,6 +87,8 @@ jobs:
             'semanticQualityAccepted',
             'semantic_ewma',
             'wrong_answers',
+            'route_semantic_dimensions',
+            'SEMANTIC_DIMENSIONS',
             "provider IN ('Kilo','OVHcloud')",
             "evaluator: 'benchmark'"
           ]) if (!worker.includes(token) && !schema.includes(token)) throw new Error(`Missing semantic learning guard: ${token}`);

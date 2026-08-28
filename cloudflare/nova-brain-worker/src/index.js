@@ -7,6 +7,7 @@ const ALLOWED_CAPABILITIES = new Set(['general', 'coding', 'reasoning', 'researc
 const ALLOWED_PROVIDERS = new Set(['Kilo', 'OVHcloud', 'AI Horde', 'OpenRouter', 'Pollinations']);
 const CALLABLE_CLIENT_PROVIDERS = new Set(['Kilo', 'OVHcloud']);
 const SEMANTIC_EVALUATORS = new Set(['benchmark', 'deterministic-verifier', 'judge-crosscheck']);
+const SEMANTIC_DIMENSIONS = new Set(['correctness', 'completeness', 'hallucination', 'instructionFollowing', 'evidenceQuality']);
 const BENCHMARKS = [
   { capability: 'reasoning', prompt: 'Compute 17 multiplied by 19. Reply exactly NOVA_323.', expected: 'NOVA_323' },
   { capability: 'coding', prompt: 'JavaScript: let x=2; for(let i=0;i<3;i++) x*=2; Reply exactly NOVA_16.', expected: 'NOVA_16' },
@@ -360,6 +361,21 @@ async function applyOutcome(env, body) {
         last_evaluator=excluded.last_evaluator,
         updated_at=excluded.updated_at`)
       .bind(routeKey, capability, semanticQuality, semanticQuality < 0.35 ? 1 : 0, evaluator, now()).run();
+    const dimensions = body?.semanticDimensions && typeof body.semanticDimensions === 'object'
+      ? body.semanticDimensions
+      : {};
+    for (const [dimension, rawScore] of Object.entries(dimensions)) {
+      if (!SEMANTIC_DIMENSIONS.has(dimension) || !Number.isFinite(rawScore)) continue;
+      const score = Math.max(0, Math.min(1, Number(rawScore)));
+      await env.DB.prepare(`INSERT INTO route_semantic_dimensions(route_key,capability,dimension,attempts,score_ewma,updated_at)
+        VALUES(?1,?2,?3,1,?4,?5)
+        ON CONFLICT(route_key,capability,dimension) DO UPDATE SET
+          attempts=route_semantic_dimensions.attempts+1,
+          score_ewma=CASE WHEN route_semantic_dimensions.attempts=0 THEN excluded.score_ewma
+            ELSE route_semantic_dimensions.score_ewma*0.80+excluded.score_ewma*0.20 END,
+          updated_at=excluded.updated_at`)
+        .bind(routeKey, capability, dimension, score, now()).run();
+    }
     const semantic = await env.DB.prepare(`SELECT wrong_answers FROM route_semantics
       WHERE route_key=?1 AND capability=?2`).bind(routeKey, capability).first();
     if (Number(semantic?.wrong_answers || 0) >= 3) {
@@ -477,6 +493,7 @@ async function status(env) {
   const healthyRow = await env.DB.prepare('SELECT COUNT(*) AS count FROM route_health WHERE quarantine_until < ?1 AND health_score >= 0.45').bind(now()).first();
   const semanticRow = await env.DB.prepare(`SELECT COUNT(DISTINCT route_key) AS routes, COALESCE(SUM(attempts),0) AS attempts,
     COALESCE(SUM(wrong_answers),0) AS wrong FROM route_semantics`).first();
+  const dimensionRow = await env.DB.prepare('SELECT COUNT(*) AS count FROM route_semantic_dimensions').first();
   return {
     ok: true,
     service: 'NOVA 5.7 Sol Brain Registry',
@@ -490,6 +507,7 @@ async function status(env) {
     semanticallyEvaluatedRoutes: Number(semanticRow?.routes || 0),
     semanticBenchmarkAttempts: Number(semanticRow?.attempts || 0),
     semanticWrongAnswers: Number(semanticRow?.wrong || 0),
+    semanticDimensionRows: Number(dimensionRow?.count || 0),
     complete: hfTotal >= TARGET_CATALOG,
     lastRefreshAt: Number(await getMeta(env, 'last_refresh_at', '0')) || 0,
     providerRefreshAt: Number(await getMeta(env, 'provider_refresh_at', '0')) || 0,

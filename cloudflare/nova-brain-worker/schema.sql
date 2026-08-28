@@ -53,6 +53,16 @@ CREATE TABLE IF NOT EXISTS route_semantics (
 CREATE INDEX IF NOT EXISTS idx_route_semantics_rank
   ON route_semantics(capability, semantic_ewma DESC, attempts DESC);
 
+CREATE TABLE IF NOT EXISTS route_semantic_dimensions (
+  route_key TEXT NOT NULL,
+  capability TEXT NOT NULL,
+  dimension TEXT NOT NULL,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  score_ewma REAL NOT NULL DEFAULT 0,
+  updated_at INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (route_key, capability, dimension)
+);
+
 INSERT OR IGNORE INTO route_health(route_key,provider,model_id,capability,health_score,quality,last_outcome,last_seen_at)
 VALUES
   ('Kilo::openrouter/free','Kilo','openrouter/free','general',0.58,0,'seed',0),

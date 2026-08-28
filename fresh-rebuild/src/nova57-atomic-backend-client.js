@@ -93,6 +93,14 @@ export function reportAtomicOutcome(payload = {}) {
   if (Number.isFinite(payload.semanticQuality)) {
     body.semanticQuality = Math.max(0, Math.min(1, Number(payload.semanticQuality)));
     body.evaluator = String(payload.evaluator || '').slice(0, 40);
+    const dimensions = payload.semanticDimensions && typeof payload.semanticDimensions === 'object'
+      ? payload.semanticDimensions
+      : {};
+    body.semanticDimensions = Object.fromEntries(
+      ['correctness', 'completeness', 'hallucination', 'instructionFollowing', 'evidenceQuality']
+        .filter(key => Number.isFinite(dimensions[key]))
+        .map(key => [key, Math.max(0, Math.min(1, Number(dimensions[key])))])
+    );
   }
 
   Promise.resolve().then(async () => {
