@@ -1,20 +1,24 @@
-// NOVA 5.7 Sol — keyless-max practical router sample.
-// Goal: keep the existing NOVA UI/renderer untouched while trying multiple
-// genuinely keyless/anonymous provider paths before falling back to Firebase AI.
-// The pool is capped at 150 live model routes, discovered at runtime. The cap is
-// NOT a claim of 150 independent providers; several routes can share a provider.
+// NOVA 5.7 Sol — hardened keyless multi-provider router.
+// No provider API secrets are embedded in the APK/WebView source.
+// Anonymous providers are attempted first. Puter.js is an additional keyless
+// browser provider and can use a user's Puter session without developer API keys.
+
+import {
+  discoverPuterFreeRoutes,
+  runPuterRoute,
+  PUTER_VERIFIED_FREE_SEED_COUNT
+} from './nova57-puter-keyless-provider.js';
 
 const MAX_ROUTES = 150;
 const MAX_ATTEMPTS_PER_REQUEST = 14;
-const TOTAL_TIMEOUT_MS = 70_000;
-const DEFAULT_ATTEMPT_TIMEOUT_MS = 6_500;
+const TOTAL_TIMEOUT_MS = 52_000;
+const DEFAULT_ATTEMPT_TIMEOUT_MS = 4_800;
+const HORDE_ATTEMPT_TIMEOUT_MS = 7_000;
 const DISCOVERY_TTL_MS = 5 * 60_000;
-const CLIENT_AGENT = 'NexusNova:5.7-sol:keyless-max-sample';
+const CLIENT_AGENT = 'NexusNova:5.7-sol:keyless-hardened';
 
 const KILO_BASE = 'https://api.kilo.ai/api/gateway';
-const LLM7_BASE = 'https://api.llm7.io/v1';
 const OVH_BASE = 'https://oai.endpoints.kepler.ai.cloud.ovh.net/v1';
-const POLLINATIONS_TEXT = 'https://text.pollinations.ai';
 const HORDE_BASE = 'https://aihorde.net/api/v2';
 const HORDE_ANON_KEY = '0000000000';
 
@@ -41,6 +45,16 @@ function generationConfig(options = {}) {
   };
 }
 
+function route(provider, model, kind = 'openai', priority = 50, extra = {}) {
+  return { provider, model, kind, priority, ...extra };
+}
+
+function routeTimeout(r) {
+  if (Number.isFinite(Number(r?.timeoutMs))) return Number(r.timeoutMs);
+  if (r?.kind === 'horde') return HORDE_ATTEMPT_TIMEOUT_MS;
+  return DEFAULT_ATTEMPT_TIMEOUT_MS;
+}
+
 function withTimeout(promise, ms, label = 'AI route') {
   let timer;
   return Promise.race([
@@ -55,7 +69,7 @@ function withTimeout(promise, ms, label = 'AI route') {
   ]);
 }
 
-async function jsonFetch(url, init = {}, timeoutMs = 7_000) {
+async function jsonFetch(url, init = {}, timeoutMs = 6_000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -101,19 +115,16 @@ function looksZeroCost(row) {
   return input !== undefined && output !== undefined && numericZero(input) && numericZero(output);
 }
 
-function route(provider, model, kind = 'openai', priority = 50, extra = {}) {
-  return { provider, model, kind, priority, ...extra };
-}
-
 async function discoverKilo() {
-  const routes = [route('Kilo', 'kilo-auto/free', 'openai', 120, { base: KILO_BASE })];
+  // The auto/free route remains useful even if model discovery is temporarily down.
+  const routes = [route('Kilo', 'kilo-auto/free', 'openai', 120, { base: KILO_BASE, timeoutMs: 4_300 })];
   try {
-    const data = await jsonFetch(`${KILO_BASE}/models`, {}, 6_000);
+    const data = await jsonFetch(`${KILO_BASE}/models`, {}, 4_500);
     for (const row of arrayFromModelPayload(data)) {
       const id = modelId(row);
       if (!id) continue;
       if (id === 'kilo-auto/free' || /:free$/i.test(id) || looksZeroCost(row)) {
-        routes.push(route('Kilo', id, 'openai', 115, { base: KILO_BASE }));
+        routes.push(route('Kilo', id, 'openai', 116, { base: KILO_BASE, timeoutMs: 4_300 }));
       }
     }
   } catch (error) {
@@ -122,42 +133,14 @@ async function discoverKilo() {
   return routes;
 }
 
-async function discoverLLM7() {
-  const known = [
-    'gpt-oss:20b',
-    'mistral-Nemo-Instruct-2407',
-    'minimax-m2.7'
-  ];
-  const routes = known.map(id => route('LLM7', id, 'openai', 110, {
-    base: LLM7_BASE,
-    headers: { Authorization: 'Bearer unused' }
-  }));
-  try {
-    const data = await jsonFetch(`${LLM7_BASE}/models`, {
-      headers: { Authorization: 'Bearer unused' }
-    }, 6_000);
-    for (const row of arrayFromModelPayload(data)) {
-      const id = modelId(row);
-      if (!id) continue;
-      routes.push(route('LLM7', id, 'openai', 105, {
-        base: LLM7_BASE,
-        headers: { Authorization: 'Bearer unused' }
-      }));
-    }
-  } catch (error) {
-    console.warn('[NOVA Keyless] LLM7 discovery:', error);
-  }
-  return routes;
-}
-
 async function discoverOVH() {
   const routes = [];
   try {
-    const data = await jsonFetch(`${OVH_BASE}/models`, {}, 6_000);
+    const data = await jsonFetch(`${OVH_BASE}/models`, {}, 4_500);
     for (const row of arrayFromModelPayload(data)) {
       const id = modelId(row);
       if (!id || /embed|rerank|guard|moderation/i.test(id)) continue;
-      routes.push(route('OVHcloud', id, 'openai', 90, { base: OVH_BASE }));
+      routes.push(route('OVHcloud', id, 'openai', 96, { base: OVH_BASE, timeoutMs: 4_500 }));
     }
   } catch (error) {
     console.warn('[NOVA Keyless] OVH discovery:', error);
@@ -170,7 +153,7 @@ async function discoverHorde() {
   try {
     const data = await jsonFetch(`${HORDE_BASE}/status/models?type=text`, {
       headers: { 'Client-Agent': CLIENT_AGENT }
-    }, 7_000);
+    }, 5_500);
     const rows = Array.isArray(data) ? data : [];
     const seen = new Set();
     for (const row of rows) {
@@ -178,6 +161,7 @@ async function discoverHorde() {
       if (!id || seen.has(id)) continue;
       seen.add(id);
       const workers = Number(row?.count ?? row?.workers ?? row?.worker_count ?? 0) || 0;
+      if (workers <= 0) continue;
       const perf = Number(row?.performance ?? 0) || 0;
       const queued = Number(row?.queued ?? row?.queued_jobs ?? row?.queue ?? 0) || 0;
       const quality =
@@ -187,8 +171,14 @@ async function discoverHorde() {
         (/llama/i.test(id) ? 22 : 0) +
         (/mistral|mixtral/i.test(id) ? 20 : 0) +
         (/coder|code|instruct/i.test(id) ? 12 : 0) -
-        (/roleplay|nsfw|uncensored|erp/i.test(id) ? 30 : 0);
-      routes.push(route('AI Horde', id, 'horde', 60 + quality + workers * 2 + Math.min(perf, 100) * 0.05 - queued * 0.2));
+        (/roleplay|nsfw|uncensored|erp/i.test(id) ? 34 : 0);
+      routes.push(route(
+        'AI Horde',
+        id,
+        'horde',
+        60 + quality + workers * 2 + Math.min(perf, 100) * 0.05 - queued * 0.2,
+        { timeoutMs: HORDE_ATTEMPT_TIMEOUT_MS }
+      ));
     }
   } catch (error) {
     console.warn('[NOVA Keyless] Horde discovery:', error);
@@ -216,7 +206,9 @@ function diversify(routes) {
     groups.get(r.provider).push(r);
   }
   for (const list of groups.values()) list.sort((a, b) => b.priority - a.priority);
-  const providers = [...groups.keys()].sort((a, b) => (groups.get(b)[0]?.priority || 0) - (groups.get(a)[0]?.priority || 0));
+  const providers = [...groups.keys()].sort(
+    (a, b) => (groups.get(b)[0]?.priority || 0) - (groups.get(a)[0]?.priority || 0)
+  );
   const out = [];
   let added = true;
   while (added && out.length < MAX_ROUTES) {
@@ -234,19 +226,29 @@ function diversify(routes) {
 
 async function discoverRoutes(force = false) {
   if (!force && cachedRoutes.length && Date.now() - cachedAt < DISCOVERY_TTL_MS) return cachedRoutes;
-  const staticRoutes = [route('Pollinations', 'classic-keyless-text', 'pollinations', 100)];
+
+  // Pollinations and LLM7 are intentionally NOT counted/used here: their
+  // current documented generation paths require credentials, so keeping their
+  // legacy keyless probes would waste time and inflate the keyless count.
   const settled = await Promise.allSettled([
     discoverKilo(),
-    discoverLLM7(),
     discoverOVH(),
-    discoverHorde()
+    discoverHorde(),
+    discoverPuterFreeRoutes(force)
   ]);
   const dynamic = settled.flatMap(x => x.status === 'fulfilled' ? x.value : []);
-  cachedRoutes = diversify(dedupeRoutes([...staticRoutes, ...dynamic])).slice(0, MAX_ROUTES);
+  cachedRoutes = diversify(dedupeRoutes(dynamic)).slice(0, MAX_ROUTES);
   cachedAt = Date.now();
+
   globalThis.__NOVA_KEYLESS_ROUTE_POOL__ = cachedRoutes.map(r => `${r.provider}:${r.model}`);
   globalThis.__NOVA_KEYLESS_ROUTE_COUNT__ = cachedRoutes.length;
-  console.info('[NOVA Keyless] discovered routes', cachedRoutes.length, globalThis.__NOVA_KEYLESS_ROUTE_POOL__);
+  globalThis.__NOVA_KEYLESS_VERIFIED_NEW_PUTER_SEEDS__ = PUTER_VERIFIED_FREE_SEED_COUNT;
+  globalThis.__NOVA_KEYLESS_PROVIDER_COUNT__ = new Set(cachedRoutes.map(r => r.provider)).size;
+  console.info('[NOVA Keyless] live route pool', {
+    routes: cachedRoutes.length,
+    providers: globalThis.__NOVA_KEYLESS_PROVIDER_COUNT__,
+    verifiedNewPuterSeeds: PUTER_VERIFIED_FREE_SEED_COUNT
+  });
   return cachedRoutes;
 }
 
@@ -279,33 +281,10 @@ async function runOpenAIRoute(r, prompt, options) {
       max_tokens: cfg.maxTokens,
       stream: false
     })
-  }, DEFAULT_ATTEMPT_TIMEOUT_MS);
+  }, routeTimeout(r));
   const text = extractOpenAIText(data);
   if (!text) throw new Error(`${r.provider}/${r.model} returned no usable text.`);
   return text;
-}
-
-async function runPollinations(prompt, options) {
-  const sys = systemText(options);
-  const finalPrompt = `${sys ? `${sys}\n\n` : ''}${String(prompt || '').trim()}`.slice(0, 12_000);
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), DEFAULT_ATTEMPT_TIMEOUT_MS);
-  try {
-    const response = await fetch(`${POLLINATIONS_TEXT}/${encodeURIComponent(finalPrompt)}`, {
-      signal: controller.signal,
-      headers: { 'Client-Agent': CLIENT_AGENT }
-    });
-    const text = (await response.text()).trim();
-    if (!response.ok) {
-      const error = new Error(text || `Pollinations HTTP ${response.status}`);
-      error.status = response.status;
-      throw error;
-    }
-    if (!text) throw new Error('Pollinations returned no usable text.');
-    return text;
-  } finally {
-    clearTimeout(timer);
-  }
 }
 
 function hordeParams(options = {}) {
@@ -349,16 +328,18 @@ async function runHorde(r, prompt, options) {
       slow_workers: true,
       dry_run: false
     })
-  }, 6_000);
+  }, 5_000);
   const id = String(submit?.id || '').trim();
   if (!id) throw new Error('AI Horde did not return a generation id.');
+
+  const timeoutMs = routeTimeout(r);
   const started = Date.now();
   try {
-    while (Date.now() - started < DEFAULT_ATTEMPT_TIMEOUT_MS) {
-      await sleep(900);
+    while (Date.now() - started < timeoutMs) {
+      await sleep(750);
       const status = await jsonFetch(`${HORDE_BASE}/generate/text/status/${encodeURIComponent(id)}`, {
         headers: { 'Client-Agent': CLIENT_AGENT }
-      }, 4_000);
+      }, 3_500);
       const generations = Array.isArray(status?.generations) ? status.generations : [];
       const text = String(generations[0]?.text || '').trim();
       if (text) return text;
@@ -368,12 +349,12 @@ async function runHorde(r, prompt, options) {
     }
     throw new Error('AI Horde route timed out.');
   } finally {
-    if (Date.now() - started >= DEFAULT_ATTEMPT_TIMEOUT_MS) cancelHorde(id);
+    if (Date.now() - started >= timeoutMs) cancelHorde(id);
   }
 }
 
 async function runRoute(r, prompt, options) {
-  if (r.kind === 'pollinations') return runPollinations(prompt, options);
+  if (r.kind === 'puter') return runPuterRoute(r, prompt, options);
   if (r.kind === 'horde') return runHorde(r, prompt, options);
   return runOpenAIRoute(r, prompt, options);
 }
@@ -388,10 +369,10 @@ function blocked(r) {
 
 function markFailure(r, error) {
   const status = Number(error?.status || 0);
-  const message = String(error?.message || '').toLowerCase();
+  const message = String(error?.message || error || '').toLowerCase();
   let ms = 25_000;
   if (status === 429 || /rate.?limit|quota|too many/.test(message)) ms = 90_000;
-  else if (status === 401 || status === 403 || /unauth|forbidden/.test(message)) ms = 10 * 60_000;
+  else if (status === 401 || status === 403 || /unauth|forbidden|sign.?in|auth_window/.test(message)) ms = 5 * 60_000;
   else if (/timeout|abort/.test(message)) ms = 45_000;
   circuit.set(circuitKey(r), Date.now() + ms);
 }
@@ -421,7 +402,7 @@ async function runKeylessRouter(prompt, options = {}) {
   for (const r of candidates.slice(0, MAX_ATTEMPTS_PER_REQUEST)) {
     if (Date.now() >= deadline) break;
     try {
-      const remaining = Math.max(1200, Math.min(DEFAULT_ATTEMPT_TIMEOUT_MS, deadline - Date.now()));
+      const remaining = Math.max(1_200, Math.min(routeTimeout(r), deadline - Date.now()));
       const text = await withTimeout(runRoute(r, prompt, options), remaining, `${r.provider}/${r.model}`);
       if (!text) throw new Error('Empty route response.');
       lastGoodRoute = r;
@@ -429,6 +410,7 @@ async function runKeylessRouter(prompt, options = {}) {
         provider: r.provider,
         model: r.model,
         discoveredRoutes: pool.length,
+        discoveredProviders: new Set(pool.map(x => x.provider)).size,
         attempts: attempts.length + 1,
         at: new Date().toISOString()
       };
@@ -459,7 +441,7 @@ export class GoogleAIBackend {
 }
 
 export function getAI(firebaseApp) {
-  return { firebaseApp, __novaKeylessRouter: true };
+  return { firebaseApp, __novaKeylessRouter: true, __novaKeylessHardened: true };
 }
 
 export function getGenerativeModel(ai, options = {}) {
@@ -472,9 +454,6 @@ export function getGenerativeModel(ai, options = {}) {
         console.warn('[NOVA Keyless] keyless pool unavailable; trying real Firebase AI fallback.', routerError);
         try {
           const mod = await originalProvider();
-          // Important: construct a REAL Firebase backend here. Never pass the
-          // shim backend/config into Firebase AI (that caused v1.0.20's
-          // "Invalid backend: undefined" failure).
           const originalAI = mod.getAI(ai?.firebaseApp, { backend: new mod.GoogleAIBackend() });
           const originalModel = mod.getGenerativeModel(originalAI, options);
           return await originalModel.generateContent(prompt);
