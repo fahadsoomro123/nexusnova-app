@@ -1,7 +1,6 @@
 // NOVA 5.7 Sol — isolated live web-research compatibility layer.
 // Adds explicit research/search grounding on top of the existing GitHub public-read
-// and keyless AI router without changing the clean NOVA renderer, CSS, mining,
-// rewards, wallet or core app logic.
+// and keyless AI router without changing mining, rewards, wallet or core app logic.
 
 import {
   GoogleAIBackend as BaseGoogleAIBackend,
@@ -11,11 +10,18 @@ import {
 
 const JINA_READER = 'https://r.jina.ai/';
 const DDG_HTML = 'https://html.duckduckgo.com/html/';
-const WEB_TIMEOUT_MS = 10_000;
+const WEB_TIMEOUT_MS = 9_000;
 const MAX_SEARCH_CHARS = 12_000;
 const MAX_QUERY_CHARS = 600;
 const CACHE_TTL_MS = 2 * 60_000;
+const ACTIVITY_EVENT = 'nova57:activity';
 const cache = new Map();
+
+function emitActivity(stage, detail = {}) {
+  try {
+    window.dispatchEvent(new CustomEvent(ACTIVITY_EVENT, { detail: { stage, source: 'web-research', ...detail } }));
+  } catch {}
+}
 
 function latestUserRequest(prompt) {
   const text = String(prompt || '');
@@ -29,6 +35,12 @@ function researchIntent(prompt) {
   return /\b(research|search|browse|web search|internet|latest|current|today|recent|trend|trends|news|verify|check online|look up)\b/i.test(request)
     || /(search|research|latest|aaj|abhi|internet|web).{0,18}(kar|karo|karke|dekh|dekho|bata)/i.test(request)
     || /(ja|jaa).{0,12}(dekh|search|research)/i.test(request);
+}
+
+function freshnessCritical(prompt) {
+  const request = latestUserRequest(prompt);
+  return /\b(latest|current|today|recent|breaking|news|trend|trends|right now|now|verify|check online)\b/i.test(request)
+    || /(aaj|abhi|latest|current|recent|news|trend).{0,24}(kya|kia|bata|dekho|check|verify|search)/i.test(request);
 }
 
 function isGitHubIntent(prompt) {
@@ -66,11 +78,15 @@ async function liveWebSearch(query) {
   if (!query) throw new Error('Empty web research query.');
   const key = query.toLowerCase();
   const hit = cache.get(key);
-  if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.value;
+  if (hit && Date.now() - hit.at < CACHE_TTL_MS) {
+    globalThis.__NOVA_WEB_LAST__ = { ...hit.value, chars: hit.value.text.length, mode: 'live-web-search-cache' };
+    return hit.value;
+  }
 
   const target = `${DDG_HTML}?q=${encodeURIComponent(query)}`;
   const url = `${JINA_READER}${target}`;
   const guard = timeoutGuard();
+  emitActivity('Searching web', { query });
   try {
     const response = await fetch(url, {
       signal: guard.signal,
@@ -101,6 +117,7 @@ async function liveWebSearch(query) {
       chars: value.text.length,
       mode: 'live-web-search'
     };
+    emitActivity('Verifying', { query });
     return value;
   } finally {
     guard.done();
@@ -126,6 +143,12 @@ function researchErrorContext(query, error) {
     `Result: ${String(error?.message || error).slice(0, 500)}\n` +
     `IMPORTANT: Live web research failed for this request. Do NOT pretend you searched the web. ` +
     `Do NOT invent websites, trends, dates or results. Tell the user briefly that live research failed and answer only from non-live knowledge if useful.`;
+}
+
+function failClosedResult(query, error) {
+  const reason = String(error?.message || error || 'unknown error').replace(/\s+/g, ' ').trim().slice(0, 220);
+  const text = `Live web research failed for this freshness-sensitive request, so I won't invent current facts. Query: ${query || '(empty)'}. Tool error: ${reason}. Please retry when the live research path is available.`;
+  return { response: { text: () => text } };
 }
 
 function cleanAssistantText(text) {
@@ -161,18 +184,20 @@ export class GoogleAIBackend extends BaseGoogleAIBackend {}
 
 export function getAI(firebaseApp, config = {}) {
   const base = baseGetAI(firebaseApp, config);
-  return { ...base, __novaWebResearch: true, __novaCurrentGrounding: true };
+  return { ...base, __novaWebResearch: true, __novaCurrentGrounding: true, __novaFreshnessFailClosed: true };
 }
 
 export function getGenerativeModel(ai, options = {}) {
   const baseModel = baseGetGenerativeModel(ai, options);
   return {
     async generateContent(prompt) {
-      let augmented = String(prompt || '');
-      const shouldResearch = researchIntent(augmented) && !isGitHubIntent(augmented);
-      augmented += runtimeContext();
+      const originalPrompt = String(prompt || '');
+      const shouldResearch = researchIntent(originalPrompt) && !isGitHubIntent(originalPrompt);
+      const mustBeFresh = freshnessCritical(originalPrompt) && !isGitHubIntent(originalPrompt);
+      const query = shouldResearch ? searchQuery(originalPrompt) : '';
+      let augmented = originalPrompt + runtimeContext();
+
       if (shouldResearch) {
-        const query = searchQuery(augmented);
         try {
           const result = await liveWebSearch(query);
           augmented += researchContext(result);
@@ -183,10 +208,17 @@ export function getGenerativeModel(ai, options = {}) {
             error: String(error?.message || error).slice(0, 300),
             fetchedAt: new Date().toISOString()
           };
+          if (mustBeFresh) {
+            emitActivity('Finalizing', { query, failed: true });
+            return failClosedResult(query, error);
+          }
           augmented += researchErrorContext(query, error);
         }
       }
+
+      emitActivity('Thinking');
       const result = await baseModel.generateContent(augmented);
+      emitActivity('Finalizing');
       return wrapResult(result);
     }
   };
