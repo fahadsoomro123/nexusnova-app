@@ -76,8 +76,22 @@ jobs:
       - name: Apply append-only D1 schema
         run: npx --yes wrangler@4 d1 execute nexusnova-brain-registry --remote --file=schema.sql --config=wrangler.toml
 
+      - name: Reset semantic probe lease when explicitly requested
+        if: contains(github.event.head_commit.message, '[semantic-probe]')
+        run: npx --yes wrangler@4 d1 execute nexusnova-brain-registry --remote --command="DELETE FROM meta WHERE key='last_probe_at'" --config=wrangler.toml
+
       - name: Deploy Worker
         run: npx --yes wrangler@4 deploy --config=wrangler.toml
+
+      - name: Trigger requested semantic probe
+        if: contains(github.event.head_commit.message, '[semantic-probe]')
+        shell: bash
+        run: |
+          curl --fail --silent --show-error --max-time 30 \
+            -H 'content-type: application/json' \
+            --data '{"capability":"reasoning"}' \
+            https://nexusnova-brain-router.fahadsoomro123.workers.dev/v1/plan >/dev/null
+          sleep 20
 
       - name: Verify production status
         shell: bash
