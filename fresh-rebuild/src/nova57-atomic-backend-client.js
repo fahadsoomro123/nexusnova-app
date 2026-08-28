@@ -33,15 +33,28 @@ function coolDown(error) {
   backendCoolingUntil = Date.now() + (/429|rate.?limit|quota/.test(message) ? 60_000 : 15_000);
 }
 
-async function post(path, body, timeoutMs) {
+async function post(path, body, timeoutMs, extraHeaders = {}) {
   const response = await bounded(fetch(`${BACKEND_URL}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...extraHeaders },
     body: JSON.stringify(body),
     cache: 'no-store'
   }), timeoutMs);
   if (!response.ok) throw new Error(`NOVA registry HTTP ${response.status}.`);
   return response.json();
+}
+
+async function freshAppCheckToken() {
+  if (typeof document === 'undefined') return '';
+  try {
+    const firebase = await import('./core/firebase-backend.js');
+    if (typeof firebase?.requireFreshAppCheck !== 'function') return '';
+    const result = await firebase.requireFreshAppCheck();
+    return String(result?.token || '').trim();
+  } catch (error) {
+    console.warn('[NOVA ARIM] App Check feedback proof unavailable; local route memory continues.', error);
+    return '';
+  }
 }
 
 export async function getAtomicBackendPlan(prompt) {
@@ -76,9 +89,10 @@ export function reportAtomicOutcome(payload = {}) {
 
   Promise.resolve().then(async () => {
     try {
-      await post('/v1/outcome', body, 1500);
+      const appCheckToken = await freshAppCheckToken();
+      if (!appCheckToken) return;
+      await post('/v1/outcome', body, 2200, { 'X-Firebase-AppCheck': appCheckToken });
     } catch (error) {
-      coolDown(error);
       console.warn('[NOVA ARIM] Cloudflare learning feedback unavailable; local memory remains active.', error);
     }
   });
