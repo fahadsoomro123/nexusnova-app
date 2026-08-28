@@ -45,7 +45,7 @@ jobs:
           done
           grep -Fq 'NOVA RUNTIME FACTS' fresh-rebuild/src/nova57-web-research-router-compat.js
           grep -Fq '__novaCurrentGrounding' fresh-rebuild/src/nova57-web-research-router-compat.js
-          grep -Fq 'training knowledge' fresh-rebuild/src/nova57-web-research-router-compat.js
+          grep -Fq 'training-knowledge cutoff' fresh-rebuild/src/nova57-web-research-router-compat.js
           grep -Fq 'live web research ko latest/current request' fresh-rebuild/src/nova57-web-research-router-compat.js
           node --input-type=module --check < fresh-rebuild/src/nova57-web-research-router-compat.js
           git diff --quiet "$CURRENT_BASE_HEAD" HEAD -- fresh-rebuild/src/features/apps/nova-sol57-fresh.js
