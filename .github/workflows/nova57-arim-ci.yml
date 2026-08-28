@@ -1,0 +1,95 @@
+name: NOVA 5.7 ARIM Architecture Gate
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [nova-sol57-pro-v128]
+    paths:
+      - 'fresh-rebuild/src/nova57-atomic-brain-pool.js'
+      - 'fresh-rebuild/src/nova57-atomic-chain.js'
+      - 'functions/novaAtomicChain.js'
+      - '.github/workflows/nova57-arim-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  arim-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 20
+
+      - name: JavaScript syntax
+        run: |
+          node --check fresh-rebuild/src/nova57-atomic-brain-pool.js
+          node --check fresh-rebuild/src/nova57-atomic-chain.js
+          node --check functions/novaAtomicChain.js
+
+      - name: Verify adaptive multiplying mesh contract
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const chain = fs.readFileSync('fresh-rebuild/src/nova57-atomic-chain.js', 'utf8');
+          const pool = fs.readFileSync('fresh-rebuild/src/nova57-atomic-brain-pool.js', 'utf8');
+          const backend = fs.readFileSync('functions/novaAtomicChain.js', 'utf8');
+          const requiredChain = [
+            'MAX_MESH_BRAINS = 9',
+            'widths: [2, 2, 4]',
+            "'solver-A2'",
+            'critic-B${index + 1}',
+            'specialist-C${index + 1}-${specialty}',
+            "'judge'",
+            'agreementScore',
+            'remainingMs()',
+            "strategy: 'ARIM'"
+          ];
+          const requiredPool = ['laneSlice', 'control.lane', 'hedgeWidth', '__novaAtomicBrain'];
+          const requiredBackend = ["strategy: 'ARIM'", 'buildGenerations', 'widths: [2, 2, 4]', 'novaRecordBrainOutcome'];
+          const missing = [
+            ...requiredChain.filter(x => !chain.includes(x)).map(x => `chain:${x}`),
+            ...requiredPool.filter(x => !pool.includes(x)).map(x => `pool:${x}`),
+            ...requiredBackend.filter(x => !backend.includes(x)).map(x => `backend:${x}`)
+          ];
+          if (missing.length) {
+            console.error('Missing ARIM contracts:', missing);
+            process.exit(1);
+          }
+          console.log('ARIM topology/learning/lane contracts present.');
+          NODE
+
+      - name: Verify privacy-safe route memory
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const pool = fs.readFileSync('fresh-rebuild/src/nova57-atomic-brain-pool.js', 'utf8');
+          const chain = fs.readFileSync('fresh-rebuild/src/nova57-atomic-chain.js', 'utf8');
+          if (!pool.includes("JSON.stringify({ version: 1, routes: rows })")) throw new Error('Expected route-stat-only memory payload missing.');
+          if (/localStorage|sessionStorage|indexedDB/i.test(chain)) throw new Error('Chain module must not persist user prompts.');
+          console.log('ARIM persists route stats only; chain prompt data is not persisted.');
+          NODE
+
+      - name: Protected mining reward wallet NVX guard
+        run: |
+          BASE=$(git rev-parse HEAD~1)
+          CHANGED=$(git diff --name-only "$BASE" HEAD)
+          echo "$CHANGED"
+          if echo "$CHANGED" | grep -Ei '(^|/)(mining|mine|rewards?|wallet|nvx)(/|\.|-|_)'; then
+            echo 'Protected mining/reward/wallet/NVX path changed.' >&2
+            exit 1
+          fi
+          echo 'Protected domains untouched by this change.'
+
+      - name: No artifact or cache storage
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const yml = fs.readFileSync('.github/workflows/nova57-arim-ci.yml', 'utf8');
+          const forbidden = ['upload', 'artifact'].join('-');
+          const cacheAction = ['actions', 'cache'].join('/');
+          if (yml.includes(forbidden) || yml.includes(cacheAction)) throw new Error('ARIM CI must remain artifact/cache free.');
+          console.log('No artifact/cache upload in ARIM CI.');
+          NODE
