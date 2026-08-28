@@ -1,7 +1,8 @@
 // NOVA 5.7 Pro — low-latency hedge + hard-reasoning jury layer.
 // Quick/standard requests stay fast. Hard requests collect several stronger free
 // candidates and prefer consensus/quality instead of blindly accepting the first
-// response. No provider API key or secret is embedded.
+// response. Mechanically verifiable ordering puzzles are solved locally first.
+// No provider API key or secret is embedded.
 
 import {
   GoogleAIBackend as BaseGoogleAIBackend,
@@ -54,8 +55,8 @@ function profile(prompt) {
 
 function timeoutFor(kind) {
   if (kind === 'quick') return 3200;
-  if (kind === 'grounded') return 3600;
-  if (kind === 'hard') return 5400;
+  if (kind === 'grounded') return 2200;
+  if (kind === 'hard') return 4600;
   return 4200;
 }
 
@@ -167,6 +168,87 @@ function shortConstrainedOutput(prompt, answer) {
   return answer.length <= 96 && /\b(return|answer|output)\s+(?:only|just)\b|no\s+(?:spaces?|explanation|words?)/i.test(request);
 }
 
+function deterministicOrderingSolution(prompt) {
+  const source = String(prompt || '');
+  const occupy = source.match(/(?:tasks?|items?|letters?)\s+([A-Z](?:[\s,]+[A-Z]){2,})\s+must\s+occupy\s+positions?\s+1\s+(?:through|to|-)\s+(\d+)\s+exactly\s+once/i);
+  if (!occupy) return null;
+
+  const symbols = [...new Set((occupy[1].match(/\b[A-Z]\b/g) || []).map(x => x.toUpperCase()))];
+  const count = Number(occupy[2]);
+  if (count < 3 || count > 8 || symbols.length !== count) return null;
+
+  const allowed = new Set(symbols);
+  const rules = [];
+  const addPairRule = (regex, fn) => {
+    for (const match of source.matchAll(regex)) {
+      const a = String(match[1] || '').toUpperCase();
+      const b = String(match[2] || '').toUpperCase();
+      if (allowed.has(a) && allowed.has(b)) rules.push(index => fn(index.get(a), index.get(b)));
+    }
+  };
+
+  addPairRule(/\b([A-Z])\s+is\s+immediately\s+after\s+([A-Z])\b/gi, (a, b) => a === b + 1);
+  addPairRule(/\b([A-Z])\s+is\s+immediately\s+before\s+([A-Z])\b/gi, (a, b) => a + 1 === b);
+  addPairRule(/\b([A-Z])\s+is\s+before\s+([A-Z])\b/gi, (a, b) => a < b);
+  addPairRule(/\b([A-Z])\s+is\s+after\s+([A-Z])\b/gi, (a, b) => a > b);
+  addPairRule(/\b([A-Z])\s+is\s+adjacent\s+to\s+([A-Z])\b/gi, (a, b) => Math.abs(a - b) === 1);
+
+  const distance = value => {
+    const words = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8 };
+    const key = String(value || '').toLowerCase();
+    return Object.prototype.hasOwnProperty.call(words, key) ? words[key] : Number(key);
+  };
+
+  for (const match of source.matchAll(/\b([A-Z])\s+is\s+exactly\s+(\d+|one|two|three|four|five|six|seven|eight)\s+positions?\s+after\s+([A-Z])\b/gi)) {
+    const a = String(match[1] || '').toUpperCase();
+    const gap = distance(match[2]);
+    const b = String(match[3] || '').toUpperCase();
+    if (allowed.has(a) && allowed.has(b) && Number.isFinite(gap)) rules.push(index => index.get(a) === index.get(b) + gap);
+  }
+  for (const match of source.matchAll(/\b([A-Z])\s+is\s+exactly\s+(\d+|one|two|three|four|five|six|seven|eight)\s+positions?\s+before\s+([A-Z])\b/gi)) {
+    const a = String(match[1] || '').toUpperCase();
+    const gap = distance(match[2]);
+    const b = String(match[3] || '').toUpperCase();
+    if (allowed.has(a) && allowed.has(b) && Number.isFinite(gap)) rules.push(index => index.get(a) + gap === index.get(b));
+  }
+  for (const match of source.matchAll(/\b([A-Z])\s+is\s+neither\s+first\s+nor\s+last\b/gi)) {
+    const a = String(match[1] || '').toUpperCase();
+    if (allowed.has(a)) rules.push(index => index.get(a) !== 0 && index.get(a) !== count - 1);
+  }
+  for (const match of source.matchAll(/\b([A-Z])\s+is\s+not\s+first\b/gi)) {
+    const a = String(match[1] || '').toUpperCase();
+    if (allowed.has(a)) rules.push(index => index.get(a) !== 0);
+  }
+  for (const match of source.matchAll(/\b([A-Z])\s+is\s+not\s+last\b/gi)) {
+    const a = String(match[1] || '').toUpperCase();
+    if (allowed.has(a)) rules.push(index => index.get(a) !== count - 1);
+  }
+  if (rules.length < 2) return null;
+
+  const solutions = [];
+  const used = new Set();
+  const order = [];
+  const visit = () => {
+    if (solutions.length > 1) return;
+    if (order.length === count) {
+      const index = new Map(order.map((value, i) => [value, i]));
+      if (rules.every(rule => rule(index))) solutions.push(order.join(''));
+      return;
+    }
+    for (const symbol of symbols) {
+      if (used.has(symbol)) continue;
+      used.add(symbol);
+      order.push(symbol);
+      visit();
+      order.pop();
+      used.delete(symbol);
+      if (solutions.length > 1) return;
+    }
+  };
+  visit();
+  return solutions.length === 1 ? solutions[0] : null;
+}
+
 async function hardJury(prompt, options = {}) {
   const timeoutMs = timeoutFor('hard');
   const models = availableModels('hard').slice(0, 4);
@@ -262,11 +344,25 @@ async function fastHedge(prompt, options = {}) {
   }
 }
 
+async function boundedFallback(baseModel, prompt, timeoutMs) {
+  let timer;
+  try {
+    return await Promise.race([
+      baseModel.generateContent(prompt),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`Broad adaptive fallback exceeded ${timeoutMs}ms foreground deadline.`)), timeoutMs);
+      })
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 export class GoogleAIBackend extends BaseGoogleAIBackend {}
 
 export function getAI(firebaseApp, config = {}) {
   const base = baseGetAI(firebaseApp, config);
-  return { ...base, __novaHedgeRouter: true, __novaHardJury: true };
+  return { ...base, __novaHedgeRouter: true, __novaHardJury: true, __novaDeterministicConstraints: true };
 }
 
 export function getGenerativeModel(ai, options = {}) {
@@ -274,12 +370,43 @@ export function getGenerativeModel(ai, options = {}) {
   return {
     async generateContent(prompt) {
       const mode = profile(prompt);
+      if (mode === 'hard') {
+        const started = Date.now();
+        const exact = deterministicOrderingSolution(prompt);
+        if (exact) {
+          const latencyMs = Date.now() - started;
+          globalThis.__NOVA_BRAIN_LAST__ = {
+            provider: 'NOVA Local',
+            model: 'deterministic-constraint-solver',
+            attempts: 1,
+            successfulCandidates: 1,
+            latencyMs,
+            wallMs: latencyMs,
+            profile: 'hard',
+            hedged: false,
+            jury: false,
+            deterministic: true,
+            verified: true,
+            at: new Date().toISOString()
+          };
+          return { response: { text: () => exact } };
+        }
+      }
+
       try {
         const text = mode === 'hard'
           ? await hardJury(prompt, options)
           : await fastHedge(prompt, options);
         return { response: { text: () => text } };
       } catch (fastError) {
+        if (mode === 'grounded') {
+          console.warn('[NOVA Hedge] grounded answer route unavailable; returning control to evidence-safe orchestrator fallback.', fastError);
+          throw fastError;
+        }
+        if (mode === 'hard') {
+          console.warn('[NOVA Hedge] hard foreground routes unavailable; trying deadline-capped broad adaptive router.', fastError);
+          return boundedFallback(baseModel, prompt, 2600);
+        }
         console.warn(`[NOVA Hedge] ${mode} foreground routes unavailable; using broad adaptive router.`, fastError);
         return baseModel.generateContent(prompt);
       }
