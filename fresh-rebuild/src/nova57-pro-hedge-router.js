@@ -17,6 +17,14 @@ const FAST_MODELS = [
   'openrouter/free',
   'tencent/hy3:free'
 ];
+const HARD_MODELS = [
+  'stepfun/step-3.7-flash:free',
+  'openrouter/free',
+  'tencent/hy3:free',
+  'kilo-auto/free',
+  'poolside/laguna-s-2.1:free',
+  'poolside/laguna-xs-2.1:free'
+];
 const circuit = new Map();
 const perf = new Map();
 let lastGood = '';
@@ -38,29 +46,42 @@ function config(options = {}) {
 
 function profile(prompt) {
   const text = String(prompt || '').toLowerCase();
-  if (text.length > 4200 || /\b(reason|reasoning|logic|constraint|research|github|tool result|architecture|debug|algorithm|analy[sz]e)\b/.test(text)) return 'hard';
+  if (text.length > 4200 || /\b(reason|reasoning|logic|constraint|research|github|tool result|architecture|debug|algorithm|analy[sz]e|prove|derive|puzzle|schedule)\b/.test(text)) return 'hard';
   return text.length < 650 ? 'quick' : 'standard';
 }
 
 function timeoutFor(kind) {
   if (kind === 'quick') return 3300;
-  if (kind === 'hard') return 5200;
+  if (kind === 'hard') return 5600;
   return 4300;
 }
 
-function modelScore(model) {
-  const s = perf.get(model) || { ok: 0, fail: 0, ewma: 0, lastOk: 0 };
-  const good = model === lastGood ? 100 : 0;
-  const fresh = s.lastOk && Date.now() - s.lastOk < 10 * 60_000 ? 25 : 0;
-  const latency = s.ewma ? Math.min(35, s.ewma / 180) : 0;
-  return good + fresh + s.ok * 3 - s.fail * 8 - latency - FAST_MODELS.indexOf(model) * 2;
+function hardQuality(model) {
+  if (model === 'stepfun/step-3.7-flash:free') return 42;
+  if (model === 'openrouter/free') return 36;
+  if (model === 'tencent/hy3:free') return 30;
+  if (model === 'kilo-auto/free') return 20;
+  if (model === 'poolside/laguna-s-2.1:free') return 8;
+  return 0;
 }
 
-function availableModels() {
+function modelScore(model, mode) {
+  const s = perf.get(model) || { ok: 0, fail: 0, ewma: 0, lastOk: 0 };
+  const good = model === lastGood ? (mode === 'hard' ? 35 : 100) : 0;
+  const fresh = s.lastOk && Date.now() - s.lastOk < 10 * 60_000 ? 25 : 0;
+  const latency = s.ewma ? Math.min(35, s.ewma / 180) : 0;
+  const order = mode === 'hard' ? HARD_MODELS : FAST_MODELS;
+  const orderPenalty = Math.max(0, order.indexOf(model)) * 2;
+  const quality = mode === 'hard' ? hardQuality(model) : 0;
+  return good + fresh + quality + s.ok * 3 - s.fail * 8 - latency - orderPenalty;
+}
+
+function availableModels(mode) {
   const now = Date.now();
-  return FAST_MODELS
+  const order = mode === 'hard' ? HARD_MODELS : FAST_MODELS;
+  return order
     .filter(model => (circuit.get(model) || 0) <= now)
-    .sort((a, b) => modelScore(b) - modelScore(a));
+    .sort((a, b) => modelScore(b, mode) - modelScore(a, mode));
 }
 
 function markSuccess(model, ms) {
@@ -132,15 +153,15 @@ async function callKilo(model, prompt, options, timeoutMs, delayMs = 0) {
 async function fastHedge(prompt, options = {}) {
   const mode = profile(prompt);
   const timeoutMs = timeoutFor(mode);
-  const models = availableModels();
+  const models = availableModels(mode);
   if (!models.length) throw new Error('No fast anonymous routes are healthy.');
 
-  // One proven route stays cheapest. Cold or hard requests use one small hedge
-  // so a single stalled free model does not freeze the user for 15–20 seconds.
-  const width = lastGood && mode !== 'hard' ? 1 : Math.min(2, models.length);
+  // Keep simple chat cheap and fast. For hard reasoning, race two stronger free
+  // routes immediately so latency and answer quality are not tied to one model.
+  const width = mode === 'hard' ? Math.min(2, models.length) : (lastGood ? 1 : Math.min(2, models.length));
   const selected = models.slice(0, width);
   const started = Date.now();
-  const promises = selected.map((model, index) => callKilo(model, prompt, options, timeoutMs, index * 180));
+  const promises = selected.map((model, index) => callKilo(model, prompt, options, timeoutMs, mode === 'hard' ? index * 90 : index * 180));
   try {
     const winner = await Promise.any(promises);
     globalThis.__NOVA_BRAIN_LAST__ = {
@@ -151,6 +172,7 @@ async function fastHedge(prompt, options = {}) {
       wallMs: Date.now() - started,
       profile: mode,
       hedged: selected.length > 1,
+      selected,
       at: new Date().toISOString()
     };
     return winner.text;
