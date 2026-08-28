@@ -47,12 +47,14 @@ function config(options = {}) {
 
 function profile(prompt) {
   const text = String(prompt || '').toLowerCase();
-  if (text.length > 4200 || /\b(reason|reasoning|logic|constraint|research|github|tool result|architecture|debug|algorithm|analy[sz]e|prove|derive|puzzle|schedule)\b/.test(text)) return 'hard';
+  if (text.includes('[live nova web tool result]')) return 'grounded';
+  if (text.length > 4200 || /\b(reason|reasoning|logic|constraints?|research|github|tool result|architecture|debug|algorithm|analy[sz]e|prove|derive|puzzle|schedule|positions?|permutation|unique order)\b/.test(text) || /must occupy positions|exactly once|immediately after|exactly two positions/i.test(text)) return 'hard';
   return text.length < 650 ? 'quick' : 'standard';
 }
 
 function timeoutFor(kind) {
   if (kind === 'quick') return 3200;
+  if (kind === 'grounded') return 3600;
   if (kind === 'hard') return 5400;
   return 4200;
 }
