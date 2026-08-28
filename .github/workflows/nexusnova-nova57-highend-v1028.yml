@@ -1,21 +1,6 @@
 name: NexusNova v1.0.28 NOVA 5.7 High-End Signed
 
 on:
-  push:
-    branches: [nova-sol57-runtime-recovery-v128]
-    paths:
-      - '.github/workflows/nexusnova-nova57-highend-v1028.yml'
-      - 'fresh-rebuild/index.html'
-      - 'fresh-rebuild/src/nova57-runtime-recovery-router-compat.js'
-      - 'fresh-rebuild/src/nova57-history-safety.js'
-      - 'fresh-rebuild/src/nova57-adaptive-client-router-compat.js'
-      - 'fresh-rebuild/src/nova57-living-experience.js'
-      - 'fresh-rebuild/src/nova57-premium-runtime.js'
-      - 'fresh-rebuild/assets/styles/nova57-living-experience.css'
-      - 'fresh-rebuild/assets/styles/nova57-premium-runtime.css'
-      - 'functions/novaAdaptiveRouter.js'
-      - 'functions/novaBrainDiscovery.js'
-      - 'functions/main.js'
   workflow_dispatch:
 
 permissions:
