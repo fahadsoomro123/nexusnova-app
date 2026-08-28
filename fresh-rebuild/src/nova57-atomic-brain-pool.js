@@ -1,7 +1,9 @@
-// NOVA 5.7 ACRM — explicit fast brain pool.
+// NOVA 5.7 ACRM/ARIM — explicit fast brain pool.
 // Keeps only route health/latency counters in localStorage; never stores prompts.
 // The pool can absorb dynamically discovered Kilo/OVH routes published by the
 // keyless router, while known-good routes provide a cold-start safety net.
+// ARIM lanes deliberately partition ranked candidates so parallel branches do
+// not all race the same model and pretend to be independent intelligence.
 
 const KILO_BASE = 'https://api.kilo.ai/api/gateway';
 const OVH_BASE = 'https://oai.endpoints.kepler.ai.cloud.ovh.net/v1';
@@ -39,9 +41,7 @@ export function assessAtomicResponseQuality(value) {
     /^the\s+task\s+is\b/i,
     /^task\s*:\s*(?:respond|answer|solve|craft|provide|analy[sz]e)\b/i
   ];
-  if (internalMeta.some(pattern => pattern.test(head))) {
-    return { ok: false, reason: 'internal-meta-leak' };
-  }
+  if (internalMeta.some(pattern => pattern.test(head))) return { ok: false, reason: 'internal-meta-leak' };
   if (/^\s*[\[{]\s*"(?:choices|error|model|object|usage|created|id)"\s*:/i.test(head)) {
     return { ok: false, reason: 'raw-transport-json' };
   }
@@ -138,9 +138,7 @@ function isQuarantined(route) {
 }
 
 function dynamicRoutes() {
-  const raw = Array.isArray(globalThis.__NOVA_KEYLESS_ROUTE_POOL__)
-    ? globalThis.__NOVA_KEYLESS_ROUTE_POOL__
-    : [];
+  const raw = Array.isArray(globalThis.__NOVA_KEYLESS_ROUTE_POOL__) ? globalThis.__NOVA_KEYLESS_ROUTE_POOL__ : [];
   const out = [];
   for (const value of raw) {
     const text = String(value || '');
@@ -234,13 +232,7 @@ async function callRoute(route, prompt, options, timeoutMs, delayMs = 0) {
       method: 'POST',
       signal: controller.signal,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: route.model,
-        messages,
-        temperature: cfg.temperature,
-        max_tokens: cfg.maxTokens,
-        stream: false
-      })
+      body: JSON.stringify({ model: route.model, messages, temperature: cfg.temperature, max_tokens: cfg.maxTokens, stream: false })
     });
     const raw = await response.text();
     let data = {};
@@ -275,40 +267,54 @@ async function callRoute(route, prompt, options, timeoutMs, delayMs = 0) {
   }
 }
 
+function laneSlice(candidates, lane, hedgeWidth) {
+  const width = Math.max(1, Math.min(2, Number(hedgeWidth) || 1));
+  if (!candidates.length) return [];
+  const safeLane = Math.max(0, Math.min(15, Number(lane) || 0));
+  const start = safeLane * width;
+  const sliced = candidates.slice(start, start + width);
+  return sliced.length ? sliced : candidates.slice(0, Math.min(width, candidates.length));
+}
+
 export async function runAtomicBrain(prompt, options = {}, control = {}) {
   const capability = String(control.capability || 'general');
   const excludeKeys = Array.isArray(control.excludeKeys) ? control.excludeKeys : [];
   const preferredKeys = Array.isArray(control.preferredKeys) ? control.preferredKeys : [];
   const timeoutMs = Math.max(900, Math.min(5200, Number(control.timeoutMs || 3600)));
+  const lane = Math.max(0, Number(control.lane || 0));
+  const hedgeWidth = Math.max(1, Math.min(2, Number(control.hedgeWidth || 2)));
   const candidates = atomicCandidates(capability, excludeKeys, preferredKeys);
-  if (!candidates.length) throw new Error(`No healthy ACRM ${capability} candidates.`);
+  if (!candidates.length) throw new Error(`No healthy ACRM/ARIM ${capability} candidates.`);
 
-  // Two-route staggered hedge: a dead first route does not consume the whole
-  // foreground deadline before the next brain gets a chance.
-  const selected = candidates.slice(0, Math.min(2, candidates.length));
+  const selected = laneSlice(candidates, lane, hedgeWidth);
   const started = Date.now();
   const attempts = selected.map((route, index) => callRoute(route, prompt, options, timeoutMs, index * 110));
   try {
     const winner = await Promise.any(attempts);
-    globalThis.__NOVA_BRAIN_LAST__ = {
+    const brain = {
       provider: winner.route.provider,
       model: winner.route.model,
+      routeKey: keyOf(winner.route),
       attempts: selected.length,
       latencyMs: winner.latencyMs,
       wallMs: Date.now() - started,
       profile: capability,
       adaptive: true,
       atomic: true,
+      mesh: true,
+      lane,
       selected: selected.map(keyOf),
-      preferred: preferredKeys.slice(0, 8),
+      preferred: preferredKeys.slice(0, 12),
       at: new Date().toISOString()
     };
+    globalThis.__NOVA_BRAIN_LAST__ = brain;
     return {
       response: { text: () => winner.text },
-      __novaAtomicRouteKey: keyOf(winner.route)
+      __novaAtomicRouteKey: brain.routeKey,
+      __novaAtomicBrain: brain
     };
   } catch (aggregate) {
-    const error = new Error(`ACRM ${capability} hedge failed across ${selected.length} route(s).`);
+    const error = new Error(`ACRM/ARIM ${capability} lane ${lane} failed across ${selected.length} route(s).`);
     error.cause = aggregate;
     throw error;
   }
