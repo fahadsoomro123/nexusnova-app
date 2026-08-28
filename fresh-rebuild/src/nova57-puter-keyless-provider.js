@@ -1,7 +1,7 @@
 // NOVA 5.7 Sol — Puter.js keyless AI provider adapter.
 // No developer API keys are embedded or requested. Puter.js uses browser-side
-// user authentication / user-pays accounting. We only route to models whose
-// current Puter catalog reports zero input AND zero output token cost.
+// user authentication / user-pays accounting. Only currently verified/free
+// chat routes are exposed to the keyless router.
 
 const PUTER_SDK_URL = 'https://js.puter.com/v2/';
 const SDK_TIMEOUT_MS = 5_000;
@@ -91,6 +91,17 @@ function dedupe(ids) {
   });
 }
 
+export function getPuterVerifiedSeedRoutes() {
+  return VERIFIED_FREE_SEEDS.map((model, index) => ({
+    provider: 'Puter',
+    model,
+    kind: 'puter',
+    priority: 86 - Math.min(index, 20) * 0.15,
+    timeoutMs: 5_500,
+    seed: true
+  }));
+}
+
 export async function discoverPuterFreeRoutes(force = false) {
   if (!force && cachedRoutes.length && Date.now() - cachedAt < CATALOG_TTL_MS) return cachedRoutes;
 
@@ -118,10 +129,11 @@ export async function discoverPuterFreeRoutes(force = false) {
     provider: 'Puter',
     model,
     kind: 'puter',
-    // Puter stays below the already-proven anonymous fast routes until it has
-    // succeeded once; the main router's last-good logic will then promote it.
+    // Puter stays below already-proven anonymous fast routes until it succeeds;
+    // the main router's adaptive last-good logic can then promote it.
     priority: 86 - Math.min(index, 20) * 0.15,
-    timeoutMs: 5_500
+    timeoutMs: 5_500,
+    seed: VERIFIED_FREE_SEEDS.includes(model)
   }));
   cachedAt = Date.now();
   globalThis.__NOVA_PUTER_FREE_ROUTE_COUNT__ = cachedRoutes.length;
