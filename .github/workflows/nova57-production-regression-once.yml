@@ -1,0 +1,133 @@
+name: NOVA 5.7 One-Time Production Regression
+
+on:
+  push:
+    branches: [nova-sol57-pro-v128]
+    paths:
+      - '.github/workflows/nova57-production-regression-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  production-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout approved branch
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 30
+
+      - name: Node 22
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          package-manager-cache: false
+
+      - name: Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Verify protected delta since pre-Cloudflare baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE=ac8d1c5a0626d72d3b916ecb87bf8b6c94564568
+          git cat-file -e "$BASE^{commit}"
+          mapfile -t changed < <(git diff --name-only "$BASE"...HEAD)
+          printf 'Changed since baseline:\n%s\n' "${changed[*]}"
+          for f in "${changed[@]}"; do
+            case "$f" in
+              .github/workflows/nova57-cloudflare-brain-ci.yml|\
+              .github/workflows/nova57-fix-grounded-research-once.yml|\
+              .github/workflows/nova57-production-regression-once.yml|\
+              cloudflare/nova-brain-worker/schema.sql|\
+              cloudflare/nova-brain-worker/src/index.js|\
+              cloudflare/nova-brain-worker/wrangler.template.toml|\
+              fresh-rebuild/src/nova57-atomic-backend-client.js) ;;
+              *) echo "Unexpected post-baseline change: $f" >&2; exit 1 ;;
+            esac
+          done
+          if printf '%s\n' "${changed[@]}" | grep -Ei '(^|/)(mining|mine|rewards?|wallet|nvx)(/|\.|-|_)'; then
+            echo 'Protected mining/reward/wallet/NVX path changed.' >&2
+            exit 1
+          fi
+          echo 'Protected app/auth/mining/reward/wallet/NVX source delta: clean.'
+
+      - name: NOVA source syntax and production wiring
+        shell: bash
+        run: |
+          set -euo pipefail
+          for f in \
+            fresh-rebuild/src/nova57-atomic-backend-client.js \
+            fresh-rebuild/src/nova57-atomic-brain-pool.js \
+            fresh-rebuild/src/nova57-atomic-chain.js \
+            fresh-rebuild/src/nova57-pro-orchestrator.js \
+            fresh-rebuild/src/nova57-pro-hedge-router.js \
+            fresh-rebuild/src/features/apps/nova-sol57-fresh.js \
+            fresh-rebuild/src/features/apps/app-screen.js \
+            cloudflare/nova-brain-worker/src/index.js \
+            scripts/nova57-hard-benchmark.mjs \
+            scripts/nova57-arim-live-smoke.mjs; do
+            node --check "$f"
+          done
+          grep -Fq "https://nexusnova-brain-router.fahadsoomro123.workers.dev" fresh-rebuild/src/nova57-atomic-backend-client.js
+          ! grep -Fq '__NOVA_CLOUDFLARE_BRAIN_BACKEND_URL__' fresh-rebuild/src/nova57-atomic-backend-client.js
+          grep -Fq "const ROUTER_PROFILE = 'NOVA 5.7 Sol / ARIM'" fresh-rebuild/src/features/apps/nova-sol57-fresh.js
+          grep -Fq 'const renderer = novaSol57Renderers[id] ||' fresh-rebuild/src/features/apps/app-screen.js
+          echo 'NOVA source syntax + actual UI ARIM wiring: PASS'
+
+      - name: Android WebView security readiness
+        run: python3 .github/scripts/android-webview-security-readiness.py
+
+      - name: App renderer coverage
+        run: python3 .github/scripts/app-renderer-coverage.py
+
+      - name: Cloudflare registry live status and shortlist
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://nexusnova-brain-router.fahadsoomro123.workers.dev'
+          curl -fsS "$URL/v1/status" > /tmp/nova-status.json
+          cat /tmp/nova-status.json
+          jq -e '.ok == true and .targetCatalog == 200000 and .catalogRecords >= 4000 and .shardCount >= 40 and .activeRoutes >= 6 and .healthyRoutes >= 6' /tmp/nova-status.json >/dev/null
+          curl -fsS "$URL/v1/plan" \
+            -X POST \
+            -H 'Content-Type: application/json' \
+            --data '{"capability":"reasoning"}' > /tmp/nova-plan.json
+          jq -e '.source == "cloudflare-d1" and (.candidates | length) >= 2' /tmp/nova-plan.json >/dev/null
+          echo "Cloudflare live shortlist candidates: $(jq '.candidates | length' /tmp/nova-plan.json)"
+
+      - name: Hardened five-task benchmark
+        run: node scripts/nova57-hard-benchmark.mjs
+
+      - name: Live ARIM integrity smoke
+        run: node scripts/nova57-arim-live-smoke.mjs
+
+      - name: Android manifest and Kotlin compile only - no APK packaging
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://services.gradle.org/distributions/gradle-8.13-bin.zip -o /tmp/gradle-8.13-bin.zip
+          unzip -q /tmp/gradle-8.13-bin.zip -d /tmp
+          cd NexusNovaAndroid
+          /tmp/gradle-8.13/bin/gradle \
+            :app:processDebugMainManifest \
+            :app:compileDebugKotlin \
+            --no-daemon --stacktrace
+          test ! -e app/build/outputs/apk/debug/app-debug.apk
+          echo 'Android manifest/Kotlin compile: PASS; no APK packaged.'
+
+      - name: Self-clean one-time regression runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f nova57-hard-benchmark-results.json /tmp/nova-status.json /tmp/nova-plan.json /tmp/gradle-8.13-bin.zip
+          git rm .github/workflows/nova57-production-regression-once.yml
+          git config user.name 'NexusNova Regression Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git commit -m 'Remove one-time NOVA production regression runner'
+          git push origin HEAD:nova-sol57-pro-v128
