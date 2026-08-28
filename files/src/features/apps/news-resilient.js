@@ -1,18 +1,18 @@
 import { escapeHtml } from '../../core/local-store.js';
 
+const DEFAULT_TOPIC = 'Pakistan';
 const GDELT_DOC = 'https://api.gdeltproject.org/api/v2/doc/doc';
 
 function node(html) {
   const root = document.createElement('div');
-  root.className = 'nx-app-body nx-news-suite nx-news-pro';
+  root.className = 'nx-app-body nx-news-suite nx-news-v4';
   root.innerHTML = html;
   return root;
 }
 
-function safeUrl(raw, { image = false } = {}) {
+function safeUrl(raw) {
   try {
     const url = new URL(String(raw || '').trim());
-    if (image) return url.protocol === 'https:' ? url.href : '';
     return url.protocol === 'https:' || url.protocol === 'http:' ? url.href : '';
   } catch { return ''; }
 }
@@ -31,138 +31,196 @@ function openExternal(raw) {
   } catch { return false; }
 }
 
-function parseSeen(raw) {
-  const value = String(raw || '').trim();
-  const match = value.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/);
-  if (match) {
-    const [, y, m, d, hh, mm, ss] = match;
-    return new Date(`${y}-${m}-${d}T${hh}:${mm}:${ss}Z`);
+function bridgeFeed(query, timeout = 20000) {
+  const bridge = window.NexusAppCheckAndroid;
+  if (!bridge || typeof bridge.postMessage !== 'function') {
+    return Promise.reject(new Error('Native live-news bridge is unavailable.'));
   }
-  const parsed = new Date(value);
-  return Number.isFinite(parsed.getTime()) ? parsed : null;
+
+  return new Promise((resolve, reject) => {
+    const requestId = `news-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
+    const previous = bridge.onmessage;
+    let settled = false;
+    let timer = 0;
+
+    const cleanup = () => {
+      clearTimeout(timer);
+      if (bridge.onmessage === handler) bridge.onmessage = previous || null;
+    };
+    const finish = (fn, value) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      fn(value);
+    };
+    const handler = event => {
+      let payload = null;
+      try { payload = JSON.parse(String(event?.data || '')); } catch {}
+      if (!payload || payload.requestId !== requestId) {
+        if (typeof previous === 'function') {
+          try { previous.call(bridge, event); } catch {}
+        }
+        return;
+      }
+      if (!payload.ok) {
+        finish(reject, new Error(String(payload.error || 'Native live news failed.')));
+        return;
+      }
+      finish(resolve, { articles:Array.isArray(payload.articles) ? payload.articles : [] });
+    };
+
+    bridge.onmessage = handler;
+    timer = setTimeout(() => finish(reject, new Error('Native live news timed out.')), timeout);
+    try {
+      bridge.postMessage(JSON.stringify({ action:'fetchNews', requestId, query }));
+    } catch (error) {
+      finish(reject, error instanceof Error ? error : new Error('Native live news request failed.'));
+    }
+  });
 }
 
-function formatSeen(raw) {
-  const date = parseSeen(raw);
-  if (!date) return '';
-  const age = Math.max(0, Date.now() - date.getTime());
-  const mins = Math.floor(age / 60000);
-  if (mins < 1) return 'Just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return date.toLocaleDateString([], { day:'2-digit', month:'short' });
-}
-
-function normalizeArticle(item) {
-  const url = safeUrl(item?.url);
-  const title = String(item?.title || '').replace(/\s+/g, ' ').trim().slice(0, 260);
-  if (!url || !title) return null;
-  let domain = String(item?.domain || '').trim().slice(0, 120);
-  if (!domain) { try { domain = new URL(url).hostname.replace(/^www\./, ''); } catch {} }
-  return {
-    title,
-    url,
-    domain:domain || 'Publisher',
-    seen:String(item?.seendate || item?.date || '').trim(),
-    country:String(item?.sourcecountry || '').trim().slice(0, 60),
-    image:safeUrl(item?.socialimage || item?.image || '', { image:true })
-  };
-}
-
-const styles = `
-.nx-news-pro{width:100%;max-width:none;color:#f4f8fd;font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
-.nx-news-pro *{box-sizing:border-box}.nx-news-pro button,.nx-news-pro input{font:inherit}
-.nxnp-shell{display:grid;gap:11px}.nxnp-mast{position:relative;overflow:hidden;padding:18px 16px 16px;border:1px solid rgba(107,181,230,.18);border-radius:22px;background:radial-gradient(circle at 92% 8%,rgba(40,165,230,.18),transparent 36%),linear-gradient(145deg,#0a2137,#061321 62%,#040c15);box-shadow:0 16px 35px rgba(0,0,0,.22)}
-.nxnp-mast:after{content:"";position:absolute;left:16px;right:16px;bottom:0;height:2px;background:linear-gradient(90deg,#2ac7ff,rgba(42,199,255,.05))}.nxnp-kicker{display:flex;align-items:center;gap:7px;color:#57d6ff;font-size:8px;font-weight:950;letter-spacing:.17em}.nxnp-kicker i{width:7px;height:7px;border-radius:50%;background:#35e276;box-shadow:0 0 13px rgba(53,226,118,.7)}
-.nxnp-mast h2{margin:8px 0 3px;font-size:27px;line-height:.98;letter-spacing:-.045em}.nxnp-mast p{margin:7px 0 0;max-width:33rem;color:#8da4b9;font-size:11px;line-height:1.45}.nxnp-controls{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px;margin-top:13px}.nxnp-controls input{width:100%;height:39px;padding:0 12px;border:1px solid rgba(94,174,226,.18);border-radius:12px;outline:0;background:#061522;color:#eef8ff}.nxnp-controls input:focus{border-color:#2aaee8;box-shadow:0 0 0 2px rgba(42,174,232,.08)}.nxnp-controls button{height:39px;padding:0 14px;border:1px solid rgba(65,184,235,.25);border-radius:12px;background:linear-gradient(145deg,#0c3857,#09243a);color:#6bdcff;font-size:8px;font-weight:950;letter-spacing:.11em}.nxnp-controls button:disabled{opacity:.55}.nxnp-status{margin:0 3px;color:#728ba2;font-size:9px;line-height:1.4}
-.nxnp-grid{display:grid;gap:9px}.nxnp-feature{position:relative;overflow:hidden;min-height:238px;border:1px solid rgba(104,180,230,.17);border-radius:22px;background:linear-gradient(145deg,#0b1d2f,#050f1a);box-shadow:0 14px 32px rgba(0,0,0,.2);cursor:pointer;text-align:left}.nxnp-feature__media{position:absolute;inset:0;background:radial-gradient(circle at 75% 20%,rgba(35,171,234,.17),transparent 42%),linear-gradient(145deg,#0b2a43,#071523)}.nxnp-feature__media img{width:100%;height:100%;object-fit:cover;opacity:.56;filter:saturate(.86) contrast(1.04)}.nxnp-feature__veil{position:absolute;inset:0;background:linear-gradient(180deg,rgba(2,8,14,.08) 15%,rgba(2,8,14,.78) 66%,#020910 100%)}.nxnp-feature__body{position:relative;z-index:1;min-height:238px;padding:18px;display:flex;flex-direction:column;justify-content:flex-end}.nxnp-source{display:flex;align-items:center;gap:6px;color:#61d9ff;font-size:8px;font-weight:900;letter-spacing:.09em;text-transform:uppercase}.nxnp-source i{width:4px;height:4px;border-radius:50%;background:#39dfff}.nxnp-feature h3{margin:9px 0 0;max-width:620px;font-size:22px;line-height:1.12;letter-spacing:-.035em}.nxnp-feature__open{display:flex;justify-content:space-between;align-items:center;margin-top:11px;color:#9eb1c1;font-size:9px}.nxnp-feature__open b{color:#eaf8ff;font-size:18px}
-.nxnp-list{display:grid;gap:7px}.nxnp-story{width:100%;display:grid;grid-template-columns:86px minmax(0,1fr) 22px;gap:10px;align-items:center;padding:8px;border:1px solid rgba(105,172,215,.13);border-radius:16px;background:linear-gradient(145deg,rgba(9,27,44,.97),rgba(4,14,25,.98));color:#f4f8fd;text-align:left;cursor:pointer;box-shadow:inset 0 1px rgba(255,255,255,.02)}.nxnp-thumb{height:67px;overflow:hidden;border-radius:11px;background:radial-gradient(circle at 70% 20%,rgba(48,181,237,.18),transparent 44%),linear-gradient(145deg,#0d314d,#081725);display:grid;place-items:center}.nxnp-thumb img{width:100%;height:100%;object-fit:cover}.nxnp-thumb span{font-size:20px;font-weight:950;color:#46c9fa;letter-spacing:-.06em}.nxnp-story__body{min-width:0}.nxnp-story__meta{display:flex;gap:5px;align-items:center;color:#54c9f4;font-size:7px;font-weight:900;text-transform:uppercase;letter-spacing:.07em}.nxnp-story h3{margin:6px 0 0;display:-webkit-box;overflow:hidden;-webkit-box-orient:vertical;-webkit-line-clamp:3;font-size:12px;line-height:1.3;letter-spacing:-.012em}.nxnp-arrow{color:#77a6c0;font-size:21px}.nxnp-empty{padding:26px 14px;border:1px dashed rgba(107,181,230,.16);border-radius:17px;color:#8298aa;text-align:center;font-size:11px}
-@media(min-width:560px){.nxnp-list{grid-template-columns:1fr 1fr}.nxnp-story{grid-template-columns:98px minmax(0,1fr) 22px}.nxnp-thumb{height:75px}}
-`;
-
-async function fetchLiveNews(query, signal) {
+function webFeed(query, timeout = 18000) {
   const params = new URLSearchParams({
     query,
     mode:'ArtList',
     format:'json',
     maxrecords:'40',
     sort:'DateDesc',
-    timespan:'24h'
+    timespan:'48h'
   });
-  const response = await fetch(`${GDELT_DOC}?${params.toString()}`, { cache:'no-store', signal });
-  if (!response.ok) throw new Error(`Live news HTTP ${response.status}`);
-  return response.json();
+  const request = fetch(`${GDELT_DOC}?${params}`, {
+    cache:'no-store',
+    headers:{ Accept:'application/json' }
+  }).then(async response => {
+    if (!response.ok) throw new Error(`Live publisher HTTP ${response.status}`);
+    return response.json();
+  });
+  return Promise.race([
+    request,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('Live publisher request timed out.')), timeout))
+  ]);
+}
+
+async function liveFeed(query) {
+  // Android uses a native HTTPS request first. This bypasses WebView-specific
+  // fetch/JSONP failures without inventing or caching headlines. Browser builds
+  // retain the direct GDELT path.
+  if (typeof window.NexusAppCheckAndroid?.postMessage === 'function') {
+    try { return await bridgeFeed(query); }
+    catch (nativeError) {
+      try { return await webFeed(query); }
+      catch { throw nativeError; }
+    }
+  }
+  return webFeed(query);
+}
+
+function normalizeArticle(item) {
+  const url = safeUrl(item?.url);
+  const title = String(item?.title || '').replace(/\s+/g, ' ').trim().slice(0, 280);
+  if (!url || !title) return null;
+  let domain = String(item?.domain || item?.source || '').trim().slice(0, 120);
+  if (!domain) { try { domain = new URL(url).hostname.replace(/^www\./, ''); } catch {} }
+  return {
+    title,
+    url,
+    image:safeUrl(item?.image || item?.socialimage),
+    domain:domain || 'Publisher',
+    seen:String(item?.seen || item?.seendate || item?.date || '').trim(),
+    country:String(item?.country || item?.sourcecountry || '').trim().slice(0, 60)
+  };
+}
+
+function formatSeen(raw) {
+  const value = String(raw || '').trim();
+  if (!value) return 'Live now';
+  const compact = value.match(/^(\d{4})(\d{2})(\d{2})T?(\d{2})?(\d{2})?/);
+  const date = compact
+    ? new Date(`${compact[1]}-${compact[2]}-${compact[3]}T${compact[4] || '00'}:${compact[5] || '00'}:00Z`)
+    : new Date(value);
+  return Number.isNaN(date.getTime())
+    ? value.slice(0, 36)
+    : date.toLocaleString([], { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+}
+
+function storyMarkup(item, lead = false) {
+  const meta = [item.country, formatSeen(item.seen)].filter(Boolean).join(' • ');
+  const visual = item.image
+    ? `<span class="nxn4-image"><img src="${escapeHtml(item.image)}" alt="" loading="lazy" referrerpolicy="no-referrer"><em>LIVE</em></span>`
+    : `<span class="nxn4-image nxn4-image--empty"><b>${escapeHtml(item.domain.slice(0, 1).toUpperCase() || 'N')}</b><em>LIVE</em></span>`;
+  return `<button class="nxn4-story${lead ? ' is-lead' : ''}" type="button" data-news-url="${escapeHtml(item.url)}">
+    ${visual}
+    <span class="nxn4-copy"><span class="nxn4-source">${escapeHtml(item.domain)}</span><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(meta)}</small></span>
+    <span class="nxn4-arrow">›</span>
+  </button>`;
 }
 
 export function renderNewsResilient() {
-  const root = node(`<style>${styles}</style><section class="nxnp-shell">
-    <header class="nxnp-mast"><div class="nxnp-kicker"><i></i><span>LIVE NEWSROOM • PUBLISHER SOURCES</span></div><h2>News</h2><p>Fresh headlines from the live publisher index. Tap any story to read it from the original source.</p><div class="nxnp-controls"><input type="search" maxlength="120" value="Pakistan" aria-label="News topic" data-news-query><button type="button" data-news-refresh>REFRESH</button></div></header>
-    <p class="nxnp-status" data-news-status>Connecting to live news…</p><section class="nxnp-grid" data-news-list><div class="nxnp-empty">Loading latest headlines…</div></section>
-  </section>`);
+  const root = node(`
+    <style>
+      .nx-news-v4{width:100%}.nxn4-hero{position:relative;overflow:hidden;margin-bottom:12px;padding:17px;border:1px solid rgba(83,190,245,.2);border-radius:22px;background:radial-gradient(circle at 86% 18%,rgba(35,196,255,.15),transparent 30%),linear-gradient(145deg,#09223a,#04121f 62%,#020b13)}.nxn4-head{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center}.nxn4-live{display:flex;align-items:center;gap:7px;color:#49d6ff;font-size:9px;font-weight:900;letter-spacing:.14em}.nxn4-live i{width:7px;height:7px;border-radius:50%;background:#29ee70;box-shadow:0 0 12px rgba(41,238,112,.7)}.nxn4-head h2{margin:7px 0 4px;font-size:28px;line-height:1}.nxn4-head p{margin:0;color:#91a6ba;font-size:10px;line-height:1.45}.nxn4-refresh{height:40px;padding:0 15px;border:1px solid rgba(73,197,255,.34);border-radius:13px;background:#061d30;color:#58daff;font-size:9px;font-weight:900}.nxn4-search{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;margin-top:14px}.nxn4-search input{min-width:0;height:43px;padding:0 13px;border:1px solid rgba(99,178,226,.19);border-radius:13px;background:#041321;color:#f6faff;outline:none}.nxn4-search button{height:43px;padding:0 15px;border:0;border-radius:13px;background:#0b3655;color:#62dcff;font-size:9px;font-weight:900}.nxn4-topics{display:flex;gap:7px;overflow:auto;margin:10px 0 13px;padding-bottom:2px;scrollbar-width:none}.nxn4-topics::-webkit-scrollbar{display:none}.nxn4-topic{flex:0 0 auto;height:31px;padding:0 12px;border:1px solid rgba(87,162,211,.16);border-radius:999px;background:#051522;color:#9db4c8;font-size:8px;font-weight:850}.nxn4-topic.is-active{border-color:rgba(67,199,255,.4);background:#0a2f4a;color:#55d8ff}.nxn4-list{display:grid;gap:10px}.nxn4-story{display:grid;grid-template-columns:96px minmax(0,1fr) 18px;gap:12px;align-items:center;width:100%;padding:10px;border:1px solid rgba(98,167,214,.15);border-radius:18px;background:linear-gradient(145deg,#071724,#030c15);color:inherit;text-align:left}.nxn4-story.is-lead{grid-template-columns:132px minmax(0,1fr) 20px;padding:12px;border-color:rgba(64,185,245,.3);background:radial-gradient(circle at 10% 20%,rgba(30,154,222,.08),transparent 38%),linear-gradient(145deg,#081a2a,#030c15)}.nxn4-image{position:relative;height:74px;display:grid;place-items:center;overflow:hidden;border-radius:13px;background:#071d31;color:#6adfff}.nxn4-story.is-lead .nxn4-image{height:98px}.nxn4-image img{width:100%;height:100%;object-fit:cover}.nxn4-image em{position:absolute;left:6px;bottom:6px;padding:3px 5px;border-radius:6px;background:rgba(2,10,16,.82);color:#5ae3ff;font-size:6px;font-style:normal;font-weight:900;letter-spacing:.12em}.nxn4-image--empty{background:radial-gradient(circle at 35% 25%,#14547f,#061523 72%)}.nxn4-image--empty b{font-size:34px;line-height:1}.nxn4-copy{min-width:0}.nxn4-source{display:block;overflow:hidden;color:#46d1ff;font-size:8px;font-weight:900;text-overflow:ellipsis;text-transform:uppercase;white-space:nowrap;letter-spacing:.08em}.nxn4-copy strong{display:-webkit-box;margin-top:5px;overflow:hidden;-webkit-line-clamp:3;-webkit-box-orient:vertical;font-size:14px;line-height:1.28}.nxn4-story.is-lead .nxn4-copy strong{font-size:17px}.nxn4-copy small{display:block;margin-top:7px;color:#7e93a8;font-size:8px;line-height:1.35}.nxn4-arrow{color:#5ecfff;font-size:24px}.nxn4-empty{padding:42px 18px;border:1px dashed rgba(89,165,214,.18);border-radius:18px;color:#9aadc0;text-align:center;font-size:11px;line-height:1.6}@media(max-width:390px){.nxn4-story{grid-template-columns:78px minmax(0,1fr) 14px}.nxn4-story.is-lead{grid-template-columns:105px minmax(0,1fr) 14px}.nxn4-image{height:65px}.nxn4-story.is-lead .nxn4-image{height:84px}.nxn4-head h2{font-size:24px}}
+    </style>
+    <section class="nxn4-hero"><div class="nxn4-head"><div><span class="nxn4-live"><i></i>LIVE PUBLISHER FEED</span><h2>News</h2><p data-news-status>Connecting to genuine current headlines…</p></div><button class="nxn4-refresh" type="button" data-news-refresh>REFRESH</button></div><div class="nxn4-search"><input type="search" maxlength="120" value="${DEFAULT_TOPIC}" data-news-query aria-label="News topic"><button type="button" data-news-search>SEARCH</button></div></section>
+    <nav class="nxn4-topics" aria-label="News topics"><button class="nxn4-topic is-active" type="button" data-news-topic="Pakistan">PAKISTAN</button><button class="nxn4-topic" type="button" data-news-topic="Technology">TECH</button><button class="nxn4-topic" type="button" data-news-topic="Artificial Intelligence">AI</button><button class="nxn4-topic" type="button" data-news-topic="World">WORLD</button><button class="nxn4-topic" type="button" data-news-topic="Business">BUSINESS</button></nav>
+    <section class="nxn4-list" data-news-list><div class="nxn4-empty">Loading genuine live headlines…</div></section>`);
 
   const status = root.querySelector('[data-news-status]');
   const list = root.querySelector('[data-news-list]');
   const refresh = root.querySelector('[data-news-refresh]');
+  const search = root.querySelector('[data-news-search]');
   const query = root.querySelector('[data-news-query]');
+  const topics = [...root.querySelectorAll('[data-news-topic]')];
   let revision = 0;
   let disposed = false;
-  let controller = null;
-
-  const wireCards = () => {
-    list.querySelectorAll('[data-news-url]').forEach(button => button.addEventListener('click', () => {
-      if (!openExternal(button.dataset.newsUrl)) status.textContent = 'Could not open that publisher link safely.';
-    }));
-    list.querySelectorAll('img').forEach(img => img.addEventListener('error', () => { img.hidden = true; }, { once:true }));
-  };
-
-  const renderRows = rows => {
-    if (!rows.length) { list.innerHTML = '<div class="nxnp-empty">No fresh publisher stories matched this topic. Try another search.</div>'; return; }
-    const [lead, ...rest] = rows;
-    const leadImage = lead.image ? `<img src="${escapeHtml(lead.image)}" alt="" loading="eager" referrerpolicy="no-referrer">` : '';
-    const feature = `<button class="nxnp-feature" type="button" data-news-url="${escapeHtml(lead.url)}"><span class="nxnp-feature__media">${leadImage}</span><span class="nxnp-feature__veil"></span><span class="nxnp-feature__body"><span class="nxnp-source"><i></i>${escapeHtml(lead.domain)}${lead.country ? ` • ${escapeHtml(lead.country)}` : ''}</span><h3>${escapeHtml(lead.title)}</h3><span class="nxnp-feature__open"><span>${escapeHtml(formatSeen(lead.seen) || 'Latest')}</span><b>↗</b></span></span></button>`;
-    const stories = rest.slice(0, 23).map((item, index) => {
-      const image = item.image ? `<img src="${escapeHtml(item.image)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : `<span>${String(index + 2).padStart(2, '0')}</span>`;
-      return `<button class="nxnp-story" type="button" data-news-url="${escapeHtml(item.url)}"><span class="nxnp-thumb">${image}</span><span class="nxnp-story__body"><span class="nxnp-story__meta">${escapeHtml(item.domain)}${formatSeen(item.seen) ? ` • ${escapeHtml(formatSeen(item.seen))}` : ''}</span><h3>${escapeHtml(item.title)}</h3></span><span class="nxnp-arrow">›</span></button>`;
-    }).join('');
-    list.innerHTML = `${feature}<div class="nxnp-list">${stories}</div>`;
-    wireCards();
-  };
 
   const load = async () => {
-    const q = query.value.trim() || 'Pakistan';
+    const q = query.value.trim() || DEFAULT_TOPIC;
     const current = ++revision;
-    controller?.abort();
-    controller = new AbortController();
-    const timeout = setTimeout(() => controller?.abort(), 14_000);
     refresh.disabled = true;
-    refresh.textContent = 'LIVE…';
-    status.textContent = `Updating ${q} • latest 24 hours`;
+    search.disabled = true;
+    refresh.textContent = 'LOADING…';
+    status.textContent = `Checking latest ${q} coverage…`;
+    list.innerHTML = '<div class="nxn4-empty">Connecting to live publishers…</div>';
     try {
-      const data = await fetchLiveNews(q, controller.signal);
+      const data = await liveFeed(q);
       if (disposed || current !== revision) return;
       const seen = new Set();
-      const rows = (Array.isArray(data?.articles) ? data.articles : []).map(normalizeArticle).filter(item => {
-        if (!item || seen.has(item.url)) return false;
-        seen.add(item.url); return true;
-      });
-      renderRows(rows);
-      status.textContent = `${rows.length} live publisher result${rows.length === 1 ? '' : 's'} • refreshed ${new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })}`;
+      const rows = (Array.isArray(data?.articles) ? data.articles : [])
+        .map(normalizeArticle)
+        .filter(item => item && !seen.has(item.url) && seen.add(item.url))
+        .slice(0, 40);
+      list.innerHTML = rows.length
+        ? rows.map((item, index) => storyMarkup(item, index === 0)).join('')
+        : '<div class="nxn4-empty">No live publisher results matched this topic. Try another topic.</div>';
+      list.querySelectorAll('[data-news-url]').forEach(button => button.addEventListener('click', () => {
+        if (!openExternal(button.dataset.newsUrl)) status.textContent = 'Could not open that live story safely.';
+      }));
+      status.textContent = `${rows.length} genuine live result${rows.length === 1 ? '' : 's'} • newest coverage first`;
     } catch (error) {
       if (disposed || current !== revision) return;
-      const timedOut = error?.name === 'AbortError';
-      list.innerHTML = `<div class="nxnp-empty">${timedOut ? 'Live news took too long to respond.' : 'Live news is temporarily unavailable.'}<br>Tap REFRESH to try again.</div>`;
-      status.textContent = timedOut ? 'Live service timeout • no dummy headlines shown' : 'Live service unavailable • no dummy headlines shown';
+      list.innerHTML = '<div class="nxn4-empty">Live news could not connect right now. No cached, fake or invented headlines are shown.</div>';
+      status.textContent = String(error?.message || 'Live news unavailable.').replace(/signal is aborted without reason/ig, 'Live connection failed').slice(0, 180);
     } finally {
-      clearTimeout(timeout);
-      if (!disposed && current === revision) { refresh.disabled = false; refresh.textContent = 'REFRESH'; }
+      if (!disposed && current === revision) {
+        refresh.disabled = false;
+        search.disabled = false;
+        refresh.textContent = 'REFRESH';
+      }
     }
   };
 
   refresh.addEventListener('click', load);
+  search.addEventListener('click', load);
   query.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); load(); } });
+  topics.forEach(button => button.addEventListener('click', () => {
+    topics.forEach(item => item.classList.toggle('is-active', item === button));
+    query.value = button.dataset.newsTopic || DEFAULT_TOPIC;
+    load();
+  }));
+  query.addEventListener('input', () => topics.forEach(item => item.classList.remove('is-active')));
+
   load();
-  root.__cleanup = () => { disposed = true; revision += 1; controller?.abort(); };
+  root.__cleanup = () => { disposed = true; revision += 1; };
   return root;
 }
 

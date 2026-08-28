@@ -1,28 +1,24 @@
 const ARTICLES_FEED_URL = 'https://nexusnovatools.com/articles.json';
 const ALLOWED_HOSTS = new Set(['nexusnovatools.com', 'www.nexusnovatools.com']);
+const GENERIC_IMAGE_NAMES = ['nexusnova-logo-512.svg', 'nexusnova-logo.svg', 'logo-512.svg'];
 
 function node(html) {
   const root = document.createElement('div');
-  root.className = 'nx-app-body nx-articles-pro';
+  root.className = 'nx-app-body nx-articles-v3';
   root.innerHTML = html;
   return root;
 }
 
 function escapeHtml(value) {
   return String(value ?? '')
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }
 
-function safeArticleUrl(raw) {
-  try {
-    const url = new URL(String(raw || '').trim());
-    if (url.protocol !== 'https:' || !ALLOWED_HOSTS.has(url.hostname.toLowerCase())) return '';
-    return url.href;
-  } catch { return ''; }
-}
-
-function safeImageUrl(raw) {
+function safeSiteUrl(raw) {
   try {
     const url = new URL(String(raw || '').trim());
     if (url.protocol !== 'https:' || !ALLOWED_HOSTS.has(url.hostname.toLowerCase())) return '';
@@ -31,7 +27,7 @@ function safeImageUrl(raw) {
 }
 
 function openArticle(url) {
-  const safe = safeArticleUrl(url);
+  const safe = safeSiteUrl(url);
   if (!safe) return false;
   try {
     if (typeof window.NexusBrowserAndroid?.postMessage === 'function') {
@@ -44,18 +40,45 @@ function openArticle(url) {
   } catch { return false; }
 }
 
+function imageFromItem(item) {
+  const candidates = [
+    item?.image,
+    item?.thumbnail,
+    item?.thumbnailUrl,
+    item?.imageUrl,
+    item?.featuredImage,
+    item?.featured_image,
+    item?.ogImage,
+    item?.heroImage,
+    item?.cover
+  ];
+  for (const candidate of candidates) {
+    const safe = safeSiteUrl(candidate);
+    if (safe) return safe;
+  }
+  return '';
+}
+
+function isGenericImage(url) {
+  const value = String(url || '').toLowerCase();
+  return !value || GENERIC_IMAGE_NAMES.some(name => value.includes(name));
+}
+
 function normalizeArticle(item) {
   if (!item || typeof item !== 'object') return null;
   const title = String(item.title || '').trim().slice(0, 220);
-  const url = safeArticleUrl(item.url);
+  const url = safeSiteUrl(item.url);
   if (!title || !url) return null;
+  const image = imageFromItem(item);
   return {
-    title, url,
+    title,
+    url,
+    image:isGenericImage(image) ? '' : image,
     description:String(item.description || '').trim().slice(0, 420),
     publishedAt:String(item.publishedAt || '').trim().slice(0, 80),
+    modifiedAt:String(item.modifiedAt || '').trim().slice(0, 80),
     category:String(item.category || 'Article').trim().slice(0, 80) || 'Article',
-    author:String(item.author || 'NexusNova').trim().slice(0, 120) || 'NexusNova',
-    image:safeImageUrl(item.image)
+    author:String(item.author || 'NexusNova').trim().slice(0, 120) || 'NexusNova'
   };
 }
 
@@ -63,84 +86,128 @@ function formatDate(raw) {
   if (!raw) return '';
   const date = new Date(raw);
   if (Number.isNaN(date.getTime())) return '';
-  return date.toLocaleDateString(undefined, { day:'2-digit', month:'short', year:'numeric' });
+  return date.toLocaleDateString(undefined, { day:'numeric', month:'short', year:'numeric' });
 }
 
-function fallbackMark(item) {
-  const cat = String(item.category || 'Article').toUpperCase();
-  if (cat.includes('TECH')) return 'TECH';
-  if (cat.includes('AI')) return 'AI';
-  return 'NX';
+function topicArt(item) {
+  const text = `${item.title} ${item.category}`.toLowerCase();
+  const topics = [
+    [/google|search|seo|spam update/, ['GS','SEARCH','search']],
+    [/youtube|thumbnail/, ['YT','VIDEO','video']],
+    [/gpt|artificial intelligence|\bai\b|token|context window/, ['AI','INTELLIGENCE','ai']],
+    [/windows|gaming|game|modern warfare|valorant|cs2|amd|driver/, ['GX','GAMING','game']],
+    [/chrome|firefox|browser|webgpu|webassembly/, ['WB','WEB','web']],
+    [/malware|security|phishing|passkey|quantum|encryption|privacy/, ['SC','SECURITY','security']],
+    [/pdf|invoice|document/, ['PDF','DOCUMENT','document']],
+    [/image|jpg|png|webp|avif|exif|photo|background/, ['IMG','IMAGE','image']],
+    [/qr|code/, ['QR','UTILITY','utility']],
+    [/typing|wpm|pomodoro|focus/, ['PX','PRODUCTIVITY','productivity']],
+    [/emi|calculator|percentage|finance/, ['CAL','CALCULATE','calculate']],
+    [/unix|timestamp|developer/, ['DEV','DEVELOPER','developer']],
+    [/color|hex|rgb/, ['RGB','COLOR','image']]
+  ];
+  const matched = topics.find(([pattern]) => pattern.test(text));
+  const [mark, label, tone] = matched?.[1] || ['NX','ARTICLE','default'];
+  return `<span class="nxa3-topic nxa3-topic--${tone}" aria-hidden="true"><i></i><b>${mark}</b><small>${label}</small><em></em></span>`;
 }
 
-const styles = `
-.nx-articles-pro{width:100%;max-width:none;color:#f4f8fd;font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif}.nx-articles-pro *{box-sizing:border-box}.nx-articles-pro button{font:inherit}
-.nxap-shell{display:grid;gap:11px}.nxap-head{position:relative;overflow:hidden;padding:18px 16px;border:1px solid rgba(110,183,230,.17);border-radius:22px;background:radial-gradient(circle at 90% 0,rgba(52,166,226,.17),transparent 34%),linear-gradient(145deg,#0a2034,#061421 62%,#040c15);box-shadow:0 16px 34px rgba(0,0,0,.21)}.nxap-head:after{content:"";position:absolute;left:16px;right:16px;bottom:0;height:2px;background:linear-gradient(90deg,#44d4ff,rgba(68,212,255,.04))}.nxap-kicker{color:#5cd9ff;font-size:8px;font-weight:950;letter-spacing:.17em}.nxap-title-row{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}.nxap-title-row h2{margin:8px 0 0;font-size:27px;line-height:1;letter-spacing:-.045em}.nxap-title-row button{height:34px;padding:0 13px;border:1px solid rgba(66,181,230,.24);border-radius:11px;background:#082239;color:#62d5ff;font-size:8px;font-weight:950;letter-spacing:.1em}.nxap-title-row button:disabled{opacity:.55}.nxap-head p{margin:8px 0 0;max-width:34rem;color:#8ca3b8;font-size:10px;line-height:1.5}.nxap-status{margin:0 3px;color:#768da2;font-size:9px}.nxap-grid{display:grid;gap:8px}.nxap-card{width:100%;display:grid;grid-template-columns:112px minmax(0,1fr);gap:11px;padding:8px;border:1px solid rgba(102,173,217,.13);border-radius:18px;background:linear-gradient(145deg,rgba(9,27,44,.98),rgba(4,14,25,.99));color:#f4f8fd;text-align:left;cursor:pointer;box-shadow:inset 0 1px rgba(255,255,255,.02),0 8px 22px rgba(0,0,0,.12)}.nxap-media{position:relative;overflow:hidden;height:96px;border-radius:13px;background:radial-gradient(circle at 65% 18%,rgba(57,183,238,.23),transparent 42%),linear-gradient(145deg,#0c344f,#061624);display:grid;place-items:center}.nxap-media img{width:100%;height:100%;object-fit:cover;padding:13px;filter:drop-shadow(0 6px 11px rgba(0,0,0,.27))}.nxap-media b{font-size:23px;color:#57d4ff;letter-spacing:-.06em}.nxap-media span{position:absolute;left:7px;bottom:7px;padding:4px 6px;border-radius:7px;background:rgba(2,11,18,.78);color:#8de6ff;font-size:6px;font-weight:950;letter-spacing:.08em}.nxap-body{min-width:0;padding:2px 3px 2px 0}.nxap-meta{color:#55c8f3;font-size:7px;font-weight:900;letter-spacing:.07em;text-transform:uppercase}.nxap-body h3{margin:6px 0 0;display:-webkit-box;overflow:hidden;-webkit-box-orient:vertical;-webkit-line-clamp:2;font-size:13px;line-height:1.28;letter-spacing:-.018em}.nxap-body p{margin:6px 0 0;display:-webkit-box;overflow:hidden;-webkit-box-orient:vertical;-webkit-line-clamp:2;color:#8ea3b6;font-size:9px;line-height:1.4}.nxap-open{display:flex;align-items:center;justify-content:space-between;margin-top:7px;color:#6f879a;font-size:7px}.nxap-open b{color:#8ddfff;font-size:15px}.nxap-empty{padding:28px 14px;border:1px dashed rgba(104,177,222,.16);border-radius:17px;color:#8398aa;text-align:center;font-size:11px}
-@media(max-width:350px){.nxap-card{grid-template-columns:92px minmax(0,1fr)}.nxap-media{height:86px}.nxap-body h3{font-size:11.5px}.nxap-body p{font-size:8px}}
-@media(min-width:620px){.nxap-grid{grid-template-columns:1fr 1fr}.nxap-card{grid-template-columns:100px minmax(0,1fr)}}
-`;
+function card(item, lead = false) {
+  const meta = [formatDate(item.publishedAt), item.author].filter(Boolean).join(' • ');
+  const visual = item.image
+    ? `<span class="nxa3-thumb"><img src="${escapeHtml(item.image)}" alt="" loading="lazy" referrerpolicy="no-referrer"><em>${escapeHtml(item.category)}</em></span>`
+    : topicArt(item);
+  return `<button class="nxa3-card${lead ? ' is-lead' : ''}" type="button" data-article-url="${escapeHtml(item.url)}">
+    ${visual}
+    <span class="nxa3-copy"><small>${escapeHtml(item.category)}</small><strong>${escapeHtml(item.title)}</strong>${item.description ? `<p>${escapeHtml(item.description)}</p>` : ''}<span>${escapeHtml(meta)}</span></span>
+    <i class="nxa3-arrow">›</i>
+  </button>`;
+}
+
+function withTimeout(promise, timeout, message) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      reject(new Error(message));
+    }, timeout);
+    Promise.resolve(promise).then(value => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(value);
+    }, error => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      reject(error);
+    });
+  });
+}
+
+async function fetchArticles() {
+  // As with News, avoid AbortController inside Android WebView. The website feed
+  // is small; a UI timeout is enough and prevents false "signal aborted" errors.
+  const request = fetch(`${ARTICLES_FEED_URL}?v=${Date.now()}`, {
+    cache:'no-store',
+    headers:{ Accept:'application/json' }
+  }).then(async response => {
+    if (!response.ok) throw new Error(`Article feed HTTP ${response.status}`);
+    return response.json();
+  });
+  return withTimeout(request, 18000, 'Article sync timed out.');
+}
 
 export function renderArticles() {
-  const root = node(`<style>${styles}</style><section class="nxap-shell"><header class="nxap-head"><div class="nxap-kicker">NEXUSNOVA • EDITORIAL</div><div class="nxap-title-row"><h2>Articles</h2><button type="button" data-articles-refresh>REFRESH</button></div><p>Fresh NexusNova guides and technology explainers, synced directly from nexusnovatools.com.</p></header><p class="nxap-status" data-articles-status>Syncing latest articles…</p><section class="nxap-grid" data-articles-list><div class="nxap-empty">Loading published articles…</div></section></section>`);
+  const root = node(`
+    <style>
+      .nx-articles-v3{width:100%}.nxa3-head{position:relative;overflow:hidden;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;margin-bottom:13px;padding:17px;border:1px solid rgba(86,190,244,.2);border-radius:22px;background:radial-gradient(circle at 82% 20%,rgba(70,143,255,.14),transparent 31%),linear-gradient(145deg,#09223a,#04121f 62%,#020b13)}.nxa3-head:after{content:"";position:absolute;right:-36px;top:-62px;width:138px;height:138px;border:1px solid rgba(83,211,255,.1);border-radius:50%}.nxa3-head>div,.nxa3-head>button{position:relative;z-index:1}.nxa3-head small{display:flex;align-items:center;gap:7px;color:#47d4ff;font-size:9px;font-weight:900;letter-spacing:.14em}.nxa3-head small:before{content:"";width:7px;height:7px;border-radius:50%;background:#32ec72;box-shadow:0 0 12px rgba(50,236,114,.65)}.nxa3-head h2{margin:7px 0 4px;font-size:27px;line-height:1}.nxa3-head p{margin:0;color:#899fb4;font-size:10px;line-height:1.45}.nxa3-head button{height:40px;padding:0 15px;border:1px solid rgba(62,176,239,.34);border-radius:13px;background:rgba(4,28,47,.9);color:#55d8ff;font-size:9px;font-weight:900}.nxa3-list{display:grid;gap:10px}.nxa3-card{position:relative;display:grid;grid-template-columns:96px minmax(0,1fr) 18px;gap:12px;align-items:center;width:100%;padding:10px;border:1px solid rgba(98,167,214,.15);border-radius:18px;background:linear-gradient(145deg,#071724,#030c15);color:inherit;text-align:left;box-shadow:inset 0 1px rgba(255,255,255,.018)}.nxa3-card.is-lead{grid-template-columns:132px minmax(0,1fr) 20px;padding:12px;border-color:rgba(64,185,245,.3);background:radial-gradient(circle at 10% 18%,rgba(40,154,222,.09),transparent 38%),linear-gradient(145deg,#081a2a,#030c15)}.nxa3-thumb,.nxa3-topic{position:relative;height:76px;display:grid;place-items:center;overflow:hidden;border-radius:13px}.nxa3-card.is-lead .nxa3-thumb,.nxa3-card.is-lead .nxa3-topic{height:100px}.nxa3-thumb{background:#071d31}.nxa3-thumb img{width:100%;height:100%;object-fit:cover}.nxa3-thumb em{position:absolute;left:6px;bottom:6px;max-width:calc(100% - 12px);overflow:hidden;padding:3px 5px;border-radius:6px;background:rgba(2,10,16,.82);color:#62ddff;font-size:6px;font-style:normal;font-weight:900;text-overflow:ellipsis;text-transform:uppercase;white-space:nowrap;letter-spacing:.08em}.nxa3-topic{isolation:isolate;background:radial-gradient(circle at 25% 18%,rgba(77,218,255,.27),transparent 38%),linear-gradient(145deg,#0b3353,#061421 70%);border:1px solid rgba(96,201,255,.13)}.nxa3-topic:before{content:"";position:absolute;inset:-26% 42% 46% -15%;border:1px solid rgba(255,255,255,.14);border-radius:50%;transform:rotate(-20deg)}.nxa3-topic i{position:absolute;right:-12px;bottom:-18px;width:62px;height:62px;border:1px solid rgba(109,213,255,.15);border-radius:50%}.nxa3-topic b{position:relative;z-index:2;color:#e9f9ff;font-size:23px;line-height:1;font-weight:900;letter-spacing:-.04em;text-shadow:0 2px 16px rgba(0,0,0,.45)}.nxa3-topic small{position:absolute;left:8px;bottom:8px;z-index:2;color:#60d9ff;font-size:6px;font-weight:900;letter-spacing:.12em}.nxa3-topic em{position:absolute;right:9px;top:9px;width:7px;height:7px;border:1px solid #77e4ff;border-radius:50%;box-shadow:0 0 10px rgba(72,214,255,.4)}.nxa3-topic--security{background:radial-gradient(circle at 25% 18%,rgba(68,239,174,.22),transparent 38%),linear-gradient(145deg,#0b3a3b,#061718 70%)}.nxa3-topic--game{background:radial-gradient(circle at 25% 18%,rgba(194,105,255,.24),transparent 38%),linear-gradient(145deg,#2e1746,#0b0b18 70%)}.nxa3-topic--image{background:radial-gradient(circle at 25% 18%,rgba(255,154,83,.24),transparent 38%),linear-gradient(145deg,#493019,#15100a 70%)}.nxa3-topic--ai{background:radial-gradient(circle at 25% 18%,rgba(83,125,255,.28),transparent 38%),linear-gradient(145deg,#172d62,#080d23 70%)}.nxa3-copy{min-width:0}.nxa3-copy>small{display:block;overflow:hidden;color:#46d1ff;font-size:8px;font-weight:900;text-overflow:ellipsis;text-transform:uppercase;white-space:nowrap;letter-spacing:.09em}.nxa3-copy strong{display:-webkit-box;margin-top:5px;overflow:hidden;-webkit-line-clamp:2;-webkit-box-orient:vertical;font-size:14px;line-height:1.28}.nxa3-card.is-lead .nxa3-copy strong{font-size:17px}.nxa3-copy p{display:-webkit-box;margin:6px 0 0;overflow:hidden;-webkit-line-clamp:2;-webkit-box-orient:vertical;color:#a4b4c4;font-size:9px;line-height:1.4}.nxa3-copy>span{display:block;margin-top:7px;color:#788fa5;font-size:8px;line-height:1.35}.nxa3-arrow{color:#5ecfff;font-size:24px;font-style:normal}.nxa3-empty{padding:42px 18px;border:1px dashed rgba(89,165,214,.18);border-radius:18px;color:#9aadc0;text-align:center;font-size:11px;line-height:1.6}@media(max-width:390px){.nxa3-card{grid-template-columns:78px minmax(0,1fr) 14px}.nxa3-card.is-lead{grid-template-columns:105px minmax(0,1fr) 14px}.nxa3-thumb,.nxa3-topic{height:66px}.nxa3-card.is-lead .nxa3-thumb,.nxa3-card.is-lead .nxa3-topic{height:86px}.nxa3-head h2{font-size:24px}.nxa3-topic b{font-size:20px}}
+    </style>
+    <section class="nxa3-head"><div><small>LIVE SITE SYNC</small><h2>NexusNova Articles</h2><p data-articles-status>Loading current website feed…</p></div><button type="button" data-articles-refresh>REFRESH</button></section>
+    <section class="nxa3-list" data-articles-list><div class="nxa3-empty">Loading latest articles…</div></section>`);
 
   const list = root.querySelector('[data-articles-list]');
   const status = root.querySelector('[data-articles-status]');
   const refresh = root.querySelector('[data-articles-refresh]');
-  let busy = false;
+  let revision = 0;
   let disposed = false;
-  let controller = null;
 
   const load = async () => {
-    if (busy || disposed) return;
-    busy = true;
-    controller?.abort();
-    controller = new AbortController();
-    const timeout = setTimeout(() => controller?.abort(), 12_000);
+    const current = ++revision;
     refresh.disabled = true;
-    status.textContent = 'Loading latest published articles…';
+    refresh.textContent = 'LOADING…';
+    status.textContent = 'Syncing directly with nexusnovatools.com…';
     try {
-      const response = await fetch(`${ARTICLES_FEED_URL}?v=${Date.now()}`, { cache:'no-store', headers:{ Accept:'application/json' }, signal:controller.signal });
-      if (!response.ok) throw new Error(`Article feed HTTP ${response.status}`);
-      const data = await response.json();
-      if (disposed) return;
+      const data = await fetchArticles();
+      if (disposed || current !== revision) return;
       const rawItems = Array.isArray(data) ? data : data?.items;
       if (!Array.isArray(rawItems)) throw new Error('Article feed format is invalid.');
       const items = rawItems.map(normalizeArticle).filter(Boolean).slice(0, 100);
+
       if (!items.length) {
-        list.innerHTML = '<div class="nxap-empty">No published articles are available yet.</div>';
-        status.textContent = 'Live article feed connected.';
+        list.innerHTML = '<div class="nxa3-empty">No published website articles are available.</div>';
+        status.textContent = 'Feed connected • no published items.';
         return;
       }
-      list.innerHTML = items.map(item => {
-        const date = formatDate(item.publishedAt);
-        const media = item.image ? `<img src="${escapeHtml(item.image)}" alt="" loading="lazy">` : `<b>${escapeHtml(fallbackMark(item))}</b>`;
-        return `<button class="nxap-card" type="button" data-article-url="${escapeHtml(item.url)}"><span class="nxap-media">${media}<span>${escapeHtml(item.category)}</span></span><span class="nxap-body"><span class="nxap-meta">${escapeHtml([date,item.author].filter(Boolean).join(' • '))}</span><h3>${escapeHtml(item.title)}</h3>${item.description ? `<p>${escapeHtml(item.description)}</p>` : ''}<span class="nxap-open"><span>READ ARTICLE</span><b>↗</b></span></span></button>`;
-      }).join('');
+
+      list.innerHTML = items.map((item, index) => card(item, index === 0)).join('');
       list.querySelectorAll('[data-article-url]').forEach(button => button.addEventListener('click', () => {
         if (!openArticle(button.dataset.articleUrl)) status.textContent = 'Could not open that article safely.';
       }));
-      list.querySelectorAll('img').forEach(img => img.addEventListener('error', () => {
-        const media = img.closest('.nxap-media');
-        img.remove();
-        if (media && !media.querySelector('b')) media.insertAdjacentHTML('afterbegin','<b>NX</b>');
-      }, { once:true }));
-      const updated = String(data?.updatedAt || '').trim();
-      status.textContent = `${items.length} live article${items.length === 1 ? '' : 's'}${updated ? ` • feed ${updated}` : ''}`;
+      const updated = formatDate(data?.updatedAt);
+      status.textContent = `${items.length} live article${items.length === 1 ? '' : 's'}${updated ? ` • feed updated ${updated}` : ''} • newest first`;
     } catch (error) {
-      if (disposed) return;
-      list.innerHTML = '<div class="nxap-empty">Article feed is unavailable right now.<br>Tap REFRESH to try again.</div>';
-      status.textContent = error?.name === 'AbortError' ? 'Article feed timed out • no dummy content shown' : 'Live article feed unavailable • no dummy content shown';
-      console.warn('[NexusNova Fresh] articles:', error);
+      if (disposed || current !== revision) return;
+      list.innerHTML = '<div class="nxa3-empty">Website article feed is unavailable right now. No fake or stale replacement items are shown.</div>';
+      status.textContent = String(error?.message || 'Article feed unavailable.').replace(/signal is aborted without reason/ig, 'Article sync could not complete.').slice(0, 180);
     } finally {
-      clearTimeout(timeout);
-      busy = false;
-      if (!disposed) refresh.disabled = false;
+      if (!disposed && current === revision) { refresh.disabled = false; refresh.textContent = 'REFRESH'; }
     }
   };
 
   refresh.addEventListener('click', load);
   load();
-  root.__cleanup = () => { disposed = true; controller?.abort(); };
+  root.__cleanup = () => { disposed = true; revision += 1; };
   return root;
 }
 
