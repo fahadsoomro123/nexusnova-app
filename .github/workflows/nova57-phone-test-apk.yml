@@ -82,7 +82,8 @@ jobs:
           mkdir -p "$GITHUB_WORKSPACE/phone-apk"
           cp "$APK" "$GITHUB_WORKSPACE/phone-apk/NexusNova-NOVA57-LATEST-phone-test.apk"
           sha256sum "$GITHUB_WORKSPACE/phone-apk/NexusNova-NOVA57-LATEST-phone-test.apk" > "$GITHUB_WORKSPACE/phone-apk/SHA256.txt"
-          printf 'Source commit: %s\nBranch: %s\nBuild type: debug/installable phone test\nNOVA 5.7 ARIM source staged: PASS\nFull reference-style dashboard source staged: PASS\n' "$GITHUB_SHA" "$GITHUB_REF_NAME" > "$GITHUB_WORKSPACE/phone-apk/BUILD-STATUS.txt"
+          APK_SIZE=$(stat -c%s "$GITHUB_WORKSPACE/phone-apk/NexusNova-NOVA57-LATEST-phone-test.apk")
+          printf 'Source commit: %s\nBranch: %s\nBuild type: debug/installable phone test\nAPK bytes: %s\nNOVA 5.7 ARIM source staged: PASS\nFull reference-style dashboard source staged: PASS\n' "$GITHUB_SHA" "$GITHUB_REF_NAME" "$APK_SIZE" > "$GITHUB_WORKSPACE/phone-apk/BUILD-STATUS.txt"
 
       - name: Publish phone APK to apk-builds branch
         shell: bash
@@ -98,7 +99,9 @@ jobs:
           rm -rf nova57-phone-test
           mkdir -p nova57-phone-test
           cp -a "$GITHUB_WORKSPACE/phone-apk"/. nova57-phone-test/
-          git add -A nova57-phone-test
+          git add -A nova57-phone-test/BUILD-STATUS.txt nova57-phone-test/SHA256.txt
+          git add -f nova57-phone-test/NexusNova-NOVA57-LATEST-phone-test.apk
+          test -s nova57-phone-test/NexusNova-NOVA57-LATEST-phone-test.apk
           git commit -m "Publish NOVA 5.7 phone test APK $GITHUB_SHA"
           git pull --rebase origin apk-builds
           git push origin HEAD:apk-builds
