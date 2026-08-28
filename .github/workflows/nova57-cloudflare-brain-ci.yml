@@ -56,6 +56,8 @@ jobs:
           const fs = require('fs');
           const client = fs.readFileSync('fresh-rebuild/src/nova57-atomic-backend-client.js', 'utf8');
           if (/firebase-functions|httpsCallable|getFunctions\(/.test(client)) throw new Error('Firebase callable bridge must not return.');
+          if (client.includes('__NOVA_CLOUDFLARE_BRAIN_BACKEND_URL__')) throw new Error('Cloudflare backend URL is still a deployment placeholder.');
+          if (!client.includes("https://nexusnova-brain-router.fahadsoomro123.workers.dev")) throw new Error('Live Cloudflare brain backend URL is not wired into the app client.');
           if (!client.includes("post('/v1/plan', { capability }")) throw new Error('Planning must send local capability only.');
           const planStart = client.indexOf('export async function getAtomicBackendPlan');
           const planEnd = client.indexOf('export function reportAtomicOutcome', planStart);
@@ -66,7 +68,7 @@ jobs:
           for (const field of ['provider', 'modelId', 'capability', 'outcome', 'latencyMs', 'quality']) {
             if (!outcome.includes(field)) throw new Error(`Outcome field missing: ${field}`);
           }
-          console.log('Cloudflare bridge sends capability for planning and route stats for learning; raw prompt is excluded.');
+          console.log('Live Cloudflare bridge is wired; planning sends capability only and learning sends route stats only.');
           NODE
 
       - name: Protected mining reward wallet NVX guard
