@@ -1,0 +1,67 @@
+name: NexusNova v125 Bake Drive Bridge Once
+
+on:
+  push:
+    branches: [nova-drive-persistence-lock-controls-v125]
+    paths:
+      - '.github/workflows/nexusnova-v125-bake-drive-bridge-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  bake-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Bake existing native Drive bridge into permanent source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/patch-native-drive.py
+          grep -Fq 'ACTION_NATIVE_DRIVE_START' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -Fq 'ACTION_NATIVE_DRIVE_PAUSE' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -Fq 'ACTION_NATIVE_DRIVE_RESUME' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -Fq 'ACTION_NATIVE_DRIVE_STOP' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -Fq "nexusnova:native-drive" NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+
+      - name: Verify isolated Drive and Track JavaScript
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module --check < fresh-rebuild/src/core/drive-track-persistence.js
+          node --input-type=module --check < fresh-rebuild/src/features/apps/premium-drive-native-v2.js
+          grep -Fq 'hydrateDriveTrackState' fresh-rebuild/src/features/apps/premium-drive-native-v2.js
+          grep -Fq 'persistDriveTrackState' fresh-rebuild/src/features/apps/premium-drive-native-v2.js
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Compile Android source without any further patching
+        working-directory: NexusNovaAndroid
+        shell: bash
+        run: gradle --no-daemon clean assembleDebug
+
+      - name: Commit baked MainActivity source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'NexusNova Source Migration Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          if git diff --cached --quiet; then
+            echo 'Bridge already baked.'
+            exit 0
+          fi
+          git commit -m 'Bake Nova Drive native bridge into MainActivity source'
+          git push origin HEAD:nova-drive-persistence-lock-controls-v125
