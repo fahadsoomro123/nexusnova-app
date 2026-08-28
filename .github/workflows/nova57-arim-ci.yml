@@ -48,7 +48,8 @@ jobs:
             "strategy: 'ARIM'"
           ];
           const requiredPool = [
-            'laneSlice',
+            'laneWavePlan',
+            'waveTimeoutMs',
             'control.lane',
             'hedgeWidth',
             '__novaAtomicBrain',
@@ -67,7 +68,11 @@ jobs:
             console.error('Missing ARIM contracts:', missing);
             process.exit(1);
           }
-          console.log('ARIM topology, lane isolation, success/failure learning contracts present.');
+          if (pool.includes('function laneSlice(')) {
+            console.error('Legacy single-slice lane selector must not return.');
+            process.exit(1);
+          }
+          console.log('ARIM topology, multi-wave lane failover, isolation and learning contracts present.');
           NODE
 
       - name: Verify privacy-safe route memory and failure telemetry
