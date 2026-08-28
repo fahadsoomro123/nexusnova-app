@@ -8,6 +8,7 @@ import { runAtomicBrain } from './nova57-atomic-brain-pool.js';
 const MAX_MESH_BRAINS = 9; // includes the final judge when the full 2+2+4 mesh is used.
 const DEFAULT_TOTAL_BUDGET_MS = 9800;
 const MIN_EXPANSION_BUDGET_MS = 1450;
+const FINALIZER_RESERVE_MS = 2400;
 let backendBridgePromise = null;
 
 const lower = value => String(value || '').toLowerCase();
@@ -286,14 +287,16 @@ export async function runAtomicChain({ prompt, request, generate, options = {}, 
         modelId: brain.model,
         capability: dna.capability,
         outcome: 'success',
+        transportOutcome: 'success',
         latencyMs: row.latencyMs,
-        quality: stage === 'judge' ? 0.96 : stage.startsWith('critic') ? 0.9 : 0.82
+        role: stage
       });
     }
     return { result, text, brain, row };
   };
 
   const remainingMs = () => deadline - Date.now();
+  const remainingWorkMs = () => deadline - FINALIZER_RESERVE_MS - Date.now();
 
   const runLegacy = async (stage, generation, stagePrompt, preferredMs) => {
     const remaining = remainingMs();
@@ -306,9 +309,9 @@ export async function runAtomicChain({ prompt, request, generate, options = {}, 
     return recordHop(stage, generation, result, text, hopStarted);
   };
 
-  const runDistinct = async (stage, generation, stagePrompt, preferredMs, lane = 0, hedgeWidth = 1, exclusionSnapshot = null) => {
+  const runDistinct = async (stage, generation, stagePrompt, preferredMs, lane = 0, hedgeWidth = 1, exclusionSnapshot = null, useFinalizerReserve = false) => {
     await ensurePlan();
-    const remaining = remainingMs();
+    const remaining = useFinalizerReserve ? remainingMs() : remainingWorkMs();
     if (remaining < 650) throw new Error('ARIM budget exhausted.');
     emit(`ARIM ${stage}`, { generation, capability: dna.capability, lane, distinct: true });
     const hopStarted = Date.now();
@@ -368,11 +371,9 @@ export async function runAtomicChain({ prompt, request, generate, options = {}, 
     return primary.result;
   }
 
+  // Lexical agreement is diagnostic only. Similar wording is never accepted as
+  // proof that either answer is correct.
   const agreement = agreementScore(solutions[0].text, solutions[1].text);
-  if (dna.mesh.widths.length === 1 && agreement >= 0.72) {
-    finalizeTelemetry({ dna, started, hops, outcome: 'two-solver-consensus-stop', backendPlan, expansionReason: 'high-agreement', agreement });
-    return primary.result;
-  }
 
   // Generation B: B1 + B2 critics run in parallel on isolated candidate lanes.
   const criticFocus = dna.capability === 'coding'
@@ -396,23 +397,13 @@ export async function runAtomicChain({ prompt, request, generate, options = {}, 
   const hasIssue = verdicts.some(v => v === 'issue');
 
   if (allConsensus && agreement >= 0.58 && dna.complexity < 4) {
-    reportOutcome({
-      source: primary.brain.provider,
-      provider: primary.brain.provider,
-      modelId: primary.brain.model,
-      capability: dna.capability,
-      outcome: 'verified',
-      latencyMs: primary.row.latencyMs,
-      quality: 1
-    });
-    finalizeTelemetry({ dna, started, hops, outcome: 'cross-critic-consensus-stop', backendPlan, expansionReason: 'two-critics-agree', agreement });
-    return primary.result;
+    expansionReason = 'critic-consensus-requires-synthesis';
   }
 
   const specialists = [];
   const canExpand = dna.mesh.widths.includes(4)
     && dna.mesh.allowExpansion
-    && remainingMs() > MIN_EXPANSION_BUDGET_MS
+    && remainingWorkMs() > MIN_EXPANSION_BUDGET_MS
     && hops.length < dna.mesh.maxBrains - 1;
 
   if (canExpand) {
@@ -434,13 +425,22 @@ export async function runAtomicChain({ prompt, request, generate, options = {}, 
     expansionReason = hasIssue ? 'issue-but-budget-or-profile-stopped-expansion' : 'bounded-no-expansion';
   }
 
-  // Final judge is a fresh route whenever budget permits. If not, retain the
-  // original answer rather than surfacing critic/meta text to the user.
+  // Once multiple solvers/critics ran, synthesis is mandatory. The reserve is
+  // protected from specialists so the final answer is not silently downgraded
+  // to A1 after spending the mesh budget.
   if (remainingMs() > 900 && hops.length < dna.mesh.maxBrains) {
     try {
-      const judge = await runDistinct('judge', 4, judgePrompt(prompt, solutions, critics, specialists, dna), 2200, 0, 1);
+      const judge = await runDistinct('judge', 4, judgePrompt(prompt, solutions, critics, specialists, dna), 2200, 0, 1, null, true);
       finalizeTelemetry({ dna, started, hops, outcome: 'judge-final', backendPlan, expansionReason, agreement });
       return judge.result;
+    } catch {}
+  }
+
+  if (remainingMs() > 750 && hops.length < dna.mesh.maxBrains) {
+    try {
+      const finalizer = await runDistinct('judge-rescue', 4, judgePrompt(prompt, solutions, critics, specialists, dna), 1500, 1, 1, null, true);
+      finalizeTelemetry({ dna, started, hops, outcome: 'judge-rescue-final', backendPlan, expansionReason, agreement });
+      return finalizer.result;
     } catch {}
   }
 
@@ -452,6 +452,7 @@ export const __novaAtomicInternals = {
   MAX_MESH_BRAINS,
   DEFAULT_TOTAL_BUDGET_MS,
   MIN_EXPANSION_BUDGET_MS,
+  FINALIZER_RESERVE_MS,
   agreementScore,
   criticVerdict,
   capabilitySpecialists,

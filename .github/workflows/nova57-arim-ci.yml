@@ -92,6 +92,38 @@ jobs:
           console.log('ARIM topology, grounded research, multi-wave failover, isolation and learning contracts present.');
           NODE
 
+      - name: Reject fake semantic learning and unsynthesized A1
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const chain = fs.readFileSync('fresh-rebuild/src/nova57-atomic-chain.js', 'utf8');
+          const bridge = fs.readFileSync('fresh-rebuild/src/nova57-atomic-backend-client.js', 'utf8');
+          const backend = fs.readFileSync('functions/novaAtomicChain.js', 'utf8');
+          const forbidden = [
+            /stage === 'judge'\s*\?\s*0\.96/,
+            /stage\.startsWith\('critic'\)\s*\?\s*0\.9/,
+            /payload\.quality\s*\?\?\s*0\.8/,
+            /outcome === 'success'\s*\?\s*0\.8/
+          ];
+          for (const pattern of forbidden) {
+            if (pattern.test(chain) || pattern.test(bridge) || pattern.test(backend)) {
+              throw new Error(`Fake semantic quality regression: ${pattern}`);
+            }
+          }
+          for (const required of ['FINALIZER_RESERVE_MS', "'judge-rescue'", 'remainingWorkMs()', 'semanticQuality']) {
+            if (!chain.includes(required) && !bridge.includes(required) && !backend.includes(required)) {
+              throw new Error(`Missing learning/finalizer guard: ${required}`);
+            }
+          }
+          if (/cross-critic-consensus-stop[\s\S]{0,240}return primary\.result/.test(chain)) {
+            throw new Error('Critic consensus must synthesize; it cannot silently return A1.');
+          }
+          if (!backend.includes('CALLABLE_CLIENT_PROVIDERS') || !backend.includes("new Set(['Kilo', 'OVHcloud'])")) {
+            throw new Error('Backend plan must only return providers with client adapters.');
+          }
+          console.log('Semantic quality stays unknown until evaluated; finalizer reserve and callable-adapter guards are present.');
+          NODE
+
       - name: Verify live NOVA screen uses ARIM router
         run: |
           node <<'NODE'

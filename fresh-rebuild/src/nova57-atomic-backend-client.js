@@ -83,9 +83,17 @@ export function reportAtomicOutcome(payload = {}) {
     modelId: modelId.slice(0, 240),
     capability: String(payload.capability || 'general').slice(0, 30),
     outcome: String(payload.outcome || 'success').slice(0, 30),
+    transportOutcome: String(payload.transportOutcome || payload.outcome || 'success').slice(0, 30),
     latencyMs: Math.max(0, Math.min(120000, Number(payload.latencyMs || 0))),
-    quality: Math.max(0, Math.min(1, Number(payload.quality ?? 0.8)))
+    role: String(payload.role || '').slice(0, 40)
   };
+  // Semantic quality is deliberately optional. A successful HTTP/model response
+  // proves availability, not correctness. Only an explicit evaluator score may
+  // enter semantic learning; unknown quality remains unknown.
+  if (Number.isFinite(payload.semanticQuality)) {
+    body.semanticQuality = Math.max(0, Math.min(1, Number(payload.semanticQuality)));
+    body.evaluator = String(payload.evaluator || '').slice(0, 40);
+  }
 
   Promise.resolve().then(async () => {
     try {

@@ -1,5 +1,5 @@
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
-const { getFirestore, FieldValue } = require('firebase-admin/firestore');
+const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestore');
 const { createHash } = require('node:crypto');
 
 const db = getFirestore();
@@ -10,6 +10,10 @@ const MAX_MESH_BRAINS = 9;
 const MAX_RETURNED_CANDIDATES = 18;
 const ALLOWED_CAPABILITIES = new Set(['general', 'coding', 'reasoning', 'research', 'multilingual']);
 const ALLOWED_OUTCOMES = new Set(['success', 'verified', 'failure', 'timeout', 'rate-limit', 'auth', 'empty']);
+const SEMANTIC_EVALUATORS = new Set(['benchmark', 'deterministic-verifier', 'judge-crosscheck']);
+// Keep this aligned with nova57-atomic-brain-pool.js adapters. Catalog discovery
+// alone never makes a provider executable on the client.
+const CALLABLE_CLIENT_PROVIDERS = new Set(['Kilo', 'OVHcloud']);
 
 function text(value, max = 12000) {
   return String(value ?? '').trim().slice(0, max);
@@ -73,7 +77,13 @@ function brainScore(row, capability) {
   const callable = row?.endpointKind && row.endpointKind !== 'catalog' ? 18 : 0;
   const healthy = row?.health === 'healthy' ? 22 : row?.health === 'degraded' ? 5 : 0;
   const latencyPenalty = latency ? Math.min(35, latency / 160) : 0;
-  return healthScore + successRate * 35 + fit + callable + healthy - latencyPenalty;
+  const semantic = row?.semanticByCapability?.[capability] || row?.semanticByCapability?.general || {};
+  const semanticAttempts = Math.max(0, Number(semantic.attempts || 0));
+  const semanticMean = clamp(semantic.mean, 0, 1);
+  const semanticConfidence = Math.min(1, semanticAttempts / 20);
+  const intelligenceScore = semanticAttempts ? semanticMean * 70 * semanticConfidence : 0;
+  const wrongPenalty = Math.min(70, Math.max(0, Number(semantic.wrong || 0)) * 12);
+  return healthScore + successRate * 24 + fit + callable + healthy + intelligenceScore - wrongPenalty - latencyPenalty;
 }
 
 function normalizeCandidate(row) {
@@ -87,7 +97,8 @@ function normalizeCandidate(row) {
     healthScore: Number(row?.healthScore || 0),
     latencyEwmaMs: Number(row?.latencyEwmaMs || 0),
     successes: Number(row?.successes || 0),
-    failures: Number(row?.failures || 0)
+    failures: Number(row?.failures || 0),
+    semanticByCapability: row?.semanticByCapability && typeof row.semanticByCapability === 'object' ? row.semanticByCapability : {}
   };
 }
 
@@ -97,6 +108,7 @@ function uniqueCandidates(rows, capability) {
     .filter(Boolean)
     .map(normalizeCandidate)
     .filter(row => row.modelId && row.provider && row.endpointKind !== 'catalog')
+    .filter(row => CALLABLE_CLIENT_PROVIDERS.has(row.provider) && row.health !== 'quarantined')
     .filter(row => {
       const key = `${row.provider}::${row.modelId}`;
       if (seen.has(key)) return false;
@@ -217,7 +229,10 @@ exports.novaRecordBrainOutcome = onCall({ enforceAppCheck: true }, async req => 
   if (!source || !provider || !modelId) throw new HttpsError('invalid-argument', 'Brain identity required.');
   if (!ALLOWED_OUTCOMES.has(outcome)) throw new HttpsError('invalid-argument', 'Unknown brain outcome.');
   const latencyMs = clamp(req.data?.latencyMs, 0, 120000);
-  const quality = clamp(req.data?.quality ?? (outcome === 'verified' ? 1 : outcome === 'success' ? 0.8 : 0), 0, 1);
+  const transportOutcome = text(req.data?.transportOutcome || outcome, 30);
+  const evaluator = text(req.data?.evaluator, 40);
+  const hasSemanticScore = Number.isFinite(req.data?.semanticQuality) && SEMANTIC_EVALUATORS.has(evaluator);
+  const semanticQuality = hasSemanticScore ? clamp(req.data.semanticQuality, 0, 1) : null;
   const succeeded = outcome === 'success' || outcome === 'verified';
   const docRef = db.collection(REGISTRY).doc(hashId(source, modelId));
 
@@ -235,9 +250,28 @@ exports.novaRecordBrainOutcome = onCall({ enforceAppCheck: true }, async req => 
     const successRate = attempts ? successes / attempts : 0;
     const latencyBonus = latencyEwmaMs ? Math.max(-18, 18 - latencyEwmaMs / 220) : 0;
     const penalty = outcome === 'auth' ? 38 : outcome === 'rate-limit' ? 20 : outcome === 'timeout' ? 18 : outcome === 'empty' ? 15 : succeeded ? 0 : 12;
-    const healthScore = clamp(successRate * 70 + quality * 24 + latencyBonus - penalty, -100, 100);
+    // Availability is transport-only. It must never inherit a semantic score.
+    const healthScore = clamp(successRate * 82 + latencyBonus - penalty, -100, 100);
     const health = outcome === 'auth' ? 'unavailable' : succeeded && healthScore >= 55 ? 'healthy' : succeeded ? 'degraded' : healthScore < 20 ? 'unavailable' : 'degraded';
     const capabilities = [...new Set([...(Array.isArray(previous.capabilities) ? previous.capabilities : []), capability, 'general'])].slice(0, 16);
+    const semanticByCapability = previous.semanticByCapability && typeof previous.semanticByCapability === 'object'
+      ? { ...previous.semanticByCapability }
+      : {};
+    if (hasSemanticScore) {
+      const old = semanticByCapability[capability] || {};
+      const semanticAttempts = Math.max(0, Number(old.attempts || 0));
+      const oldMean = clamp(old.mean, 0, 1);
+      const nextAttempts = semanticAttempts + 1;
+      semanticByCapability[capability] = {
+        attempts: nextAttempts,
+        mean: semanticAttempts ? oldMean * 0.8 + semanticQuality * 0.2 : semanticQuality,
+        wrong: Math.max(0, Number(old.wrong || 0)) + (semanticQuality < 0.35 ? 1 : 0),
+        lastScore: semanticQuality,
+        lastEvaluator: evaluator
+      };
+    }
+    const taskSemantic = semanticByCapability[capability] || {};
+    const repeatedWrong = Number(taskSemantic.wrong || 0) >= 3;
 
     learned = {
       source,
@@ -250,10 +284,15 @@ exports.novaRecordBrainOutcome = onCall({ enforceAppCheck: true }, async req => 
       failures,
       latencyEwmaMs,
       healthScore,
-      health,
+      health: repeatedWrong ? 'quarantined' : health,
+      semanticByCapability,
       lastOutcome: outcome,
+      lastTransportOutcome: transportOutcome,
+      lastSemanticQuality: semanticQuality,
+      lastSemanticEvaluator: hasSemanticScore ? evaluator : null,
       lastHealthAt: FieldValue.serverTimestamp(),
-      lastErrorKind: succeeded ? null : outcome
+      lastErrorKind: succeeded ? null : outcome,
+      semanticQuarantineUntil: repeatedWrong ? Timestamp.fromMillis(Date.now() + 24 * 60 * 60_000) : null
     };
     tx.set(docRef, learned, { merge: true });
   });
@@ -269,6 +308,7 @@ exports.novaRecordBrainOutcome = onCall({ enforceAppCheck: true }, async req => 
     latencyEwmaMs: learned.latencyEwmaMs,
     successes: learned.successes,
     failures: learned.failures,
+    semanticByCapability: learned.semanticByCapability,
     score: brainScore(learned, capability),
     learnedAt: Date.now()
   };
@@ -281,7 +321,8 @@ exports.novaRecordBrainOutcome = onCall({ enforceAppCheck: true }, async req => 
     capability,
     health: learned.health,
     healthScore: learned.healthScore,
-    latencyEwmaMs: learned.latencyEwmaMs
+    latencyEwmaMs: learned.latencyEwmaMs,
+    semanticQualityAccepted: hasSemanticScore
   };
 });
 
@@ -304,6 +345,8 @@ exports.__novaAtomicChainInternals = {
   taskDNA,
   meshProfile,
   brainScore,
+  SEMANTIC_EVALUATORS,
+  CALLABLE_CLIENT_PROVIDERS,
   hashId,
   uniqueCandidates,
   buildGenerations,
