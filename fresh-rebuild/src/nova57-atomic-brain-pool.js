@@ -105,9 +105,29 @@ function errorKind(error) {
 }
 
 function backendOutcome(kind) {
-  if (kind === 'quality') return 'quality-failure';
-  if (kind === 'failed') return 'failure';
+  // Backend keeps a deliberately small outcome vocabulary. The phone retains
+  // the more specific quality reason locally; only route health telemetry leaves.
+  if (kind === 'quality' || kind === 'failed') return 'failure';
   return kind;
+}
+
+function reportBackendFailures(failures, capability) {
+  if (!Array.isArray(failures) || !failures.length) return;
+  import('./nova57-atomic-backend-client.js').then(bridge => {
+    if (typeof bridge?.reportAtomicOutcome !== 'function') return;
+    for (const failure of failures.slice(0, 2)) {
+      if (!failure?.provider || !failure?.model) continue;
+      bridge.reportAtomicOutcome({
+        source: failure.provider,
+        provider: failure.provider,
+        modelId: failure.model,
+        capability,
+        outcome: failure.outcome,
+        latencyMs: failure.latencyMs,
+        quality: 0
+      });
+    }
+  }).catch(() => {});
 }
 
 function markSuccess(route, latencyMs) {
@@ -335,6 +355,7 @@ export async function runAtomicBrain(prompt, options = {}, control = {}) {
     error.__novaAtomicFailures = Array.isArray(aggregate?.errors)
       ? aggregate.errors.map(item => item?.__novaAtomicFailure).filter(Boolean)
       : [];
+    reportBackendFailures(error.__novaAtomicFailures, capability);
     throw error;
   }
 }
