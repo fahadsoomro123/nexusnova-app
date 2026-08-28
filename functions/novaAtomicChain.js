@@ -6,8 +6,8 @@ const db = getFirestore();
 const REGISTRY = 'novaBrainRegistry';
 const LEADERS = 'novaBrainLeaders';
 const META = 'novaAtomicMeta';
-const MAX_CHAIN_HOPS = 4;
-const MAX_RETURNED_CANDIDATES = 8;
+const MAX_MESH_BRAINS = 9;
+const MAX_RETURNED_CANDIDATES = 18;
 const ALLOWED_CAPABILITIES = new Set(['general', 'coding', 'reasoning', 'research', 'multilingual']);
 const ALLOWED_OUTCOMES = new Set(['success', 'verified', 'failure', 'timeout', 'rate-limit', 'auth', 'empty']);
 
@@ -32,6 +32,14 @@ function requireUser(req) {
   return req.auth.uid;
 }
 
+function meshProfile({ complexity, highConsequence, needsVerification }) {
+  if (!needsVerification) return { strategy: 'ARIM', widths: [1], maxBrains: 1, allowExpansion: false, stopOnConsensus: true };
+  if (highConsequence) return { strategy: 'ARIM', widths: [2, 2], maxBrains: 5, allowExpansion: false, stopOnConsensus: true };
+  if (complexity >= 4) return { strategy: 'ARIM', widths: [2, 2, 4], maxBrains: MAX_MESH_BRAINS, allowExpansion: true, stopOnConsensus: true };
+  if (complexity >= 3) return { strategy: 'ARIM', widths: [2, 2], maxBrains: 5, allowExpansion: true, stopOnConsensus: true };
+  return { strategy: 'ARIM', widths: [2], maxBrains: 3, allowExpansion: false, stopOnConsensus: true };
+}
+
 function taskDNA(prompt) {
   const s = lower(prompt);
   const length = String(prompt || '').length;
@@ -48,10 +56,9 @@ function taskDNA(prompt) {
 
   const highConsequence = /\b(medical|medicine|diagnos|legal|lawyer|lawsuit|financial advice|investment advice|suicide|self-harm|emergency)\b/.test(s);
   const exactOutput = /\b(answer only|return only|output only|no explanation|exactly one|json only)\b/.test(s);
-  const maxHops = Math.max(1, Math.min(MAX_CHAIN_HOPS,
-    highConsequence ? 3 : complexity >= 4 ? 3 : (complexity >= 3 || capability === 'coding' || capability === 'reasoning') ? 2 : 1));
-
-  return { capability, complexity, highConsequence, exactOutput, maxHops };
+  const needsVerification = highConsequence || complexity >= 3 || capability === 'coding' || capability === 'reasoning';
+  const mesh = meshProfile({ complexity, highConsequence, needsVerification });
+  return { capability, complexity, highConsequence, exactOutput, needsVerification, maxHops: mesh.maxBrains, mesh };
 }
 
 function brainScore(row, capability) {
@@ -118,25 +125,36 @@ async function registryFallbackRows(capability) {
   const rows = [];
   for (const cap of caps) {
     try {
-      const snap = await db.collection(REGISTRY).where('capabilities', 'array-contains', cap).limit(60).get();
+      const snap = await db.collection(REGISTRY).where('capabilities', 'array-contains', cap).limit(80).get();
       for (const doc of snap.docs) {
         const row = doc.data() || {};
         if (row.chatCandidate === false) continue;
         rows.push(row);
       }
     } catch (e) {
-      console.warn('[NOVA ACRM] registry fallback query:', e.message);
+      console.warn('[NOVA ARIM] registry fallback query:', e.message);
     }
   }
   return rows;
 }
 
-function buildStages(dna, candidates) {
+function buildGenerations(dna, candidates) {
+  const generations = [];
+  let offset = 0;
+  dna.mesh.widths.forEach((width, index) => {
+    const slice = candidates.slice(offset, offset + width);
+    if (slice.length) generations.push({ generation: index + 1, width, candidates: slice });
+    offset += width;
+  });
+  const judge = candidates[offset] || null;
+  return { generations, judge };
+}
+
+function buildLegacyStages(dna, candidates) {
   const stages = [];
   if (candidates[0]) stages.push({ stage: 'primary', candidate: candidates[0] });
-  if (dna.maxHops >= 2 && candidates[1]) stages.push({ stage: 'verifier', candidate: candidates[1] });
-  if (dna.maxHops >= 3 && candidates[2]) stages.push({ stage: 'arbiter', candidate: candidates[2] });
-  if (dna.maxHops >= 4 && candidates[3]) stages.push({ stage: 'rescue', candidate: candidates[3] });
+  if (dna.mesh.maxBrains >= 3 && candidates[1]) stages.push({ stage: 'verifier', candidate: candidates[1] });
+  if (dna.mesh.maxBrains >= 5 && candidates[2]) stages.push({ stage: 'arbiter', candidate: candidates[2] });
   return stages;
 }
 
@@ -149,18 +167,23 @@ exports.novaAtomicPlan = onCall({ enforceAppCheck: true }, async req => {
   const leaders = await leaderRows(dna.capability);
   let candidates = uniqueCandidates(leaders, dna.capability);
   let source = 'leaderboard';
-  if (candidates.length < Math.min(4, dna.maxHops + 1)) {
+  if (candidates.length < Math.min(12, dna.mesh.maxBrains + 3)) {
     const fallback = await registryFallbackRows(dna.capability);
     candidates = uniqueCandidates([...candidates, ...fallback], dna.capability);
     source = candidates.length ? 'leaderboard+registry' : 'registry-empty';
   }
   candidates = candidates.slice(0, MAX_RETURNED_CANDIDATES);
+  const topology = buildGenerations(dna, candidates);
 
   return {
-    module: 'AI Atomic Chain Reaction Module',
+    module: 'AI Atomic Chain Reaction Module + Adaptive Recursive Intelligence Mesh',
+    strategy: 'ARIM',
     dna,
+    mesh: dna.mesh,
     source,
-    stages: buildStages(dna, candidates),
+    generations: topology.generations,
+    judge: topology.judge,
+    stages: buildLegacyStages(dna, candidates),
     candidates
   };
 });
@@ -177,7 +200,7 @@ async function updateLeaderboard(capability, candidate) {
     next.sort((a, b) => Number(b?.score || 0) - Number(a?.score || 0));
     tx.set(ref, {
       capability,
-      models: next.slice(0, 32),
+      models: next.slice(0, 48),
       updatedAt: FieldValue.serverTimestamp()
     }, { merge: true });
   });
@@ -269,8 +292,9 @@ exports.novaAtomicStatus = onCall({ enforceAppCheck: true }, async req => {
     db.collection(LEADERS).doc('general').get()
   ]);
   return {
-    module: 'AI Atomic Chain Reaction Module',
-    maxChainHops: MAX_CHAIN_HOPS,
+    module: 'AI Atomic Chain Reaction Module + Adaptive Recursive Intelligence Mesh',
+    strategy: 'ARIM',
+    maxMeshBrains: MAX_MESH_BRAINS,
     learning: learning.data() || {},
     generalLeaderboardSize: Array.isArray(general.data()?.models) ? general.data().models.length : 0
   };
@@ -278,9 +302,11 @@ exports.novaAtomicStatus = onCall({ enforceAppCheck: true }, async req => {
 
 exports.__novaAtomicChainInternals = {
   taskDNA,
+  meshProfile,
   brainScore,
   hashId,
   uniqueCandidates,
-  buildStages,
-  MAX_CHAIN_HOPS
+  buildGenerations,
+  buildLegacyStages,
+  MAX_MESH_BRAINS
 };
