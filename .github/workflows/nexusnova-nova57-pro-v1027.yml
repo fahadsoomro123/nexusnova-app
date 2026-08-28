@@ -1,8 +1,8 @@
-name: NexusNova v1.0.27 NOVA 5.7 Pro Signed
+name: NexusNova v1.0.27 NOVA 5.7 Pro Signed Release
 
 on:
   push:
-    branches: [nova-sol57-pro-v128]
+    branches: [nova-sol57-pro-v128-release]
     paths:
       - '.github/workflows/nexusnova-nova57-pro-v1027.yml'
       - '.github/workflows/nova57-pro-v128-check.yml'
@@ -37,7 +37,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$GITHUB_REF_NAME" = "nova-sol57-pro-v128"
+          test "$GITHUB_REF_NAME" = "nova-sol57-pro-v128-release"
           git cat-file -e "$PRO_BASE_HEAD^{commit}"
           mapfile -t changed < <(git diff --name-only "$PRO_BASE_HEAD" HEAD)
           printf 'Changed files:\n%s\n' "${changed[*]}"
