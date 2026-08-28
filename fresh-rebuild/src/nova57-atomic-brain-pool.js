@@ -157,22 +157,25 @@ function fitBonus(route, capability) {
   return /instruct|chat|nemotron|mistral|minimax|openrouter\/free/.test(id) ? 12 : 0;
 }
 
-function routeScore(route, capability) {
+function routeScore(route, capability, preferredIndex) {
   const s = stat(route);
   const attempts = s.ok + s.fail;
   const successRate = attempts ? s.ok / attempts : 0.5;
   const freshness = s.lastOk && Date.now() - s.lastOk < 15 * 60_000 ? 20 : 0;
   const latencyPenalty = s.ewma ? Math.min(42, s.ewma / 120) : 0;
   const failurePenalty = Math.min(35, s.fail * 4);
-  return route.priority + fitBonus(route, capability) + freshness + successRate * 24 - latencyPenalty - failurePenalty;
+  const preferredAt = preferredIndex.get(keyOf(route));
+  const backendBonus = Number.isInteger(preferredAt) ? Math.max(36, 90 - preferredAt * 8) : 0;
+  return route.priority + fitBonus(route, capability) + backendBonus + freshness + successRate * 24 - latencyPenalty - failurePenalty;
 }
 
-export function atomicCandidates(capability = 'general', excludeKeys = []) {
+export function atomicCandidates(capability = 'general', excludeKeys = [], preferredKeys = []) {
   loadMemory();
   const excluded = new Set(excludeKeys || []);
+  const preferredIndex = new Map((preferredKeys || []).map((key, index) => [String(key), index]));
   return dedupe([...KNOWN_FAST, ...dynamicRoutes()])
     .filter(route => !excluded.has(keyOf(route)) && !isQuarantined(route))
-    .sort((a, b) => routeScore(b, capability) - routeScore(a, capability));
+    .sort((a, b) => routeScore(b, capability, preferredIndex) - routeScore(a, capability, preferredIndex));
 }
 
 function generationConfig(options = {}) {
@@ -240,8 +243,9 @@ async function callRoute(route, prompt, options, timeoutMs, delayMs = 0) {
 export async function runAtomicBrain(prompt, options = {}, control = {}) {
   const capability = String(control.capability || 'general');
   const excludeKeys = Array.isArray(control.excludeKeys) ? control.excludeKeys : [];
+  const preferredKeys = Array.isArray(control.preferredKeys) ? control.preferredKeys : [];
   const timeoutMs = Math.max(900, Math.min(5200, Number(control.timeoutMs || 3600)));
-  const candidates = atomicCandidates(capability, excludeKeys);
+  const candidates = atomicCandidates(capability, excludeKeys, preferredKeys);
   if (!candidates.length) throw new Error(`No healthy ACRM ${capability} candidates.`);
 
   // Two-route staggered hedge: a dead first route does not consume the whole
@@ -261,6 +265,7 @@ export async function runAtomicBrain(prompt, options = {}, control = {}) {
       adaptive: true,
       atomic: true,
       selected: selected.map(keyOf),
+      preferred: preferredKeys.slice(0, 8),
       at: new Date().toISOString()
     };
     return {
