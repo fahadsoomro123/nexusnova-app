@@ -1,0 +1,393 @@
+const TARGET_CATALOG = 200000;
+const HF_PAGE_SIZE = 100;
+const HF_PAGES_PER_REFRESH = 10;
+const PROBE_INTERVAL_MS = 2 * 60 * 60 * 1000;
+const MAX_PROBES = 4;
+const ALLOWED_CAPABILITIES = new Set(['general', 'coding', 'reasoning', 'research', 'multilingual']);
+const ALLOWED_PROVIDERS = new Set(['Kilo', 'OVHcloud', 'AI Horde', 'OpenRouter', 'Pollinations']);
+
+const KILO_BASE = 'https://api.kilo.ai/api/gateway';
+const OVH_BASE = 'https://oai.endpoints.kepler.ai.cloud.ovh.net/v1';
+const HORDE_BASE = 'https://aihorde.net/api/v2';
+const CLIENT_AGENT = 'NexusNova:5.7-cloudflare-registry';
+
+function json(data, status = 200, extra = {}) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      'content-type': 'application/json; charset=utf-8',
+      'cache-control': 'no-store',
+      'access-control-allow-origin': '*',
+      'access-control-allow-methods': 'GET,POST,OPTIONS',
+      'access-control-allow-headers': 'content-type',
+      ...extra
+    }
+  });
+}
+
+function text(value, max = 240) {
+  return String(value ?? '').trim().slice(0, max);
+}
+
+function lower(value) {
+  return text(value, 400).toLowerCase();
+}
+
+function now() {
+  return Date.now();
+}
+
+async function sha256(value) {
+  const bytes = new TextEncoder().encode(value);
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return [...new Uint8Array(digest)].map(x => x.toString(16).padStart(2, '0')).join('');
+}
+
+function inferCapabilities(modelId, pipeline = '', tags = []) {
+  const s = `${lower(modelId)} ${lower(pipeline)} ${lower(Array.isArray(tags) ? tags.join(' ') : '')}`;
+  const caps = new Set(['general']);
+  if (/code|coder|coding|devstral|starcoder|codestral/.test(s)) caps.add('coding');
+  if (/reason|r1|thinking|math|qwq|logic|proof/.test(s)) caps.add('reasoning');
+  if (/multilingual|urdu|qwen|gemma|llama|mistral/.test(s)) caps.add('multilingual');
+  if (/text-generation|conversational|chat|instruct|assistant/.test(s)) caps.add('chat');
+  if (/vision|image-to-text|vl|multimodal/.test(s)) caps.add('vision');
+  if (/embed|feature-extraction|rerank/.test(s)) caps.add('retrieval');
+  if (/speech|audio|whisper|tts/.test(s)) caps.add('audio');
+  if (/diffusion|text-to-image|image-generation|flux|sdxl/.test(s)) caps.add('image');
+  return [...caps];
+}
+
+function normalizeHF(row) {
+  const modelId = text(row?.id || row?.modelId || row?.model || row?.name, 240);
+  if (!modelId) return null;
+  return {
+    source: 'HuggingFace',
+    provider: 'HuggingFace',
+    modelId,
+    pipeline: text(row?.pipeline_tag || '', 80),
+    downloads: Math.max(0, Number(row?.downloads || 0) || 0),
+    likes: Math.max(0, Number(row?.likes || 0) || 0),
+    capabilities: inferCapabilities(modelId, row?.pipeline_tag, row?.tags),
+    updatedAt: text(row?.lastModified || row?.last_modified || '', 80)
+  };
+}
+
+function nextLink(headers) {
+  const raw = headers.get('link') || '';
+  for (const part of raw.split(',')) {
+    const match = part.match(/<([^>]+)>;\s*rel="?next"?/i);
+    if (match) return match[1];
+  }
+  return '';
+}
+
+async function fetchJson(url, init = {}, timeoutMs = 8000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, { ...init, signal: controller.signal });
+    const raw = await response.text();
+    let data = null;
+    try { data = raw ? JSON.parse(raw) : null; } catch { data = null; }
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${text(data?.error?.message || data?.message || raw, 180)}`);
+    return { response, data };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function getMeta(env, key, fallback = '') {
+  const row = await env.DB.prepare('SELECT value FROM meta WHERE key = ?1').bind(key).first();
+  return row?.value ?? fallback;
+}
+
+async function setMeta(env, key, value) {
+  await env.DB.prepare(`INSERT INTO meta(key,value,updated_at) VALUES(?1,?2,?3)
+    ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at`)
+    .bind(key, String(value), now()).run();
+}
+
+async function saveShard(env, source, shardKey, records) {
+  if (!records.length) return 0;
+  const body = JSON.stringify(records);
+  const fingerprint = (await sha256(body)).slice(0, 32);
+  await env.DB.prepare(`INSERT INTO catalog_shards(source,shard_key,records_json,record_count,fingerprint,updated_at)
+    VALUES(?1,?2,?3,?4,?5,?6)
+    ON CONFLICT(source,shard_key) DO UPDATE SET records_json=excluded.records_json, record_count=excluded.record_count,
+      fingerprint=excluded.fingerprint, updated_at=excluded.updated_at`)
+    .bind(source, shardKey, body, records.length, fingerprint, now()).run();
+  return records.length;
+}
+
+async function refreshHuggingFace(env, pages = HF_PAGES_PER_REFRESH) {
+  let totalSeen = Number(await getMeta(env, 'hf_total_seen', '0')) || 0;
+  if (totalSeen >= TARGET_CATALOG) return { totalSeen, added: 0, complete: true, pages: 0 };
+
+  let cursorUrl = await getMeta(env, 'hf_cursor_url', '');
+  if (!cursorUrl) cursorUrl = `https://huggingface.co/api/models?limit=${HF_PAGE_SIZE}&sort=downloads&direction=-1&full=false`;
+  let added = 0;
+  let pageCount = 0;
+
+  for (let i = 0; i < pages && totalSeen < TARGET_CATALOG && cursorUrl; i += 1) {
+    const { response, data } = await fetchJson(cursorUrl, { headers: { accept: 'application/json' } }, 9000);
+    const rows = (Array.isArray(data) ? data : []).map(normalizeHF).filter(Boolean);
+    if (!rows.length) break;
+    const remaining = TARGET_CATALOG - totalSeen;
+    const clipped = rows.slice(0, remaining);
+    const shardIndex = Math.floor(totalSeen / HF_PAGE_SIZE);
+    const shardKey = `hf-${String(shardIndex).padStart(6, '0')}`;
+    added += await saveShard(env, 'HuggingFace', shardKey, clipped);
+    totalSeen += clipped.length;
+    pageCount += 1;
+    cursorUrl = nextLink(response.headers);
+    await Promise.all([
+      setMeta(env, 'hf_total_seen', totalSeen),
+      setMeta(env, 'hf_cursor_url', cursorUrl || ''),
+      setMeta(env, 'catalog_target', TARGET_CATALOG)
+    ]);
+    if (clipped.length < rows.length) break;
+  }
+
+  return { totalSeen, added, complete: totalSeen >= TARGET_CATALOG, pages: pageCount };
+}
+
+function routeCapability(modelId) {
+  const s = lower(modelId);
+  if (/code|coder|devstral|starcoder|codestral/.test(s)) return 'coding';
+  if (/reason|r1|thinking|math|qwq|logic/.test(s)) return 'reasoning';
+  if (/qwen|llama|mistral|gemma/.test(s)) return 'multilingual';
+  return 'general';
+}
+
+async function seedRoute(env, provider, modelId, priority = 0) {
+  const routeKey = `${provider}::${modelId}`;
+  const capability = routeCapability(modelId);
+  const baseHealth = Math.max(0.25, Math.min(0.7, 0.42 + priority / 500));
+  await env.DB.prepare(`INSERT INTO route_health(route_key,provider,model_id,capability,health_score,quality,last_seen_at)
+    VALUES(?1,?2,?3,?4,?5,0.50,?6)
+    ON CONFLICT(route_key) DO UPDATE SET provider=excluded.provider, model_id=excluded.model_id,
+      capability=CASE WHEN route_health.capability='general' THEN excluded.capability ELSE route_health.capability END,
+      last_seen_at=excluded.last_seen_at`)
+    .bind(routeKey, provider, modelId, capability, baseHealth, now()).run();
+}
+
+function modelRows(data) {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.data)) return data.data;
+  if (Array.isArray(data?.models)) return data.models;
+  return [];
+}
+
+async function refreshProviderCatalogs(env) {
+  const summary = { kilo: 0, ovh: 0, horde: 0 };
+
+  try {
+    const { data } = await fetchJson(`${KILO_BASE}/models`, {}, 6500);
+    const selected = [];
+    for (const row of modelRows(data)) {
+      const id = text(row?.id || row?.model || row?.name, 240);
+      if (!id) continue;
+      const price = row?.pricing || row?.price || row?.cost || {};
+      const zero = Number(price?.input ?? price?.prompt ?? NaN) === 0 && Number(price?.output ?? price?.completion ?? NaN) === 0;
+      if (/:free$/i.test(id) || id === 'openrouter/free' || id === 'kilo-auto/free' || zero) selected.push(id);
+    }
+    for (const id of selected.slice(0, 80)) await seedRoute(env, 'Kilo', id, 118);
+    summary.kilo = selected.length;
+  } catch {}
+
+  try {
+    const { data } = await fetchJson(`${OVH_BASE}/models`, {}, 6500);
+    const selected = modelRows(data)
+      .map(row => text(row?.id || row?.model || row?.name, 240))
+      .filter(id => id && !/embed|rerank|guard|moderation/i.test(id));
+    for (const id of selected.slice(0, 80)) await seedRoute(env, 'OVHcloud', id, 96);
+    summary.ovh = selected.length;
+  } catch {}
+
+  try {
+    const { data } = await fetchJson(`${HORDE_BASE}/status/models?type=text`, { headers: { 'Client-Agent': CLIENT_AGENT } }, 7000);
+    const selected = (Array.isArray(data) ? data : [])
+      .filter(row => Number(row?.count ?? row?.workers ?? 0) > 0)
+      .map(row => text(row?.name || row?.id || row?.model, 240))
+      .filter(id => id && !/nsfw|roleplay|erp/i.test(id));
+    for (const id of selected.slice(0, 40)) await seedRoute(env, 'AI Horde', id, 70);
+    summary.horde = selected.length;
+  } catch {}
+
+  await setMeta(env, 'provider_refresh_at', now());
+  return summary;
+}
+
+async function applyOutcome(env, body) {
+  const provider = text(body?.provider || body?.source, 80);
+  const modelId = text(body?.modelId || body?.model, 240);
+  if (!ALLOWED_PROVIDERS.has(provider) || !modelId) throw new Error('invalid-route');
+  const capability = ALLOWED_CAPABILITIES.has(text(body?.capability, 30)) ? text(body.capability, 30) : 'general';
+  const outcome = ['success', 'failure', 'timeout', 'rate-limit', 'auth'].includes(text(body?.outcome, 30)) ? text(body.outcome, 30) : 'failure';
+  const latency = Math.max(0, Math.min(120000, Number(body?.latencyMs || 0) || 0));
+  const quality = Math.max(0, Math.min(1, Number(body?.quality ?? (outcome === 'success' ? 0.8 : 0))));
+  const success = outcome === 'success' ? 1 : 0;
+  const failure = success ? 0 : 1;
+  const penalty = outcome === 'rate-limit' ? 0.16 : outcome === 'auth' ? 0.25 : outcome === 'timeout' ? 0.12 : failure ? 0.10 : 0;
+  const quarantineMs = outcome === 'auth' ? 30 * 60_000 : outcome === 'rate-limit' ? 5 * 60_000 : outcome === 'timeout' ? 60_000 : 0;
+  const routeKey = `${provider}::${modelId}`;
+
+  await env.DB.prepare(`INSERT INTO route_health(
+      route_key,provider,model_id,capability,successes,failures,ewma_latency,quality,health_score,last_outcome,last_seen_at,quarantine_until)
+    VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)
+    ON CONFLICT(route_key) DO UPDATE SET
+      capability=excluded.capability,
+      successes=route_health.successes + excluded.successes,
+      failures=route_health.failures + excluded.failures,
+      ewma_latency=CASE WHEN excluded.ewma_latency<=0 THEN route_health.ewma_latency
+        WHEN route_health.ewma_latency<=0 THEN excluded.ewma_latency ELSE route_health.ewma_latency*0.72+excluded.ewma_latency*0.28 END,
+      quality=route_health.quality*0.75+excluded.quality*0.25,
+      health_score=MIN(1.0,MAX(0.02, route_health.health_score*0.82 + excluded.health_score*0.18)),
+      last_outcome=excluded.last_outcome,
+      last_seen_at=excluded.last_seen_at,
+      quarantine_until=MAX(route_health.quarantine_until,excluded.quarantine_until)`)
+    .bind(
+      routeKey, provider, modelId, capability, success, failure, latency, quality,
+      Math.max(0.02, Math.min(1, success ? 0.70 + quality * 0.25 - Math.min(latency / 40000, 0.12) : 0.45 - penalty)),
+      outcome, now(), now() + quarantineMs
+    ).run();
+
+  return { ok: true };
+}
+
+async function plan(env, capability) {
+  const cap = ALLOWED_CAPABILITIES.has(capability) ? capability : 'general';
+  const rows = await env.DB.prepare(`SELECT provider,model_id,capability,health_score,quality,ewma_latency,successes,failures,last_outcome
+    FROM route_health
+    WHERE quarantine_until < ?1 AND (capability = ?2 OR capability = 'general')
+    ORDER BY (CASE WHEN capability=?2 THEN 0.10 ELSE 0 END)+health_score DESC, quality DESC,
+      CASE WHEN ewma_latency>0 THEN ewma_latency ELSE 999999 END ASC
+    LIMIT 24`).bind(now(), cap).all();
+  return {
+    source: 'cloudflare-d1',
+    capability: cap,
+    targetCatalog: TARGET_CATALOG,
+    candidates: (rows?.results || []).map(row => ({
+      provider: row.provider,
+      source: row.provider,
+      modelId: row.model_id,
+      capability: row.capability,
+      healthScore: Number(row.health_score || 0),
+      quality: Number(row.quality || 0),
+      latencyMs: Number(row.ewma_latency || 0),
+      successes: Number(row.successes || 0),
+      failures: Number(row.failures || 0),
+      lastOutcome: row.last_outcome || ''
+    }))
+  };
+}
+
+async function probeRoute(provider, modelId) {
+  if (provider !== 'Kilo' && provider !== 'OVHcloud') return { outcome: 'skipped', latencyMs: 0 };
+  const base = provider === 'Kilo' ? KILO_BASE : OVH_BASE;
+  const started = now();
+  try {
+    const { data } = await fetchJson(`${base}/chat/completions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model: modelId, messages: [{ role: 'user', content: 'Reply with exactly: OK' }], max_tokens: 8, temperature: 0.1, stream: false })
+    }, 5000);
+    const content = data?.choices?.[0]?.message?.content ?? data?.choices?.[0]?.text ?? '';
+    return { outcome: String(content || '').trim() ? 'success' : 'failure', latencyMs: now() - started };
+  } catch (error) {
+    const message = lower(error?.message || error);
+    const outcome = /429|rate.?limit|quota/.test(message) ? 'rate-limit' : /401|403|auth|forbidden/.test(message) ? 'auth' : /abort|timeout/.test(message) ? 'timeout' : 'failure';
+    return { outcome, latencyMs: now() - started };
+  }
+}
+
+async function maybeProbe(env) {
+  const last = Number(await getMeta(env, 'last_probe_at', '0')) || 0;
+  if (now() - last < PROBE_INTERVAL_MS) return { skipped: true, probed: 0 };
+  const rows = await env.DB.prepare(`SELECT provider,model_id,capability FROM route_health
+    WHERE provider IN ('Kilo','OVHcloud') AND quarantine_until < ?1
+    ORDER BY last_seen_at DESC, health_score DESC LIMIT ?2`).bind(now(), MAX_PROBES).all();
+  let count = 0;
+  for (const row of rows?.results || []) {
+    const result = await probeRoute(row.provider, row.model_id);
+    if (result.outcome !== 'skipped') {
+      await applyOutcome(env, { provider: row.provider, modelId: row.model_id, capability: row.capability, outcome: result.outcome, latencyMs: result.latencyMs, quality: result.outcome === 'success' ? 0.85 : 0 });
+      count += 1;
+    }
+  }
+  await setMeta(env, 'last_probe_at', now());
+  return { skipped: false, probed: count };
+}
+
+async function refresh(env) {
+  const [hf, providers] = await Promise.all([
+    refreshHuggingFace(env),
+    refreshProviderCatalogs(env)
+  ]);
+  const probes = await maybeProbe(env);
+  await setMeta(env, 'last_refresh_at', now());
+  return { hf, providers, probes };
+}
+
+async function status(env) {
+  const hfTotal = Number(await getMeta(env, 'hf_total_seen', '0')) || 0;
+  const shardRow = await env.DB.prepare('SELECT COUNT(*) AS count, COALESCE(SUM(record_count),0) AS records FROM catalog_shards').first();
+  const routeRow = await env.DB.prepare('SELECT COUNT(*) AS count FROM route_health').first();
+  const healthyRow = await env.DB.prepare('SELECT COUNT(*) AS count FROM route_health WHERE quarantine_until < ?1 AND health_score >= 0.45').bind(now()).first();
+  return {
+    ok: true,
+    service: 'NOVA 5.7 Sol Brain Registry',
+    storage: 'Cloudflare D1 sharded catalog',
+    targetCatalog: TARGET_CATALOG,
+    hfTotalSeen: hfTotal,
+    catalogRecords: Number(shardRow?.records || 0),
+    shardCount: Number(shardRow?.count || 0),
+    activeRoutes: Number(routeRow?.count || 0),
+    healthyRoutes: Number(healthyRow?.count || 0),
+    complete: hfTotal >= TARGET_CATALOG,
+    lastRefreshAt: Number(await getMeta(env, 'last_refresh_at', '0')) || 0,
+    providerRefreshAt: Number(await getMeta(env, 'provider_refresh_at', '0')) || 0,
+    lastProbeAt: Number(await getMeta(env, 'last_probe_at', '0')) || 0
+  };
+}
+
+async function handle(request, env, ctx) {
+  if (request.method === 'OPTIONS') return json({ ok: true });
+  const url = new URL(request.url);
+
+  if (request.method === 'GET' && (url.pathname === '/' || url.pathname === '/health' || url.pathname === '/v1/status')) {
+    return json(await status(env));
+  }
+
+  if (request.method === 'POST' && url.pathname === '/v1/plan') {
+    let body = {};
+    try { body = await request.json(); } catch {}
+    const capability = ALLOWED_CAPABILITIES.has(text(body?.capability, 30)) ? text(body.capability, 30) : 'general';
+    return json(await plan(env, capability));
+  }
+
+  if (request.method === 'POST' && url.pathname === '/v1/outcome') {
+    let body = {};
+    try { body = await request.json(); } catch { return json({ ok: false, error: 'invalid-json' }, 400); }
+    try { return json(await applyOutcome(env, body), 202); }
+    catch { return json({ ok: false, error: 'invalid-route' }, 400); }
+  }
+
+  if (request.method === 'POST' && url.pathname === '/v1/refresh') {
+    const supplied = request.headers.get('x-nova-refresh-key') || '';
+    if (!env.REFRESH_KEY || supplied !== env.REFRESH_KEY) return json({ ok: false, error: 'forbidden' }, 403);
+    const result = await refresh(env);
+    return json({ ok: true, ...result });
+  }
+
+  return json({ ok: false, error: 'not-found' }, 404);
+}
+
+export default {
+  fetch(request, env, ctx) {
+    return handle(request, env, ctx).catch(error => json({ ok: false, error: text(error?.message || error, 240) }, 500));
+  },
+  scheduled(event, env, ctx) {
+    ctx.waitUntil(refresh(env).catch(error => console.error('[NOVA registry refresh]', error)));
+  }
+};
