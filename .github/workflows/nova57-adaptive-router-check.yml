@@ -38,6 +38,10 @@ jobs:
           grep -Fq 'adaptiveReadyWithoutForegroundDelay' fresh-rebuild/src/nova57-adaptive-client-router-compat.js
           grep -Fq 'obviouslySensitive' fresh-rebuild/src/nova57-adaptive-client-router-compat.js
           grep -Fq 'queueMicrotask' fresh-rebuild/src/nova57-adaptive-client-router-compat.js
+          grep -Fq 'FOREGROUND_HEDGE_DELAY_MS' fresh-rebuild/src/nova57-adaptive-client-router-compat.js
+          grep -Fq 'hedgedForegroundGenerate' fresh-rebuild/src/nova57-adaptive-client-router-compat.js
+          grep -Fq 'Promise.any' fresh-rebuild/src/nova57-adaptive-client-router-compat.js
+          grep -Fq 'SLOW_COOLDOWN_MS' fresh-rebuild/src/nova57-adaptive-client-router-compat.js
           node - <<'NODE'
           const fs = require('fs');
           const files = [
