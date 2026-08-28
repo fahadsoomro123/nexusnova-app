@@ -16,11 +16,11 @@ const LEADER_LIMIT = 48;
 const CANDIDATE_SCAN_LIMIT = 180;
 const CAPABILITIES = ['general', 'coding', 'reasoning', 'multilingual', 'research'];
 const BENCHMARKS = [
-  { capability: 'reasoning', prompt: 'Compute 17 multiplied by 19. Reply exactly NOVA_323.', expected: 'NOVA_323' },
-  { capability: 'coding', prompt: 'JavaScript: let x=2; for(let i=0;i<3;i++) x*=2; Reply exactly NOVA_16.', expected: 'NOVA_16' },
-  { capability: 'general', prompt: 'Follow this instruction: reply exactly NOVA_BLUE. No other text.', expected: 'NOVA_BLUE' },
-  { capability: 'multilingual', prompt: 'Urdu word kitab means book in English. Reply exactly NOVA_BOOK.', expected: 'NOVA_BOOK' },
-  { capability: 'reasoning', prompt: 'Sequence 2, 6, 12, 20, 30. Reply with the next number exactly as NOVA_42.', expected: 'NOVA_42' }
+  { capability: 'reasoning', probeText: 'Compute 17 multiplied by 19. Reply exactly NOVA_323.', expected: 'NOVA_323' },
+  { capability: 'coding', probeText: 'JavaScript: let x=2; for(let i=0;i<3;i++) x*=2; Reply exactly NOVA_16.', expected: 'NOVA_16' },
+  { capability: 'general', probeText: 'Follow this instruction: reply exactly NOVA_BLUE. No other text.', expected: 'NOVA_BLUE' },
+  { capability: 'multilingual', probeText: 'Urdu word kitab means book in English. Reply exactly NOVA_BOOK.', expected: 'NOVA_BOOK' },
+  { capability: 'reasoning', probeText: 'Sequence 2, 6, 12, 20, 30. Reply with the next number exactly as NOVA_42.', expected: 'NOVA_42' }
 ];
 
 function text(value, max = 500) {
@@ -187,7 +187,7 @@ async function probeRoute(row) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: modelId,
-        messages: [{ role: 'user', content: benchmark.prompt }],
+        messages: [{ role: 'user', content: benchmark.probeText }],
         temperature: 0.1,
         max_tokens: 16,
         stream: false
