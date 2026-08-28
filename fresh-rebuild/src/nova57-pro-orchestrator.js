@@ -12,6 +12,11 @@ import {
   getAI as getHedgeAI,
   getGenerativeModel as getHedgeModel
 } from './nova57-pro-hedge-router.js';
+import {
+  atomicTaskDNA,
+  shouldUseAtomicChain,
+  runAtomicChain
+} from './nova57-atomic-chain.js';
 
 const JINA_READER = 'https://r.jina.ai/';
 const DDG_HTML = 'https://html.duckduckgo.com/html/';
@@ -92,7 +97,8 @@ export function getAI(firebaseApp, config = {}) {
     firebaseApp,
     toolAI: getToolAI(firebaseApp, { ...config, backend: new ToolBackend() }),
     hedgeAI: getHedgeAI(firebaseApp, { ...config, backend: new HedgeBackend() }),
-    __novaProOrchestrator: true
+    __novaProOrchestrator: true,
+    __novaAtomicChain: true
   };
 }
 
@@ -129,9 +135,16 @@ export function getGenerativeModel(ai, options = {}) {
         }
       }
 
-      emit('Thinking');
-      const result = await hedgeModel.generateContent(original);
-      emit('Finalizing');
+      const dna = atomicTaskDNA(request);
+      emit('Thinking', { capability: dna.capability, complexity: dna.complexity, atomic: dna.maxHops > 1 });
+      const result = shouldUseAtomicChain(request)
+        ? await runAtomicChain({
+            prompt: original,
+            request,
+            generate: nextPrompt => hedgeModel.generateContent(nextPrompt)
+          })
+        : await hedgeModel.generateContent(original);
+      emit('Finalizing', { atomic: shouldUseAtomicChain(request) });
       return result;
     }
   };
