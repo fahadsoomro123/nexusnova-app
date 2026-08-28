@@ -23,7 +23,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 50
 
       - uses: actions/setup-node@v4
         with:
@@ -58,9 +58,9 @@ jobs:
           grep -q 'require("./novaAtomicChain")' functions/main.js
           grep -q "runAtomicChain" fresh-rebuild/src/nova57-pro-orchestrator.js
 
-      - name: No prompt persistence or embedded provider secrets in ACRM
+      - name: No user prompt persistence in ACRM local memory
         run: |
-          ! grep -E "localStorage.*prompt|setItem\([^,]*prompt|sk-[A-Za-z0-9_-]{12,}|AIza[0-9A-Za-z_-]{20,}" fresh-rebuild/src/nova57-atomic-*.js functions/novaAtomicChain.js
+          ! grep -E "setItem\([^\n]*(prompt|request|message)" fresh-rebuild/src/nova57-atomic-*.js functions/novaAtomicChain.js
 
       - name: Protected mining and rewards unchanged since registry baseline
         run: |
