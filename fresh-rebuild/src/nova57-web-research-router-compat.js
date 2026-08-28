@@ -15,6 +15,13 @@ const MAX_SEARCH_CHARS = 12_000;
 const MAX_QUERY_CHARS = 600;
 const CACHE_TTL_MS = 2 * 60_000;
 const ACTIVITY_EVENT = 'nova57:activity';
+const TOOL_BOUNDARIES = [
+  '\n\n[NOVA RUNTIME FACTS]',
+  '\n\n[LIVE NOVA WEB RESEARCH TOOL RESULT]',
+  '\n\n[LIVE NOVA WEB RESEARCH TOOL ERROR]',
+  '\n\n[LIVE NOVA GITHUB PUBLIC-READ TOOL RESULT]',
+  '\n\n[LIVE NOVA GITHUB PUBLIC-READ TOOL ERROR]'
+];
 const cache = new Map();
 
 function emitActivity(stage, detail = {}) {
@@ -27,7 +34,14 @@ function latestUserRequest(prompt) {
   const text = String(prompt || '');
   const marker = '\nUser request:\n';
   const index = text.lastIndexOf(marker);
-  return (index >= 0 ? text.slice(index + marker.length) : text).trim();
+  let request = index >= 0 ? text.slice(index + marker.length) : text;
+  let cut = request.length;
+  for (const boundary of TOOL_BOUNDARIES) {
+    const at = request.indexOf(boundary);
+    if (at >= 0) cut = Math.min(cut, at);
+  }
+  request = request.slice(0, cut);
+  return request.trim();
 }
 
 function researchIntent(prompt) {
