@@ -1,23 +1,15 @@
 // NOVA 5.7 Sol — renderer-owned task status controller.
 // Shows concise activity states only. It never exposes private chain-of-thought.
+// Status changes are tied to the requested operation / real request lifecycle;
+// there is no fake timed progression through invented stages.
 
-const DEFAULT_STAGES = ['Thinking', 'Working', 'Finalizing'];
-
-export function taskStagesForRequest(text = '') {
+function workStageForRequest(text = '') {
   const value = String(text || '').toLowerCase();
-  if (/github|repo|repository|commit|branch|pull request|\bpr\b/.test(value)) {
-    return ['Thinking', 'Checking GitHub', 'Verifying', 'Finalizing'];
-  }
-  if (/research|search|latest|current|today|news|trend|web|internet/.test(value)) {
-    return ['Thinking', 'Searching web', 'Checking sources', 'Finalizing'];
-  }
-  if (/file|pdf|document|image|photo|attachment/.test(value)) {
-    return ['Thinking', 'Reading files', 'Verifying', 'Finalizing'];
-  }
-  if (/code|bug|fix|website|build|deploy|workflow/.test(value)) {
-    return ['Thinking', 'Working', 'Verifying', 'Finalizing'];
-  }
-  return DEFAULT_STAGES;
+  if (/github|repo|repository|commit|branch|pull request|\bpr\b/.test(value)) return 'Checking GitHub';
+  if (/research|search|latest|current|today|news|trend|web|internet/.test(value)) return 'Searching web';
+  if (/file|pdf|document|image|photo|attachment/.test(value)) return 'Reading files';
+  if (/code|bug|fix|website|build|deploy|workflow/.test(value)) return 'Working';
+  return 'Thinking';
 }
 
 export function createTaskStatus(messagesRoot) {
@@ -32,50 +24,56 @@ export function createTaskStatus(messagesRoot) {
   messagesRoot.appendChild(row);
 
   const label = row.querySelector('.nx57-task-status__label');
-  let timer = 0;
-  let stages = DEFAULT_STAGES;
-  let index = 0;
+  let frame = 0;
+  let active = false;
 
   const scrollIntoView = () => {
     try { row.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
     catch { messagesRoot.scrollTop = messagesRoot.scrollHeight; }
   };
 
+  function cancelFrame() {
+    if (frame) cancelAnimationFrame(frame);
+    frame = 0;
+  }
+
   function setStage(next) {
+    if (!active) return;
     label.textContent = String(next || 'Thinking');
     scrollIntoView();
   }
 
   function start(requestText) {
-    stopTimer();
-    stages = taskStagesForRequest(requestText);
-    index = 0;
+    cancelFrame();
+    active = true;
     row.hidden = false;
-    setStage(stages[index]);
-    timer = window.setInterval(() => {
-      if (index >= stages.length - 1) return;
-      index += 1;
-      setStage(stages[index]);
-    }, 2200);
-  }
+    label.textContent = 'Thinking';
+    scrollIntoView();
 
-  function stopTimer() {
-    if (timer) window.clearInterval(timer);
-    timer = 0;
+    const workStage = workStageForRequest(requestText);
+    if (workStage !== 'Thinking') {
+      // Allow the initial Thinking state to paint once, then show the actual
+      // operation that this request is entering. No periodic/fake cycling.
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        if (active) setStage(workStage);
+      });
+    }
   }
 
   function finish() {
-    stopTimer();
+    cancelFrame();
+    active = false;
     row.hidden = true;
   }
 
   function fail() {
-    stopTimer();
-    row.hidden = true;
+    finish();
   }
 
   function destroy() {
-    stopTimer();
+    cancelFrame();
+    active = false;
     row.remove();
   }
 
