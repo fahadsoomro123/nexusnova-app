@@ -6,6 +6,7 @@ import { runAtomicBrain } from './nova57-atomic-brain-pool.js';
 
 const MAX_CHAIN_HOPS = 4;
 const DEFAULT_TOTAL_BUDGET_MS = 7600;
+let backendBridgePromise = null;
 
 const lower = value => String(value || '').toLowerCase();
 const clip = (value, max = 6000) => String(value || '').slice(0, max);
@@ -16,6 +17,30 @@ function emit(stage, detail = {}) {
       detail: { stage, source: 'atomic-chain', ...detail }
     }));
   } catch {}
+}
+
+function backendBridge() {
+  if (!backendBridgePromise) {
+    backendBridgePromise = import('./nova57-atomic-backend-client.js').catch(error => {
+      console.warn('[NOVA ACRM] backend bridge module unavailable; local chain continues.', error);
+      backendBridgePromise = null;
+      return null;
+    });
+  }
+  return backendBridgePromise;
+}
+
+async function requestBackendPlan(prompt) {
+  try {
+    const bridge = await backendBridge();
+    return bridge?.getAtomicBackendPlan ? await bridge.getAtomicBackendPlan(prompt) : null;
+  } catch {
+    return null;
+  }
+}
+
+function reportOutcome(payload) {
+  backendBridge().then(bridge => bridge?.reportAtomicOutcome?.(payload)).catch(() => {});
 }
 
 function readText(result) {
@@ -40,6 +65,22 @@ function brainSnapshot() {
 
 function routeKey(brain) {
   return brain?.provider && brain?.model ? `${brain.provider}::${brain.model}` : '';
+}
+
+function preferredKeysFromPlan(plan) {
+  const rows = Array.isArray(plan?.candidates) ? plan.candidates : [];
+  const seen = new Set();
+  const keys = [];
+  for (const row of rows) {
+    const provider = String(row?.provider || row?.source || '').trim();
+    const model = String(row?.modelId || row?.model || '').trim();
+    if (!provider || !model) continue;
+    const key = `${provider}::${model}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    keys.push(key);
+  }
+  return keys.slice(0, 12);
 }
 
 export function atomicTaskDNA(request) {
@@ -115,7 +156,7 @@ async function bounded(factory, timeoutMs) {
   }
 }
 
-function finalizeTelemetry({ dna, started, hops, outcome }) {
+function finalizeTelemetry({ dna, started, hops, outcome, backendPlan }) {
   const distinct = new Set(hops.map(h => h.routeKey).filter(Boolean));
   globalThis.__NOVA_ATOMIC_CHAIN_LAST__ = {
     module: 'AI Atomic Chain Reaction Module',
@@ -125,6 +166,10 @@ function finalizeTelemetry({ dna, started, hops, outcome }) {
     executedHops: hops.length,
     distinctBrains: distinct.size,
     outcome,
+    backendPlan: backendPlan ? {
+      source: String(backendPlan.source || ''),
+      candidateCount: Array.isArray(backendPlan.candidates) ? backendPlan.candidates.length : 0
+    } : null,
     wallMs: Date.now() - started,
     hops,
     at: new Date().toISOString()
@@ -138,6 +183,16 @@ export async function runAtomicChain({ prompt, request, generate, options = {}, 
   const deadline = started + Math.max(2500, Number(totalBudgetMs) || DEFAULT_TOTAL_BUDGET_MS);
   const hops = [];
   const used = new Set();
+  const planPromise = requestBackendPlan(request || prompt);
+  let backendPlan = null;
+  let preferredKeys = [];
+
+  const ensurePlan = async () => {
+    if (backendPlan) return backendPlan;
+    backendPlan = await planPromise;
+    preferredKeys = preferredKeysFromPlan(backendPlan);
+    return backendPlan;
+  };
 
   const recordHop = (stage, result, text, hopStarted) => {
     const brain = brainSnapshot();
@@ -154,6 +209,17 @@ export async function runAtomicChain({ prompt, request, generate, options = {}, 
       verified: brain.verified
     };
     hops.push(row);
+    if (brain.provider && brain.model && brain.provider !== 'NOVA Local') {
+      reportOutcome({
+        source: brain.provider,
+        provider: brain.provider,
+        modelId: brain.model,
+        capability: dna.capability,
+        outcome: 'success',
+        latencyMs: row.latencyMs,
+        quality: stage === 'verifier' ? 0.9 : 0.8
+      });
+    }
     return { result, text, brain, row };
   };
 
@@ -169,6 +235,7 @@ export async function runAtomicChain({ prompt, request, generate, options = {}, 
   };
 
   const runDistinctHop = async (stage, stagePrompt, preferredMs) => {
+    await ensurePlan();
     const remaining = deadline - Date.now();
     if (remaining < 700) throw new Error('Atomic chain budget exhausted.');
     emit(`Atomic ${stage}`, { capability: dna.capability, hop: hops.length + 1, distinct: true });
@@ -176,6 +243,7 @@ export async function runAtomicChain({ prompt, request, generate, options = {}, 
     const result = await bounded(() => runAtomicBrain(stagePrompt, options, {
       capability: dna.capability,
       excludeKeys: [...used],
+      preferredKeys,
       timeoutMs: Math.max(850, Math.min(preferredMs, remaining))
     }), Math.max(900, Math.min(preferredMs + 250, remaining)));
     const text = readText(result);
@@ -188,25 +256,21 @@ export async function runAtomicChain({ prompt, request, generate, options = {}, 
     // Preserve the existing deterministic solver and hard jury for the first hop.
     primary = await runLegacyHop('primary', prompt, dna.complexity >= 3 ? 4300 : 3400);
   } catch (primaryError) {
-    // If the legacy layer itself collapses, ACRM still has an independent fast
-    // route pool rather than failing with it.
     try {
       primary = await runDistinctHop('primary-rescue', prompt, 3600);
     } catch {
-      finalizeTelemetry({ dna, started, hops, outcome: 'primary-failed' });
+      finalizeTelemetry({ dna, started, hops, outcome: 'primary-failed', backendPlan });
       throw primaryError;
     }
   }
 
-  // A mechanically verified local answer is already stronger than asking another
-  // stochastic model to second-guess it.
   if (primary.brain.deterministic && primary.brain.verified) {
-    finalizeTelemetry({ dna, started, hops, outcome: 'local-verified-stop' });
+    finalizeTelemetry({ dna, started, hops, outcome: 'local-verified-stop', backendPlan });
     return primary.result;
   }
 
   if (dna.maxHops <= 1) {
-    finalizeTelemetry({ dna, started, hops, outcome: 'single-hop' });
+    finalizeTelemetry({ dna, started, hops, outcome: 'single-hop', backendPlan });
     return primary.result;
   }
 
@@ -214,37 +278,56 @@ export async function runAtomicChain({ prompt, request, generate, options = {}, 
   try {
     verifier = await runDistinctHop('verifier', verifierPrompt(prompt, primary.text, dna), 2300);
   } catch {
-    // Verification is additive, never a reason to throw away an otherwise valid
-    // primary response when the verifier route itself is unavailable.
-    finalizeTelemetry({ dna, started, hops, outcome: 'primary-kept-verifier-unavailable' });
+    finalizeTelemetry({ dna, started, hops, outcome: 'primary-kept-verifier-unavailable', backendPlan });
     return primary.result;
   }
 
   const verdict = parseVerifier(verifier.text);
   if (verdict.accepted) {
-    finalizeTelemetry({ dna, started, hops, outcome: 'verified-accept' });
+    reportOutcome({
+      source: primary.brain.provider,
+      provider: primary.brain.provider,
+      modelId: primary.brain.model,
+      capability: dna.capability,
+      outcome: 'verified',
+      latencyMs: primary.row.latencyMs,
+      quality: 1
+    });
+    finalizeTelemetry({ dna, started, hops, outcome: 'verified-accept', backendPlan });
     return primary.result;
   }
 
+  if (verdict.replacement) {
+    reportOutcome({
+      source: primary.brain.provider,
+      provider: primary.brain.provider,
+      modelId: primary.brain.model,
+      capability: dna.capability,
+      outcome: 'failure',
+      latencyMs: primary.row.latencyMs,
+      quality: 0.2
+    });
+  }
+
   if (verdict.replacement && dna.maxHops < 3) {
-    finalizeTelemetry({ dna, started, hops, outcome: 'verifier-replaced' });
+    finalizeTelemetry({ dna, started, hops, outcome: 'verifier-replaced', backendPlan });
     return { response: { text: () => verdict.replacement } };
   }
 
   if (dna.maxHops >= 3 && Date.now() < deadline - 700) {
     try {
       const arbiter = await runDistinctHop('arbiter', arbiterPrompt(prompt, primary.text, verifier.text, dna), 2400);
-      finalizeTelemetry({ dna, started, hops, outcome: 'arbiter-final' });
+      finalizeTelemetry({ dna, started, hops, outcome: 'arbiter-final', backendPlan });
       return arbiter.result;
     } catch {}
   }
 
   if (verdict.replacement) {
-    finalizeTelemetry({ dna, started, hops, outcome: 'verifier-replaced-after-arbiter-unavailable' });
+    finalizeTelemetry({ dna, started, hops, outcome: 'verifier-replaced-after-arbiter-unavailable', backendPlan });
     return { response: { text: () => verdict.replacement } };
   }
 
-  finalizeTelemetry({ dna, started, hops, outcome: 'primary-kept-no-conclusive-verdict' });
+  finalizeTelemetry({ dna, started, hops, outcome: 'primary-kept-no-conclusive-verdict', backendPlan });
   return primary.result;
 }
 
@@ -254,5 +337,6 @@ export const __novaAtomicInternals = {
   parseVerifier,
   verifierPrompt,
   arbiterPrompt,
-  routeKey
+  routeKey,
+  preferredKeysFromPlan
 };
