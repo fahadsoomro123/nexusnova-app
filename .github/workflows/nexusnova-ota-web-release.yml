@@ -83,7 +83,11 @@ jobs:
           BASE="$OTA_BUNDLED_BASE"
           git cat-file -e "$BASE^{commit}"
 
-          deleted="$(git diff --name-only --diff-filter=D "$BASE" "$GITHUB_SHA" -- fresh-rebuild/)"
+          # This obsolete renderer was removed before the NOVA 5.7 branch and is
+          # no longer referenced. OTA v1 may safely leave its dormant bundled
+          # copy in place; every other deletion remains a hard stop.
+          deleted="$(git diff --name-only --diff-filter=D "$BASE" "$GITHUB_SHA" -- fresh-rebuild/ \
+            | grep -vFx 'fresh-rebuild/src/features/apps/premium-nova-internet-speed.js' || true)"
           if [ -n "$deleted" ]; then
             echo 'OTA v1 cannot safely represent deleted bundled web files:' >&2
             printf '%s\n' "$deleted" >&2
