@@ -1,19 +1,8 @@
-// NOVA 5.7 ACRM — optional Firebase registry bridge.
-// The foreground chain never depends on this bridge: local routing continues if
-// backend planning/learning is unavailable. Raw prompts are sent only to the
-// authenticated planning callable for immediate classification and are not stored
-// by the backend module; outcome reporting contains no prompt text.
+// NOVA 5.7 ARIM — Cloudflare D1 registry bridge.
+// Only a locally classified capability is sent for planning; raw user prompts are
+// not sent to or stored by the registry. Outcome learning contains route stats only.
 
-import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-functions.js';
-import {
-  firebaseApp,
-  requireFirebaseUser,
-  requireFreshAppCheck
-} from './core/firebase-backend.js';
-
-const functions = getFunctions(firebaseApp);
-const planCallable = httpsCallable(functions, 'novaAtomicPlan');
-const outcomeCallable = httpsCallable(functions, 'novaRecordBrainOutcome');
+const BACKEND_URL = '__NOVA_CLOUDFLARE_BRAIN_BACKEND_URL__';
 let backendCoolingUntil = 0;
 
 function bounded(promise, timeoutMs) {
@@ -21,37 +10,60 @@ function bounded(promise, timeoutMs) {
   return Promise.race([
     promise,
     new Promise((_, reject) => {
-      timer = setTimeout(() => reject(new Error(`ACRM backend bridge exceeded ${timeoutMs}ms.`)), timeoutMs);
+      timer = setTimeout(() => reject(new Error(`ARIM registry bridge exceeded ${timeoutMs}ms.`)), timeoutMs);
     })
   ]).finally(() => clearTimeout(timer));
 }
 
+function ready() {
+  return /^https:\/\/[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev$/i.test(BACKEND_URL);
+}
+
+function capabilityOf(prompt) {
+  const s = String(prompt || '').toLowerCase();
+  if (/\b(code|coding|bug|debug|javascript|typescript|python|java|kotlin|swift|sql|github|repository|function|class|api|architecture)\b/.test(s)) return 'coding';
+  if (/\b(reason|reasoning|logic|math|prove|derive|constraint|puzzle|schedule|algorithm|calculate|analysis)\b/.test(s)) return 'reasoning';
+  if (/\b(research|latest|current|today|news|web|internet|sources?|evidence|verify online)\b/.test(s)) return 'research';
+  if (/\b(urdu|roman urdu|roman-urdu|hinglish|multilingual|translate|translation)\b/.test(s)) return 'multilingual';
+  return 'general';
+}
+
 function coolDown(error) {
   const message = String(error?.message || error || '').toLowerCase();
-  backendCoolingUntil = Date.now() + (/permission|app.?check|auth/.test(message) ? 60_000 : 15_000);
+  backendCoolingUntil = Date.now() + (/429|rate.?limit|quota/.test(message) ? 60_000 : 15_000);
+}
+
+async function post(path, body, timeoutMs) {
+  const response = await bounded(fetch(`${BACKEND_URL}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    cache: 'no-store'
+  }), timeoutMs);
+  if (!response.ok) throw new Error(`NOVA registry HTTP ${response.status}.`);
+  return response.json();
 }
 
 export async function getAtomicBackendPlan(prompt) {
-  if (Date.now() < backendCoolingUntil) return null;
+  if (!ready() || Date.now() < backendCoolingUntil) return null;
   try {
-    await requireFirebaseUser();
-    await requireFreshAppCheck();
-    const result = await bounded(planCallable({ prompt: String(prompt || '').slice(0, 12000) }), 1150);
-    const data = result?.data || null;
+    const capability = capabilityOf(prompt);
+    const data = await post('/v1/plan', { capability }, 1350);
     if (!data || !Array.isArray(data.candidates)) return null;
     return data;
   } catch (error) {
     coolDown(error);
-    console.warn('[NOVA ACRM] backend plan unavailable; local chain continues.', error);
+    console.warn('[NOVA ARIM] Cloudflare registry plan unavailable; local chain continues.', error);
     return null;
   }
 }
 
 export function reportAtomicOutcome(payload = {}) {
-  if (Date.now() < backendCoolingUntil) return;
+  if (!ready() || Date.now() < backendCoolingUntil) return;
   const provider = String(payload.provider || '').trim();
   const modelId = String(payload.modelId || payload.model || '').trim();
   if (!provider || !modelId || provider === 'NOVA Local') return;
+
   const body = {
     source: String(payload.source || provider).slice(0, 80),
     provider: provider.slice(0, 80),
@@ -62,15 +74,16 @@ export function reportAtomicOutcome(payload = {}) {
     quality: Math.max(0, Math.min(1, Number(payload.quality ?? 0.8)))
   };
 
-  // Deliberately fire-and-forget so learning can never delay a user answer.
   Promise.resolve().then(async () => {
     try {
-      await requireFirebaseUser();
-      await requireFreshAppCheck();
-      await bounded(outcomeCallable(body), 1500);
+      await post('/v1/outcome', body, 1500);
     } catch (error) {
       coolDown(error);
-      console.warn('[NOVA ACRM] learning feedback unavailable; local memory remains active.', error);
+      console.warn('[NOVA ARIM] Cloudflare learning feedback unavailable; local memory remains active.', error);
     }
   });
+}
+
+export function novaBrainBackendUrl() {
+  return ready() ? BACKEND_URL : '';
 }
