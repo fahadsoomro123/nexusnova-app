@@ -1,0 +1,78 @@
+name: Deploy NOVA Cloudflare Brain
+
+on:
+  push:
+    branches: [nova-sol57-pro-v128]
+    paths:
+      - 'cloudflare/nova-brain-worker/**'
+      - '.github/workflows/nova57-cloudflare-brain-deploy.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nova57-cloudflare-production
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    uses: ./.github/workflows/nova57-cloudflare-brain-ci.yml
+
+  deploy:
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    defaults:
+      run:
+        working-directory: cloudflare/nova-brain-worker
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      NOVA_D1_DATABASE_ID: ${{ secrets.NOVA_D1_DATABASE_ID }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Validate deployment credentials
+        shell: bash
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          test -n "$NOVA_D1_DATABASE_ID"
+
+      - name: Build deployment config
+        shell: bash
+        run: |
+          sed "s/__D1_DATABASE_ID__/$NOVA_D1_DATABASE_ID/" wrangler.template.toml > wrangler.toml
+          grep -F 'name = "nexusnova-brain-router"' wrangler.toml >/dev/null
+          grep -F 'binding = "DB"' wrangler.toml >/dev/null
+
+      - name: Apply append-only D1 schema
+        run: npx --yes wrangler@4 d1 execute nexusnova-brain-registry --remote --file=schema.sql --config=wrangler.toml
+
+      - name: Deploy Worker
+        run: npx --yes wrangler@4 deploy --config=wrangler.toml
+
+      - name: Verify production status
+        shell: bash
+        run: |
+          node - <<'NODE'
+          const endpoint = 'https://nexusnova-brain-router.fahadsoomro123.workers.dev/v1/status';
+          const response = await fetch(endpoint);
+          if (!response.ok) throw new Error(`status HTTP ${response.status}`);
+          const data = await response.json();
+          for (const key of ['catalogSize', 'callableRoutes', 'healthyRoutes']) {
+            if (!Number.isFinite(Number(data[key]))) throw new Error(`missing metric: ${key}`);
+          }
+          console.log(JSON.stringify({
+            ok: true,
+            catalogSize: Number(data.catalogSize),
+            callableRoutes: Number(data.callableRoutes),
+            healthyRoutes: Number(data.healthyRoutes)
+          }));
+          NODE
