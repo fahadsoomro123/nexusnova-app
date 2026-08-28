@@ -71,7 +71,7 @@ jobs:
       - name: Keep registry CI storage-free
         run: |
           set -euo pipefail
-          if grep -Eq 'upload-artifact|actions/cache' .github/workflows/nova57-200k-registry-ci.yml; then
+          if grep -Eq 'uses:[[:space:]]*actions/(upload-artifact|cache)@' .github/workflows/nova57-200k-registry-ci.yml; then
             echo 'Registry CI must not upload artifacts or caches.' >&2
             exit 1
           fi
