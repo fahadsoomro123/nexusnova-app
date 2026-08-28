@@ -8,11 +8,13 @@ const STATS = db.collection('novaAdaptiveRouteStats');
 const KILO_BASE = 'https://api.kilo.ai/api/gateway';
 const HORDE_BASE = 'https://aihorde.net/api/v2';
 const HORDE_ANON_KEY = '0000000000';
-const CLIENT_AGENT = 'NexusNova:5.7-sol:adaptive-router-v1';
+const CLIENT_AGENT = 'NexusNova:5.7-sol:adaptive-router-v2';
 const MAX_INPUT_CHARS = 18000;
 const MAX_HISTORY_TURNS = 18;
 const CACHE_TTL_MS = 60 * 1000;
+const STICKY_ROUTE_TTL_MS = 2 * 60 * 1000;
 const cache = new Map();
+const lastGoodByTask = new Map();
 
 function uidOf(req) {
   if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Sign in first.');
@@ -56,9 +58,9 @@ function taskProfile(prompt) {
 }
 
 function budget(mode) {
-  if (mode === 'deep') return {totalMs: 18000, routeTimeoutMs: 11500, hedgeDelayMs: 650, maxRoutes: 3, maxTokens: 1100, historyTurns: 14};
-  if (mode === 'standard') return {totalMs: 10500, routeTimeoutMs: 7200, hedgeDelayMs: 360, maxRoutes: 3, maxTokens: 760, historyTurns: 10};
-  return {totalMs: 6200, routeTimeoutMs: 4700, hedgeDelayMs: 220, maxRoutes: 2, maxTokens: 420, historyTurns: 6};
+  if (mode === 'deep') return {totalMs: 16000, routeTimeoutMs: 10000, hedgeDelayMs: 520, maxRoutes: 3, maxTokens: 1050, historyTurns: 14};
+  if (mode === 'standard') return {totalMs: 9000, routeTimeoutMs: 6000, hedgeDelayMs: 260, maxRoutes: 3, maxTokens: 720, historyTurns: 10};
+  return {totalMs: 4600, routeTimeoutMs: 3200, hedgeDelayMs: 140, maxRoutes: 2, maxTokens: 380, historyTurns: 6};
 }
 
 function normalizeHistory(raw) {
@@ -149,6 +151,50 @@ function bootstrapRoutes() {
   }];
 }
 
+function stickyRouteId(profile) {
+  const row = lastGoodByTask.get(profile.taskClass);
+  if (!row || Date.now() - row.at > STICKY_ROUTE_TTL_MS) {
+    if (row) lastGoodByTask.delete(profile.taskClass);
+    return '';
+  }
+  return row.routeId;
+}
+
+function rememberWinner(profile, route) {
+  const id = String(route?.id || '');
+  if (id) lastGoodByTask.set(profile.taskClass, {routeId: id, at: Date.now()});
+}
+
+function diverseSelection(routes, profile, maxRoutes) {
+  const remaining = [...routes];
+  const selected = [];
+  const providers = new Set();
+  const sticky = stickyRouteId(profile);
+
+  if (sticky) {
+    const index = remaining.findIndex(route => route.id === sticky && route.status !== 'quarantined');
+    if (index >= 0) {
+      const [route] = remaining.splice(index, 1);
+      selected.push(route);
+      providers.add(route.provider);
+    }
+  }
+
+  for (let i = 0; i < remaining.length && selected.length < maxRoutes; i += 1) {
+    const route = remaining[i];
+    if (providers.has(route.provider)) continue;
+    selected.push(route);
+    providers.add(route.provider);
+  }
+
+  for (const route of remaining) {
+    if (selected.length >= maxRoutes) break;
+    if (selected.some(row => row.id === route.id)) continue;
+    selected.push(route);
+  }
+  return selected;
+}
+
 async function candidateRoutes(profile, dataClass) {
   const snap = await REGISTRY_REF.get();
   const registry = snap.exists ? snap.data() || {} : {};
@@ -185,6 +231,16 @@ function openAIText(data) {
   return '';
 }
 
+function validateAnswer(value) {
+  const text = String(value || '').trim();
+  if (!text) throw new Error('Empty completion');
+  if (/^\s*<!doctype\s+html/i.test(text) || /^\s*<html[\s>]/i.test(text)) throw new Error('Provider returned HTML instead of an answer');
+  if (/type\.googleapis\.com\/(?:google\.rpc|google\.firebase)/i.test(text) || /^\s*\{\s*"error"\s*:/i.test(text)) {
+    throw new Error('Provider returned a transport diagnostic instead of an answer');
+  }
+  return text;
+}
+
 async function runKilo(route, prompt, cfg, signal) {
   const response = await fetch(`${KILO_BASE}/chat/completions`, {
     method: 'POST',
@@ -199,9 +255,7 @@ async function runKilo(route, prompt, cfg, signal) {
     })
   });
   const data = await responseJson(response);
-  const text = openAIText(data);
-  if (!text) throw new Error('Empty completion');
-  return text;
+  return validateAnswer(openAIText(data));
 }
 
 async function runHorde(route, prompt, cfg, signal) {
@@ -229,7 +283,7 @@ async function runHorde(route, prompt, cfg, signal) {
       const state = await responseJson(response);
       const generations = Array.isArray(state?.generations) ? state.generations : [];
       const text = safe(generations[0]?.text, 12000);
-      if (text) return text;
+      if (text) return validateAnswer(text);
       if (state?.faulted === true || state?.is_possible === false || state?.done === true) throw new Error('Horde route unavailable');
     }
     throw new Error('aborted');
@@ -262,7 +316,7 @@ async function recordStat(route, taskClass, ok, latencyMs) {
 
 async function hedgedGenerate(routes, prompt, profile) {
   const b = budget(profile.mode);
-  const selected = routes.slice(0, b.maxRoutes);
+  const selected = diverseSelection(routes, profile, b.maxRoutes);
   const started = Date.now();
   const controllers = selected.map(() => new AbortController());
   const failures = [];
@@ -275,8 +329,8 @@ async function hedgedGenerate(routes, prompt, profile) {
 
   const tasks = selected.map((route, index) => (async () => {
     const controller = controllers[index];
-    const delay = index * b.hedgeDelayMs;
-    if (delay) await sleep(delay, controller.signal);
+    const delayMs = index * b.hedgeDelayMs;
+    if (delayMs) await sleep(delayMs, controller.signal);
     const routeStarted = Date.now();
     const routeTimer = setTimeout(() => controller.abort(), b.routeTimeoutMs);
     try {
@@ -299,6 +353,7 @@ async function hedgedGenerate(routes, prompt, profile) {
     });
     const winner = await Promise.race([Promise.any(tasks), overall]);
     controllers.forEach((controller, index) => { if (index !== winner.index) controller.abort(); });
+    rememberWinner(profile, winner.route);
     await Promise.allSettled([
       recordStat(winner.route, profile.taskClass, true, winner.latencyMs),
       ...failures.slice(0, 2).map(f => recordStat(f.route, profile.taskClass, false, f.latencyMs))
@@ -308,6 +363,7 @@ async function hedgedGenerate(routes, prompt, profile) {
       totalMs: Date.now() - started,
       hedged: winner.index > 0 || failures.length > 0,
       attempted: Math.min(selected.length, winner.index + 1 + failures.length),
+      selectedProviders: [...new Set(selected.map(route => route.provider))],
       failures: failures.map(f => ({provider: f.route.provider, model: f.route.model, error: f.error}))
     };
   } finally {
@@ -377,6 +433,7 @@ exports.novaGenerateAdaptive = onCall({
     latencyMs: result.totalMs,
     route: {provider: result.route.provider, model: result.route.model},
     hedged: result.hedged,
+    selectedProviders: result.selectedProviders,
     discoveredPool: Number(registrySummary?.routes || routes.length),
     verifiedLive: Number(registrySummary?.verifiedLive || 0)
   };
@@ -394,8 +451,8 @@ exports.getNovaAdaptiveRouterStatus = onCall({
   const data = snap.exists ? snap.data() || {} : {};
   return {
     ok: true,
-    version: 1,
-    architecture: 'mixture-of-brains + adaptive reasoning + hedged routing + context compaction + route learning',
+    version: 2,
+    architecture: 'mixture-of-brains + sticky task routing + provider-diverse hedging + adaptive reasoning + context compaction + route learning',
     foregroundIsolation: true,
     registry: data.summary || {providers: 0, routes: 0, verifiedLive: 0, quarantined: 0, degraded: 0, dead: 0}
   };
