@@ -71,6 +71,30 @@ export async function getAtomicBackendPlan(prompt) {
   }
 }
 
+export async function getAtomicCapabilityPlan(capability = 'general') {
+  if (!ready() || Date.now() < backendCoolingUntil) return null;
+  const allowed = new Set(['general', 'coding', 'reasoning', 'research', 'multilingual']);
+  const safeCapability = allowed.has(String(capability)) ? String(capability) : 'general';
+  try {
+    const data = await post('/v1/plan', { capability: safeCapability }, 1800);
+    return data && Array.isArray(data.candidates) ? data : null;
+  } catch (error) {
+    coolDown(error);
+    return null;
+  }
+}
+
+export async function getAtomicBackendStatus() {
+  if (!ready()) return null;
+  try {
+    const response = await bounded(fetch(`${BACKEND_URL}/v1/status`, { cache: 'no-store' }), 1800);
+    if (!response.ok) throw new Error(`NOVA registry HTTP ${response.status}.`);
+    return response.json();
+  } catch {
+    return null;
+  }
+}
+
 export function reportAtomicOutcome(payload = {}) {
   if (!ready() || Date.now() < backendCoolingUntil) return;
   const provider = String(payload.provider || '').trim();

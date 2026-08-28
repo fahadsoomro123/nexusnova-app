@@ -9,6 +9,9 @@ on:
       - 'fresh-rebuild/src/nova57-atomic-chain.js'
       - 'fresh-rebuild/src/nova57-pro-orchestrator.js'
       - 'fresh-rebuild/src/features/apps/nova-sol57-fresh.js'
+      - 'fresh-rebuild/src/features/apps/nova57-control-center.js'
+      - 'fresh-rebuild/assets/styles/nova57-control-center.css'
+      - 'fresh-rebuild/index.html'
       - 'fresh-rebuild/src/features/apps/app-screen.js'
       - 'functions/novaAtomicChain.js'
       - 'scripts/nova57-hard-benchmark.mjs'
@@ -33,6 +36,7 @@ jobs:
           node --check fresh-rebuild/src/nova57-atomic-chain.js
           node --check fresh-rebuild/src/nova57-pro-orchestrator.js
           node --check fresh-rebuild/src/features/apps/nova-sol57-fresh.js
+          node --check fresh-rebuild/src/features/apps/nova57-control-center.js
           node --check fresh-rebuild/src/features/apps/app-screen.js
           node --check functions/novaAtomicChain.js
           node --check scripts/nova57-hard-benchmark.mjs
@@ -149,6 +153,26 @@ jobs:
             throw new Error('NOVA 5.7 renderer is not first-priority for the AI app screen.');
           }
           console.log('Actual AI app screen resolves to NOVA 5.7 ARIM Pro Orchestrator.');
+          NODE
+
+      - name: Verify functional control center
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const nova = fs.readFileSync('fresh-rebuild/src/features/apps/nova-sol57-fresh.js', 'utf8');
+          const panel = fs.readFileSync('fresh-rebuild/src/features/apps/nova57-control-center.js', 'utf8');
+          const css = fs.readFileSync('fresh-rebuild/assets/styles/nova57-control-center.css', 'utf8');
+          const html = fs.readFileSync('fresh-rebuild/index.html', 'utf8');
+          for (const token of ['mountNovaControlCenter', 'data-nx57-control', 'data-nx57-control-center']) {
+            if (!nova.includes(token)) throw new Error(`NOVA control integration missing: ${token}`);
+          }
+          for (const token of ['getAtomicBackendStatus', 'getAtomicCapabilityPlan', '__NOVA_ATOMIC_CHAIN_LAST__', 'catalogRecords', 'semanticallyEvaluatedRoutes']) {
+            if (!panel.includes(token)) throw new Error(`Dashboard genuine metric binding missing: ${token}`);
+          }
+          if (/Math\.random|fake|demoData|mockData/.test(panel)) throw new Error('Control center cannot use fake/demo counters.');
+          if (!css.includes('@media(max-width:760px)')) throw new Error('Mobile control-center adaptation missing.');
+          if (!html.includes('nova57-control-center.css')) throw new Error('Control-center stylesheet is not loaded.');
+          console.log('Separate responsive NOVA control center is bound only to real backend/runtime telemetry.');
           NODE
 
       - name: Verify internal reasoning leak rejection
