@@ -1,8 +1,8 @@
-name: NOVA 5.7 Pro v128 Source Check
+name: NOVA 5.7 Pro v128 Release Source Check
 
 on:
   push:
-    branches: [nova-sol57-pro-v128]
+    branches: [nova-sol57-pro-v128-release]
     paths:
       - 'fresh-rebuild/src/features/apps/nova57-task-status.js'
       - 'fresh-rebuild/src/nova57-web-research-router-compat.js'
@@ -10,6 +10,7 @@ on:
       - 'fresh-rebuild/src/nova57-keyless-max-router-compat.js'
       - 'fresh-rebuild/src/nova57-puter-keyless-provider.js'
       - '.github/workflows/nova57-pro-v128-check.yml'
+      - '.github/workflows/nexusnova-nova57-pro-v1027.yml'
   workflow_dispatch:
 
 jobs:
@@ -21,7 +22,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verify isolated professional NOVA delta
+      - name: Verify isolated professional NOVA release delta
         shell: bash
         run: |
           set -euo pipefail
@@ -31,12 +32,13 @@ jobs:
           for f in "${changed[@]}"; do
             case "$f" in
               .github/workflows/nova57-pro-v128-check.yml|\
+              .github/workflows/nexusnova-nova57-pro-v1027.yml|\
               fresh-rebuild/src/features/apps/nova57-task-status.js|\
               fresh-rebuild/src/nova57-web-research-router-compat.js|\
               fresh-rebuild/src/nova57-github-public-router-compat.js|\
               fresh-rebuild/src/nova57-keyless-max-router-compat.js|\
               fresh-rebuild/src/nova57-puter-keyless-provider.js) ;;
-              *) echo "Unexpected v128 change: $f"; exit 1 ;;
+              *) echo "Unexpected v128 release change: $f"; exit 1 ;;
             esac
           done
 
@@ -54,4 +56,4 @@ jobs:
           grep -Fq "getPuterVerifiedSeedRoutes" fresh-rebuild/src/nova57-puter-keyless-provider.js
 
           ! git diff --name-only origin/nova-sol57-polish-v127...HEAD | grep -Eq 'mining|reward|wallet|functions/|NexusOtaWebManager'
-          echo 'NOVA v128 professional source checks: PASS'
+          echo 'NOVA v128 professional release source checks: PASS'
