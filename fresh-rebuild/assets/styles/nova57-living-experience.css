@@ -1,6 +1,6 @@
 /* NOVA 5.7 Sol — living experience layer.
-   Styles only real NOVA renderer-owned controls. No fake screen, no overlay UI,
-   no replacement painting. The goal is a premium, calm and responsive feel. */
+   Styles only real NOVA renderer-owned controls. No fake screen or replacement
+   painting. The goal is a premium, calm and responsive Android experience. */
 
 :root {
   --nx57-spring:cubic-bezier(.2,.8,.2,1);
@@ -10,6 +10,10 @@
   --nx57-soft-border:rgba(255,255,255,.12);
   --nx57-hover:rgba(255,255,255,.055);
   --nx57-press:rgba(255,255,255,.09);
+}
+
+html.nx57-clean-mode .nx57-clean-screen {
+  position:relative;
 }
 
 html.nx57-clean-mode .nx57-clean-screen,
@@ -47,7 +51,8 @@ html.nx57-clean-mode .nx57-native-chat-button,
 html.nx57-clean-mode .nx57-native-avatar,
 html.nx57-clean-mode .nx57-clean-quick,
 html.nx57-clean-mode .nx57-clean-pop button,
-html.nx57-clean-mode .nx57-message-action {
+html.nx57-clean-mode .nx57-message-action,
+html.nx57-clean-mode .nx57-jump-latest {
   transition:transform var(--nx57-fast) var(--nx57-spring),background var(--nx57-fast) ease,border-color var(--nx57-fast) ease,opacity var(--nx57-fast) ease,box-shadow var(--nx57-fast) ease,color var(--nx57-fast) ease;
 }
 
@@ -56,7 +61,8 @@ html.nx57-clean-mode .nx57-clean-plus:active,
 html.nx57-clean-mode .nx57-clean-mic:active,
 html.nx57-clean-mode .nx57-clean-send:active,
 html.nx57-clean-mode .nx57-native-chat-button:active,
-html.nx57-clean-mode .nx57-native-avatar:active {
+html.nx57-clean-mode .nx57-native-avatar:active,
+html.nx57-clean-mode .nx57-jump-latest:active {
   transform:scale(.93);
 }
 
@@ -73,6 +79,7 @@ html.nx57-clean-mode .nx57-clean-seg button.is-active {
 html.nx57-clean-mode .nx57-clean-messages {
   scroll-behavior:smooth;
   overscroll-behavior-y:contain;
+  scrollbar-gutter:stable;
 }
 
 html.nx57-clean-mode .nx57-clean-msg {
@@ -90,7 +97,7 @@ html.nx57-clean-mode .nx57-clean-msg.user {
 html.nx57-clean-mode .nx57-message-actions {
   display:flex;
   align-items:center;
-  gap:4px;
+  gap:2px;
   min-height:30px;
   margin-top:7px;
   opacity:.72;
@@ -150,6 +157,15 @@ html.nx57-clean-mode .nx57-clean-compose:focus-within {
   background:#1d1d1d;
   border-color:rgba(255,255,255,.22);
   box-shadow:0 18px 50px rgba(0,0,0,.44),0 0 0 1px rgba(255,255,255,.025),inset 0 1px 0 rgba(255,255,255,.055);
+}
+
+html.nx57-clean-mode .nx57-clean-screen.nx57-is-busy .nx57-clean-compose {
+  border-color:rgba(98,153,255,.24);
+  animation:nx57WorkingEdge 1.8s ease-in-out infinite;
+}
+
+html.nx57-clean-mode .nx57-clean-screen.nx57-offline .nx57-clean-compose {
+  border-color:rgba(255,180,92,.24);
 }
 
 html.nx57-clean-mode .nx57-clean-compose textarea {
@@ -218,6 +234,34 @@ html.nx57-clean-mode .nx57-task-status:not([hidden]) {
   animation:nx57StatusIn 160ms ease both;
 }
 
+html.nx57-clean-mode .nx57-jump-latest {
+  position:absolute;
+  right:16px;
+  bottom:calc(102px + env(safe-area-inset-bottom,0px));
+  z-index:8;
+  min-height:34px;
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:999px;
+  padding:7px 12px;
+  background:rgba(28,28,28,.96);
+  color:#ededed;
+  box-shadow:0 10px 28px rgba(0,0,0,.34),inset 0 1px 0 rgba(255,255,255,.045);
+  font:600 12px/1 var(--nova-chat-font,system-ui,sans-serif);
+  opacity:0;
+  pointer-events:none;
+  transform:translateY(8px) scale(.97);
+}
+
+html.nx57-clean-mode .nx57-jump-latest.is-visible {
+  opacity:1;
+  pointer-events:auto;
+  transform:translateY(0) scale(1);
+}
+
+html.nx57-clean-mode .nx57-keyboard-focus .nx57-jump-latest {
+  bottom:calc(94px + env(safe-area-inset-bottom,0px));
+}
+
 @keyframes nx57MessageIn {
   from { opacity:0; transform:translateY(7px) scale(.995); }
   to { opacity:1; transform:translateY(0) scale(1); }
@@ -248,6 +292,11 @@ html.nx57-clean-mode .nx57-task-status:not([hidden]) {
   to { opacity:1; transform:translateY(0); }
 }
 
+@keyframes nx57WorkingEdge {
+  0%,100% { box-shadow:0 16px 44px rgba(0,0,0,.38),0 0 0 0 rgba(63,132,255,0),inset 0 1px 0 rgba(255,255,255,.045); }
+  50% { box-shadow:0 18px 48px rgba(0,0,0,.42),0 0 0 1px rgba(63,132,255,.08),inset 0 1px 0 rgba(255,255,255,.055); }
+}
+
 @media (hover:hover) and (pointer:fine) {
   html.nx57-clean-mode .nx57-clean-circle:hover,
   html.nx57-clean-mode .nx57-clean-plus:hover,
@@ -255,7 +304,8 @@ html.nx57-clean-mode .nx57-task-status:not([hidden]) {
   html.nx57-clean-mode .nx57-native-drawer__item:hover,
   html.nx57-clean-mode .nx57-native-recent:hover,
   html.nx57-clean-mode .nx57-clean-pop button:hover,
-  html.nx57-clean-mode .nx57-message-action:hover {
+  html.nx57-clean-mode .nx57-message-action:hover,
+  html.nx57-clean-mode .nx57-jump-latest:hover {
     background:var(--nx57-hover);
   }
 
@@ -272,9 +322,11 @@ html.nx57-clean-mode .nx57-task-status:not([hidden]) {
   html.nx57-clean-mode .nx57-clean-drawer-backdrop:not([hidden]),
   html.nx57-clean-mode .nx57-clean-drawer-backdrop:not([hidden]) .nx57-native-drawer,
   html.nx57-clean-mode .nx57-clean-chip,
-  html.nx57-clean-mode .nx57-task-status:not([hidden]) {
+  html.nx57-clean-mode .nx57-task-status:not([hidden]),
+  html.nx57-clean-mode .nx57-clean-screen.nx57-is-busy .nx57-clean-compose {
     animation:none !important;
   }
 
   html.nx57-clean-mode .nx57-clean-messages { scroll-behavior:auto; }
+  html.nx57-clean-mode .nx57-jump-latest { transition:none; }
 }
