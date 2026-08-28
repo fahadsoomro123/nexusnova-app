@@ -1,0 +1,12 @@
+name = "nexusnova-brain-router"
+main = "src/index.js"
+compatibility_date = "2026-08-28"
+workers_dev = true
+
+[triggers]
+crons = ["*/15 * * * *"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "nexusnova-brain-registry"
+database_id = "__D1_DATABASE_ID__"
