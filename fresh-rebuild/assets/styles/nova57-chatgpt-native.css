@@ -35,9 +35,7 @@ html.nx57-clean-mode .nx57-clean-msg {
   color:var(--nova-chat-text);
 }
 
-html.nx57-clean-mode .nx57-clean-msg.bot {
-  color:var(--nova-chat-text);
-}
+html.nx57-clean-mode .nx57-clean-msg.bot { color:var(--nova-chat-text); }
 
 html.nx57-clean-mode .nx57-clean-msg.user {
   max-width:min(86%,620px);
@@ -54,11 +52,9 @@ html.nx57-clean-mode .nx57-clean-compose textarea {
   letter-spacing:-.012em;
 }
 
-html.nx57-clean-mode .nx57-clean-compose textarea::placeholder {
-  color:#a6a6a6;
-}
+html.nx57-clean-mode .nx57-clean-compose textarea::placeholder { color:#a6a6a6; }
 
-/* Renderer-owned activity/status row. It sits in normal message flow. */
+/* Renderer-owned activity row. It reports tool/task stage, not private reasoning. */
 .nx57-task-status {
   width:min(100%,720px);
   align-self:center;
@@ -95,7 +91,16 @@ html.nx57-clean-mode .nx57-clean-compose textarea::placeholder {
   50% { opacity:1; transform:scale(1); }
 }
 
-/* ChatGPT-style drawer structure. These classes belong to the actual renderer. */
+/* Actual renderer-owned ChatGPT-style sidebar. */
+html.nx57-clean-mode .nx57-clean-drawer-backdrop {
+  display:block;
+  background:rgba(0,0,0,.58);
+  backdrop-filter:none;
+  -webkit-backdrop-filter:none;
+}
+
+html.nx57-clean-mode .nx57-clean-drawer-backdrop[hidden] { display:none; }
+
 .nx57-native-drawer {
   width:min(80vw,360px);
   height:100dvh;
@@ -107,6 +112,7 @@ html.nx57-clean-mode .nx57-clean-compose textarea::placeholder {
   background:#000;
   color:#fff;
   border-right:1px solid rgba(255,255,255,.08);
+  box-shadow:18px 0 40px rgba(0,0,0,.38);
 }
 
 .nx57-native-drawer__top {
@@ -131,6 +137,41 @@ html.nx57-clean-mode .nx57-clean-compose textarea::placeholder {
   border-radius:50%;
   background:#202020;
   color:#fff;
+  padding:0;
+}
+
+.nx57-native-drawer__search svg { width:24px;height:24px; }
+
+.nx57-native-searchbar {
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 42px;
+  gap:8px;
+  padding:0 18px 14px;
+}
+
+.nx57-native-searchbar[hidden] { display:none; }
+
+.nx57-native-searchbar input {
+  min-width:0;
+  height:44px;
+  box-sizing:border-box;
+  border:1px solid rgba(255,255,255,.14);
+  border-radius:12px;
+  outline:0;
+  background:#171717;
+  color:#fff;
+  padding:0 13px;
+  font:400 16px/1 var(--nova-chat-font);
+}
+
+.nx57-native-searchbar button {
+  width:42px;
+  height:42px;
+  border:0;
+  border-radius:50%;
+  background:#202020;
+  color:#fff;
+  font-size:24px;
 }
 
 .nx57-native-drawer__nav {
@@ -203,6 +244,13 @@ html.nx57-clean-mode .nx57-clean-compose textarea::placeholder {
 .nx57-native-recent:active,
 .nx57-native-recent.is-active { background:var(--nova-chat-active); }
 
+.nx57-native-empty {
+  margin:0;
+  padding:10px 12px;
+  color:var(--nova-chat-subtle);
+  font:400 15px/1.4 var(--nova-chat-font);
+}
+
 .nx57-native-drawer__bottom {
   margin-top:auto;
   display:flex;
@@ -225,6 +273,8 @@ html.nx57-clean-mode .nx57-clean-compose textarea::placeholder {
   font:600 17px/1 var(--nova-chat-font);
 }
 
+.nx57-native-chat-button svg { width:23px;height:23px; }
+
 .nx57-native-avatar {
   width:44px;
   height:44px;
@@ -237,11 +287,17 @@ html.nx57-clean-mode .nx57-clean-compose textarea::placeholder {
   font:500 14px/1 var(--nova-chat-font);
 }
 
+.nx57-settings-pop {
+  left:auto;
+  right:20px;
+}
+
 @media (max-width:430px) {
   html.nx57-clean-mode .nx57-clean-msg,
   html.nx57-clean-mode .nx57-clean-compose textarea,
   .nx57-task-status { font-size:17px; }
   .nx57-native-drawer { width:min(80vw,340px); }
+  .nx57-native-drawer__brand { font-size:27px; }
 }
 
 @media (prefers-reduced-motion:reduce) {
