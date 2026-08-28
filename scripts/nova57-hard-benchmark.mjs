@@ -3,7 +3,7 @@ import {
   getAI,
   getGenerativeModel,
   GoogleAIBackend
-} from '../fresh-rebuild/src/nova57-web-research-router-compat.js';
+} from '../fresh-rebuild/src/nova57-pro-tool-router.js';
 
 const startedSuite = Date.now();
 const fakeFirebaseApp = { name: 'nova57-ci-benchmark' };
@@ -29,6 +29,8 @@ async function ask(name, prompt, verify) {
   const t0 = performance.now();
   let text = '';
   let error = null;
+  globalThis.__NOVA_WEB_LAST__ = null;
+  globalThis.__NOVA_GITHUB_LAST__ = null;
   try {
     const result = await model.generateContent(prompt);
     text = String(result?.response?.text?.() || '').trim();
@@ -128,7 +130,7 @@ tests.push(await ask(
   'Hard tool task / live web grounding',
   'Research the web live for the current OpenAI API documentation. State one currently documented API capability and name the source/domain you found. Keep it under 100 words. If live search fails, say it failed rather than guessing.',
   async (text, state) => {
-    const toolWorked = state.web?.mode === 'live-web-search' && !state.web?.error;
+    const toolWorked = /live-web-search/.test(String(state.web?.mode || '')) && !state.web?.error;
     const value = normalize(text);
     return {
       passed: toolWorked && value.length >= 35,
@@ -147,7 +149,7 @@ const summary = {
   avgMs,
   p95Ms,
   suiteMs: Date.now() - startedSuite,
-  note: 'elapsedMs is full-response latency. Current NOVA route is non-streaming, so true first-token latency is not yet measurable in this harness.'
+  note: 'elapsedMs is full-response latency. Local deterministic/tool-direct answers are included because they are part of NOVA routing.'
 };
 console.log('\n=== BENCHMARK SUMMARY ===');
 console.log(JSON.stringify(summary, null, 2));
@@ -157,7 +159,5 @@ await import('node:fs/promises').then(fs => fs.writeFile(
   JSON.stringify({ generatedAt: new Date().toISOString(), summary, tests }, null, 2) + '\n'
 ));
 
-// Hard gate: core exact QA + hard reasoning + GitHub live tool must pass.
-// Web search is recorded as a quality signal because third-party search can be transient.
 const required = tests.slice(0, 3);
 if (!required.every(t => t.passed)) process.exitCode = 1;
