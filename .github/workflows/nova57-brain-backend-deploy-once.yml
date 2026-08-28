@@ -1,0 +1,120 @@
+name: NOVA 5.7 One-Time Brain Backend Production Deploy
+
+on:
+  push:
+    branches: [nova-sol57-pro-v128]
+    paths:
+      - '.github/workflows/nova57-brain-backend-deploy-once.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nova57-brain-backend-production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy-and-self-clean:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      FIREBASE_PROJECT_ID: nexusnova-6ade2
+      NOVA_FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.NOVA_FIREBASE_SERVICE_ACCOUNT_JSON }}
+    steps:
+      - name: Checkout approved NOVA branch
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 5
+
+      - name: Verify protected deployment scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "nova-sol57-pro-v128"
+          test -s firebase.json
+          test -s .firebaserc
+          test -s functions/main.js
+          test -s functions/novaBrainRegistry.js
+          test -s functions/novaAtomicChain.js
+          test -s functions/novaBrainProfiler.js
+          test -s functions/novaBrainBootstrap.cjs
+          node --check functions/novaBrainRegistry.js
+          node --check functions/novaAtomicChain.js
+          node --check functions/novaBrainProfiler.js
+          node --check functions/novaBrainBootstrap.cjs
+          grep -Fq '"default": "nexusnova-6ade2"' .firebaserc
+
+      - name: Node 22
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          package-manager-cache: false
+
+      - name: Load Firebase production credential safely
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$NOVA_FIREBASE_SERVICE_ACCOUNT_JSON" || {
+            echo 'Missing NOVA_FIREBASE_SERVICE_ACCOUNT_JSON repository secret.' >&2
+            exit 1
+          }
+          CREDENTIAL_FILE="$RUNNER_TEMP/nova-firebase-service-account.json"
+          printf '%s' "$NOVA_FIREBASE_SERVICE_ACCOUNT_JSON" > "$CREDENTIAL_FILE"
+          chmod 600 "$CREDENTIAL_FILE"
+          jq -e --arg project "$FIREBASE_PROJECT_ID" '.type == "service_account" and .project_id == $project and (.client_email | type == "string")' "$CREDENTIAL_FILE" >/dev/null
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$CREDENTIAL_FILE" >> "$GITHUB_ENV"
+          echo "GCLOUD_PROJECT=$FIREBASE_PROJECT_ID" >> "$GITHUB_ENV"
+          echo "GOOGLE_CLOUD_PROJECT=$FIREBASE_PROJECT_ID" >> "$GITHUB_ENV"
+
+      - name: Install Firebase tooling
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm --prefix functions install --omit=dev --no-audit --no-fund
+          npm install --global firebase-tools --no-audit --no-fund
+          firebase --version
+
+      - name: Deploy only NOVA brain functions
+        shell: bash
+        run: |
+          set -euo pipefail
+          firebase deploy \
+            --project "$FIREBASE_PROJECT_ID" \
+            --non-interactive \
+            --only "functions:novaBrainDiscoveryRefresh,functions:novaBrainRegistryStatus,functions:novaSelectBrains,functions:novaAtomicPlan,functions:novaRecordBrainOutcome,functions:novaAtomicStatus,functions:novaBrainProfilerRefresh,functions:novaBrainProfilerStatus"
+
+      - name: Bootstrap sharded registry and leaderboards
+        shell: bash
+        run: |
+          set -euo pipefail
+          node functions/novaBrainBootstrap.cjs --cycles=2
+
+      - name: Verify deployed NOVA function names
+        shell: bash
+        run: |
+          set -euo pipefail
+          firebase functions:list --project "$FIREBASE_PROJECT_ID" > "$RUNNER_TEMP/nova-functions-list.txt"
+          for fn in novaBrainDiscoveryRefresh novaBrainRegistryStatus novaSelectBrains novaAtomicPlan novaRecordBrainOutcome novaAtomicStatus novaBrainProfilerRefresh novaBrainProfilerStatus; do
+            grep -Fq "$fn" "$RUNNER_TEMP/nova-functions-list.txt" || {
+              echo "Missing deployed function: $fn" >&2
+              exit 1
+            }
+          done
+          echo 'All scoped NOVA brain functions are listed by Firebase.'
+
+      - name: Self-clean temporary deploy workflow
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/nova57-brain-backend-deploy-once.yml
+          git config user.name 'NexusNova Deploy Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git commit -m 'Remove one-time NOVA backend deploy runner'
+          git push origin HEAD:nova-sol57-pro-v128
+
+      - name: Secure credential cleanup
+        if: always()
+        shell: bash
+        run: |
+          rm -f "$RUNNER_TEMP/nova-firebase-service-account.json" "$RUNNER_TEMP/nova-functions-list.txt"
