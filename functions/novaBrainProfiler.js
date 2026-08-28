@@ -15,6 +15,13 @@ const PROBE_LIMIT = 8;
 const LEADER_LIMIT = 48;
 const CANDIDATE_SCAN_LIMIT = 180;
 const CAPABILITIES = ['general', 'coding', 'reasoning', 'multilingual', 'research'];
+const BENCHMARKS = [
+  { capability: 'reasoning', prompt: 'Compute 17 multiplied by 19. Reply exactly NOVA_323.', expected: 'NOVA_323' },
+  { capability: 'coding', prompt: 'JavaScript: let x=2; for(let i=0;i<3;i++) x*=2; Reply exactly NOVA_16.', expected: 'NOVA_16' },
+  { capability: 'general', prompt: 'Follow this instruction: reply exactly NOVA_BLUE. No other text.', expected: 'NOVA_BLUE' },
+  { capability: 'multilingual', prompt: 'Urdu word kitab means book in English. Reply exactly NOVA_BOOK.', expected: 'NOVA_BOOK' },
+  { capability: 'reasoning', prompt: 'Sequence 2, 6, 12, 20, 30. Reply with the next number exactly as NOVA_42.', expected: 'NOVA_42' }
+];
 
 function text(value, max = 500) {
   return String(value ?? '').trim().slice(0, max);
@@ -136,12 +143,18 @@ async function discoverPublicInferenceRoutes() {
   return summary;
 }
 
-function qualityOk(value) {
+function qualityOk(value, expected = '') {
   const output = text(value, 1200);
   if (!output) return false;
   if (/^<think>|^<analysis>|^(?:the\s+)?user\s+(?:asks|wants|is asking)|^we\s+(?:need|should|must)\s+(?:to\s+)?(?:respond|answer)/i.test(output)) return false;
   if (/^\s*[\[{]\s*"(?:choices|error|model|usage|id)"\s*:/i.test(output)) return false;
-  return /NOVA_OK/i.test(output);
+  return expected ? output === expected : true;
+}
+
+function benchmarkFor(modelId) {
+  const seed = [...String(modelId || '')].reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  const cycle = Math.floor(Date.now() / (2 * 60 * 60_000));
+  return BENCHMARKS[(seed + cycle) % BENCHMARKS.length];
 }
 
 function outputText(data, raw) {
@@ -167,13 +180,14 @@ async function probeRoute(row) {
   if (!modelId || !base || !['Kilo', 'OVHcloud'].includes(provider)) return null;
 
   const started = Date.now();
+  const benchmark = benchmarkFor(modelId);
   try {
     const result = await fetchJson(`${base}/chat/completions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: modelId,
-        messages: [{ role: 'user', content: 'Reply exactly with NOVA_OK and nothing else.' }],
+        messages: [{ role: 'user', content: benchmark.prompt }],
         temperature: 0.1,
         max_tokens: 16,
         stream: false
@@ -182,14 +196,19 @@ async function probeRoute(row) {
     const latencyMs = Date.now() - started;
     const output = outputText(result.data, result.raw);
     if (result.ok && qualityOk(output)) {
-      return { source, provider, modelId, latencyMs, outcome: 'success', callableState: 'callable', quality: 1, quarantineMs: 0 };
+      return {
+        source, provider, modelId, latencyMs, outcome: 'success', callableState: 'callable', quarantineMs: 0,
+        capability: benchmark.capability,
+        semanticQuality: qualityOk(output, benchmark.expected) ? 1 : 0,
+        evaluator: 'benchmark'
+      };
     }
     const detail = text(result.data?.error?.message || result.data?.message || result.raw, 300);
-    if (result.ok) return { source, provider, modelId, latencyMs, outcome: 'quality-failure', callableState: 'degraded', quality: 0, quarantineMs: 10 * 60_000 };
-    return { source, provider, modelId, latencyMs, quality: 0, ...failureState(result.status, detail) };
+    if (result.ok) return { source, provider, modelId, latencyMs, outcome: 'quality-failure', callableState: 'degraded', quarantineMs: 10 * 60_000 };
+    return { source, provider, modelId, latencyMs, ...failureState(result.status, detail) };
   } catch (error) {
     const latencyMs = Date.now() - started;
-    return { source, provider, modelId, latencyMs, quality: 0, ...failureState(0, error?.message || error) };
+    return { source, provider, modelId, latencyMs, ...failureState(0, error?.message || error) };
   }
 }
 
@@ -208,7 +227,24 @@ async function applyProbe(result) {
     const successRate = attempts ? successes / attempts : 0;
     const latencyBonus = latencyEwmaMs ? Math.max(-18, 20 - latencyEwmaMs / 180) : 0;
     const failurePenalty = result.outcome === 'auth' ? 45 : result.outcome === 'rate-limit' ? 18 : result.outcome === 'timeout' ? 16 : result.outcome === 'quality-failure' ? 24 : result.outcome === 'success' ? 0 : 20;
-    const healthScore = clamp(successRate * 72 + result.quality * 22 + latencyBonus - failurePenalty, -100, 100);
+    const healthScore = clamp(successRate * 88 + latencyBonus - failurePenalty, -100, 100);
+    const semanticByCapability = previous.semanticByCapability && typeof previous.semanticByCapability === 'object'
+      ? { ...previous.semanticByCapability }
+      : {};
+    if (Number.isFinite(result.semanticQuality) && result.evaluator === 'benchmark') {
+      const capability = CAPABILITIES.includes(result.capability) ? result.capability : 'general';
+      const old = semanticByCapability[capability] || {};
+      const attempts = Math.max(0, Number(old.attempts || 0));
+      semanticByCapability[capability] = {
+        attempts: attempts + 1,
+        mean: attempts ? clamp(old.mean, 0, 1) * 0.8 + result.semanticQuality * 0.2 : result.semanticQuality,
+        wrong: Math.max(0, Number(old.wrong || 0)) + (result.semanticQuality < 0.35 ? 1 : 0),
+        lastScore: result.semanticQuality,
+        lastEvaluator: 'benchmark'
+      };
+    }
+    const learnedCapability = CAPABILITIES.includes(result.capability) ? result.capability : 'general';
+    const repeatedWrong = Number(semanticByCapability[learnedCapability]?.wrong || 0) >= 3;
     const health = result.outcome === 'success' && healthScore >= 55 ? 'healthy' : result.outcome === 'success' ? 'degraded' : healthScore < 25 ? 'unavailable' : 'degraded';
     learned = {
       source: result.source,
@@ -220,14 +256,17 @@ async function applyProbe(result) {
       chatCandidate: true,
       probeEligible: true,
       callableState: result.callableState,
-      health,
+      health: repeatedWrong ? 'quarantined' : health,
       healthScore,
       latencyEwmaMs,
       successes,
       failures,
+      semanticByCapability,
       lastProbeOutcome: result.outcome,
       lastProbeAt: FieldValue.serverTimestamp(),
-      quarantineUntil: result.quarantineMs ? Timestamp.fromMillis(Date.now() + result.quarantineMs) : null
+      quarantineUntil: repeatedWrong
+        ? Timestamp.fromMillis(Date.now() + 24 * 60 * 60_000)
+        : result.quarantineMs ? Timestamp.fromMillis(Date.now() + result.quarantineMs) : null
     };
     tx.set(ref, learned, { merge: true });
   });
@@ -245,7 +284,13 @@ function capabilityScore(row, capability) {
   const callable = row?.callableState === 'callable' ? 28 : row?.health === 'healthy' ? 14 : 0;
   const healthScore = clamp(row?.healthScore, -100, 100);
   const latencyPenalty = latency ? Math.min(35, latency / 150) : 0;
-  return healthScore + fit + callable + successRate * 34 - latencyPenalty;
+  const semantic = row?.semanticByCapability?.[capability] || row?.semanticByCapability?.general || {};
+  const semanticAttempts = Math.max(0, Number(semantic.attempts || 0));
+  const semanticMean = clamp(semantic.mean, 0, 1);
+  const semanticConfidence = Math.min(1, semanticAttempts / 20);
+  const intelligence = semanticAttempts ? semanticMean * semanticConfidence * 72 : 0;
+  const wrongPenalty = Math.min(70, Math.max(0, Number(semantic.wrong || 0)) * 12);
+  return healthScore + fit + callable + successRate * 24 + intelligence - wrongPenalty - latencyPenalty;
 }
 
 function leaderCandidate(row, capability) {
@@ -261,6 +306,7 @@ function leaderCandidate(row, capability) {
     latencyEwmaMs: Number(row?.latencyEwmaMs || 0),
     successes: Number(row?.successes || 0),
     failures: Number(row?.failures || 0),
+    semanticByCapability: row?.semanticByCapability && typeof row.semanticByCapability === 'object' ? row.semanticByCapability : {},
     score: capabilityScore(row, capability),
     lastVerifiedAt: Date.now()
   };
@@ -367,6 +413,8 @@ exports.__novaBrainProfilerInternals = {
   inferCapabilities,
   isTextModel,
   qualityOk,
+  benchmarkFor,
+  BENCHMARKS,
   capabilityScore,
   hashId,
   profileCycle

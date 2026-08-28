@@ -88,7 +88,14 @@ jobs:
           grep -Fq "provider: 'Kilo'" functions/novaBrainProfiler.js
           grep -Fq "provider: 'OVHcloud'" functions/novaBrainProfiler.js
           grep -Fq "probeEligible: true" functions/novaBrainProfiler.js
-          grep -Fq "content: 'Reply exactly with NOVA_OK and nothing else.'" functions/novaBrainProfiler.js
+          grep -Fq 'const BENCHMARKS = [' functions/novaBrainProfiler.js
+          grep -Fq 'semanticByCapability' functions/novaBrainProfiler.js
+          grep -Fq "evaluator: 'benchmark'" functions/novaBrainProfiler.js
+          grep -Fq 'semanticConfidence' functions/novaBrainProfiler.js
+          if grep -Fq 'result.quality * 22' functions/novaBrainProfiler.js; then
+            echo 'Transport health must not inherit fake semantic quality.' >&2
+            exit 1
+          fi
           grep -Fq 'novaBrainProfilerRefresh' functions/novaBrainProfiler.js
           grep -Fq 'novaBrainProfilerStatus' functions/novaBrainProfiler.js
           grep -Fq 'require("./novaBrainProfiler")' functions/main.js

@@ -7,6 +7,10 @@ on:
     paths:
       - 'scripts/nova57-arim-live-smoke.mjs'
       - 'fresh-rebuild/src/nova57-atomic-brain-pool.js'
+      - 'fresh-rebuild/src/nova57-atomic-chain.js'
+      - 'fresh-rebuild/src/nova57-atomic-backend-client.js'
+      - 'fresh-rebuild/src/nova57-pro-orchestrator.js'
+      - 'scripts/nova57-hard-benchmark.mjs'
       - '.github/workflows/nova57-arim-live-smoke.yml'
 
 permissions:
@@ -32,3 +36,6 @@ jobs:
 
       - name: ARIM live distinct-mesh smoke
         run: node scripts/nova57-arim-live-smoke.mjs
+
+      - name: NOVA hard answer benchmark
+        run: node scripts/nova57-hard-benchmark.mjs
