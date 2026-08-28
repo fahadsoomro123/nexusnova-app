@@ -1,0 +1,40 @@
+name: NOVA 5.7 Keyless Hardened Check
+
+on:
+  push:
+    branches: [nova-sol57-keyless-hardened-v126]
+    paths:
+      - 'fresh-rebuild/src/nova57-keyless-max-router-compat.js'
+      - 'fresh-rebuild/src/nova57-puter-keyless-provider.js'
+      - '.github/workflows/nova57-keyless-hardened-check.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify keyless provider source
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module --check < fresh-rebuild/src/nova57-puter-keyless-provider.js
+          node --input-type=module --check < fresh-rebuild/src/nova57-keyless-max-router-compat.js
+          grep -Fq "PUTER_VERIFIED_FREE_SEED_COUNT" fresh-rebuild/src/nova57-keyless-max-router-compat.js
+          grep -Fq "discoverPuterFreeRoutes" fresh-rebuild/src/nova57-keyless-max-router-compat.js
+          grep -Fq "cohere/north-mini-code:free" fresh-rebuild/src/nova57-puter-keyless-provider.js
+          grep -Fq "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free" fresh-rebuild/src/nova57-puter-keyless-provider.js
+          grep -Fq "dots-studio/dots-3-note-preview:free" fresh-rebuild/src/nova57-puter-keyless-provider.js
+          grep -Fq "inclusionai/ling-3.0-tiny:free" fresh-rebuild/src/nova57-puter-keyless-provider.js
+          grep -Fq "liquid/lfm-2.5-2.6b:free" fresh-rebuild/src/nova57-puter-keyless-provider.js
+          grep -Fq "z-ai/autoglm-phone-multilingual" fresh-rebuild/src/nova57-puter-keyless-provider.js
+          grep -Fq "thedrummer/anubis-70b-v1.1" fresh-rebuild/src/nova57-puter-keyless-provider.js
+          grep -Fq "sao10k/72b-qwen2.5-kunou-v1" fresh-rebuild/src/nova57-puter-keyless-provider.js
+          grep -Fq "ds-archive/doctor-shotgun-3.3-70b-magnum-v4-se" fresh-rebuild/src/nova57-puter-keyless-provider.js
+          ! grep -Fq "discoverLLM7" fresh-rebuild/src/nova57-keyless-max-router-compat.js
+          ! grep -Fq "Pollinations" fresh-rebuild/src/nova57-keyless-max-router-compat.js
+          echo 'Keyless hardened source verification: PASS'
