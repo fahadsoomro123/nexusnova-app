@@ -1,21 +1,24 @@
-// NOVA 5.7 Sol — hardened keyless multi-provider router.
+// NOVA 5.7 Sol — adaptive keyless multi-provider router.
+// Foreground inference never waits for provider/model discovery. Discovery and
+// catalog refresh run separately in the background and yield to user requests.
 // No provider API secrets are embedded in the APK/WebView source.
-// Anonymous providers are attempted first. Puter.js is an additional keyless
-// browser provider and can use a user's Puter session without developer API keys.
 
 import {
   discoverPuterFreeRoutes,
+  getPuterVerifiedSeedRoutes,
   runPuterRoute,
   PUTER_VERIFIED_FREE_SEED_COUNT
 } from './nova57-puter-keyless-provider.js';
 
 const MAX_ROUTES = 150;
-const MAX_ATTEMPTS_PER_REQUEST = 14;
-const TOTAL_TIMEOUT_MS = 52_000;
-const DEFAULT_ATTEMPT_TIMEOUT_MS = 4_800;
-const HORDE_ATTEMPT_TIMEOUT_MS = 7_000;
+const MAX_ATTEMPTS_PER_REQUEST = 10;
+const TOTAL_TIMEOUT_MS = 32_000;
+const DEFAULT_ATTEMPT_TIMEOUT_MS = 4_200;
+const HORDE_ATTEMPT_TIMEOUT_MS = 6_500;
 const DISCOVERY_TTL_MS = 5 * 60_000;
-const CLIENT_AGENT = 'NexusNova:5.7-sol:keyless-hardened';
+const DISCOVERY_RETRY_MS = 60_000;
+const BACKGROUND_START_DELAY_MS = 2_500;
+const CLIENT_AGENT = 'NexusNova:5.7-sol:adaptive-keyless';
 
 const KILO_BASE = 'https://api.kilo.ai/api/gateway';
 const OVH_BASE = 'https://oai.endpoints.kepler.ai.cloud.ovh.net/v1';
@@ -28,7 +31,11 @@ const clamp = (n, min, max) => Math.min(max, Math.max(min, Number(n) || min));
 let cachedRoutes = [];
 let cachedAt = 0;
 let lastGoodRoute = null;
+let discoveryPromise = null;
+let discoveryTimer = 0;
+let foregroundRequests = 0;
 const circuit = new Map();
+const routeStats = new Map();
 
 function systemText(options = {}) {
   const parts = options?.systemInstruction?.parts;
@@ -115,16 +122,22 @@ function looksZeroCost(row) {
   return input !== undefined && output !== undefined && numericZero(input) && numericZero(output);
 }
 
+function builtInSeedRoutes() {
+  return [
+    route('Kilo', 'kilo-auto/free', 'openai', 120, { base: KILO_BASE, timeoutMs: 4_000, seed: true }),
+    ...getPuterVerifiedSeedRoutes()
+  ];
+}
+
 async function discoverKilo() {
-  // The auto/free route remains useful even if model discovery is temporarily down.
-  const routes = [route('Kilo', 'kilo-auto/free', 'openai', 120, { base: KILO_BASE, timeoutMs: 4_300 })];
+  const routes = [route('Kilo', 'kilo-auto/free', 'openai', 120, { base: KILO_BASE, timeoutMs: 4_000, seed: true })];
   try {
     const data = await jsonFetch(`${KILO_BASE}/models`, {}, 4_500);
     for (const row of arrayFromModelPayload(data)) {
       const id = modelId(row);
       if (!id) continue;
       if (id === 'kilo-auto/free' || /:free$/i.test(id) || looksZeroCost(row)) {
-        routes.push(route('Kilo', id, 'openai', 116, { base: KILO_BASE, timeoutMs: 4_300 }));
+        routes.push(route('Kilo', id, 'openai', 116, { base: KILO_BASE, timeoutMs: 4_000 }));
       }
     }
   } catch (error) {
@@ -140,7 +153,7 @@ async function discoverOVH() {
     for (const row of arrayFromModelPayload(data)) {
       const id = modelId(row);
       if (!id || /embed|rerank|guard|moderation/i.test(id)) continue;
-      routes.push(route('OVHcloud', id, 'openai', 96, { base: OVH_BASE, timeoutMs: 4_500 }));
+      routes.push(route('OVHcloud', id, 'openai', 96, { base: OVH_BASE, timeoutMs: 4_200 }));
     }
   } catch (error) {
     console.warn('[NOVA Keyless] OVH discovery:', error);
@@ -224,32 +237,75 @@ function diversify(routes) {
   return out;
 }
 
-async function discoverRoutes(force = false) {
-  if (!force && cachedRoutes.length && Date.now() - cachedAt < DISCOVERY_TTL_MS) return cachedRoutes;
-
-  // Pollinations and LLM7 are intentionally NOT counted/used here: their
-  // current documented generation paths require credentials, so keeping their
-  // legacy keyless probes would waste time and inflate the keyless count.
-  const settled = await Promise.allSettled([
-    discoverKilo(),
-    discoverOVH(),
-    discoverHorde(),
-    discoverPuterFreeRoutes(force)
-  ]);
-  const dynamic = settled.flatMap(x => x.status === 'fulfilled' ? x.value : []);
-  cachedRoutes = diversify(dedupeRoutes(dynamic)).slice(0, MAX_ROUTES);
-  cachedAt = Date.now();
-
-  globalThis.__NOVA_KEYLESS_ROUTE_POOL__ = cachedRoutes.map(r => `${r.provider}:${r.model}`);
-  globalThis.__NOVA_KEYLESS_ROUTE_COUNT__ = cachedRoutes.length;
+function publishPoolState(mode = 'ready') {
+  const routes = cachedRoutes.length ? cachedRoutes : builtInSeedRoutes();
+  globalThis.__NOVA_KEYLESS_ROUTE_POOL__ = routes.map(r => `${r.provider}:${r.model}`);
+  globalThis.__NOVA_KEYLESS_ROUTE_COUNT__ = routes.length;
   globalThis.__NOVA_KEYLESS_VERIFIED_NEW_PUTER_SEEDS__ = PUTER_VERIFIED_FREE_SEED_COUNT;
-  globalThis.__NOVA_KEYLESS_PROVIDER_COUNT__ = new Set(cachedRoutes.map(r => r.provider)).size;
-  console.info('[NOVA Keyless] live route pool', {
-    routes: cachedRoutes.length,
+  globalThis.__NOVA_KEYLESS_PROVIDER_COUNT__ = new Set(routes.map(r => r.provider)).size;
+  globalThis.__NOVA_DISCOVERY_STATE__ = {
+    mode,
+    routes: routes.length,
     providers: globalThis.__NOVA_KEYLESS_PROVIDER_COUNT__,
-    verifiedNewPuterSeeds: PUTER_VERIFIED_FREE_SEED_COUNT
-  });
+    cachedAt: cachedAt ? new Date(cachedAt).toISOString() : null,
+    foregroundRequests
+  };
+}
+
+function ensureSeedPool() {
+  if (!cachedRoutes.length) cachedRoutes = diversify(dedupeRoutes(builtInSeedRoutes())).slice(0, MAX_ROUTES);
+  publishPoolState(cachedAt ? 'ready' : 'seed-ready');
   return cachedRoutes;
+}
+
+async function refreshRoutesInBackground(force = false) {
+  if (discoveryPromise) return discoveryPromise;
+  if (foregroundRequests > 0) {
+    scheduleBackgroundDiscovery(2_000);
+    return null;
+  }
+  if (!force && cachedAt && Date.now() - cachedAt < DISCOVERY_TTL_MS) return cachedRoutes;
+
+  publishPoolState('background-refresh');
+  discoveryPromise = (async () => {
+    const settled = await Promise.allSettled([
+      discoverKilo(),
+      discoverOVH(),
+      discoverHorde(),
+      discoverPuterFreeRoutes(force)
+    ]);
+    const dynamic = settled.flatMap(x => x.status === 'fulfilled' ? x.value : []);
+    const merged = diversify(dedupeRoutes([...builtInSeedRoutes(), ...dynamic])).slice(0, MAX_ROUTES);
+    if (merged.length) cachedRoutes = merged;
+    cachedAt = Date.now();
+    publishPoolState('ready');
+    console.info('[NOVA Keyless] background route refresh', {
+      routes: cachedRoutes.length,
+      providers: globalThis.__NOVA_KEYLESS_PROVIDER_COUNT__,
+      verifiedNewPuterSeeds: PUTER_VERIFIED_FREE_SEED_COUNT
+    });
+    return cachedRoutes;
+  })().catch(error => {
+    console.warn('[NOVA Keyless] background discovery failed:', error);
+    publishPoolState('background-error');
+    scheduleBackgroundDiscovery(DISCOVERY_RETRY_MS);
+    return cachedRoutes;
+  }).finally(() => {
+    discoveryPromise = null;
+  });
+  return discoveryPromise;
+}
+
+function scheduleBackgroundDiscovery(delayMs = BACKGROUND_START_DELAY_MS) {
+  if (discoveryTimer || discoveryPromise) return;
+  discoveryTimer = setTimeout(() => {
+    discoveryTimer = 0;
+    if (foregroundRequests > 0) {
+      scheduleBackgroundDiscovery(2_000);
+      return;
+    }
+    refreshRoutesInBackground(false);
+  }, Math.max(250, Number(delayMs) || BACKGROUND_START_DELAY_MS));
 }
 
 function extractOpenAIText(data) {
@@ -367,6 +423,21 @@ function blocked(r) {
   return (circuit.get(circuitKey(r)) || 0) > Date.now();
 }
 
+function statFor(r) {
+  const key = circuitKey(r);
+  if (!routeStats.has(key)) routeStats.set(key, { ok: 0, fail: 0, consecutiveFail: 0, ewmaLatency: 0, lastSuccessAt: 0, lastFailureAt: 0 });
+  return routeStats.get(key);
+}
+
+function markSuccess(r, latencyMs) {
+  const s = statFor(r);
+  s.ok += 1;
+  s.consecutiveFail = 0;
+  s.ewmaLatency = s.ewmaLatency ? (s.ewmaLatency * 0.7 + latencyMs * 0.3) : latencyMs;
+  s.lastSuccessAt = Date.now();
+  circuit.delete(circuitKey(r));
+}
+
 function markFailure(r, error) {
   const status = Number(error?.status || 0);
   const message = String(error?.message || error || '').toLowerCase();
@@ -375,57 +446,80 @@ function markFailure(r, error) {
   else if (status === 401 || status === 403 || /unauth|forbidden|sign.?in|auth_window/.test(message)) ms = 5 * 60_000;
   else if (/timeout|abort/.test(message)) ms = 45_000;
   circuit.set(circuitKey(r), Date.now() + ms);
+  const s = statFor(r);
+  s.fail += 1;
+  s.consecutiveFail += 1;
+  s.lastFailureAt = Date.now();
+}
+
+function adaptiveScore(r) {
+  const s = statFor(r);
+  const latencyPenalty = s.ewmaLatency ? Math.min(14, s.ewmaLatency / 500) : 0;
+  const recentSuccess = s.lastSuccessAt && Date.now() - s.lastSuccessAt < 10 * 60_000 ? 8 : 0;
+  const lastGoodBonus = lastGoodRoute && circuitKey(lastGoodRoute) === circuitKey(r) ? 40 : 0;
+  return Number(r.priority || 0)
+    + Math.min(s.ok, 6) * 2
+    - Math.min(s.fail, 6) * 1.5
+    - Math.min(s.consecutiveFail, 4) * 7
+    - latencyPenalty
+    + recentSuccess
+    + lastGoodBonus;
 }
 
 function candidateOrder(pool) {
-  const available = pool.filter(r => !blocked(r));
-  const out = [];
-  if (lastGoodRoute) {
-    const hit = available.find(r => circuitKey(r) === circuitKey(lastGoodRoute));
-    if (hit) out.push(hit);
-  }
-  for (const r of available) {
-    if (out.some(x => circuitKey(x) === circuitKey(r))) continue;
-    out.push(r);
-  }
-  return out;
+  return pool
+    .filter(r => !blocked(r))
+    .slice()
+    .sort((a, b) => adaptiveScore(b) - adaptiveScore(a));
 }
 
 async function runKeylessRouter(prompt, options = {}) {
+  foregroundRequests += 1;
+  publishPoolState('foreground-priority');
+  const shouldRefreshAfter = !cachedAt || Date.now() - cachedAt >= DISCOVERY_TTL_MS;
   const deadline = Date.now() + TOTAL_TIMEOUT_MS;
-  let pool = await discoverRoutes(false);
-  if (!pool.length) pool = await discoverRoutes(true);
-  if (!pool.length) throw new Error('No keyless AI routes were discovered.');
-
+  const pool = ensureSeedPool();
   const attempts = [];
-  const candidates = candidateOrder(pool);
-  for (const r of candidates.slice(0, MAX_ATTEMPTS_PER_REQUEST)) {
-    if (Date.now() >= deadline) break;
-    try {
-      const remaining = Math.max(1_200, Math.min(routeTimeout(r), deadline - Date.now()));
-      const text = await withTimeout(runRoute(r, prompt, options), remaining, `${r.provider}/${r.model}`);
-      if (!text) throw new Error('Empty route response.');
-      lastGoodRoute = r;
-      globalThis.__NOVA_BRAIN_LAST__ = {
-        provider: r.provider,
-        model: r.model,
-        discoveredRoutes: pool.length,
-        discoveredProviders: new Set(pool.map(x => x.provider)).size,
-        attempts: attempts.length + 1,
-        at: new Date().toISOString()
-      };
-      console.info('[NOVA Keyless] success', globalThis.__NOVA_BRAIN_LAST__);
-      return text;
-    } catch (error) {
-      markFailure(r, error);
-      attempts.push({ provider: r.provider, model: r.model, error: String(error?.message || error) });
-      console.warn('[NOVA Keyless] switching route', r.provider, r.model, error);
-    }
-  }
 
-  const error = new Error(`Keyless router failed after ${attempts.length} routes from a ${pool.length}-route live pool.`);
-  error.attempts = attempts;
-  throw error;
+  try {
+    const candidates = candidateOrder(pool);
+    for (const r of candidates.slice(0, MAX_ATTEMPTS_PER_REQUEST)) {
+      if (Date.now() >= deadline) break;
+      const started = Date.now();
+      try {
+        const remaining = Math.max(1_200, Math.min(routeTimeout(r), deadline - Date.now()));
+        const text = await withTimeout(runRoute(r, prompt, options), remaining, `${r.provider}/${r.model}`);
+        if (!text) throw new Error('Empty route response.');
+        const latencyMs = Date.now() - started;
+        markSuccess(r, latencyMs);
+        lastGoodRoute = r;
+        globalThis.__NOVA_BRAIN_LAST__ = {
+          provider: r.provider,
+          model: r.model,
+          discoveredRoutes: pool.length,
+          discoveredProviders: new Set(pool.map(x => x.provider)).size,
+          attempts: attempts.length + 1,
+          latencyMs,
+          adaptive: true,
+          at: new Date().toISOString()
+        };
+        console.info('[NOVA Keyless] success', globalThis.__NOVA_BRAIN_LAST__);
+        return text;
+      } catch (error) {
+        markFailure(r, error);
+        attempts.push({ provider: r.provider, model: r.model, error: String(error?.message || error) });
+        console.warn('[NOVA Keyless] switching route', r.provider, r.model, error);
+      }
+    }
+
+    const error = new Error(`Keyless router failed after ${attempts.length} routes from a ${pool.length}-route live pool.`);
+    error.attempts = attempts;
+    throw error;
+  } finally {
+    foregroundRequests = Math.max(0, foregroundRequests - 1);
+    publishPoolState('ready');
+    if (shouldRefreshAfter) scheduleBackgroundDiscovery(750);
+  }
 }
 
 let originalFirebaseAI = null;
@@ -441,7 +535,15 @@ export class GoogleAIBackend {
 }
 
 export function getAI(firebaseApp) {
-  return { firebaseApp, __novaKeylessRouter: true, __novaKeylessHardened: true };
+  ensureSeedPool();
+  scheduleBackgroundDiscovery();
+  return {
+    firebaseApp,
+    __novaKeylessRouter: true,
+    __novaKeylessHardened: true,
+    __novaBackgroundDiscovery: true,
+    __novaAdaptiveRouting: true
+  };
 }
 
 export function getGenerativeModel(ai, options = {}) {
@@ -466,3 +568,6 @@ export function getGenerativeModel(ai, options = {}) {
     }
   };
 }
+
+ensureSeedPool();
+scheduleBackgroundDiscovery();
