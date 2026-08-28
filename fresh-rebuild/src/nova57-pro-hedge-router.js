@@ -1,0 +1,184 @@
+// NOVA 5.7 Pro — low-latency hedge layer.
+// Races at most two strong anonymous free Kilo routes, then falls back to the
+// broader adaptive multi-provider router. No API key or secret is embedded.
+
+import {
+  GoogleAIBackend as BaseGoogleAIBackend,
+  getAI as baseGetAI,
+  getGenerativeModel as baseGetGenerativeModel
+} from './nova57-pro-keyless-router.js';
+
+const KILO_BASE = 'https://api.kilo.ai/api/gateway';
+const FAST_MODELS = [
+  'poolside/laguna-xs-2.1:free',
+  'poolside/laguna-s-2.1:free',
+  'stepfun/step-3.7-flash:free',
+  'kilo-auto/free',
+  'openrouter/free',
+  'tencent/hy3:free'
+];
+const circuit = new Map();
+const perf = new Map();
+let lastGood = '';
+
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+function systemText(options = {}) {
+  const parts = options?.systemInstruction?.parts;
+  return Array.isArray(parts) ? parts.map(part => String(part?.text || '')).filter(Boolean).join('\n') : '';
+}
+
+function config(options = {}) {
+  const source = options?.generationConfig || {};
+  return {
+    temperature: Math.max(0.1, Math.min(1.1, Number(source.temperature ?? 0.45))),
+    maxTokens: Math.max(96, Math.min(900, Number(source.maxOutputTokens ?? 700)))
+  };
+}
+
+function profile(prompt) {
+  const text = String(prompt || '').toLowerCase();
+  if (text.length > 4200 || /\b(reason|reasoning|logic|constraint|research|github|tool result|architecture|debug|algorithm|analy[sz]e)\b/.test(text)) return 'hard';
+  return text.length < 650 ? 'quick' : 'standard';
+}
+
+function timeoutFor(kind) {
+  if (kind === 'quick') return 3300;
+  if (kind === 'hard') return 5200;
+  return 4300;
+}
+
+function modelScore(model) {
+  const s = perf.get(model) || { ok: 0, fail: 0, ewma: 0, lastOk: 0 };
+  const good = model === lastGood ? 100 : 0;
+  const fresh = s.lastOk && Date.now() - s.lastOk < 10 * 60_000 ? 25 : 0;
+  const latency = s.ewma ? Math.min(35, s.ewma / 180) : 0;
+  return good + fresh + s.ok * 3 - s.fail * 8 - latency - FAST_MODELS.indexOf(model) * 2;
+}
+
+function availableModels() {
+  const now = Date.now();
+  return FAST_MODELS
+    .filter(model => (circuit.get(model) || 0) <= now)
+    .sort((a, b) => modelScore(b) - modelScore(a));
+}
+
+function markSuccess(model, ms) {
+  const s = perf.get(model) || { ok: 0, fail: 0, ewma: 0, lastOk: 0 };
+  s.ok += 1;
+  s.ewma = s.ewma ? s.ewma * 0.7 + ms * 0.3 : ms;
+  s.lastOk = Date.now();
+  perf.set(model, s);
+  circuit.delete(model);
+  lastGood = model;
+}
+
+function markFailure(model, error) {
+  const s = perf.get(model) || { ok: 0, fail: 0, ewma: 0, lastOk: 0 };
+  s.fail += 1;
+  perf.set(model, s);
+  const text = String(error?.message || error || '').toLowerCase();
+  const status = Number(error?.status || 0);
+  let wait = 20_000;
+  if (status === 429 || /rate.?limit|quota/.test(text)) wait = 75_000;
+  else if (status === 401 || status === 403 || /auth|forbidden/.test(text)) wait = 180_000;
+  else if (/abort|timeout/.test(text)) wait = 30_000;
+  circuit.set(model, Date.now() + wait);
+}
+
+async function callKilo(model, prompt, options, timeoutMs, delayMs = 0) {
+  if (delayMs) await sleep(delayMs);
+  const cfg = config(options);
+  const messages = [];
+  const system = systemText(options);
+  if (system) messages.push({ role: 'system', content: system });
+  messages.push({ role: 'user', content: String(prompt || '') });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const started = Date.now();
+  try {
+    const response = await fetch(`${KILO_BASE}/chat/completions`, {
+      method: 'POST',
+      signal: controller.signal,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model, messages, temperature: cfg.temperature, max_tokens: cfg.maxTokens, stream: false })
+    });
+    const raw = await response.text();
+    let data = {};
+    try { data = raw ? JSON.parse(raw) : {}; } catch { data = { text: raw }; }
+    if (!response.ok) {
+      const error = new Error(String(data?.error?.message || data?.message || data?.error || raw || `HTTP ${response.status}`).slice(0, 400));
+      error.status = response.status;
+      throw error;
+    }
+    const content = data?.choices?.[0]?.message?.content ?? data?.choices?.[0]?.text ?? data?.output_text ?? data?.text;
+    const text = typeof content === 'string'
+      ? content.trim()
+      : Array.isArray(content)
+        ? content.map(part => typeof part === 'string' ? part : String(part?.text || part?.content || '')).join('').trim()
+        : '';
+    if (!text) throw new Error(`${model} returned no usable text.`);
+    const latencyMs = Date.now() - started;
+    markSuccess(model, latencyMs);
+    return { text, model, latencyMs };
+  } catch (error) {
+    markFailure(model, error);
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function fastHedge(prompt, options = {}) {
+  const mode = profile(prompt);
+  const timeoutMs = timeoutFor(mode);
+  const models = availableModels();
+  if (!models.length) throw new Error('No fast anonymous routes are healthy.');
+
+  // One proven route stays cheapest. Cold or hard requests use one small hedge
+  // so a single stalled free model does not freeze the user for 15–20 seconds.
+  const width = lastGood && mode !== 'hard' ? 1 : Math.min(2, models.length);
+  const selected = models.slice(0, width);
+  const started = Date.now();
+  const promises = selected.map((model, index) => callKilo(model, prompt, options, timeoutMs, index * 180));
+  try {
+    const winner = await Promise.any(promises);
+    globalThis.__NOVA_BRAIN_LAST__ = {
+      provider: 'Kilo',
+      model: winner.model,
+      attempts: selected.length,
+      latencyMs: winner.latencyMs,
+      wallMs: Date.now() - started,
+      profile: mode,
+      hedged: selected.length > 1,
+      at: new Date().toISOString()
+    };
+    return winner.text;
+  } catch (aggregate) {
+    const error = new Error(`Fast hedge failed across ${selected.length} route(s).`);
+    error.cause = aggregate;
+    throw error;
+  }
+}
+
+export class GoogleAIBackend extends BaseGoogleAIBackend {}
+
+export function getAI(firebaseApp, config = {}) {
+  const base = baseGetAI(firebaseApp, config);
+  return { ...base, __novaHedgeRouter: true };
+}
+
+export function getGenerativeModel(ai, options = {}) {
+  const baseModel = baseGetGenerativeModel(ai, options);
+  return {
+    async generateContent(prompt) {
+      try {
+        const text = await fastHedge(prompt, options);
+        return { response: { text: () => text } };
+      } catch (fastError) {
+        console.warn('[NOVA Hedge] fast routes unavailable; using broad adaptive router.', fastError);
+        return baseModel.generateContent(prompt);
+      }
+    }
+  };
+}
