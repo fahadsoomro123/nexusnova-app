@@ -31,6 +31,7 @@ async function ask(name, prompt, verify) {
   let error = null;
   globalThis.__NOVA_WEB_LAST__ = null;
   globalThis.__NOVA_GITHUB_LAST__ = null;
+  globalThis.__NOVA_BRAIN_LAST__ = null;
   try {
     const result = await model.generateContent(prompt);
     text = String(result?.response?.text?.() || '').trim();
@@ -77,19 +78,19 @@ const tests = [];
 tests.push(await ask(
   'Quick QA / exact arithmetic',
   'Answer only with the integer result, no words: 37 × 29',
-  async text => ({
-    passed: normalize(text) === '1073',
-    reason: `expected 1073, got ${normalize(text).slice(0, 80)}`
-  })
+  async text => ({ passed: normalize(text) === '1073', reason: `expected 1073, got ${normalize(text).slice(0, 80)}` })
 ));
 
 tests.push(await ask(
-  'Hard reasoning / CRT constraints',
+  'Hard exact reasoning / CRT constraints',
   'Find the smallest positive integer n satisfying all four constraints: n mod 3 = 2, n mod 5 = 3, n mod 7 = 2, n mod 11 = 5. Return only n, no explanation.',
-  async text => ({
-    passed: normalize(text) === '863',
-    reason: `expected 863, got ${normalize(text).slice(0, 80)}`
-  })
+  async text => ({ passed: normalize(text) === '863', reason: `expected 863, got ${normalize(text).slice(0, 80)}` })
+));
+
+tests.push(await ask(
+  'Hard LLM logic / unique schedule',
+  'Six tasks A B C D E F must occupy positions 1 through 6 exactly once. Constraints: C is immediately after A. B is before D. E is neither first nor last. F is before A. D is exactly two positions after B. F is not first. B is adjacent to E. Determine the unique order. Return ONLY the six letters with no spaces or explanation.',
+  async text => ({ passed: normalize(text).toUpperCase() === 'BEDFAC', reason: `expected BEDFAC, got ${normalize(text).slice(0, 100)}` })
 ));
 
 let expectedRepo = null;
@@ -101,10 +102,7 @@ try {
   if (repoRes.ok && commitsRes.ok) {
     const repo = await repoRes.json();
     const commits = await commitsRes.json();
-    expectedRepo = {
-      branch: String(repo?.default_branch || ''),
-      sha: String(commits?.[0]?.sha || '').slice(0, 8)
-    };
+    expectedRepo = { branch: String(repo?.default_branch || ''), sha: String(commits?.[0]?.sha || '').slice(0, 8) };
   }
 } catch {}
 
@@ -113,16 +111,11 @@ tests.push(await ask(
   'Live-check the public GitHub repository https://github.com/fahadsoomro123/nexusnova-website . Tell me its default branch and the latest commit short SHA. Keep the answer under 80 words and do not guess.',
   async (text, state) => {
     const value = normalize(text).toLowerCase();
-    if (!expectedRepo?.branch || !expectedRepo?.sha) {
-      return { passed: false, reason: 'CI could not independently fetch expected GitHub facts.' };
-    }
+    if (!expectedRepo?.branch || !expectedRepo?.sha) return { passed: false, reason: 'CI could not independently fetch expected GitHub facts.' };
     const toolWorked = state.github?.mode === 'public-read-only' && !state.github?.error;
     const hasBranch = value.includes(expectedRepo.branch.toLowerCase());
     const hasSha = value.includes(expectedRepo.sha.toLowerCase());
-    return {
-      passed: toolWorked && hasBranch && hasSha,
-      reason: `expected branch=${expectedRepo.branch}, sha=${expectedRepo.sha}; toolWorked=${toolWorked}; hasBranch=${hasBranch}; hasSha=${hasSha}`
-    };
+    return { passed: toolWorked && hasBranch && hasSha, reason: `expected branch=${expectedRepo.branch}, sha=${expectedRepo.sha}; toolWorked=${toolWorked}; hasBranch=${hasBranch}; hasSha=${hasSha}` };
   }
 ));
 
@@ -132,10 +125,7 @@ tests.push(await ask(
   async (text, state) => {
     const toolWorked = /live-web-search/.test(String(state.web?.mode || '')) && !state.web?.error;
     const value = normalize(text);
-    return {
-      passed: toolWorked && value.length >= 35,
-      reason: `liveWebTool=${toolWorked}; responseChars=${value.length}`
-    };
+    return { passed: toolWorked && value.length >= 35, reason: `liveWebTool=${toolWorked}; responseChars=${value.length}` };
   }
 ));
 
@@ -149,7 +139,7 @@ const summary = {
   avgMs,
   p95Ms,
   suiteMs: Date.now() - startedSuite,
-  note: 'elapsedMs is full-response latency. Local deterministic/tool-direct answers are included because they are part of NOVA routing.'
+  note: 'elapsedMs is full-response latency. Exact local tools, live tools, and a non-tool LLM logic test are all included.'
 };
 console.log('\n=== BENCHMARK SUMMARY ===');
 console.log(JSON.stringify(summary, null, 2));
@@ -159,5 +149,4 @@ await import('node:fs/promises').then(fs => fs.writeFile(
   JSON.stringify({ generatedAt: new Date().toISOString(), summary, tests }, null, 2) + '\n'
 ));
 
-const required = tests.slice(0, 3);
-if (!required.every(t => t.passed)) process.exitCode = 1;
+if (!tests.every(t => t.passed)) process.exitCode = 1;
