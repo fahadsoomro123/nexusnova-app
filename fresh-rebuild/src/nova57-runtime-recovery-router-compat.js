@@ -1,7 +1,7 @@
-// NOVA 5.7 Sol — runtime recovery router.
-// Foreground requests get a bounded fast path first. Live GitHub/web evidence is
-// collected before generation and failures are returned truthfully. Dynamic
-// keyless discovery remains available through the hardened base router.
+// NOVA 5.7 Sol — runtime recovery router v2.
+// Foreground requests race a fast direct route against a bounded multi-brain
+// recovery lane instead of waiting serially. Live GitHub/web evidence is
+// collected before generation and failures are returned truthfully.
 
 import {
   GoogleAIBackend as BaseGoogleAIBackend,
@@ -11,14 +11,15 @@ import {
 
 const KILO_BASE = 'https://api.kilo.ai/api/gateway';
 const KILO_MODEL = 'kilo-auto/free';
-const FAST_KILO_TIMEOUT_MS = 4_000;
-const BASE_FALLBACK_TIMEOUT_MS = 20_000;
+const FAST_KILO_TIMEOUT_MS = 3_200;
+const BASE_FALLBACK_TIMEOUT_MS = 11_000;
+const RECOVERY_HEDGE_DELAY_MS = 180;
 const GITHUB_API = 'https://api.github.com';
 const JINA_READER = 'https://r.jina.ai/';
 const DDG_HTML = 'https://html.duckduckgo.com/html/';
 const DEFAULT_OWNER = 'fahadsoomro123';
 const DEFAULT_WEBSITE_REPO = 'nexusnova-website';
-const TOOL_CACHE_TTL_MS = 2 * 60_000;
+const TOOL_CACHE_TTL_MS = 3 * 60_000;
 const toolCache = new Map();
 
 function latestUserRequest(prompt) {
@@ -73,13 +74,17 @@ function withTimeout(promise, ms, label = 'operation') {
   ]);
 }
 
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 function transient(error) {
   const status = Number(error?.status || 0);
   const message = String(error?.message || error || '').toLowerCase();
   return !status || status >= 500 || /abort|timeout|network|failed to fetch|load failed/.test(message);
 }
 
-async function fetchText(url, init = {}, timeoutMs = 6_000) {
+async function fetchText(url, init = {}, timeoutMs = 5_000) {
   const guard = timeoutGuard(timeoutMs);
   try {
     const response = await fetch(url, { ...init, signal: guard.signal });
@@ -95,7 +100,7 @@ async function fetchText(url, init = {}, timeoutMs = 6_000) {
   }
 }
 
-async function fetchJsonRetry(url, init = {}, timeoutMs = 6_500, attempts = 2) {
+async function fetchJsonRetry(url, init = {}, timeoutMs = 4_500, attempts = 2) {
   let lastError = null;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     try {
@@ -107,7 +112,7 @@ async function fetchJsonRetry(url, init = {}, timeoutMs = 6_500, attempts = 2) {
     } catch (error) {
       lastError = error;
       if (!transient(error) || attempt >= attempts - 1) throw error;
-      await new Promise(resolve => setTimeout(resolve, 220 + attempt * 180));
+      await delay(120 + attempt * 140);
     }
   }
   throw lastError || new Error('Request failed.');
@@ -141,7 +146,9 @@ function transportPayload(text) {
   const value = String(text || '').trim();
   return /^\s*[\[{].{0,120}["']?@type["']?\s*:/s.test(value)
     || /type\.googleapis\.com\/(?:google\.rpc|google\.firebase)/i.test(value)
-    || /^\s*\{\s*"error"\s*:/i.test(value);
+    || /^\s*\{\s*"error"\s*:/i.test(value)
+    || /^\s*<!doctype\s+html/i.test(value)
+    || /^\s*<html[\s>]/i.test(value);
 }
 
 function cleanAssistantText(text) {
@@ -192,12 +199,29 @@ async function boundedBaseGenerate(baseModel, prompt) {
 }
 
 async function generateForeground(baseModel, prompt, options) {
-  try {
-    return await fastKilo(prompt, options);
-  } catch (fastError) {
-    console.warn('[NOVA Recovery] fast route failed; using bounded multi-brain fallback.', fastError);
-    return boundedBaseGenerate(baseModel, prompt);
-  }
+  let kickFallback;
+  const fallbackKick = new Promise(resolve => { kickFallback = resolve; });
+  const started = performance.now();
+
+  const fastPromise = fastKilo(prompt, options)
+    .then(text => ({kind: 'fast-kilo', text}))
+    .catch(error => {
+      kickFallback?.();
+      throw error;
+    });
+
+  const fallbackPromise = Promise.race([delay(RECOVERY_HEDGE_DELAY_MS), fallbackKick])
+    .then(() => boundedBaseGenerate(baseModel, prompt))
+    .then(text => ({kind: 'multi-brain', text}));
+
+  const winner = await Promise.any([fastPromise, fallbackPromise]);
+  globalThis.__NOVA_RECOVERY_RACE__ = {
+    winner: winner.kind,
+    elapsedMs: Math.round(performance.now() - started),
+    hedgeDelayMs: RECOVERY_HEDGE_DELAY_MS,
+    at: new Date().toISOString()
+  };
+  return winner.text;
 }
 
 function filePriority(name) {
@@ -248,7 +272,7 @@ async function githubSnapshot(owner, repo) {
 
   const reads = await Promise.allSettled(selected.map(async entry => ({
     path: entry.path,
-    text: (await fetchText(rawUrl(owner, repo, branch, entry.path), {}, 5_000)).text.slice(0, 1100)
+    text: (await fetchText(rawUrl(owner, repo, branch, entry.path), {}, 3_500)).text.slice(0, 1100)
   })));
   const files = reads.filter(x => x.status === 'fulfilled' && x.value.text).map(x => x.value);
 
@@ -310,7 +334,7 @@ async function liveWebSearch(query) {
   const target = `${DDG_HTML}?q=${encodeURIComponent(query)}`;
   const { text } = await fetchText(`${JINA_READER}${target}`, {
     headers: { Accept: 'text/plain', 'X-Return-Format': 'markdown' }
-  }, 8_000);
+  }, 6_000);
   const cleaned = String(text || '').trim();
   if (cleaned.length < 80) throw new Error('Live web search returned no usable evidence.');
   const value = { query, text: cleaned.slice(0, 12_000), fetchedAt: new Date().toISOString(), source: 'DuckDuckGo HTML via Jina Reader' };
@@ -329,7 +353,7 @@ function webContext(result) {
 function runtimeContext() {
   const now = new Date();
   return `\n\n[NOVA RUNTIME FACTS]\nCurrent UTC timestamp: ${now.toISOString()}\nCurrent year: ${now.getUTCFullYear()}\n` +
-    `NOVA has a foreground fast route, bounded multi-brain fallback, live public GitHub read and explicit live web research. ` +
+    `NOVA has hedged foreground recovery, bounded multi-brain fallback, live public GitHub read and explicit live web research. ` +
     `Never claim a fixed cutoff as a reason not to use an available live tool. Never invent a tool action or source.`;
 }
 
@@ -342,7 +366,7 @@ export class GoogleAIBackend extends BaseGoogleAIBackend {}
 
 export function getAI(firebaseApp, config = {}) {
   const base = baseGetAI(firebaseApp, config);
-  return { ...base, __novaRuntimeRecovery: true, __novaForegroundFastPath: true };
+  return { ...base, __novaRuntimeRecovery: true, __novaForegroundFastPath: true, __novaRecoveryHedged: true };
 }
 
 export function getGenerativeModel(ai, options = {}) {
