@@ -113,7 +113,7 @@ function reportBackendFailures(failures, capability) {
   if (!Array.isArray(failures) || !failures.length) return;
   import('./nova57-atomic-backend-client.js').then(bridge => {
     if (typeof bridge?.reportAtomicOutcome !== 'function') return;
-    for (const failure of failures.slice(0, 2)) {
+    for (const failure of failures.slice(0, 4)) {
       if (!failure?.provider || !failure?.model) continue;
       bridge.reportAtomicOutcome({
         source: failure.provider,
@@ -337,62 +337,92 @@ async function callRoute(route, prompt, options, timeoutMs, delayMs = 0) {
   }
 }
 
-function laneSlice(candidates, lane, hedgeWidth) {
+export function laneWavePlan(candidates, lane = 0, laneSpan = 1, hedgeWidth = 2, maxWaves = 2) {
   const width = Math.max(1, Math.min(2, Number(hedgeWidth) || 1));
-  if (!candidates.length) return [];
-  const safeLane = Math.max(0, Math.min(15, Number(lane) || 0));
-  const start = safeLane * width;
-  if (start >= candidates.length) return [];
-  return candidates.slice(start, start + width);
+  const safeLane = Math.max(0, Math.min(7, Number(lane) || 0));
+  const span = Math.max(safeLane + 1, Math.min(8, Number(laneSpan) || 1));
+  const waveLimit = Math.max(1, Math.min(3, Number(maxWaves) || 1));
+  const waves = [];
+  for (let wave = 0; wave < waveLimit; wave += 1) {
+    const start = (wave * span + safeLane) * width;
+    if (start >= candidates.length) break;
+    const selected = candidates.slice(start, start + width);
+    if (selected.length) waves.push(selected);
+  }
+  return waves;
+}
+
+function waveTimeoutMs(remainingMs, wavesLeft) {
+  const remaining = Math.max(0, Number(remainingMs) || 0);
+  if (wavesLeft <= 1) return remaining;
+  const reserve = 900 * (wavesLeft - 1);
+  return Math.max(900, Math.min(2600, remaining - reserve));
 }
 
 export async function runAtomicBrain(prompt, options = {}, control = {}) {
   const capability = String(control.capability || 'general');
   const excludeKeys = Array.isArray(control.excludeKeys) ? control.excludeKeys : [];
   const preferredKeys = Array.isArray(control.preferredKeys) ? control.preferredKeys : [];
-  const timeoutMs = Math.max(900, Math.min(5200, Number(control.timeoutMs || 3600)));
+  const timeoutMs = Math.max(900, Math.min(7200, Number(control.timeoutMs || 3600)));
   const lane = Math.max(0, Number(control.lane || 0));
+  const laneSpan = Math.max(lane + 1, Math.min(8, Number(control.laneSpan || 1)));
   const hedgeWidth = Math.max(1, Math.min(2, Number(control.hedgeWidth || 2)));
+  const maxWaves = Math.max(1, Math.min(3, Number(control.maxWaves || 2)));
   const candidates = atomicCandidates(capability, excludeKeys, preferredKeys);
   if (!candidates.length) throw new Error(`No healthy ACRM/ARIM ${capability} candidates.`);
 
-  const selected = laneSlice(candidates, lane, hedgeWidth);
-  if (!selected.length) throw new Error(`No distinct ACRM/ARIM ${capability} candidate remains for lane ${lane}.`);
+  const waves = laneWavePlan(candidates, lane, laneSpan, hedgeWidth, maxWaves);
+  if (!waves.length) throw new Error(`No distinct ACRM/ARIM ${capability} candidate remains for lane ${lane}.`);
+
   const started = Date.now();
-  const attempts = selected.map((route, index) => callRoute(route, prompt, options, timeoutMs, index * 110));
-  try {
-    const winner = await Promise.any(attempts);
-    const brain = {
-      provider: winner.route.provider,
-      model: winner.route.model,
-      routeKey: keyOf(winner.route),
-      attempts: selected.length,
-      latencyMs: winner.latencyMs,
-      wallMs: Date.now() - started,
-      profile: capability,
-      adaptive: true,
-      atomic: true,
-      mesh: true,
-      lane,
-      selected: selected.map(keyOf),
-      preferred: preferredKeys.slice(0, 12),
-      at: new Date().toISOString()
-    };
-    globalThis.__NOVA_BRAIN_LAST__ = brain;
-    return {
-      response: { text: () => winner.text },
-      __novaAtomicRouteKey: brain.routeKey,
-      __novaAtomicBrain: brain
-    };
-  } catch (aggregate) {
-    const error = new Error(`ACRM/ARIM ${capability} lane ${lane} failed across ${selected.length} route(s).`);
-    error.cause = aggregate;
-    error.__novaAtomicFailures = Array.isArray(aggregate?.errors)
-      ? aggregate.errors.map(item => item?.__novaAtomicFailure).filter(Boolean)
-      : [];
-    reportBackendFailures(error.__novaAtomicFailures, capability);
-    throw error;
+  const failures = [];
+  const attemptedKeys = [];
+  for (let waveIndex = 0; waveIndex < waves.length; waveIndex += 1) {
+    const remaining = timeoutMs - (Date.now() - started);
+    if (remaining < 850) break;
+    const selected = waves[waveIndex];
+    attemptedKeys.push(...selected.map(keyOf));
+    const perWaveTimeout = waveTimeoutMs(remaining, waves.length - waveIndex);
+    const attempts = selected.map((route, index) => callRoute(route, prompt, options, perWaveTimeout, index * 90));
+    try {
+      const winner = await Promise.any(attempts);
+      const brain = {
+        provider: winner.route.provider,
+        model: winner.route.model,
+        routeKey: keyOf(winner.route),
+        attempts: attemptedKeys.length,
+        wave: waveIndex + 1,
+        wavesPlanned: waves.length,
+        latencyMs: winner.latencyMs,
+        wallMs: Date.now() - started,
+        profile: capability,
+        adaptive: true,
+        atomic: true,
+        mesh: true,
+        lane,
+        laneSpan,
+        selected: attemptedKeys.slice(),
+        preferred: preferredKeys.slice(0, 12),
+        at: new Date().toISOString()
+      };
+      globalThis.__NOVA_BRAIN_LAST__ = brain;
+      return {
+        response: { text: () => winner.text },
+        __novaAtomicRouteKey: brain.routeKey,
+        __novaAtomicBrain: brain
+      };
+    } catch (aggregate) {
+      if (Array.isArray(aggregate?.errors)) {
+        failures.push(...aggregate.errors.map(item => item?.__novaAtomicFailure).filter(Boolean));
+      }
+    }
   }
+
+  const error = new Error(`ACRM/ARIM ${capability} lane ${lane} failed across ${attemptedKeys.length} route(s) in ${waves.length} wave(s).`);
+  error.__novaAtomicFailures = failures;
+  error.__novaAtomicAttemptedKeys = attemptedKeys;
+  reportBackendFailures(failures, capability);
+  throw error;
 }
 
 export function atomicBrainMemorySnapshot() {
