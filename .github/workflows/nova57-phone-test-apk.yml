@@ -8,7 +8,7 @@ on:
       - '.github/workflows/nova57-phone-test-apk.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: nova57-phone-test-apk-${{ github.ref }}
@@ -21,6 +21,8 @@ jobs:
     steps:
       - name: Checkout latest NOVA branch
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Verify exact latest NOVA source
         shell: bash
@@ -65,10 +67,21 @@ jobs:
           sha256sum "$GITHUB_WORKSPACE/phone-apk/NexusNova-NOVA57-LATEST-phone-test.apk" > "$GITHUB_WORKSPACE/phone-apk/SHA256.txt"
           printf 'Source commit: %s\nBranch: %s\nBuild type: debug/installable phone test\nNOVA 5.7 ARIM source staged: PASS\n' "$GITHUB_SHA" "$GITHUB_REF_NAME" > "$GITHUB_WORKSPACE/phone-apk/BUILD-STATUS.txt"
 
-      - name: Upload phone APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: NexusNova-NOVA57-LATEST-phone-test
-          path: phone-apk/
-          if-no-files-found: error
-          retention-days: 7
+      - name: Publish phone APK to apk-builds branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'NexusNova APK Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git fetch origin apk-builds
+          PUB="$RUNNER_TEMP/nexusnova-phone-apk-publish"
+          rm -rf "$PUB"
+          git worktree add "$PUB" origin/apk-builds
+          cd "$PUB"
+          rm -rf nova57-phone-test
+          mkdir -p nova57-phone-test
+          cp -a "$GITHUB_WORKSPACE/phone-apk"/. nova57-phone-test/
+          git add -A nova57-phone-test
+          git commit -m "Publish NOVA 5.7 phone test APK $GITHUB_SHA"
+          git pull --rebase origin apk-builds
+          git push origin HEAD:apk-builds
