@@ -13,11 +13,6 @@ permissions:
   contents: write
 
 env:
-  NEXUSNOVA_SIGNING_KEYSTORE_B64: ${{ secrets.NEXUSNOVA_SIGNING_KEYSTORE_B64 }}
-  NEXUSNOVA_SIGNING_STORE_PASSWORD: ${{ secrets.NEXUSNOVA_SIGNING_STORE_PASSWORD }}
-  NEXUSNOVA_SIGNING_KEY_ALIAS: ${{ secrets.NEXUSNOVA_SIGNING_KEY_ALIAS }}
-  NEXUSNOVA_SIGNING_KEY_PASSWORD: ${{ secrets.NEXUSNOVA_SIGNING_KEY_PASSWORD }}
-  NEXUSNOVA_SIGNING_STORE_FILE: ${{ runner.temp }}/nexusnova-release.jks
   VERSION_CODE: '20260830'
   VERSION_NAME: '1.0.3-ota-public'
 
@@ -25,6 +20,12 @@ jobs:
   build-signed-bootstrap:
     runs-on: ubuntu-latest
     timeout-minutes: 35
+    env:
+      NEXUSNOVA_SIGNING_KEYSTORE_B64: ${{ secrets.NEXUSNOVA_SIGNING_KEYSTORE_B64 }}
+      NEXUSNOVA_SIGNING_STORE_PASSWORD: ${{ secrets.NEXUSNOVA_SIGNING_STORE_PASSWORD }}
+      NEXUSNOVA_SIGNING_KEY_ALIAS: ${{ secrets.NEXUSNOVA_SIGNING_KEY_ALIAS }}
+      NEXUSNOVA_SIGNING_KEY_PASSWORD: ${{ secrets.NEXUSNOVA_SIGNING_KEY_PASSWORD }}
+      NEXUSNOVA_SIGNING_STORE_FILE: ${{ runner.temp }}/nexusnova-release.jks
     steps:
       - name: Checkout current NOVA branch
         uses: actions/checkout@v4
