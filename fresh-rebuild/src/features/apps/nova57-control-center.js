@@ -22,7 +22,9 @@ function esc(value) {
 }
 
 function num(value) {
-  return Number.isFinite(Number(value)) ? Number(value) : null;
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function number(value) {
@@ -402,12 +404,16 @@ export function mountNovaControlCenter(host) {
     refreshBusy = true;
     shell.classList.add('is-refreshing');
     try {
-      const [nextStatus, ...planRows] = await Promise.all([
-        getAtomicBackendStatus(),
-        ...CAPABILITIES.map(capability => getAtomicCapabilityPlan(capability))
-      ]);
-      status = nextStatus;
-      plans = Object.fromEntries(CAPABILITIES.map((capability, index) => [capability, planRows[index] || null]));
+      // Mobile WebViews are more reliable when the authoritative status request
+    // gets the Worker connection first. Preserve the last good snapshot if one refresh
+    // is transiently unavailable instead of replacing real telemetry with fake zeros.
+    const nextStatus = await getAtomicBackendStatus();
+    if (nextStatus) status = nextStatus;
+
+    const planRows = await Promise.all(
+      CAPABILITIES.map(capability => getAtomicCapabilityPlan(capability))
+    );
+    plans = Object.fromEntries(CAPABILITIES.map((capability, index) => [capability, planRows[index] || plans[capability] || null]));
       fetchedAt = Date.now();
       const active = num(status?.activeRoutes);
       const healthy = num(status?.healthyRoutes);
