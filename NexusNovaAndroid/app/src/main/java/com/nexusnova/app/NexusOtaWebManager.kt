@@ -14,7 +14,7 @@ import java.security.MessageDigest
 import java.util.concurrent.Executors
 
 /**
- * Atomic differential web OTA layered over the signed bundled web baseline.
+ * Atomic differential web OTA layered over the signed bundled web baseline via public channel.
  *
  * A package is activated only after every declared file has been downloaded and
  * SHA-256 verified. The manifest must name the exact bundled baseline this APK
