@@ -1,7 +1,7 @@
-Source commit: a0ed9e2f7958c2164e86e32d9176b7c69078ca0a
+Source commit: 4f14c04df38102af9de29ebe10da19d9a8d27bff
 Branch: nova-sol57-pro-v128
 Build type: debug/installable phone test
-APK bytes: 28565702
+APK bytes: 28566214
 NOVA 5.7 ARIM source staged: PASS
 Live ARIM registry status: PASS
 Mobile ARIM dashboard hydration fix staged: PASS
