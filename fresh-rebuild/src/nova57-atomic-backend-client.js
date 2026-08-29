@@ -27,7 +27,7 @@ function capabilityOf(prompt) {
   const s = String(prompt || '').toLowerCase();
   if (/\b(code|coding|bug|debug|javascript|typescript|python|java|kotlin|swift|sql|github|repository|function|class|api|architecture)\b/.test(s)) return 'coding';
   if (/\b(reason|reasoning|logic|math|prove|derive|constraint|puzzle|schedule|algorithm|calculate|analysis)\b/.test(s)) return 'reasoning';
-  if (/\b(research|latest|current|today|news|web|internet|sources?|evidence|verify online)\b/.test(s)) return 'research';
+  if (/\b(research|latest|current|today|news|web|internet|sources?|evidence|verify online|seo|sitemap|robots\.txt|canonical|indexing|search console|keyword|organic traffic|website audit|site audit|schema markup)\b/.test(s)) return 'research';
   if (/\b(urdu|roman urdu|roman-urdu|hinglish|multilingual|translate|translation)\b/.test(s)) return 'multilingual';
   return 'general';
 }
@@ -151,12 +151,17 @@ export async function generateViaAtomicRelay(prompt, options = {}) {
   const headers = {};
   if (appCheckToken) headers['X-Firebase-AppCheck'] = appCheckToken;
   if (authToken) headers.Authorization = `Bearer ${authToken}`;
+
+  // The renderer's quality profile remains the source of truth, but the relay now
+  // gives detailed answers room to breathe instead of silently clipping at 900 tokens.
+  const requestedTokens = Math.max(256, Number(options.maxTokens || 1200) || 1200);
+  const expandedTokens = Math.min(2800, Math.round(requestedTokens * 1.75));
   const data = await post('/v1/generate', {
     prompt: value.slice(0, 12000),
     capability,
-    maxTokens: Math.max(96, Math.min(900, Number(options.maxTokens || 700) || 700)),
+    maxTokens: Math.max(384, expandedTokens),
     temperature: Math.max(0.1, Math.min(1, Number(options.temperature ?? 0.4) || 0.4))
-  }, 5600, headers);
+  }, 12000, headers);
   if (!data?.ok || !String(data?.text || '').trim()) throw new Error(`NOVA relay failed: ${String(data?.error || 'empty-answer')}`);
   return {
     text: String(data.text).trim(),
