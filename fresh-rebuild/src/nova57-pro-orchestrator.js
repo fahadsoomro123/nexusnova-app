@@ -76,6 +76,20 @@ function mobileRelayPreferred() {
   return Boolean(bridge && typeof bridge.postMessage === 'function');
 }
 
+async function boundedGeneration(promise, timeoutMs, label) {
+  let timer;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${label} exceeded ${timeoutMs}ms.`)), timeoutMs);
+      })
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 async function generateForRuntime(model, prompt, capability, options = {}) {
   if (mobileRelayPreferred() || typeof document !== 'undefined') {
     try {
@@ -101,7 +115,9 @@ async function generateForRuntime(model, prompt, capability, options = {}) {
       console.warn('[NOVA Mobile Relay] authenticated Worker relay unavailable; falling back to direct router.', error);
     }
   }
-  return model.generateContent(prompt);
+  // Relay failure must never fall into a minutes-long Firebase/WebView wait.
+  // The direct router has its own adaptive attempts; cap the whole safety path.
+  return boundedGeneration(model.generateContent(prompt), 9500, 'NOVA direct fallback');
 }
 
 function emit(stage, detail = {}) {
