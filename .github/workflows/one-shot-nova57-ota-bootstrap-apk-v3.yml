@@ -15,8 +15,8 @@ env:
   NEXUSNOVA_SIGNING_KEY_ALIAS: ${{ secrets.NEXUSNOVA_KEY_ALIAS }}
   NEXUSNOVA_SIGNING_KEY_PASSWORD: ${{ secrets.NEXUSNOVA_KEY_PASSWORD }}
   NEXUSNOVA_SIGNING_STORE_FILE: /tmp/nexusnova-release.jks
-  VERSION_CODE: '20260829'
-  VERSION_NAME: '1.0.2-ota'
+  VERSION_CODE: '20260830'
+  VERSION_NAME: '1.0.2-ota-safe'
 
 jobs:
   build:
@@ -59,7 +59,7 @@ jobs:
           chmod 600 "$NEXUSNOVA_SIGNING_STORE_FILE"
           keytool -list -keystore "$NEXUSNOVA_SIGNING_STORE_FILE" -storepass "$NEXUSNOVA_SIGNING_STORE_PASSWORD" -alias "$NEXUSNOVA_SIGNING_KEY_ALIAS" >/dev/null
 
-      - name: Inject version and signing
+      - name: Inject version signing and crash-safe release mode
         shell: bash
         run: |
           set -euo pipefail
@@ -77,15 +77,18 @@ jobs:
           line='            signingConfig = signingConfigs.getByName("nexusRelease")\n'
           if line not in s:
               s=s.replace('        release {\n','        release {\n'+line,1)
+          s,c=re.subn(r'isMinifyEnabled\s*=\s*true','isMinifyEnabled = false',s,count=1)
+          if c!=1: raise SystemExit('release minify anchor missing')
           p.write_text(s,encoding='utf-8')
           PY
+          grep -Fq 'isMinifyEnabled = false' NexusNovaAndroid/app/build.gradle.kts
 
-      - name: Build signed release
+      - name: Build signed crash-safer release
         working-directory: NexusNovaAndroid
         shell: bash
         run: |
           set -euo pipefail
-          gradle --no-daemon assembleRelease 2>&1 | tee "$GITHUB_WORKSPACE/build.log"
+          gradle --no-daemon clean assembleRelease 2>&1 | tee "$GITHUB_WORKSPACE/build.log"
           test -s app/build/outputs/apk/release/app-release.apk
 
       - name: Verify signature and Gradient Premium bundle
@@ -104,10 +107,10 @@ jobs:
           set -euo pipefail
           OUT="$GITHUB_WORKSPACE/output"
           mkdir -p "$OUT"
-          cp NexusNovaAndroid/app/build/outputs/apk/release/app-release.apk "$OUT/NexusNova-NOVA57-OTA-BOOTSTRAP-v1.0.2-ota-vc20260829.apk"
+          cp NexusNovaAndroid/app/build/outputs/apk/release/app-release.apk "$OUT/NexusNova-NOVA57-OTA-BOOTSTRAP-v1.0.2-ota-safe-vc20260830.apk"
           sha256sum "$OUT"/*.apk > "$OUT/SHA256.txt"
           cp signature.txt "$OUT/"
-          printf 'Source branch: nova-sol57-pro-v128\nSource commit: %s\nSigned release: PASS\nAtomic OTA v2: PASS\nGradient Premium bundled: PASS\n' "$(git rev-parse HEAD)" > "$OUT/BUILD-STATUS.txt"
+          printf 'Source branch: nova-sol57-pro-v128\nSource commit: %s\nSigned release: PASS\nR8/minify: OFF\nAtomic OTA v2: PASS\nGradient Premium bundled: PASS\n' "$(git rev-parse HEAD)" > "$OUT/BUILD-STATUS.txt"
 
       - name: Publish APK direct to apk-builds
         shell: bash
@@ -119,12 +122,12 @@ jobs:
           rm -rf /tmp/nx-publish
           git worktree add /tmp/nx-publish origin/apk-builds
           cd /tmp/nx-publish
-          rm -rf ota-bootstrap
-          mkdir -p ota-bootstrap
-          cp -a "$GITHUB_WORKSPACE/output"/. ota-bootstrap/
-          git add -A ota-bootstrap/BUILD-STATUS.txt ota-bootstrap/SHA256.txt ota-bootstrap/signature.txt
-          git add -f ota-bootstrap/*.apk
-          git commit -m "Publish verified NOVA57 OTA bootstrap $(git -C "$GITHUB_WORKSPACE" rev-parse HEAD)"
+          rm -rf ota-bootstrap-safe
+          mkdir -p ota-bootstrap-safe
+          cp -a "$GITHUB_WORKSPACE/output"/. ota-bootstrap-safe/
+          git add -A ota-bootstrap-safe/BUILD-STATUS.txt ota-bootstrap-safe/SHA256.txt ota-bootstrap-safe/signature.txt
+          git add -f ota-bootstrap-safe/*.apk
+          git commit -m "Publish crash-safer NOVA57 OTA bootstrap $(git -C "$GITHUB_WORKSPACE" rev-parse HEAD)"
           git pull --rebase origin apk-builds
           git push origin HEAD:apk-builds
 
