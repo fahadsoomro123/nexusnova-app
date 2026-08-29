@@ -1,0 +1,40 @@
+name: NOVA 5.7 Chat APK Export
+
+on:
+  push:
+    branches: [nova-sol57-pro-v128]
+    paths:
+      - '.github/workflows/nova57-chat-export-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout source branch
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Fetch latest published phone APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin apk-builds
+          git show origin/apk-builds:nova57-phone-test/NexusNova-NOVA57-LATEST-phone-test.apk > NexusNova-NOVA57-LATEST-phone-test.apk
+          test -s NexusNova-NOVA57-LATEST-phone-test.apk
+          echo "APK bytes: $(wc -c < NexusNova-NOVA57-LATEST-phone-test.apk)"
+          sha256sum NexusNova-NOVA57-LATEST-phone-test.apk
+
+      - name: Upload APK for chat download
+        uses: actions/upload-artifact@v4
+        with:
+          name: NexusNova-NOVA57-LATEST-phone-test
+          path: NexusNova-NOVA57-LATEST-phone-test.apk
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
