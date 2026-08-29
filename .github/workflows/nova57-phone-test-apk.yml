@@ -6,6 +6,7 @@ on:
     branches: [nova-sol57-pro-v128]
     paths:
       - '.github/workflows/nova57-phone-test-apk.yml'
+      - 'fresh-rebuild/src/nova57-atomic-backend-client.js'
       - 'fresh-rebuild/src/features/apps/nova57-control-center.js'
       - 'fresh-rebuild/assets/styles/nova57-control-center.css'
       - 'fresh-rebuild/src/features/apps/nova-sol57-fresh.js'
@@ -36,12 +37,14 @@ jobs:
           test "$GITHUB_REF_NAME" = "nova-sol57-pro-v128"
           test -s fresh-rebuild/index.html
           test -s fresh-rebuild/src/nova57-atomic-chain.js
+          test -s fresh-rebuild/src/nova57-atomic-backend-client.js
           test -s fresh-rebuild/src/nova57-pro-orchestrator.js
           test -s fresh-rebuild/src/features/apps/nova-sol57-fresh.js
           test -s fresh-rebuild/src/features/apps/nova57-control-center.js
           test -s fresh-rebuild/assets/styles/nova57-control-center.css
           test -s cloudflare/nova-brain-worker/src/index.js
           node --check fresh-rebuild/src/nova57-pro-orchestrator.js
+          node --check fresh-rebuild/src/nova57-atomic-backend-client.js
           node --check fresh-rebuild/src/features/apps/nova57-control-center.js
           node --check fresh-rebuild/src/features/apps/nova-sol57-fresh.js
           grep -Fq "NOVA 5.7 Sol / ARIM" fresh-rebuild/src/features/apps/nova-sol57-fresh.js
@@ -50,6 +53,8 @@ jobs:
           grep -Fq "mountNovaControlCenter" fresh-rebuild/src/features/apps/nova-sol57-fresh.js
           grep -Fq "FINALIZER_RESERVE_MS" fresh-rebuild/src/nova57-atomic-chain.js
           grep -Fq "judge-rescue" fresh-rebuild/src/nova57-atomic-chain.js
+          grep -Fq "fetchStatus(4500)" fresh-rebuild/src/nova57-atomic-backend-client.js
+          grep -Fq "fetchStatus(3000)" fresh-rebuild/src/nova57-atomic-backend-client.js
           grep -Fq "200K Brains" fresh-rebuild/src/features/apps/nova57-control-center.js
           grep -Fq "Learning Center" fresh-rebuild/src/features/apps/nova57-control-center.js
           grep -Fq "Route Health" fresh-rebuild/src/features/apps/nova57-control-center.js
@@ -60,6 +65,24 @@ jobs:
           grep -Fq "Support" fresh-rebuild/src/features/apps/nova57-control-center.js
           grep -Fq "route_semantic_dimensions" cloudflare/nova-brain-worker/src/index.js
           echo "Latest NOVA dashboard + ARIM + valid Firebase fallback anchors: PASS"
+
+      - name: Verify live ARIM registry status
+        shell: bash
+        run: |
+          set -euo pipefail
+          STATUS_FILE="$RUNNER_TEMP/nova57-status.json"
+          curl --fail --silent --show-error --retry 2 --retry-delay 2 --connect-timeout 8 --max-time 20 \
+            'https://nexusnova-brain-router.fahadsoomro123.workers.dev/v1/status' \
+            -o "$STATUS_FILE"
+          node - "$STATUS_FILE" <<'NODE'
+          const fs = require('fs');
+          const path = process.argv[2];
+          const data = JSON.parse(fs.readFileSync(path, 'utf8'));
+          if (data?.ok !== true) throw new Error('ARIM live status did not return ok=true');
+          const catalog = Number(data.catalogRecords);
+          if (!Number.isFinite(catalog) || catalog < 1) throw new Error(`ARIM catalogRecords invalid: ${data.catalogRecords}`);
+          console.log(`ARIM LIVE STATUS PASS — catalogRecords=${catalog}, healthyRoutes=${data.healthyRoutes ?? 'unknown'}, generatedAt=${data.generatedAt ?? 'unknown'}`);
+          NODE
 
       - name: Java 17
         uses: actions/setup-java@v5
@@ -82,6 +105,8 @@ jobs:
           test -s "$APK"
           grep -Fq "mountNovaControlCenter" app/src/main/assets/www/src/features/apps/nova-sol57-fresh.js
           grep -Fq "FIREBASE_FALLBACK_MODEL = 'gemini-3.7-flash'" app/src/main/assets/www/src/nova57-pro-orchestrator.js
+          grep -Fq "fetchStatus(4500)" app/src/main/assets/www/src/nova57-atomic-backend-client.js
+          grep -Fq "fetchStatus(3000)" app/src/main/assets/www/src/nova57-atomic-backend-client.js
           grep -Fq "200K Brains" app/src/main/assets/www/src/features/apps/nova57-control-center.js
           grep -Fq "Quarantine" app/src/main/assets/www/src/features/apps/nova57-control-center.js
           grep -Fq "FINALIZER_RESERVE_MS" app/src/main/assets/www/src/nova57-atomic-chain.js
@@ -89,7 +114,7 @@ jobs:
           cp "$APK" "$GITHUB_WORKSPACE/phone-apk/NexusNova-NOVA57-LATEST-phone-test.apk"
           sha256sum "$GITHUB_WORKSPACE/phone-apk/NexusNova-NOVA57-LATEST-phone-test.apk" > "$GITHUB_WORKSPACE/phone-apk/SHA256.txt"
           APK_SIZE=$(stat -c%s "$GITHUB_WORKSPACE/phone-apk/NexusNova-NOVA57-LATEST-phone-test.apk")
-          printf 'Source commit: %s\nBranch: %s\nBuild type: debug/installable phone test\nAPK bytes: %s\nNOVA 5.7 ARIM source staged: PASS\nFull reference-style dashboard source staged: PASS\nFirebase fallback model routing: PASS\n' "$GITHUB_SHA" "$GITHUB_REF_NAME" "$APK_SIZE" > "$GITHUB_WORKSPACE/phone-apk/BUILD-STATUS.txt"
+          printf 'Source commit: %s\nBranch: %s\nBuild type: debug/installable phone test\nAPK bytes: %s\nNOVA 5.7 ARIM source staged: PASS\nLive ARIM registry status: PASS\nFull reference-style dashboard source staged: PASS\nFirebase fallback model routing: PASS\n' "$GITHUB_SHA" "$GITHUB_REF_NAME" "$APK_SIZE" > "$GITHUB_WORKSPACE/phone-apk/BUILD-STATUS.txt"
 
       - name: Publish phone APK to apk-builds branch
         shell: bash
