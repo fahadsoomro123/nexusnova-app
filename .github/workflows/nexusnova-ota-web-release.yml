@@ -19,7 +19,7 @@ env:
 
 jobs:
   publish:
-    if: github.ref_name == 'nexusnova-latest-full-apk-recovery-20260823' || contains(github.event.head_commit.message, '[ota-release]')
+    if: github.event_name == 'workflow_dispatch' || github.ref_name == 'nexusnova-latest-full-apk-recovery-20260823' || contains(github.event.head_commit.message, '[ota-release]')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
