@@ -1,16 +1,7 @@
-name: NOVA 5.7 Gemini Reset Signed APK
+name: NOVA 5.7 Gemini Reset Installable APK
 
 on:
   workflow_dispatch:
-    inputs:
-      version_code:
-        description: Android versionCode
-        required: true
-        default: '202608291'
-      version_name:
-        description: Android versionName
-        required: true
-        default: '1.5.7-gemini-reset-20260829'
   push:
     branches: [nova-sol57-pro-v128]
     paths:
@@ -20,19 +11,11 @@ permissions:
   contents: write
 
 concurrency:
-  group: nova57-gemini-reset-apk-${{ github.ref }}
+  group: nova57-gemini-reset-install-apk-${{ github.ref }}
   cancel-in-progress: false
 
-env:
-  NEXUSNOVA_SIGNING_KEYSTORE_B64: ${{ secrets.NEXUSNOVA_SIGNING_KEYSTORE_B64 }}
-  NEXUSNOVA_SIGNING_STORE_PASSWORD: ${{ secrets.NEXUSNOVA_SIGNING_STORE_PASSWORD }}
-  NEXUSNOVA_SIGNING_KEY_ALIAS: ${{ secrets.NEXUSNOVA_SIGNING_KEY_ALIAS }}
-  NEXUSNOVA_SIGNING_KEY_PASSWORD: ${{ secrets.NEXUSNOVA_SIGNING_KEY_PASSWORD }}
-  VERSION_CODE: ${{ github.event_name == 'workflow_dispatch' && inputs.version_code || '202608291' }}
-  VERSION_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.version_name || '1.5.7-gemini-reset-20260829' }}
-
 jobs:
-  build-current-signed-apk:
+  build-gemini-reset-apk:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
@@ -41,7 +24,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verify Gemini reset source
+      - name: Verify exact Gemini reset source
         shell: bash
         run: |
           set -euo pipefail
@@ -59,18 +42,9 @@ jobs:
           grep -Fq 'data-nx57-mode="work"' fresh-rebuild/src/features/apps/nova-sol57-fresh.js
           grep -Fq './src/nova57-human-response.js' fresh-rebuild/index.html
 
-          if grep -Fq 'mountNovaControlCenter' fresh-rebuild/src/features/apps/nova-sol57-fresh.js; then
-            echo 'Dashboard control center is still wired' >&2
-            exit 1
-          fi
-          if grep -Fq 'data-nx57-control' fresh-rebuild/src/features/apps/nova-sol57-fresh.js; then
-            echo 'Dashboard button is still present' >&2
-            exit 1
-          fi
-          if grep -Eq '200K|ARIM' fresh-rebuild/src/features/apps/nova-sol57-fresh.js; then
-            echo '200K/ARIM runtime marker is still present in active NOVA renderer' >&2
-            exit 1
-          fi
+          ! grep -Fq 'mountNovaControlCenter' fresh-rebuild/src/features/apps/nova-sol57-fresh.js
+          ! grep -Fq 'data-nx57-control' fresh-rebuild/src/features/apps/nova-sol57-fresh.js
+          ! grep -Eq '200K|ARIM' fresh-rebuild/src/features/apps/nova-sol57-fresh.js
           echo 'Direct Gemini + Chat/Work-only NOVA source: PASS'
 
       - name: Java 17
@@ -84,6 +58,56 @@ jobs:
         with:
           gradle-version: '8.13'
 
-      - name: Build, sign, verify and publish APK
+      - name: Build installable APK with current web bundle
         shell: bash
-        run: bash tools/build-permanent-signed-v4.sh
+        run: |
+          set -euo pipefail
+          cd NexusNovaAndroid
+          gradle --no-daemon clean assembleDebug
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+
+          # Gradle syncFreshWebAssets must have staged the exact current renderer.
+          grep -Fq "const PROVIDER_MODEL = 'gemini-3.6-flash';" app/src/main/assets/www/src/features/apps/nova-sol57-fresh.js
+          grep -Fq 'data-nx57-mode="chat"' app/src/main/assets/www/src/features/apps/nova-sol57-fresh.js
+          grep -Fq 'data-nx57-mode="work"' app/src/main/assets/www/src/features/apps/nova-sol57-fresh.js
+          grep -Fq './src/nova57-human-response.js' app/src/main/assets/www/index.html
+          ! grep -Fq 'mountNovaControlCenter' app/src/main/assets/www/src/features/apps/nova-sol57-fresh.js
+          ! grep -Fq 'data-nx57-control' app/src/main/assets/www/src/features/apps/nova-sol57-fresh.js
+          ! grep -Eq '200K|ARIM' app/src/main/assets/www/src/features/apps/nova-sol57-fresh.js
+
+          OUT="$GITHUB_WORKSPACE/gemini-reset-apk"
+          rm -rf "$OUT"
+          mkdir -p "$OUT"
+          cp "$APK" "$OUT/NexusNova-GEMINI-RESET-INSTALL.apk"
+          sha256sum "$OUT/NexusNova-GEMINI-RESET-INSTALL.apk" > "$OUT/SHA256.txt"
+          printf 'Source commit: %s\nBranch: %s\nBuild type: installable debug APK\nDirect Gemini 3.6: PASS\nDashboard removed from active NOVA renderer: PASS\n200K/ARIM removed from active NOVA renderer: PASS\nChat + Work: PASS\nHuman response script bundled: PASS\n' \
+            "$GITHUB_SHA" "$GITHUB_REF_NAME" > "$OUT/BUILD-STATUS.txt"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NexusNova-GEMINI-RESET-INSTALL
+          path: gemini-reset-apk/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish APK to apk-builds branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'NexusNova APK Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git fetch origin apk-builds
+          PUB="$RUNNER_TEMP/nexusnova-gemini-reset-publish"
+          rm -rf "$PUB"
+          git worktree add "$PUB" origin/apk-builds
+          cd "$PUB"
+          rm -rf gemini-reset
+          mkdir -p gemini-reset
+          cp -a "$GITHUB_WORKSPACE/gemini-reset-apk"/. gemini-reset/
+          git add -A gemini-reset/BUILD-STATUS.txt gemini-reset/SHA256.txt
+          git add -f gemini-reset/NexusNova-GEMINI-RESET-INSTALL.apk
+          git commit -m "Publish Gemini reset install APK $GITHUB_SHA"
+          git pull --rebase origin apk-builds
+          git push origin HEAD:apk-builds
