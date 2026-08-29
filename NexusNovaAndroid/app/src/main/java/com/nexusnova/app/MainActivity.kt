@@ -34,6 +34,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
     private var adManager: NexusAdManager? = null
+    private val otaWebManager by lazy { NexusOtaWebManager(this) }
 
     private val assetLoader by lazy {
         WebViewAssetLoader.Builder()
@@ -121,9 +122,10 @@ class MainActivity : AppCompatActivity() {
             android.util.Log.e("NexusNovaStartup", "Native bridge setup failed", error)
         }
 
-        // Keep the launcher path equivalent to the known-working Golden build:
-        // render NexusNova first, then initialize optional native monetization.
+        // Render the signed baseline first. The OTA check runs asynchronously and
+        // reloads only after a complete, hash-verified compatible package activates.
         loadProductionApp()
+        checkForWebUpdate()
     }
 
     private fun initializeAdsSafely() {
@@ -177,14 +179,15 @@ class MainActivity : AppCompatActivity() {
                 request: WebResourceRequest?
             ): WebResourceResponse? {
                 val uri = request?.url ?: return super.shouldInterceptRequest(view, request)
-                return assetLoader.shouldInterceptRequest(uri)
+                return otaWebManager.intercept(uri)
+                    ?: assetLoader.shouldInterceptRequest(uri)
                     ?: super.shouldInterceptRequest(view, request)
             }
 
             override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
                 super.onPageStarted(view, url, favicon)
                 val uri = url?.let { runCatching { Uri.parse(it) }.getOrNull() } ?: return
-                if (!isProductionOrigin(uri) || usingOfflineFallback) return
+                if (!isTrustedAppPage(uri) || usingOfflineFallback) return
                 armMainFrameWatchdog(view ?: return)
             }
 
@@ -192,7 +195,7 @@ class MainActivity : AppCompatActivity() {
                 super.onPageFinished(view, url)
                 val target = view ?: return
                 val uri = url?.let { runCatching { Uri.parse(it) }.getOrNull() } ?: return
-                if (!isProductionOrigin(uri) || usingOfflineFallback) return
+                if (!isTrustedAppPage(uri) || usingOfflineFallback) return
                 finishedWatchdogToken = mainFrameWatchdogToken
                 scheduleBlankScreenCheck(target, mainFrameWatchdogToken)
             }
@@ -222,7 +225,7 @@ class MainActivity : AppCompatActivity() {
                 super.onReceivedError(view, request, error)
                 val failed = request ?: return
                 if (!failed.isForMainFrame || usingOfflineFallback) return
-                if (!isProductionOrigin(failed.url)) return
+                if (!isTrustedAppPage(failed.url)) return
 
                 recoverProductionWebView(view, "main-frame network error")
             }
@@ -236,7 +239,7 @@ class MainActivity : AppCompatActivity() {
                 val failed = request ?: return
                 val status = errorResponse?.statusCode ?: return
                 if (!failed.isForMainFrame || status < 400 || usingOfflineFallback) return
-                if (!isProductionOrigin(failed.url)) return
+                if (!isTrustedAppPage(failed.url)) return
                 recoverProductionWebView(view, "HTTP $status")
             }
 
@@ -260,13 +263,17 @@ class MainActivity : AppCompatActivity() {
                 if (isFinishing || isDestroyed) return true
 
                 if (didCrash && rendererCrashRecoveries >= MAX_RENDERER_CRASH_RECOVERIES) {
+                    otaWebManager.rollbackToBundled()
                     window.decorView.post {
                         if (!isFinishing && !isDestroyed) showRendererRecoveryFailure()
                     }
                     return true
                 }
 
-                if (didCrash) rendererCrashRecoveries += 1
+                if (didCrash) {
+                    otaWebManager.rollbackToBundled()
+                    rendererCrashRecoveries += 1
+                }
                 val delayMs = if (didCrash) RENDERER_CRASH_RECOVERY_DELAY_MS else 0L
                 window.decorView.postDelayed({
                     if (!isFinishing && !isDestroyed) rebuildWebViewAfterRendererExit()
@@ -418,7 +425,19 @@ class MainActivity : AppCompatActivity() {
         usingOfflineFallback = false
         if (forceFresh) webView.clearCache(true)
         val suffix = if (forceFresh) "?androidRecovery=${System.currentTimeMillis()}" else ""
-        webView.loadUrl(LOCAL_APP_URL)
+        webView.loadUrl(LOCAL_APP_URL + suffix)
+    }
+
+    private fun checkForWebUpdate() {
+        otaWebManager.checkForUpdate { updated ->
+            if (!updated || isFinishing || isDestroyed || !::webView.isInitialized) return@checkForUpdate
+            webView.post {
+                if (!isFinishing && !isDestroyed && ::webView.isInitialized) {
+                    webRecoveryAttempts = 0
+                    loadProductionApp(forceFresh = true)
+                }
+            }
+        }
     }
 
     private fun armMainFrameWatchdog(view: WebView) {
@@ -461,14 +480,18 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        // A technically successful but visually blank remote page is just as unusable
-        // as a network failure. Fall back to the bundled shell instead of leaving the
-        // user on an empty WebView. Value-bearing mining remains disabled offline.
+        // Never strand the app on a broken OTA. Block that exact version and
+        // immediately return to the signed bundled web baseline.
+        val rolledBackOta = otaWebManager.rollbackToBundled()
         usingOfflineFallback = true
         mainFrameWatchdogToken += 1
         target.stopLoading()
-        target.loadUrl(LOCAL_APP_URL)
-        android.util.Log.w("NexusNovaWeb", "Using local fallback after $reason")
+        target.clearCache(true)
+        target.loadUrl(LOCAL_APP_URL + "?otaRollback=${System.currentTimeMillis()}")
+        android.util.Log.w(
+            "NexusNovaWeb",
+            "Using bundled fallback after $reason; otaRollback=$rolledBackOta"
+        )
     }
 
     private fun installNativeMessageListener() {
