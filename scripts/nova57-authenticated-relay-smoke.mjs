@@ -1,6 +1,7 @@
 const FIREBASE_API_KEY = 'AIzaSyBU75WYp5ioaMD1LrNcDyAvROFW2wrTil0';
 const FIREBASE_AUTH_URL = 'https://identitytoolkit.googleapis.com/v1/accounts';
 const RELAY_URL = 'https://nexusnova-brain-router.fahadsoomro123.workers.dev/v1/generate';
+const MAX_RELAY_WALL_MS = 5500;
 
 async function jsonRequest(url, init = {}, timeoutMs = 20000) {
   const controller = new AbortController();
@@ -75,9 +76,13 @@ async function relay(idToken, capability, marker) {
       temperature: 0.1
     })
   }, 20000);
+  const wallMs = Date.now() - started;
   const answer = String(data?.text || '').trim();
   if (data?.ok !== true || !answer.includes(marker)) {
     throw new Error(`${capability} relay returned an invalid answer: ${answer.slice(0, 180) || 'empty'}`);
+  }
+  if (wallMs > MAX_RELAY_WALL_MS) {
+    throw new Error(`${capability} relay was functionally correct but too slow: ${wallMs}ms > ${MAX_RELAY_WALL_MS}ms`);
   }
   return {
     capability,
@@ -85,7 +90,8 @@ async function relay(idToken, capability, marker) {
     provider: String(data.provider || ''),
     model: String(data.model || ''),
     providerLatencyMs: Number(data.latencyMs || 0),
-    wallMs: Date.now() - started,
+    wallMs,
+    maxAllowedWallMs: MAX_RELAY_WALL_MS,
     marker
   };
 }
