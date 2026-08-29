@@ -172,7 +172,10 @@ jobs:
           for (const token of ['getAtomicBackendStatus', 'getAtomicCapabilityPlan', '__NOVA_ATOMIC_CHAIN_LAST__', 'catalogRecords', 'semanticallyEvaluatedRoutes']) {
             if (!panel.includes(token)) throw new Error(`Dashboard genuine metric binding missing: ${token}`);
           }
-          if (/Math\.random|fake|demoData|mockData/.test(panel)) throw new Error('Control center cannot use fake/demo counters.');
+          const executablePanel = panel
+            .replace(/\/\*[\s\S]*?\*\//g, '')
+            .replace(/^\s*\/\/.*$/gm, '');
+          if (/Math\.random|fake|demoData|mockData/.test(executablePanel)) throw new Error('Control center cannot use fake/demo counters.');
           if (!/@media\(max-width:(?:760|820)px\)/.test(css)) throw new Error('Mobile control-center adaptation missing.');
           if (!html.includes('nova57-control-center.css')) throw new Error('Control-center stylesheet is not loaded.');
           console.log('Responsive NOVA dashboard opens first and remains bound only to real backend/runtime telemetry.');
@@ -191,6 +194,7 @@ jobs:
             ['analysis', '<analysis>\nprivate reasoning', false],
             ['meta-user', 'The user asks: do something', false],
             ['meta-we', 'We need to respond with an answer.', false],
+            ['thinking-process', "Here's a thinking process: private reasoning", false],
             ['transport', '{"choices":[{"message":{"content":"hi"}}]}', false]
           ];
           for (const [name, value, expected] of cases) {
