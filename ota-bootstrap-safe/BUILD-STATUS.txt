@@ -1,0 +1,8 @@
+Source branch: nova-sol57-pro-v128
+Source commit: 478e8ee1059f0dc300d546d99c16f82308d972b9
+Version code: 20260831
+Permanent signed release: PASS
+AdMob TEST-only: PASS
+R8/minify: OFF
+Atomic OTA v2: PASS
+Gradient Premium bundled: PASS
