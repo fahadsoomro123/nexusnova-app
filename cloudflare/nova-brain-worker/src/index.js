@@ -525,6 +525,78 @@ async function status(env) {
   };
 }
 
+
+async function generateRelay(request, env) {
+  const appCheckToken = request.headers.get('x-firebase-appcheck') || '';
+  const appCheckClaims = await verifyAppCheckToken(appCheckToken);
+  if (!appCheckClaims) return json({ ok: false, error: 'app-check-required' }, 401);
+
+  let body = {};
+  try { body = await request.json(); }
+  catch { return json({ ok: false, error: 'invalid-json' }, 400); }
+
+  const prompt = text(body?.prompt, 12000);
+  if (!prompt) return json({ ok: false, error: 'prompt-required' }, 400);
+  const requestedCapability = text(body?.capability, 30);
+  const capability = ALLOWED_CAPABILITIES.has(requestedCapability) ? requestedCapability : 'general';
+  const maxTokens = Math.max(96, Math.min(900, Number(body?.maxTokens || 700) || 700));
+  const temperature = Math.max(0.1, Math.min(1.0, Number(body?.temperature ?? 0.4) || 0.4));
+
+  // Transport-only relay: prompt text is never written to D1/meta/route telemetry.
+  const currentPlan = await plan(env, capability);
+  const fallback = [
+    { provider: 'Kilo', modelId: 'kilo-auto/free' },
+    { provider: 'Kilo', modelId: 'openrouter/free' },
+    { provider: 'Kilo', modelId: 'stepfun/step-3.7-flash:free' }
+  ];
+  const seen = new Set();
+  const candidates = [...(Array.isArray(currentPlan?.candidates) ? currentPlan.candidates : []), ...fallback]
+    .filter(row => {
+      const provider = text(row?.provider || row?.source, 80);
+      const modelId = text(row?.modelId || row?.model, 240);
+      const key = `${provider}::${modelId}`;
+      if (!modelId || !CALLABLE_CLIENT_PROVIDERS.has(provider) || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 3);
+
+  if (!candidates.length) return json({ ok: false, error: 'no-callable-route' }, 503);
+
+  async function callCandidate(row) {
+    const provider = text(row?.provider || row?.source, 80);
+    const modelId = text(row?.modelId || row?.model, 240);
+    const base = provider === 'Kilo' ? KILO_BASE : OVH_BASE;
+    const started = now();
+    const { data } = await fetchJson(`${base}/chat/completions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        model: modelId,
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: maxTokens,
+        temperature,
+        stream: false
+      })
+    }, 2700);
+    const content = data?.choices?.[0]?.message?.content ?? data?.choices?.[0]?.text ?? data?.output_text ?? data?.text ?? '';
+    const answer = typeof content === 'string'
+      ? content.trim()
+      : Array.isArray(content)
+        ? content.map(part => typeof part === 'string' ? part : text(part?.text || part?.content, 3000)).join('').trim()
+        : '';
+    if (!answer) throw new Error('empty-provider-answer');
+    return { provider, modelId, text: answer.slice(0, 12000), latencyMs: now() - started };
+  }
+
+  try {
+    const winner = await Promise.any(candidates.map((row, index) => new Promise(resolve => setTimeout(resolve, index * 70)).then(() => callCandidate(row))));
+    return json({ ok: true, capability, provider: winner.provider, model: winner.modelId, text: winner.text, latencyMs: winner.latencyMs });
+  } catch {
+    return json({ ok: false, error: 'all-relay-routes-failed', capability }, 503);
+  }
+}
+
 async function handle(request, env, ctx) {
   if (request.method === 'OPTIONS') return json({ ok: true });
   const url = new URL(request.url);
@@ -540,6 +612,10 @@ async function handle(request, env, ctx) {
     // Real planning traffic may start a bounded, prompt-free semantic probe cycle.
     ctx.waitUntil(maybeProbe(env).catch(error => console.error('[NOVA semantic probe]', error)));
     return json(await plan(env, capability));
+  }
+
+  if (request.method === 'POST' && url.pathname === '/v1/generate') {
+    return generateRelay(request, env);
   }
 
   if (request.method === 'POST' && url.pathname === '/v1/outcome') {

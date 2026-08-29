@@ -117,6 +117,31 @@ export async function getAtomicBackendStatus() {
   }
 }
 
+
+export async function generateViaAtomicRelay(prompt, options = {}) {
+  if (!ready()) throw new Error('NOVA relay is not configured.');
+  const value = String(prompt || '').trim();
+  if (!value) throw new Error('NOVA relay prompt is empty.');
+  const appCheckToken = await freshAppCheckToken();
+  if (!appCheckToken) throw new Error('NOVA relay App Check token is unavailable.');
+  const allowed = new Set(['general', 'coding', 'reasoning', 'research', 'multilingual']);
+  const capability = allowed.has(String(options.capability || '')) ? String(options.capability) : capabilityOf(value);
+  const data = await post('/v1/generate', {
+    prompt: value.slice(0, 12000),
+    capability,
+    maxTokens: Math.max(96, Math.min(900, Number(options.maxTokens || 700) || 700)),
+    temperature: Math.max(0.1, Math.min(1, Number(options.temperature ?? 0.4) || 0.4))
+  }, 3200, { 'X-Firebase-AppCheck': appCheckToken });
+  if (!data?.ok || !String(data?.text || '').trim()) throw new Error(`NOVA relay failed: ${String(data?.error || 'empty-answer')}`);
+  return {
+    text: String(data.text).trim(),
+    provider: String(data.provider || 'NOVA Relay'),
+    model: String(data.model || 'worker-route'),
+    latencyMs: Math.max(0, Number(data.latencyMs || 0)),
+    capability
+  };
+}
+
 export function reportAtomicOutcome(payload = {}) {
   if (!ready() || Date.now() < backendCoolingUntil) return;
   const provider = String(payload.provider || '').trim();

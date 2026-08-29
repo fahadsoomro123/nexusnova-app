@@ -17,6 +17,7 @@ import {
   shouldUseAtomicChain,
   runAtomicChain
 } from './nova57-atomic-chain.js';
+import { generateViaAtomicRelay } from './nova57-atomic-backend-client.js';
 
 const JINA_READER = 'https://r.jina.ai/';
 const DDG_HTML = 'https://html.duckduckgo.com/html/';
@@ -56,6 +57,40 @@ function instantConversation(request) {
     return 'Hello bhai! Main ready hoon — kya karna hai?';
   }
   return '';
+}
+
+
+function mobileRelayPreferred() {
+  const bridge = globalThis?.NexusAppCheckAndroid;
+  return Boolean(bridge && typeof bridge.postMessage === 'function');
+}
+
+async function generateForRuntime(model, prompt, capability, options = {}) {
+  if (mobileRelayPreferred()) {
+    try {
+      const cfg = options?.generationConfig || {};
+      const relay = await generateViaAtomicRelay(prompt, {
+        capability,
+        maxTokens: cfg.maxOutputTokens || 700,
+        temperature: cfg.temperature ?? 0.4
+      });
+      const brain = {
+        provider: relay.provider,
+        model: relay.model,
+        latencyMs: relay.latencyMs,
+        wallMs: relay.latencyMs,
+        profile: capability || 'general',
+        relay: true,
+        deterministic: false,
+        verified: false
+      };
+      globalThis.__NOVA_BRAIN_LAST__ = { ...brain, attempts: 1, at: new Date().toISOString() };
+      return { response: { text: () => relay.text }, __novaAtomicBrain: brain };
+    } catch (error) {
+      console.warn('[NOVA Mobile Relay] authenticated Worker relay unavailable; falling back to direct router.', error);
+    }
+  }
+  return model.generateContent(prompt);
 }
 
 function emit(stage, detail = {}) {
@@ -282,9 +317,9 @@ export function getGenerativeModel(ai, options = {}) {
                 request,
                 options: runtimeOptions,
                 totalBudgetMs: 12000,
-                generate: nextPrompt => hedgeModel.generateContent(nextPrompt)
+                generate: nextPrompt => generateForRuntime(hedgeModel, nextPrompt, dna.capability, runtimeOptions)
               })
-            : await hedgeModel.generateContent(groundedPrompt);
+            : await generateForRuntime(hedgeModel, groundedPrompt, dna.capability, runtimeOptions);
           emit('Finalizing', { grounded: true, atomic });
           return result;
         } catch {
@@ -302,9 +337,9 @@ export function getGenerativeModel(ai, options = {}) {
             prompt: original,
             request,
             options: runtimeOptions,
-            generate: nextPrompt => hedgeModel.generateContent(nextPrompt)
+            generate: nextPrompt => generateForRuntime(hedgeModel, nextPrompt, dna.capability, runtimeOptions)
           })
-        : await hedgeModel.generateContent(original);
+        : await generateForRuntime(hedgeModel, original, dna.capability, runtimeOptions);
       emit('Finalizing', { atomic });
       return result;
     }
