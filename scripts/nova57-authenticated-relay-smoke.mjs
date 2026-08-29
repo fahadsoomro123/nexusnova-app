@@ -1,3 +1,4 @@
+// Speed gate rerun after bounded/cached JWKS production deploy.
 const FIREBASE_API_KEY = 'AIzaSyBU75WYp5ioaMD1LrNcDyAvROFW2wrTil0';
 const FIREBASE_AUTH_URL = 'https://identitytoolkit.googleapis.com/v1/accounts';
 const RELAY_URL = 'https://nexusnova-brain-router.fahadsoomro123.workers.dev/v1/generate';
