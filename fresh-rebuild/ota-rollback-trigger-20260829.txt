@@ -1,0 +1,2 @@
+NOVA phone runtime rollback OTA trigger.
+Restores the previously observed working-slow runtime state without changing UI or protected mining/reward/wallet/NVX domains.
