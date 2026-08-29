@@ -1,0 +1,99 @@
+name: NexusNova AdMob TEST Lock
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'NexusNovaAndroid/**'
+      - 'tools/**'
+      - '.github/workflows/admob-test-lock.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-lock:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout all build history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch active APK build branches
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin \
+            main \
+            nexusnova-latest-full-apk-recovery-20260823 \
+            all-bugs-native-drive-v1
+
+      - name: Verify every active APK path is TEST-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import subprocess
+
+          refs = [
+              'origin/main',
+              'origin/nexusnova-latest-full-apk-recovery-20260823',
+              'origin/all-bugs-native-drive-v1',
+          ]
+          gradle_path = 'NexusNovaAndroid/app/build.gradle.kts'
+          manager_path = 'NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt'
+          test_app_id = 'ca-app-pub-3940256099942544~3347511713'
+          production_app_suffix = '~1824799663'
+
+          def show(ref, path):
+              return subprocess.check_output(['git', 'show', f'{ref}:{path}'], text=True)
+
+          for ref in refs:
+              gradle = show(ref, gradle_path)
+              manager = show(ref, manager_path)
+
+              if gradle.count('NEXUS_ADS_TEST_MODE\", \"true\"') < 2:
+                  raise SystemExit(f'{ref}: debug + release must both be TEST mode')
+              if 'NEXUS_ADS_TEST_MODE\", \"false\"' in gradle:
+                  raise SystemExit(f'{ref}: LIVE ad mode detected in Android Gradle config')
+              if gradle.count(test_app_id) < 2:
+                  raise SystemExit(f'{ref}: debug + release must both use Google test App ID')
+              if production_app_suffix in gradle:
+                  raise SystemExit(f'{ref}: production AdMob App ID detected in active build config')
+
+              required_demo_units = [
+                  '/21775744923/example/rewarded',
+                  '/21775744923/example/rewarded-interstitial',
+                  '/21775744923/example/interstitial',
+              ]
+              for unit in required_demo_units:
+                  if unit not in manager:
+                      raise SystemExit(f'{ref}: Google TEST ad unit missing: {unit}')
+
+              if ('BuildConfig.NEXUS_ADS_TEST_MODE' not in manager and
+                      'const val TEST_MODE = true' not in manager):
+                  raise SystemExit(f'{ref}: native ad manager is not bound to TEST mode')
+
+              print(f'PASS {ref}: signed/debug/release inventory is TEST-only')
+
+          print('NexusNova AdMob TEST Lock: PASS')
+          PY
+
+      - name: Reject builder scripts that can force LIVE mode
+        shell: bash
+        run: |
+          set -euo pipefail
+          for ref in \
+            origin/main \
+            origin/nexusnova-latest-full-apk-recovery-20260823 \
+            origin/all-bugs-native-drive-v1
+          do
+            if git grep -n -E 'NEXUS_ADS_TEST_MODE.*false|1824799663' "$ref" -- NexusNovaAndroid tools 2>/dev/null; then
+              echo "LIVE AdMob build marker found in $ref"
+              exit 1
+            fi
+          done
+          echo 'No active Android/builder path can force LIVE AdMob mode.'
