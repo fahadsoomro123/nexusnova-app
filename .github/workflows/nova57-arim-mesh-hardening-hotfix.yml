@@ -24,12 +24,19 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
+          import re
 
           def replace_once(text, old, new, label):
               count = text.count(old)
               if count != 1:
                   raise SystemExit(f'{label}: expected one match, found {count}')
               return text.replace(old, new, 1)
+
+          def regex_once(text, pattern, replacement, label):
+              updated, count = re.subn(pattern, replacement, text, count=1, flags=re.S)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected one regex match, found {count}')
+              return updated
 
           pool_path = Path('fresh-rebuild/src/nova57-atomic-brain-pool.js')
           pool = pool_path.read_text()
@@ -50,49 +57,22 @@ jobs:
               "const runDistinct = async (stage, generation, stagePrompt, preferredMs, lane = 0, hedgeWidth = 1, exclusionSnapshot = null, useFinalizerReserve = false, laneSpan = 1) => {",
               'runDistinct signature'
           )
-          chain = replace_once(
+          chain = regex_once(
               chain,
-              """      timeoutMs: Math.max(800, Math.min(preferredMs, remaining)),
-                  lane,
-                  hedgeWidth
-          """,
-              """      timeoutMs: Math.max(800, Math.min(preferredMs, remaining)),
-                  lane,
-                  laneSpan,
-                  hedgeWidth
-          """,
+              r"timeoutMs: Math\.max\(800, Math\.min\(preferredMs, remaining\)\),\s*lane,\s*hedgeWidth",
+              "timeoutMs: Math.max(800, Math.min(preferredMs, remaining)),\n      lane,\n      laneSpan,\n      hedgeWidth",
               'runAtomicBrain laneSpan control'
           )
-          chain = replace_once(
+          chain = regex_once(
               chain,
-              """    index,
-                  1,
-                  criticExcludes
-                ).catch(() => null));
-          """,
-              """    index,
-                  1,
-                  criticExcludes,
-                  false,
-                  criticCapacity
-                ).catch(() => null));
-          """,
+              r"index,\s*1,\s*criticExcludes\s*\)\.catch\(\(\) => null\)\);",
+              "index,\n    1,\n    criticExcludes,\n    false,\n    criticCapacity\n  ).catch(() => null));",
               'critic lane span'
           )
-          chain = replace_once(
+          chain = regex_once(
               chain,
-              """      index,
-                    1,
-                    specialistExcludes
-                  ).catch(() => null));
-          """,
-              """      index,
-                    1,
-                    specialistExcludes,
-                    false,
-                    capacity
-                  ).catch(() => null));
-          """,
+              r"index,\s*1,\s*specialistExcludes\s*\)\.catch\(\(\) => null\)\);",
+              "index,\n      1,\n      specialistExcludes,\n      false,\n      capacity\n    ).catch(() => null));",
               'specialist lane span'
           )
           chain_path.write_text(chain)
@@ -155,15 +135,10 @@ jobs:
           """,
               'smoke critic B2 lane span'
           )
-          smoke = replace_once(
+          smoke = regex_once(
               smoke,
-              """      lane: index,
-                  hedgeWidth: 1,
-          """,
-              """      lane: index,
-                  laneSpan: requestedSpecialists,
-                  hedgeWidth: 1,
-          """,
+              r"lane: index,\s*hedgeWidth: 1,",
+              "lane: index,\n      laneSpan: requestedSpecialists,\n      hedgeWidth: 1,",
               'smoke specialist lane span'
           )
           smoke_path.write_text(smoke)
@@ -172,8 +147,9 @@ jobs:
           node --check fresh-rebuild/src/nova57-atomic-brain-pool.js
           node --check fresh-rebuild/src/nova57-atomic-chain.js
           node --check scripts/nova57-arim-live-smoke.mjs
-          grep -Fq "thinking|reasoning|analysis" fresh-rebuild/src/nova57-atomic-brain-pool.js
+          grep -Fq "here(?:'s| is)" fresh-rebuild/src/nova57-atomic-brain-pool.js
           grep -Fq "laneSpan = 1" fresh-rebuild/src/nova57-atomic-chain.js
+          grep -Fq "laneSpan," fresh-rebuild/src/nova57-atomic-chain.js
           grep -Fq "criticCapacity" fresh-rebuild/src/nova57-atomic-chain.js
           grep -Fq "laneSpan: requestedSpecialists" scripts/nova57-arim-live-smoke.mjs
           grep -Fq "leakThinkingProcess" scripts/nova57-arim-live-smoke.mjs
