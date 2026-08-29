@@ -1,6 +1,7 @@
-Source commit: 46fe1858cfc2bf6c9b5e28dfa3d566e28d03faf0
+Source commit: d001bb46632984cacefebdffb372990302ae903b
 Branch: nova-sol57-pro-v128
 Build type: debug/installable phone test
-APK bytes: 28561814
+APK bytes: 28561986
 NOVA 5.7 ARIM source staged: PASS
 Full reference-style dashboard source staged: PASS
+Firebase fallback model routing: PASS
