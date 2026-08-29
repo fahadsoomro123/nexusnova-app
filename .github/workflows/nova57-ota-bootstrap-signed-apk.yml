@@ -1,9 +1,13 @@
 name: NOVA 5.7 Public OTA Bootstrap Signed APK
 
-# Native APK builds are MANUAL ONLY. This one-time signed bootstrap switches
-# the installed app from private GitHub OTA transport to the public OTA channel.
+# Native APK builds are normally MANUAL ONLY. A narrowly-scoped push trigger is
+# temporarily armed for the one-time public OTA transport bootstrap.
 on:
   workflow_dispatch:
+  push:
+    branches: [nova-sol57-pro-v128]
+    paths:
+      - 'NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt'
 
 permissions:
   contents: write
