@@ -1,0 +1,5 @@
+Source branch: nova-sol57-pro-v128
+Source commit: 0a23572a6bb4498a9ee093956e4706108a7e89af
+Signed release: PASS
+Atomic OTA v2: PASS
+Gradient Premium bundled: PASS
