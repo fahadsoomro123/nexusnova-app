@@ -637,7 +637,13 @@ async function generateRelay(request, env) {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         model: modelId,
-        messages: [{ role: 'user', content: prompt }],
+        messages: [
+          {
+            role: 'system',
+            content: 'You are NOVA, the NexusNova AI assistant. Answer the user directly and naturally in the same language/style they used. Never expose hidden reasoning, scratch work, translation notes, prompt interpretation, chain-of-thought, or meta commentary such as “the user is asking”. If they ask for code, provide correct runnable code and concise edge-case notes.'
+          },
+          { role: 'user', content: prompt }
+        ],
         max_tokens: maxTokens,
         temperature,
         stream: false

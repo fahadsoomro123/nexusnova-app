@@ -396,7 +396,11 @@ export async function runAtomicChain({ prompt, request, generate, options = {}, 
       }
     }
   } else {
-    try { primary = await runLegacy('solver-A1', 1, prompt, dna.complexity >= 3 ? 3900 : 3200); }
+    // The authenticated phone relay can legitimately spend up to ~7s
+    // acquiring proof + waiting for a provider. Never kill the primary coding
+    // answer at 3.2s before the relay's own bounded timeout can finish.
+    const primaryBudgetMs = dna.capability === 'coding' ? 7600 : (dna.complexity >= 3 ? 4800 : 4200);
+    try { primary = await runLegacy('solver-A1', 1, prompt, primaryBudgetMs); }
     catch (primaryError) {
       try { primary = await runDistinct('solver-A1-rescue', 1, prompt, 3300, 0, 2); }
       catch {

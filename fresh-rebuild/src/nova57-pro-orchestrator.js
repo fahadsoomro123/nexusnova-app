@@ -60,6 +60,13 @@ function instantConversation(request) {
     || /^(?:what(?:'s| is) your name|who are you)[?.! ]*$/i.test(value)) {
     return 'Bhai, mera naam NOVA hai. Main NexusNova AI assistant hoon.';
   }
+  if (/^(?:(?:bhai|bro)[, ]*)?(?:kese|kaise|kaisay)\s+(?:ho|hain|hen)[?.! ]*$/i.test(value)
+    || /^(?:how are you|how r u)[?.! ]*$/i.test(value)) {
+    return 'Main theek hoon bhai 😄 Tum sunao, kya haal hai?';
+  }
+  if (/^(?:(?:bhai|bro)[, ]*)?(?:urdu|roman urdu)\s+(?:aati|ati)\s+(?:hai|he)\s+(?:tujhe|tumhe|apko|aapko)[?.! ]*$/i.test(value)) {
+    return 'Haan bhai, Urdu aur Roman Urdu dono samajhta hoon. Tum jis style mein chaho baat karo.';
+  }
   return '';
 }
 
@@ -334,8 +341,11 @@ export function getGenerativeModel(ai, options = {}) {
       }
 
       const dna = atomicTaskDNA(request);
-      const atomic = shouldUseAtomicChain(request);
-      emit('Thinking', { capability: dna.capability, complexity: dna.complexity, atomic });
+      // On phone/browser runtimes, ordinary coding requests get one reliable fast
+      // relay answer first. Deep/complex coding still uses the full ARIM mesh.
+      const browserFastCoding = typeof document !== 'undefined' && dna.capability === 'coding' && dna.complexity < 3;
+      const atomic = shouldUseAtomicChain(request) && !browserFastCoding;
+      emit('Thinking', { capability: dna.capability, complexity: dna.complexity, atomic, browserFastCoding });
       const result = atomic
         ? await runAtomicChain({
             prompt: original,
