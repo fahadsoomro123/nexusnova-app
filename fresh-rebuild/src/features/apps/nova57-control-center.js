@@ -406,7 +406,7 @@ export function mountNovaControlCenter(host) {
     try {
       // Mobile WebViews are more reliable when the authoritative status request
     // gets the Worker connection first. Preserve the last good snapshot if one refresh
-    // is transiently unavailable instead of replacing real telemetry with fake zeros.
+    // is transiently unavailable instead of replacing real telemetry with misleading zero values.
     const nextStatus = await getAtomicBackendStatus();
     if (nextStatus) status = nextStatus;
 
