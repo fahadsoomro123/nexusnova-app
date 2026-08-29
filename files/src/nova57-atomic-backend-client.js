@@ -15,6 +15,10 @@ function bounded(promise, timeoutMs) {
   ]).finally(() => clearTimeout(timer));
 }
 
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function ready() {
   return /^https:\/\/[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev$/i.test(BACKEND_URL);
 }
@@ -44,6 +48,13 @@ async function post(path, body, timeoutMs, extraHeaders = {}) {
   return response.json();
 }
 
+async function fetchStatus(timeoutMs) {
+  const response = await bounded(fetch(`${BACKEND_URL}/v1/status`, { cache: 'no-store' }), timeoutMs);
+  if (!response.ok) throw new Error(`NOVA registry HTTP ${response.status}.`);
+  const data = await response.json();
+  return data && typeof data === 'object' && data.ok === true ? data : null;
+}
+
 async function freshAppCheckToken() {
   if (typeof document === 'undefined') return '';
   try {
@@ -57,11 +68,25 @@ async function freshAppCheckToken() {
   }
 }
 
+async function freshFirebaseAuthToken() {
+  if (typeof document === 'undefined') return '';
+  try {
+    const firebase = await import('./core/firebase-backend.js');
+    const user = firebase?.firebaseAuth?.currentUser
+      || (typeof firebase?.waitForFirebaseUser === 'function' ? await firebase.waitForFirebaseUser(900) : null);
+    if (!user || typeof user.getIdToken !== 'function') return '';
+    return String(await user.getIdToken(false) || '').trim();
+  } catch (error) {
+    console.warn('[NOVA Relay] Firebase Auth proof unavailable.', error);
+    return '';
+  }
+}
+
 export async function getAtomicBackendPlan(prompt) {
   if (!ready() || Date.now() < backendCoolingUntil) return null;
   try {
     const capability = capabilityOf(prompt);
-    const data = await post('/v1/plan', { capability }, 1350);
+    const data = await post('/v1/plan', { capability }, 2200);
     if (!data || !Array.isArray(data.candidates)) return null;
     return data;
   } catch (error) {
@@ -76,7 +101,7 @@ export async function getAtomicCapabilityPlan(capability = 'general') {
   const allowed = new Set(['general', 'coding', 'reasoning', 'research', 'multilingual']);
   const safeCapability = allowed.has(String(capability)) ? String(capability) : 'general';
   try {
-    const data = await post('/v1/plan', { capability: safeCapability }, 1800);
+    const data = await post('/v1/plan', { capability: safeCapability }, 3000);
     return data && Array.isArray(data.candidates) ? data : null;
   } catch (error) {
     coolDown(error);
@@ -86,13 +111,60 @@ export async function getAtomicCapabilityPlan(capability = 'general') {
 
 export async function getAtomicBackendStatus() {
   if (!ready()) return null;
+
+  // Mobile WebViews can take longer than desktop browsers to establish the first
+  // Worker connection. Status is authoritative telemetry, so give it a bounded
+  // retry instead of turning a transient 1.8s network delay into a blank dashboard.
   try {
-    const response = await bounded(fetch(`${BACKEND_URL}/v1/status`, { cache: 'no-store' }), 1800);
-    if (!response.ok) throw new Error(`NOVA registry HTTP ${response.status}.`);
-    return response.json();
-  } catch {
+    const first = await fetchStatus(4500);
+    if (first) return first;
+  } catch (error) {
+    console.warn('[NOVA ARIM] Registry status first attempt failed; retrying once.', error);
+  }
+
+  await wait(250);
+  try {
+    return await fetchStatus(3000);
+  } catch (error) {
+    console.warn('[NOVA ARIM] Registry status unavailable after retry.', error);
     return null;
   }
+}
+
+
+export async function generateViaAtomicRelay(prompt, options = {}) {
+  if (!ready()) throw new Error('NOVA relay is not configured.');
+  const value = String(prompt || '').trim();
+  if (!value) throw new Error('NOVA relay prompt is empty.');
+
+  // App Check remains the preferred attestation. Phone-test/debug builds
+  // can still prove a real NexusNova session with a Firebase Auth ID token
+  // when device attestation is slow or unavailable.
+  const [appCheckToken, authToken] = await Promise.all([
+    bounded(freshAppCheckToken(), 1400).catch(() => ''),
+    bounded(freshFirebaseAuthToken(), 1400).catch(() => '')
+  ]);
+  if (!appCheckToken && !authToken) throw new Error('NOVA relay authentication is unavailable.');
+
+  const allowed = new Set(['general', 'coding', 'reasoning', 'research', 'multilingual']);
+  const capability = allowed.has(String(options.capability || '')) ? String(options.capability) : capabilityOf(value);
+  const headers = {};
+  if (appCheckToken) headers['X-Firebase-AppCheck'] = appCheckToken;
+  if (authToken) headers.Authorization = `Bearer ${authToken}`;
+  const data = await post('/v1/generate', {
+    prompt: value.slice(0, 12000),
+    capability,
+    maxTokens: Math.max(96, Math.min(900, Number(options.maxTokens || 700) || 700)),
+    temperature: Math.max(0.1, Math.min(1, Number(options.temperature ?? 0.4) || 0.4))
+  }, 5600, headers);
+  if (!data?.ok || !String(data?.text || '').trim()) throw new Error(`NOVA relay failed: ${String(data?.error || 'empty-answer')}`);
+  return {
+    text: String(data.text).trim(),
+    provider: String(data.provider || 'NOVA Relay'),
+    model: String(data.model || 'worker-route'),
+    latencyMs: Math.max(0, Number(data.latencyMs || 0)),
+    capability
+  };
 }
 
 export function reportAtomicOutcome(payload = {}) {

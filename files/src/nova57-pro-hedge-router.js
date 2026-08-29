@@ -49,6 +49,7 @@ function config(options = {}) {
 function profile(prompt) {
   const text = String(prompt || '').toLowerCase();
   if (text.includes('[live nova web tool result]')) return 'grounded';
+  if (/\b(code|coding|javascript|typescript|python|java|kotlin|swift|sql|function|class|api)\b/.test(text)) return 'standard';
   if (text.length > 4200 || /\b(reason|reasoning|logic|constraints?|research|github|tool result|architecture|debug|algorithm|analy[sz]e|prove|derive|puzzle|schedule|positions?|permutation|unique order)\b/.test(text) || /must occupy positions|exactly once|immediately after|exactly two positions/i.test(text)) return 'hard';
   return text.length < 650 ? 'quick' : 'standard';
 }
@@ -405,9 +406,9 @@ export function getGenerativeModel(ai, options = {}) {
         }
         if (mode === 'hard') {
           console.warn('[NOVA Hedge] hard foreground routes unavailable; trying deadline-capped broad adaptive router.', fastError);
-          return boundedFallback(baseModel, prompt, 2600);
+          return baseModel.generateContent(prompt);
         }
-        console.warn(`[NOVA Hedge] ${mode} foreground routes unavailable; using broad adaptive router.`, fastError);
+        console.warn(`[NOVA Hedge] ${mode} foreground routes unavailable; using broad adaptive router with its own bounded budgets.`, fastError);
         return baseModel.generateContent(prompt);
       }
     }

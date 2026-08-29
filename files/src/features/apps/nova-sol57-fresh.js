@@ -160,14 +160,14 @@ export function renderNovaSol57() {
       <div class="nx57-clean-seg" role="tablist" aria-label="NOVA mode">
         <button type="button" data-nx57-mode="chat">Chat</button>
         <button type="button" data-nx57-mode="work">Work</button>
-        <button type="button" data-nx57-control>Control</button>
+        <button type="button" data-nx57-control>Dashboard</button>
       </div>
       <button class="nx57-clean-circle" type="button" data-nx57-new aria-label="New NOVA chat">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 11.5a7 7 0 1 1-2.05-4.95M19 5v6h-6" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
     </header>
 
-    <main class="nx57-clean-main" data-nx57-chat-panel>
+    <main class="nx57-clean-main" data-nx57-chat-panel hidden>
       <div class="nx57-clean-messages" data-nx57-messages>
         <div class="nx57-clean-empty" data-nx57-empty>
           <button class="nx57-clean-quick" type="button" data-nx57-quick="Aaj ke latest AI trends web par research karke sources ke saath batao">Research latest AI trends</button>
@@ -211,7 +211,7 @@ export function renderNovaSol57() {
       </div>
     </main>
 
-    <section class="nx57-control-center" data-nx57-control-center hidden aria-label="NOVA intelligence control center"></section>
+    <section class="nx57-control-center" data-nx57-control-center aria-label="NOVA intelligence control center"></section>
 
     <input type="file" data-nx57-picker multiple hidden>
     <input type="file" data-nx57-images accept="image/*" multiple hidden>
@@ -266,6 +266,7 @@ export function renderNovaSol57() {
   const chatPanel = root.querySelector('[data-nx57-chat-panel]');
   const controlPanel = root.querySelector('[data-nx57-control-center]');
   const controlButton = root.querySelector('[data-nx57-control]');
+  const cleanHeader = root.querySelector('.nx57-clean-header');
   const controlCenter = mountNovaControlCenter(controlPanel);
 
   let key = '';
@@ -274,6 +275,15 @@ export function renderNovaSol57() {
   let lastReply = '';
   let busy = false;
   let recognition = null;
+
+  const setDashboardMode = active => {
+    const enabled = Boolean(active);
+    root.classList.toggle('nx57-dashboard-open', enabled);
+    cleanHeader.hidden = enabled;
+    status.hidden = enabled;
+    if (enabled) controlPanel.style.inset = '0';
+    else controlPanel.style.removeProperty('inset');
+  };
 
   const closeTools = () => { toolsMenu.hidden = true; settingsPop.hidden = true; };
   const closeDrawer = () => { drawer.hidden = true; searchBar.hidden = true; search.value = ''; };
@@ -444,6 +454,7 @@ export function renderNovaSol57() {
     controlPanel.hidden = true;
     chatPanel.hidden = false;
     controlButton.classList.remove('is-active');
+    setDashboardMode(false);
     controlCenter.hide();
     applySettings();
   }));
@@ -453,6 +464,7 @@ export function renderNovaSol57() {
     controlPanel.hidden = !opening;
     chatPanel.hidden = opening;
     controlButton.classList.toggle('is-active', opening);
+    setDashboardMode(opening);
     root.querySelectorAll('[data-nx57-mode]').forEach(button => button.classList.toggle('is-active', !opening && button.dataset.nx57Mode === settings.mode));
     if (opening) controlCenter.show(); else controlCenter.hide();
   });
@@ -584,6 +596,12 @@ export function renderNovaSol57() {
   });
 
   applySettings();
+  chatPanel.hidden = true;
+  controlPanel.hidden = false;
+  controlButton.classList.add('is-active');
+  root.querySelectorAll('[data-nx57-mode]').forEach(button => button.classList.remove('is-active'));
+  setDashboardMode(true);
+  controlCenter.show();
   autoSize();
   syncEmpty();
 
