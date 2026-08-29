@@ -322,6 +322,17 @@ async function firebaseFallback() {
   return firebaseModule;
 }
 
+function firebaseCompatibleOptions(options = {}, modelOverride = '') {
+  const source = options?.generationConfig || {};
+  const generationConfig = { ...source };
+  delete generationConfig.temperature;
+  delete generationConfig.topP;
+  delete generationConfig.topK;
+  const result = { ...options, generationConfig };
+  if (modelOverride) result.model = modelOverride;
+  return result;
+}
+
 export class GoogleAIBackend { constructor(...args) { this.args = args; } }
 export function getAI(firebaseApp) { publish('seed-ready'); scheduleDiscovery(); return { firebaseApp, __novaProRouter: true }; }
 export function getGenerativeModel(ai, options = {}) {
@@ -335,7 +346,16 @@ export function getGenerativeModel(ai, options = {}) {
         try {
           const mod = await firebaseFallback();
           const originalAI = mod.getAI(ai?.firebaseApp, { backend: new mod.GoogleAIBackend() });
-          return await mod.getGenerativeModel(originalAI, options).generateContent(prompt);
+          const primaryOptions = firebaseCompatibleOptions(options);
+          try {
+            return await mod.getGenerativeModel(originalAI, primaryOptions).generateContent(prompt);
+          } catch (primaryFirebaseError) {
+            const requestedModel = String(primaryOptions?.model || '');
+            if (requestedModel === 'gemini-3.5-flash') throw primaryFirebaseError;
+            const stableOptions = firebaseCompatibleOptions(options, 'gemini-3.5-flash');
+            console.warn('[NOVA Pro] primary Firebase model failed; trying stable Gemini 3.5 Flash fallback.', primaryFirebaseError);
+            return await mod.getGenerativeModel(originalAI, stableOptions).generateContent(prompt);
+          }
         } catch (firebaseError) {
           const e = new Error(`NOVA routes failed: ${routerError?.message || routerError}; Firebase fallback failed: ${firebaseError?.message || firebaseError}`);
           e.cause = firebaseError;
