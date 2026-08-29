@@ -68,6 +68,20 @@ async function freshAppCheckToken() {
   }
 }
 
+async function freshFirebaseAuthToken() {
+  if (typeof document === 'undefined') return '';
+  try {
+    const firebase = await import('./core/firebase-backend.js');
+    const user = firebase?.firebaseAuth?.currentUser
+      || (typeof firebase?.waitForFirebaseUser === 'function' ? await firebase.waitForFirebaseUser(900) : null);
+    if (!user || typeof user.getIdToken !== 'function') return '';
+    return String(await user.getIdToken(false) || '').trim();
+  } catch (error) {
+    console.warn('[NOVA Relay] Firebase Auth proof unavailable.', error);
+    return '';
+  }
+}
+
 export async function getAtomicBackendPlan(prompt) {
   if (!ready() || Date.now() < backendCoolingUntil) return null;
   try {
@@ -122,16 +136,27 @@ export async function generateViaAtomicRelay(prompt, options = {}) {
   if (!ready()) throw new Error('NOVA relay is not configured.');
   const value = String(prompt || '').trim();
   if (!value) throw new Error('NOVA relay prompt is empty.');
-  const appCheckToken = await freshAppCheckToken();
-  if (!appCheckToken) throw new Error('NOVA relay App Check token is unavailable.');
+
+  // App Check remains the preferred attestation. Phone-test/debug builds
+  // can still prove a real NexusNova session with a Firebase Auth ID token
+  // when device attestation is slow or unavailable.
+  const [appCheckToken, authToken] = await Promise.all([
+    bounded(freshAppCheckToken(), 1400).catch(() => ''),
+    bounded(freshFirebaseAuthToken(), 1400).catch(() => '')
+  ]);
+  if (!appCheckToken && !authToken) throw new Error('NOVA relay authentication is unavailable.');
+
   const allowed = new Set(['general', 'coding', 'reasoning', 'research', 'multilingual']);
   const capability = allowed.has(String(options.capability || '')) ? String(options.capability) : capabilityOf(value);
+  const headers = {};
+  if (appCheckToken) headers['X-Firebase-AppCheck'] = appCheckToken;
+  if (authToken) headers.Authorization = `Bearer ${authToken}`;
   const data = await post('/v1/generate', {
     prompt: value.slice(0, 12000),
     capability,
     maxTokens: Math.max(96, Math.min(900, Number(options.maxTokens || 700) || 700)),
     temperature: Math.max(0.1, Math.min(1, Number(options.temperature ?? 0.4) || 0.4))
-  }, 3200, { 'X-Firebase-AppCheck': appCheckToken });
+  }, 5600, headers);
   if (!data?.ok || !String(data?.text || '').trim()) throw new Error(`NOVA relay failed: ${String(data?.error || 'empty-answer')}`);
   return {
     text: String(data.text).trim(),

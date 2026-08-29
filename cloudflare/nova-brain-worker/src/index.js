@@ -30,6 +30,10 @@ const ALLOWED_APP_CHECK_SUBJECTS = new Set([
 ]);
 const MAX_APP_CHECK_TOKEN_CHARS = 8192;
 let appCheckJwksCache = { expiresAt: 0, keys: new Map() };
+const FIREBASE_AUTH_PROJECT_ID = 'nexusnova-6ade2';
+const FIREBASE_AUTH_ISSUER = `https://securetoken.google.com/${FIREBASE_AUTH_PROJECT_ID}`;
+const FIREBASE_AUTH_JWKS_URL = 'https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com';
+let firebaseAuthJwksCache = { expiresAt: 0, keys: new Map() };
 
 function json(data, status = 200, extra = {}) {
   return new Response(JSON.stringify(data), {
@@ -39,7 +43,7 @@ function json(data, status = 200, extra = {}) {
       'cache-control': 'no-store',
       'access-control-allow-origin': '*',
       'access-control-allow-methods': 'GET,POST,OPTIONS',
-      'access-control-allow-headers': 'content-type,x-firebase-appcheck',
+      'access-control-allow-headers': 'content-type,x-firebase-appcheck,authorization',
       ...extra
     }
   });
@@ -129,6 +133,53 @@ async function verifyAppCheckToken(token) {
     if (!Number.isFinite(Number(payload?.exp)) || Number(payload.exp) <= epochSeconds) return null;
     if (Number.isFinite(Number(payload?.nbf)) && Number(payload.nbf) > epochSeconds + 60) return null;
     if (!ALLOWED_APP_CHECK_SUBJECTS.has(String(payload?.sub || ''))) return null;
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+
+async function loadFirebaseAuthJwks(force = false) {
+  if (!force && firebaseAuthJwksCache.keys.size && now() < firebaseAuthJwksCache.expiresAt) {
+    return firebaseAuthJwksCache.keys;
+  }
+  const response = await fetch(FIREBASE_AUTH_JWKS_URL, { headers: { accept: 'application/json' } });
+  if (!response.ok) throw new Error(`firebase-auth-jwks-${response.status}`);
+  const data = await response.json();
+  const rows = Array.isArray(data?.keys) ? data.keys : [];
+  const keys = new Map(rows.filter(key => key?.kid).map(key => [String(key.kid), key]));
+  if (!keys.size) throw new Error('firebase-auth-jwks-empty');
+  const maxAgeMatch = /(?:^|,)\s*max-age=(\d+)/i.exec(response.headers.get('cache-control') || '');
+  const maxAgeSeconds = Math.min(21600, Math.max(300, Number(maxAgeMatch?.[1] || 3600)));
+  firebaseAuthJwksCache = { keys, expiresAt: now() + maxAgeSeconds * 1000 };
+  return keys;
+}
+
+async function verifyFirebaseAuthToken(token) {
+  try {
+    const raw = String(token || '').trim();
+    if (!raw || raw.length > 8192) return null;
+    const parts = raw.split('.');
+    if (parts.length !== 3 || parts.some(part => !part)) return null;
+    const header = base64UrlJson(parts[0]);
+    const payload = base64UrlJson(parts[1]);
+    if (header?.alg !== 'RS256' || !header?.kid) return null;
+    let keys = await loadFirebaseAuthJwks(false);
+    if (!keys.has(String(header.kid))) keys = await loadFirebaseAuthJwks(true);
+    const jwk = keys.get(String(header.kid));
+    if (!jwk) return null;
+    const key = await crypto.subtle.importKey(
+      'jwk', jwk, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['verify']
+    );
+    const signed = new TextEncoder().encode(`${parts[0]}.${parts[1]}`);
+    const signature = base64UrlBytes(parts[2]);
+    if (!await crypto.subtle.verify('RSASSA-PKCS1-v1_5', key, signature, signed)) return null;
+    const epochSeconds = Math.floor(now() / 1000);
+    if (payload?.iss !== FIREBASE_AUTH_ISSUER || payload?.aud !== FIREBASE_AUTH_PROJECT_ID) return null;
+    if (!payload?.sub || String(payload.sub).length > 128) return null;
+    if (!Number.isFinite(Number(payload?.exp)) || Number(payload.exp) <= epochSeconds) return null;
+    if (Number.isFinite(Number(payload?.iat)) && Number(payload.iat) > epochSeconds + 60) return null;
     return payload;
   } catch {
     return null;
@@ -528,8 +579,13 @@ async function status(env) {
 
 async function generateRelay(request, env) {
   const appCheckToken = request.headers.get('x-firebase-appcheck') || '';
-  const appCheckClaims = await verifyAppCheckToken(appCheckToken);
-  if (!appCheckClaims) return json({ ok: false, error: 'app-check-required' }, 401);
+  const authHeader = request.headers.get('authorization') || '';
+  const authToken = /^Bearer\s+/i.test(authHeader) ? authHeader.replace(/^Bearer\s+/i, '').trim() : '';
+  const [appCheckClaims, authClaims] = await Promise.all([
+    verifyAppCheckToken(appCheckToken),
+    verifyFirebaseAuthToken(authToken)
+  ]);
+  if (!appCheckClaims && !authClaims) return json({ ok: false, error: 'verified-client-required' }, 401);
 
   let body = {};
   try { body = await request.json(); }
@@ -544,13 +600,21 @@ async function generateRelay(request, env) {
 
   // Transport-only relay: prompt text is never written to D1/meta/route telemetry.
   const currentPlan = await plan(env, capability);
-  const fallback = [
-    { provider: 'Kilo', modelId: 'kilo-auto/free' },
-    { provider: 'Kilo', modelId: 'openrouter/free' },
-    { provider: 'Kilo', modelId: 'stepfun/step-3.7-flash:free' }
-  ];
+  const provenFast = capability === 'coding'
+    ? [
+        { provider: 'OVHcloud', modelId: 'Qwen3-Coder-30B-A3B-Instruct' },
+        { provider: 'OVHcloud', modelId: 'Mistral-Small-3.2-24B-Instruct-2506' },
+        { provider: 'Kilo', modelId: 'kilo-auto/free' }
+      ]
+    : [
+        { provider: 'OVHcloud', modelId: 'Mistral-Small-3.2-24B-Instruct-2506' },
+        { provider: 'OVHcloud', modelId: 'Mistral-7B-Instruct-v0.3' },
+        { provider: 'OVHcloud', modelId: 'Mistral-Nemo-Instruct-2407' },
+        { provider: 'Kilo', modelId: 'kilo-auto/free' }
+      ];
   const seen = new Set();
-  const candidates = [...(Array.isArray(currentPlan?.candidates) ? currentPlan.candidates : []), ...fallback]
+  // Known sub-second routes lead; learned D1 routes remain adaptive fallback.
+  const candidates = [...provenFast, ...(Array.isArray(currentPlan?.candidates) ? currentPlan.candidates : [])]
     .filter(row => {
       const provider = text(row?.provider || row?.source, 80);
       const modelId = text(row?.modelId || row?.model, 240);
@@ -578,7 +642,7 @@ async function generateRelay(request, env) {
         temperature,
         stream: false
       })
-    }, 2700);
+    }, 4500);
     const content = data?.choices?.[0]?.message?.content ?? data?.choices?.[0]?.text ?? data?.output_text ?? data?.text ?? '';
     const answer = typeof content === 'string'
       ? content.trim()

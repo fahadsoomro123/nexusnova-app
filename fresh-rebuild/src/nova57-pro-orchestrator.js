@@ -56,6 +56,10 @@ function instantConversation(request) {
   if (/^(?:hi+|hello+|hey+)[, ]+(?:nova|bro|bhai)[!.? ]*$/i.test(value)) {
     return 'Hello bhai! Main ready hoon — kya karna hai?';
   }
+  if (/^(?:(?:bhai|bro)[, ]*)?(?:tera|tumhara|aapka|apka)?\s*(?:naam|name)\s*(?:kya|kia|kiya|what)?\s*(?:hai|he|is)?[?.! ]*$/i.test(value)
+    || /^(?:what(?:'s| is) your name|who are you)[?.! ]*$/i.test(value)) {
+    return 'Bhai, mera naam NOVA hai. Main NexusNova AI assistant hoon.';
+  }
   return '';
 }
 
@@ -66,7 +70,7 @@ function mobileRelayPreferred() {
 }
 
 async function generateForRuntime(model, prompt, capability, options = {}) {
-  if (mobileRelayPreferred()) {
+  if (mobileRelayPreferred() || typeof document !== 'undefined') {
     try {
       const cfg = options?.generationConfig || {};
       const relay = await generateViaAtomicRelay(prompt, {
