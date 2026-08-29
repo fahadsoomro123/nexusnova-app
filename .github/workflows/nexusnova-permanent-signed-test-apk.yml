@@ -76,7 +76,7 @@ jobs:
           python3 NexusNovaAndroid/patch_native_no_bounce_v1.py
           python3 NexusNovaAndroid/patch_dashboard_startup_lockfix_v1.py
 
-      - name: Force release variant into TEST-only mode and set build identity
+      - name: Enforce TEST-only release variant and set build identity
         shell: bash
         run: |
           set -euo pipefail
@@ -87,38 +87,41 @@ jobs:
           path = Path('NexusNovaAndroid/app/build.gradle.kts')
           text = path.read_text(encoding='utf-8')
 
-          text, n_false = re.subn(
+          # Idempotent with the repository-wide AdMob TEST lock: convert legacy
+          # live values if present, but also accept an already locked source tree.
+          text = re.sub(
               r'buildConfigField\("boolean",\s*"NEXUS_ADS_TEST_MODE",\s*"false"\)',
               'buildConfigField("boolean", "NEXUS_ADS_TEST_MODE", "true")',
               text,
-              count=1,
           )
-          text, n_appid = re.subn(
-              r'manifestPlaceholders\["admobAppId"\]\s*=\s*"ca-app-pub-5070673529890078~1824799663"',
+          text = text.replace(
+              'manifestPlaceholders["admobAppId"] = "ca-app-pub-5070673529890078~1824799663"',
               'manifestPlaceholders["admobAppId"] = "ca-app-pub-3940256099942544~3347511713"',
-              text,
-              count=1,
           )
-          text, n_code = re.subn(r'versionCode\s*=\s*\d+', 'versionCode = 116', text, count=1)
+          text, n_code = re.subn(r'versionCode\s*=\s*\d+', 'versionCode = 117', text, count=1)
           text, n_name = re.subn(
               r'versionName\s*=\s*"[^"]+"',
-              'versionName = "1.1.6-permanent-signed-test"',
+              'versionName = "1.1.7-permanent-signed-test"',
               text,
               count=1,
           )
 
-          if (n_false, n_appid, n_code, n_name) != (1, 1, 1, 1):
-              raise SystemExit(
-                  f'Could not create TEST-only signed release variant: '
-                  f'testMode={n_false}, appId={n_appid}, versionCode={n_code}, versionName={n_name}'
-              )
+          if n_code != 1 or n_name != 1:
+              raise SystemExit(f'Could not set TEST build identity: versionCode={n_code}, versionName={n_name}')
+          if text.count('buildConfigField("boolean", "NEXUS_ADS_TEST_MODE", "true")') < 2:
+              raise SystemExit('Debug and release must both be TEST-only')
+          if 'ca-app-pub-5070673529890078~1824799663' in text:
+              raise SystemExit('Production AdMob App ID must not be present')
+          if text.count('ca-app-pub-3940256099942544~3347511713') < 2:
+              raise SystemExit('Google TEST App ID must be configured for debug and release')
 
           path.write_text(text, encoding='utf-8')
           PY
 
-          grep -Fq 'versionCode = 116' NexusNovaAndroid/app/build.gradle.kts
-          grep -Fq 'versionName = "1.1.6-permanent-signed-test"' NexusNovaAndroid/app/build.gradle.kts
+          grep -Fq 'versionCode = 117' NexusNovaAndroid/app/build.gradle.kts
+          grep -Fq 'versionName = "1.1.7-permanent-signed-test"' NexusNovaAndroid/app/build.gradle.kts
           test "$(grep -Fc 'buildConfigField("boolean", "NEXUS_ADS_TEST_MODE", "true")' NexusNovaAndroid/app/build.gradle.kts)" -ge 2
+          test "$(grep -Fc 'ca-app-pub-3940256099942544~3347511713' NexusNovaAndroid/app/build.gradle.kts)" -ge 2
           if grep -Fq 'ca-app-pub-5070673529890078~1824799663' NexusNovaAndroid/app/build.gradle.kts; then
             echo 'Production AdMob App ID must not be present in permanent-signed TEST build.' >&2
             exit 1
@@ -152,7 +155,7 @@ jobs:
         run: |
           set -euo pipefail
           UNSIGNED='NexusNovaAndroid/app/build/outputs/apk/release/app-release-unsigned.apk'
-          SIGNED='NexusNova-v1.1.6-Permanent-Signed-TEST.apk'
+          SIGNED='NexusNova-v1.1.7-Permanent-Signed-TEST.apk'
           test -s "$UNSIGNED"
 
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
@@ -176,7 +179,7 @@ jobs:
           NEXUSNOVA_KEY_ALIAS: ${{ secrets.NEXUSNOVA_KEY_ALIAS }}
         run: |
           set -euo pipefail
-          SIGNED='NexusNova-v1.1.6-Permanent-Signed-TEST.apk'
+          SIGNED='NexusNova-v1.1.7-Permanent-Signed-TEST.apk'
 
           "$APKSIGNER" verify --verbose --print-certs "$SIGNED" | tee NexusNova-signature-verification.txt
           "$APKSIGNER" verify "$SIGNED"
@@ -188,16 +191,16 @@ jobs:
             | sed -n '/SHA256:/p' \
             | tee NexusNova-keystore-sha256.txt
 
-          sha256sum "$SIGNED" | tee NexusNova-v1.1.6-Permanent-Signed-TEST.apk.sha256
+          sha256sum "$SIGNED" | tee NexusNova-v1.1.7-Permanent-Signed-TEST.apk.sha256
           echo 'Permanent signature verification passed.'
 
       - name: Upload permanent-signed TEST APK
         uses: actions/upload-artifact@v4
         with:
-          name: NexusNova-v1.1.6-Permanent-Signed-TEST
+          name: NexusNova-v1.1.7-Permanent-Signed-TEST
           path: |
-            NexusNova-v1.1.6-Permanent-Signed-TEST.apk
-            NexusNova-v1.1.6-Permanent-Signed-TEST.apk.sha256
+            NexusNova-v1.1.7-Permanent-Signed-TEST.apk
+            NexusNova-v1.1.7-Permanent-Signed-TEST.apk.sha256
             NexusNova-signature-verification.txt
             NexusNova-keystore-sha256.txt
           if-no-files-found: error
