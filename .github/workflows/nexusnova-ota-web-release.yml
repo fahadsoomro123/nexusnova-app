@@ -1,7 +1,5 @@
 name: NexusNova OTA Web Release
 
-# Atomic OTA v2 package builder. The one-time native bootstrap now reads the
-# public OTA channel hosted from the public NexusNova website repository.
 on:
   push:
     branches: [nexusnova-latest-full-apk-recovery-20260823, nova-sol57-pro-v128]
@@ -14,8 +12,9 @@ permissions:
   contents: write
 
 env:
-  # Exact web source bundled by the public-OTA-capable native bootstrap.
   OTA_BUNDLED_BASE: b6eb3d191ee35b58c0ffe14334674ea2c60d3b72
+  PUBLIC_OTA_REPO: fahadsoomro123/nexusnova-website
+  PUBLIC_OTA_BRANCH: nexusnova-ota-public
 
 jobs:
   publish:
@@ -36,10 +35,7 @@ jobs:
             node --check "$file" >/dev/null
             checked=$((checked + 1))
           done < <(find fresh-rebuild -type f -name '*.js' -print0)
-          if [ "$checked" -lt 1 ]; then
-            echo 'No JavaScript files found to verify.' >&2
-            exit 1
-          fi
+          test "$checked" -gt 0
           echo "JavaScript syntax verified: $checked files"
 
       - name: Verify registered app renderer coverage
@@ -49,31 +45,19 @@ jobs:
           node <<'NODE'
           const fs = require('fs');
           const path = require('path');
-
-          const registryPath = 'fresh-rebuild/src/features/hub/app-registry.js';
-          const appsDir = 'fresh-rebuild/src/features/apps';
-          const registry = fs.readFileSync(registryPath, 'utf8');
-          const ids = [...registry.matchAll(/\bid\s*:\s*(['"])([^'"]+)\1/g)].map(match => match[2]);
+          const registry = fs.readFileSync('fresh-rebuild/src/features/hub/app-registry.js', 'utf8');
+          const ids = [...registry.matchAll(/\bid\s*:\s*(['"])([^'"]+)\1/g)].map(m => m[2]);
           if (!ids.length) throw new Error('No registered NexusNova app IDs were found.');
-
           const rendered = new Set();
-          for (const name of fs.readdirSync(appsDir)) {
+          for (const name of fs.readdirSync('fresh-rebuild/src/features/apps')) {
             if (!name.endsWith('.js')) continue;
-            const text = fs.readFileSync(path.join(appsDir, name), 'utf8');
-            const maps = text.matchAll(/export\s+const\s+\w*Renderers\s*=\s*Object\.freeze\(\{([\s\S]*?)\}\);/g);
-            for (const map of maps) {
-              const body = map[1];
-              for (const match of body.matchAll(/(?:^|,)\s*(?:(['"])([^'"]+)\1|([A-Za-z_$][\w$-]*))\s*:/g)) {
-                rendered.add(match[2] || match[3]);
-              }
+            const text = fs.readFileSync(path.join('fresh-rebuild/src/features/apps', name), 'utf8');
+            for (const map of text.matchAll(/export\s+const\s+\w*Renderers\s*=\s*Object\.freeze\(\{([\s\S]*?)\}\);/g)) {
+              for (const m of map[1].matchAll(/(?:^|,)\s*(?:(['"])([^'"]+)\1|([A-Za-z_$][\w$-]*))\s*:/g)) rendered.add(m[2] || m[3]);
             }
           }
-
           const missing = [...new Set(ids)].filter(id => !rendered.has(id));
-          if (missing.length) {
-            console.error(`Registered apps without a concrete renderer: ${missing.join(', ')}`);
-            process.exit(1);
-          }
+          if (missing.length) throw new Error(`Registered apps without renderer: ${missing.join(', ')}`);
           console.log(`Renderer coverage verified: ${new Set(ids).size} registered apps.`);
           NODE
 
@@ -83,18 +67,14 @@ jobs:
           set -euo pipefail
           BASE="$OTA_BUNDLED_BASE"
           git cat-file -e "$BASE^{commit}"
-
-          deleted="$(git diff --name-only --diff-filter=D "$BASE" "$GITHUB_SHA" -- fresh-rebuild/ \
-            | grep -vFx 'fresh-rebuild/src/features/apps/premium-nova-internet-speed.js' || true)"
+          deleted="$(git diff --name-only --diff-filter=D "$BASE" "$GITHUB_SHA" -- fresh-rebuild/ | grep -vFx 'fresh-rebuild/src/features/apps/premium-nova-internet-speed.js' || true)"
           if [ -n "$deleted" ]; then
-            echo 'Atomic differential OTA cannot safely represent deleted bundled web files:' >&2
+            echo 'Atomic differential OTA cannot represent deleted bundled web files:' >&2
             printf '%s\n' "$deleted" >&2
             exit 1
           fi
-
           rm -rf /tmp/nexusnova-ota-package
           mkdir -p /tmp/nexusnova-ota-package/files
-
           count=0
           while IFS= read -r full; do
             [ -n "$full" ] || continue
@@ -104,50 +84,26 @@ jobs:
             cp "$full" "/tmp/nexusnova-ota-package/files/$rel"
             count=$((count + 1))
           done < <(git diff --name-only --diff-filter=ACMRT "$BASE" "$GITHUB_SHA" -- fresh-rebuild/)
-
           if [ ! -f /tmp/nexusnova-ota-package/files/index.html ]; then
             cp fresh-rebuild/index.html /tmp/nexusnova-ota-package/files/index.html
             count=$((count + 1))
           fi
-
-          if [ "$count" -lt 1 ]; then
-            echo 'No web files available for OTA.' >&2
-            exit 1
-          fi
-
+          test "$count" -gt 0
           export OTA_DIFF_BASE="$BASE"
           python3 - <<'PY'
           import hashlib, json, os
           from pathlib import Path
-
           root = Path('/tmp/nexusnova-ota-package/files')
           files = []
           for path in sorted(p for p in root.rglob('*') if p.is_file()):
-              rel = path.relative_to(root).as_posix()
               data = path.read_bytes()
-              files.append({
-                  'path': rel,
-                  'sha256': hashlib.sha256(data).hexdigest(),
-                  'size': len(data),
-              })
-          if not files:
-              raise SystemExit('OTA package is empty')
-          if not any(item['path'] == 'index.html' for item in files):
-              raise SystemExit('OTA package entry point missing')
-          manifest = {
-              'schema': 2,
-              'base': os.environ['OTA_DIFF_BASE'],
-              'version': os.environ['GITHUB_SHA'],
-              'files': files,
-          }
-          Path('/tmp/nexusnova-ota-package/manifest.json').write_text(
-              json.dumps(manifest, separators=(',', ':'), sort_keys=True),
-              encoding='utf-8'
-          )
+              files.append({'path': path.relative_to(root).as_posix(), 'sha256': hashlib.sha256(data).hexdigest(), 'size': len(data)})
+          if not files or not any(x['path'] == 'index.html' for x in files): raise SystemExit('OTA entry point missing')
+          manifest = {'schema': 2, 'base': os.environ['OTA_DIFF_BASE'], 'version': os.environ['GITHUB_SHA'], 'files': files}
+          Path('/tmp/nexusnova-ota-package/manifest.json').write_text(json.dumps(manifest, separators=(',', ':'), sort_keys=True), encoding='utf-8')
           print(f"Differential OTA files: {len(files)}")
-          print(f"Differential OTA bytes: {sum(item['size'] for item in files)}")
+          print(f"Differential OTA bytes: {sum(x['size'] for x in files)}")
           PY
-
           test -s /tmp/nexusnova-ota-package/manifest.json
           test -s /tmp/nexusnova-ota-package/files/index.html
 
@@ -158,12 +114,77 @@ jobs:
           git config user.name 'NexusNova OTA Bot'
           git config user.email 'actions@users.noreply.github.com'
           git fetch origin nexusnova-ota-release
-          rm -rf /tmp/nexusnova-ota-branch
-          git worktree add /tmp/nexusnova-ota-branch origin/nexusnova-ota-release
-          cd /tmp/nexusnova-ota-branch
+          rm -rf /tmp/nexusnova-ota-staging
+          git worktree add /tmp/nexusnova-ota-staging origin/nexusnova-ota-release
+          cd /tmp/nexusnova-ota-staging
           git rm -rf .
           cp -a /tmp/nexusnova-ota-package/. .
           git add -A
           git commit -m "Publish NexusNova differential web OTA $GITHUB_SHA"
           git pull --rebase origin nexusnova-ota-release
           git push origin HEAD:nexusnova-ota-release
+
+      - name: Require cross-repo public OTA credential
+        shell: bash
+        env:
+          PUBLIC_OTA_TOKEN: ${{ secrets.GH_PUBLIC_OTA_TOKEN || secrets.OTA_PUBLIC_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$PUBLIC_OTA_TOKEN" || { echo 'Missing GH_PUBLIC_OTA_TOKEN or OTA_PUBLIC_TOKEN' >&2; exit 1; }
+
+      - name: Publish public OTA channel
+        shell: bash
+        env:
+          PUBLIC_OTA_TOKEN: ${{ secrets.GH_PUBLIC_OTA_TOKEN || secrets.OTA_PUBLIC_TOKEN }}
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/nexusnova-ota-public
+          git clone --depth 1 --branch "$PUBLIC_OTA_BRANCH" "https://github.com/$PUBLIC_OTA_REPO.git" /tmp/nexusnova-ota-public
+          cd /tmp/nexusnova-ota-public
+          git config user.name 'NexusNova OTA Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          rm -rf ota
+          mkdir -p ota
+          cp -a /tmp/nexusnova-ota-package/. ota/
+          git add -A ota
+          if git diff --cached --quiet; then
+            echo 'Public OTA already current.'
+          else
+            git commit -m "Publish NexusNova public OTA $GITHUB_SHA"
+            AUTH="$(printf 'x-access-token:%s' "$PUBLIC_OTA_TOKEN" | base64 -w0)"
+            git -c http.extraheader="AUTHORIZATION: basic $AUTH" push origin HEAD:"$PUBLIC_OTA_BRANCH"
+          fi
+
+      - name: Verify anonymous public OTA end-to-end
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_URL="https://raw.githubusercontent.com/$PUBLIC_OTA_REPO/$PUBLIC_OTA_BRANCH/ota"
+          for attempt in 1 2 3 4 5 6; do
+            if curl -fsSL -H 'Cache-Control: no-cache' "$BASE_URL/manifest.json?sha=$GITHUB_SHA&n=$attempt" -o /tmp/public-manifest.json; then
+              if python3 - "$GITHUB_SHA" <<'PY'
+          import json, sys
+          m=json.load(open('/tmp/public-manifest.json', encoding='utf-8'))
+          expected=sys.argv[1]
+          assert m.get('schema') == 2, m
+          assert m.get('base') == 'b6eb3d191ee35b58c0ffe14334674ea2c60d3b72', m
+          assert m.get('version') == expected, (m.get('version'), expected)
+          assert any(x.get('path') == 'index.html' for x in m.get('files', [])), m
+          assert any(x.get('path') == 'assets/styles/premium-mine-tactile-3d.css' for x in m.get('files', [])), m
+          PY
+              then break; fi
+            fi
+            if [ "$attempt" -eq 6 ]; then echo 'Public OTA manifest did not converge' >&2; exit 1; fi
+            sleep 5
+          done
+          python3 - <<'PY'
+          import hashlib, json, urllib.request
+          m=json.load(open('/tmp/public-manifest.json', encoding='utf-8'))
+          base='https://raw.githubusercontent.com/fahadsoomro123/nexusnova-website/nexusnova-ota-public/ota/files/'
+          for item in m['files']:
+              url=base + '/'.join(__import__('urllib.parse').parse.quote(p, safe='') for p in item['path'].split('/'))
+              data=urllib.request.urlopen(url, timeout=20).read()
+              assert len(data) == item['size'], item['path']
+              assert hashlib.sha256(data).hexdigest() == item['sha256'], item['path']
+          print(f"Anonymous public OTA verified: {len(m['files'])} files")
+          PY
