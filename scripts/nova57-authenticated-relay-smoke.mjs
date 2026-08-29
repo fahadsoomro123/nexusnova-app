@@ -28,6 +28,29 @@ async function createAnonymousSession() {
   }, 15000);
 }
 
+async function createPasswordSession() {
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  return jsonRequest(`${FIREBASE_AUTH_URL}:signUp?key=${encodeURIComponent(FIREBASE_API_KEY)}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      email: `nova-relay-smoke-${stamp}@example.invalid`,
+      password: `Nn!${stamp}x7`,
+      returnSecureToken: true
+    })
+  }, 15000);
+}
+
+async function createEphemeralSession() {
+  try {
+    return { session: await createAnonymousSession(), auth: 'ephemeral-firebase-anonymous-session' };
+  } catch (anonymousError) {
+    const message = String(anonymousError?.message || anonymousError);
+    if (!/ADMIN_ONLY_OPERATION|OPERATION_NOT_ALLOWED/.test(message)) throw anonymousError;
+    return { session: await createPasswordSession(), auth: 'ephemeral-firebase-password-session' };
+  }
+}
+
 async function deleteSession(idToken) {
   if (!idToken) return;
   await jsonRequest(`${FIREBASE_AUTH_URL}:delete?key=${encodeURIComponent(FIREBASE_API_KEY)}`, {
@@ -68,17 +91,20 @@ async function relay(idToken, capability, marker) {
 }
 
 let idToken = '';
+let authMode = '';
 let primaryError = null;
 try {
-  const session = await createAnonymousSession();
+  const created = await createEphemeralSession();
+  const session = created.session;
+  authMode = created.auth;
   idToken = String(session?.idToken || '').trim();
-  if (!idToken) throw new Error('Firebase anonymous sign-in returned no ID token.');
+  if (!idToken) throw new Error('Firebase ephemeral sign-in returned no ID token.');
 
   const general = await relay(idToken, 'general', 'NOVA_PHONE_GENERAL_OK');
   const coding = await relay(idToken, 'coding', 'NOVA_PHONE_CODE_OK');
   console.log(JSON.stringify({
     ok: true,
-    auth: 'ephemeral-firebase-anonymous-session',
+    auth: authMode,
     general,
     coding,
     testedAt: new Date().toISOString()
