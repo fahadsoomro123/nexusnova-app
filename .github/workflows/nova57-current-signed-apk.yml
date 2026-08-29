@@ -1,4 +1,4 @@
-name: NOVA 5.7 Current Signed APK
+name: NOVA 5.7 Gemini Reset Signed APK
 
 on:
   workflow_dispatch:
@@ -6,11 +6,11 @@ on:
       version_code:
         description: Android versionCode
         required: true
-        default: '20260829'
+        default: '202608291'
       version_name:
         description: Android versionName
         required: true
-        default: '1.5.7.20260829'
+        default: '1.5.7-gemini-reset-20260829'
   push:
     branches: [nova-sol57-pro-v128]
     paths:
@@ -20,7 +20,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: nova57-current-signed-apk-${{ github.ref }}
+  group: nova57-gemini-reset-apk-${{ github.ref }}
   cancel-in-progress: false
 
 env:
@@ -28,8 +28,8 @@ env:
   NEXUSNOVA_SIGNING_STORE_PASSWORD: ${{ secrets.NEXUSNOVA_SIGNING_STORE_PASSWORD }}
   NEXUSNOVA_SIGNING_KEY_ALIAS: ${{ secrets.NEXUSNOVA_SIGNING_KEY_ALIAS }}
   NEXUSNOVA_SIGNING_KEY_PASSWORD: ${{ secrets.NEXUSNOVA_SIGNING_KEY_PASSWORD }}
-  VERSION_CODE: ${{ github.event_name == 'workflow_dispatch' && inputs.version_code || '20260829' }}
-  VERSION_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.version_name || '1.5.7.20260829' }}
+  VERSION_CODE: ${{ github.event_name == 'workflow_dispatch' && inputs.version_code || '202608291' }}
+  VERSION_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.version_name || '1.5.7-gemini-reset-20260829' }}
 
 jobs:
   build-current-signed-apk:
@@ -41,27 +41,37 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verify current NOVA release source
+      - name: Verify Gemini reset source
         shell: bash
         run: |
           set -euo pipefail
           test "$GITHUB_REF_NAME" = "nova-sol57-pro-v128"
           test -s fresh-rebuild/index.html
           test -s fresh-rebuild/src/main.js
-          test -s fresh-rebuild/src/nova57-atomic-chain.js
-          test -s fresh-rebuild/src/nova57-atomic-backend-client.js
           test -s fresh-rebuild/src/features/apps/nova-sol57-fresh.js
-          test -s fresh-rebuild/src/features/apps/nova57-control-center.js
-          test -s cloudflare/nova-brain-worker/src/index.js
+          test -s fresh-rebuild/src/nova57-human-response.js
           test -s NexusNovaAndroid/app/build.gradle.kts
-          grep -Fq "NOVA 5.7 Sol / ARIM" fresh-rebuild/src/features/apps/nova-sol57-fresh.js
-          grep -Fq "mountNovaControlCenter" fresh-rebuild/src/features/apps/nova-sol57-fresh.js
-          grep -Fq "FINALIZER_RESERVE_MS" fresh-rebuild/src/nova57-atomic-chain.js
-          grep -Fq "judge-rescue" fresh-rebuild/src/nova57-atomic-chain.js
-          grep -Fq "PROBE_INTERVAL_MS = 60 * 60 * 1000" cloudflare/nova-brain-worker/src/index.js
-          grep -Fq "route_semantic_dimensions" cloudflare/nova-brain-worker/src/index.js
-          grep -Fq "semantic-quarantine" cloudflare/nova-brain-worker/src/index.js
-          echo "Current NOVA intelligence, control center and semantic-learning release anchors: PASS"
+
+          grep -Fq "const PRODUCT = 'NOVA 5.7 Sol';" fresh-rebuild/src/features/apps/nova-sol57-fresh.js
+          grep -Fq "const PROVIDER_MODEL = 'gemini-3.6-flash';" fresh-rebuild/src/features/apps/nova-sol57-fresh.js
+          grep -Fq "firebasejs/12.1.0/firebase-ai.js" fresh-rebuild/src/features/apps/nova-sol57-fresh.js
+          grep -Fq 'data-nx57-mode="chat"' fresh-rebuild/src/features/apps/nova-sol57-fresh.js
+          grep -Fq 'data-nx57-mode="work"' fresh-rebuild/src/features/apps/nova-sol57-fresh.js
+          grep -Fq './src/nova57-human-response.js' fresh-rebuild/index.html
+
+          if grep -Fq 'mountNovaControlCenter' fresh-rebuild/src/features/apps/nova-sol57-fresh.js; then
+            echo 'Dashboard control center is still wired' >&2
+            exit 1
+          fi
+          if grep -Fq 'data-nx57-control' fresh-rebuild/src/features/apps/nova-sol57-fresh.js; then
+            echo 'Dashboard button is still present' >&2
+            exit 1
+          fi
+          if grep -Eq '200K|ARIM' fresh-rebuild/src/features/apps/nova-sol57-fresh.js; then
+            echo '200K/ARIM runtime marker is still present in active NOVA renderer' >&2
+            exit 1
+          fi
+          echo 'Direct Gemini + Chat/Work-only NOVA source: PASS'
 
       - name: Java 17
         uses: actions/setup-java@v5
