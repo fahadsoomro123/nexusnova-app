@@ -1,0 +1,73 @@
+name: NOVA 5.7 JWKS Latency Fix
+
+on:
+  push:
+    branches: [nova-sol57-pro-v128]
+    paths:
+      - '.github/workflows/nova57-jwks-latency-fix.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Bound and edge-cache Firebase verification keys
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('cloudflare/nova-brain-worker/src/index.js')
+          s = p.read_text(encoding='utf-8')
+
+          old_app = """  const response = await fetch(APP_CHECK_JWKS_URL, { headers: { accept: 'application/json' } });\n  if (!response.ok) throw new Error(`app-check-jwks-${response.status}`);\n  const data = await response.json();\n"""
+          new_app = """  const { response, data } = await fetchJson(APP_CHECK_JWKS_URL, {\n    headers: { accept: 'application/json' },\n    cf: { cacheTtl: 3600, cacheEverything: true }\n  }, 2500);\n"""
+          if new_app not in s:
+              if old_app not in s:
+                  raise SystemExit('App Check JWKS anchor missing')
+              s = s.replace(old_app, new_app, 1)
+
+          old_auth = """  const response = await fetch(FIREBASE_AUTH_JWKS_URL, { headers: { accept: 'application/json' } });\n  if (!response.ok) throw new Error(`firebase-auth-jwks-${response.status}`);\n  const data = await response.json();\n"""
+          new_auth = """  const { response, data } = await fetchJson(FIREBASE_AUTH_JWKS_URL, {\n    headers: { accept: 'application/json' },\n    cf: { cacheTtl: 3600, cacheEverything: true }\n  }, 2500);\n"""
+          if new_auth not in s:
+              if old_auth not in s:
+                  raise SystemExit('Firebase Auth JWKS anchor missing')
+              s = s.replace(old_auth, new_auth, 1)
+
+          p.write_text(s, encoding='utf-8')
+          PY
+
+          node --check cloudflare/nova-brain-worker/src/index.js
+          grep -Fq "cacheTtl: 3600" cloudflare/nova-brain-worker/src/index.js
+          test "$(grep -Fc '}, 2500);' cloudflare/nova-brain-worker/src/index.js)" -ge 2
+          if grep -Fq "await fetch(FIREBASE_AUTH_JWKS_URL" cloudflare/nova-brain-worker/src/index.js; then
+            echo 'Unbounded Firebase Auth JWKS fetch still present' >&2
+            exit 1
+          fi
+          if grep -Fq "await fetch(APP_CHECK_JWKS_URL" cloudflare/nova-brain-worker/src/index.js; then
+            echo 'Unbounded App Check JWKS fetch still present' >&2
+            exit 1
+          fi
+
+      - name: Commit JWKS latency fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'NexusNova Runtime Fix Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add cloudflare/nova-brain-worker/src/index.js
+          if git diff --cached --quiet; then
+            echo 'JWKS latency fix already applied.'
+            exit 0
+          fi
+          git commit -m '[NOVA] Bound and edge-cache relay verification keys'
+          git pull --rebase origin nova-sol57-pro-v128
+          git push origin HEAD:nova-sol57-pro-v128
