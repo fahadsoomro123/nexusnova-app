@@ -16,7 +16,7 @@ jobs:
       - name: Checkout active NOVA branch
         uses: actions/checkout@v6
         with:
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Patch truthful numeric rendering and status-first hydration
         shell: bash
@@ -24,29 +24,29 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
+          import re
 
           path = Path('fresh-rebuild/src/features/apps/nova57-control-center.js')
           text = path.read_text()
 
-          old_num = """function num(value) {
-            return Number.isFinite(Number(value)) ? Number(value) : null;
-          }
-          """
-          new_num = """function num(value) {
+          num_pattern = re.compile(
+              r"function num\(value\) \{\s*return Number\.isFinite\(Number\(value\)\) \? Number\(value\) : null;\s*\}"
+          )
+          num_replacement = """function num(value) {
             if (value === null || value === undefined || value === '') return null;
             const parsed = Number(value);
             return Number.isFinite(parsed) ? parsed : null;
-          }
-          """
+          }"""
 
-          old_refresh = """      const [nextStatus, ...planRows] = await Promise.all([
-                getAtomicBackendStatus(),
-                ...CAPABILITIES.map(capability => getAtomicCapabilityPlan(capability))
-              ]);
-              status = nextStatus;
-              plans = Object.fromEntries(CAPABILITIES.map((capability, index) => [capability, planRows[index] || null]));
-          """
-          new_refresh = """      // Mobile WebViews are more reliable when the authoritative status request
+          refresh_pattern = re.compile(
+              r"const \[nextStatus, \.\.\.planRows\] = await Promise\.all\(\[\s*"
+              r"getAtomicBackendStatus\(\),\s*"
+              r"\.\.\.CAPABILITIES\.map\(capability => getAtomicCapabilityPlan\(capability\)\)\s*"
+              r"\]\);\s*"
+              r"status = nextStatus;\s*"
+              r"plans = Object\.fromEntries\(CAPABILITIES\.map\(\(capability, index\) => \[capability, planRows\[index\] \|\| null\]\)\);"
+          )
+          refresh_replacement = """// Mobile WebViews are more reliable when the authoritative status request
               // gets the Worker connection first. Preserve the last good snapshot if one refresh
               // is transiently unavailable instead of replacing real telemetry with fake zeros.
               const nextStatus = await getAtomicBackendStatus();
@@ -55,15 +55,14 @@ jobs:
               const planRows = await Promise.all(
                 CAPABILITIES.map(capability => getAtomicCapabilityPlan(capability))
               );
-              plans = Object.fromEntries(CAPABILITIES.map((capability, index) => [capability, planRows[index] || plans[capability] || null]));
-          """
+              plans = Object.fromEntries(CAPABILITIES.map((capability, index) => [capability, planRows[index] || plans[capability] || null]));"""
 
-          if old_num not in text:
-              raise SystemExit('Expected num() block not found; refusing unsafe patch.')
-          if old_refresh not in text:
-              raise SystemExit('Expected concurrent refresh block not found; refusing unsafe patch.')
-
-          text = text.replace(old_num, new_num, 1).replace(old_refresh, new_refresh, 1)
+          text, num_count = num_pattern.subn(num_replacement, text, count=1)
+          text, refresh_count = refresh_pattern.subn(refresh_replacement, text, count=1)
+          if num_count != 1:
+              raise SystemExit(f'Expected one num() block; matched {num_count}.')
+          if refresh_count != 1:
+              raise SystemExit(f'Expected one concurrent refresh block; matched {refresh_count}.')
           path.write_text(text)
           PY
 
