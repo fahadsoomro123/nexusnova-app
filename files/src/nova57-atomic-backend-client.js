@@ -23,6 +23,37 @@ function ready() {
   return /^https:\/\/[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev$/i.test(BACKEND_URL);
 }
 
+function latestUserRequest(prompt) {
+  const text = String(prompt || '');
+  const marker = '\nUser request:\n';
+  const at = text.lastIndexOf(marker);
+  let value = at >= 0 ? text.slice(at + marker.length) : text;
+  const boundary = value.indexOf('\n\n[NOVA RESPONSE LANGUAGE RULE]');
+  if (boundary >= 0) value = value.slice(0, boundary);
+  return value.trim();
+}
+
+function responseLanguageRule(prompt) {
+  const request = latestUserRequest(prompt);
+  const all = String(prompt || '');
+  const explicitRoman = /(urdu|roman urdu).{0,32}(baat|bat|bolo|likho|reply|jawab|answer)/i.test(all)
+    || /(angrezi|english).{0,32}(nahi|nahe|nahin|mat|samajh|aati|ati)/i.test(all)
+    || /(nahi|nahe|nahin).{0,24}(angrezi|english)/i.test(all);
+  const urduScript = /[\u0600-\u06ff]/.test(request);
+  const romanSignals = (request.toLowerCase().match(/\b(bhai|mujhe|mera|meri|mere|tum|tu|aap|apko|aapko|kia|kya|hai|he|hen|hain|bata|batao|dekho|jao|kar|karo|chahiye|nahe|nahi|sahe|thek)\b/g) || []).length;
+
+  if (explicitRoman) {
+    return 'The user has said they prefer/need Urdu and may not understand English. Answer in natural Roman Urdu using Latin script only. Do not append an English translation, bilingual parentheses, or an English summary. Keep this preference for the conversation unless the user explicitly changes it.';
+  }
+  if (urduScript) {
+    return 'The latest user request is in Urdu script. Answer naturally in Urdu and do not append an English translation unless explicitly requested.';
+  }
+  if (romanSignals >= 2) {
+    return 'The latest user request is Roman Urdu. Answer naturally in Roman Urdu, matching the user style. Do not append an English translation or bilingual parentheses unless explicitly requested.';
+  }
+  return '';
+}
+
 function capabilityOf(prompt) {
   const s = String(prompt || '').toLowerCase();
   if (/\b(code|coding|bug|debug|javascript|typescript|python|java|kotlin|swift|sql|github|repository|function|class|api|architecture)\b/.test(s)) return 'coding';
@@ -112,9 +143,6 @@ export async function getAtomicCapabilityPlan(capability = 'general') {
 export async function getAtomicBackendStatus() {
   if (!ready()) return null;
 
-  // Mobile WebViews can take longer than desktop browsers to establish the first
-  // Worker connection. Status is authoritative telemetry, so give it a bounded
-  // retry instead of turning a transient 1.8s network delay into a blank dashboard.
   try {
     const first = await fetchStatus(4500);
     if (first) return first;
@@ -131,15 +159,11 @@ export async function getAtomicBackendStatus() {
   }
 }
 
-
 export async function generateViaAtomicRelay(prompt, options = {}) {
   if (!ready()) throw new Error('NOVA relay is not configured.');
   const value = String(prompt || '').trim();
   if (!value) throw new Error('NOVA relay prompt is empty.');
 
-  // App Check remains the preferred attestation. Phone-test/debug builds
-  // can still prove a real NexusNova session with a Firebase Auth ID token
-  // when device attestation is slow or unavailable.
   const [appCheckToken, authToken] = await Promise.all([
     bounded(freshAppCheckToken(), 1400).catch(() => ''),
     bounded(freshFirebaseAuthToken(), 1400).catch(() => '')
@@ -152,12 +176,15 @@ export async function generateViaAtomicRelay(prompt, options = {}) {
   if (appCheckToken) headers['X-Firebase-AppCheck'] = appCheckToken;
   if (authToken) headers.Authorization = `Bearer ${authToken}`;
 
-  // The renderer's quality profile remains the source of truth, but the relay now
-  // gives detailed answers room to breathe instead of silently clipping at 900 tokens.
   const requestedTokens = Math.max(256, Number(options.maxTokens || 1200) || 1200);
   const expandedTokens = Math.min(2800, Math.round(requestedTokens * 1.75));
+  const languageRule = responseLanguageRule(value);
+  const relayPrompt = languageRule
+    ? `${value.slice(0, 11000)}\n\n[NOVA RESPONSE LANGUAGE RULE]\n${languageRule}`
+    : value.slice(0, 12000);
+
   const data = await post('/v1/generate', {
-    prompt: value.slice(0, 12000),
+    prompt: relayPrompt.slice(0, 12000),
     capability,
     maxTokens: Math.max(384, expandedTokens),
     temperature: Math.max(0.1, Math.min(1, Number(options.temperature ?? 0.4) || 0.4))
@@ -188,9 +215,6 @@ export function reportAtomicOutcome(payload = {}) {
     latencyMs: Math.max(0, Math.min(120000, Number(payload.latencyMs || 0))),
     role: String(payload.role || '').slice(0, 40)
   };
-  // Semantic quality is deliberately optional. A successful HTTP/model response
-  // proves availability, not correctness. Only an explicit evaluator score may
-  // enter semantic learning; unknown quality remains unknown.
   if (Number.isFinite(payload.semanticQuality)) {
     body.semanticQuality = Math.max(0, Math.min(1, Number(payload.semanticQuality)));
     body.evaluator = String(payload.evaluator || '').slice(0, 40);
