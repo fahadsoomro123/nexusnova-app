@@ -9,6 +9,7 @@ on:
       - 'fresh-rebuild/src/features/apps/nova57-control-center.js'
       - 'fresh-rebuild/assets/styles/nova57-control-center.css'
       - 'fresh-rebuild/src/features/apps/nova-sol57-fresh.js'
+      - 'fresh-rebuild/src/nova57-pro-orchestrator.js'
       - 'fresh-rebuild/src/nova57-atomic-chain.js'
 
 permissions:
@@ -35,13 +36,17 @@ jobs:
           test "$GITHUB_REF_NAME" = "nova-sol57-pro-v128"
           test -s fresh-rebuild/index.html
           test -s fresh-rebuild/src/nova57-atomic-chain.js
+          test -s fresh-rebuild/src/nova57-pro-orchestrator.js
           test -s fresh-rebuild/src/features/apps/nova-sol57-fresh.js
           test -s fresh-rebuild/src/features/apps/nova57-control-center.js
           test -s fresh-rebuild/assets/styles/nova57-control-center.css
           test -s cloudflare/nova-brain-worker/src/index.js
+          node --check fresh-rebuild/src/nova57-pro-orchestrator.js
           node --check fresh-rebuild/src/features/apps/nova57-control-center.js
           node --check fresh-rebuild/src/features/apps/nova-sol57-fresh.js
           grep -Fq "NOVA 5.7 Sol / ARIM" fresh-rebuild/src/features/apps/nova-sol57-fresh.js
+          grep -Fq "FIREBASE_FALLBACK_MODEL = 'gemini-3.7-flash'" fresh-rebuild/src/nova57-pro-orchestrator.js
+          grep -Fq "const runtimeOptions = providerOptions(options)" fresh-rebuild/src/nova57-pro-orchestrator.js
           grep -Fq "mountNovaControlCenter" fresh-rebuild/src/features/apps/nova-sol57-fresh.js
           grep -Fq "FINALIZER_RESERVE_MS" fresh-rebuild/src/nova57-atomic-chain.js
           grep -Fq "judge-rescue" fresh-rebuild/src/nova57-atomic-chain.js
@@ -54,7 +59,7 @@ jobs:
           grep -Fq "Documentation" fresh-rebuild/src/features/apps/nova57-control-center.js
           grep -Fq "Support" fresh-rebuild/src/features/apps/nova57-control-center.js
           grep -Fq "route_semantic_dimensions" cloudflare/nova-brain-worker/src/index.js
-          echo "Latest NOVA dashboard + ARIM source anchors: PASS"
+          echo "Latest NOVA dashboard + ARIM + valid Firebase fallback anchors: PASS"
 
       - name: Java 17
         uses: actions/setup-java@v5
@@ -76,6 +81,7 @@ jobs:
           APK=app/build/outputs/apk/debug/app-debug.apk
           test -s "$APK"
           grep -Fq "mountNovaControlCenter" app/src/main/assets/www/src/features/apps/nova-sol57-fresh.js
+          grep -Fq "FIREBASE_FALLBACK_MODEL = 'gemini-3.7-flash'" app/src/main/assets/www/src/nova57-pro-orchestrator.js
           grep -Fq "200K Brains" app/src/main/assets/www/src/features/apps/nova57-control-center.js
           grep -Fq "Quarantine" app/src/main/assets/www/src/features/apps/nova57-control-center.js
           grep -Fq "FINALIZER_RESERVE_MS" app/src/main/assets/www/src/nova57-atomic-chain.js
@@ -83,7 +89,7 @@ jobs:
           cp "$APK" "$GITHUB_WORKSPACE/phone-apk/NexusNova-NOVA57-LATEST-phone-test.apk"
           sha256sum "$GITHUB_WORKSPACE/phone-apk/NexusNova-NOVA57-LATEST-phone-test.apk" > "$GITHUB_WORKSPACE/phone-apk/SHA256.txt"
           APK_SIZE=$(stat -c%s "$GITHUB_WORKSPACE/phone-apk/NexusNova-NOVA57-LATEST-phone-test.apk")
-          printf 'Source commit: %s\nBranch: %s\nBuild type: debug/installable phone test\nAPK bytes: %s\nNOVA 5.7 ARIM source staged: PASS\nFull reference-style dashboard source staged: PASS\n' "$GITHUB_SHA" "$GITHUB_REF_NAME" "$APK_SIZE" > "$GITHUB_WORKSPACE/phone-apk/BUILD-STATUS.txt"
+          printf 'Source commit: %s\nBranch: %s\nBuild type: debug/installable phone test\nAPK bytes: %s\nNOVA 5.7 ARIM source staged: PASS\nFull reference-style dashboard source staged: PASS\nFirebase fallback model routing: PASS\n' "$GITHUB_SHA" "$GITHUB_REF_NAME" "$APK_SIZE" > "$GITHUB_WORKSPACE/phone-apk/BUILD-STATUS.txt"
 
       - name: Publish phone APK to apk-builds branch
         shell: bash
