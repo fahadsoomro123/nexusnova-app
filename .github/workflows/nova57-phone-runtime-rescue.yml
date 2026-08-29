@@ -1,0 +1,282 @@
+name: NOVA 5.7 Phone Runtime Rescue
+
+on:
+  push:
+    branches: [nova-sol57-pro-v128]
+    paths:
+      - '.github/workflows/nova57-phone-runtime-rescue.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  rescue:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Patch phone relay authentication and fast routes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new, label):
+              p = Path(path)
+              s = p.read_text(encoding='utf-8')
+              if new in s:
+                  print(f'{label}: already applied')
+                  return
+              if old not in s:
+                  raise SystemExit(f'{label}: anchor missing')
+              p.write_text(s.replace(old, new, 1), encoding='utf-8')
+              print(f'{label}: patched')
+
+          client = 'fresh-rebuild/src/nova57-atomic-backend-client.js'
+          replace_once(
+              client,
+              """export async function getAtomicBackendPlan(prompt) {""",
+              """async function freshFirebaseAuthToken() {
+            if (typeof document === 'undefined') return '';
+            try {
+              const firebase = await import('./core/firebase-backend.js');
+              const user = firebase?.firebaseAuth?.currentUser
+                || (typeof firebase?.waitForFirebaseUser === 'function' ? await firebase.waitForFirebaseUser(900) : null);
+              if (!user || typeof user.getIdToken !== 'function') return '';
+              return String(await user.getIdToken(false) || '').trim();
+            } catch (error) {
+              console.warn('[NOVA Relay] Firebase Auth proof unavailable.', error);
+              return '';
+            }
+          }
+
+          export async function getAtomicBackendPlan(prompt) {""",
+              'firebase auth relay proof'
+          )
+
+          old_generate = """export async function generateViaAtomicRelay(prompt, options = {}) {
+            if (!ready()) throw new Error('NOVA relay is not configured.');
+            const value = String(prompt || '').trim();
+            if (!value) throw new Error('NOVA relay prompt is empty.');
+            const appCheckToken = await freshAppCheckToken();
+            if (!appCheckToken) throw new Error('NOVA relay App Check token is unavailable.');
+            const allowed = new Set(['general', 'coding', 'reasoning', 'research', 'multilingual']);
+            const capability = allowed.has(String(options.capability || '')) ? String(options.capability) : capabilityOf(value);
+            const data = await post('/v1/generate', {
+              prompt: value.slice(0, 12000),
+              capability,
+              maxTokens: Math.max(96, Math.min(900, Number(options.maxTokens || 700) || 700)),
+              temperature: Math.max(0.1, Math.min(1, Number(options.temperature ?? 0.4) || 0.4))
+            }, 3200, { 'X-Firebase-AppCheck': appCheckToken });
+            if (!data?.ok || !String(data?.text || '').trim()) throw new Error(`NOVA relay failed: ${String(data?.error || 'empty-answer')}`);
+            return {
+              text: String(data.text).trim(),
+              provider: String(data.provider || 'NOVA Relay'),
+              model: String(data.model || 'worker-route'),
+              latencyMs: Math.max(0, Number(data.latencyMs || 0)),
+              capability
+            };
+          }"""
+          new_generate = """export async function generateViaAtomicRelay(prompt, options = {}) {
+            if (!ready()) throw new Error('NOVA relay is not configured.');
+            const value = String(prompt || '').trim();
+            if (!value) throw new Error('NOVA relay prompt is empty.');
+
+            // App Check remains the preferred attestation. Phone-test/debug builds
+            // can still prove a real NexusNova session with a Firebase Auth ID token
+            // when device attestation is slow or unavailable.
+            const [appCheckToken, authToken] = await Promise.all([
+              bounded(freshAppCheckToken(), 1400).catch(() => ''),
+              bounded(freshFirebaseAuthToken(), 1400).catch(() => '')
+            ]);
+            if (!appCheckToken && !authToken) throw new Error('NOVA relay authentication is unavailable.');
+
+            const allowed = new Set(['general', 'coding', 'reasoning', 'research', 'multilingual']);
+            const capability = allowed.has(String(options.capability || '')) ? String(options.capability) : capabilityOf(value);
+            const headers = {};
+            if (appCheckToken) headers['X-Firebase-AppCheck'] = appCheckToken;
+            if (authToken) headers.Authorization = `Bearer ${authToken}`;
+            const data = await post('/v1/generate', {
+              prompt: value.slice(0, 12000),
+              capability,
+              maxTokens: Math.max(96, Math.min(900, Number(options.maxTokens || 700) || 700)),
+              temperature: Math.max(0.1, Math.min(1, Number(options.temperature ?? 0.4) || 0.4))
+            }, 5600, headers);
+            if (!data?.ok || !String(data?.text || '').trim()) throw new Error(`NOVA relay failed: ${String(data?.error || 'empty-answer')}`);
+            return {
+              text: String(data.text).trim(),
+              provider: String(data.provider || 'NOVA Relay'),
+              model: String(data.model || 'worker-route'),
+              latencyMs: Math.max(0, Number(data.latencyMs || 0)),
+              capability
+            };
+          }"""
+          replace_once(client, old_generate, new_generate, 'relay dual authentication')
+
+          worker = 'cloudflare/nova-brain-worker/src/index.js'
+          replace_once(
+              worker,
+              """let appCheckJwksCache = { expiresAt: 0, keys: new Map() };""",
+              """let appCheckJwksCache = { expiresAt: 0, keys: new Map() };
+          const FIREBASE_AUTH_PROJECT_ID = 'nexusnova-6ade2';
+          const FIREBASE_AUTH_ISSUER = `https://securetoken.google.com/${FIREBASE_AUTH_PROJECT_ID}`;
+          const FIREBASE_AUTH_JWKS_URL = 'https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com';
+          let firebaseAuthJwksCache = { expiresAt: 0, keys: new Map() };""",
+              'worker firebase auth constants'
+          )
+          replace_once(
+              worker,
+              """'access-control-allow-headers': 'content-type,x-firebase-appcheck',""",
+              """'access-control-allow-headers': 'content-type,x-firebase-appcheck,authorization',""",
+              'worker auth cors'
+          )
+          auth_helpers = r"""
+          async function loadFirebaseAuthJwks(force = false) {
+            if (!force && firebaseAuthJwksCache.keys.size && now() < firebaseAuthJwksCache.expiresAt) {
+              return firebaseAuthJwksCache.keys;
+            }
+            const response = await fetch(FIREBASE_AUTH_JWKS_URL, { headers: { accept: 'application/json' } });
+            if (!response.ok) throw new Error(`firebase-auth-jwks-${response.status}`);
+            const data = await response.json();
+            const rows = Array.isArray(data?.keys) ? data.keys : [];
+            const keys = new Map(rows.filter(key => key?.kid).map(key => [String(key.kid), key]));
+            if (!keys.size) throw new Error('firebase-auth-jwks-empty');
+            const maxAgeMatch = /(?:^|,)\s*max-age=(\d+)/i.exec(response.headers.get('cache-control') || '');
+            const maxAgeSeconds = Math.min(21600, Math.max(300, Number(maxAgeMatch?.[1] || 3600)));
+            firebaseAuthJwksCache = { keys, expiresAt: now() + maxAgeSeconds * 1000 };
+            return keys;
+          }
+
+          async function verifyFirebaseAuthToken(token) {
+            try {
+              const raw = String(token || '').trim();
+              if (!raw || raw.length > 8192) return null;
+              const parts = raw.split('.');
+              if (parts.length !== 3 || parts.some(part => !part)) return null;
+              const header = base64UrlJson(parts[0]);
+              const payload = base64UrlJson(parts[1]);
+              if (header?.alg !== 'RS256' || !header?.kid) return null;
+              let keys = await loadFirebaseAuthJwks(false);
+              if (!keys.has(String(header.kid))) keys = await loadFirebaseAuthJwks(true);
+              const jwk = keys.get(String(header.kid));
+              if (!jwk) return null;
+              const key = await crypto.subtle.importKey(
+                'jwk', jwk, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['verify']
+              );
+              const signed = new TextEncoder().encode(`${parts[0]}.${parts[1]}`);
+              const signature = base64UrlBytes(parts[2]);
+              if (!await crypto.subtle.verify('RSASSA-PKCS1-v1_5', key, signature, signed)) return null;
+              const epochSeconds = Math.floor(now() / 1000);
+              if (payload?.iss !== FIREBASE_AUTH_ISSUER || payload?.aud !== FIREBASE_AUTH_PROJECT_ID) return null;
+              if (!payload?.sub || String(payload.sub).length > 128) return null;
+              if (!Number.isFinite(Number(payload?.exp)) || Number(payload.exp) <= epochSeconds) return null;
+              if (Number.isFinite(Number(payload?.iat)) && Number(payload.iat) > epochSeconds + 60) return null;
+              return payload;
+            } catch {
+              return null;
+            }
+          }
+
+          """
+          replace_once(worker, "function inferCapabilities(modelId, pipeline = '', tags = []) {", auth_helpers + "function inferCapabilities(modelId, pipeline = '', tags = []) {", 'worker firebase auth verifier')
+
+          replace_once(
+              worker,
+              """  const appCheckToken = request.headers.get('x-firebase-appcheck') || '';
+            const appCheckClaims = await verifyAppCheckToken(appCheckToken);
+            if (!appCheckClaims) return json({ ok: false, error: 'app-check-required' }, 401);
+          """,
+              """  const appCheckToken = request.headers.get('x-firebase-appcheck') || '';
+            const authHeader = request.headers.get('authorization') || '';
+            const authToken = /^Bearer\\s+/i.test(authHeader) ? authHeader.replace(/^Bearer\\s+/i, '').trim() : '';
+            const [appCheckClaims, authClaims] = await Promise.all([
+              verifyAppCheckToken(appCheckToken),
+              verifyFirebaseAuthToken(authToken)
+            ]);
+            if (!appCheckClaims && !authClaims) return json({ ok: false, error: 'verified-client-required' }, 401);
+          """,
+              'worker dual auth gate'
+          )
+
+          old_fallback = """  const fallback = [
+              { provider: 'Kilo', modelId: 'kilo-auto/free' },
+              { provider: 'Kilo', modelId: 'openrouter/free' },
+              { provider: 'Kilo', modelId: 'stepfun/step-3.7-flash:free' }
+            ];
+            const seen = new Set();
+            const candidates = [...(Array.isArray(currentPlan?.candidates) ? currentPlan.candidates : []), ...fallback]
+          """
+          new_fallback = """  const provenFast = capability === 'coding'
+              ? [
+                  { provider: 'OVHcloud', modelId: 'Qwen3-Coder-30B-A3B-Instruct' },
+                  { provider: 'OVHcloud', modelId: 'Mistral-Small-3.2-24B-Instruct-2506' },
+                  { provider: 'Kilo', modelId: 'kilo-auto/free' }
+                ]
+              : [
+                  { provider: 'OVHcloud', modelId: 'Mistral-Small-3.2-24B-Instruct-2506' },
+                  { provider: 'OVHcloud', modelId: 'Mistral-7B-Instruct-v0.3' },
+                  { provider: 'OVHcloud', modelId: 'Mistral-Nemo-Instruct-2407' },
+                  { provider: 'Kilo', modelId: 'kilo-auto/free' }
+                ];
+            const seen = new Set();
+            // Known sub-second routes lead; learned D1 routes remain adaptive fallback.
+            const candidates = [...provenFast, ...(Array.isArray(currentPlan?.candidates) ? currentPlan.candidates : [])]
+          """
+          replace_once(worker, old_fallback, new_fallback, 'worker fast route priority')
+          replace_once(worker, """    }, 2700);""", """    }, 4500);""", 'worker provider timeout')
+
+          orchestrator = 'fresh-rebuild/src/nova57-pro-orchestrator.js'
+          replace_once(
+              orchestrator,
+              """  if (/^(?:hi+|hello+|hey+)[, ]+(?:nova|bro|bhai)[!.? ]*$/i.test(value)) {
+              return 'Hello bhai! Main ready hoon — kya karna hai?';
+            }
+            return '';
+          }""",
+              """  if (/^(?:hi+|hello+|hey+)[, ]+(?:nova|bro|bhai)[!.? ]*$/i.test(value)) {
+              return 'Hello bhai! Main ready hoon — kya karna hai?';
+            }
+            if (/^(?:(?:bhai|bro)[, ]*)?(?:tera|tumhara|aapka|apka)?\\s*(?:naam|name)\\s*(?:kya|kia|kiya|what)?\\s*(?:hai|he|is)?[?.! ]*$/i.test(value)
+              || /^(?:what(?:'s| is) your name|who are you)[?.! ]*$/i.test(value)) {
+              return 'Bhai, mera naam NOVA hai. Main NexusNova AI assistant hoon.';
+            }
+            return '';
+          }""",
+              'instant NOVA identity'
+          )
+
+          replace_once(
+              orchestrator,
+              """async function generateForRuntime(model, prompt, capability, options = {}) {
+            if (mobileRelayPreferred()) {
+              try {""",
+              """async function generateForRuntime(model, prompt, capability, options = {}) {
+            if (mobileRelayPreferred() || typeof document !== 'undefined') {
+              try {""",
+              'relay first for browser runtime'
+          )
+          PY
+
+          node --check fresh-rebuild/src/nova57-atomic-backend-client.js
+          node --check fresh-rebuild/src/nova57-pro-orchestrator.js
+          node --check cloudflare/nova-brain-worker/src/index.js
+
+      - name: Commit runtime rescue
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'NexusNova Runtime Rescue Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add fresh-rebuild/src/nova57-atomic-backend-client.js fresh-rebuild/src/nova57-pro-orchestrator.js cloudflare/nova-brain-worker/src/index.js
+          if git diff --cached --quiet; then
+            echo 'Runtime rescue already applied.'
+            exit 0
+          fi
+          git commit -m '[NOVA] Fix phone relay auth and fast-response routing'
+          git pull --rebase origin nova-sol57-pro-v128
+          git push origin HEAD:nova-sol57-pro-v128
