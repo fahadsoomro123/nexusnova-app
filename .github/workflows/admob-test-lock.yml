@@ -6,6 +6,7 @@ on:
     paths:
       - 'NexusNovaAndroid/**'
       - 'tools/**'
+      - '.github/scripts/admob-production-readiness.py'
       - '.github/workflows/admob-test-lock.yml'
   workflow_dispatch:
 
