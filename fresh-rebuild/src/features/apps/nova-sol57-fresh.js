@@ -1,15 +1,9 @@
 import { firebaseApp, readUserProfile, requireFirebaseUser } from '../../core/firebase-backend.js';
 import { escapeHtml, loadJson, saveJson, uid } from '../../core/local-store.js';
 import { createTaskStatus } from './nova57-task-status.js';
-import { mountNovaControlCenter } from './nova57-control-center.js';
-import {
-  GoogleAIBackend as NovaAIBackend,
-  getAI as getNovaAI,
-  getGenerativeModel as getNovaModel
-} from '../../nova57-pro-orchestrator.js';
 
 const PRODUCT = 'NOVA 5.7 Sol';
-const ROUTER_PROFILE = 'NOVA 5.7 Sol / ARIM';
+const PROVIDER_MODEL = 'gemini-3.6-flash';
 const MAX_HISTORY = 80;
 const MAX_CONTEXT_TURNS = 14;
 const MAX_FILES = 5;
@@ -111,13 +105,14 @@ function systemInstruction(settings) {
 }
 
 async function providerReply(text, settings, history, attachments) {
-  const ai = getNovaAI(firebaseApp, { backend: new NovaAIBackend() });
+  const { getAI, getGenerativeModel, GoogleAIBackend } = await import('https://www.gstatic.com/firebasejs/12.1.0/firebase-ai.js');
+  const ai = getAI(firebaseApp, { backend: new GoogleAIBackend() });
   const normalTokens = { Max: 1450, 'Extra High': 1200, High: 950, Medium: 760, Light: 560 };
   const fastTokens = { Max: 1000, 'Extra High': 900, High: 760, Medium: 620, Light: 480 };
   const tempMap = { Max: .35, 'Extra High': .4, High: .5, Medium: .6, Light: .7 };
   const tokenMap = settings.speed === 'Fast' ? fastTokens : normalTokens;
-  const model = getNovaModel(ai, {
-    model: ROUTER_PROFILE,
+  const model = getGenerativeModel(ai, {
+    model: PROVIDER_MODEL,
     systemInstruction: { parts: [{ text: systemInstruction(settings) }] },
     generationConfig: {
       temperature: tempMap[settings.intelligence] ?? .5,
@@ -160,14 +155,13 @@ export function renderNovaSol57() {
       <div class="nx57-clean-seg" role="tablist" aria-label="NOVA mode">
         <button type="button" data-nx57-mode="chat">Chat</button>
         <button type="button" data-nx57-mode="work">Work</button>
-        <button type="button" data-nx57-control>Dashboard</button>
       </div>
       <button class="nx57-clean-circle" type="button" data-nx57-new aria-label="New NOVA chat">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 11.5a7 7 0 1 1-2.05-4.95M19 5v6h-6" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
     </header>
 
-    <main class="nx57-clean-main" data-nx57-chat-panel hidden>
+    <main class="nx57-clean-main">
       <div class="nx57-clean-messages" data-nx57-messages>
         <div class="nx57-clean-empty" data-nx57-empty>
           <button class="nx57-clean-quick" type="button" data-nx57-quick="Aaj ke latest AI trends web par research karke sources ke saath batao">Research latest AI trends</button>
@@ -210,8 +204,6 @@ export function renderNovaSol57() {
         </div>
       </div>
     </main>
-
-    <section class="nx57-control-center" data-nx57-control-center aria-label="NOVA intelligence control center"></section>
 
     <input type="file" data-nx57-picker multiple hidden>
     <input type="file" data-nx57-images accept="image/*" multiple hidden>
@@ -263,11 +255,6 @@ export function renderNovaSol57() {
   const historyBox = root.querySelector('[data-nx57-history]');
   const avatar = root.querySelector('[data-nx57-avatar]');
   const taskStatus = createTaskStatus(messages);
-  const chatPanel = root.querySelector('[data-nx57-chat-panel]');
-  const controlPanel = root.querySelector('[data-nx57-control-center]');
-  const controlButton = root.querySelector('[data-nx57-control]');
-  const cleanHeader = root.querySelector('.nx57-clean-header');
-  const controlCenter = mountNovaControlCenter(controlPanel);
 
   let key = '';
   let history = [];
@@ -275,15 +262,6 @@ export function renderNovaSol57() {
   let lastReply = '';
   let busy = false;
   let recognition = null;
-
-  const setDashboardMode = active => {
-    const enabled = Boolean(active);
-    root.classList.toggle('nx57-dashboard-open', enabled);
-    cleanHeader.hidden = enabled;
-    status.hidden = enabled;
-    if (enabled) controlPanel.style.inset = '0';
-    else controlPanel.style.removeProperty('inset');
-  };
 
   const closeTools = () => { toolsMenu.hidden = true; settingsPop.hidden = true; };
   const closeDrawer = () => { drawer.hidden = true; searchBar.hidden = true; search.value = ''; };
@@ -451,23 +429,8 @@ export function renderNovaSol57() {
 
   root.querySelectorAll('[data-nx57-mode]').forEach(button => button.addEventListener('click', () => {
     settings.mode = button.dataset.nx57Mode;
-    controlPanel.hidden = true;
-    chatPanel.hidden = false;
-    controlButton.classList.remove('is-active');
-    setDashboardMode(false);
-    controlCenter.hide();
     applySettings();
   }));
-
-  controlButton.addEventListener('click', () => {
-    const opening = controlPanel.hidden;
-    controlPanel.hidden = !opening;
-    chatPanel.hidden = opening;
-    controlButton.classList.toggle('is-active', opening);
-    setDashboardMode(opening);
-    root.querySelectorAll('[data-nx57-mode]').forEach(button => button.classList.toggle('is-active', !opening && button.dataset.nx57Mode === settings.mode));
-    if (opening) controlCenter.show(); else controlCenter.hide();
-  });
 
   root.querySelector('[data-nx57-clean-menu]').addEventListener('click', openDrawer);
   root.querySelector('[data-nx57-new]').addEventListener('click', clearChat);
@@ -596,19 +559,12 @@ export function renderNovaSol57() {
   });
 
   applySettings();
-  chatPanel.hidden = true;
-  controlPanel.hidden = false;
-  controlButton.classList.add('is-active');
-  root.querySelectorAll('[data-nx57-mode]').forEach(button => button.classList.remove('is-active'));
-  setDashboardMode(true);
-  controlCenter.show();
   autoSize();
   syncEmpty();
 
   root.__cleanup = () => {
     document.documentElement.classList.remove('nx57-clean-mode');
     taskStatus.destroy();
-    controlCenter.destroy();
     try { recognition?.stop?.(); } catch {}
     try { window.speechSynthesis?.cancel?.(); } catch {}
   };
