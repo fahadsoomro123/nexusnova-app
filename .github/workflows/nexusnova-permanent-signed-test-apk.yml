@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: nexusnova-permanent-signed-test-apk
@@ -86,9 +86,6 @@ jobs:
 
           path = Path('NexusNovaAndroid/app/build.gradle.kts')
           text = path.read_text(encoding='utf-8')
-
-          # Idempotent with the repository-wide AdMob TEST lock: convert legacy
-          # live values if present, but also accept an already locked source tree.
           text = re.sub(
               r'buildConfigField\("boolean",\s*"NEXUS_ADS_TEST_MODE",\s*"false"\)',
               'buildConfigField("boolean", "NEXUS_ADS_TEST_MODE", "true")',
@@ -105,7 +102,6 @@ jobs:
               text,
               count=1,
           )
-
           if n_code != 1 or n_name != 1:
               raise SystemExit(f'Could not set TEST build identity: versionCode={n_code}, versionName={n_name}')
           if text.count('buildConfigField("boolean", "NEXUS_ADS_TEST_MODE", "true")') < 2:
@@ -114,10 +110,8 @@ jobs:
               raise SystemExit('Production AdMob App ID must not be present')
           if text.count('ca-app-pub-3940256099942544~3347511713') < 2:
               raise SystemExit('Google TEST App ID must be configured for debug and release')
-
           path.write_text(text, encoding='utf-8')
           PY
-
           grep -Fq 'versionCode = 117' NexusNovaAndroid/app/build.gradle.kts
           grep -Fq 'versionName = "1.1.7-permanent-signed-test"' NexusNovaAndroid/app/build.gradle.kts
           test "$(grep -Fc 'buildConfigField("boolean", "NEXUS_ADS_TEST_MODE", "true")' NexusNovaAndroid/app/build.gradle.kts)" -ge 2
@@ -157,10 +151,8 @@ jobs:
           UNSIGNED='NexusNovaAndroid/app/build/outputs/apk/release/app-release-unsigned.apk'
           SIGNED='NexusNova-v1.1.7-Permanent-Signed-TEST.apk'
           test -s "$UNSIGNED"
-
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
           test -x "$APKSIGNER"
-
           "$APKSIGNER" sign \
             --ks "$RUNNER_TEMP/nexusnova-release.jks" \
             --ks-key-alias "$NEXUSNOVA_KEY_ALIAS" \
@@ -168,7 +160,6 @@ jobs:
             --key-pass env:NEXUSNOVA_KEY_PASSWORD \
             --out "$SIGNED" \
             "$UNSIGNED"
-
           test -s "$SIGNED"
           echo "APKSIGNER=$APKSIGNER" >> "$GITHUB_ENV"
 
@@ -180,28 +171,35 @@ jobs:
         run: |
           set -euo pipefail
           SIGNED='NexusNova-v1.1.7-Permanent-Signed-TEST.apk'
-
           "$APKSIGNER" verify --verbose --print-certs "$SIGNED" | tee NexusNova-signature-verification.txt
           "$APKSIGNER" verify "$SIGNED"
-
           keytool -list -v \
             -keystore "$RUNNER_TEMP/nexusnova-release.jks" \
             -storepass "$NEXUSNOVA_KEYSTORE_PASSWORD" \
             -alias "$NEXUSNOVA_KEY_ALIAS" \
             | sed -n '/SHA256:/p' \
             | tee NexusNova-keystore-sha256.txt
-
           sha256sum "$SIGNED" | tee NexusNova-v1.1.7-Permanent-Signed-TEST.apk.sha256
           echo 'Permanent signature verification passed.'
 
-      - name: Upload permanent-signed TEST APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: NexusNova-v1.1.7-Permanent-Signed-TEST
-          path: |
-            NexusNova-v1.1.7-Permanent-Signed-TEST.apk
-            NexusNova-v1.1.7-Permanent-Signed-TEST.apk.sha256
-            NexusNova-signature-verification.txt
-            NexusNova-keystore-sha256.txt
-          if-no-files-found: error
-          retention-days: 14
+      - name: Publish verified TEST APK prerelease
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG='nexusnova-v1.1.7-test-admob-lock'
+          TITLE='NexusNova v1.1.7 Permanent-Signed TEST'
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release delete "$TAG" --yes --cleanup-tag
+          fi
+          gh release create "$TAG" \
+            NexusNova-v1.1.7-Permanent-Signed-TEST.apk \
+            NexusNova-v1.1.7-Permanent-Signed-TEST.apk.sha256 \
+            NexusNova-signature-verification.txt \
+            NexusNova-keystore-sha256.txt \
+            --target "$GITHUB_SHA" \
+            --title "$TITLE" \
+            --notes 'TEST-ONLY build. Google AdMob test inventory is locked for both debug and release. Permanently signed with the NexusNova signing identity. Do not use this prerelease as a production monetization build.' \
+            --prerelease
+          gh release view "$TAG" --json url,tagName,name,isPrerelease
