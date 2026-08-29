@@ -595,7 +595,7 @@ async function generateRelay(request, env) {
   if (!prompt) return json({ ok: false, error: 'prompt-required' }, 400);
   const requestedCapability = text(body?.capability, 30);
   const capability = ALLOWED_CAPABILITIES.has(requestedCapability) ? requestedCapability : 'general';
-  const maxTokens = Math.max(96, Math.min(900, Number(body?.maxTokens || 700) || 700));
+  const maxTokens = Math.max(256, Math.min(2800, Number(body?.maxTokens || 1200) || 1200));
   const temperature = Math.max(0.1, Math.min(1.0, Number(body?.temperature ?? 0.4) || 0.4));
 
   // Transport-only relay: prompt text is never written to D1/meta/route telemetry.
@@ -648,7 +648,7 @@ async function generateRelay(request, env) {
         temperature,
         stream: false
       })
-    }, 4500);
+    }, 10000);
     const content = data?.choices?.[0]?.message?.content ?? data?.choices?.[0]?.text ?? data?.output_text ?? data?.text ?? '';
     const answer = typeof content === 'string'
       ? content.trim()
