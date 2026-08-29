@@ -109,14 +109,7 @@ jobs:
           cp signature.txt "$OUT/"
           printf 'Source branch: nova-sol57-pro-v128\nSource commit: %s\nSigned release: PASS\nAtomic OTA v2: PASS\nGradient Premium bundled: PASS\n' "$(git rev-parse HEAD)" > "$OUT/BUILD-STATUS.txt"
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: NexusNova-NOVA57-OTA-BOOTSTRAP
-          path: output/
-          if-no-files-found: error
-          retention-days: 30
-
-      - name: Publish APK
+      - name: Publish APK direct to apk-builds
         shell: bash
         run: |
           set -euo pipefail
