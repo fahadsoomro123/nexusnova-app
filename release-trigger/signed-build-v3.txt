@@ -1,2 +1,0 @@
-Build NexusNova permanent signed v1.0.4 vc5 with public OTA endpoint, current fresh-rebuild Nova Hub updates, restored NexusNova launcher branding, and permanent signing.
-Triggered 2026-08-26 after diagnosing installed debug-signature mismatch and private OTA endpoint failure.
