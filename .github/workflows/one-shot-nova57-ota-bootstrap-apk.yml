@@ -1,0 +1,168 @@
+name: One Shot NOVA57 OTA Bootstrap APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/one-shot-nova57-ota-bootstrap-apk.yml'
+
+permissions:
+  contents: write
+
+env:
+  NEXUSNOVA_SIGNING_KEYSTORE_B64: ${{ secrets.NEXUSNOVA_SIGNING_KEYSTORE_B64 }}
+  NEXUSNOVA_SIGNING_STORE_PASSWORD: ${{ secrets.NEXUSNOVA_SIGNING_STORE_PASSWORD }}
+  NEXUSNOVA_SIGNING_KEY_ALIAS: ${{ secrets.NEXUSNOVA_SIGNING_KEY_ALIAS }}
+  NEXUSNOVA_SIGNING_KEY_PASSWORD: ${{ secrets.NEXUSNOVA_SIGNING_KEY_PASSWORD }}
+  NEXUSNOVA_SIGNING_STORE_FILE: ${{ runner.temp }}/nexusnova-release.jks
+  VERSION_CODE: '20260829'
+  VERSION_NAME: '1.0.2-ota'
+
+jobs:
+  build-signed-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout exact NOVA branch
+        uses: actions/checkout@v4
+        with:
+          ref: nova-sol57-pro-v128
+          fetch-depth: 0
+
+      - name: Verify OTA bootstrap source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s fresh-rebuild/index.html
+          test -s fresh-rebuild/assets/styles/nova57-gradient-premium.css
+          test -s NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt
+          test -s NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -Fq 'nova57-gradient-premium.css' fresh-rebuild/index.html
+          grep -Fq 'MANIFEST_SCHEMA = 2' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt
+          grep -Fq 'otaWebManager.intercept(uri)' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -Fq 'checkForWebUpdate()' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Require permanent signing secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$NEXUSNOVA_SIGNING_KEYSTORE_B64"
+          test -n "$NEXUSNOVA_SIGNING_STORE_PASSWORD"
+          test -n "$NEXUSNOVA_SIGNING_KEY_ALIAS"
+          test -n "$NEXUSNOVA_SIGNING_KEY_PASSWORD"
+
+      - name: Restore signing keystore
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s' "$NEXUSNOVA_SIGNING_KEYSTORE_B64" | base64 --decode > "$NEXUSNOVA_SIGNING_STORE_FILE"
+          test -s "$NEXUSNOVA_SIGNING_STORE_FILE"
+          chmod 600 "$NEXUSNOVA_SIGNING_STORE_FILE"
+          keytool -list -keystore "$NEXUSNOVA_SIGNING_STORE_FILE" -storepass "$NEXUSNOVA_SIGNING_STORE_PASSWORD" -alias "$NEXUSNOVA_SIGNING_KEY_ALIAS" >/dev/null
+
+      - name: Inject release signing and version
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os, re
+          from pathlib import Path
+          path = Path('NexusNovaAndroid/app/build.gradle.kts')
+          text = path.read_text(encoding='utf-8')
+          text, a = re.subn(r'versionCode\s*=\s*\d+', 'versionCode = ' + os.environ['VERSION_CODE'], text, count=1)
+          text, b = re.subn(r'versionName\s*=\s*"[^"]*"', 'versionName = "' + os.environ['VERSION_NAME'] + '"', text, count=1)
+          if a != 1 or b != 1:
+              raise SystemExit('version patch failed')
+          signing = '''    signingConfigs {
+              create("nexusRelease") {
+                  storeFile = file(System.getenv("NEXUSNOVA_SIGNING_STORE_FILE"))
+                  storePassword = System.getenv("NEXUSNOVA_SIGNING_STORE_PASSWORD")
+                  keyAlias = System.getenv("NEXUSNOVA_SIGNING_KEY_ALIAS")
+                  keyPassword = System.getenv("NEXUSNOVA_SIGNING_KEY_PASSWORD")
+              }
+          }
+
+          '''
+          anchor = '    buildTypes {\n'
+          if 'create("nexusRelease")' not in text:
+              if anchor not in text: raise SystemExit('buildTypes anchor missing')
+              text = text.replace(anchor, signing + anchor, 1)
+          release_anchor = '        release {\n'
+          signing_line = '            signingConfig = signingConfigs.getByName("nexusRelease")\n'
+          if signing_line not in text:
+              if release_anchor not in text: raise SystemExit('release anchor missing')
+              text = text.replace(release_anchor, release_anchor + signing_line, 1)
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Build signed release APK
+        working-directory: NexusNovaAndroid
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon clean assembleRelease 2>&1 | tee "$GITHUB_WORKSPACE/ota-bootstrap-build.log"
+          test -s app/build/outputs/apk/release/app-release.apk
+          grep -Fq 'nova57-gradient-premium.css' app/src/main/assets/www/index.html
+
+      - name: Verify APK signature
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$GITHUB_WORKSPACE/NexusNovaAndroid/app/build/outputs/apk/release/app-release.apk"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
+          test -n "$APKSIGNER"
+          "$APKSIGNER" verify --verbose --print-certs "$APK" | tee "$GITHUB_WORKSPACE/signature.txt"
+          grep -Fq 'Verified using v2 scheme (APK Signature Scheme v2): true' "$GITHUB_WORKSPACE/signature.txt" || grep -Fq 'Verified using v3 scheme (APK Signature Scheme v3): true' "$GITHUB_WORKSPACE/signature.txt"
+
+      - name: Prepare package
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="$GITHUB_WORKSPACE/ota-bootstrap-apk"
+          mkdir -p "$OUT"
+          cp "$GITHUB_WORKSPACE/NexusNovaAndroid/app/build/outputs/apk/release/app-release.apk" "$OUT/NexusNova-NOVA57-OTA-BOOTSTRAP-v${VERSION_NAME}-vc${VERSION_CODE}.apk"
+          sha256sum "$OUT"/*.apk > "$OUT/SHA256.txt"
+          cp "$GITHUB_WORKSPACE/signature.txt" "$OUT/signature.txt"
+          printf 'Source branch: nova-sol57-pro-v128\nSource commit: %s\nVersion: %s (%s)\nSigned release: PASS\nAtomic OTA v2: PASS\nGradient Premium bundled: PASS\n' "$(git rev-parse HEAD)" "$VERSION_NAME" "$VERSION_CODE" > "$OUT/BUILD-STATUS.txt"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NexusNova-NOVA57-OTA-BOOTSTRAP
+          path: ota-bootstrap-apk/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish to apk-builds
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'NexusNova Signed APK Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git fetch origin apk-builds
+          PUB="$RUNNER_TEMP/nexusnova-ota-bootstrap-publish"
+          rm -rf "$PUB"
+          git worktree add "$PUB" origin/apk-builds
+          cd "$PUB"
+          rm -rf ota-bootstrap
+          mkdir -p ota-bootstrap
+          cp -a "$GITHUB_WORKSPACE/ota-bootstrap-apk"/. ota-bootstrap/
+          git add -A ota-bootstrap/BUILD-STATUS.txt ota-bootstrap/SHA256.txt ota-bootstrap/signature.txt
+          git add -f ota-bootstrap/*.apk
+          git commit -m "Publish signed NOVA 5.7 OTA bootstrap $(git -C "$GITHUB_WORKSPACE" rev-parse HEAD)"
+          git pull --rebase origin apk-builds
+          git push origin HEAD:apk-builds
+
+      - name: Secure cleanup
+        if: always()
+        shell: bash
+        run: rm -f "$NEXUSNOVA_SIGNING_STORE_FILE"
