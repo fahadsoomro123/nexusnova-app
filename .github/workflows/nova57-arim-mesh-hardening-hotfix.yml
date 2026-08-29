@@ -1,0 +1,191 @@
+name: NOVA 5.7 ARIM Mesh Hardening Hotfix
+
+on:
+  push:
+    branches: [nova-sol57-pro-v128]
+    paths:
+      - '.github/workflows/nova57-arim-mesh-hardening-hotfix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  harden-arim:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout active NOVA branch
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Patch route lane isolation and leak rejection
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(text, old, new, label):
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected one match, found {count}')
+              return text.replace(old, new, 1)
+
+          pool_path = Path('fresh-rebuild/src/nova57-atomic-brain-pool.js')
+          pool = pool_path.read_text()
+          quality_anchor = """    /^#{1,4}\\s*(?:analysis|reasoning|chain of thought)\\b/i,
+          """
+          quality_hardened = """    /^#{1,4}\\s*(?:analysis|reasoning|chain of thought)\\b/i,
+              /^(?:here(?:'s| is)|this is)\\s+(?:a|the)?\\s*(?:thinking|reasoning|analysis)\\s+(?:process|approach)\\b/i,
+              /^(?:thinking|reasoning|analysis)\\s+(?:process|approach)\\s*:/i,
+          """
+          pool = replace_once(pool, quality_anchor, quality_hardened, 'quality leak filter')
+          pool_path.write_text(pool)
+
+          chain_path = Path('fresh-rebuild/src/nova57-atomic-chain.js')
+          chain = chain_path.read_text()
+          chain = replace_once(
+              chain,
+              "const runDistinct = async (stage, generation, stagePrompt, preferredMs, lane = 0, hedgeWidth = 1, exclusionSnapshot = null, useFinalizerReserve = false) => {",
+              "const runDistinct = async (stage, generation, stagePrompt, preferredMs, lane = 0, hedgeWidth = 1, exclusionSnapshot = null, useFinalizerReserve = false, laneSpan = 1) => {",
+              'runDistinct signature'
+          )
+          chain = replace_once(
+              chain,
+              """      timeoutMs: Math.max(800, Math.min(preferredMs, remaining)),
+                  lane,
+                  hedgeWidth
+          """,
+              """      timeoutMs: Math.max(800, Math.min(preferredMs, remaining)),
+                  lane,
+                  laneSpan,
+                  hedgeWidth
+          """,
+              'runAtomicBrain laneSpan control'
+          )
+          chain = replace_once(
+              chain,
+              """    index,
+                  1,
+                  criticExcludes
+                ).catch(() => null));
+          """,
+              """    index,
+                  1,
+                  criticExcludes,
+                  false,
+                  criticCapacity
+                ).catch(() => null));
+          """,
+              'critic lane span'
+          )
+          chain = replace_once(
+              chain,
+              """      index,
+                    1,
+                    specialistExcludes
+                  ).catch(() => null));
+          """,
+              """      index,
+                    1,
+                    specialistExcludes,
+                    false,
+                    capacity
+                  ).catch(() => null));
+          """,
+              'specialist lane span'
+          )
+          chain_path.write_text(chain)
+
+          smoke_path = Path('scripts/nova57-arim-live-smoke.mjs')
+          smoke = smoke_path.read_text()
+          smoke = replace_once(
+              smoke,
+              """  leakThink: pool.assessAtomicResponseQuality('<think>\\ninternal reasoning must never reach the user')
+          };
+          """,
+              """  leakThink: pool.assessAtomicResponseQuality('<think>\\ninternal reasoning must never reach the user'),
+            leakThinkingProcess: pool.assessAtomicResponseQuality(\"Here's a thinking process: internal reasoning must never reach the user\")
+          };
+          """,
+              'smoke thinking-process unit'
+          )
+          smoke = replace_once(
+              smoke,
+              """  && qualityUnit.rawJson.ok === false
+            && qualityUnit.leakThink.ok === false;
+          """,
+              """  && qualityUnit.rawJson.ok === false
+            && qualityUnit.leakThink.ok === false
+            && qualityUnit.leakThinkingProcess.ok === false;
+          """,
+              'smoke quality assertion'
+          )
+          smoke = replace_once(
+              smoke,
+              "async function hop({ label, capability, prompt, excludeKeys = [], lane = 0, hedgeWidth = 2, timeoutMs = 5200 }) {",
+              "async function hop({ label, capability, prompt, excludeKeys = [], lane = 0, laneSpan = 1, hedgeWidth = 2, timeoutMs = 5200 }) {",
+              'smoke hop signature'
+          )
+          smoke = replace_once(
+              smoke,
+              """    }, { capability, excludeKeys, lane, hedgeWidth, timeoutMs });
+          """,
+              """    }, { capability, excludeKeys, lane, laneSpan, hedgeWidth, timeoutMs });
+          """,
+              'smoke laneSpan control'
+          )
+          smoke = replace_once(
+              smoke,
+              """    label: 'critic-B1', capability: 'reasoning', excludeKeys: criticSnapshot,
+                lane: 0, hedgeWidth: 2,
+          """,
+              """    label: 'critic-B1', capability: 'reasoning', excludeKeys: criticSnapshot,
+                lane: 0, laneSpan: 2, hedgeWidth: 2,
+          """,
+              'smoke critic B1 lane span'
+          )
+          smoke = replace_once(
+              smoke,
+              """    label: 'critic-B2', capability: 'reasoning', excludeKeys: criticSnapshot,
+                lane: 1, hedgeWidth: 2,
+          """,
+              """    label: 'critic-B2', capability: 'reasoning', excludeKeys: criticSnapshot,
+                lane: 1, laneSpan: 2, hedgeWidth: 2,
+          """,
+              'smoke critic B2 lane span'
+          )
+          smoke = replace_once(
+              smoke,
+              """      lane: index,
+                  hedgeWidth: 1,
+          """,
+              """      lane: index,
+                  laneSpan: requestedSpecialists,
+                  hedgeWidth: 1,
+          """,
+              'smoke specialist lane span'
+          )
+          smoke_path.write_text(smoke)
+          PY
+
+          node --check fresh-rebuild/src/nova57-atomic-brain-pool.js
+          node --check fresh-rebuild/src/nova57-atomic-chain.js
+          node --check scripts/nova57-arim-live-smoke.mjs
+          grep -Fq "thinking|reasoning|analysis" fresh-rebuild/src/nova57-atomic-brain-pool.js
+          grep -Fq "laneSpan = 1" fresh-rebuild/src/nova57-atomic-chain.js
+          grep -Fq "criticCapacity" fresh-rebuild/src/nova57-atomic-chain.js
+          grep -Fq "laneSpan: requestedSpecialists" scripts/nova57-arim-live-smoke.mjs
+          grep -Fq "leakThinkingProcess" scripts/nova57-arim-live-smoke.mjs
+
+      - name: Commit verified ARIM mesh hardening
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'NexusNova ARIM Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add fresh-rebuild/src/nova57-atomic-brain-pool.js fresh-rebuild/src/nova57-atomic-chain.js scripts/nova57-arim-live-smoke.mjs
+          git diff --cached --quiet && { echo 'ARIM hardening already present.'; exit 0; }
+          git commit -m '[ARIM] Isolate parallel lanes and reject reasoning leaks'
+          git pull --rebase origin nova-sol57-pro-v128
+          git push origin HEAD:nova-sol57-pro-v128
