@@ -1,6 +1,5 @@
 name: NexusNova OTA Web Release
 
-# Manual OTA publish trigger: Nova Hub compact icons v2 — 2026-08-26.
 on:
   push:
     branches: [nexusnova-latest-full-apk-recovery-20260823, nova-sol57-pro-v128]
@@ -13,8 +12,8 @@ permissions:
   contents: write
 
 env:
-  # Exact web source bundled inside the phone-PASS OTA APK.
-  OTA_BUNDLED_BASE: 006759906f400598a697a10194c23f32c51c711c
+  # Exact web source bundled by the one-time OTA-capable native bootstrap.
+  OTA_BUNDLED_BASE: 0b455023342e94fe8c199ae25c0bcde03af80d59
 
 jobs:
   publish:
@@ -83,13 +82,13 @@ jobs:
           BASE="$OTA_BUNDLED_BASE"
           git cat-file -e "$BASE^{commit}"
 
-          # This obsolete renderer was removed before the NOVA 5.7 branch and is
-          # no longer referenced. OTA v1 may safely leave its dormant bundled
-          # copy in place; every other deletion remains a hard stop.
+          # Differential OTA cannot safely represent deletions because unchanged
+          # files fall through to the signed bundled baseline. One already-obsolete
+          # renderer remains the sole historical exception.
           deleted="$(git diff --name-only --diff-filter=D "$BASE" "$GITHUB_SHA" -- fresh-rebuild/ \
             | grep -vFx 'fresh-rebuild/src/features/apps/premium-nova-internet-speed.js' || true)"
           if [ -n "$deleted" ]; then
-            echo 'OTA v1 cannot safely represent deleted bundled web files:' >&2
+            echo 'Atomic differential OTA cannot safely represent deleted bundled web files:' >&2
             printf '%s\n' "$deleted" >&2
             exit 1
           fi
@@ -107,11 +106,19 @@ jobs:
             count=$((count + 1))
           done < <(git diff --name-only --diff-filter=ACMRT "$BASE" "$GITHUB_SHA" -- fresh-rebuild/)
 
+          # Every activated package owns a deterministic entry point even when a
+          # future release changes CSS/JS only.
+          if [ ! -f /tmp/nexusnova-ota-package/files/index.html ]; then
+            cp fresh-rebuild/index.html /tmp/nexusnova-ota-package/files/index.html
+            count=$((count + 1))
+          fi
+
           if [ "$count" -lt 1 ]; then
-            echo 'No web files differ from the bundled OTA baseline.' >&2
+            echo 'No web files available for OTA.' >&2
             exit 1
           fi
 
+          export OTA_DIFF_BASE="$BASE"
           python3 - <<'PY'
           import hashlib, json, os
           from pathlib import Path
@@ -128,8 +135,11 @@ jobs:
               })
           if not files:
               raise SystemExit('OTA package is empty')
+          if not any(item['path'] == 'index.html' for item in files):
+              raise SystemExit('OTA package entry point missing')
           manifest = {
-              'schema': 1,
+              'schema': 2,
+              'base': os.environ['OTA_DIFF_BASE'],
               'version': os.environ['GITHUB_SHA'],
               'files': files,
           }
