@@ -1,21 +1,33 @@
 // NOVA 5.7 — human-feel response reveal.
 // Assistant replies are progressively revealed after they arrive so the UI feels
-// like a real streamed answer instead of flashing the whole response at once.
-// This is presentation-only; it does not alter provider routing or generation.
+// streamed instead of flashing the whole response at once. Presentation only.
 
-const CHARS_PER_SECOND = 82;
-const MAX_VISUAL_MS = 14000;
-const MIN_VISUAL_MS = 520;
+const CHARS_PER_SECOND = 64;
+const MAX_VISUAL_MS = 18000;
+const MIN_VISUAL_MS = 700;
+const COMPLETION_GRACE_MS = 900;
+let liveGeneration = false;
+let liveUntil = 0;
 
 function activeSendButton() {
   return document.querySelector('[data-nx57-send]');
+}
+
+function markGenerationStart() {
+  liveGeneration = true;
+  liveUntil = Number.POSITIVE_INFINITY;
+}
+
+function markGenerationEnd() {
+  liveGeneration = false;
+  liveUntil = performance.now() + COMPLETION_GRACE_MS;
 }
 
 function shouldAnimate(message) {
   if (!(message instanceof HTMLElement)) return false;
   if (!message.matches('.nx57-clean-msg.bot')) return false;
   const send = activeSendButton();
-  return Boolean(send?.disabled);
+  return liveGeneration || performance.now() <= liveUntil || Boolean(send?.disabled);
 }
 
 function reveal(message) {
@@ -40,9 +52,10 @@ function reveal(message) {
     const progress = Math.min(1, elapsed / duration);
     let end = Math.max(1, Math.floor(full.length * progress));
 
+    // Prefer revealing complete words so the motion looks like natural streaming.
     if (end < full.length) {
       const nextSpace = full.indexOf(' ', end);
-      if (nextSpace > end && nextSpace - end <= 9) end = nextSpace + 1;
+      if (nextSpace > end && nextSpace - end <= 10) end = nextSpace + 1;
     }
 
     p.textContent = full.slice(0, Math.min(full.length, end));
@@ -69,7 +82,16 @@ function reveal(message) {
 }
 
 const observer = new MutationObserver(records => {
+  // Mutation records preserve order. We use attributeOldValue because by callback
+  // time the send button may already have been re-enabled; checking only its current
+  // state is exactly what caused completed replies to flash in full on phones.
   for (const record of records) {
+    if (record.type === 'attributes' && record.attributeName === 'disabled' && record.target instanceof HTMLElement && record.target.matches('[data-nx57-send]')) {
+      if (record.oldValue === null) markGenerationStart();
+      else markGenerationEnd();
+      continue;
+    }
+
     for (const node of record.addedNodes) {
       if (!(node instanceof HTMLElement)) continue;
       if (node.matches?.('.nx57-clean-msg.bot')) reveal(node);
@@ -78,9 +100,17 @@ const observer = new MutationObserver(records => {
   }
 });
 
-observer.observe(document.documentElement, { childList: true, subtree: true });
+observer.observe(document.documentElement, {
+  childList: true,
+  subtree: true,
+  attributes: true,
+  attributeFilter: ['disabled'],
+  attributeOldValue: true
+});
+
 globalThis.__NOVA_HUMAN_RESPONSE__ = {
   active: true,
+  mode: 'progressive-word-reveal',
   charsPerSecond: CHARS_PER_SECOND,
   maxVisualMs: MAX_VISUAL_MS,
   startedAt: new Date().toISOString()
