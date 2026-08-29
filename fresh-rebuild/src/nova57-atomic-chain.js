@@ -363,7 +363,7 @@ export async function runAtomicChain({ prompt, request, generate, options = {}, 
     return recordHop(stage, generation, result, text, hopStarted);
   };
 
-  const runDistinct = async (stage, generation, stagePrompt, preferredMs, lane = 0, hedgeWidth = 1, exclusionSnapshot = null, useFinalizerReserve = false) => {
+  const runDistinct = async (stage, generation, stagePrompt, preferredMs, lane = 0, hedgeWidth = 1, exclusionSnapshot = null, useFinalizerReserve = false, laneSpan = 1) => {
     await ensurePlan();
     const remaining = useFinalizerReserve ? remainingMs() : remainingWorkMs();
     if (remaining < 650) throw new Error('ARIM budget exhausted.');
@@ -376,6 +376,7 @@ export async function runAtomicChain({ prompt, request, generate, options = {}, 
       preferredKeys,
       timeoutMs: Math.max(800, Math.min(preferredMs, remaining)),
       lane,
+      laneSpan,
       hedgeWidth
     }), Math.max(900, Math.min(preferredMs + 250, remaining)));
     const text = readText(result);
@@ -444,7 +445,9 @@ export async function runAtomicChain({ prompt, request, generate, options = {}, 
     2100,
     index,
     1,
-    criticExcludes
+    criticExcludes,
+    false,
+    criticCapacity
   ).catch(() => null));
   const critics = (await Promise.all(criticPromises)).filter(Boolean);
   const verdicts = critics.map(row => criticVerdict(row.text));
@@ -473,7 +476,9 @@ export async function runAtomicChain({ prompt, request, generate, options = {}, 
       1850,
       index,
       1,
-      specialistExcludes
+      specialistExcludes,
+      false,
+      capacity
     ).catch(() => null));
     specialists.push(...(await Promise.all(specialistPromises)).filter(Boolean));
   } else {

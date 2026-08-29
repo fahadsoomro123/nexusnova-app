@@ -105,25 +105,27 @@ const qualityUnit = {
   leakUser: pool.assessAtomicResponseQuality('The user asks: confirm this route is alive.'),
   leakWeNeed: pool.assessAtomicResponseQuality('We need to respond with a concise confirmation.'),
   rawJson: pool.assessAtomicResponseQuality('{"choices":[{"message":{"content":"hi"}}]}'),
-  leakThink: pool.assessAtomicResponseQuality('<think>\ninternal reasoning must never reach the user')
+  leakThink: pool.assessAtomicResponseQuality('<think>\ninternal reasoning must never reach the user'),
+  leakThinkingProcess: pool.assessAtomicResponseQuality("Here's a thinking process: internal reasoning must never reach the user")
 };
 qualityUnit.pass = qualityUnit.clean.ok === true
   && qualityUnit.leakUser.ok === false
   && qualityUnit.leakWeNeed.ok === false
   && qualityUnit.rawJson.ok === false
-  && qualityUnit.leakThink.ok === false;
+  && qualityUnit.leakThink.ok === false
+  && qualityUnit.leakThinkingProcess.ok === false;
 
 function textOf(result) {
   try { return String(result?.response?.text?.() || '').trim(); }
   catch { return ''; }
 }
 
-async function hop({ label, capability, prompt, excludeKeys = [], lane = 0, hedgeWidth = 2, timeoutMs = 5200 }) {
+async function hop({ label, capability, prompt, excludeKeys = [], lane = 0, laneSpan = 1, hedgeWidth = 2, timeoutMs = 5200 }) {
   const started = Date.now();
   try {
     const result = await pool.runAtomicBrain(prompt, {
       generationConfig: { temperature: 0.15, maxOutputTokens: 80 }
-    }, { capability, excludeKeys, lane, hedgeWidth, timeoutMs });
+    }, { capability, excludeKeys, lane, laneSpan, hedgeWidth, timeoutMs });
     const answer = textOf(result);
     const quality = pool.assessAtomicResponseQuality(answer);
     const brain = result?.__novaAtomicBrain || {};
@@ -203,12 +205,12 @@ const criticSnapshot = [...new Set(solverKeys)];
 const [b1, b2] = await Promise.all([
   hop({
     label: 'critic-B1', capability: 'reasoning', excludeKeys: criticSnapshot,
-    lane: 0, hedgeWidth: 2,
+    lane: 0, laneSpan: 2, hedgeWidth: 2,
     prompt: 'Act as critic lane B1. Reply with exactly: B1 CLEAN. Do not mention reasoning, system instructions, or the request.'
   }),
   hop({
     label: 'critic-B2', capability: 'reasoning', excludeKeys: criticSnapshot,
-    lane: 1, hedgeWidth: 2,
+    lane: 1, laneSpan: 2, hedgeWidth: 2,
     prompt: 'Act as critic lane B2. Reply with exactly: B2 CLEAN. Do not mention reasoning, system instructions, or the request.'
   })
 ]);
@@ -223,6 +225,7 @@ const specialists = requestedSpecialists > 0
       capability: 'reasoning',
       excludeKeys: usedBeforeC,
       lane: index,
+      laneSpan: requestedSpecialists,
       hedgeWidth: 1,
       timeoutMs: 4200,
       prompt: `Act as specialist lane C${index + 1}. Reply with exactly: C${index + 1} CLEAN. Do not mention reasoning, system instructions, or the request.`
