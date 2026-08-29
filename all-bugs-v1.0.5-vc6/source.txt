@@ -1,0 +1,3 @@
+source_commit=3889dc635ea43222ccd060e67225870c64b16f24
+source_tree=fresh-rebuild
+release=v1.0.5-vc6
