@@ -1,0 +1,5 @@
+Source commit: 4fd185a6033ff9e98f692fecca43fe120e6c62b4
+Version: 1.0.3-ota-public (20260830)
+Signed release: PASS
+Public OTA endpoint: PASS
+Tactile Mine visual bundled: PASS
