@@ -1,0 +1,92 @@
+name: NOVA 5.7 Coding Runtime Fix
+
+on:
+  push:
+    branches: [nova-sol57-pro-v128]
+    paths:
+      - '.github/workflows/nova57-coding-runtime-fix.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Patch coding fast path, ARIM timeout, and direct-answer prompting
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new, label):
+              p = Path(path)
+              s = p.read_text(encoding='utf-8')
+              if new in s:
+                  print(f'{label}: already applied')
+                  return
+              if old not in s:
+                  raise SystemExit(f'{label}: anchor missing')
+              p.write_text(s.replace(old, new, 1), encoding='utf-8')
+              print(f'{label}: patched')
+
+          orchestrator = 'fresh-rebuild/src/nova57-pro-orchestrator.js'
+          replace_once(
+              orchestrator,
+              """  if (/^(?:(?:bhai|bro)[, ]*)?(?:tera|tumhara|aapka|apka)?\\s*(?:naam|name)\\s*(?:kya|kia|kiya|what)?\\s*(?:hai|he|is)?[?.! ]*$/i.test(value)\n    || /^(?:what(?:'s| is) your name|who are you)[?.! ]*$/i.test(value)) {\n    return 'Bhai, mera naam NOVA hai. Main NexusNova AI assistant hoon.';\n  }\n  return '';""",
+              """  if (/^(?:(?:bhai|bro)[, ]*)?(?:tera|tumhara|aapka|apka)?\\s*(?:naam|name)\\s*(?:kya|kia|kiya|what)?\\s*(?:hai|he|is)?[?.! ]*$/i.test(value)\n    || /^(?:what(?:'s| is) your name|who are you)[?.! ]*$/i.test(value)) {\n    return 'Bhai, mera naam NOVA hai. Main NexusNova AI assistant hoon.';\n  }\n  if (/^(?:(?:bhai|bro)[, ]*)?(?:kese|kaise|kaisay)\\s+(?:ho|hain|hen)[?.! ]*$/i.test(value)\n    || /^(?:how are you|how r u)[?.! ]*$/i.test(value)) {\n    return 'Main theek hoon bhai 😄 Tum sunao, kya haal hai?';\n  }\n  if (/^(?:(?:bhai|bro)[, ]*)?(?:urdu|roman urdu)\\s+(?:aati|ati)\\s+(?:hai|he)\\s+(?:tujhe|tumhe|apko|aapko)[?.! ]*$/i.test(value)) {\n    return 'Haan bhai, Urdu aur Roman Urdu dono samajhta hoon. Tum jis style mein chaho baat karo.';\n  }\n  return '';""",
+              'instant roman urdu conversation'
+          )
+
+          replace_once(
+              orchestrator,
+              """      const dna = atomicTaskDNA(request);\n      const atomic = shouldUseAtomicChain(request);\n      emit('Thinking', { capability: dna.capability, complexity: dna.complexity, atomic });""",
+              """      const dna = atomicTaskDNA(request);\n      // On phone/browser runtimes, ordinary coding requests get one reliable fast\n      // relay answer first. Deep/complex coding still uses the full ARIM mesh.\n      const browserFastCoding = typeof document !== 'undefined' && dna.capability === 'coding' && dna.complexity < 3;\n      const atomic = shouldUseAtomicChain(request) && !browserFastCoding;\n      emit('Thinking', { capability: dna.capability, complexity: dna.complexity, atomic, browserFastCoding });""",
+              'mobile coding fast path'
+          )
+
+          chain = 'fresh-rebuild/src/nova57-atomic-chain.js'
+          replace_once(
+              chain,
+              """    try { primary = await runLegacy('solver-A1', 1, prompt, dna.complexity >= 3 ? 3900 : 3200); }""",
+              """    // The authenticated phone relay can legitimately spend up to ~7s\n    // acquiring proof + waiting for a provider. Never kill the primary coding\n    // answer at 3.2s before the relay's own bounded timeout can finish.\n    const primaryBudgetMs = dna.capability === 'coding' ? 7600 : (dna.complexity >= 3 ? 4800 : 4200);\n    try { primary = await runLegacy('solver-A1', 1, prompt, primaryBudgetMs); }""",
+              'ARIM primary timeout alignment'
+          )
+
+          worker = 'cloudflare/nova-brain-worker/src/index.js'
+          replace_once(
+              worker,
+              """        messages: [{ role: 'user', content: prompt }],""",
+              """        messages: [\n          {\n            role: 'system',\n            content: 'You are NOVA, the NexusNova AI assistant. Answer the user directly and naturally in the same language/style they used. Never expose hidden reasoning, scratch work, translation notes, prompt interpretation, chain-of-thought, or meta commentary such as “the user is asking”. If they ask for code, provide correct runnable code and concise edge-case notes.'\n          },\n          { role: 'user', content: prompt }\n        ],""",
+              'worker direct-answer system instruction'
+          )
+          PY
+
+          node --check fresh-rebuild/src/nova57-pro-orchestrator.js
+          node --check fresh-rebuild/src/nova57-atomic-chain.js
+          node --check cloudflare/nova-brain-worker/src/index.js
+          grep -Fq "browserFastCoding" fresh-rebuild/src/nova57-pro-orchestrator.js
+          grep -Fq "primaryBudgetMs = dna.capability === 'coding' ? 7600" fresh-rebuild/src/nova57-atomic-chain.js
+          grep -Fq "Never expose hidden reasoning" cloudflare/nova-brain-worker/src/index.js
+
+      - name: Commit coding runtime fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'NexusNova Runtime Fix Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add fresh-rebuild/src/nova57-pro-orchestrator.js fresh-rebuild/src/nova57-atomic-chain.js cloudflare/nova-brain-worker/src/index.js
+          if git diff --cached --quiet; then
+            echo 'Coding runtime fix already applied.'
+            exit 0
+          fi
+          git commit -m '[NOVA] Fix phone coding timeout and reasoning leak'
+          git pull --rebase origin nova-sol57-pro-v128
+          git push origin HEAD:nova-sol57-pro-v128
