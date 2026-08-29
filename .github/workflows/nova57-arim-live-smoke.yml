@@ -34,6 +34,20 @@ jobs:
           node-version: '22'
           package-manager-cache: false
 
+      - name: Verify ARIM hardening anchors
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check fresh-rebuild/src/nova57-atomic-brain-pool.js
+          node --check fresh-rebuild/src/nova57-atomic-chain.js
+          node --check scripts/nova57-arim-live-smoke.mjs
+          grep -Fq "laneSpan = 1" fresh-rebuild/src/nova57-atomic-chain.js
+          grep -Fq "laneSpan," fresh-rebuild/src/nova57-atomic-chain.js
+          grep -Fq "criticCapacity" fresh-rebuild/src/nova57-atomic-chain.js
+          grep -Fq "leakThinkingProcess" scripts/nova57-arim-live-smoke.mjs
+          grep -Fq "here(?:'s| is)" fresh-rebuild/src/nova57-atomic-brain-pool.js
+          echo 'ARIM lane isolation + reasoning-leak hardening anchors: PASS'
+
       - name: ARIM live distinct-mesh smoke
         run: node scripts/nova57-arim-live-smoke.mjs
 
