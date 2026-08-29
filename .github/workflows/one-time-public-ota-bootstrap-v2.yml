@@ -7,7 +7,7 @@ on:
       - '.github/workflows/one-time-public-ota-bootstrap-v2.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 env:
   VERSION_CODE: '20260830'
@@ -25,6 +25,8 @@ jobs:
       NEXUSNOVA_SIGNING_STORE_FILE: /tmp/nexusnova-release.jks
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Verify public OTA source
         shell: bash
@@ -116,13 +118,27 @@ jobs:
           cp NexusNovaAndroid/app/build/outputs/apk/release/app-release.apk public-ota-bootstrap/NexusNova-PUBLIC-OTA-BOOTSTRAP.apk
           sha256sum public-ota-bootstrap/NexusNova-PUBLIC-OTA-BOOTSTRAP.apk > public-ota-bootstrap/SHA256.txt
           cp signature.txt public-ota-bootstrap/signature.txt
+          printf 'Source commit: %s\nVersion: %s (%s)\nSigned release: PASS\nPublic OTA endpoint: PASS\nTactile Mine visual bundled: PASS\n' "$GITHUB_SHA" "$VERSION_NAME" "$VERSION_CODE" > public-ota-bootstrap/BUILD-STATUS.txt
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: NexusNova-PUBLIC-OTA-BOOTSTRAP
-          path: public-ota-bootstrap/
-          if-no-files-found: error
-          retention-days: 7
+      - name: Publish signed bootstrap to apk-builds branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'NexusNova Signed APK Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git fetch origin apk-builds
+          PUB="$RUNNER_TEMP/nexusnova-bootstrap-publish"
+          rm -rf "$PUB"
+          git worktree add "$PUB" origin/apk-builds
+          cd "$PUB"
+          rm -rf ota-bootstrap
+          mkdir -p ota-bootstrap
+          cp -a "$GITHUB_WORKSPACE/public-ota-bootstrap"/. ota-bootstrap/
+          git add -A ota-bootstrap/BUILD-STATUS.txt ota-bootstrap/SHA256.txt ota-bootstrap/signature.txt
+          git add -f ota-bootstrap/NexusNova-PUBLIC-OTA-BOOTSTRAP.apk
+          git commit -m "Publish signed public OTA bootstrap $GITHUB_SHA"
+          git pull --rebase origin apk-builds
+          git push origin HEAD:apk-builds
 
       - name: Cleanup signing material
         if: always()
