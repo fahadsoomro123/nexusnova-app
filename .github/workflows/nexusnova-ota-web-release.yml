@@ -1,7 +1,7 @@
 name: NexusNova OTA Web Release
 
-# Atomic OTA v2 bootstrap publish trigger — 2026-08-29.
-# OTA-first testing shell: future web/UI/tool/NOVA changes publish online here.
+# Atomic OTA v2 package builder. The one-time native bootstrap now reads the
+# public OTA channel hosted from the public NexusNova website repository.
 on:
   push:
     branches: [nexusnova-latest-full-apk-recovery-20260823, nova-sol57-pro-v128]
@@ -14,8 +14,8 @@ permissions:
   contents: write
 
 env:
-  # Exact web source bundled by the one-time OTA-capable native bootstrap.
-  OTA_BUNDLED_BASE: 0b455023342e94fe8c199ae25c0bcde03af80d59
+  # Exact web source bundled by the public-OTA-capable native bootstrap.
+  OTA_BUNDLED_BASE: b6eb3d191ee35b58c0ffe14334674ea2c60d3b72
 
 jobs:
   publish:
@@ -151,7 +151,7 @@ jobs:
           test -s /tmp/nexusnova-ota-package/manifest.json
           test -s /tmp/nexusnova-ota-package/files/index.html
 
-      - name: Publish OTA branch
+      - name: Publish private staging OTA branch
         shell: bash
         run: |
           set -euo pipefail
