@@ -1,0 +1,2 @@
+Trigger production deployment for authenticated Android generation relay.
+Source relay commit: 156d9cf2a4a1ef948ff8305812c912c86d4e05bb
