@@ -1,3 +1,4 @@
 Trigger production deployment for authenticated Android generation relay.
-Source relay commit: a7e04d0fe6fda48af5afd49699dc8ded9f24687a
+Source relay commit: 0512143
 Runtime rescue: Firebase Auth fallback + fast OVH routes + 4.5s provider window.
+Coding rescue: fast phone coding path + aligned ARIM timeout + direct-answer provider instruction.
