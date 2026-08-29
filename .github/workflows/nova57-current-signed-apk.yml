@@ -84,14 +84,6 @@ jobs:
           printf 'Source commit: %s\nBranch: %s\nBuild type: installable debug APK\nDirect Gemini 3.6: PASS\nDashboard removed from active NOVA renderer: PASS\n200K/ARIM removed from active NOVA renderer: PASS\nChat + Work: PASS\nHuman response script bundled: PASS\n' \
             "$GITHUB_SHA" "$GITHUB_REF_NAME" > "$OUT/BUILD-STATUS.txt"
 
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: NexusNova-GEMINI-RESET-INSTALL
-          path: gemini-reset-apk/
-          if-no-files-found: error
-          retention-days: 30
-
       - name: Publish APK to apk-builds branch
         shell: bash
         run: |
