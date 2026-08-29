@@ -407,8 +407,9 @@ export function getGenerativeModel(ai, options = {}) {
           console.warn('[NOVA Hedge] hard foreground routes unavailable; trying deadline-capped broad adaptive router.', fastError);
           return boundedFallback(baseModel, prompt, 2600);
         }
-        console.warn(`[NOVA Hedge] ${mode} foreground routes unavailable; using broad adaptive router.`, fastError);
-        return baseModel.generateContent(prompt);
+        const fallbackMs = mode === 'quick' ? 2200 : 3200;
+        console.warn(`[NOVA Hedge] ${mode} foreground routes unavailable; using deadline-capped broad adaptive router.`, fastError);
+        return boundedFallback(baseModel, prompt, fallbackMs);
       }
     }
   };

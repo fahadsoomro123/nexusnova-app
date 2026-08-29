@@ -46,6 +46,18 @@ function webIntent(request) {
     || /(aaj|abhi|latest|current|web|internet|research|search).{0,20}(dekho|dekh|karo|kar|bata)/i.test(request);
 }
 
+function instantConversation(request) {
+  const value = String(request || '').trim();
+  if (!value || value.length > 80) return '';
+  if (/^(?:hi+|hello+|hey+|yo|salam|salaam|assalam(?:u alaikum)?|aoa)[!.?, ]*$/i.test(value)) {
+    return 'Hello! Main NOVA hoon. Batao, kis cheez mein help chahiye?';
+  }
+  if (/^(?:hi+|hello+|hey+)[, ]+(?:nova|bro|bhai)[!.? ]*$/i.test(value)) {
+    return 'Hello bhai! Main ready hoon — kya karna hai?';
+  }
+  return '';
+}
+
 function emit(stage, detail = {}) {
   try { window.dispatchEvent(new CustomEvent('nova57:activity', { detail: { stage, source: 'pro-orchestrator', ...detail } })); } catch {}
 }
@@ -237,6 +249,12 @@ export function getGenerativeModel(ai, options = {}) {
     async generateContent(prompt) {
       const original = String(prompt || '');
       const request = userRequest(original);
+      const instant = instantConversation(request);
+      if (instant) {
+        globalThis.__NOVA_BRAIN_LAST__ = { provider: 'NOVA Local', model: 'instant-conversation', attempts: 0, latencyMs: 0, wallMs: 0, profile: 'quick', hedged: false, jury: false, deterministic: true, verified: true, at: new Date().toISOString() };
+        emit('Finalizing', { atomic: false, instant: true });
+        return { response: { text: () => instant } };
+      }
 
       if (githubIntent(request) || exactToolIntent(request)) {
         return toolModel.generateContent(original);
