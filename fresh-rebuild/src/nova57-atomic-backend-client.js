@@ -15,6 +15,10 @@ function bounded(promise, timeoutMs) {
   ]).finally(() => clearTimeout(timer));
 }
 
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function ready() {
   return /^https:\/\/[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev$/i.test(BACKEND_URL);
 }
@@ -44,6 +48,13 @@ async function post(path, body, timeoutMs, extraHeaders = {}) {
   return response.json();
 }
 
+async function fetchStatus(timeoutMs) {
+  const response = await bounded(fetch(`${BACKEND_URL}/v1/status`, { cache: 'no-store' }), timeoutMs);
+  if (!response.ok) throw new Error(`NOVA registry HTTP ${response.status}.`);
+  const data = await response.json();
+  return data && typeof data === 'object' && data.ok === true ? data : null;
+}
+
 async function freshAppCheckToken() {
   if (typeof document === 'undefined') return '';
   try {
@@ -61,7 +72,7 @@ export async function getAtomicBackendPlan(prompt) {
   if (!ready() || Date.now() < backendCoolingUntil) return null;
   try {
     const capability = capabilityOf(prompt);
-    const data = await post('/v1/plan', { capability }, 1350);
+    const data = await post('/v1/plan', { capability }, 2200);
     if (!data || !Array.isArray(data.candidates)) return null;
     return data;
   } catch (error) {
@@ -76,7 +87,7 @@ export async function getAtomicCapabilityPlan(capability = 'general') {
   const allowed = new Set(['general', 'coding', 'reasoning', 'research', 'multilingual']);
   const safeCapability = allowed.has(String(capability)) ? String(capability) : 'general';
   try {
-    const data = await post('/v1/plan', { capability: safeCapability }, 1800);
+    const data = await post('/v1/plan', { capability: safeCapability }, 3000);
     return data && Array.isArray(data.candidates) ? data : null;
   } catch (error) {
     coolDown(error);
@@ -86,11 +97,22 @@ export async function getAtomicCapabilityPlan(capability = 'general') {
 
 export async function getAtomicBackendStatus() {
   if (!ready()) return null;
+
+  // Mobile WebViews can take longer than desktop browsers to establish the first
+  // Worker connection. Status is authoritative telemetry, so give it a bounded
+  // retry instead of turning a transient 1.8s network delay into a blank dashboard.
   try {
-    const response = await bounded(fetch(`${BACKEND_URL}/v1/status`, { cache: 'no-store' }), 1800);
-    if (!response.ok) throw new Error(`NOVA registry HTTP ${response.status}.`);
-    return response.json();
-  } catch {
+    const first = await fetchStatus(4500);
+    if (first) return first;
+  } catch (error) {
+    console.warn('[NOVA ARIM] Registry status first attempt failed; retrying once.', error);
+  }
+
+  await wait(250);
+  try {
+    return await fetchStatus(3000);
+  } catch (error) {
+    console.warn('[NOVA ARIM] Registry status unavailable after retry.', error);
     return null;
   }
 }
