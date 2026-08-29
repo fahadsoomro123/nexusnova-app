@@ -1,7 +1,7 @@
-name: NOVA 5.7 OTA Bootstrap Signed APK
+name: NOVA 5.7 Public OTA Bootstrap Signed APK
 
-# Native APK builds are MANUAL ONLY. Routine app changes ship through
-# NexusNova OTA Web Release and must not rebuild/install an APK.
+# Native APK builds are MANUAL ONLY. This one-time signed bootstrap switches
+# the installed app from private GitHub OTA transport to the public OTA channel.
 on:
   workflow_dispatch:
 
@@ -14,8 +14,8 @@ env:
   NEXUSNOVA_SIGNING_KEY_ALIAS: ${{ secrets.NEXUSNOVA_SIGNING_KEY_ALIAS }}
   NEXUSNOVA_SIGNING_KEY_PASSWORD: ${{ secrets.NEXUSNOVA_SIGNING_KEY_PASSWORD }}
   NEXUSNOVA_SIGNING_STORE_FILE: ${{ runner.temp }}/nexusnova-release.jks
-  VERSION_CODE: '20260829'
-  VERSION_NAME: '1.0.2-ota'
+  VERSION_CODE: '20260830'
+  VERSION_NAME: '1.0.3-ota-public'
 
 jobs:
   build-signed-bootstrap:
@@ -27,42 +27,40 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verify exact OTA bootstrap source
+      - name: Verify exact public OTA bootstrap source
         shell: bash
         run: |
           set -euo pipefail
           test "$GITHUB_REF_NAME" = "nova-sol57-pro-v128"
           test -s fresh-rebuild/index.html
           test -s fresh-rebuild/assets/styles/nova57-gradient-premium.css
+          test -s fresh-rebuild/assets/styles/premium-mine-tactile-3d.css
           test -s NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt
           test -s NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
-          grep -Fq 'nova57-gradient-premium.css' fresh-rebuild/index.html
+          grep -Fq 'premium-mine-tactile-3d.css' fresh-rebuild/index.html
           grep -Fq 'MANIFEST_SCHEMA = 2' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt
-          grep -Fq 'BUNDLED_WEB_BASE = "0b455023342e94fe8c199ae25c0bcde03af80d59"' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt
+          grep -Fq 'BUNDLED_WEB_BASE = "b6eb3d191ee35b58c0ffe14334674ea2c60d3b72"' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt
+          grep -Fq 'nexusnova-website/nexusnova-ota-public/ota/manifest.json' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt
           grep -Fq 'otaWebManager.intercept(uri)' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
           grep -Fq 'checkForWebUpdate()' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
-          echo 'Atomic OTA bootstrap source: PASS'
+          echo 'Public atomic OTA bootstrap source: PASS'
 
-      - name: Verify published OTA v2 manifest
+      - name: Verify public OTA v2 manifest
         shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           MANIFEST="$RUNNER_TEMP/ota-manifest.json"
           curl --fail --silent --show-error \
-            -H "Authorization: Bearer $GH_TOKEN" \
-            -H 'Accept: application/vnd.github.raw+json' \
-            "https://api.github.com/repos/$GITHUB_REPOSITORY/contents/manifest.json?ref=nexusnova-ota-release" \
+            "https://raw.githubusercontent.com/fahadsoomro123/nexusnova-website/nexusnova-ota-public/ota/manifest.json" \
             -o "$MANIFEST"
           python3 - "$MANIFEST" <<'PY'
           import json, sys
           data = json.load(open(sys.argv[1], encoding='utf-8'))
           assert data.get('schema') == 2, data
-          assert data.get('base') == '0b455023342e94fe8c199ae25c0bcde03af80d59', data
+          assert data.get('base') == 'b6eb3d191ee35b58c0ffe14334674ea2c60d3b72', data
           assert isinstance(data.get('version'), str) and len(data['version']) == 40, data
           assert any(x.get('path') == 'index.html' for x in data.get('files', [])), data
-          print('Published atomic OTA manifest: PASS')
+          print('Published public atomic OTA manifest: PASS')
           PY
 
       - uses: actions/setup-java@v5
@@ -95,7 +93,7 @@ jobs:
             -storepass "$NEXUSNOVA_SIGNING_STORE_PASSWORD" \
             -alias "$NEXUSNOVA_SIGNING_KEY_ALIAS" >/dev/null
 
-      - name: Inject signing and OTA bootstrap version
+      - name: Inject signing and bootstrap version
         shell: bash
         run: |
           set -euo pipefail
@@ -130,14 +128,14 @@ jobs:
           path.write_text(text, encoding='utf-8')
           PY
 
-      - name: Build permanently signed OTA bootstrap APK
+      - name: Build permanently signed public OTA bootstrap APK
         working-directory: NexusNovaAndroid
         shell: bash
         run: |
           set -euo pipefail
           gradle --no-daemon clean assembleRelease 2>&1 | tee "$GITHUB_WORKSPACE/ota-bootstrap-build.log"
           test -s app/build/outputs/apk/release/app-release.apk
-          grep -Fq 'nova57-gradient-premium.css' app/src/main/assets/www/index.html
+          grep -Fq 'premium-mine-tactile-3d.css' app/src/main/assets/www/index.html
 
       - name: Verify APK signature
         shell: bash
@@ -156,16 +154,16 @@ jobs:
           OUT="$GITHUB_WORKSPACE/ota-bootstrap-apk"
           mkdir -p "$OUT"
           cp "$GITHUB_WORKSPACE/NexusNovaAndroid/app/build/outputs/apk/release/app-release.apk" \
-            "$OUT/NexusNova-NOVA57-OTA-BOOTSTRAP-v${VERSION_NAME}-vc${VERSION_CODE}.apk"
+            "$OUT/NexusNova-NOVA57-PUBLIC-OTA-BOOTSTRAP-v${VERSION_NAME}-vc${VERSION_CODE}.apk"
           sha256sum "$OUT"/*.apk > "$OUT/SHA256.txt"
           cp "$GITHUB_WORKSPACE/ota-bootstrap-signature.txt" "$OUT/signature.txt"
-          printf 'Source commit: %s\nBranch: %s\nVersion name: %s\nVersion code: %s\nSigned release: PASS\nAtomic OTA v2: PASS\nGradient Premium bundled: PASS\n' \
+          printf 'Source commit: %s\nBranch: %s\nVersion name: %s\nVersion code: %s\nSigned release: PASS\nPublic atomic OTA v2: PASS\nTactile Mine visual bundled: PASS\n' \
             "$GITHUB_SHA" "$GITHUB_REF_NAME" "$VERSION_NAME" "$VERSION_CODE" > "$OUT/BUILD-STATUS.txt"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: NexusNova-NOVA57-OTA-BOOTSTRAP
+          name: NexusNova-NOVA57-PUBLIC-OTA-BOOTSTRAP
           path: ota-bootstrap-apk/
           if-no-files-found: error
           retention-days: 30
@@ -186,7 +184,7 @@ jobs:
           cp -a "$GITHUB_WORKSPACE/ota-bootstrap-apk"/. ota-bootstrap/
           git add -A ota-bootstrap/BUILD-STATUS.txt ota-bootstrap/SHA256.txt ota-bootstrap/signature.txt
           git add -f ota-bootstrap/*.apk
-          git commit -m "Publish signed NOVA 5.7 OTA bootstrap $GITHUB_SHA"
+          git commit -m "Publish signed NOVA 5.7 public OTA bootstrap $GITHUB_SHA"
           git pull --rebase origin apk-builds
           git push origin HEAD:apk-builds
 
