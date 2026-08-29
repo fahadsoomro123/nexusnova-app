@@ -346,6 +346,7 @@ export function getGenerativeModel(ai, options = {}) {
       const browserFastCoding = typeof document !== 'undefined' && dna.capability === 'coding' && dna.complexity < 3;
       const atomic = shouldUseAtomicChain(request) && !browserFastCoding;
       emit('Thinking', { capability: dna.capability, complexity: dna.complexity, atomic, browserFastCoding });
+      const foregroundModel = browserFastCoding ? toolModel : hedgeModel;
       const result = atomic
         ? await runAtomicChain({
             prompt: original,
@@ -353,7 +354,7 @@ export function getGenerativeModel(ai, options = {}) {
             options: runtimeOptions,
             generate: nextPrompt => generateForRuntime(hedgeModel, nextPrompt, dna.capability, runtimeOptions)
           })
-        : await generateForRuntime(hedgeModel, original, dna.capability, runtimeOptions);
+        : await generateForRuntime(foregroundModel, original, dna.capability, runtimeOptions);
       emit('Finalizing', { atomic });
       return result;
     }

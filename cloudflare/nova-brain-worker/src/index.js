@@ -623,7 +623,7 @@ async function generateRelay(request, env) {
       seen.add(key);
       return true;
     })
-    .slice(0, 3);
+    .slice(0, 6);
 
   if (!candidates.length) return json({ ok: false, error: 'no-callable-route' }, 503);
 
