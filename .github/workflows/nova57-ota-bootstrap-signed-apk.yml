@@ -1,5 +1,6 @@
 name: NOVA 5.7 OTA Bootstrap Signed APK
 
+# Trigger signed OTA bootstrap build — 2026-08-29.
 on:
   push:
     branches: [nova-sol57-pro-v128]
