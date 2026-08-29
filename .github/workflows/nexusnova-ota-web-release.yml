@@ -1,5 +1,6 @@
 name: NexusNova OTA Web Release
 
+# Atomic OTA v2 bootstrap publish trigger — 2026-08-29.
 on:
   push:
     branches: [nexusnova-latest-full-apk-recovery-20260823, nova-sol57-pro-v128]
