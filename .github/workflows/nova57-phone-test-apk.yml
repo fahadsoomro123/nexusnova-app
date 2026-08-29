@@ -7,6 +7,7 @@ on:
     paths:
       - '.github/workflows/nova57-phone-test-apk.yml'
       - 'fresh-rebuild/src/nova57-atomic-backend-client.js'
+      - 'fresh-rebuild/src/nova57-atomic-brain-pool.js'
       - 'fresh-rebuild/src/features/apps/nova57-control-center.js'
       - 'fresh-rebuild/assets/styles/nova57-control-center.css'
       - 'fresh-rebuild/src/features/apps/nova-sol57-fresh.js'
@@ -37,6 +38,7 @@ jobs:
           test "$GITHUB_REF_NAME" = "nova-sol57-pro-v128"
           test -s fresh-rebuild/index.html
           test -s fresh-rebuild/src/nova57-atomic-chain.js
+          test -s fresh-rebuild/src/nova57-atomic-brain-pool.js
           test -s fresh-rebuild/src/nova57-atomic-backend-client.js
           test -s fresh-rebuild/src/nova57-pro-orchestrator.js
           test -s fresh-rebuild/src/features/apps/nova-sol57-fresh.js
@@ -45,6 +47,8 @@ jobs:
           test -s cloudflare/nova-brain-worker/src/index.js
           node --check fresh-rebuild/src/nova57-pro-orchestrator.js
           node --check fresh-rebuild/src/nova57-atomic-backend-client.js
+          node --check fresh-rebuild/src/nova57-atomic-brain-pool.js
+          node --check fresh-rebuild/src/nova57-atomic-chain.js
           node --check fresh-rebuild/src/features/apps/nova57-control-center.js
           node --check fresh-rebuild/src/features/apps/nova-sol57-fresh.js
           grep -Fq "NOVA 5.7 Sol / ARIM" fresh-rebuild/src/features/apps/nova-sol57-fresh.js
@@ -53,6 +57,11 @@ jobs:
           grep -Fq "mountNovaControlCenter" fresh-rebuild/src/features/apps/nova-sol57-fresh.js
           grep -Fq "FINALIZER_RESERVE_MS" fresh-rebuild/src/nova57-atomic-chain.js
           grep -Fq "judge-rescue" fresh-rebuild/src/nova57-atomic-chain.js
+          grep -Fq "laneSpan = 1" fresh-rebuild/src/nova57-atomic-chain.js
+          grep -Fq "laneSpan," fresh-rebuild/src/nova57-atomic-chain.js
+          grep -Fq "criticCapacity" fresh-rebuild/src/nova57-atomic-chain.js
+          grep -Fq "here(?:'s| is)" fresh-rebuild/src/nova57-atomic-brain-pool.js
+          grep -Fq "thinking|reasoning|analysis" fresh-rebuild/src/nova57-atomic-brain-pool.js
           grep -Fq "fetchStatus(4500)" fresh-rebuild/src/nova57-atomic-backend-client.js
           grep -Fq "fetchStatus(3000)" fresh-rebuild/src/nova57-atomic-backend-client.js
           grep -Fq "value === null || value === undefined || value === ''" fresh-rebuild/src/features/apps/nova57-control-center.js
@@ -67,7 +76,7 @@ jobs:
           grep -Fq "Documentation" fresh-rebuild/src/features/apps/nova57-control-center.js
           grep -Fq "Support" fresh-rebuild/src/features/apps/nova57-control-center.js
           grep -Fq "route_semantic_dimensions" cloudflare/nova-brain-worker/src/index.js
-          echo "Latest NOVA dashboard + mobile ARIM hydration + valid Firebase fallback anchors: PASS"
+          echo "Latest NOVA dashboard + mobile hydration + distinct ARIM lanes + reasoning-leak rejection: PASS"
 
       - name: Verify live ARIM registry status
         shell: bash
@@ -113,6 +122,9 @@ jobs:
           grep -Fq "value === null || value === undefined || value === ''" app/src/main/assets/www/src/features/apps/nova57-control-center.js
           grep -Fq "if (nextStatus) status = nextStatus" app/src/main/assets/www/src/features/apps/nova57-control-center.js
           grep -Fq "planRows[index] || plans[capability] || null" app/src/main/assets/www/src/features/apps/nova57-control-center.js
+          grep -Fq "laneSpan = 1" app/src/main/assets/www/src/nova57-atomic-chain.js
+          grep -Fq "laneSpan," app/src/main/assets/www/src/nova57-atomic-chain.js
+          grep -Fq "here(?:'s| is)" app/src/main/assets/www/src/nova57-atomic-brain-pool.js
           grep -Fq "200K Brains" app/src/main/assets/www/src/features/apps/nova57-control-center.js
           grep -Fq "Quarantine" app/src/main/assets/www/src/features/apps/nova57-control-center.js
           grep -Fq "FINALIZER_RESERVE_MS" app/src/main/assets/www/src/nova57-atomic-chain.js
@@ -120,7 +132,7 @@ jobs:
           cp "$APK" "$GITHUB_WORKSPACE/phone-apk/NexusNova-NOVA57-LATEST-phone-test.apk"
           sha256sum "$GITHUB_WORKSPACE/phone-apk/NexusNova-NOVA57-LATEST-phone-test.apk" > "$GITHUB_WORKSPACE/phone-apk/SHA256.txt"
           APK_SIZE=$(stat -c%s "$GITHUB_WORKSPACE/phone-apk/NexusNova-NOVA57-LATEST-phone-test.apk")
-          printf 'Source commit: %s\nBranch: %s\nBuild type: debug/installable phone test\nAPK bytes: %s\nNOVA 5.7 ARIM source staged: PASS\nLive ARIM registry status: PASS\nMobile ARIM dashboard hydration fix staged: PASS\nFull reference-style dashboard source staged: PASS\nFirebase fallback model routing: PASS\n' "$GITHUB_SHA" "$GITHUB_REF_NAME" "$APK_SIZE" > "$GITHUB_WORKSPACE/phone-apk/BUILD-STATUS.txt"
+          printf 'Source commit: %s\nBranch: %s\nBuild type: debug/installable phone test\nAPK bytes: %s\nNOVA 5.7 ARIM source staged: PASS\nLive ARIM registry status: PASS\nMobile ARIM dashboard hydration fix staged: PASS\nDistinct parallel ARIM lanes staged: PASS\nReasoning-leak rejection staged: PASS\nFull reference-style dashboard source staged: PASS\nFirebase fallback model routing: PASS\n' "$GITHUB_SHA" "$GITHUB_REF_NAME" "$APK_SIZE" > "$GITHUB_WORKSPACE/phone-apk/BUILD-STATUS.txt"
 
       - name: Publish phone APK to apk-builds branch
         shell: bash
