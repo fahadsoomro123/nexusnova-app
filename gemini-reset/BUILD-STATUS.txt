@@ -1,0 +1,8 @@
+Source commit: 82d9714f582722aeabf0d411819a427ca6e5ad58
+Branch: nova-sol57-pro-v128
+Build type: installable debug APK
+Direct Gemini 3.6: PASS
+Dashboard removed from active NOVA renderer: PASS
+200K/ARIM removed from active NOVA renderer: PASS
+Chat + Work: PASS
+Human response script bundled: PASS
