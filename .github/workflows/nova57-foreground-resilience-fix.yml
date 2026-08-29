@@ -1,0 +1,114 @@
+name: NOVA 5.7 Foreground Resilience Fix
+
+on:
+  push:
+    branches: [nova-sol57-pro-v128]
+    paths:
+      - '.github/workflows/nova57-foreground-resilience-fix.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Patch relay diversity and remove premature foreground cutoff
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new, label):
+              p = Path(path)
+              s = p.read_text(encoding='utf-8')
+              if new in s:
+                  print(f'{label}: already applied')
+                  return
+              if old not in s:
+                  raise SystemExit(f'{label}: anchor missing')
+              p.write_text(s.replace(old, new, 1), encoding='utf-8')
+              print(f'{label}: patched')
+
+          # 1) Ordinary phone coding: relay first, then the broad tool/keyless+Firebase
+          # path directly. Do not pass the rescue through the hedge router's tiny cap.
+          orchestrator = 'fresh-rebuild/src/nova57-pro-orchestrator.js'
+          replace_once(
+              orchestrator,
+              """      const result = atomic\n        ? await runAtomicChain({\n            prompt: original,\n            request,\n            options: runtimeOptions,\n            generate: nextPrompt => generateForRuntime(hedgeModel, nextPrompt, dna.capability, runtimeOptions)\n          })\n        : await generateForRuntime(hedgeModel, original, dna.capability, runtimeOptions);""",
+              """      const foregroundModel = browserFastCoding ? toolModel : hedgeModel;\n      const result = atomic\n        ? await runAtomicChain({\n            prompt: original,\n            request,\n            options: runtimeOptions,\n            generate: nextPrompt => generateForRuntime(hedgeModel, nextPrompt, dna.capability, runtimeOptions)\n          })\n        : await generateForRuntime(foregroundModel, original, dna.capability, runtimeOptions);""",
+              'coding broad fallback bypasses hedge deadline'
+          )
+
+          # 2) Hedge router: classify coding as standard, and never kill the broad
+          # adaptive+Firebase rescue after only 2.2/2.6/3.2 seconds.
+          hedge = 'fresh-rebuild/src/nova57-pro-hedge-router.js'
+          replace_once(
+              hedge,
+              """  if (text.includes('[live nova web tool result]')) return 'grounded';\n  if (text.length > 4200 ||""",
+              """  if (text.includes('[live nova web tool result]')) return 'grounded';\n  if (/\\b(code|coding|javascript|typescript|python|java|kotlin|swift|sql|function|class|api)\\b/.test(text)) return 'standard';\n  if (text.length > 4200 ||""",
+              'coding profile classification'
+          )
+          replace_once(
+              hedge,
+              """          return boundedFallback(baseModel, prompt, 2600);""",
+              """          return baseModel.generateContent(prompt);""",
+              'hard broad rescue no premature wrapper deadline'
+          )
+          replace_once(
+              hedge,
+              """        const fallbackMs = mode === 'quick' ? 2200 : 3200;\n        console.warn(`[NOVA Hedge] ${mode} foreground routes unavailable; using deadline-capped broad adaptive router.`, fastError);\n        return boundedFallback(baseModel, prompt, fallbackMs);""",
+              """        console.warn(`[NOVA Hedge] ${mode} foreground routes unavailable; using broad adaptive router with its own bounded budgets.`, fastError);\n        return baseModel.generateContent(prompt);""",
+              'quick standard broad rescue no 2200ms cutoff'
+          )
+
+          # 3) Cloudflare generation relay: the first three hard-coded candidates
+          # previously consumed the entire slice, preventing learned D1 routes from
+          # participating. Keep the proven routes and allow up to three learned ones.
+          worker = 'cloudflare/nova-brain-worker/src/index.js'
+          p = Path(worker)
+          s = p.read_text(encoding='utf-8')
+          marker = "const candidates = [...provenFast, ...(Array.isArray(currentPlan?.candidates) ? currentPlan.candidates : [])]"
+          start = s.find(marker)
+          if start < 0:
+              raise SystemExit('relay candidate anchor missing')
+          end = s.find('.slice(0, 3);', start)
+          if end < 0:
+              if s.find('.slice(0, 6);', start) >= 0:
+                  print('relay learned-route diversity: already applied')
+              else:
+                  raise SystemExit('relay slice anchor missing')
+          else:
+              s = s[:end] + '.slice(0, 6);' + s[end + len('.slice(0, 3);'):]
+              p.write_text(s, encoding='utf-8')
+              print('relay learned-route diversity: patched')
+          PY
+
+          node --check fresh-rebuild/src/nova57-pro-orchestrator.js
+          node --check fresh-rebuild/src/nova57-pro-hedge-router.js
+          node --check cloudflare/nova-brain-worker/src/index.js
+          grep -Fq "foregroundModel = browserFastCoding ? toolModel : hedgeModel" fresh-rebuild/src/nova57-pro-orchestrator.js
+          grep -Fq "using broad adaptive router with its own bounded budgets" fresh-rebuild/src/nova57-pro-hedge-router.js
+          grep -Fq ".slice(0, 6);" cloudflare/nova-brain-worker/src/index.js
+
+      - name: Commit runtime resilience fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'NexusNova Runtime Fix Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add fresh-rebuild/src/nova57-pro-orchestrator.js fresh-rebuild/src/nova57-pro-hedge-router.js cloudflare/nova-brain-worker/src/index.js
+          if git diff --cached --quiet; then
+            echo 'Foreground resilience fix already applied.'
+            exit 0
+          fi
+          git commit -m '[NOVA] Fix phone relay diversity and 2200ms fallback cutoff'
+          git pull --rebase origin nova-sol57-pro-v128
+          git push origin HEAD:nova-sol57-pro-v128
