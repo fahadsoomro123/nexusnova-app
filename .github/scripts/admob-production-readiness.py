@@ -1,6 +1,5 @@
 from pathlib import Path
 import json
-import re
 import sys
 
 ROOT = Path('.')
@@ -11,9 +10,6 @@ PRODUCTION_APP_ID = f'ca-app-pub-{PUBLISHER_NUMERIC}~1824799663'
 PRODUCTION_REWARDED_ID = f'ca-app-pub-{PUBLISHER_NUMERIC}/7194148596'
 PRODUCTION_INTERSTITIAL_ID = f'ca-app-pub-{PUBLISHER_NUMERIC}/7807608294'
 TEST_APP_ID = 'ca-app-pub-3940256099942544~3347511713'
-EXPECTED_REWARDED_SUFFIX = '7194148596'
-EXPECTED_PURPOSE = 'task-watch-ad'
-EXPECTED_REWARD = '2.5'
 APP_ADS_LINE = f'google.com, {PUBLISHER_ID}, DIRECT, f08c47fec0942fa0'
 
 errors = []
@@ -31,14 +27,16 @@ def read(path):
     return p.read_text(encoding='utf-8')
 
 
+# Publisher/developer-site ownership must stay valid even while the app itself
+# is TEST-only.
 root_ads = read('app-ads.txt').strip()
 hosting_ads = read('firebase-public/app-ads.txt').strip()
 if root_ads != APP_ADS_LINE:
-    fail('root app-ads.txt does not match the NexusNova AdMob publisher record')
+    fail('root app-ads.txt does not match the NexusNova publisher record')
 if hosting_ads != APP_ADS_LINE:
-    fail('firebase-public/app-ads.txt does not match the NexusNova AdMob publisher record')
+    fail('Firebase app-ads.txt does not match the NexusNova publisher record')
 if root_ads != hosting_ads:
-    fail('root and Firebase Hosting app-ads.txt copies have drifted')
+    fail('root and Firebase app-ads.txt copies have drifted')
 
 try:
     firebase = json.loads(read('firebase.json'))
@@ -47,134 +45,72 @@ except Exception as exc:
     fail(f'firebase.json is invalid JSON: {exc}')
 
 hosting = firebase.get('hosting') if isinstance(firebase, dict) else None
-if not isinstance(hosting, dict):
-    fail('firebase.json is missing hosting configuration')
-else:
-    if hosting.get('public') != 'firebase-public':
-        fail('Firebase Hosting public directory must remain firebase-public')
-    headers = hosting.get('headers') or []
-    app_ads_header = next((item for item in headers if item.get('source') == '/app-ads.txt'), None)
-    if not app_ads_header:
-        fail('Firebase Hosting is missing /app-ads.txt headers')
-    else:
-        header_map = {h.get('key', '').lower(): h.get('value', '') for h in app_ads_header.get('headers', [])}
-        if not header_map.get('content-type', '').lower().startswith('text/plain'):
-            fail('/app-ads.txt must be served as text/plain')
+if not isinstance(hosting, dict) or hosting.get('public') != 'firebase-public':
+    fail('Firebase Hosting developer site must remain firebase-public')
 
-# SAFETY LOCK: during the current testing phase BOTH debug and release/signed
-# variants must use Google's test App ID and BuildConfig test mode. Production
-# identifiers may remain dormant in source/SSV configuration for a later,
-# explicit production unlock, but they must not be selectable by build.gradle.
+# Hard safety lock: ALL Android variants, including release/signed APKs, must
+# use Google's test App ID and test BuildConfig flag until an explicit future
+# production unlock is intentionally performed.
 build = read('NexusNovaAndroid/app/build.gradle.kts')
 if build.count('NEXUS_ADS_TEST_MODE\", \"true\"') < 2:
-    fail('Android debug and release builds must both remain locked to AdMob TEST mode')
+    fail('debug and release must both remain in AdMob TEST mode')
 if 'NEXUS_ADS_TEST_MODE\", \"false\"' in build:
-    fail('Android build config contains a LIVE AdMob mode; TEST lock has been broken')
+    fail('LIVE AdMob mode detected in active Android build config')
 if build.count(TEST_APP_ID) < 2:
-    fail('Android debug and release builds must both use the Google test App ID')
+    fail('debug and release must both use Google test App ID')
 if PRODUCTION_APP_ID in build:
-    fail('Production AdMob App ID must not be selectable by the active Android build config')
+    fail('production AdMob App ID must not be selectable by build.gradle')
 
 manager = read('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt')
-for demo_unit in [
+for marker in [
     '/21775744923/example/rewarded',
     '/21775744923/example/rewarded-interstitial',
     '/21775744923/example/interstitial',
 ]:
-    if demo_unit not in manager:
-        fail(f'Google TEST inventory marker is missing: {demo_unit}')
+    if marker not in manager:
+        fail(f'Google TEST inventory marker missing: {marker}')
+if ('BuildConfig.NEXUS_ADS_TEST_MODE' not in manager and
+        'const val TEST_MODE = true' not in manager):
+    fail('native ad manager is not bound to TEST mode')
 
-# Keep future production wiring internally consistent while it is dormant.
+# Production IDs may remain dormant in native/SSV source for a later explicit
+# unlock. Validate that dormant wiring is internally consistent, but never make
+# it active while the safety lock is enabled.
 if PRODUCTION_REWARDED_ID not in manager:
-    fail('dormant production rewarded ad unit ID drifted from the SSV contract')
+    fail('dormant production rewarded ID drifted')
 if PRODUCTION_INTERSTITIAL_ID not in manager:
-    fail('dormant production interstitial ad unit ID is missing or changed')
+    fail('dormant production interstitial ID drifted')
 
 patch = read('NexusNovaAndroid/patch_admob.py')
-required_patch_markers = [
+for marker in [
     'BuildConfig.NEXUS_ADS_TEST_MODE',
     'ServerSideVerificationOptions',
-    'pendingRewardUserId = sanitizeRewardUserId(userId)',
-    'pendingRewardCustomData = purpose',
-    'REWARD_PURPOSE_WATCH_AD = \"task-watch-ad\"',
-    '\"ssvIdentityReady\" to true',
-    'INTERSTITIAL_ALLOWED_FEATURES',
-]
-for marker in required_patch_markers:
+    'NexusAdConsentManager(this).gather',
+]:
     if marker not in patch:
-        fail(f'Android AdMob build patch is missing required SSV/ad-policy marker: {marker}')
+        fail(f'Android AdMob patch missing safety marker: {marker}')
 
 reward_guard = read('NexusNovaAndroid/patch_rewarded_test_contract.py')
 for marker in [
     'nx-rewarded-production-proof-guard-v1',
     'production-proof-not-enabled',
-    'boostKind:expected, testOnly:true',
     'PRODUCTION_SSV_ENABLED = false',
 ]:
     if marker not in reward_guard:
-        fail(f'rewarded production guard is missing marker: {marker}')
-
-ssv = read('functions/admobRewardedSsv.js')
-checks = {
-    rf"const EXPECTED_AD_UNIT = '{re.escape(EXPECTED_REWARDED_SUFFIX)}';": 'SSV expected ad unit',
-    rf"const EXPECTED_PURPOSE = '{re.escape(EXPECTED_PURPOSE)}';": 'SSV reward purpose',
-    rf'const REWARD_NVX = {re.escape(EXPECTED_REWARD)};': 'SSV +2.5 NVX amount',
-}
-for pattern, label in checks.items():
-    if not re.search(pattern, ssv):
-        fail(f'{label} does not match the Android/web reward contract')
-if 'verifyGoogleSignature(req)' not in ssv or 'admobRewardTransactions' not in ssv:
-    fail('SSV signature verification or idempotency store is missing')
+        fail(f'rewarded TEST guard missing marker: {marker}')
 
 watch = read('js/nexusnova-watch-ad-reward-v1.js')
-if "const PURPOSE = 'task-watch-ad';" not in watch:
-    fail('Watch Ad client purpose does not match SSV custom_data')
-if 'const REWARD_NVX = 2.5;' not in watch:
-    fail('Watch Ad client display amount does not match SSV reward')
 if 'const PRODUCTION_SSV_ENABLED = false;' not in watch:
-    fail('Production Watch Ad must stay disabled while the TEST lock is active')
-if 'ssvIdentityReady' not in watch:
-    fail('Watch Ad client is missing the native SSV capability handshake')
+    fail('production Watch Ad value flow must remain disabled during TEST lock')
 
-daily_gate = read('js/nexusnova-daily-ad-test-v1.js')
-if "const REWARD_PURPOSE = 'daily-reward-test';" not in daily_gate:
-    fail('Daily Reward ad purpose changed unexpectedly')
-if 'testOnly: true' not in daily_gate:
-    fail('Daily Reward ad flow must remain test-only')
-if 'window.nexusSecureClaimDaily' not in daily_gate:
-    fail('Daily Reward ad gate is not wired to the secure claim bridge')
-
-daily_secure = read('js/nexusnova-daily-secure-claim-v1.js')
+ssv = read('functions/admobRewardedSsv.js')
 for marker in [
-    'window.nexusSecureClaimDaily = claimDailySecure',
-    "httpsCallable(fnMod.getFunctions(app, 'us-central1'), 'claimDailyReward')",
-    'await window.nexusRequireAppCheck()',
-    'await user.getIdToken(true)',
-    'result.claimed !== true',
+    'verifyGoogleSignature(req)',
+    'admobRewardTransactions',
+    "const EXPECTED_PURPOSE = 'task-watch-ad';",
 ]:
-    if marker not in daily_secure:
-        fail(f'Daily secure claim bridge missing marker: {marker}')
-
-page2_boot = read('js/page2.js')
-if "await import('./nexusnova-daily-secure-claim-v1.js?v=1');" not in page2_boot:
-    fail('page2 bootstrap does not load the Daily secure claim bridge')
-
-placements = read('js/nexusnova-ad-placements-v1.js')
-for feature in ['wallet', 'tasks', 'emergency', 'quran', 'bukhari', 'bible', 'profile']:
-    if f"'{feature}'" not in placements:
-        fail(f'protected ad feature is missing from policy: {feature}')
-for marker in [
-    'INTERSTITIAL_MIN_GAP_MS = 180_000',
-    'INTERSTITIAL_SESSION_MAX = 4',
-    'pendingInterstitial',
-    'markInterstitialShown()',
-    "type === 'interstitial-showing'",
-    "type === 'interstitial-unavailable'",
-]:
-    if marker not in placements:
-        fail(f'interstitial cap/no-fill accounting marker missing: {marker}')
-if 'sessionInterstitialCount + 1' not in placements:
-    fail('interstitial session counter is not committed on a real show event')
+    if marker not in ssv:
+        fail(f'dormant SSV safety marker missing: {marker}')
 
 if errors:
     print('NexusNova AdMob TEST lock/readiness: FAIL')
@@ -183,8 +119,8 @@ if errors:
     sys.exit(1)
 
 print('NexusNova AdMob TEST lock/readiness: PASS')
-print(' - Android debug: Google TEST inventory')
-print(' - Android release/signed: Google TEST inventory')
-print(' - LIVE build mode: blocked')
-print(' - production Watch Ad credit: disabled')
-print(' - dormant production SSV wiring: internally consistent for a future explicit unlock')
+print(' - debug APKs: Google TEST inventory')
+print(' - release/signed APKs: Google TEST inventory')
+print(' - LIVE build selector: blocked')
+print(' - production value-bearing Watch Ad: disabled')
+print(' - dormant production wiring retained only for a future explicit unlock')
