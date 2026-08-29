@@ -21,6 +21,7 @@ import {
 const JINA_READER = 'https://r.jina.ai/';
 const DDG_HTML = 'https://html.duckduckgo.com/html/';
 const CACHE_TTL = 2 * 60_000;
+const FIREBASE_FALLBACK_MODEL = 'gemini-3.7-flash';
 const webCache = new Map();
 
 function userRequest(prompt) {
@@ -95,6 +96,10 @@ function evidencePreview(result) {
   return `Live research succeeded, but the answer model was temporarily unavailable. Source path: ${result?.source || 'live web search'}. Evidence preview: ${excerpt || 'Evidence was fetched but could not be summarized safely.'}`;
 }
 
+function providerOptions(options = {}) {
+  return { ...options, model: FIREBASE_FALLBACK_MODEL };
+}
+
 export class GoogleAIBackend {
   constructor(...args) { this.args = args; }
 }
@@ -110,8 +115,11 @@ export function getAI(firebaseApp, config = {}) {
 }
 
 export function getGenerativeModel(ai, options = {}) {
-  const toolModel = getToolModel(ai.toolAI, options);
-  const hedgeModel = getHedgeModel(ai.hedgeAI, options);
+  // NOVA 5.7 Sol / ARIM is a NexusNova routing profile, not a Firebase model ID.
+  // Provider-facing fallbacks must receive a real Firebase-supported Gemini model.
+  const runtimeOptions = providerOptions(options);
+  const toolModel = getToolModel(ai.toolAI, runtimeOptions);
+  const hedgeModel = getHedgeModel(ai.hedgeAI, runtimeOptions);
   return {
     async generateContent(prompt) {
       const original = String(prompt || '');
@@ -141,7 +149,7 @@ export function getGenerativeModel(ai, options = {}) {
             ? await runAtomicChain({
                 prompt: groundedPrompt,
                 request,
-                options,
+                options: runtimeOptions,
                 totalBudgetMs: 12000,
                 generate: nextPrompt => hedgeModel.generateContent(nextPrompt)
               })
@@ -162,7 +170,7 @@ export function getGenerativeModel(ai, options = {}) {
         ? await runAtomicChain({
             prompt: original,
             request,
-            options,
+            options: runtimeOptions,
             generate: nextPrompt => hedgeModel.generateContent(nextPrompt)
           })
         : await hedgeModel.generateContent(original);
