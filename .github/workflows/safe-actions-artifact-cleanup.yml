@@ -1,0 +1,116 @@
+name: Safe Actions Artifact Cleanup
+
+on:
+  push:
+    branches:
+      - cleanup/actions-artifacts-safe-20260829
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Delete only old duplicate artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.request, urllib.error
+          from datetime import datetime, timezone, timedelta
+
+          repo = os.environ['GH_REPO']
+          token = os.environ['GH_TOKEN']
+          base = f'https://api.github.com/repos/{repo}'
+          headers = {
+              'Authorization': f'Bearer {token}',
+              'Accept': 'application/vnd.github+json',
+              'X-GitHub-Api-Version': '2022-11-28',
+              'User-Agent': 'nexusnova-safe-cleanup'
+          }
+
+          def request(url, method='GET'):
+              req = urllib.request.Request(url, headers=headers, method=method)
+              try:
+                  with urllib.request.urlopen(req, timeout=30) as r:
+                      body = r.read()
+                      return json.loads(body) if body else None
+              except urllib.error.HTTPError as e:
+                  detail = e.read().decode('utf-8', 'replace')
+                  raise RuntimeError(f'{method} {url} -> HTTP {e.code}: {detail}')
+
+          artifacts = []
+          page = 1
+          while True:
+              data = request(f'{base}/actions/artifacts?per_page=100&page={page}')
+              batch = data.get('artifacts', [])
+              artifacts.extend(batch)
+              if len(batch) < 100:
+                  break
+              page += 1
+
+          now = datetime.now(timezone.utc)
+          cutoff = now - timedelta(days=7)
+
+          # Always preserve newest non-expired artifact for every artifact name.
+          newest_by_name = {}
+          for a in sorted(artifacts, key=lambda x: x.get('created_at', ''), reverse=True):
+              if a.get('expired'):
+                  continue
+              newest_by_name.setdefault(a.get('name', ''), a['id'])
+
+          protected_ids = set(newest_by_name.values())
+          deleted = []
+          kept = []
+          failed = []
+
+          for a in artifacts:
+              aid = a['id']
+              name = a.get('name', '')
+              size = int(a.get('size_in_bytes') or 0)
+              created_raw = a.get('created_at')
+              expired = bool(a.get('expired'))
+
+              if expired or not created_raw:
+                  kept.append((aid, name, size, 'expired-or-undated'))
+                  continue
+
+              created = datetime.fromisoformat(created_raw.replace('Z', '+00:00'))
+              if aid in protected_ids:
+                  kept.append((aid, name, size, 'newest-of-name'))
+                  continue
+              if created >= cutoff:
+                  kept.append((aid, name, size, 'younger-than-7-days'))
+                  continue
+              if 'GEMINI' in name.upper() or 'RESET' in name.upper():
+                  kept.append((aid, name, size, 'explicit-current-name-protection'))
+                  continue
+
+              try:
+                  request(f'{base}/actions/artifacts/{aid}', method='DELETE')
+                  deleted.append((aid, name, size, created_raw))
+              except Exception as exc:
+                  failed.append((aid, name, size, str(exc)))
+
+          deleted_bytes = sum(x[2] for x in deleted)
+          total_bytes = sum(int(a.get('size_in_bytes') or 0) for a in artifacts if not a.get('expired'))
+
+          print(f'Total artifacts seen: {len(artifacts)}')
+          print(f'Non-expired bytes before cleanup: {total_bytes}')
+          print(f'Deleted artifacts: {len(deleted)}')
+          print(f'Deleted bytes: {deleted_bytes}')
+          print(f'Protected/kept artifacts: {len(kept)}')
+          print(f'Delete failures: {len(failed)}')
+          print('POLICY: only artifacts older than 7 days, never newest artifact of any name, and never GEMINI/RESET-named artifacts.')
+
+          if failed:
+              print('Failures:')
+              for row in failed[:50]:
+                  print(row)
+              raise SystemExit(1)
+          PY
