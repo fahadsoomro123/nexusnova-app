@@ -1,5 +1,0 @@
-NexusNova permanent signed release trigger
-Version code: 5
-Version name: 1.0.4
-Purpose: branded NexusNova launcher update with current web fixes, native VPN, OTA, and permanent signing.
-Attempt: vc5 publish recovery fix.
