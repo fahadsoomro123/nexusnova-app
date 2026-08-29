@@ -7,6 +7,7 @@ on:
     paths:
       - '.github/workflows/nova57-phone-test-apk.yml'
       - 'fresh-rebuild/src/nova57-atomic-backend-client.js'
+      - 'scripts/nova57-authenticated-relay-smoke.mjs'
       - 'fresh-rebuild/src/nova57-atomic-brain-pool.js'
       - 'fresh-rebuild/src/features/apps/nova57-control-center.js'
       - 'fresh-rebuild/assets/styles/nova57-control-center.css'
@@ -40,6 +41,7 @@ jobs:
           test -s fresh-rebuild/src/nova57-atomic-chain.js
           test -s fresh-rebuild/src/nova57-atomic-brain-pool.js
           test -s fresh-rebuild/src/nova57-atomic-backend-client.js
+          test -s scripts/nova57-authenticated-relay-smoke.mjs
           test -s fresh-rebuild/src/nova57-pro-orchestrator.js
           test -s fresh-rebuild/src/features/apps/nova-sol57-fresh.js
           test -s fresh-rebuild/src/features/apps/nova57-control-center.js
@@ -77,6 +79,15 @@ jobs:
           grep -Fq "Support" fresh-rebuild/src/features/apps/nova57-control-center.js
           grep -Fq "route_semantic_dimensions" cloudflare/nova-brain-worker/src/index.js
           echo "Latest NOVA dashboard + mobile hydration + distinct ARIM lanes + reasoning-leak rejection: PASS"
+
+      - name: Node 22 for authenticated relay proof
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          package-manager-cache: false
+
+      - name: Verify authenticated production phone relay
+        run: node scripts/nova57-authenticated-relay-smoke.mjs
 
       - name: Verify live ARIM registry status
         shell: bash
@@ -132,7 +143,7 @@ jobs:
           cp "$APK" "$GITHUB_WORKSPACE/phone-apk/NexusNova-NOVA57-LATEST-phone-test.apk"
           sha256sum "$GITHUB_WORKSPACE/phone-apk/NexusNova-NOVA57-LATEST-phone-test.apk" > "$GITHUB_WORKSPACE/phone-apk/SHA256.txt"
           APK_SIZE=$(stat -c%s "$GITHUB_WORKSPACE/phone-apk/NexusNova-NOVA57-LATEST-phone-test.apk")
-          printf 'Source commit: %s\nBranch: %s\nBuild type: debug/installable phone test\nAPK bytes: %s\nNOVA 5.7 ARIM source staged: PASS\nLive ARIM registry status: PASS\nMobile ARIM dashboard hydration fix staged: PASS\nDistinct parallel ARIM lanes staged: PASS\nReasoning-leak rejection staged: PASS\nFull reference-style dashboard source staged: PASS\nFirebase fallback model routing: PASS\n' "$GITHUB_SHA" "$GITHUB_REF_NAME" "$APK_SIZE" > "$GITHUB_WORKSPACE/phone-apk/BUILD-STATUS.txt"
+          printf 'Source commit: %s\nBranch: %s\nBuild type: debug/installable phone test\nAPK bytes: %s\nNOVA 5.7 ARIM source staged: PASS\nLive ARIM registry status: PASS\nAuthenticated production general relay: PASS\nAuthenticated production coding relay: PASS\nMobile ARIM dashboard hydration fix staged: PASS\nDistinct parallel ARIM lanes staged: PASS\nReasoning-leak rejection staged: PASS\nFull reference-style dashboard source staged: PASS\nFirebase fallback model routing: PASS\n' "$GITHUB_SHA" "$GITHUB_REF_NAME" "$APK_SIZE" > "$GITHUB_WORKSPACE/phone-apk/BUILD-STATUS.txt"
 
       - name: Publish phone APK to apk-builds branch
         shell: bash
