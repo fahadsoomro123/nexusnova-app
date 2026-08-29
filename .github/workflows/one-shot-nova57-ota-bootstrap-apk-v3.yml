@@ -15,8 +15,8 @@ env:
   NEXUSNOVA_SIGNING_KEY_ALIAS: ${{ secrets.NEXUSNOVA_KEY_ALIAS }}
   NEXUSNOVA_SIGNING_KEY_PASSWORD: ${{ secrets.NEXUSNOVA_KEY_PASSWORD }}
   NEXUSNOVA_SIGNING_STORE_FILE: /tmp/nexusnova-release.jks
-  VERSION_CODE: '20260830'
-  VERSION_NAME: '1.0.2-ota-safe'
+  VERSION_CODE: '20260831'
+  VERSION_NAME: '1.0.3-ota-safe-test-ads'
 
 jobs:
   build:
@@ -28,7 +28,7 @@ jobs:
           ref: nova-sol57-pro-v128
           fetch-depth: 0
 
-      - name: Verify OTA source
+      - name: Verify OTA source and AdMob TEST lock
         shell: bash
         run: |
           set -euo pipefail
@@ -37,6 +37,11 @@ jobs:
           grep -Fq 'nova57-gradient-premium.css' fresh-rebuild/index.html
           grep -Fq 'MANIFEST_SCHEMA = 2' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt
           grep -Fq 'otaWebManager.intercept(uri)' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          test "$(grep -Fc 'buildConfigField("boolean", "NEXUS_ADS_TEST_MODE", "true")' NexusNovaAndroid/app/build.gradle.kts)" -ge 2
+          test "$(grep -Fc 'ca-app-pub-3940256099942544~3347511713' NexusNovaAndroid/app/build.gradle.kts)" -ge 2
+          ! grep -Fq 'buildConfigField("boolean", "NEXUS_ADS_TEST_MODE", "false")' NexusNovaAndroid/app/build.gradle.kts
+          ! grep -Fq 'ca-app-pub-5070673529890078~1824799663' NexusNovaAndroid/app/build.gradle.kts
+          echo 'NOVA57 source + AdMob TEST-only lock: PASS'
 
       - uses: actions/setup-java@v5
         with:
@@ -59,7 +64,7 @@ jobs:
           chmod 600 "$NEXUSNOVA_SIGNING_STORE_FILE"
           keytool -list -keystore "$NEXUSNOVA_SIGNING_STORE_FILE" -storepass "$NEXUSNOVA_SIGNING_STORE_PASSWORD" -alias "$NEXUSNOVA_SIGNING_KEY_ALIAS" >/dev/null
 
-      - name: Inject version signing and crash-safe release mode
+      - name: Inject upgrade version signing and full-size release mode
         shell: bash
         run: |
           set -euo pipefail
@@ -81,9 +86,13 @@ jobs:
           if c!=1: raise SystemExit('release minify anchor missing')
           p.write_text(s,encoding='utf-8')
           PY
+          grep -Fq 'versionCode = 20260831' NexusNovaAndroid/app/build.gradle.kts
+          grep -Fq 'versionName = "1.0.3-ota-safe-test-ads"' NexusNovaAndroid/app/build.gradle.kts
           grep -Fq 'isMinifyEnabled = false' NexusNovaAndroid/app/build.gradle.kts
+          test "$(grep -Fc 'buildConfigField("boolean", "NEXUS_ADS_TEST_MODE", "true")' NexusNovaAndroid/app/build.gradle.kts)" -ge 2
+          ! grep -Fq 'ca-app-pub-5070673529890078~1824799663' NexusNovaAndroid/app/build.gradle.kts
 
-      - name: Build signed crash-safer release
+      - name: Build signed full NOVA57 TEST release
         working-directory: NexusNovaAndroid
         shell: bash
         run: |
@@ -91,7 +100,7 @@ jobs:
           gradle --no-daemon clean assembleRelease 2>&1 | tee "$GITHUB_WORKSPACE/build.log"
           test -s app/build/outputs/apk/release/app-release.apk
 
-      - name: Verify signature and Gradient Premium bundle
+      - name: Verify signature Gradient Premium and APK size
         shell: bash
         run: |
           set -euo pipefail
@@ -100,6 +109,9 @@ jobs:
           "$APKSIGNER" verify --verbose --print-certs "$APK" | tee "$GITHUB_WORKSPACE/signature.txt"
           grep -Fq 'Verified using v2 scheme (APK Signature Scheme v2): true' "$GITHUB_WORKSPACE/signature.txt" || grep -Fq 'Verified using v3 scheme (APK Signature Scheme v3): true' "$GITHUB_WORKSPACE/signature.txt"
           unzip -p "$APK" assets/www/index.html | grep -Fq 'nova57-gradient-premium.css'
+          SIZE="$(stat -c%s "$APK")"
+          test "$SIZE" -gt 20000000
+          echo "APK size bytes: $SIZE"
 
       - name: Prepare APK
         shell: bash
@@ -107,10 +119,10 @@ jobs:
           set -euo pipefail
           OUT="$GITHUB_WORKSPACE/output"
           mkdir -p "$OUT"
-          cp NexusNovaAndroid/app/build/outputs/apk/release/app-release.apk "$OUT/NexusNova-NOVA57-OTA-BOOTSTRAP-v1.0.2-ota-safe-vc20260830.apk"
+          cp NexusNovaAndroid/app/build/outputs/apk/release/app-release.apk "$OUT/NexusNova-NOVA57-TEST-ADS-LOCK-vc20260831.apk"
           sha256sum "$OUT"/*.apk > "$OUT/SHA256.txt"
           cp signature.txt "$OUT/"
-          printf 'Source branch: nova-sol57-pro-v128\nSource commit: %s\nSigned release: PASS\nR8/minify: OFF\nAtomic OTA v2: PASS\nGradient Premium bundled: PASS\n' "$(git rev-parse HEAD)" > "$OUT/BUILD-STATUS.txt"
+          printf 'Source branch: nova-sol57-pro-v128\nSource commit: %s\nVersion code: 20260831\nPermanent signed release: PASS\nAdMob TEST-only: PASS\nR8/minify: OFF\nAtomic OTA v2: PASS\nGradient Premium bundled: PASS\n' "$(git rev-parse HEAD)" > "$OUT/BUILD-STATUS.txt"
 
       - name: Publish APK direct to apk-builds
         shell: bash
@@ -127,7 +139,7 @@ jobs:
           cp -a "$GITHUB_WORKSPACE/output"/. ota-bootstrap-safe/
           git add -A ota-bootstrap-safe/BUILD-STATUS.txt ota-bootstrap-safe/SHA256.txt ota-bootstrap-safe/signature.txt
           git add -f ota-bootstrap-safe/*.apk
-          git commit -m "Publish crash-safer NOVA57 OTA bootstrap $(git -C "$GITHUB_WORKSPACE" rev-parse HEAD)"
+          git commit -m "Publish NOVA57 TEST-ad locked update vc20260831 $(git -C "$GITHUB_WORKSPACE" rev-parse HEAD)"
           git pull --rebase origin apk-builds
           git push origin HEAD:apk-builds
 
