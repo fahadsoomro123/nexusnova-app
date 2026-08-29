@@ -1,11 +1,8 @@
 name: NOVA 5.7 OTA Bootstrap Signed APK
 
-# Trigger signed OTA bootstrap build — 2026-08-29.
+# Native APK builds are MANUAL ONLY. Routine app changes ship through
+# NexusNova OTA Web Release and must not rebuild/install an APK.
 on:
-  push:
-    branches: [nova-sol57-pro-v128]
-    paths:
-      - '.github/workflows/nova57-ota-bootstrap-signed-apk.yml'
   workflow_dispatch:
 
 permissions:
