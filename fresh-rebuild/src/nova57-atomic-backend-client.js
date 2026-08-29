@@ -4,7 +4,6 @@
 
 const BACKEND_URL = 'https://nexusnova-brain-router.fahadsoomro123.workers.dev';
 let backendCoolingUntil = 0;
-let relayProofCache = { kind: '', token: '', expiresAt: 0 };
 
 function bounded(promise, timeoutMs) {
   let timer;
@@ -83,50 +82,6 @@ async function freshFirebaseAuthToken() {
   }
 }
 
-async function firstRelayProof() {
-  if (relayProofCache.token && relayProofCache.expiresAt > Date.now() + 30_000) {
-    return { kind: relayProofCache.kind, token: relayProofCache.token };
-  }
-
-  // Android WebView token acquisition is slower than desktop CI. Start both
-  // acceptable proofs together and continue as soon as either succeeds.
-  // Never force the native bridge into the old 1.4s cutoff.
-  const tasks = [
-    bounded(freshFirebaseAuthToken(), 4200)
-      .then(token => ({ kind: 'auth', token: String(token || '').trim() }))
-      .catch(() => ({ kind: 'auth', token: '' })),
-    bounded(freshAppCheckToken(), 4200)
-      .then(token => ({ kind: 'appcheck', token: String(token || '').trim() }))
-      .catch(() => ({ kind: 'appcheck', token: '' }))
-  ];
-
-  return new Promise(resolve => {
-    let pending = tasks.length;
-    let settled = false;
-    const finish = proof => {
-      if (settled) return;
-      if (proof?.token) {
-        settled = true;
-        relayProofCache = { ...proof, expiresAt: Date.now() + 8 * 60_000 };
-        resolve(proof);
-        return;
-      }
-      pending -= 1;
-      if (pending <= 0) {
-        settled = true;
-        resolve(null);
-      }
-    };
-    tasks.forEach(task => task.then(finish));
-    setTimeout(() => {
-      if (!settled) {
-        settled = true;
-        resolve(null);
-      }
-    }, 4300);
-  });
-}
-
 export async function getAtomicBackendPlan(prompt) {
   if (!ready() || Date.now() < backendCoolingUntil) return null;
   try {
@@ -185,14 +140,17 @@ export async function generateViaAtomicRelay(prompt, options = {}) {
   // App Check remains the preferred attestation. Phone-test/debug builds
   // can still prove a real NexusNova session with a Firebase Auth ID token
   // when device attestation is slow or unavailable.
-  const proof = await firstRelayProof();
-  if (!proof?.token) throw new Error('NOVA relay authentication is unavailable.');
+  const [appCheckToken, authToken] = await Promise.all([
+    bounded(freshAppCheckToken(), 1400).catch(() => ''),
+    bounded(freshFirebaseAuthToken(), 1400).catch(() => '')
+  ]);
+  if (!appCheckToken && !authToken) throw new Error('NOVA relay authentication is unavailable.');
 
   const allowed = new Set(['general', 'coding', 'reasoning', 'research', 'multilingual']);
   const capability = allowed.has(String(options.capability || '')) ? String(options.capability) : capabilityOf(value);
-  const headers = proof.kind === 'appcheck'
-    ? { 'X-Firebase-AppCheck': proof.token }
-    : { Authorization: `Bearer ${proof.token}` };
+  const headers = {};
+  if (appCheckToken) headers['X-Firebase-AppCheck'] = appCheckToken;
+  if (authToken) headers.Authorization = `Bearer ${authToken}`;
   const data = await post('/v1/generate', {
     prompt: value.slice(0, 12000),
     capability,

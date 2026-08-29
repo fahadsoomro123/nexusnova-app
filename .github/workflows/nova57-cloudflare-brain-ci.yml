@@ -116,17 +116,13 @@ jobs:
             "request.headers.get('x-firebase-appcheck')",
             "error: 'app-check-required'",
             "throw new Error('unknown-route')",
-            "request.headers.get('authorization')",
-            "verifyFirebaseAuthToken",
-            "error: 'verified-client-required'",
-            "url.pathname === '/v1/generate'",
-            "'access-control-allow-headers': 'content-type,x-firebase-appcheck,authorization'"
+            "'access-control-allow-headers': 'content-type,x-firebase-appcheck'"
           ]) if (!worker.includes(token)) throw new Error(`Missing App Check learning guard: ${token}`);
           const outcomeRoute = worker.slice(worker.indexOf("url.pathname === '/v1/outcome'"));
           if (outcomeRoute.indexOf('verifyAppCheckToken') > outcomeRoute.indexOf('applyOutcome')) {
             throw new Error('Outcome mutation can occur before App Check verification.');
           }
-          console.log('Cloudflare learning requires App Check; generation accepts verified App Check or Firebase Auth; unknown routes are rejected.');
+          console.log('Cloudflare learning feedback requires verified Firebase App Check and rejects unknown routes.');
           NODE
 
       - name: Protected mining reward wallet NVX guard

@@ -86,10 +86,9 @@ async function loadAppCheckJwks(force = false) {
   if (!force && appCheckJwksCache.keys.size && now() < appCheckJwksCache.expiresAt) {
     return appCheckJwksCache.keys;
   }
-  const { response, data } = await fetchJson(APP_CHECK_JWKS_URL, {
-    headers: { accept: 'application/json' },
-    cf: { cacheTtl: 3600, cacheEverything: true }
-  }, 2500);
+  const response = await fetch(APP_CHECK_JWKS_URL, { headers: { accept: 'application/json' } });
+  if (!response.ok) throw new Error(`app-check-jwks-${response.status}`);
+  const data = await response.json();
   const keys = new Map((Array.isArray(data?.keys) ? data.keys : [])
     .filter(key => key?.kid)
     .map(key => [String(key.kid), key]));
@@ -145,10 +144,9 @@ async function loadFirebaseAuthJwks(force = false) {
   if (!force && firebaseAuthJwksCache.keys.size && now() < firebaseAuthJwksCache.expiresAt) {
     return firebaseAuthJwksCache.keys;
   }
-  const { response, data } = await fetchJson(FIREBASE_AUTH_JWKS_URL, {
-    headers: { accept: 'application/json' },
-    cf: { cacheTtl: 3600, cacheEverything: true }
-  }, 2500);
+  const response = await fetch(FIREBASE_AUTH_JWKS_URL, { headers: { accept: 'application/json' } });
+  if (!response.ok) throw new Error(`firebase-auth-jwks-${response.status}`);
+  const data = await response.json();
   const rows = Array.isArray(data?.keys) ? data.keys : [];
   const keys = new Map(rows.filter(key => key?.kid).map(key => [String(key.kid), key]));
   if (!keys.size) throw new Error('firebase-auth-jwks-empty');

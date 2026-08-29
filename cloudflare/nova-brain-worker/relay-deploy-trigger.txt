@@ -1,4 +1,4 @@
 Trigger production deployment for authenticated Android generation relay.
-Source relay commit: 9a69b5dfc34d2fe273177fced81d58e481955e59
+Source relay commit: 0a1016bbb6f6dd77cf08ffc4616c1662acc31024
 Runtime rescue: Firebase Auth fallback + fast OVH routes + 4.5s provider window.
-Latency rescue: bound and edge-cache Firebase/App Check JWKS verification fetches.
+Coding rescue: adaptive D1 relay candidates + no premature 2200ms broad fallback cutoff.
