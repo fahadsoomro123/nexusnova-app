@@ -1,0 +1,88 @@
+name: NOVA 5.7 ARIM Dashboard Mobile Hotfix
+
+on:
+  push:
+    branches: [nova-sol57-pro-v128]
+    paths:
+      - '.github/workflows/nova57-arim-dashboard-mobile-hotfix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-dashboard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout active NOVA branch
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Patch truthful numeric rendering and status-first hydration
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('fresh-rebuild/src/features/apps/nova57-control-center.js')
+          text = path.read_text()
+
+          old_num = """function num(value) {
+            return Number.isFinite(Number(value)) ? Number(value) : null;
+          }
+          """
+          new_num = """function num(value) {
+            if (value === null || value === undefined || value === '') return null;
+            const parsed = Number(value);
+            return Number.isFinite(parsed) ? parsed : null;
+          }
+          """
+
+          old_refresh = """      const [nextStatus, ...planRows] = await Promise.all([
+                getAtomicBackendStatus(),
+                ...CAPABILITIES.map(capability => getAtomicCapabilityPlan(capability))
+              ]);
+              status = nextStatus;
+              plans = Object.fromEntries(CAPABILITIES.map((capability, index) => [capability, planRows[index] || null]));
+          """
+          new_refresh = """      // Mobile WebViews are more reliable when the authoritative status request
+              // gets the Worker connection first. Preserve the last good snapshot if one refresh
+              // is transiently unavailable instead of replacing real telemetry with fake zeros.
+              const nextStatus = await getAtomicBackendStatus();
+              if (nextStatus) status = nextStatus;
+
+              const planRows = await Promise.all(
+                CAPABILITIES.map(capability => getAtomicCapabilityPlan(capability))
+              );
+              plans = Object.fromEntries(CAPABILITIES.map((capability, index) => [capability, planRows[index] || plans[capability] || null]));
+          """
+
+          if old_num not in text:
+              raise SystemExit('Expected num() block not found; refusing unsafe patch.')
+          if old_refresh not in text:
+              raise SystemExit('Expected concurrent refresh block not found; refusing unsafe patch.')
+
+          text = text.replace(old_num, new_num, 1).replace(old_refresh, new_refresh, 1)
+          path.write_text(text)
+          PY
+
+          node --check fresh-rebuild/src/features/apps/nova57-control-center.js
+          grep -Fq "value === null || value === undefined || value === ''" fresh-rebuild/src/features/apps/nova57-control-center.js
+          grep -Fq "if (nextStatus) status = nextStatus" fresh-rebuild/src/features/apps/nova57-control-center.js
+          grep -Fq "planRows[index] || plans[capability] || null" fresh-rebuild/src/features/apps/nova57-control-center.js
+
+      - name: Commit verified dashboard hydration fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- fresh-rebuild/src/features/apps/nova57-control-center.js; then
+            echo 'Dashboard hotfix already present.'
+            exit 0
+          fi
+          git config user.name 'NexusNova ARIM Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add fresh-rebuild/src/features/apps/nova57-control-center.js
+          git commit -m '[ARIM] Fix mobile dashboard live hydration'
+          git pull --rebase origin nova-sol57-pro-v128
+          git push origin HEAD:nova-sol57-pro-v128
