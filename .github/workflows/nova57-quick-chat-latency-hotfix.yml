@@ -1,0 +1,70 @@
+name: NOVA 5.7 Quick Chat Latency Hotfix
+
+on:
+  push:
+    branches: [nova-sol57-pro-v128]
+    paths:
+      - '.github/workflows/nova57-quick-chat-latency-hotfix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  hotfix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout active NOVA branch
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+
+      - name: Patch greeting fast-path and bounded quick fallback
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          orch = Path('fresh-rebuild/src/nova57-pro-orchestrator.js')
+          text = orch.read_text()
+          anchor = "function webIntent(request) {\n  return /\\b(research|search|browse|internet|web search|latest|current|today|recent|news|trend|verify online|look up)\\b/i.test(request)\n    || /(aaj|abhi|latest|current|web|internet|research|search).{0,20}(dekho|dekh|karo|kar|bata)/i.test(request);\n}\n"
+          insert = anchor + "\nfunction instantConversation(request) {\n  const value = String(request || '').trim();\n  if (!value || value.length > 80) return '';\n  if (/^(?:hi+|hello+|hey+|yo|salam|salaam|assalam(?:u alaikum)?|aoa)[!.?, ]*$/i.test(value)) {\n    return 'Hello! Main NOVA hoon. Batao, kis cheez mein help chahiye?';\n  }\n  if (/^(?:hi+|hello+|hey+)[, ]+(?:nova|bro|bhai)[!.? ]*$/i.test(value)) {\n    return 'Hello bhai! Main ready hoon — kya karna hai?';\n  }\n  return '';\n}\n"
+          if 'function instantConversation(request)' not in text:
+              if anchor not in text:
+                  raise SystemExit('Orchestrator anchor not found; refusing broad edit.')
+              text = text.replace(anchor, insert, 1)
+
+          call_anchor = "      const original = String(prompt || '');\n      const request = userRequest(original);\n\n      if (githubIntent(request) || exactToolIntent(request)) {"
+          call_repl = "      const original = String(prompt || '');\n      const request = userRequest(original);\n      const instant = instantConversation(request);\n      if (instant) {\n        globalThis.__NOVA_BRAIN_LAST__ = { provider: 'NOVA Local', model: 'instant-conversation', attempts: 0, latencyMs: 0, wallMs: 0, profile: 'quick', hedged: false, jury: false, deterministic: true, verified: true, at: new Date().toISOString() };\n        emit('Finalizing', { atomic: false, instant: true });\n        return { response: { text: () => instant } };\n      }\n\n      if (githubIntent(request) || exactToolIntent(request)) {"
+          if "model: 'instant-conversation'" not in text:
+              if call_anchor not in text:
+                  raise SystemExit('GenerateContent anchor not found; refusing broad edit.')
+              text = text.replace(call_anchor, call_repl, 1)
+          orch.write_text(text)
+
+          hedge = Path('fresh-rebuild/src/nova57-pro-hedge-router.js')
+          h = hedge.read_text()
+          old = "        console.warn(`[NOVA Hedge] ${mode} foreground routes unavailable; using broad adaptive router.`, fastError);\n        return baseModel.generateContent(prompt);"
+          new = "        const fallbackMs = mode === 'quick' ? 2200 : 3200;\n        console.warn(`[NOVA Hedge] ${mode} foreground routes unavailable; using deadline-capped broad adaptive router.`, fastError);\n        return boundedFallback(baseModel, prompt, fallbackMs);"
+          if new not in h:
+              if old not in h:
+                  raise SystemExit('Hedge fallback anchor not found; refusing broad edit.')
+              h = h.replace(old, new, 1)
+          hedge.write_text(h)
+          PY
+
+          node --check fresh-rebuild/src/nova57-pro-orchestrator.js
+          node --check fresh-rebuild/src/nova57-pro-hedge-router.js
+          grep -F "instant-conversation" fresh-rebuild/src/nova57-pro-orchestrator.js
+          grep -F "mode === 'quick' ? 2200 : 3200" fresh-rebuild/src/nova57-pro-hedge-router.js
+
+      - name: Commit quick-chat fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'NexusNova CI Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add fresh-rebuild/src/nova57-pro-orchestrator.js fresh-rebuild/src/nova57-pro-hedge-router.js
+          git commit -m '[NOVA] Make greetings instant and cap quick fallback latency'
+          git pull --rebase origin nova-sol57-pro-v128
+          git push origin HEAD:nova-sol57-pro-v128
