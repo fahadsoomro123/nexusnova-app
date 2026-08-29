@@ -5,6 +5,8 @@ plugins {
 
 // Build refresh: secure-session sync watchdog validation (2026-08-15).
 // Build refresh: Android blank-screen self-recovery validation (v74).
+// ADMOB SAFETY LOCK: until explicitly unlocked, every Android variant uses
+// Google's test App ID and test inventory. Signed/release builds are TEST-only.
 android {
     namespace = "com.nexusnova.app"
     compileSdk = 35
@@ -24,8 +26,8 @@ android {
         }
         release {
             isMinifyEnabled = false
-            buildConfigField("boolean", "NEXUS_ADS_TEST_MODE", "false")
-            manifestPlaceholders["admobAppId"] = "ca-app-pub-5070673529890078~1824799663"
+            buildConfigField("boolean", "NEXUS_ADS_TEST_MODE", "true")
+            manifestPlaceholders["admobAppId"] = "ca-app-pub-3940256099942544~3347511713"
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -54,10 +56,9 @@ dependencies {
     implementation("androidx.webkit:webkit:1.10.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 
-    // GMA Next-Gen SDK. Debug builds use Google test inventory; release builds
-    // use NexusNova production IDs only after the production consent gate passes.
+    // GMA Next-Gen SDK. All current builds intentionally use Google TEST inventory.
     implementation("com.google.android.libraries.ads.mobile.sdk:ads-mobile-sdk:1.3.0")
 
-    // Google User Messaging Platform for production privacy/consent handling.
+    // Google User Messaging Platform for privacy/consent handling.
     implementation("com.google.android.ump:user-messaging-platform:4.0.0")
 }
