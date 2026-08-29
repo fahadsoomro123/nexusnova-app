@@ -1,1 +1,0 @@
-Check configured NexusNova permanent signing secrets without exposing their values.
