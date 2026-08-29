@@ -1,6 +1,7 @@
 name: NexusNova OTA Web Release
 
 # Atomic OTA v2 bootstrap publish trigger — 2026-08-29.
+# OTA-first testing shell: future web/UI/tool/NOVA changes publish online here.
 on:
   push:
     branches: [nexusnova-latest-full-apk-recovery-20260823, nova-sol57-pro-v128]
@@ -83,9 +84,6 @@ jobs:
           BASE="$OTA_BUNDLED_BASE"
           git cat-file -e "$BASE^{commit}"
 
-          # Differential OTA cannot safely represent deletions because unchanged
-          # files fall through to the signed bundled baseline. One already-obsolete
-          # renderer remains the sole historical exception.
           deleted="$(git diff --name-only --diff-filter=D "$BASE" "$GITHUB_SHA" -- fresh-rebuild/ \
             | grep -vFx 'fresh-rebuild/src/features/apps/premium-nova-internet-speed.js' || true)"
           if [ -n "$deleted" ]; then
@@ -107,8 +105,6 @@ jobs:
             count=$((count + 1))
           done < <(git diff --name-only --diff-filter=ACMRT "$BASE" "$GITHUB_SHA" -- fresh-rebuild/)
 
-          # Every activated package owns a deterministic entry point even when a
-          # future release changes CSS/JS only.
           if [ ! -f /tmp/nexusnova-ota-package/files/index.html ]; then
             cp fresh-rebuild/index.html /tmp/nexusnova-ota-package/files/index.html
             count=$((count + 1))
