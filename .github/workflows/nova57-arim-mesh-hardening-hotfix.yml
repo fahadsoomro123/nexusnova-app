@@ -115,24 +115,16 @@ jobs:
           """,
               'smoke laneSpan control'
           )
-          smoke = replace_once(
+          smoke = regex_once(
               smoke,
-              """    label: 'critic-B1', capability: 'reasoning', excludeKeys: criticSnapshot,
-                lane: 0, hedgeWidth: 2,
-          """,
-              """    label: 'critic-B1', capability: 'reasoning', excludeKeys: criticSnapshot,
-                lane: 0, laneSpan: 2, hedgeWidth: 2,
-          """,
+              r"(label: 'critic-B1', capability: 'reasoning', excludeKeys: criticSnapshot,\s*)lane: 0,\s*hedgeWidth: 2,",
+              r"\g<1>lane: 0, laneSpan: 2, hedgeWidth: 2,",
               'smoke critic B1 lane span'
           )
-          smoke = replace_once(
+          smoke = regex_once(
               smoke,
-              """    label: 'critic-B2', capability: 'reasoning', excludeKeys: criticSnapshot,
-                lane: 1, hedgeWidth: 2,
-          """,
-              """    label: 'critic-B2', capability: 'reasoning', excludeKeys: criticSnapshot,
-                lane: 1, laneSpan: 2, hedgeWidth: 2,
-          """,
+              r"(label: 'critic-B2', capability: 'reasoning', excludeKeys: criticSnapshot,\s*)lane: 1,\s*hedgeWidth: 2,",
+              r"\g<1>lane: 1, laneSpan: 2, hedgeWidth: 2,",
               'smoke critic B2 lane span'
           )
           smoke = regex_once(
