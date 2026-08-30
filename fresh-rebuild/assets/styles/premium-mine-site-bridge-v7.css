@@ -1,0 +1,212 @@
+/* NexusNova Mine site bridge v7.
+   Isolated visual/navigation enhancement only. Keeps the approved Mine raster untouched. */
+.nx-mine-site-bridge { display:none; }
+
+@media (max-width:900px) {
+  /* Deterministic dock hit targets: the two transparent buttons own exactly one half each. */
+  html body:has(#nx-stage[data-route="mine"]) .nx-dock {
+    position:relative!important;
+    display:block!important;
+    margin-top:0!important;
+    pointer-events:auto!important;
+  }
+
+  html body:has(#nx-stage[data-route="mine"]) .nx-dock__item {
+    position:absolute!important;
+    top:0!important;
+    bottom:0!important;
+    width:50%!important;
+    max-width:50%!important;
+    height:100%!important;
+    min-height:100%!important;
+    margin:0!important;
+    padding:0!important;
+    pointer-events:auto!important;
+    touch-action:manipulation!important;
+    -webkit-tap-highlight-color:transparent!important;
+    z-index:25!important;
+  }
+
+  html body:has(#nx-stage[data-route="mine"]) .nx-dock__item[data-route="mine"] {
+    left:0!important;
+    right:auto!important;
+  }
+
+  html body:has(#nx-stage[data-route="mine"]) .nx-dock__item[data-route="hub"] {
+    left:50%!important;
+    right:0!important;
+  }
+
+  html body:has(#nx-stage[data-route="mine"]) .nx-dock__item > * {
+    pointer-events:none!important;
+  }
+
+  /* Turn the tall-phone spacer into a tactile NexusNova web portal instead of empty black space. */
+  html body:has(#nx-stage[data-route="mine"]) .nx-mine-site-bridge {
+    position:relative!important;
+    display:flex!important;
+    flex:1 1 auto!important;
+    min-height:0!important;
+    width:calc(100vw - 20px)!important;
+    max-width:844px!important;
+    margin:8px auto!important;
+    padding:clamp(9px,1.45dvh,18px) clamp(15px,4.2vw,34px)!important;
+    align-items:center!important;
+    justify-content:flex-start!important;
+    gap:clamp(9px,2.4vw,18px)!important;
+    overflow:hidden!important;
+    border:1px solid rgba(137,190,214,.42)!important;
+    border-radius:clamp(12px,2.4vw,20px)!important;
+    outline:0!important;
+    color:#e9f4fa!important;
+    text-align:left!important;
+    cursor:pointer!important;
+    touch-action:manipulation!important;
+    -webkit-tap-highlight-color:transparent!important;
+    background:
+      radial-gradient(circle at 18% 18%,rgba(50,205,255,.13),transparent 28%),
+      linear-gradient(180deg,rgba(43,57,66,.96) 0%,rgba(15,25,32,.99) 10%,rgba(5,12,17,.995) 48%,rgba(12,22,29,.995) 82%,rgba(32,45,53,.97) 100%)!important;
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.24),
+      inset 0 -1px 0 rgba(133,181,204,.16),
+      inset 0 0 0 3px rgba(2,6,9,.82),
+      inset 0 -18px 26px rgba(0,0,0,.42),
+      0 0 0 2px rgba(2,5,8,.92),
+      0 0 0 4px rgba(52,72,82,.56),
+      0 8px 20px rgba(0,0,0,.72),
+      0 0 22px rgba(0,168,238,.10)!important;
+  }
+
+  html body:has(#nx-stage[data-route="mine"]) .nx-mine-site-bridge::before {
+    content:"";
+    position:absolute;
+    inset:6px;
+    border:1px solid rgba(72,128,151,.22);
+    border-radius:calc(clamp(12px,2.4vw,20px) - 5px);
+    pointer-events:none;
+    background:
+      linear-gradient(135deg,rgba(255,255,255,.08),transparent 11%,transparent 88%,rgba(48,197,255,.07)),
+      repeating-linear-gradient(90deg,rgba(57,87,100,.06) 0 1px,transparent 1px 14px);
+    box-shadow:inset 0 0 20px rgba(0,0,0,.55);
+  }
+
+  html body:has(#nx-stage[data-route="mine"]) .nx-mine-site-bridge::after {
+    content:"";
+    position:absolute;
+    left:7%;
+    right:7%;
+    top:0;
+    height:2px;
+    pointer-events:none;
+    background:linear-gradient(90deg,transparent,#16c7ff 28%,#4ee7ff 50%,#16c7ff 72%,transparent);
+    opacity:.78;
+    box-shadow:0 0 9px rgba(36,207,255,.72);
+  }
+
+  html body:has(#nx-stage[data-route="mine"]) .nx-mine-site-bridge__lamp {
+    position:absolute;
+    right:clamp(14px,3.6vw,30px);
+    top:clamp(10px,1.4dvh,18px);
+    width:clamp(5px,1.2vw,9px);
+    aspect-ratio:1;
+    border-radius:50%;
+    background:#20e7b2;
+    box-shadow:0 0 0 4px rgba(32,231,178,.11),0 0 13px rgba(32,231,178,.9);
+    z-index:2;
+  }
+
+  html body:has(#nx-stage[data-route="mine"]) .nx-mine-site-bridge__mark {
+    position:relative;
+    z-index:2;
+    flex:0 0 clamp(42px,11vw,72px);
+    width:clamp(42px,11vw,72px);
+    aspect-ratio:1;
+    display:grid;
+    place-items:center;
+    border:1px solid rgba(76,211,255,.58);
+    border-radius:20%;
+    color:#58ddff;
+    font:900 clamp(18px,4.8vw,34px)/1 system-ui,sans-serif;
+    text-shadow:0 0 11px rgba(39,205,255,.65);
+    background:linear-gradient(145deg,#173546 0%,#07141d 48%,#03080c 100%);
+    box-shadow:inset 0 1px rgba(255,255,255,.20),inset 0 -8px 15px rgba(0,0,0,.58),0 0 0 3px #020508,0 0 14px rgba(0,174,239,.22);
+    transform:rotate(45deg);
+  }
+
+  html body:has(#nx-stage[data-route="mine"]) .nx-mine-site-bridge__mark::first-letter { }
+
+  html body:has(#nx-stage[data-route="mine"]) .nx-mine-site-bridge__mark {
+    line-height:1;
+  }
+
+  html body:has(#nx-stage[data-route="mine"]) .nx-mine-site-bridge__copy {
+    position:relative;
+    z-index:2;
+    min-width:0;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    gap:clamp(2px,.5dvh,5px);
+  }
+
+  html body:has(#nx-stage[data-route="mine"]) .nx-mine-site-bridge__copy small {
+    color:#62c9e8;
+    font:800 clamp(7px,1.7vw,12px)/1 system-ui,sans-serif;
+    letter-spacing:.15em;
+    white-space:nowrap;
+    opacity:.9;
+  }
+
+  html body:has(#nx-stage[data-route="mine"]) .nx-mine-site-bridge__copy strong {
+    color:#f3f7fa;
+    font:900 clamp(16px,4.4vw,31px)/1 system-ui,sans-serif;
+    letter-spacing:.02em;
+    white-space:nowrap;
+    text-shadow:0 2px 0 #000,0 0 12px rgba(66,211,255,.13);
+  }
+
+  html body:has(#nx-stage[data-route="mine"]) .nx-mine-site-bridge__copy strong em {
+    color:#37d5ff;
+    font-style:normal;
+    text-shadow:0 0 12px rgba(55,213,255,.48);
+  }
+
+  html body:has(#nx-stage[data-route="mine"]) .nx-mine-site-bridge__copy > span {
+    color:#9fb4c0;
+    font:700 clamp(9px,2.3vw,16px)/1.1 system-ui,sans-serif;
+    letter-spacing:.04em;
+    white-space:nowrap;
+  }
+
+  html body:has(#nx-stage[data-route="mine"]) .nx-mine-site-bridge__cta {
+    position:relative;
+    z-index:2;
+    margin-left:auto;
+    margin-right:clamp(5px,1.7vw,13px);
+    padding:clamp(7px,1.1dvh,11px) clamp(10px,2.6vw,18px);
+    border:1px solid rgba(49,194,238,.42);
+    border-radius:10px;
+    color:#cdefff;
+    font:900 clamp(8px,2vw,14px)/1 system-ui,sans-serif;
+    letter-spacing:.09em;
+    white-space:nowrap;
+    background:linear-gradient(180deg,rgba(15,67,91,.88),rgba(4,24,35,.96));
+    box-shadow:inset 0 1px rgba(255,255,255,.13),0 0 11px rgba(0,175,238,.13);
+  }
+
+  html body:has(#nx-stage[data-route="mine"]) .nx-mine-site-bridge__cta b {
+    margin-left:.25em;
+    color:#3bdcff;
+    font-size:1.3em;
+    line-height:.7;
+  }
+
+  html body:has(#nx-stage[data-route="mine"]) .nx-mine-site-bridge:active {
+    filter:brightness(1.10) saturate(1.05);
+  }
+
+  @media (max-height:760px) {
+    html body:has(#nx-stage[data-route="mine"]) .nx-mine-site-bridge__copy small,
+    html body:has(#nx-stage[data-route="mine"]) .nx-mine-site-bridge__cta { display:none; }
+  }
+}
