@@ -40,11 +40,31 @@ function setProof(text, background) {
   badge.style.background = background;
 }
 
-function b64ToBlob(b64, type = 'image/webp') {
-  const raw = atob(b64.replace(/\s+/g, ''));
+function b64ToBytes(b64, label) {
+  const clean = String(b64 || '').replace(/\s+/g, '');
+  if (!clean) throw new Error(`${label} empty`);
+
+  let raw;
+  try {
+    raw = atob(clean);
+  } catch (error) {
+    throw new Error(`${label} b64 decode`);
+  }
+
   const bytes = new Uint8Array(raw.length);
   for (let i = 0; i < raw.length; i += 1) bytes[i] = raw.charCodeAt(i);
-  return new Blob([bytes], { type });
+  return bytes;
+}
+
+function b64PiecesToBlob(pieces, name, type = 'image/webp') {
+  // Each repository .b64 file is an independently Base64-encoded binary
+  // segment. Decode every segment first, then concatenate the binary bytes.
+  // Joining the encoded strings before atob() is invalid when an intermediate
+  // segment contains its own Base64 padding.
+  const binaryParts = pieces.map((piece, idx) =>
+    b64ToBytes(piece, `${name}.${String(idx + 1).padStart(2, '0')}`)
+  );
+  return new Blob(binaryParts, { type });
 }
 
 function verifyImageBlob(blob, name) {
@@ -61,7 +81,7 @@ function verifyImageBlob(blob, name) {
     };
     img.onerror = () => {
       URL.revokeObjectURL(url);
-      reject(new Error(`${name} decode failed`));
+      reject(new Error(`${name} image decode`));
     };
     img.src = url;
   });
@@ -82,7 +102,8 @@ async function loadSkin(name, count) {
     })
   );
 
-  const url = await verifyImageBlob(b64ToBlob(pieces.join('')), name);
+  const blob = b64PiecesToBlob(pieces, name);
+  const url = await verifyImageBlob(blob, name);
   skinUrls.set(name, url);
   document.documentElement.style.setProperty(`--mine-skin-${name}`, `url("${url}")`);
 }
@@ -117,7 +138,7 @@ Promise.all([
   .catch(error => {
     console.warn('[NexusNova Mine] reference skin loader:', error);
     document.documentElement.dataset.mineRasterSkin = 'waiting';
-    setProof(`V2 ERR ${String(error?.message || 'unknown').slice(0, 18)}`, '#dc2626');
+    setProof(`V2 ERR ${String(error?.message || 'unknown').slice(0, 22)}`, '#dc2626');
   });
 
 window.addEventListener('pagehide', () => {
