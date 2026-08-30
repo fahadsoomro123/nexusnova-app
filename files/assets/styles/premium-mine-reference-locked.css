@@ -1,0 +1,929 @@
+/* NexusNova Mine — single authoritative reference-locked visual layer.
+   Pure CSS/DOM styling only. No mining/backend/auth/routing/action logic. */
+
+@media (max-width: 600px) {
+  body:has(#nx-stage[data-route="mine"]) {
+    margin: 0 !important;
+    overflow-x: hidden !important;
+    background: #000 !important;
+  }
+
+  body:has(#nx-stage[data-route="mine"]) .nx-app {
+    width: 100% !important;
+    max-width: none !important;
+    min-height: 100dvh !important;
+    margin: 0 !important;
+    background: #000 !important;
+  }
+
+  #nx-stage[data-route="mine"] {
+    min-height: 100dvh !important;
+    padding: 0 !important;
+    scroll-padding-bottom: 0 !important;
+    background:
+      radial-gradient(circle at 50% -10%, rgba(0, 119, 186, .12), transparent 28%),
+      #000 !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-screen {
+    box-sizing: border-box !important;
+    position: relative !important;
+    width: 100% !important;
+    max-width: none !important;
+    height: 92dvh !important;
+    min-height: 92dvh !important;
+    margin: 0 !important;
+    padding: 1.15dvh 2.25vw 1.1dvh !important;
+    display: grid !important;
+    grid-template-rows: 14.7dvh 51.6dvh 23.8dvh !important;
+    gap: .7dvh !important;
+    overflow: hidden !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    animation: none !important;
+    background:
+      linear-gradient(90deg,
+        #030507 0 1.1vw,
+        #10181e 1.15vw 1.8vw,
+        #27343d 1.85vw 2.08vw,
+        #020405 2.12vw calc(100% - 2.12vw),
+        #27343d calc(100% - 2.08vw) calc(100% - 1.85vw),
+        #10181e calc(100% - 1.8vw) calc(100% - 1.15vw),
+        #030507 calc(100% - 1.1vw)
+      ),
+      linear-gradient(180deg, #10171c, #020406 12%, #020406 88%, #10171c) !important;
+    box-shadow:
+      inset 0 0 0 .32vw #000,
+      inset 0 0 0 .72vw #202a31,
+      inset 0 0 0 1.05vw #05090c !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-screen::before {
+    content: "" !important;
+    position: absolute !important;
+    inset: .72vw !important;
+    pointer-events: none !important;
+    border: 1px solid #131d23 !important;
+    clip-path: polygon(2.1vw 0, calc(100% - 4vw) 0, 100% 4vw, 100% calc(100% - 2vw), calc(100% - 2vw) 100%, 2vw 100%, 0 calc(100% - 2vw), 0 2.1vw) !important;
+    box-shadow:
+      inset 0 0 0 .28vw #000,
+      inset 0 0 2.2vw rgba(0,0,0,.66) !important;
+  }
+
+  /* Header — target proportions */
+  #nx-stage[data-route="mine"] .nx-screen-head {
+    box-sizing: border-box !important;
+    position: relative !important;
+    width: 100% !important;
+    height: 14.7dvh !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 2.25dvh 15.2vw 1.65dvh 7.0vw !important;
+    display: block !important;
+    overflow: hidden !important;
+    border: 1px solid #687781 !important;
+    border-radius: 0 !important;
+    clip-path: polygon(3.3vw 0, calc(100% - 7vw) 0, calc(100% - 4.2vw) 1.1dvh, 100% 1.1dvh, 100% calc(100% - 1.2dvh), calc(100% - 2.3vw) 100%, 2.3vw 100%, 0 calc(100% - 1.2dvh), 0 2.1dvh) !important;
+    background:
+      linear-gradient(140deg, rgba(255,255,255,.11), transparent 13% 86%, rgba(255,255,255,.025)),
+      radial-gradient(circle at 85% -10%, rgba(75,130,165,.16), transparent 37%),
+      linear-gradient(180deg, #25323b 0%, #172129 53%, #0b1116 100%) !important;
+    box-shadow:
+      inset 0 1px rgba(255,255,255,.24),
+      inset 0 -.45dvh #020405,
+      inset 0 0 0 .65vw #0a1014,
+      0 .45dvh 0 #000 !important;
+    filter: none !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-screen-head::before {
+    content: "" !important;
+    position: absolute !important;
+    inset: .75vw !important;
+    pointer-events: none !important;
+    border: 1px solid rgba(190,202,210,.15) !important;
+    clip-path: polygon(2vw 0, calc(100% - 4vw) 0, 100% 2.2dvh, 100% 100%, 0 100%, 0 1.4dvh) !important;
+    box-shadow: inset 0 0 1.9dvh rgba(0,0,0,.35) !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-screen-head::after {
+    content: "" !important;
+    position: absolute !important;
+    right: 7.6vw !important;
+    top: 3.15dvh !important;
+    width: 8.4vw !important;
+    aspect-ratio: 1 !important;
+    border-radius: 50% !important;
+    border: .72vw solid #27353d !important;
+    background:
+      radial-gradient(circle at 41% 31%, #e0fff5 0 5%, #75ffd4 7%, #1aeba7 23%, #079460 45%, #06452f 66%, #02120d 82%) !important;
+    box-shadow:
+      0 0 0 .28vw #010304,
+      0 0 0 .7vw #8a969e,
+      0 0 0 1.08vw #10181d,
+      inset 0 .28vw .62vw rgba(255,255,255,.65),
+      inset 0 -.7vw 1.05vw rgba(0,0,0,.64),
+      0 0 2.4vw rgba(22,231,162,.34) !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-screen-head > .nx-status-dot {
+    display: none !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-screen-head .nx-eyebrow {
+    margin: 0 0 .75dvh !important;
+    color: #19cfff !important;
+    font-size: 2.2vw !important;
+    line-height: 1 !important;
+    font-weight: 850 !important;
+    letter-spacing: .19em !important;
+    white-space: nowrap !important;
+    text-shadow: 0 0 1.1vw rgba(22,207,255,.28) !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-screen-head .nx-eyebrow::before {
+    content: "N" !important;
+    display: inline-block !important;
+    margin-right: 1.15vw !important;
+    color: #6feaff !important;
+    font-size: 2.5vw !important;
+    line-height: 1 !important;
+    font-weight: 950 !important;
+    font-style: italic !important;
+    letter-spacing: -.12em !important;
+    transform: skew(-11deg) !important;
+    text-shadow:
+      .18vw .18vw 0 #096b9a,
+      0 0 1.2vw rgba(0,196,255,.7) !important;
+    border: 0 !important;
+    background: none !important;
+    box-shadow: none !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-title {
+    margin: 0 !important;
+    color: #f2f3f4 !important;
+    font-size: 7.3vw !important;
+    line-height: .9 !important;
+    font-weight: 900 !important;
+    letter-spacing: -.055em !important;
+    background: linear-gradient(180deg, #fff 0%, #fafafa 33%, #c5c8ca 62%, #f4f4f4 75%, #92989d 100%) !important;
+    -webkit-background-clip: text !important;
+    background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+    text-shadow: 0 .22dvh 0 rgba(0,0,0,.5), 0 .5dvh .8dvh rgba(0,0,0,.38) !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-subtitle {
+    max-width: 61vw !important;
+    margin: 1.0dvh 0 0 !important;
+    color: #b1b8bd !important;
+    font-size: 2.42vw !important;
+    line-height: 1.43 !important;
+    font-weight: 500 !important;
+  }
+
+  /* Miner — one fixed grid, no accumulated visual layers */
+  #nx-stage[data-route="mine"] .nx-nebula-miner {
+    box-sizing: border-box !important;
+    position: relative !important;
+    width: 100% !important;
+    height: 51.6dvh !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 1.25dvh 3.2vw 1.05dvh !important;
+    display: grid !important;
+    grid-template-rows: 5.1dvh 27.25dvh 6.5dvh 6.2dvh 3.15dvh !important;
+    gap: .55dvh !important;
+    overflow: hidden !important;
+    border: 1px solid #667782 !important;
+    border-radius: 0 !important;
+    clip-path: polygon(3vw 0, calc(100% - 5vw) 0, 100% 2.6dvh, 100% calc(100% - 1.8dvh), calc(100% - 2.7vw) 100%, 2.7vw 100%, 0 calc(100% - 1.8dvh), 0 1.8dvh) !important;
+    background:
+      radial-gradient(circle at 31% 34%, rgba(0,128,220,.06), transparent 31%),
+      linear-gradient(145deg, rgba(255,255,255,.055), transparent 12% 88%, rgba(255,255,255,.016)),
+      linear-gradient(180deg, #111a20 0%, #071016 55%, #03070a 100%) !important;
+    box-shadow:
+      inset 0 1px rgba(255,255,255,.19),
+      inset 0 -.45dvh #010304,
+      inset 0 0 0 .62vw #0b1115,
+      0 .45dvh 0 #000 !important;
+    filter: none !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-nebula-miner::before {
+    content: "" !important;
+    position: absolute !important;
+    inset: .74vw !important;
+    z-index: 0 !important;
+    pointer-events: none !important;
+    border: 1px solid rgba(143,160,170,.16) !important;
+    background:
+      radial-gradient(circle at 1.15vw 1.15vw, #a0abb2 0 .18vw, #1b242a .2vw .46vw, transparent .48vw),
+      radial-gradient(circle at calc(100% - 1.15vw) 1.15vw, #a0abb2 0 .18vw, #1b242a .2vw .46vw, transparent .48vw),
+      radial-gradient(circle at 1.15vw calc(100% - 1.15vw), #a0abb2 0 .18vw, #1b242a .2vw .46vw, transparent .48vw),
+      radial-gradient(circle at calc(100% - 1.15vw) calc(100% - 1.15vw), #a0abb2 0 .18vw, #1b242a .2vw .46vw, transparent .48vw) !important;
+    box-shadow: inset 0 0 2.8dvh rgba(0,0,0,.4) !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-nebula-miner::after {
+    content: "" !important;
+    position: absolute !important;
+    z-index: 1 !important;
+    left: 5.3vw !important;
+    right: 5.3vw !important;
+    top: 6.05dvh !important;
+    height: 1px !important;
+    background: linear-gradient(90deg, transparent, #1c292f 8%, #70818a 50%, #1c292f 92%, transparent) !important;
+    box-shadow: 0 1px #000 !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-nebula-miner__head {
+    position: relative !important;
+    z-index: 3 !important;
+    height: 5.1dvh !important;
+    margin: 0 !important;
+    display: flex !important;
+    align-items: flex-start !important;
+    justify-content: space-between !important;
+    gap: 3vw !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-nebula-miner__head > div > span {
+    color: #e9ebed !important;
+    font-size: 2.75vw !important;
+    line-height: 1 !important;
+    font-weight: 950 !important;
+    letter-spacing: .085em !important;
+    background: linear-gradient(180deg,#fff,#b7bdc1 72%,#f8f8f8) !important;
+    -webkit-background-clip:text !important;
+    background-clip:text !important;
+    -webkit-text-fill-color:transparent !important;
+    text-shadow: 0 .18dvh 0 rgba(0,0,0,.4) !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-nebula-miner__head strong {
+    display:flex !important;
+    align-items:center !important;
+    gap: 1.05vw !important;
+    margin-top: .85dvh !important;
+    color:#22e6a4 !important;
+    font-size: 2.05vw !important;
+    line-height:1 !important;
+    font-weight:900 !important;
+    letter-spacing:.11em !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-nebula-miner__head strong i {
+    width:1.45vw !important;
+    height:1.45vw !important;
+    border:.25vw solid #06422d !important;
+    background:#20eba6 !important;
+    box-shadow:0 0 0 .55vw rgba(32,235,166,.10),0 0 1.35vw rgba(32,235,166,.64) !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-nebula-miner__sync {
+    position:relative !important;
+    margin:0 !important;
+    padding:.78dvh 3.0vw .72dvh 1.5vw !important;
+    border:1px solid #35434c !important;
+    border-radius:.25vw !important;
+    background:linear-gradient(180deg,#111a20,#060b0f) !important;
+    color:#c9ced2 !important;
+    font-size:1.62vw !important;
+    line-height:1 !important;
+    font-weight:900 !important;
+    letter-spacing:.12em !important;
+    box-shadow:inset 0 1px rgba(255,255,255,.08),0 .25dvh .55dvh rgba(0,0,0,.45) !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-nebula-miner__sync::after {
+    content:"" !important;
+    position:absolute !important;
+    right:1vw !important;
+    top:50% !important;
+    width:1.05vw !important;
+    height:1.05vw !important;
+    transform:translateY(-50%) !important;
+    border-radius:50% !important;
+    background:#18e6a2 !important;
+    box-shadow:0 0 0 .3vw rgba(24,230,162,.13),0 0 1.05vw rgba(24,230,162,.65) !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-nebula-miner__layout {
+    position:relative !important;
+    z-index:3 !important;
+    height:27.25dvh !important;
+    display:grid !important;
+    grid-template-columns: 54% 42% !important;
+    gap:4% !important;
+    align-items:center !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-nebula-core {
+    position:relative !important;
+    width:46vw !important;
+    height:46vw !important;
+    max-width:none !important;
+    margin:0 auto !important;
+    display:grid !important;
+    place-items:center !important;
+    filter:drop-shadow(0 1.2dvh 1dvh rgba(0,0,0,.62)) !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-nebula-core::after {
+    content:"" !important;
+    position:absolute !important;
+    inset:-4.6% !important;
+    z-index:-2 !important;
+    border-radius:50% !important;
+    background:
+      repeating-conic-gradient(from -2deg,
+        #0a1116 0 8deg,
+        #33434d 8.5deg 10.3deg,
+        #111a20 10.8deg 16deg,
+        #7b8a93 16.4deg 17.9deg,
+        #0c1419 18.4deg 24deg
+      ) !important;
+    box-shadow:
+      0 0 0 .38vw #000,
+      0 0 0 .72vw #45535c,
+      0 0 0 1.02vw #070d11,
+      inset 0 0 2.2vw #000 !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-nebula-core::before {
+    inset:7.3% !important;
+    padding:1.1vw !important;
+    border:.4vw solid #87959e !important;
+    opacity:1 !important;
+    background:
+      conic-gradient(from -90deg,
+        #0875ef 0deg,
+        #05baff calc(var(--nx-nebula-progress) * .56),
+        #20e6ae var(--nx-nebula-progress),
+        #0d2d42 var(--nx-nebula-progress),
+        #061019 360deg
+      ) !important;
+    box-shadow:
+      0 0 0 .45vw #020608,
+      0 0 0 .78vw #273640,
+      inset 0 0 0 .52vw #020608,
+      inset 0 0 2.3vw rgba(0,164,255,.30),
+      0 0 2.5vw rgba(0,139,255,.22) !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-nebula-core__aura {
+    inset:20% !important;
+    z-index:2 !important;
+    border:1px solid #455b68 !important;
+    background:radial-gradient(circle at 46% 34%,rgba(20,72,100,.95),rgba(5,16,23,.99) 55%,#010405) !important;
+    box-shadow:0 0 0 .45vw #020608,0 0 0 .72vw #44545e,inset 0 0 2.8vw rgba(0,149,255,.16) !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-nebula-core__orbit--outer {
+    inset:1% !important;
+    border:1px solid rgba(157,177,190,.35) !important;
+  }
+  #nx-stage[data-route="mine"] .nx-nebula-core__orbit--mid {
+    inset:13% !important;
+    border:1px dashed rgba(36,193,255,.48) !important;
+  }
+  #nx-stage[data-route="mine"] .nx-nebula-core__orbit--inner {
+    inset:24% !important;
+    border:1px solid rgba(41,195,255,.32) !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-nebula-core__center {
+    width:57.5% !important;
+    aspect-ratio:1 !important;
+    z-index:4 !important;
+    border:1px solid #58717f !important;
+    background:radial-gradient(circle at 46% 31%,#123b51,#06141d 55%,#010405) !important;
+    box-shadow:
+      0 0 0 .45vw #020608,
+      0 0 0 .68vw #566874,
+      inset 0 1px rgba(255,255,255,.16),
+      inset 0 -.8dvh 1.6dvh rgba(0,0,0,.78),
+      0 .7dvh 1.1dvh rgba(0,0,0,.58) !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-nebula-core__mark {
+    width:5.8vw !important;
+    height:5.8vw !important;
+    margin-bottom:.4dvh !important;
+    border:1px solid #16cbfb !important;
+    border-radius:.35vw !important;
+    background:linear-gradient(145deg,#163a4c,#07141e) !important;
+    color:#7cecff !important;
+    font-size:2.65vw !important;
+    font-weight:950 !important;
+    box-shadow:0 0 0 .28vw #020608,inset 0 1px rgba(255,255,255,.18),0 0 1.25vw rgba(19,207,255,.18) !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-nebula-core__center strong {
+    font-size:6.9vw !important;
+    line-height:.91 !important;
+    letter-spacing:-.06em !important;
+    color:#f5f7f8 !important;
+    text-shadow:0 .25dvh #000,0 0 1.4vw rgba(43,181,255,.12) !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-nebula-core__center > span:not(.nx-nebula-core__mark) {
+    margin-top:.55dvh !important;
+    color:#c0c7cb !important;
+    font-size:1.58vw !important;
+    line-height:1 !important;
+    font-weight:800 !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-nebula-core__center small {
+    margin-top:.55dvh !important;
+    color:#79b7db !important;
+    font-size:1.5vw !important;
+    line-height:1 !important;
+    font-weight:900 !important;
+    letter-spacing:.11em !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-nebula-readouts {
+    height:25.2dvh !important;
+    display:grid !important;
+    grid-template-rows:1fr 1fr !important;
+    gap:1.05dvh !important;
+    align-self:center !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-nebula-readout {
+    box-sizing:border-box !important;
+    position:relative !important;
+    min-height:0 !important;
+    height:auto !important;
+    padding:1.25dvh 2.35vw !important;
+    overflow:hidden !important;
+    border:1px solid #53636e !important;
+    border-radius:0 !important;
+    clip-path:polygon(1.5vw 0,100% 0,100% calc(100% - 1.15dvh),calc(100% - 1.5vw) 100%,0 100%,0 1.15dvh) !important;
+    background:linear-gradient(145deg,rgba(255,255,255,.04),transparent 27%),linear-gradient(180deg,#111d25,#071017 70%,#03070a) !important;
+    box-shadow:inset 0 1px rgba(255,255,255,.14),inset 0 -.32dvh #010304,inset 0 0 0 .5vw #091015 !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-nebula-readout::before {
+    content:"" !important;
+    position:absolute !important;
+    inset:.62vw !important;
+    border:1px solid rgba(111,136,150,.16) !important;
+    pointer-events:none !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-nebula-readout::after {
+    content:"" !important;
+    position:absolute !important;
+    left:2.35vw !important;
+    right:2.1vw !important;
+    bottom:1.0dvh !important;
+    height:2.0dvh !important;
+    background:
+      linear-gradient(153deg,transparent 0 18%,#073248 19% 23%,transparent 24% 39%,#0a4058 40% 45%,transparent 46% 64%,#0b4963 65% 70%,transparent 71%) !important;
+    opacity:.78 !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-nebula-readout > span {
+    position:relative !important;
+    z-index:2 !important;
+    display:block !important;
+    color:#21cfff !important;
+    font-size:1.95vw !important;
+    line-height:1 !important;
+    font-weight:900 !important;
+    letter-spacing:.08em !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-nebula-readout > strong {
+    position:relative !important;
+    z-index:2 !important;
+    display:block !important;
+    margin-top:1.25dvh !important;
+    overflow:visible !important;
+    color:#f4f5f6 !important;
+    font-size:4.9vw !important;
+    line-height:.92 !important;
+    letter-spacing:-.05em !important;
+    font-weight:800 !important;
+    text-shadow:0 .18dvh #000 !important;
+    white-space:nowrap !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-nebula-readout small {
+    color:#1bbdf4 !important;
+    font-size:.35em !important;
+    font-weight:900 !important;
+    letter-spacing:.02em !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-nebula-meta {
+    position:relative !important;
+    z-index:3 !important;
+    height:6.5dvh !important;
+    margin:0 !important;
+    display:grid !important;
+    grid-template-columns:repeat(3,1fr) !important;
+    gap:1.35vw !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-nebula-meta > div {
+    box-sizing:border-box !important;
+    position:relative !important;
+    min-height:0 !important;
+    height:100% !important;
+    padding:1.15dvh .9vw .85dvh 8.0vw !important;
+    overflow:hidden !important;
+    border:1px solid #4b5a64 !important;
+    border-radius:0 !important;
+    clip-path:polygon(1.3vw 0,calc(100% - 1.3vw) 0,100% 1.0dvh,100% calc(100% - 1.0dvh),calc(100% - 1.3vw) 100%,1.3vw 100%,0 calc(100% - 1.0dvh),0 1.0dvh) !important;
+    background:linear-gradient(145deg,rgba(255,255,255,.045),transparent 22%),linear-gradient(180deg,#111a20,#060b0f) !important;
+    box-shadow:inset 0 1px rgba(255,255,255,.1),inset 0 -.28dvh #010304,0 .3dvh .5dvh rgba(0,0,0,.36) !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-nebula-meta > div::before {
+    content:"" !important;
+    position:absolute !important;
+    left:1.55vw !important;
+    top:50% !important;
+    transform:translateY(-50%) rotate(45deg) !important;
+    width:5.0vw !important;
+    height:5.0vw !important;
+    border:1px solid #6e7d86 !important;
+    border-radius:.5vw !important;
+    background:linear-gradient(145deg,#16242d,#050a0e) !important;
+    box-shadow:0 0 0 .32vw #020608,0 0 0 .64vw #293741,inset 0 1px rgba(255,255,255,.15),inset 0 -.36dvh .55dvh #010304 !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-nebula-meta > div::after {
+    position:absolute !important;
+    left:3.05vw !important;
+    top:50% !important;
+    transform:translateY(-50%) !important;
+    width:2.0vw !important;
+    text-align:center !important;
+    color:#e8edf0 !important;
+    font-size:1.9vw !important;
+    font-weight:900 !important;
+    line-height:1 !important;
+  }
+  #nx-stage[data-route="mine"] .nx-nebula-meta > div:nth-child(1)::after { content:"6" !important; }
+  #nx-stage[data-route="mine"] .nx-nebula-meta > div:nth-child(2)::after { content:"◆" !important; color:#4edfff !important; font-size:1.55vw !important; }
+  #nx-stage[data-route="mine"] .nx-nebula-meta > div:nth-child(3)::after { content:"◷" !important; font-size:2.0vw !important; }
+
+  #nx-stage[data-route="mine"] .nx-nebula-meta span {
+    display:block !important;
+    color:#9ba6ad !important;
+    font-size:1.58vw !important;
+    line-height:1 !important;
+    font-weight:900 !important;
+    letter-spacing:.08em !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-nebula-meta strong {
+    display:block !important;
+    margin-top:.62dvh !important;
+    color:#f2f4f5 !important;
+    font-size:2.25vw !important;
+    line-height:1 !important;
+    font-weight:850 !important;
+    white-space:nowrap !important;
+    overflow:visible !important;
+    text-overflow:clip !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-nebula-action {
+    box-sizing:border-box !important;
+    position:relative !important;
+    z-index:3 !important;
+    width:94.2% !important;
+    height:6.2dvh !important;
+    min-height:0 !important;
+    margin:0 auto !important;
+    padding:0 5vw !important;
+    overflow:hidden !important;
+    border:1px solid #087ec1 !important;
+    border-radius:0 !important;
+    clip-path:polygon(1.7vw 0,calc(100% - 1.7vw) 0,100% 1.05dvh,100% calc(100% - 1.05dvh),calc(100% - 1.7vw) 100%,1.7vw 100%,0 calc(100% - 1.05dvh),0 1.05dvh) !important;
+    background:linear-gradient(180deg,#155884 0%,#0b3960 50%,#041a2d 100%) !important;
+    color:#f2f4f6 !important;
+    font-size:2.5vw !important;
+    line-height:1 !important;
+    font-weight:900 !important;
+    letter-spacing:.055em !important;
+    text-shadow:0 .18dvh #000 !important;
+    box-shadow:0 0 0 .32vw #020608,0 0 0 .62vw #44545e,inset 0 1px rgba(255,255,255,.20),inset 0 -.45dvh #02070b,0 0 1.6vw rgba(0,149,255,.13) !important;
+    opacity:1 !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-nebula-action::before,
+  #nx-stage[data-route="mine"] .nx-nebula-action::after {
+    content:"" !important;
+    position:absolute !important;
+    top:.8dvh !important;
+    bottom:.8dvh !important;
+    width:2.2vw !important;
+    border:1px solid rgba(22,179,255,.5) !important;
+    background:repeating-linear-gradient(180deg,#0b91d5 0 .45dvh,#06334e .45dvh .9dvh) !important;
+    opacity:.9 !important;
+  }
+  #nx-stage[data-route="mine"] .nx-nebula-action::before { left:1.4vw !important; }
+  #nx-stage[data-route="mine"] .nx-nebula-action::after { right:1.4vw !important; }
+
+  #nx-stage[data-route="mine"] .nx-nebula-status {
+    box-sizing:border-box !important;
+    position:relative !important;
+    z-index:3 !important;
+    height:3.15dvh !important;
+    margin:0 !important;
+    padding:.82dvh 1vw 0 5.6vw !important;
+    overflow:hidden !important;
+    border-top:1px solid #1c2931 !important;
+    color:#8d9ba5 !important;
+    font-size:1.65vw !important;
+    line-height:1 !important;
+    white-space:nowrap !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-nebula-status::before {
+    content:"" !important;
+    position:absolute !important;
+    left:2.0vw !important;
+    top:1.0dvh !important;
+    width:1.15vw !important;
+    height:1.15vw !important;
+    border-radius:50% !important;
+    background:#27e7a7 !important;
+    box-shadow:0 0 1.1vw rgba(39,231,167,.58) !important;
+  }
+
+  /* Tools — target row heights; no dock overlap */
+  #nx-stage[data-route="mine"] .nx-mining-tools {
+    box-sizing:border-box !important;
+    position:relative !important;
+    width:100% !important;
+    height:23.8dvh !important;
+    min-height:0 !important;
+    margin:0 !important;
+    padding:1.15dvh 3.8vw 1.0dvh !important;
+    overflow:hidden !important;
+    border:1px solid #5c6d78 !important;
+    border-radius:0 !important;
+    clip-path:polygon(3vw 0,calc(100% - 5vw) 0,100% 2.2dvh,100% calc(100% - 1.5dvh),calc(100% - 2.4vw) 100%,2.4vw 100%,0 calc(100% - 1.5dvh),0 1.5dvh) !important;
+    background:linear-gradient(145deg,rgba(255,255,255,.045),transparent 13%),linear-gradient(180deg,#0d171e,#050b10) !important;
+    box-shadow:inset 0 1px rgba(255,255,255,.13),inset 0 -.35dvh #010304,inset 0 0 0 .6vw #0a1014 !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-mining-tools::before {
+    content:"" !important;
+    position:absolute !important;
+    inset:.68vw !important;
+    pointer-events:none !important;
+    border:1px solid rgba(135,154,167,.12) !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-mining-tools__head {
+    box-sizing:border-box !important;
+    position:relative !important;
+    z-index:2 !important;
+    height:4.0dvh !important;
+    margin:0 !important;
+    padding:.25dvh 1vw .55dvh !important;
+    display:flex !important;
+    align-items:flex-start !important;
+    justify-content:space-between !important;
+    gap:2vw !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-mining-tools__head .nx-eyebrow {
+    margin:0 0 .35dvh !important;
+    color:#18cfff !important;
+    font-size:1.95vw !important;
+    line-height:1 !important;
+    font-weight:900 !important;
+    letter-spacing:.18em !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-mining-tools__head h2 {
+    margin:0 !important;
+    color:#f1f3f4 !important;
+    font-size:3.55vw !important;
+    line-height:1 !important;
+    font-weight:850 !important;
+    letter-spacing:-.035em !important;
+    text-shadow:0 .16dvh #000 !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-mining-tools__head > span {
+    margin-top:1.55dvh !important;
+    color:#29cfff !important;
+    font-size:1.55vw !important;
+    line-height:1 !important;
+    font-weight:900 !important;
+    letter-spacing:.16em !important;
+    white-space:nowrap !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-mining-tool-grid {
+    position:relative !important;
+    z-index:2 !important;
+    height:17.2dvh !important;
+    display:grid !important;
+    grid-template-columns:1fr 1fr !important;
+    grid-template-rows:1fr 1fr !important;
+    gap:.8dvh 2.0vw !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-mining-tool {
+    box-sizing:border-box !important;
+    position:relative !important;
+    min-width:0 !important;
+    min-height:0 !important;
+    height:auto !important;
+    padding:.9dvh 5.4vw .75dvh 1.7vw !important;
+    display:flex !important;
+    align-items:center !important;
+    gap:2.2vw !important;
+    overflow:hidden !important;
+    border:1px solid #4d5d67 !important;
+    border-radius:0 !important;
+    clip-path:polygon(1.4vw 0,calc(100% - 1.4vw) 0,100% 1.0dvh,100% calc(100% - 1.0dvh),calc(100% - 1.4vw) 100%,1.4vw 100%,0 calc(100% - 1.0dvh),0 1.0dvh) !important;
+    background:linear-gradient(135deg,rgba(255,255,255,.045),transparent 24%),linear-gradient(180deg,#121c24,#080f14 68%,#04080b) !important;
+    box-shadow:inset 0 1px rgba(255,255,255,.1),inset 0 -.25dvh #010304 !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-mining-tool--featured {
+    border-color:#087da7 !important;
+    background:linear-gradient(180deg,#102934,#07141b 68%,#04090c) !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-mining-tool--boost {
+    border-color:#7b3f9d !important;
+    background:linear-gradient(180deg,#23142e,#0e0c17 68%,#05070c) !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-mining-tool::after {
+    content:"›" !important;
+    position:absolute !important;
+    right:1.6vw !important;
+    top:50% !important;
+    transform:translateY(-50%) !important;
+    color:#44d9ff !important;
+    font-size:4.4vw !important;
+    line-height:1 !important;
+    text-shadow:0 0 1.1vw rgba(68,217,255,.24) !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-mining-tool--boost::after {
+    color:#c45fff !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-mining-tool__icon {
+    flex:0 0 8.0vw !important;
+    width:8.0vw !important;
+    height:8.0vw !important;
+    display:grid !important;
+    place-items:center !important;
+    border:1px solid #1384a6 !important;
+    border-radius:.65vw !important;
+    background:linear-gradient(145deg,rgba(40,190,255,.12),transparent 54%),linear-gradient(180deg,#123344,#081821) !important;
+    box-shadow:0 0 0 .25vw #020608,0 0 0 .55vw #31414b,inset 0 1px rgba(255,255,255,.13),inset 0 -.25dvh rgba(0,0,0,.72),0 0 1.2vw rgba(0,190,255,.08) !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-mining-tool--boost .nx-mining-tool__icon {
+    border-color:#9a4dba !important;
+    background:linear-gradient(145deg,rgba(195,78,255,.18),transparent 54%),linear-gradient(180deg,#311840,#110b19) !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-mining-tool__icon svg {
+    width:4.6vw !important;
+    height:4.6vw !important;
+    color:#42d8ff !important;
+    filter:drop-shadow(0 .14dvh .18dvh #000) !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-mining-tool > div {
+    min-width:0 !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-mining-tool strong {
+    display:block !important;
+    margin:0 !important;
+    padding:0 !important;
+    color:#f0f2f3 !important;
+    font-size:2.45vw !important;
+    line-height:1.15 !important;
+    font-weight:800 !important;
+    white-space:nowrap !important;
+    overflow:hidden !important;
+    text-overflow:ellipsis !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-mining-tool div > span {
+    display:block !important;
+    margin:.45dvh 0 0 !important;
+    padding:0 !important;
+    color:#84939e !important;
+    font-size:1.75vw !important;
+    line-height:1.28 !important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-mining-tool > b {
+    position:absolute !important;
+    top:.7dvh !important;
+    right:1.3vw !important;
+    padding:.25dvh 1.1vw !important;
+    border:1px solid #754097 !important;
+    border-radius:.7vw !important;
+    background:#2b1542 !important;
+    color:#d6b5ff !important;
+    font-size:1.55vw !important;
+    line-height:1 !important;
+    font-weight:900 !important;
+    letter-spacing:.04em !important;
+    box-shadow:inset 0 1px rgba(255,255,255,.12),0 0 .8vw rgba(187,92,255,.14) !important;
+  }
+
+  /* Dock sits in its own viewport band, never over the tools panel. */
+  body:has(#nx-stage[data-route="mine"]) .nx-dock {
+    box-sizing:border-box !important;
+    position:fixed !important;
+    left:2.2vw !important;
+    right:auto !important;
+    bottom:max(.65dvh, env(safe-area-inset-bottom)) !important;
+    transform:none !important;
+    width:95.6vw !important;
+    height:6.7dvh !important;
+    min-height:0 !important;
+    padding:.55dvh 1.0vw !important;
+    display:grid !important;
+    grid-template-columns:1fr 1fr !important;
+    gap:1.2vw !important;
+    overflow:hidden !important;
+    border:1px solid #667681 !important;
+    border-radius:0 !important;
+    clip-path:polygon(2.6vw 0,calc(100% - 4vw) 0,100% 1.35dvh,100% calc(100% - 1.0dvh),calc(100% - 2vw) 100%,2vw 100%,0 calc(100% - 1.0dvh),0 1.0dvh) !important;
+    background:linear-gradient(135deg,rgba(255,255,255,.055),transparent 15% 85%,rgba(255,255,255,.02)),linear-gradient(180deg,#121c24,#060d13 67%,#020609) !important;
+    box-shadow:0 0 0 .3vw #000,0 0 0 .62vw #27343d,inset 0 1px rgba(255,255,255,.14),inset 0 -.3dvh #010304 !important;
+    opacity:1 !important;
+    pointer-events:auto !important;
+    z-index:1100 !important;
+  }
+
+  body:has(#nx-stage[data-route="mine"]) .nx-dock[hidden] { display:none !important; }
+
+  body:has(#nx-stage[data-route="mine"]) .nx-dock__item {
+    min-height:0 !important;
+    height:100% !important;
+    border:1px solid #394852 !important;
+    border-radius:0 !important;
+    background:linear-gradient(180deg,#111a21,#050b10) !important;
+    color:#8d9ba5 !important;
+    font-size:1.8vw !important;
+    font-weight:900 !important;
+    letter-spacing:.08em !important;
+    text-shadow:0 1px #000 !important;
+    box-shadow:inset 0 1px rgba(255,255,255,.07),inset 0 -.25dvh #010304 !important;
+  }
+
+  body:has(#nx-stage[data-route="mine"]) .nx-dock__item svg {
+    width:4.6vw !important;
+    height:4.6vw !important;
+    filter:drop-shadow(0 .15dvh .18dvh #000) !important;
+  }
+
+  body:has(#nx-stage[data-route="mine"]) .nx-dock__item[aria-current="page"] {
+    color:#f4f7f8 !important;
+    border-color:#078cc9 !important;
+    background:linear-gradient(180deg,rgba(0,138,255,.18),rgba(0,75,132,.12)),linear-gradient(180deg,#142733,#07151e 62%,#030a0f) !important;
+    box-shadow:inset 0 1px rgba(255,255,255,.15),inset 0 -.25dvh #010304,0 0 1.2vw rgba(0,160,255,.10) !important;
+  }
+
+  /* SOS aligned with target tool-card band, away from headings and dock. */
+  body:has(#nx-stage[data-route="mine"]) #nxEmergencySosButton {
+    position:fixed !important;
+    right:5.2vw !important;
+    bottom:10.8dvh !important;
+    width:12.2vw !important;
+    height:12.2vw !important;
+    border:2px solid #7c2931 !important;
+    border-radius:50% !important;
+    opacity:1 !important;
+    background:radial-gradient(circle at 38% 28%,#ff8a8a 0 8%,#e0323e 28%,#9f111f 67%,#4c0710 100%) !important;
+    color:#fff !important;
+    font-size:2.8vw !important;
+    font-weight:950 !important;
+    line-height:1 !important;
+    text-shadow:0 .18dvh .22dvh #5d0009 !important;
+    box-shadow:0 0 0 .35vw #120407,0 0 0 .7vw #5c2930,inset 0 .2dvh .35dvh rgba(255,255,255,.45),inset 0 -.45dvh .55dvh rgba(50,0,6,.6),0 .6dvh 1.3dvh rgba(180,0,22,.45) !important;
+    z-index:1200 !important;
+  }
+
+  body:has(#nx-stage[data-route="mine"]) #nxEmergencySosEdit {
+    display:none !important;
+  }
+}
