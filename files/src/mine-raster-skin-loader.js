@@ -2,6 +2,7 @@
 const MINE_SKINS = {
   header: 2,
   miner: 4,
+  tools: 4,
   dock: 1,
   'ring-shell-exact': 4,
   'ring-band-exact': 3,
