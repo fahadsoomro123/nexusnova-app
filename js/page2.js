@@ -55,4 +55,12 @@ if (!window.__nxFastDashboardLauncherV4) {
       detail: { message: String(error?.message || error || '') }
     }));
   });
+
+  // Presentation-only tactile layer: dynamic light follows pointer movement on
+  // desktop and the Mine control gets physical press/ripple feedback on touch.
+  // This module contains no Firebase/reward/mining writes and stays off the
+  // critical startup path.
+  void import('./nexusnova-mining-immersive-v1.js?v=1').catch(error => {
+    console.error('NexusNova immersive mining presentation:', error);
+  });
 }
