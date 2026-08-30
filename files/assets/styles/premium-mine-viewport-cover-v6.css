@@ -1,0 +1,52 @@
+/* NexusNova Mine viewport cover fit v6
+   APPROVED FINAL SIZING PASS ONLY.
+   The locked Mine artwork is a 864x1536 (9:16) stack.
+   Fill the dynamic viewport without non-uniform stretching: scale the whole
+   locked stack uniformly and center-crop only the horizontal overflow on
+   taller-than-16:9 phone viewports. Internal geometry remains untouched. */
+@media (max-width: 900px) {
+  html:has(#nx-stage[data-route="mine"]),
+  html body:has(#nx-stage[data-route="mine"]) {
+    width: 100% !important;
+    height: 100dvh !important;
+    min-height: 100dvh !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    background: #000 !important;
+  }
+
+  html body:has(#nx-stage[data-route="mine"]) .nx-app,
+  html body:has(#nx-stage[data-route="mine"]) #nx-stage.nx-stage[data-route="mine"] {
+    width: 100% !important;
+    height: 100dvh !important;
+    min-height: 100dvh !important;
+    max-height: 100dvh !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    background: #000 !important;
+  }
+
+  /* 9 / 16 = 56.25%.  On tall phones 56.25dvh is wider than 100vw,
+     so the complete 9:16 artwork becomes exactly 100dvh tall. */
+  html body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-screen,
+  html body:has(#nx-stage[data-route="mine"]) .nx-dock {
+    width: max(100vw, 56.25dvh) !important;
+    max-width: none !important;
+    margin-left: 50% !important;
+    margin-right: 0 !important;
+    transform: translateX(-50%) !important;
+  }
+
+  html body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-screen {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
+  html body:has(#nx-stage[data-route="mine"]) .nx-dock {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+  }
+}
