@@ -1,0 +1,62 @@
+// Reference raster v2 package counts verified for OTA release.
+const MINE_SKINS = {
+  header: 2,
+  miner: 4,
+  ring: 2,
+  tools: 2,
+  dock: 1,
+};
+
+const skinUrls = new Map();
+let activatedStyle = null;
+
+function b64ToBlobUrl(b64, type = 'image/webp') {
+  const raw = atob(b64.replace(/\s+/g, ''));
+  const bytes = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i += 1) bytes[i] = raw.charCodeAt(i);
+  return URL.createObjectURL(new Blob([bytes], { type }));
+}
+
+async function loadSkin(name, count) {
+  const pieces = await Promise.all(
+    Array.from({ length: count }, (_, idx) => {
+      const part = String(idx + 1).padStart(2, '0');
+      return fetch(new URL(`../assets/skins/mine-ref-v2-data/${name}.${part}.b64`, import.meta.url), {
+        cache: 'no-store',
+      }).then(response => {
+        if (!response.ok) throw new Error(`Mine skin ${name}.${part} ${response.status}`);
+        return response.text();
+      });
+    })
+  );
+  const url = b64ToBlobUrl(pieces.join(''));
+  skinUrls.set(name, url);
+  document.documentElement.style.setProperty(`--mine-skin-${name}`, `url("${url}")`);
+}
+
+function activateReferenceSkin() {
+  if (activatedStyle) return;
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = new URL('../assets/styles/premium-mine-component-skin-v2.css', import.meta.url).href;
+  link.dataset.mineReferenceRaster = 'v2';
+  document.head.appendChild(link);
+  activatedStyle = link;
+  document.documentElement.dataset.mineRasterSkin = 'ready';
+}
+
+Promise.all(Object.entries(MINE_SKINS).map(([name, count]) => loadSkin(name, count)))
+  .then(activateReferenceSkin)
+  .catch(error => {
+    // Fail closed: the existing working Mine visuals remain active until every
+    // reference component exists. Never activate a partial/broken raster skin.
+    console.warn('[NexusNova Mine] reference skin loader:', error);
+    document.documentElement.dataset.mineRasterSkin = 'waiting';
+  });
+
+window.addEventListener('pagehide', () => {
+  activatedStyle?.remove();
+  activatedStyle = null;
+  skinUrls.forEach(url => URL.revokeObjectURL(url));
+  skinUrls.clear();
+}, { once: true });
