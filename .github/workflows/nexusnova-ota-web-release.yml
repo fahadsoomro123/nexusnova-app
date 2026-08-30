@@ -1,4 +1,5 @@
 name: NexusNova OTA Web Release
+# OTA staging publish is intentionally rerun-safe.
 
 on:
   push:
