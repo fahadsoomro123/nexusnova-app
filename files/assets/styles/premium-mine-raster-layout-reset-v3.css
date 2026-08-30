@@ -113,6 +113,11 @@
     transform: none !important;
   }
 
+  /* Brighter mining chamber only; dimensions stay untouched until final sizing pass. */
+  html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-miner {
+    filter: brightness(1.16) saturate(1.20) contrast(1.03) !important;
+  }
+
   html body:has(#nx-stage[data-route="mine"]) .nx-dock {
     position: relative !important;
     inset: auto !important;
