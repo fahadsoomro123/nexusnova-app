@@ -4,8 +4,8 @@ const MINE_SKINS = {
   miner: 4,
   tools: 2,
   dock: 1,
-  'ring-shell-exact': 1,
-  'ring-band-exact': 1,
+  'ring-shell-exact': 4,
+  'ring-band-exact': 3,
 };
 
 const OTA_PROOF_ID = 'nx-ota-v2-proof';

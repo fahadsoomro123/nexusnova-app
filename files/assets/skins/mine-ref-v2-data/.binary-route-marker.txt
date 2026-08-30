@@ -1,0 +1,1 @@
+Direct binary WebP route prepared for exact ring assets. No image generation; source is user-supplied reference.
