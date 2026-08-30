@@ -9,7 +9,7 @@
     overflow:visible!important;
   }
 
-  /* Dim full illuminated track: preserves the real reference material where progress is not yet lit. */
+  /* Brighter full illuminated track: keeps the exact reference material visible even outside live progress. */
   html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-core__aura {
     display:block!important;
     position:absolute!important;
@@ -21,8 +21,8 @@
     border-radius:50%!important;
     background:var(--mine-skin-ring-band-exact) center/100% 100% no-repeat!important;
     box-shadow:none!important;
-    filter:saturate(.52) brightness(.30)!important;
-    opacity:.72!important;
+    filter:saturate(.82) brightness(.56)!important;
+    opacity:.90!important;
     z-index:2!important;
     pointer-events:none!important;
   }
@@ -38,8 +38,8 @@
     border:0!important;
     border-radius:50%!important;
     background:var(--mine-skin-ring-band-exact) center/100% 100% no-repeat!important;
-    box-shadow:none!important;
-    filter:saturate(1.08) brightness(1.05)!important;
+    box-shadow:0 0 18px rgba(0,196,255,.35)!important;
+    filter:saturate(1.28) brightness(1.24)!important;
     opacity:1!important;
     z-index:3!important;
     pointer-events:none!important;
@@ -65,7 +65,7 @@
     border-radius:50%!important;
     background:var(--mine-skin-ring-shell-exact) center/100% 100% no-repeat!important;
     box-shadow:none!important;
-    filter:none!important;
+    filter:saturate(1.10) brightness(1.10)!important;
     opacity:1!important;
     z-index:6!important;
     pointer-events:none!important;
