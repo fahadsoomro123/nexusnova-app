@@ -2,15 +2,9 @@
 const MINE_SKINS = {
   header: 2,
   miner: 4,
-  ring: 2,
+  ring: 3,
   tools: 2,
   dock: 1,
-};
-
-// Original ring chunks were truncated. Use the repaired crop from the
-// user-supplied 864x1536 tactile Mine reference while preserving live DOM data.
-const MINE_SKIN_STEMS = {
-  ring: 'ring.fixed',
 };
 
 const OTA_PROOF_ID = 'nx-ota-v2-proof';
@@ -141,7 +135,7 @@ async function fetchText(url, label) {
 
 async function loadSkin(name, count) {
   setProof(`V2 LOAD ${name}`, '#f59e0b');
-  const stem = MINE_SKIN_STEMS[name] || name;
+  const stem = name;
   const pieces = await Promise.all(
     Array.from({ length: count }, (_, idx) => {
       const part = String(idx + 1).padStart(2, '0');
