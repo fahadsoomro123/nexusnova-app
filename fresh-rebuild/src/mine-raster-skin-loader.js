@@ -161,12 +161,19 @@ async function loadDirectSkin(name, relativeUrl) {
 }
 
 async function loadReferenceCss() {
-  const url = new URL('../assets/styles/premium-mine-component-skin-v2.css', import.meta.url);
-  const css = await fetchText(url, 'skin-css');
-  if (!css.includes('.nx-screen-head') || !css.includes('--mine-skin-header')) {
+  const componentUrl = new URL('../assets/styles/premium-mine-component-skin-v2.css', import.meta.url);
+  const geometryUrl = new URL('../assets/styles/premium-mine-raster-layout-reset-v3.css', import.meta.url);
+  const [componentCss, geometryCss] = await Promise.all([
+    fetchText(componentUrl, 'skin-css'),
+    fetchText(geometryUrl, 'skin-geometry-css'),
+  ]);
+  if (!componentCss.includes('.nx-screen-head') || !componentCss.includes('--mine-skin-header')) {
     throw new Error('skin-css invalid');
   }
-  return css;
+  if (!geometryCss.includes('.nx-nebula-miner') || !geometryCss.includes('.nx-mining-tools')) {
+    throw new Error('skin-geometry-css invalid');
+  }
+  return `${componentCss}\n${geometryCss}`;
 }
 
 function activateReferenceSkin(css) {
