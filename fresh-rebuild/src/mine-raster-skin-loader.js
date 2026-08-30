@@ -4,12 +4,8 @@ const MINE_SKINS = {
   miner: 4,
   tools: 2,
   dock: 1,
-};
-
-// Ring is loaded as a verified binary WebP extracted from the user-supplied
-// tactile reference. This bypasses the legacy Base64 chunk path entirely.
-const MINE_DIRECT_SKINS = {
-  ring: '../assets/skins/mine-ref-v2-data/ring.fixed.webp',
+  'ring-shell-exact': 1,
+  'ring-band-exact': 1,
 };
 
 const OTA_PROOF_ID = 'nx-ota-v2-proof';
@@ -153,19 +149,14 @@ async function loadSkin(name, count) {
   document.documentElement.style.setProperty(`--mine-skin-${name}`, `url("${dataUrl}")`);
 }
 
-async function loadDirectSkin(name, relativeUrl) {
-  setProof(`V2 LOAD ${name}`, '#f59e0b');
-  const assetUrl = new URL(relativeUrl, import.meta.url).href;
-  await verifyImageDataUrl(assetUrl, name);
-  document.documentElement.style.setProperty(`--mine-skin-${name}`, `url("${assetUrl}")`);
-}
-
 async function loadReferenceCss() {
   const componentUrl = new URL('../assets/styles/premium-mine-component-skin-v2.css', import.meta.url);
   const geometryUrl = new URL('../assets/styles/premium-mine-raster-layout-reset-v3.css', import.meta.url);
-  const [componentCss, geometryCss] = await Promise.all([
+  const exactRingUrl = new URL('../assets/styles/premium-mine-ring-reference-exact-v4.css', import.meta.url);
+  const [componentCss, geometryCss, exactRingCss] = await Promise.all([
     fetchText(componentUrl, 'skin-css'),
     fetchText(geometryUrl, 'skin-geometry-css'),
+    fetchText(exactRingUrl, 'skin-ring-css'),
   ]);
   if (!componentCss.includes('.nx-screen-head') || !componentCss.includes('--mine-skin-header')) {
     throw new Error('skin-css invalid');
@@ -173,7 +164,10 @@ async function loadReferenceCss() {
   if (!geometryCss.includes('.nx-nebula-miner') || !geometryCss.includes('.nx-mining-tools')) {
     throw new Error('skin-geometry-css invalid');
   }
-  return `${componentCss}\n${geometryCss}`;
+  if (!exactRingCss.includes('--mine-skin-ring-shell-exact') || !exactRingCss.includes('--mine-skin-ring-band-exact')) {
+    throw new Error('skin-ring-css invalid');
+  }
+  return `${componentCss}\n${geometryCss}\n${exactRingCss}`;
 }
 
 function activateReferenceSkin(css) {
@@ -191,7 +185,6 @@ setProof('V2 LOAD', '#f59e0b');
 
 Promise.all([
   ...Object.entries(MINE_SKINS).map(([name, count]) => loadSkin(name, count)),
-  ...Object.entries(MINE_DIRECT_SKINS).map(([name, relativeUrl]) => loadDirectSkin(name, relativeUrl)),
   loadReferenceCss(),
 ])
   .then(results => activateReferenceSkin(results[results.length - 1]))
@@ -204,7 +197,7 @@ Promise.all([
 window.addEventListener('pagehide', () => {
   activatedStyle?.remove();
   activatedStyle = null;
-  [...Object.keys(MINE_SKINS), ...Object.keys(MINE_DIRECT_SKINS)].forEach(name => {
+  Object.keys(MINE_SKINS).forEach(name => {
     document.documentElement.style.removeProperty(`--mine-skin-${name}`);
   });
 }, { once: true });
