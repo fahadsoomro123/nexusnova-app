@@ -153,10 +153,12 @@ async function loadReferenceCss() {
   const componentUrl = new URL('../assets/styles/premium-mine-component-skin-v2.css', import.meta.url);
   const geometryUrl = new URL('../assets/styles/premium-mine-raster-layout-reset-v3.css', import.meta.url);
   const exactRingUrl = new URL('../assets/styles/premium-mine-ring-reference-exact-v4.css', import.meta.url);
-  const [componentCss, geometryCss, exactRingCss] = await Promise.all([
+  const polishUrl = new URL('../assets/styles/premium-mine-visual-polish-v5.css', import.meta.url);
+  const [componentCss, geometryCss, exactRingCss, polishCss] = await Promise.all([
     fetchText(componentUrl, 'skin-css'),
     fetchText(geometryUrl, 'skin-geometry-css'),
     fetchText(exactRingUrl, 'skin-ring-css'),
+    fetchText(polishUrl, 'skin-polish-css'),
   ]);
   if (!componentCss.includes('.nx-screen-head') || !componentCss.includes('--mine-skin-header')) {
     throw new Error('skin-css invalid');
@@ -167,7 +169,10 @@ async function loadReferenceCss() {
   if (!exactRingCss.includes('--mine-skin-ring-shell-exact') || !exactRingCss.includes('--mine-skin-ring-band-exact')) {
     throw new Error('skin-ring-css invalid');
   }
-  return `${componentCss}\n${geometryCss}\n${exactRingCss}`;
+  if (!polishCss.includes('#nxEmergencySosButton') || !polishCss.includes('.nx-nebula-core__aura')) {
+    throw new Error('skin-polish-css invalid');
+  }
+  return `${componentCss}\n${geometryCss}\n${exactRingCss}\n${polishCss}`;
 }
 
 function activateReferenceSkin(css) {
