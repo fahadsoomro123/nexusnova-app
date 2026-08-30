@@ -1,25 +1,20 @@
-/* NexusNova Mine visual polish v10.
-   Production fix: no SOS mask, no SOS on Mine, reference-aligned LIVE/SYNC,
-   and CSS-rendered tools so the old baked SOS raster is never visible.
-   Mining/backend/auth/timer/ring/screen dimensions are untouched. */
+/* NexusNova Mine visual polish v11.
+   Keep the approved premium raster composition. Mine has no SOS.
+   Only status alignment, ring inactive treatment and balance ghost cleanup live here.
+   Mining/backend/auth/timer/action logic and screen dimensions are untouched. */
 @media (max-width:900px) {
   #nx-ota-v2-proof { display:none!important; }
 
-  /* Preserve the current approved ring state. */
+  /* Preserve the approved ring state; unreached aura stays subdued. */
   html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-core__aura {
     filter:grayscale(1) saturate(.18) brightness(.30)!important;
     opacity:.52!important;
   }
 
-  /* Make the mining header overlay use the full miner panel as its coordinate box.
-     This fixes LIVE/SYNC being positioned against the old short locked header. */
+  /* Reference-aligned LIVE row, positioned against the full miner panel. */
   html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-miner__head {
     position:absolute!important;
     inset:0!important;
-    left:0!important;
-    right:0!important;
-    top:0!important;
-    bottom:0!important;
     width:100%!important;
     height:100%!important;
     margin:0!important;
@@ -36,8 +31,6 @@
   html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-miner__head>div>span {
     display:none!important;
   }
-
-  /* Base reference: green dot + LIVE directly below baked NVX MINING. */
   html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-miner__head strong {
     position:absolute!important;
     left:11.7%!important;
@@ -67,7 +60,7 @@
     box-shadow:0 0 0 4px rgba(17,221,160,.13),0 0 12px #11dda0!important;
   }
 
-  /* Base reference: SERVER SYNCED at upper-right, lamp after text. */
+  /* Reference-aligned SERVER SYNCED row with lamp after the text. */
   html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-miner__sync {
     position:absolute!important;
     left:auto!important;
@@ -110,7 +103,7 @@
     opacity:1!important;
   }
 
-  /* Keep the verified balance ghost cleanup. */
+  /* Hide the baked duplicate NVX label without moving the live balance number. */
   html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-readout:nth-child(1)::after {
     content:""!important;
     display:block!important;
@@ -132,192 +125,12 @@
     z-index:21!important;
   }
 
-  /* Mine has no SOS. Global SOS can still exist on other routes. */
+  /* SOS is permanently absent from Mine. Other routes are unaffected. */
   html body:has(#nx-stage[data-route="mine"]) #nxEmergencySosButton,
   html body:has(#nx-stage[data-route="mine"]) #nxEmergencySosEdit {
     display:none!important;
     visibility:hidden!important;
     opacity:0!important;
     pointer-events:none!important;
-  }
-
-  /* Do not paint/cover the old SOS raster. Re-render the tools from the live DOM
-     using the original tactile reference geometry instead. */
-  html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-mining-tools {
-    position:relative!important;
-    inset:auto!important;
-    left:auto!important;
-    right:auto!important;
-    top:auto!important;
-    bottom:auto!important;
-    z-index:2!important;
-    box-sizing:border-box!important;
-    width:89.1204vw!important;
-    height:46.6435vw!important;
-    min-height:0!important;
-    margin:0 auto!important;
-    padding:0!important;
-    overflow:hidden!important;
-    border:1px solid #5f707b!important;
-    border-radius:0!important;
-    clip-path:polygon(2.4vw 0,calc(100% - 4.2vw) 0,100% 3.7vw,100% calc(100% - 2.1vw),calc(100% - 2.1vw) 100%,2.1vw 100%,0 calc(100% - 2.1vw),0 2.4vw)!important;
-    background:linear-gradient(145deg,rgba(255,255,255,.05),transparent 12% 88%,rgba(255,255,255,.015)),repeating-linear-gradient(90deg,rgba(255,255,255,.01) 0 .12vw,transparent .12vw .46vw),linear-gradient(180deg,#0d171e,#050b10)!important;
-    box-shadow:inset 0 1px rgba(255,255,255,.16),inset 0 -.5vw #010304,inset 0 0 0 .7vw #0b1115,0 .65vw 0 #000!important;
-  }
-  html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-mining-tools::before {
-    content:""!important;
-    display:block!important;
-    position:absolute!important;
-    inset:.8vw!important;
-    border:1px solid rgba(135,154,167,.13)!important;
-    pointer-events:none!important;
-  }
-  html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-mining-tools::after {
-    content:none!important;
-    display:none!important;
-  }
-  html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-mining-tools__head {
-    position:absolute!important;
-    z-index:3!important;
-    left:4.5139vw!important;
-    top:3.5880vw!important;
-    width:80vw!important;
-    height:6.8vw!important;
-    margin:0!important;
-    padding:0!important;
-    display:flex!important;
-    align-items:flex-start!important;
-    justify-content:space-between!important;
-  }
-  html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-mining-tools__head .nx-eyebrow {
-    margin:0 0 1.1vw!important;
-    color:#1bcfff!important;
-    font-size:1.8vw!important;
-    line-height:1!important;
-    font-weight:900!important;
-    letter-spacing:.16em!important;
-  }
-  html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-mining-tools__head h2 {
-    margin:0!important;
-    color:#f1f3f4!important;
-    font-size:3.25vw!important;
-    line-height:1!important;
-    font-weight:800!important;
-    letter-spacing:-.03em!important;
-    text-shadow:0 .3vw #000!important;
-  }
-  html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-mining-tools__head>span {
-    margin-top:3.1vw!important;
-    color:#20cfff!important;
-    font-size:1.55vw!important;
-    line-height:1!important;
-    font-weight:900!important;
-    letter-spacing:.13em!important;
-  }
-  html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-mining-tool-grid {
-    position:absolute!important;
-    inset:0!important;
-    display:block!important;
-    margin:0!important;
-    padding:0!important;
-  }
-  html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-mining-tool {
-    position:absolute!important;
-    box-sizing:border-box!important;
-    min-width:0!important;
-    min-height:0!important;
-    margin:0!important;
-    padding:2.1vw 4.3vw 1.7vw 11.8vw!important;
-    display:block!important;
-    text-align:left!important;
-    border:1px solid #4c5b65!important;
-    border-radius:0!important;
-    clip-path:polygon(1.45vw 0,calc(100% - 1.45vw) 0,100% 1.45vw,100% calc(100% - 1.45vw),calc(100% - 1.45vw) 100%,1.45vw 100%,0 calc(100% - 1.45vw),0 1.45vw)!important;
-    background:linear-gradient(135deg,rgba(255,255,255,.045),transparent 24%),linear-gradient(180deg,#121c24,#080f14 68%,#04080b)!important;
-    box-shadow:inset 0 1px rgba(255,255,255,.1),inset 0 -.35vw #010304,0 .65vw 1vw rgba(0,0,0,.34)!important;
-    transform:none!important;
-    opacity:1!important;
-    pointer-events:auto!important;
-    z-index:5!important;
-  }
-  html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-mining-tool:nth-child(1){left:3.5880vw!important;top:12.0370vw!important;width:39.3519vw!important;height:13.5417vw!important;}
-  html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-mining-tool:nth-child(2){left:44.9074vw!important;top:12.0370vw!important;width:40.6250vw!important;height:13.5417vw!important;}
-  html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-mining-tool:nth-child(3){left:3.5880vw!important;top:27.6620vw!important;width:39.3519vw!important;height:12.8472vw!important;}
-  html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-mining-tool:nth-child(4){left:44.9074vw!important;top:27.6620vw!important;width:40.6250vw!important;height:12.8472vw!important;}
-  html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-mining-tool::after {
-    content:"›"!important;
-    position:absolute!important;
-    right:2.15vw!important;
-    top:50%!important;
-    transform:translateY(-50%)!important;
-    color:#44d9ff!important;
-    font-size:4vw!important;
-    line-height:1!important;
-    text-shadow:0 0 1.2vw rgba(68,217,255,.28)!important;
-  }
-  html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-mining-tool--featured {
-    border-color:#0783ac!important;
-    background:linear-gradient(180deg,#102934,#07141b 68%,#04090c)!important;
-  }
-  html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-mining-tool--boost {
-    border-color:#813ca3!important;
-    background:linear-gradient(180deg,#271532,#0e0c17 68%,#05070c)!important;
-  }
-  html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-mining-tool--boost::after { color:#c45fff!important; }
-  html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-mining-tool__icon {
-    position:absolute!important;
-    left:2vw!important;
-    top:50%!important;
-    transform:translateY(-50%)!important;
-    width:7.35vw!important;
-    height:7.35vw!important;
-    display:grid!important;
-    place-items:center!important;
-    border:1px solid #1384a6!important;
-    border-radius:.45vw!important;
-    background:linear-gradient(145deg,rgba(40,190,255,.13),transparent 54%),linear-gradient(180deg,#123344,#081821)!important;
-    box-shadow:0 0 0 .3vw #020608,0 0 0 .65vw #31414b,inset 0 1px rgba(255,255,255,.13),inset 0 -.45vw rgba(0,0,0,.72),0 0 1.5vw rgba(0,190,255,.1)!important;
-  }
-  html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-mining-tool--boost .nx-mining-tool__icon {
-    border-color:#9a4dba!important;
-    background:linear-gradient(145deg,rgba(195,78,255,.2),transparent 54%),linear-gradient(180deg,#311840,#110b19)!important;
-  }
-  html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-mining-tool__icon svg {
-    width:4.35vw!important;
-    height:4.35vw!important;
-    color:#39d7ff!important;
-    filter:drop-shadow(0 .25vw .3vw #000)!important;
-  }
-  html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-mining-tool strong {
-    display:block!important;
-    margin:.6vw 0 0!important;
-    padding:0!important;
-    color:#f0f2f3!important;
-    font-size:2.25vw!important;
-    line-height:1.05!important;
-    font-weight:800!important;
-    white-space:nowrap!important;
-  }
-  html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-mining-tool div>span {
-    display:block!important;
-    margin:1.2vw 0 0!important;
-    padding:0!important;
-    color:#84939e!important;
-    font-size:1.65vw!important;
-    line-height:1.42!important;
-  }
-  html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-mining-tool>b {
-    position:absolute!important;
-    top:1.6vw!important;
-    right:1.7vw!important;
-    padding:.55vw 1vw!important;
-    border:1px solid #754097!important;
-    border-radius:.7vw!important;
-    background:#2b1542!important;
-    color:#d6b5ff!important;
-    font-size:1.55vw!important;
-    line-height:1!important;
-    font-weight:850!important;
-    box-shadow:inset 0 1px rgba(255,255,255,.12),0 0 1vw rgba(187,92,255,.18)!important;
   }
 }
