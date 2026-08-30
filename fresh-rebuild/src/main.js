@@ -13,6 +13,7 @@ import { mineApps } from './features/hub/app-registry.js';
 const stage = document.getElementById('nx-stage');
 const dock = document.querySelector('.nx-dock');
 const dockItems = [...document.querySelectorAll('.nx-dock__item')];
+const mineBrandPortal = document.getElementById('nx-mine-brand-portal');
 const mineAppIds = new Set(mineApps.map(app => app.id));
 const BOOT_SPLASH_MIN_MS = 1_350;
 const POST_LOGIN_SPLASH_MS = 900;
@@ -51,6 +52,25 @@ window.nexusPostNativeAction = window.nexusPostNativeAction || function(action, 
     return false;
   }
 };
+
+function openMineBrandPortal() {
+  try {
+    if (typeof window.NexusBrowserAndroid?.postMessage !== 'function') {
+      console.warn('[NexusNova Fresh] Nova Browser bridge unavailable');
+      return false;
+    }
+    window.NexusBrowserAndroid.postMessage(JSON.stringify({
+      action: 'open',
+      url: 'https://nexusnovatools.com/'
+    }));
+    return true;
+  } catch (error) {
+    console.warn('[NexusNova Fresh] Mine brand portal:', error);
+    return false;
+  }
+}
+
+mineBrandPortal?.addEventListener('click', openMineBrandPortal);
 
 const labels = {
   mine: ['MINE', 'mine'],
@@ -194,7 +214,7 @@ router = createRouter({
         const { appScreen } = await loadAppScreenModule();
         return appScreen({ id: payload.id, backToHub, backToMine });
       } catch (error) {
-        return appModuleFailureScreen(payload.id, error);
+        return appModuleFailureScreen(id, error);
       }
     }
   },
