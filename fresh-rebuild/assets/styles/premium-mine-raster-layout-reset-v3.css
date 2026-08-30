@@ -69,6 +69,50 @@
     transform: none !important;
   }
 
+  /* Old locked CSS left fixed vw width/height on these absolute overlay wrappers.
+     Inset alone could not override those sizes, so live values collapsed to the left. */
+  html body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-miner__layout,
+  html body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-readouts,
+  html body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-meta {
+    left: 0 !important;
+    right: 0 !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    max-width: none !important;
+    max-height: none !important;
+    box-sizing: border-box !important;
+    transform: none !important;
+  }
+
+  html body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-readouts,
+  html body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-meta {
+    display: block !important;
+    grid-template-columns: none !important;
+    gap: 0 !important;
+  }
+
+  html body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-readout {
+    right: auto !important;
+    bottom: auto !important;
+    box-sizing: border-box !important;
+  }
+
+  html body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-core,
+  html body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-core__center,
+  html body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-core__center > * {
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+
+  html body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-core,
+  html body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-core__center {
+    transform: none !important;
+  }
+
   html body:has(#nx-stage[data-route="mine"]) .nx-dock {
     position: relative !important;
     inset: auto !important;
