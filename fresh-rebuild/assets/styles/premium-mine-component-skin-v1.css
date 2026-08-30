@@ -1,0 +1,10 @@
+/* NexusNova Mine component-skin v1
+Reference-pixel hardware skins extracted from the user-supplied 864x1536 model.
+Visual-only: no mining/backend/auth/timer/action logic. */
+@media (max-width:600px){
+#nx-stage[data-route="mine"] .nx-screen-head{
+background:url("data:image/webp;base64,UklGR...TRUNCATED_FOR_DISPLAY...") center/100% 100% no-repeat,
+linear-gradient(180deg,#263640 0%,#17242d 50%,#0b141a 100%)!important;
+box-shadow:none!important;border-color:transparent!important;
+}
+}
