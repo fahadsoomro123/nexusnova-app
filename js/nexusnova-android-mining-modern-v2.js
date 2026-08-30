@@ -1,17 +1,18 @@
-/* NexusNova Android Mining Modern v3
+/* NexusNova Android Mining Modern v4
    Presentation-only Android polish. Reads secure mining/Vault state but never
    writes timestamps, balances, rewards, Firestore, or ad outcomes. */
 (() => {
   'use strict';
   if (window.__nxAndroidMiningModernV2) return;
   window.__nxAndroidMiningModernV2 = true;
-  window.nexusAndroidMiningModernVersion = 'mining-modern-v3-visible';
+  window.nexusAndroidMiningModernVersion = 'mining-modern-v4-halving-fomo';
 
   const DAY = 86_400_000;
   const HOUR = 3_600_000;
   const STYLE_ID = 'nxAndroidMiningModernV2Style';
   const PULSE_ID = 'nxMiningSessionPulseV2';
   const MINE_RAIL_ID = 'nxModernMineRail';
+  const HALVING_ID = 'nxHalvingFomoV1';
   let latestVault = { pendingVaults:0 };
   let renderTimer = null;
 
@@ -26,9 +27,11 @@
       .nx-mp-row{display:flex;align-items:center;justify-content:space-between;gap:9px;min-width:0}.nx-mp-label{display:flex;align-items:center;gap:7px;min-width:0;font-size:9px;font-weight:950;letter-spacing:.13em;color:#9cc9ef;white-space:nowrap}.nx-mp-dot{width:7px;height:7px;border-radius:50%;background:#29d98a;box-shadow:0 0 13px rgba(41,217,138,.75)}.nx-mp-dot.syncing{background:#5aa9ff;box-shadow:0 0 13px rgba(65,155,255,.7);animation:nxPulseDot 1s ease-in-out infinite}.nx-mp-chips{display:flex;justify-content:flex-end;gap:5px;flex-wrap:wrap}.nx-mp-chip{padding:4px 7px;border-radius:999px;border:1px solid rgba(97,183,255,.19);background:rgba(33,117,194,.10);font-size:8px;font-weight:900;letter-spacing:.04em;color:#a8d7ff;white-space:nowrap}.nx-mp-chip.boost{border-color:rgba(90,223,255,.24);background:rgba(21,163,200,.11);color:#75e9ff}.nx-mp-chip.vault{border-color:rgba(200,133,255,.24);background:rgba(145,70,220,.11);color:#dab2ff}.nx-mp-chip.warn{border-color:rgba(255,202,103,.22);background:rgba(255,174,49,.09);color:#ffd68e}
       .nx-mp-track{height:6px;margin-top:9px;border-radius:999px;background:rgba(255,255,255,.07);overflow:hidden}.nx-mp-track i{display:block;height:100%;width:0;border-radius:inherit;background:linear-gradient(90deg,#248cff,#2edcb4);box-shadow:0 0 12px rgba(52,190,255,.34);transition:width .45s ease}.nx-mp-foot{display:flex;justify-content:space-between;gap:8px;margin-top:6px;font-size:8px;color:#6d8da9}.nx-mp-foot strong{color:#a3d5f7;font-weight:850}
       #mineBtn{position:relative!important;overflow:hidden!important}#${MINE_RAIL_ID}{position:absolute;left:24px;right:24px;bottom:9px;height:4px;border-radius:999px;background:rgba(255,255,255,.13);overflow:hidden;pointer-events:none;z-index:3}#${MINE_RAIL_ID} i{display:block;height:100%;width:0;background:linear-gradient(90deg,#5bc9ff,#50f1c2);box-shadow:0 0 13px rgba(70,230,214,.48);transition:width .45s ease}.nx-modern-live-chip{position:absolute;right:14px;top:12px;z-index:3;padding:4px 7px;border-radius:999px;border:1px solid rgba(120,236,210,.24);background:rgba(16,120,102,.16);color:#8ff4d8;font-size:7px;font-weight:950;letter-spacing:.09em;pointer-events:none}.nx-modern-live-chip.sync{border-color:rgba(97,183,255,.22);background:rgba(28,98,170,.16);color:#9acfff}
+      #${HALVING_ID}{position:relative;overflow:hidden;margin:0 auto 14px;width:min(100%,560px);padding:13px 14px;border:1px solid rgba(180,124,255,.23);border-radius:20px;background:radial-gradient(circle at 88% 10%,rgba(142,74,255,.23),transparent 34%),radial-gradient(circle at 8% 92%,rgba(21,175,214,.10),transparent 34%),linear-gradient(145deg,rgba(17,12,37,.97),rgba(8,18,38,.95));box-shadow:inset 0 1px rgba(255,255,255,.05),0 15px 34px rgba(0,0,0,.24);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);color:#f4efff}
+      #${HALVING_ID}:after{content:"";position:absolute;width:120px;height:120px;right:-52px;top:-58px;border-radius:50%;background:radial-gradient(circle,rgba(180,108,255,.22),transparent 70%);pointer-events:none}.nx-hv-top{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:10px}.nx-hv-kicker{display:flex;align-items:center;gap:7px;font-size:8px;font-weight:950;letter-spacing:.15em;color:#c8a8ff}.nx-hv-kicker i{width:7px;height:7px;border-radius:50%;background:#b66cff;box-shadow:0 0 15px rgba(182,108,255,.9)}.nx-hv-live{padding:4px 7px;border:1px solid rgba(180,124,255,.20);border-radius:999px;background:rgba(157,82,230,.12);color:#dab9ff;font-size:7px;font-weight:950;letter-spacing:.08em}.nx-hv-main{position:relative;z-index:1;display:grid;grid-template-columns:1fr auto;gap:14px;align-items:end;margin-top:10px}.nx-hv-title{font-size:14px;font-weight:950;letter-spacing:.01em}.nx-hv-copy{margin-top:4px;max-width:390px;color:#8f9db7;font-size:9px;line-height:1.5}.nx-hv-rate{text-align:right}.nx-hv-rate small{display:block;color:#8f7fb8;font-size:7px;font-weight:900;letter-spacing:.09em}.nx-hv-rate strong{display:block;margin-top:2px;color:#fff;font-size:15px}.nx-hv-foot{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;padding-top:9px;border-top:1px solid rgba(255,255,255,.07);color:#6f7f9d;font-size:7px;line-height:1.4}.nx-hv-foot b{color:#bfa6ed;font-weight:900}
       @keyframes nxPulseDot{50%{opacity:.4;transform:scale(.8)}}
-      @media(max-width:700px){body .bottom-dock{left:10px!important;right:10px!important;bottom:10px!important;border-radius:22px!important;overflow:hidden!important;padding:0!important;max-height:82px!important;background:rgba(1,6,13,.965)!important;backdrop-filter:blur(20px) saturate(125%)!important;-webkit-backdrop-filter:blur(20px) saturate(125%)!important}body .bottom-dock .dock-inner{height:72px!important;padding:4px!important;align-items:stretch!important}body .bottom-dock .dock-item{min-height:64px!important;height:64px!important;padding:6px 2px 5px!important;border-radius:17px!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;line-height:1!important}body .bottom-dock .dock-item span{font-size:9px!important;margin-top:3px!important;letter-spacing:.02em!important}.bottom-dock .dock-item .mi-icon{margin:0!important;line-height:1!important}body{padding-bottom:calc(148px + env(safe-area-inset-bottom))!important}body .main{padding-bottom:calc(148px + env(safe-area-inset-bottom))!important}#${PULSE_ID}{border-radius:16px;padding:10px}.nx-mp-label{font-size:8px}.nx-mp-chip{font-size:7px;padding:4px 6px}}
-      @media(max-width:390px){.nx-mp-row{align-items:flex-start;flex-direction:column}.nx-mp-chips{justify-content:flex-start}.nx-mp-foot{font-size:7px}.nx-modern-live-chip{right:10px;top:10px}}
+      @media(max-width:700px){body .bottom-dock{left:10px!important;right:10px!important;bottom:10px!important;border-radius:22px!important;overflow:hidden!important;padding:0!important;max-height:82px!important;background:rgba(1,6,13,.965)!important;backdrop-filter:blur(20px) saturate(125%)!important;-webkit-backdrop-filter:blur(20px) saturate(125%)!important}body .bottom-dock .dock-inner{height:72px!important;padding:4px!important;align-items:stretch!important}body .bottom-dock .dock-item{min-height:64px!important;height:64px!important;padding:6px 2px 5px!important;border-radius:17px!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;line-height:1!important}body .bottom-dock .dock-item span{font-size:9px!important;margin-top:3px!important;letter-spacing:.02em!important}.bottom-dock .dock-item .mi-icon{margin:0!important;line-height:1!important}body{padding-bottom:calc(148px + env(safe-area-inset-bottom))!important}body .main{padding-bottom:calc(148px + env(safe-area-inset-bottom))!important}#${PULSE_ID},#${HALVING_ID}{border-radius:16px;padding:10px}.nx-mp-label{font-size:8px}.nx-mp-chip{font-size:7px;padding:4px 6px}.nx-hv-main{grid-template-columns:1fr}.nx-hv-rate{text-align:left}}
+      @media(max-width:390px){.nx-mp-row{align-items:flex-start;flex-direction:column}.nx-mp-chips{justify-content:flex-start}.nx-mp-foot{font-size:7px}.nx-modern-live-chip{right:10px;top:10px}.nx-hv-foot{align-items:flex-start;flex-direction:column}}
       @media(prefers-reduced-motion:reduce){.nx-mp-track i,#${MINE_RAIL_ID} i{transition:none!important}.nx-mp-dot.syncing{animation:none!important}}
     `;
     document.head.appendChild(style);
@@ -52,6 +55,27 @@
     }
   }
 
+  function readStat(labelNeedle){
+    const needle=String(labelNeedle||'').toUpperCase();
+    const cards=[...document.querySelectorAll('.stat-card')];
+    const card=cards.find(el=>String(el.querySelector('.stat-label')?.textContent||'').toUpperCase().includes(needle));
+    return String(card?.querySelector('.stat-value')?.textContent||'').trim();
+  }
+
+  function ensureHalving(){
+    let card=$(HALVING_ID);
+    const pulse=$(PULSE_ID);
+    if (!pulse?.parentNode) return card || null;
+    if (!card) {
+      card=document.createElement('section');
+      card.id=HALVING_ID;
+      card.setAttribute('aria-label','NVX halving stage awareness');
+      card.innerHTML=`<div class="nx-hv-top"><div class="nx-hv-kicker"><i></i><span>NVX HALVING WATCH</span></div><span class="nx-hv-live">CURRENT STAGE</span></div><div class="nx-hv-main"><div><div class="nx-hv-title" id="nxHvTitle">Halving stage active</div><div class="nx-hv-copy">Mine while the current stage is active. Future halving stages are designed to reduce the mining rate.</div></div><div class="nx-hv-rate"><small>CURRENT MINING RATE</small><strong id="nxHvRate">—</strong></div></div><div class="nx-hv-foot"><span>No fake countdown • timing appears only from a verified schedule.</span><b id="nxHvStage">LIVE STAGE</b></div>`;
+      pulse.insertAdjacentElement('afterend',card);
+    }
+    return card;
+  }
+
   function ensurePulse(){
     installStyle();
     ensureMineChrome();
@@ -65,9 +89,10 @@
       pulse.innerHTML = `<div class="nx-mp-row"><div class="nx-mp-label"><i class="nx-mp-dot syncing" id="nxMpDot"></i><span id="nxMpLabel">RESTORING SECURE SESSION</span></div><div class="nx-mp-chips" id="nxMpChips"><span class="nx-mp-chip">SYNCING</span></div></div><div class="nx-mp-track" aria-hidden="true"><i id="nxMpProgress"></i></div><div class="nx-mp-foot"><span id="nxMpProgressText">Loading authoritative mining state…</span><strong id="nxMpSyncText">FIRESTORE</strong></div>`;
       timer.insertAdjacentElement('afterend', pulse);
     }
+    ensureHalving();
     const boostPanel = $('nxMiningBoostPanel');
-    if (boostPanel?.parentNode && pulse.parentNode === boostPanel.parentNode && pulse.nextElementSibling !== boostPanel) {
-      boostPanel.parentNode.insertBefore(pulse, boostPanel);
+    if (boostPanel?.parentNode && pulse.parentNode === boostPanel.parentNode && pulse.nextElementSibling !== $(HALVING_ID) && $(HALVING_ID)) {
+      pulse.parentNode.insertBefore($(HALVING_ID), boostPanel);
     }
     return pulse;
   }
@@ -76,9 +101,20 @@
   function miningStatus(){ try { return window.nexusSecureMiningState?.() || {}; } catch (_) { return {}; } }
   function vaultCount(){ const test=Math.max(0,Math.floor(Number(testRewardStatus().pendingVaults)||0)); const real=Math.max(0,Math.floor(Number(latestVault.pendingVaults??latestVault.pending??0)||0)); return test+real; }
 
+  function renderHalving(){
+    const card=ensureHalving();
+    if(!card) return;
+    const stage=readStat('HALVING STAGE') || 'ACTIVE STAGE';
+    const rate=readStat('MINING RATE') || 'LIVE RATE';
+    if($('nxHvTitle')) $('nxHvTitle').textContent=`${stage} is active`;
+    if($('nxHvStage')) $('nxHvStage').textContent=stage;
+    if($('nxHvRate')) $('nxHvRate').textContent=rate;
+  }
+
   function render(){
     const pulse = ensurePulse();
     if (!pulse) return;
+    renderHalving();
     const state = miningStatus();
     const known = state.known === true;
     const active = state.active === true || state.miningActive === true;
