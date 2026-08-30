@@ -1,8 +1,8 @@
 const MINE_SKINS = {
   header: 2,
   miner: 4,
-  ring: 2,
-  tools: 2,
+  ring: 3,
+  tools: 4,
   dock: 1,
 };
 
