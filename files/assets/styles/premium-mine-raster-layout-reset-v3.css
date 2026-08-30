@@ -1,0 +1,82 @@
+/* NexusNova Mine raster v2 geometry reset.
+   VISUAL ONLY. Neutralizes the old reference-locked absolute geometry so
+   header -> miner -> tools -> dock remain one continuous responsive stack. */
+@media (max-width: 900px) {
+  html body:has(#nx-stage[data-route="mine"]) .nx-app {
+    position: relative !important;
+    inset: auto !important;
+    left: auto !important;
+    right: auto !important;
+    top: auto !important;
+    bottom: auto !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    display: block !important;
+    overflow: visible !important;
+    transform: none !important;
+  }
+
+  html body:has(#nx-stage[data-route="mine"]) #nx-stage.nx-stage[data-route="mine"] {
+    position: relative !important;
+    inset: auto !important;
+    left: auto !important;
+    right: auto !important;
+    top: auto !important;
+    bottom: auto !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    display: block !important;
+    overflow: visible !important;
+    transform: none !important;
+  }
+
+  html body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-screen {
+    position: relative !important;
+    inset: auto !important;
+    left: auto !important;
+    right: auto !important;
+    top: auto !important;
+    bottom: auto !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    display: block !important;
+    overflow: visible !important;
+    transform: none !important;
+  }
+
+  html body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-screen-head,
+  html body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-miner,
+  html body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-mining-tools {
+    position: relative !important;
+    inset: auto !important;
+    left: auto !important;
+    right: auto !important;
+    top: auto !important;
+    bottom: auto !important;
+    float: none !important;
+    transform: none !important;
+  }
+
+  html body:has(#nx-stage[data-route="mine"]) .nx-dock {
+    position: relative !important;
+    inset: auto !important;
+    left: auto !important;
+    right: auto !important;
+    top: auto !important;
+    bottom: auto !important;
+    float: none !important;
+    transform: none !important;
+  }
+}
