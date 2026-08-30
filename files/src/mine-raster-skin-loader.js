@@ -8,7 +8,7 @@ const MINE_SKINS = {
 };
 
 const OTA_PROOF_ID = 'nx-ota-v2-proof';
-const skinUrls = new Map();
+const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 let activatedStyle = null;
 
 function proofBadge() {
@@ -22,11 +22,12 @@ function proofBadge() {
     top: '42px',
     right: '10px',
     zIndex: '2147483647',
+    maxWidth: '78vw',
     padding: '4px 7px',
     borderRadius: '7px',
     color: '#fff',
-    font: '700 11px/1 system-ui, sans-serif',
-    letterSpacing: '0.06em',
+    font: '700 11px/1.2 system-ui, sans-serif',
+    letterSpacing: '0.03em',
     boxShadow: '0 2px 8px rgba(0,0,0,.45)',
     pointerEvents: 'none',
   });
@@ -40,50 +41,89 @@ function setProof(text, background) {
   badge.style.background = background;
 }
 
-function b64ToBytes(b64, label) {
-  const clean = String(b64 || '').replace(/\s+/g, '');
+function decodeBase64Pure(input, label) {
+  let clean = String(input || '').replace(/\s+/g, '');
   if (!clean) throw new Error(`${label} empty`);
+  if (clean.length % 4 === 1) throw new Error(`${label} b64 length`);
+  while (clean.length % 4) clean += '=';
 
-  let raw;
-  try {
-    raw = atob(clean);
-  } catch (error) {
-    throw new Error(`${label} b64 decode`);
+  const padding = clean.endsWith('==') ? 2 : clean.endsWith('=') ? 1 : 0;
+  const out = new Uint8Array((clean.length / 4) * 3 - padding);
+  let offset = 0;
+
+  for (let i = 0; i < clean.length; i += 4) {
+    const c0 = clean[i];
+    const c1 = clean[i + 1];
+    const c2 = clean[i + 2];
+    const c3 = clean[i + 3];
+    const v0 = B64.indexOf(c0);
+    const v1 = B64.indexOf(c1);
+    const v2 = c2 === '=' ? 0 : B64.indexOf(c2);
+    const v3 = c3 === '=' ? 0 : B64.indexOf(c3);
+
+    if (v0 < 0 || v1 < 0 || (c2 !== '=' && v2 < 0) || (c3 !== '=' && v3 < 0)) {
+      throw new Error(`${label} b64 char@${i}`);
+    }
+
+    const triple = (v0 << 18) | (v1 << 12) | (v2 << 6) | v3;
+    if (offset < out.length) out[offset++] = (triple >> 16) & 255;
+    if (offset < out.length && c2 !== '=') out[offset++] = (triple >> 8) & 255;
+    if (offset < out.length && c3 !== '=') out[offset++] = triple & 255;
   }
 
-  const bytes = new Uint8Array(raw.length);
-  for (let i = 0; i < raw.length; i += 1) bytes[i] = raw.charCodeAt(i);
-  return bytes;
+  return out;
 }
 
-function b64PiecesToBlob(pieces, name, type = 'image/webp') {
-  // Each repository .b64 file is an independently Base64-encoded binary
-  // segment. Decode every segment first, then concatenate the binary bytes.
-  // Joining the encoded strings before atob() is invalid when an intermediate
-  // segment contains its own Base64 padding.
-  const binaryParts = pieces.map((piece, idx) =>
-    b64ToBytes(piece, `${name}.${String(idx + 1).padStart(2, '0')}`)
+function concatBytes(parts) {
+  const total = parts.reduce((sum, part) => sum + part.length, 0);
+  const out = new Uint8Array(total);
+  let offset = 0;
+  parts.forEach(part => {
+    out.set(part, offset);
+    offset += part.length;
+  });
+  return out;
+}
+
+function encodeBase64Pure(bytes) {
+  let out = '';
+  for (let i = 0; i < bytes.length; i += 3) {
+    const a = bytes[i];
+    const hasB = i + 1 < bytes.length;
+    const hasC = i + 2 < bytes.length;
+    const b = hasB ? bytes[i + 1] : 0;
+    const c = hasC ? bytes[i + 2] : 0;
+    const triple = (a << 16) | (b << 8) | c;
+
+    out += B64[(triple >> 18) & 63];
+    out += B64[(triple >> 12) & 63];
+    out += hasB ? B64[(triple >> 6) & 63] : '=';
+    out += hasC ? B64[triple & 63] : '=';
+  }
+  return out;
+}
+
+function piecesToDataUrl(pieces, name) {
+  const decoded = pieces.map((piece, idx) =>
+    decodeBase64Pure(piece, `${name}.${String(idx + 1).padStart(2, '0')}`)
   );
-  return new Blob(binaryParts, { type });
+  const bytes = concatBytes(decoded);
+  if (bytes.length < 16) throw new Error(`${name} bytes short`);
+  return `data:image/webp;base64,${encodeBase64Pure(bytes)}`;
 }
 
-function verifyImageBlob(blob, name) {
+function verifyImageDataUrl(dataUrl, name) {
   return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(blob);
     const img = new Image();
     img.onload = () => {
       if (!img.naturalWidth || !img.naturalHeight) {
-        URL.revokeObjectURL(url);
         reject(new Error(`${name} decode empty`));
         return;
       }
-      resolve(url);
+      resolve(dataUrl);
     };
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error(`${name} image decode`));
-    };
-    img.src = url;
+    img.onerror = () => reject(new Error(`${name} image decode`));
+    img.src = dataUrl;
   });
 }
 
@@ -94,6 +134,7 @@ async function fetchText(url, label) {
 }
 
 async function loadSkin(name, count) {
+  setProof(`V2 LOAD ${name}`, '#f59e0b');
   const pieces = await Promise.all(
     Array.from({ length: count }, (_, idx) => {
       const part = String(idx + 1).padStart(2, '0');
@@ -102,10 +143,9 @@ async function loadSkin(name, count) {
     })
   );
 
-  const blob = b64PiecesToBlob(pieces, name);
-  const url = await verifyImageBlob(blob, name);
-  skinUrls.set(name, url);
-  document.documentElement.style.setProperty(`--mine-skin-${name}`, `url("${url}")`);
+  const dataUrl = piecesToDataUrl(pieces, name);
+  await verifyImageDataUrl(dataUrl, name);
+  document.documentElement.style.setProperty(`--mine-skin-${name}`, `url("${dataUrl}")`);
 }
 
 async function loadReferenceCss() {
@@ -138,12 +178,13 @@ Promise.all([
   .catch(error => {
     console.warn('[NexusNova Mine] reference skin loader:', error);
     document.documentElement.dataset.mineRasterSkin = 'waiting';
-    setProof(`V2 ERR ${String(error?.message || 'unknown').slice(0, 22)}`, '#dc2626');
+    setProof(`V2 ERR ${String(error?.message || 'unknown').slice(0, 70)}`, '#dc2626');
   });
 
 window.addEventListener('pagehide', () => {
   activatedStyle?.remove();
   activatedStyle = null;
-  skinUrls.forEach(url => URL.revokeObjectURL(url));
-  skinUrls.clear();
+  Object.keys(MINE_SKINS).forEach(name => {
+    document.documentElement.style.removeProperty(`--mine-skin-${name}`);
+  });
 }, { once: true });
