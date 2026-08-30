@@ -7,8 +7,32 @@ const MINE_SKINS = {
   dock: 1,
 };
 
+const OTA_PROOF_ID = 'nx-ota-v2-proof';
 const skinUrls = new Map();
 let activatedStyle = null;
+
+function installOtaProofMarker() {
+  if (document.getElementById(OTA_PROOF_ID)) return;
+  const badge = document.createElement('div');
+  badge.id = OTA_PROOF_ID;
+  badge.textContent = 'OTA V2';
+  badge.setAttribute('aria-hidden', 'true');
+  Object.assign(badge.style, {
+    position: 'fixed',
+    top: '42px',
+    right: '10px',
+    zIndex: '2147483647',
+    padding: '4px 7px',
+    borderRadius: '7px',
+    background: '#ff2d55',
+    color: '#fff',
+    font: '700 11px/1 system-ui, sans-serif',
+    letterSpacing: '0.08em',
+    boxShadow: '0 2px 8px rgba(0,0,0,.45)',
+    pointerEvents: 'none',
+  });
+  document.body.appendChild(badge);
+}
 
 function b64ToBlobUrl(b64, type = 'image/webp') {
   const raw = atob(b64.replace(/\s+/g, ''));
@@ -44,6 +68,8 @@ function activateReferenceSkin() {
   activatedStyle = link;
   document.documentElement.dataset.mineRasterSkin = 'ready';
 }
+
+installOtaProofMarker();
 
 Promise.all(Object.entries(MINE_SKINS).map(([name, count]) => loadSkin(name, count)))
   .then(activateReferenceSkin)
