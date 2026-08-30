@@ -1,50 +1,93 @@
-/* NexusNova Mine visual polish v8.
-   VISUAL ONLY: no mining/backend/auth/timer/action logic changes.
-   Screen dimensions, ring geometry and global lighting intentionally untouched. */
+/* NexusNova Mine visual polish v9.
+   VISUAL ONLY: Mine SOS removal + reference-aligned status rows + balance raster cleanup.
+   Mining logic, ring, lighting and screen dimensions are intentionally untouched. */
 @media (max-width:900px) {
   #nx-ota-v2-proof { display:none!important; }
 
-  /* Preserve the current unreached ring state exactly as already approved. */
+  /* Preserve current ring state exactly. */
   html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-core__aura {
     filter:grayscale(1) saturate(.18) brightness(.30)!important;
     opacity:.52!important;
   }
 
-  /* LIVE + green dot: one clean row below the baked NVX MINING heading. */
+  /* Reference: NVX MINING at top, then green lamp + LIVE on one clean row. */
   html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-miner__head strong {
-    left:12.2%!important;
-    top:8.25%!important;
-    gap:.48vw!important;
-    transform:translateY(clamp(16px,3vw,26px))!important;
+    position:absolute!important;
+    left:11.7%!important;
+    top:7.25%!important;
+    right:auto!important;
+    bottom:auto!important;
+    margin:0!important;
+    transform:none!important;
+    display:flex!important;
     align-items:center!important;
+    gap:1.7vw!important;
   }
   html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-miner__head strong i {
     flex:0 0 auto!important;
-    width:clamp(6px,1.1vw,10px)!important;
-    height:clamp(6px,1.1vw,10px)!important;
+    width:clamp(7px,1.25vw,11px)!important;
+    height:clamp(7px,1.25vw,11px)!important;
     margin:0!important;
+    border:0!important;
+    border-radius:50%!important;
+    background:#19e5a5!important;
     transform:none!important;
-    box-shadow:0 0 0 3px rgba(17,221,160,.12),0 0 9px rgba(17,221,160,.82)!important;
-  }
-  html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-miner__sync {
-    right:10.2%!important;
-    top:4.9%!important;
+    box-shadow:0 0 0 4px rgba(25,229,165,.10),0 0 12px rgba(25,229,165,.86)!important;
   }
 
-  /* Opaque foreground repair for the stale baked NVX sample below BALANCE.
-     It sits above the raster but below the real number + its live NVX unit. */
+  /* Reference: SERVER SYNCED at upper-right with its green lamp after the text. */
+  html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-miner__sync {
+    position:absolute!important;
+    left:auto!important;
+    right:12.2%!important;
+    top:3.7%!important;
+    bottom:auto!important;
+    margin:0!important;
+    padding:0!important;
+    transform:none!important;
+    display:flex!important;
+    align-items:center!important;
+    gap:2vw!important;
+    width:auto!important;
+    height:auto!important;
+    border:0!important;
+    background:transparent!important;
+    box-shadow:none!important;
+    white-space:nowrap!important;
+  }
+  html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-miner__sync::after {
+    content:""!important;
+    position:static!important;
+    display:block!important;
+    flex:0 0 auto!important;
+    width:clamp(7px,1.2vw,10px)!important;
+    height:clamp(7px,1.2vw,10px)!important;
+    margin:0!important;
+    transform:none!important;
+    border:0!important;
+    border-radius:50%!important;
+    background:#18e6a6!important;
+    box-shadow:0 0 0 3px rgba(24,230,166,.10),0 0 10px rgba(24,230,166,.78)!important;
+    opacity:0!important;
+  }
+  html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-miner__sync[data-state="ready"]::after {
+    opacity:1!important;
+  }
+
+  /* Remove the stale baked NVX sample with a broad panel-matched lower strip,
+     avoiding the small teal rectangle from the previous patch. */
   html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-readout:nth-child(1)::after {
     content:""!important;
     display:block!important;
     position:absolute!important;
-    left:5.5%!important;
-    top:67%!important;
-    width:37%!important;
-    height:25%!important;
+    left:3%!important;
+    top:64%!important;
+    width:45%!important;
+    height:29%!important;
     border:0!important;
-    border-radius:2px!important;
-    background:linear-gradient(90deg,#071820 0%,#06151d 72%,#06131b 100%)!important;
-    box-shadow:0 0 0 1px rgba(6,21,29,.98)!important;
+    border-radius:0!important;
+    background:linear-gradient(180deg,#0a141b 0%,#081118 52%,#071016 100%)!important;
+    box-shadow:none!important;
     opacity:1!important;
     z-index:20!important;
     pointer-events:none!important;
@@ -54,68 +97,33 @@
     z-index:21!important;
   }
 
-  /* Remove the old circular SOS visually with a compact right-edge repair only
-     around its footprint; Market/Wallet cards outside that footprint stay clear. */
+  /* SOS is permanently absent on the Mine route. The global SOS module remains
+     available elsewhere, but neither its button nor editor can appear on Mine. */
+  html body:has(#nx-stage[data-route="mine"]) #nxEmergencySosButton,
+  html body:has(#nx-stage[data-route="mine"]) #nxEmergencySosEdit {
+    display:none!important;
+    visibility:hidden!important;
+    opacity:0!important;
+    pointer-events:none!important;
+  }
+
+  /* The supplied tools raster contains an old red SOS baked into its right edge.
+     Rebuild only that covered Market-card tail with a neutral beveled panel. */
   html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-mining-tools::after {
     content:""!important;
     display:block!important;
     position:absolute!important;
-    right:0!important;
-    top:47.5%!important;
-    width:16.5%!important;
-    height:25%!important;
-    border:0!important;
-    border-radius:8px 0 0 8px!important;
-    background:linear-gradient(90deg,rgba(5,13,18,.76),#061018 34%,#061018 100%)!important;
-    box-shadow:none!important;
+    right:1.8%!important;
+    top:45.2%!important;
+    width:18.2%!important;
+    height:32%!important;
+    border:1px solid rgba(55,77,90,.42)!important;
+    border-left:0!important;
+    border-radius:0 9px 9px 0!important;
+    background:linear-gradient(180deg,rgba(11,22,29,.99) 0%,rgba(7,15,21,.995) 50%,rgba(4,10,15,.995) 100%)!important;
+    box-shadow:inset -1px 0 rgba(112,134,145,.13),inset 0 1px rgba(255,255,255,.025),inset 0 -1px rgba(0,0,0,.62)!important;
+    clip-path:polygon(0 0,84% 0,100% 14%,100% 86%,84% 100%,0 100%)!important;
     z-index:4!important;
     pointer-events:none!important;
-  }
-
-  /* SOS matches the compact translucent rectangular right-edge style used on
-     the Market screen. Idle is faded; existing active/busy states brighten it. */
-  html body:has(#nx-stage[data-route="mine"]) #nxEmergencySosButton {
-    position:fixed!important;
-    left:auto!important;
-    right:18px!important;
-    top:69.3%!important;
-    bottom:auto!important;
-    width:78px!important;
-    height:46px!important;
-    border:1px solid rgba(255,71,91,.28)!important;
-    border-radius:0!important;
-    background:linear-gradient(90deg,rgba(117,12,31,.54),rgba(174,18,46,.42))!important;
-    color:rgba(255,255,255,.68)!important;
-    font:900 15px/1 system-ui,-apple-system,sans-serif!important;
-    letter-spacing:.8px!important;
-    opacity:.48!important;
-    filter:saturate(.82) brightness(.78)!important;
-    box-shadow:none!important;
-    transform:none!important;
-    transition:opacity .18s ease,filter .18s ease,box-shadow .18s ease,background .18s ease!important;
-    z-index:2147483000!important;
-  }
-  html body:has(#nx-stage[data-route="mine"]) #nxEmergencySosButton[data-active="1"],
-  html body:has(#nx-stage[data-route="mine"]) #nxEmergencySosButton[data-busy="1"] {
-    right:18px!important;
-    width:78px!important;
-    height:46px!important;
-    border-radius:0!important;
-    opacity:1!important;
-    filter:saturate(1.16) brightness(1.12)!important;
-    color:#fff!important;
-    font-size:15px!important;
-    background:linear-gradient(90deg,rgba(159,13,38,.92),rgba(210,20,51,.86))!important;
-    box-shadow:0 0 10px rgba(255,44,67,.38),0 0 22px rgba(216,10,40,.22)!important;
-  }
-  html body:has(#nx-stage[data-route="mine"]) #nxEmergencySosButton:focus-visible {
-    opacity:.9!important;
-    outline:2px solid rgba(255,104,117,.7)!important;
-    outline-offset:2px!important;
-  }
-  html body:has(#nx-stage[data-route="mine"]) #nxEmergencySosEdit {
-    right:20px!important;
-    top:calc(69.3% - 38px)!important;
-    bottom:auto!important;
   }
 }
