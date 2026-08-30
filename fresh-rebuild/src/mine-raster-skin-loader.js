@@ -1,5 +1,6 @@
 // Reference raster v2 package counts verified for OTA release.
 const MINE_SKINS = {
+  header: 2,
   miner: 4,
   tools: 2,
   dock: 1,
@@ -133,14 +134,6 @@ async function fetchText(url, label) {
   return response.text();
 }
 
-async function loadDirectSkin(name, fileName) {
-  setProof(`V2 LOAD ${name}`, '#f59e0b');
-  const url = new URL(`../assets/skins/mine-ref-v2-data/${fileName}`, import.meta.url);
-  const resolved = url.href;
-  await verifyImageDataUrl(resolved, name);
-  document.documentElement.style.setProperty(`--mine-skin-${name}`, `url("${resolved}")`);
-}
-
 async function loadSkin(name, count) {
   setProof(`V2 LOAD ${name}`, '#f59e0b');
   const pieces = await Promise.all(
@@ -191,7 +184,6 @@ function activateReferenceSkin(css) {
 setProof('V2 LOAD', '#f59e0b');
 
 Promise.all([
-  loadDirectSkin('header', 'header.clean.webp'),
   ...Object.entries(MINE_SKINS).map(([name, count]) => loadSkin(name, count)),
   loadReferenceCss(),
 ])
@@ -205,7 +197,7 @@ Promise.all([
 window.addEventListener('pagehide', () => {
   activatedStyle?.remove();
   activatedStyle = null;
-  ['header', ...Object.keys(MINE_SKINS)].forEach(name => {
+  Object.keys(MINE_SKINS).forEach(name => {
     document.documentElement.style.removeProperty(`--mine-skin-${name}`);
   });
 }, { once: true });
