@@ -1,18 +1,18 @@
-/* NexusNova Mine visual polish v5.
+/* NexusNova Mine visual polish v6.
    VISUAL ONLY: no mining/backend/auth/timer/action logic changes.
    Screen dimensions intentionally untouched until the final sizing pass. */
 @media (max-width:900px) {
   /* Diagnostic proof badge is no longer part of the visual UI. */
   #nx-ota-v2-proof { display:none!important; }
 
-  /* Keep the unlit ring track neutral. The real green/cyan source color only
-     appears through the live progress mask when mining reaches that arc. */
+  /* Keep the unreached ring track neutral/dark. The real blue/cyan/green
+     texture only appears through the live progress mask as progress reaches it. */
   html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-core__aura {
-    filter:grayscale(1) saturate(.35) brightness(.44)!important;
-    opacity:.68!important;
+    filter:grayscale(1) saturate(.18) brightness(.30)!important;
+    opacity:.52!important;
   }
 
-  /* Move live state below the baked NVX MINING label and settle sync text. */
+  /* Live state and sync text stay clear of the baked labels. */
   html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-miner__head strong {
     left:9.6%!important;
     top:8.4%!important;
@@ -22,17 +22,17 @@
     top:4.9%!important;
   }
 
-  /* Cover the stale baked NVX sample under the real live balance value. */
+  /* Cover only the stale baked NVX sample below the real balance number. */
   html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-readout:nth-child(1)::after {
     content:""!important;
     display:block!important;
     position:absolute!important;
-    left:7%!important;
-    top:60%!important;
-    width:25%!important;
-    height:14%!important;
+    left:8%!important;
+    top:73%!important;
+    width:29%!important;
+    height:16%!important;
     border:0!important;
-    background:linear-gradient(90deg,rgba(4,16,22,.98) 0 72%,rgba(4,16,22,.66) 88%,transparent 100%)!important;
+    background:linear-gradient(90deg,rgba(4,16,22,.98) 0 76%,rgba(4,16,22,.72) 90%,transparent 100%)!important;
     z-index:0!important;
     pointer-events:none!important;
   }
@@ -40,41 +40,31 @@
     z-index:2!important;
   }
 
-  /* The old bright SOS is baked into the tools reference raster. Mask only
-     its old edge area so the real functional SOS control can live elsewhere. */
+  /* Do not paint over the tools raster. The previous large pseudo-element was
+     responsible for the dark rectangle covering Market. */
   html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-mining-tools::after {
-    content:""!important;
-    display:block!important;
-    position:absolute!important;
-    right:1.8%!important;
-    top:44%!important;
-    width:15.2%!important;
-    height:45%!important;
-    border-radius:12px 0 0 12px!important;
-    background:linear-gradient(90deg,rgba(6,13,18,.90),rgba(5,11,16,.98) 45%,rgba(6,13,18,.99))!important;
-    box-shadow:inset 1px 0 rgba(64,98,116,.22),inset 0 1px rgba(255,255,255,.035)!important;
-    z-index:4!important;
-    pointer-events:none!important;
+    content:none!important;
+    display:none!important;
   }
 
-  /* Restore the real SOS button as a quiet right-edge tab. It becomes fully
-     bright only while the existing SOS module marks it active/busy. */
+  /* Real functional SOS: a quiet half-hidden edge tab when idle. Existing SOS
+     logic expands and brightens it only after activation / while sending. */
   html body:has(#nx-stage[data-route="mine"]) #nxEmergencySosButton {
     position:fixed!important;
     left:auto!important;
-    right:0!important;
+    right:-16px!important;
     top:56%!important;
     bottom:auto!important;
-    width:34px!important;
-    height:48px!important;
-    border:1px solid rgba(255,88,102,.28)!important;
-    border-radius:17px 0 0 17px!important;
+    width:40px!important;
+    height:50px!important;
+    border:1px solid rgba(255,88,102,.30)!important;
+    border-radius:20px 0 0 20px!important;
     background:radial-gradient(circle at 38% 32%,#a93a45 0,#7e1724 42%,#37070e 74%,#160307 100%)!important;
-    color:rgba(255,255,255,.72)!important;
+    color:rgba(255,255,255,.76)!important;
     font:900 9px/1 system-ui,-apple-system,sans-serif!important;
     letter-spacing:.5px!important;
-    opacity:.20!important;
-    filter:saturate(.62) brightness(.72)!important;
+    opacity:.28!important;
+    filter:saturate(.60) brightness(.72)!important;
     box-shadow:none!important;
     transform:none!important;
     transition:opacity .18s ease,width .18s ease,height .18s ease,right .18s ease,border-radius .18s ease,filter .18s ease,box-shadow .18s ease!important;
