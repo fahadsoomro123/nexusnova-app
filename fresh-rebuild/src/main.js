@@ -214,7 +214,7 @@ router = createRouter({
         const { appScreen } = await loadAppScreenModule();
         return appScreen({ id: payload.id, backToHub, backToMine });
       } catch (error) {
-        return appModuleFailureScreen(id, error);
+        return appModuleFailureScreen(payload.id, error);
       }
     }
   },
