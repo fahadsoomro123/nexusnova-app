@@ -7,6 +7,7 @@ const MINE_SKINS = {
 };
 
 const skinUrls = new Map();
+let activatedStyle = null;
 
 function b64ToBlobUrl(b64, type = 'image/webp') {
   const raw = atob(b64.replace(/\s+/g, ''));
@@ -32,16 +33,29 @@ async function loadSkin(name, count) {
   document.documentElement.style.setProperty(`--mine-skin-${name}`, `url("${url}")`);
 }
 
+function activateReferenceSkin() {
+  if (activatedStyle) return;
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = new URL('../assets/styles/premium-mine-component-skin-v2.css', import.meta.url).href;
+  link.dataset.mineReferenceRaster = 'v2';
+  document.head.appendChild(link);
+  activatedStyle = link;
+  document.documentElement.dataset.mineRasterSkin = 'ready';
+}
+
 Promise.all(Object.entries(MINE_SKINS).map(([name, count]) => loadSkin(name, count)))
-  .then(() => {
-    document.documentElement.dataset.mineRasterSkin = 'ready';
-  })
+  .then(activateReferenceSkin)
   .catch(error => {
+    // Fail closed: the existing working Mine visuals remain active until every
+    // reference component exists. Never activate a partial/broken raster skin.
     console.warn('[NexusNova Mine] reference skin loader:', error);
-    document.documentElement.dataset.mineRasterSkin = 'error';
+    document.documentElement.dataset.mineRasterSkin = 'waiting';
   });
 
 window.addEventListener('pagehide', () => {
+  activatedStyle?.remove();
+  activatedStyle = null;
   skinUrls.forEach(url => URL.revokeObjectURL(url));
   skinUrls.clear();
 }, { once: true });
