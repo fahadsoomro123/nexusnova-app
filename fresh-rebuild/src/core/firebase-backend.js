@@ -15,7 +15,18 @@ export const firebaseConfig = {
   measurementId: 'G-YLPFKWSS12'
 };
 
-export const firebaseApp = getApps()[0] || initializeApp(firebaseConfig);
+function matchesFirebaseConfig(app) {
+  const options = app?.options || {};
+  return options.apiKey === firebaseConfig.apiKey &&
+    options.projectId === firebaseConfig.projectId &&
+    options.appId === firebaseConfig.appId;
+}
+
+const existingFirebaseApp = getApps().find(matchesFirebaseConfig);
+export const firebaseApp = existingFirebaseApp || initializeApp(
+  firebaseConfig,
+  'nexusnova-fresh-web-07f28326e0f15979536640'
+);
 let appCheck = null;
 let appCheckError = '';
 let unsubscribe = null;
