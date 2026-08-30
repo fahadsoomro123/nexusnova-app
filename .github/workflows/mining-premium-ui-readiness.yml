@@ -1,0 +1,57 @@
+name: NexusNova Premium Mining UI Readiness
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'page2.html'
+      - 'css/nexusnova-final-user-fixes-v1.css'
+      - 'js/nexusnova-android-mining-modern-v2.js'
+      - 'js/nexusnova-page2-after-core-v2.js'
+      - 'NexusNovaAndroid/app/src/main/assets/www/css/nexusnova-final-user-fixes-v1.css'
+      - '.github/scripts/mining-premium-ui-smoke.mjs'
+      - '.github/workflows/mining-premium-ui-readiness.yml'
+  pull_request:
+    paths:
+      - 'page2.html'
+      - 'css/nexusnova-final-user-fixes-v1.css'
+      - 'js/nexusnova-android-mining-modern-v2.js'
+      - 'js/nexusnova-page2-after-core-v2.js'
+      - 'NexusNovaAndroid/app/src/main/assets/www/css/nexusnova-final-user-fixes-v1.css'
+      - '.github/scripts/mining-premium-ui-smoke.mjs'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: premium-mining-ui-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  premium-mining-ui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Verify hyper-realistic mining presentation
+        run: node .github/scripts/mining-premium-ui-smoke.mjs
+
+      - name: Verify secure mining architecture still passes
+        run: node .github/scripts/mining-architecture-smoke.mjs
+
+      - name: Publish readiness summary
+        if: always()
+        run: |
+          echo '## NexusNova Premium Mining UI Readiness' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Hyper-realistic 3D mining surface anchors checked' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Android visual parity marker checked' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Halving/FOMO presentation kept truthful and read-only' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Existing secure mining architecture smoke also executed' >> "$GITHUB_STEP_SUMMARY"
