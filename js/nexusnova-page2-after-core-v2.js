@@ -137,6 +137,14 @@
       console.warn('NexusNova compact premium UI:', error);
     }
 
+    // Presentation-only mining polish. It reads the existing secure session and
+    // current halving/rate labels, never writes balances or mining timestamps.
+    try {
+      await import('./nexusnova-android-mining-modern-v2.js?v=4');
+    } catch (error) {
+      console.warn('NexusNova premium mining/halving UI:', error);
+    }
+
     // AI + Community Chat presentation only. Existing Gemini, voice, image,
     // memory and Firestore chat owners remain authoritative.
     try {
