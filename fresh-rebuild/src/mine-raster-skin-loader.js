@@ -1,3 +1,4 @@
+// Reference raster v2 package counts verified for OTA release.
 const MINE_SKINS = {
   header: 2,
   miner: 4,
