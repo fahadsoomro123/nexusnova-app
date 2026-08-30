@@ -23,11 +23,7 @@ function openInNovaBrowser(rawUrl) {
   }
 }
 
-function installMineSiteBridge() {
-  const app = document.getElementById('nx-app');
-  const dock = app?.querySelector('.nx-dock');
-  if (!app || !dock || app.querySelector('[data-mine-site-bridge]')) return;
-
+function createMineSiteBridge() {
   const bridge = document.createElement('button');
   bridge.type = 'button';
   bridge.className = 'nx-mine-site-bridge';
@@ -44,12 +40,44 @@ function installMineSiteBridge() {
     <span class="nx-mine-site-bridge__cta">OPEN <b aria-hidden="true">›</b></span>
   `;
   bridge.addEventListener('click', () => openInNovaBrowser(NEXUSNOVA_TOOLS_URL));
+  return bridge;
+}
 
-  app.insertBefore(bridge, dock);
+function startMineSiteBridge() {
+  const app = document.getElementById('nx-app');
+  const stage = document.getElementById('nx-stage');
+  const dock = app?.querySelector('.nx-dock');
+  if (!app || !stage || !dock) return;
+
+  let bridge = null;
+
+  const sync = () => {
+    const onMine = stage.dataset.route === 'mine';
+
+    if (!onMine) {
+      bridge?.remove();
+      bridge = null;
+      return;
+    }
+
+    if (bridge?.isConnected) return;
+    bridge = createMineSiteBridge();
+    app.insertBefore(bridge, dock);
+  };
+
+  const observer = new MutationObserver(sync);
+  observer.observe(stage, { attributes: true, attributeFilter: ['data-route'] });
+  sync();
+
+  window.addEventListener('pagehide', () => {
+    observer.disconnect();
+    bridge?.remove();
+    bridge = null;
+  }, { once: true });
 }
 
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', installMineSiteBridge, { once: true });
+  document.addEventListener('DOMContentLoaded', startMineSiteBridge, { once: true });
 } else {
-  installMineSiteBridge();
+  startMineSiteBridge();
 }
