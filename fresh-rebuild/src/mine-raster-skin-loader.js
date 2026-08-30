@@ -2,9 +2,14 @@
 const MINE_SKINS = {
   header: 2,
   miner: 4,
-  ring: 3,
   tools: 2,
   dock: 1,
+};
+
+// Ring is loaded as a verified binary WebP extracted from the user-supplied
+// tactile reference. This bypasses the legacy Base64 chunk path entirely.
+const MINE_DIRECT_SKINS = {
+  ring: '../assets/skins/mine-ref-v2-data/ring.fixed.webp',
 };
 
 const OTA_PROOF_ID = 'nx-ota-v2-proof';
@@ -135,18 +140,24 @@ async function fetchText(url, label) {
 
 async function loadSkin(name, count) {
   setProof(`V2 LOAD ${name}`, '#f59e0b');
-  const stem = name;
   const pieces = await Promise.all(
     Array.from({ length: count }, (_, idx) => {
       const part = String(idx + 1).padStart(2, '0');
-      const url = new URL(`../assets/skins/mine-ref-v2-data/${stem}.${part}.b64`, import.meta.url);
-      return fetchText(url, `${stem}.${part}`);
+      const url = new URL(`../assets/skins/mine-ref-v2-data/${name}.${part}.b64`, import.meta.url);
+      return fetchText(url, `${name}.${part}`);
     })
   );
 
   const dataUrl = piecesToDataUrl(pieces, name);
   await verifyImageDataUrl(dataUrl, name);
   document.documentElement.style.setProperty(`--mine-skin-${name}`, `url("${dataUrl}")`);
+}
+
+async function loadDirectSkin(name, relativeUrl) {
+  setProof(`V2 LOAD ${name}`, '#f59e0b');
+  const assetUrl = new URL(relativeUrl, import.meta.url).href;
+  await verifyImageDataUrl(assetUrl, name);
+  document.documentElement.style.setProperty(`--mine-skin-${name}`, `url("${assetUrl}")`);
 }
 
 async function loadReferenceCss() {
@@ -173,6 +184,7 @@ setProof('V2 LOAD', '#f59e0b');
 
 Promise.all([
   ...Object.entries(MINE_SKINS).map(([name, count]) => loadSkin(name, count)),
+  ...Object.entries(MINE_DIRECT_SKINS).map(([name, relativeUrl]) => loadDirectSkin(name, relativeUrl)),
   loadReferenceCss(),
 ])
   .then(results => activateReferenceSkin(results[results.length - 1]))
@@ -185,7 +197,7 @@ Promise.all([
 window.addEventListener('pagehide', () => {
   activatedStyle?.remove();
   activatedStyle = null;
-  Object.keys(MINE_SKINS).forEach(name => {
+  [...Object.keys(MINE_SKINS), ...Object.keys(MINE_DIRECT_SKINS)].forEach(name => {
     document.documentElement.style.removeProperty(`--mine-skin-${name}`);
   });
 }, { once: true });
