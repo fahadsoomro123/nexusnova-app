@@ -120,9 +120,13 @@ jobs:
           git rm -rf .
           cp -a /tmp/nexusnova-ota-package/. .
           git add -A
-          git commit -m "Publish NexusNova differential web OTA $GITHUB_SHA"
-          git pull --rebase origin nexusnova-ota-release
-          git push origin HEAD:nexusnova-ota-release
+          if git diff --cached --quiet; then
+            echo 'Private staging OTA already current.'
+          else
+            git commit -m "Publish NexusNova differential web OTA $GITHUB_SHA"
+            git pull --rebase origin nexusnova-ota-release
+            git push origin HEAD:nexusnova-ota-release
+          fi
 
       - name: Require cross-repo public OTA credential
         shell: bash
