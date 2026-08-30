@@ -12,6 +12,15 @@ const OTA_PROOF_ID = 'nx-ota-v2-proof';
 const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 let activatedStyle = null;
 
+function syncMineViewportHeight() {
+  const viewport = window.visualViewport;
+  const height = Math.max(
+    1,
+    Math.round(viewport?.height || window.innerHeight || document.documentElement.clientHeight || 1)
+  );
+  document.documentElement.style.setProperty('--mine-viewport-height', `${height}px`);
+}
+
 function proofBadge() {
   let badge = document.getElementById(OTA_PROOF_ID);
   if (badge) return badge;
@@ -154,11 +163,13 @@ async function loadReferenceCss() {
   const geometryUrl = new URL('../assets/styles/premium-mine-raster-layout-reset-v3.css', import.meta.url);
   const exactRingUrl = new URL('../assets/styles/premium-mine-ring-reference-exact-v4.css', import.meta.url);
   const polishUrl = new URL('../assets/styles/premium-mine-visual-polish-v5.css', import.meta.url);
-  const [componentCss, geometryCss, exactRingCss, polishCss] = await Promise.all([
+  const viewportUrl = new URL('../assets/styles/premium-mine-viewport-fit-v6.css', import.meta.url);
+  const [componentCss, geometryCss, exactRingCss, polishCss, viewportCss] = await Promise.all([
     fetchText(componentUrl, 'skin-css'),
     fetchText(geometryUrl, 'skin-geometry-css'),
     fetchText(exactRingUrl, 'skin-ring-css'),
     fetchText(polishUrl, 'skin-polish-css'),
+    fetchText(viewportUrl, 'skin-viewport-css'),
   ]);
   if (!componentCss.includes('.nx-screen-head') || !componentCss.includes('--mine-skin-header')) {
     throw new Error('skin-css invalid');
@@ -172,7 +183,10 @@ async function loadReferenceCss() {
   if (!polishCss.includes('#nxEmergencySosButton') || !polishCss.includes('.nx-nebula-core__aura')) {
     throw new Error('skin-polish-css invalid');
   }
-  return `${componentCss}\n${geometryCss}\n${exactRingCss}\n${polishCss}`;
+  if (!viewportCss.includes('--mine-viewport-height') || !viewportCss.includes('.nx-dock')) {
+    throw new Error('skin-viewport-css invalid');
+  }
+  return `${componentCss}\n${geometryCss}\n${exactRingCss}\n${polishCss}\n${viewportCss}`;
 }
 
 function activateReferenceSkin(css) {
@@ -186,6 +200,9 @@ function activateReferenceSkin(css) {
   setProof('V2 READY', '#16a34a');
 }
 
+syncMineViewportHeight();
+window.visualViewport?.addEventListener('resize', syncMineViewportHeight);
+window.addEventListener('resize', syncMineViewportHeight);
 setProof('V2 LOAD', '#f59e0b');
 
 Promise.all([
@@ -202,6 +219,9 @@ Promise.all([
 window.addEventListener('pagehide', () => {
   activatedStyle?.remove();
   activatedStyle = null;
+  window.visualViewport?.removeEventListener('resize', syncMineViewportHeight);
+  window.removeEventListener('resize', syncMineViewportHeight);
+  document.documentElement.style.removeProperty('--mine-viewport-height');
   Object.keys(MINE_SKINS).forEach(name => {
     document.documentElement.style.removeProperty(`--mine-skin-${name}`);
   });
