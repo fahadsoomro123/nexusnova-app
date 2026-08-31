@@ -159,6 +159,6 @@ function enhanceMiningNovaVault(root) {
 export function enhanceMiningApp(id, root) {
   if (!(root instanceof HTMLElement)) return root;
   if (id === 'tasks') enhanceMiningTasks(root);
-  else if (id === 'nova-vault') enhanceMiningNovaVault(root);
+  else if (id === 'nova-vault' && root.dataset.vaultV3Integrated !== 'true') enhanceMiningNovaVault(root);
   return root;
 }
