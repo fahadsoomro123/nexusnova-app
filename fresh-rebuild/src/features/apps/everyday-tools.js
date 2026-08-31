@@ -4,6 +4,7 @@ const KEYS = {
   notes: 'nexus_notes_v1',
   todos: 'nexus_todos_v1',
   expenses: 'nexus_expenses_v1',
+  noteDraft: 'nexus_notes_draft_v1',
   calcHistory: 'nexus_calc_history_v2',
   calcMode: 'nexus_calc_angle_mode_v1',
   calcProfile: 'nexus_calc_profile_v1'
@@ -20,94 +21,265 @@ function money(value) {
   return Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
 
+function ensureEverydayWorkspaceStyles() {
+  if (document.getElementById('nx-everyday-workspace-v1')) return;
+  const style = document.createElement('style');
+  style.id = 'nx-everyday-workspace-v1';
+  style.textContent = `
+    .nx-notes-pro,.nx-todo-pro{--work-x:50%;--work-y:8%;position:relative;isolation:isolate;display:grid;grid-template-rows:auto minmax(0,1fr);gap:8px;max-height:calc(100dvh - 174px);min-height:min(610px,calc(100dvh - 174px));padding:7px;border-radius:28px;overflow:hidden;background:radial-gradient(circle at var(--work-x) var(--work-y),rgba(91,224,255,.13),transparent 25%),radial-gradient(circle at 92% 86%,rgba(117,85,255,.10),transparent 28%),linear-gradient(145deg,#18232c,#0d1620 52%,#091018);box-shadow:inset 0 1px 0 rgba(255,255,255,.12),inset 0 -2px 0 rgba(0,0,0,.72)}
+    .nx-notes-pro::before,.nx-todo-pro::before{content:'';position:absolute;inset:0;z-index:-1;pointer-events:none;background:linear-gradient(108deg,transparent 41%,rgba(255,255,255,.035) 49%,transparent 57%);transform:translateX(-72%);animation:nxEverydaySheen 9s ease-in-out infinite}
+    .nx-notes-pro>.nx-tool-card,.nx-todo-pro>.nx-tool-card{margin:0!important;padding:10px!important;border:1px solid rgba(180,220,240,.14)!important;border-radius:21px!important;background:linear-gradient(135deg,rgba(255,255,255,.052),transparent 20% 82%,rgba(255,255,255,.018)),linear-gradient(155deg,#1a2630,#0c151e 58%,#090f16)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.16),inset 0 -3px 0 rgba(0,0,0,.82),0 10px 22px rgba(0,0,0,.22)!important}
+    .nx-work-head{display:flex;align-items:center;justify-content:space-between;gap:9px;margin-bottom:7px}.nx-work-brand{display:flex;align-items:center;gap:8px;min-width:0}.nx-work-led{width:8px;height:8px;border-radius:50%;background:#5effc9;box-shadow:0 0 0 3px rgba(94,255,201,.07),0 0 13px rgba(94,255,201,.48);animation:nxEverydayLed 2s ease-in-out infinite}.nx-work-brand strong{display:block;color:#ecf9ff;font-size:9px!important;letter-spacing:.10em}.nx-work-brand small{display:block;margin-top:2px;color:#718492;font-size:6.5px;letter-spacing:.055em}.nx-work-count{flex:0 0 auto;padding:5px 7px;border:1px solid rgba(108,220,255,.11);border-radius:999px;background:rgba(73,190,230,.055);color:#83e4ff;font-size:6.5px;font-weight:950;letter-spacing:.07em}
+    .nx-work-form{display:grid;gap:6px}.nx-work-row{display:grid;grid-template-columns:minmax(0,1fr) 92px;gap:6px}.nx-work-row.three{grid-template-columns:minmax(0,1fr) 94px 76px}.nx-work-form input,.nx-work-form textarea,.nx-work-form select,.nx-work-tools input,.nx-work-tools select{width:100%;min-width:0;border:1px solid rgba(121,204,237,.12)!important;border-radius:12px!important;outline:none;background:linear-gradient(180deg,#061017,#03090e)!important;color:#eefaff!important;box-shadow:inset 0 3px 9px rgba(0,0,0,.72),inset 0 -1px 0 rgba(255,255,255,.035)!important;font-size:9px!important}.nx-work-form input,.nx-work-form select,.nx-work-tools input,.nx-work-tools select{min-height:37px!important;padding:8px 10px!important}.nx-work-form textarea{min-height:70px!important;max-height:86px!important;padding:9px 10px!important;resize:none;line-height:1.42}.nx-work-form input:focus,.nx-work-form textarea:focus,.nx-work-form select:focus,.nx-work-tools input:focus,.nx-work-tools select:focus{border-color:rgba(91,224,255,.33)!important;box-shadow:inset 0 3px 9px rgba(0,0,0,.72),0 0 0 2px rgba(91,224,255,.06)!important}
+    .nx-work-actions{display:grid;grid-template-columns:minmax(0,1fr) 84px;gap:6px}.nx-work-actions button,.nx-work-tools button,.nx-note-card button,.nx-todo-card button{min-height:35px;border:1px solid rgba(114,224,255,.17);border-radius:11px;background:linear-gradient(180deg,#246c87,#114354);box-shadow:inset 0 1px 1px rgba(255,255,255,.18),inset 0 -4px 6px rgba(0,0,0,.20),0 3px 0 #061d26,0 6px 9px rgba(0,0,0,.17);color:#effcff;font-size:7px;font-weight:1000;letter-spacing:.06em;transform:translateY(-1px);transition:transform .08s ease,box-shadow .08s ease}.nx-work-actions button:active,.nx-work-tools button:active,.nx-note-card button:active,.nx-todo-card button:active{transform:translateY(2px)!important;box-shadow:inset 0 3px 6px rgba(0,0,0,.28),0 1px 0 #061d26!important}.nx-work-actions .secondary{border-color:rgba(192,167,255,.13);background:linear-gradient(180deg,#3a3152,#211b31);box-shadow:inset 0 1px 1px rgba(255,255,255,.14),inset 0 -4px 6px rgba(0,0,0,.2),0 3px 0 #100b18,0 6px 9px rgba(0,0,0,.16);color:#e0d6ff}
+    .nx-work-deck{min-height:0;display:grid;grid-template-rows:auto minmax(0,1fr);padding:9px!important}.nx-work-tools{display:grid;grid-template-columns:minmax(0,1fr) 92px;gap:6px;margin-bottom:7px}.nx-work-tools.todo{grid-template-columns:repeat(4,minmax(0,1fr));padding:4px;border:1px solid rgba(139,202,231,.09);border-radius:12px;background:rgba(2,8,13,.5)}.nx-work-tools.todo button{min-height:30px!important;border-color:transparent;background:transparent;box-shadow:none;color:#70828f}.nx-work-tools.todo button.is-active{border-color:rgba(105,225,255,.15);background:linear-gradient(180deg,#1d4658,#102a37);box-shadow:inset 0 1px 0 rgba(255,255,255,.09),0 2px 0 #06141c;color:#c7f7ff}
+    .nx-work-list{min-height:0;overflow:auto;overscroll-behavior:contain;display:grid;align-content:start;gap:7px;padding:1px 2px 5px;scrollbar-width:thin}.nx-work-list::-webkit-scrollbar{width:4px}.nx-work-list::-webkit-scrollbar-thumb{border-radius:999px;background:rgba(110,204,236,.18)}
+    .nx-note-card,.nx-todo-card{position:relative;overflow:hidden;border:1px solid rgba(160,210,235,.10);border-radius:15px;background:linear-gradient(145deg,rgba(255,255,255,.045),transparent 28%),linear-gradient(155deg,#17242d,#0b151d 67%,#081016);box-shadow:inset 0 1px 0 rgba(255,255,255,.10),inset 0 -2px 0 rgba(0,0,0,.52),0 4px 0 rgba(3,8,12,.62),0 8px 15px rgba(0,0,0,.14);transition:transform .10s ease,box-shadow .10s ease}.nx-note-card:active,.nx-todo-card:active{transform:translateY(2px);box-shadow:inset 0 2px 5px rgba(0,0,0,.24),0 1px 0 rgba(3,8,12,.68)}
+    .nx-note-card{padding:9px 10px 8px;border-left:3px solid rgba(84,219,255,.32)}.nx-note-card.pinned{border-left-color:#ffc86d;background:linear-gradient(145deg,rgba(255,203,105,.055),transparent 30%),linear-gradient(155deg,#1d292d,#10181e 68%,#0a1015)}.nx-note-head{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:start}.nx-note-title{min-width:0}.nx-note-title strong{display:block;color:#f5fbff;font-size:10px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.nx-note-meta{display:flex;align-items:center;gap:5px;margin-top:3px;color:#728491;font-size:6.2px}.nx-note-tag{padding:2px 5px;border-radius:999px;border:1px solid rgba(88,218,255,.11);background:rgba(88,218,255,.045);color:#8edff3;font-weight:900;letter-spacing:.04em}.nx-note-body{margin:6px 0 0;color:#9eafbb;font-size:8px;line-height:1.38;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}.nx-note-actions{display:flex;gap:4px}.nx-note-actions button{width:30px;min-height:28px!important;padding:0!important;font-size:9px!important;letter-spacing:0}.nx-note-actions .pin{color:#ffd789}.nx-note-actions .delete{border-color:rgba(255,101,126,.12);background:linear-gradient(180deg,#4b2630,#281218);box-shadow:inset 0 1px rgba(255,255,255,.08),0 2px 0 #16090d;color:#ff9aae}
+    .nx-todo-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin-bottom:7px}.nx-todo-summary>div{padding:6px 7px;border:1px solid rgba(133,206,232,.09);border-radius:11px;background:linear-gradient(180deg,rgba(255,255,255,.035),rgba(0,0,0,.10));box-shadow:inset 0 1px rgba(255,255,255,.04)}.nx-todo-summary span{display:block;color:#6f818e;font-size:5.8px;font-weight:900;letter-spacing:.07em}.nx-todo-summary strong{display:block;margin-top:2px;color:#e9f8ff;font-size:11px;font-variant-numeric:tabular-nums}.nx-todo-card{display:grid;grid-template-columns:31px minmax(0,1fr) auto;gap:8px;align-items:center;padding:8px 9px}.nx-todo-check{width:31px;height:31px;display:grid;place-items:center;border-radius:10px;border:1px solid rgba(107,223,255,.14);background:linear-gradient(180deg,#173849,#0c202a);box-shadow:inset 0 1px rgba(255,255,255,.09),0 2px 0 #06151c}.nx-todo-check input{width:15px;height:15px;accent-color:#40e5b5}.nx-todo-copy{min-width:0}.nx-todo-copy strong{display:block;color:#effaff;font-size:9px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.nx-todo-copy small{display:flex;align-items:center;gap:5px;margin-top:3px;color:#708390;font-size:6.1px}.nx-todo-priority{padding:2px 5px;border-radius:999px;font-weight:950;letter-spacing:.04em}.nx-todo-priority.high{color:#ff9faf;background:rgba(255,88,118,.07);border:1px solid rgba(255,88,118,.10)}.nx-todo-priority.normal{color:#8be7ff;background:rgba(70,203,255,.06);border:1px solid rgba(70,203,255,.09)}.nx-todo-priority.low{color:#a8d49e;background:rgba(100,205,126,.05);border:1px solid rgba(100,205,126,.08)}.nx-todo-due.overdue{color:#ff8ea4}.nx-todo-due.today{color:#ffd37b}.nx-todo-card.done{opacity:.58}.nx-todo-card.done .nx-todo-copy strong{text-decoration:line-through;color:#81919b}.nx-todo-delete{width:31px;min-height:29px!important;padding:0!important;border-color:rgba(255,101,126,.12)!important;background:linear-gradient(180deg,#4b2630,#281218)!important;box-shadow:inset 0 1px rgba(255,255,255,.08),0 2px 0 #16090d!important;color:#ff9aae!important;font-size:10px!important}
+    .nx-work-empty{height:100%;min-height:92px;display:grid;place-items:center;padding:18px;text-align:center;border:1px dashed rgba(130,205,233,.10);border-radius:15px;background:rgba(4,12,18,.28);color:#657987;font-size:8px;line-height:1.45}
+    .nx-todo-footer{display:flex;justify-content:flex-end;margin-top:6px}.nx-todo-footer button{min-height:28px!important;padding:0 8px!important;border:1px solid rgba(255,116,139,.10);border-radius:9px;background:rgba(255,88,118,.045);color:#ff9aad;font-size:6.2px;font-weight:950;letter-spacing:.06em}
+    @keyframes nxEverydaySheen{0%,24%{transform:translateX(-74%)}66%,100%{transform:translateX(74%)}}@keyframes nxEverydayLed{0%,100%{opacity:.62}50%{opacity:1}}
+    @media(max-width:390px){.nx-notes-pro,.nx-todo-pro{padding:5px;gap:6px}.nx-notes-pro>.nx-tool-card,.nx-todo-pro>.nx-tool-card{padding:8px!important}.nx-work-row{grid-template-columns:minmax(0,1fr) 82px}.nx-work-row.three{grid-template-columns:minmax(0,1fr) 83px 68px}.nx-work-form textarea{min-height:62px!important;max-height:70px!important}.nx-work-tools{grid-template-columns:minmax(0,1fr) 82px}.nx-todo-card{grid-template-columns:28px minmax(0,1fr) 28px;gap:6px;padding:7px}.nx-todo-check,.nx-todo-delete{width:28px}}
+    @media(max-height:720px){.nx-notes-pro,.nx-todo-pro{min-height:0}.nx-work-form textarea{min-height:52px!important;max-height:55px!important}.nx-work-brand small{display:none}.nx-work-head{margin-bottom:5px}.nx-work-form{gap:4px}.nx-work-list{gap:5px}.nx-note-body{-webkit-line-clamp:1}.nx-todo-summary{margin-bottom:5px}.nx-work-actions button{min-height:31px}}
+    @media(prefers-reduced-motion:reduce){.nx-notes-pro::before,.nx-todo-pro::before,.nx-work-led{animation:none!important}}
+  `;
+  document.head.appendChild(style);
+}
+
+function attachEverydayTactileLight(root) {
+  const move = event => {
+    const rect = root.getBoundingClientRect();
+    root.style.setProperty('--work-x', `${((event.clientX - rect.left) / Math.max(1, rect.width)) * 100}%`);
+    root.style.setProperty('--work-y', `${((event.clientY - rect.top) / Math.max(1, rect.height)) * 100}%`);
+  };
+  root.addEventListener('pointermove', move, { passive:true });
+  return () => root.removeEventListener('pointermove', move);
+}
+
 export function renderNotes() {
+  ensureEverydayWorkspaceStyles();
   const root = node(`
     <section class="nx-tool-card">
-      <label class="nx-field"><span>Title</span><input data-note-title maxlength="100" placeholder="Note title"></label>
-      <label class="nx-field"><span>Note</span><textarea data-note-body maxlength="3000" rows="5" placeholder="Write something useful…"></textarea></label>
-      <button class="nx-primary" type="button" data-add-note>ADD NOTE</button>
+      <div class="nx-work-head"><div class="nx-work-brand"><i class="nx-work-led"></i><div><strong>NOTE VAULT</strong><small>LOCAL • PRIVATE • FAST CAPTURE</small></div></div><span class="nx-work-count" data-note-count>0 NOTES</span></div>
+      <div class="nx-work-form">
+        <div class="nx-work-row"><input data-note-title maxlength="100" placeholder="Title"><input data-note-tag maxlength="24" placeholder="Tag"></div>
+        <textarea data-note-body maxlength="3000" rows="3" placeholder="Capture an idea, plan, code snippet or reminder…"></textarea>
+        <div class="nx-work-row three"><label class="nx-work-pin"><select data-note-pin aria-label="Pin note"><option value="0">NORMAL</option><option value="1">PINNED</option></select></label><button class="secondary" type="button" data-note-new>NEW</button><button type="button" data-note-save>SAVE</button></div>
+      </div>
     </section>
-    <section class="nx-stack" data-note-list></section>
+    <section class="nx-tool-card nx-work-deck">
+      <div class="nx-work-tools"><input data-note-search type="search" placeholder="Search notes or tags"><select data-note-sort aria-label="Sort notes"><option value="recent">RECENT</option><option value="title">A → Z</option></select></div>
+      <div class="nx-work-list" data-note-list></div>
+    </section>
   `);
+  root.classList.add('nx-notes-pro');
   const title = root.querySelector('[data-note-title]');
+  const tag = root.querySelector('[data-note-tag]');
   const body = root.querySelector('[data-note-body]');
+  const pin = root.querySelector('[data-note-pin]');
+  const search = root.querySelector('[data-note-search]');
+  const sort = root.querySelector('[data-note-sort]');
   const list = root.querySelector('[data-note-list]');
+  const count = root.querySelector('[data-note-count]');
+  const saveButton = root.querySelector('[data-note-save]');
+  let editingId = '';
 
-  const draw = () => {
+  const read = () => {
     const notes = loadJson(KEYS.notes, []);
-    list.innerHTML = notes.length ? notes.map(note => `
-      <article class="nx-list-card">
-        <div class="nx-list-card__head"><strong>${escapeHtml(note.title || 'Untitled')}</strong><button class="nx-icon-button" type="button" data-delete-note="${escapeHtml(note.id)}" aria-label="Delete note">×</button></div>
-        <p>${escapeHtml(note.body || '').replace(/\n/g, '<br>')}</p>
-        <small>${new Date(note.at).toLocaleString()}</small>
-      </article>
-    `).join('') : '<div class="nx-empty">No notes yet.</div>';
-    list.querySelectorAll('[data-delete-note]').forEach(button => button.addEventListener('click', () => {
-      saveJson(KEYS.notes, loadJson(KEYS.notes, []).filter(item => item.id !== button.dataset.deleteNote));
+    return Array.isArray(notes) ? notes : [];
+  };
+  const persistDraft = () => saveJson(KEYS.noteDraft, { title:title.value, tag:tag.value, body:body.value, pinned:pin.value === '1' });
+  const resetEditor = ({ clearDraft = true } = {}) => {
+    editingId = '';
+    title.value = '';
+    tag.value = '';
+    body.value = '';
+    pin.value = '0';
+    saveButton.textContent = 'SAVE';
+    if (clearDraft) saveJson(KEYS.noteDraft, {});
+  };
+  const startEdit = note => {
+    editingId = note.id;
+    title.value = note.title || '';
+    tag.value = note.tag || '';
+    body.value = note.body || '';
+    pin.value = note.pinned ? '1' : '0';
+    saveButton.textContent = 'UPDATE';
+    persistDraft();
+    title.focus();
+  };
+  const draw = () => {
+    const notes = read();
+    const q = search.value.trim().toLowerCase();
+    let visible = q ? notes.filter(note => `${note.title || ''} ${note.body || ''} ${note.tag || ''}`.toLowerCase().includes(q)) : [...notes];
+    visible.sort((a,b) => {
+      if (Boolean(a.pinned) !== Boolean(b.pinned)) return a.pinned ? -1 : 1;
+      if (sort.value === 'title') return String(a.title || '').localeCompare(String(b.title || ''));
+      return new Date(b.updatedAt || b.at || 0) - new Date(a.updatedAt || a.at || 0);
+    });
+    count.textContent = `${notes.length} NOTE${notes.length === 1 ? '' : 'S'} • ${notes.filter(note => note.pinned).length} PIN`;
+    list.innerHTML = visible.length ? visible.map(note => {
+      const when = note.updatedAt || note.at;
+      return `<article class="nx-note-card ${note.pinned ? 'pinned' : ''}">
+        <div class="nx-note-head"><div class="nx-note-title"><strong>${escapeHtml(note.title || 'Untitled')}</strong><div class="nx-note-meta">${note.tag ? `<span class="nx-note-tag">${escapeHtml(note.tag)}</span>` : ''}<span>${when ? new Date(when).toLocaleString([], {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : 'Local note'}</span></div></div><div class="nx-note-actions"><button class="pin" type="button" data-note-toggle-pin="${escapeHtml(note.id)}" aria-label="${note.pinned ? 'Unpin' : 'Pin'} note">${note.pinned ? '◆' : '◇'}</button><button type="button" data-note-edit="${escapeHtml(note.id)}" aria-label="Edit note">✎</button><button class="delete" type="button" data-note-delete="${escapeHtml(note.id)}" aria-label="Delete note">×</button></div></div>
+        <p class="nx-note-body">${escapeHtml(note.body || 'No note body').replace(/\n/g, '<br>')}</p>
+      </article>`;
+    }).join('') : `<div class="nx-work-empty">${q ? 'No note matches this search.' : 'Your private note vault is empty. Create the first note above.'}</div>`;
+    list.querySelectorAll('[data-note-edit]').forEach(button => button.addEventListener('click', () => {
+      const note = read().find(item => item.id === button.dataset.noteEdit);
+      if (note) startEdit(note);
+    }));
+    list.querySelectorAll('[data-note-toggle-pin]').forEach(button => button.addEventListener('click', () => {
+      const notes = read();
+      const note = notes.find(item => item.id === button.dataset.noteTogglePin);
+      if (!note) return;
+      note.pinned = !note.pinned;
+      note.updatedAt = new Date().toISOString();
+      saveJson(KEYS.notes, notes);
+      draw();
+    }));
+    list.querySelectorAll('[data-note-delete]').forEach(button => button.addEventListener('click', () => {
+      const id = button.dataset.noteDelete;
+      saveJson(KEYS.notes, read().filter(item => item.id !== id));
+      if (editingId === id) resetEditor();
       draw();
     }));
   };
-
-  root.querySelector('[data-add-note]').addEventListener('click', () => {
+  const save = () => {
     const noteTitle = title.value.trim();
     const noteBody = body.value.trim();
+    const noteTag = tag.value.trim();
     if (!noteTitle && !noteBody) return;
-    const notes = loadJson(KEYS.notes, []);
-    notes.unshift({ id: uid('note'), title: noteTitle || 'Untitled', body: noteBody, at: new Date().toISOString() });
-    saveJson(KEYS.notes, notes.slice(0, 250));
-    title.value = '';
-    body.value = '';
+    const notes = read();
+    const now = new Date().toISOString();
+    if (editingId) {
+      const note = notes.find(item => item.id === editingId);
+      if (note) Object.assign(note, { title:noteTitle || 'Untitled', body:noteBody, tag:noteTag, pinned:pin.value === '1', updatedAt:now });
+    } else {
+      notes.unshift({ id:uid('note'), title:noteTitle || 'Untitled', body:noteBody, tag:noteTag, pinned:pin.value === '1', at:now, updatedAt:now });
+    }
+    saveJson(KEYS.notes, notes.slice(0,250));
+    resetEditor();
     draw();
-  });
+  };
+  [title, tag, body, pin].forEach(element => element.addEventListener('input', persistDraft));
+  search.addEventListener('input', draw);
+  sort.addEventListener('change', draw);
+  saveButton.addEventListener('click', save);
+  root.querySelector('[data-note-new]').addEventListener('click', () => resetEditor());
+  body.addEventListener('keydown', event => { if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); save(); } });
+  const draft = loadJson(KEYS.noteDraft, {});
+  if (draft && typeof draft === 'object') {
+    title.value = String(draft.title || '');
+    tag.value = String(draft.tag || '');
+    body.value = String(draft.body || '');
+    pin.value = draft.pinned ? '1' : '0';
+  }
+  const detachLight = attachEverydayTactileLight(root);
+  root.__cleanup = detachLight;
   draw();
   return root;
 }
 
 export function renderTodo() {
+  ensureEverydayWorkspaceStyles();
   const root = node(`
     <section class="nx-tool-card">
-      <div class="nx-inline-field"><input data-todo-input maxlength="240" placeholder="Add a task"><button type="button" data-add-todo>ADD</button></div>
-      <div class="nx-tool-meta" data-todo-stats></div>
+      <div class="nx-work-head"><div class="nx-work-brand"><i class="nx-work-led"></i><div><strong>MISSION BOARD</strong><small>PRIORITY • DUE DATE • FOCUS QUEUE</small></div></div><span class="nx-work-count" data-todo-count>0 TASKS</span></div>
+      <div class="nx-work-form">
+        <div class="nx-work-row"><input data-todo-input maxlength="240" placeholder="What needs to get done?"><select data-todo-priority><option value="normal">NORMAL</option><option value="high">HIGH</option><option value="low">LOW</option></select></div>
+        <div class="nx-work-actions"><input type="date" data-todo-due aria-label="Due date"><button type="button" data-add-todo>ADD TASK</button></div>
+      </div>
     </section>
-    <section class="nx-stack" data-todo-list></section>
+    <section class="nx-tool-card nx-work-deck">
+      <div><div class="nx-todo-summary"><div><span>ACTIVE</span><strong data-todo-active>0</strong></div><div><span>TODAY</span><strong data-todo-today>0</strong></div><div><span>DONE</span><strong data-todo-done>0</strong></div></div><div class="nx-work-tools todo" data-todo-filters><button type="button" data-filter="active" class="is-active">ACTIVE</button><button type="button" data-filter="today">TODAY</button><button type="button" data-filter="all">ALL</button><button type="button" data-filter="done">DONE</button></div></div>
+      <div class="nx-work-list" data-todo-list></div>
+      <div class="nx-todo-footer"><button type="button" data-clear-done>CLEAR COMPLETED</button></div>
+    </section>
   `);
+  root.classList.add('nx-todo-pro');
   const input = root.querySelector('[data-todo-input]');
+  const priority = root.querySelector('[data-todo-priority]');
+  const due = root.querySelector('[data-todo-due]');
   const list = root.querySelector('[data-todo-list]');
-  const stats = root.querySelector('[data-todo-stats]');
+  const count = root.querySelector('[data-todo-count]');
+  const activeEl = root.querySelector('[data-todo-active]');
+  const todayEl = root.querySelector('[data-todo-today]');
+  const doneEl = root.querySelector('[data-todo-done]');
+  let filter = 'active';
 
-  const draw = () => {
+  const read = () => {
     const todos = loadJson(KEYS.todos, []);
-    stats.textContent = `${todos.filter(item => !item.done).length} remaining • ${todos.length} total`;
-    list.innerHTML = todos.length ? todos.map(todo => `
-      <article class="nx-list-card nx-todo-row ${todo.done ? 'done' : ''}">
-        <label><input type="checkbox" data-toggle-todo="${escapeHtml(todo.id)}" ${todo.done ? 'checked' : ''}><span>${escapeHtml(todo.text)}</span></label>
-        <button class="nx-icon-button" type="button" data-delete-todo="${escapeHtml(todo.id)}" aria-label="Delete task">×</button>
-      </article>
-    `).join('') : '<div class="nx-empty">No tasks yet.</div>';
+    return Array.isArray(todos) ? todos : [];
+  };
+  const todayKey = () => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth()+1).padStart(2,'0');
+    const d = String(now.getDate()).padStart(2,'0');
+    return `${y}-${m}-${d}`;
+  };
+  const dueTone = task => {
+    if (!task.due || task.done) return '';
+    const today = todayKey();
+    if (task.due < today) return 'overdue';
+    if (task.due === today) return 'today';
+    return '';
+  };
+  const draw = () => {
+    const todos = read();
+    const today = todayKey();
+    const active = todos.filter(item => !item.done);
+    const todayTasks = todos.filter(item => !item.done && item.due === today);
+    const done = todos.filter(item => item.done);
+    count.textContent = `${todos.length} TASK${todos.length === 1 ? '' : 'S'}`;
+    activeEl.textContent = active.length;
+    todayEl.textContent = todayTasks.length;
+    doneEl.textContent = done.length;
+    let visible = filter === 'active' ? active : filter === 'today' ? todayTasks : filter === 'done' ? done : [...todos];
+    const priorityRank = { high:0, normal:1, low:2 };
+    visible.sort((a,b) => Number(Boolean(a.done)) - Number(Boolean(b.done)) || (priorityRank[a.priority || 'normal'] - priorityRank[b.priority || 'normal']) || String(a.due || '9999-99-99').localeCompare(String(b.due || '9999-99-99')) || new Date(b.updatedAt || b.at || 0) - new Date(a.updatedAt || a.at || 0));
+    list.innerHTML = visible.length ? visible.map(task => {
+      const p = ['high','normal','low'].includes(task.priority) ? task.priority : 'normal';
+      const tone = dueTone(task);
+      const dueText = task.due ? (tone === 'today' ? 'DUE TODAY' : tone === 'overdue' ? `OVERDUE • ${task.due}` : `DUE • ${task.due}`) : 'NO DUE DATE';
+      return `<article class="nx-todo-card ${task.done ? 'done' : ''}"><label class="nx-todo-check"><input type="checkbox" data-toggle-todo="${escapeHtml(task.id)}" ${task.done ? 'checked' : ''} aria-label="Toggle task"></label><div class="nx-todo-copy"><strong>${escapeHtml(task.text)}</strong><small><span class="nx-todo-priority ${p}">${p.toUpperCase()}</span><span class="nx-todo-due ${tone}">${escapeHtml(dueText)}</span></small></div><button class="nx-todo-delete" type="button" data-delete-todo="${escapeHtml(task.id)}" aria-label="Delete task">×</button></article>`;
+    }).join('') : `<div class="nx-work-empty">${filter === 'done' ? 'No completed tasks yet.' : filter === 'today' ? 'Nothing due today.' : filter === 'active' ? 'Mission board clear. Add your next task above.' : 'No tasks yet.'}</div>`;
     list.querySelectorAll('[data-toggle-todo]').forEach(check => check.addEventListener('change', () => {
-      const todos = loadJson(KEYS.todos, []);
+      const todos = read();
       const item = todos.find(todo => todo.id === check.dataset.toggleTodo);
-      if (item) item.done = check.checked;
+      if (item) { item.done = check.checked; item.completedAt = check.checked ? new Date().toISOString() : ''; item.updatedAt = new Date().toISOString(); }
       saveJson(KEYS.todos, todos);
       draw();
     }));
     list.querySelectorAll('[data-delete-todo]').forEach(button => button.addEventListener('click', () => {
-      saveJson(KEYS.todos, loadJson(KEYS.todos, []).filter(item => item.id !== button.dataset.deleteTodo));
+      saveJson(KEYS.todos, read().filter(item => item.id !== button.dataset.deleteTodo));
       draw();
     }));
   };
-
   const add = () => {
     const text = input.value.trim();
     if (!text) return;
-    const todos = loadJson(KEYS.todos, []);
-    todos.unshift({ id: uid('todo'), text, done: false, at: new Date().toISOString() });
-    saveJson(KEYS.todos, todos.slice(0, 500));
+    const todos = read();
+    const now = new Date().toISOString();
+    todos.unshift({ id:uid('todo'), text, done:false, priority:priority.value, due:due.value || '', at:now, updatedAt:now });
+    saveJson(KEYS.todos, todos.slice(0,500));
     input.value = '';
+    due.value = '';
+    priority.value = 'normal';
     draw();
   };
   root.querySelector('[data-add-todo]').addEventListener('click', add);
   input.addEventListener('keydown', event => { if (event.key === 'Enter') add(); });
+  root.querySelectorAll('[data-filter]').forEach(button => button.addEventListener('click', () => {
+    filter = button.dataset.filter;
+    root.querySelectorAll('[data-filter]').forEach(item => item.classList.toggle('is-active', item === button));
+    draw();
+  }));
+  root.querySelector('[data-clear-done]').addEventListener('click', () => { saveJson(KEYS.todos, read().filter(item => !item.done)); draw(); });
+  const detachLight = attachEverydayTactileLight(root);
+  root.__cleanup = detachLight;
   draw();
   return root;
 }
