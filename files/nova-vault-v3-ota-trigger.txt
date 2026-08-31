@@ -1,4 +1,4 @@
-Nova Vault reference-geometry OTA release trigger.
-Scope: Nova Vault visual + single OPEN VAULT normal/10X flow only.
-Reference base: 1024x1536 approved Nova Vault mockup measured into responsive viewport ratios.
-No image-background hack. No SOS, Mine screen, mining backend, auth, dock, or unrelated app changes.
+Nova Vault raster-reference v5 release marker.
+Scope: Nova Vault visual only + existing secure OPEN VAULT / 10X / inventory flows.
+Approved source: user-supplied 1024x1536 Nova Vault base, implemented as direct binary WebP raster skin with live controls overlaid.
+No SOS, Mine screen, mining backend, auth, dock, or unrelated app changes.
