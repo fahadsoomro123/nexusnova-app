@@ -1,3 +1,4 @@
+# Trigger Nova Vault Firebase deploy after credential setup
 name: NexusNova Nova Vault Functions Release
 
 on:
