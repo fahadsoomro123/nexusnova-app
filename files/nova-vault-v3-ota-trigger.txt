@@ -1,5 +1,0 @@
-Nova Vault raster-reference v5 release marker.
-Scope: Nova Vault visual only + existing secure OPEN VAULT / 10X / inventory flows.
-Approved source: user-supplied 1024x1536 Nova Vault base, implemented as direct binary WebP raster skin with live controls overlaid.
-No SOS, Mine screen, mining backend, auth, dock, or unrelated app changes.
-Build commit target: 9161c72982d0d6572fa049ac7dbf31e0688a9950

@@ -1,1 +1,0 @@
-Exact Mine ring uses direct binary WebP files from the user-supplied reference. Do not convert these assets back to giant single Base64 text files.
