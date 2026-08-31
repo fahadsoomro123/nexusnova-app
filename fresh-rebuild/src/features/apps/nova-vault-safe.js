@@ -3,8 +3,12 @@ import { doc, onSnapshot } from 'https://www.gstatic.com/firebasejs/12.1.0/fireb
 import { firebaseApp, firestoreDb, requireFirebaseUser } from '../../core/firebase-backend.js';
 import { nativeAds } from '../../core/native-ads.js';
 
-const NOVA_VAULT_REFERENCE_URL = new URL('../../../assets/skins/nova-vault-ref-v5/reference.webp', import.meta.url);
-const NOVA_VAULT_SOURCE_RATIO = 2 / 3;
+const NOVA_VAULT_RASTER_PARTS = 12;
+const NOVA_VAULT_RASTER_BASE = new URL('../../../assets/skins/nova-vault-ref-v9-data/', import.meta.url);
+const NOVA_VAULT_SOURCE_WIDTH = 512;
+const NOVA_VAULT_SOURCE_HEIGHT = 712;
+const NOVA_VAULT_SOURCE_BYTES = 107442;
+const NOVA_VAULT_SOURCE_RATIO = NOVA_VAULT_SOURCE_WIDTH / NOVA_VAULT_SOURCE_HEIGHT;
 let vaultRasterUrl = null;
 let vaultRasterPromise = null;
 let vaultRasterRefs = 0;
@@ -29,7 +33,11 @@ function verifyRasterUrl(url) {
       const width = image.naturalWidth || 0;
       const height = image.naturalHeight || 0;
       const ratio = height ? width / height : 0;
-      if (width < 512 || height < 768 || Math.abs(ratio - NOVA_VAULT_SOURCE_RATIO) > 0.025) {
+      if (
+        width !== NOVA_VAULT_SOURCE_WIDTH ||
+        height !== NOVA_VAULT_SOURCE_HEIGHT ||
+        Math.abs(ratio - NOVA_VAULT_SOURCE_RATIO) > 0.001
+      ) {
         reject(new Error(`Nova Vault reference dimensions ${width}x${height}`));
         return;
       }
@@ -40,14 +48,36 @@ function verifyRasterUrl(url) {
   });
 }
 
+async function loadVaultRasterBytes() {
+  const chunks = [];
+  for (let index = 1; index <= NOVA_VAULT_RASTER_PARTS; index += 1) {
+    const partName = `reference.${String(index).padStart(2, '0')}.b64`;
+    const response = await fetch(new URL(partName, NOVA_VAULT_RASTER_BASE), { cache:'no-store' });
+    if (!response.ok) throw new Error(`Nova Vault raster part ${index} HTTP ${response.status}`);
+    const text = (await response.text()).replace(/\s+/g, '');
+    if (!text) throw new Error(`Nova Vault raster part ${index} is empty`);
+    chunks.push(text);
+  }
+  const encoded = chunks.join('');
+  const binary = atob(encoded);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  if (bytes.byteLength !== NOVA_VAULT_SOURCE_BYTES) {
+    throw new Error(`Nova Vault raster byte size ${bytes.byteLength}`);
+  }
+  const ascii = offset => String.fromCharCode(...bytes.subarray(offset, offset + 4));
+  if (ascii(0) !== 'RIFF' || ascii(8) !== 'WEBP') {
+    throw new Error('Nova Vault raster container signature is invalid');
+  }
+  return bytes;
+}
+
 async function prepareVaultRasterUrl() {
   if (vaultRasterUrl) return vaultRasterUrl;
   if (vaultRasterPromise) return vaultRasterPromise;
   vaultRasterPromise = (async () => {
-    const response = await fetch(NOVA_VAULT_REFERENCE_URL, { cache:'no-store' });
-    if (!response.ok) throw new Error(`Nova Vault reference HTTP ${response.status}`);
-    const blob = await response.blob();
-    if (blob.size < 4096) throw new Error('Nova Vault reference asset is incomplete');
+    const bytes = await loadVaultRasterBytes();
+    const blob = new Blob([bytes], { type:'image/webp' });
     const objectUrl = URL.createObjectURL(blob);
     try {
       await verifyRasterUrl(objectUrl);
