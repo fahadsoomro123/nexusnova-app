@@ -2,6 +2,7 @@ import { everydayPremiumRenderers } from './everyday-premium-labs.js';
 import { everydayFocusHealthRenderers } from './everyday-premium-focus-health.js';
 import { everydayTimeQrRenderers } from './everyday-premium-time-qr.js';
 import { liveLocalCockpitRenderers } from './live-local-premium-skin.js';
+// Qibla intentionally uses the restored live-local renderer.
 import { liveFeedDeskRenderers } from './live-feed-premium-skin.js';
 import { liveLocationDriveRenderers } from './live-location-drive-skin.js';
 import { discoverSafeDeskRenderers } from './discover-premium-safe.js';
