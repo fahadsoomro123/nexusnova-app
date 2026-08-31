@@ -1,3 +1,4 @@
-Nova Vault v3 OTA release trigger.
+Nova Vault reference-geometry OTA release trigger.
 Scope: Nova Vault visual + single OPEN VAULT normal/10X flow only.
-No SOS, Mine screen, mining backend, auth, dock, or unrelated app changes.
+Reference base: 1024x1536 approved Nova Vault mockup measured into responsive viewport ratios.
+No image-background hack. No SOS, Mine screen, mining backend, auth, dock, or unrelated app changes.
