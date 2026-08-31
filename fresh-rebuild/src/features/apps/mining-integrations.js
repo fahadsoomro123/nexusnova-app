@@ -8,7 +8,7 @@ const TASK_SOCIALS = Object.freeze([
     id: 'x',
     label: 'X',
     handle: '@NexusNovaTools',
-    href: 'https://x.com/NexusNovaTools',
+    href: 'https://x.com/intent/follow?screen_name=NexusNovaTools',
     action: 'FOLLOW'
   },
   {
