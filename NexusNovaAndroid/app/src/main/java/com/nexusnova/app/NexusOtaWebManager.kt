@@ -19,6 +19,11 @@ import java.util.concurrent.Executors
  * A package is activated only after every declared file has been downloaded and
  * SHA-256 verified. The manifest must name the exact bundled baseline this APK
  * was built with, so a differential can never be applied to an incompatible app.
+ *
+ * Public raw endpoints can briefly serve an older cached branch snapshot after a
+ * publish. Every startup check therefore uses cache-busting request nonces and a
+ * few bounded retries so a stale CDN response cannot silently strand the phone on
+ * an old renderer.
  */
 class NexusOtaWebManager(context: Context) {
     private val appContext = context.applicationContext
@@ -61,11 +66,34 @@ class NexusOtaWebManager(context: Context) {
 
     fun checkForUpdate(onComplete: (Boolean) -> Unit) {
         EXECUTOR.execute {
-            val updated = try {
-                checkForUpdateBlocking()
-            } catch (error: Throwable) {
-                android.util.Log.w(TAG, "OTA check failed", error)
-                false
+            var updated = false
+            var lastError: Throwable? = null
+            for (attempt in 1..UPDATE_CHECK_ATTEMPTS) {
+                try {
+                    updated = checkForUpdateBlocking(attempt)
+                    lastError = null
+                    if (updated) break
+                } catch (error: Throwable) {
+                    lastError = error
+                    android.util.Log.w(
+                        TAG,
+                        "OTA check attempt $attempt/$UPDATE_CHECK_ATTEMPTS failed",
+                        error
+                    )
+                }
+
+                if (attempt < UPDATE_CHECK_ATTEMPTS) {
+                    try {
+                        Thread.sleep(UPDATE_RETRY_DELAY_MS)
+                    } catch (_: InterruptedException) {
+                        Thread.currentThread().interrupt()
+                        break
+                    }
+                }
+            }
+
+            if (!updated && lastError != null) {
+                android.util.Log.w(TAG, "OTA update unavailable after retries", lastError)
             }
             onComplete(updated)
         }
@@ -85,8 +113,12 @@ class NexusOtaWebManager(context: Context) {
 
     fun activeVersion(): String = prefs.getString(KEY_ACTIVE_VERSION, "")?.trim().orEmpty()
 
-    private fun checkForUpdateBlocking(): Boolean {
-        val manifestText = downloadText(MANIFEST_URL, MAX_MANIFEST_BYTES)
+    private fun checkForUpdateBlocking(attempt: Int): Boolean {
+        val requestNonce = "${System.currentTimeMillis()}-$attempt"
+        val manifestText = downloadText(
+            addQuery(MANIFEST_URL, "n", requestNonce),
+            MAX_MANIFEST_BYTES
+        )
         val manifest = JSONObject(manifestText)
         if (manifest.optInt("schema", 0) != MANIFEST_SCHEMA) {
             throw IOException("Unsupported OTA manifest schema")
@@ -132,7 +164,8 @@ class NexusOtaWebManager(context: Context) {
             entries.forEach { entry ->
                 val output = safeChild(staging, entry.path) ?: throw IOException("Unsafe OTA output path")
                 output.parentFile?.mkdirs()
-                val url = FILE_BASE_URL + encodePath(entry.path)
+                val versionedUrl = addQuery(FILE_BASE_URL + encodePath(entry.path), "v", version)
+                val url = addQuery(versionedUrl, "n", requestNonce)
                 val written = downloadFile(url, output, entry.size)
                 actualTotal += written
                 if (actualTotal > MAX_TOTAL_BYTES) throw IOException("OTA package exceeded size limit")
@@ -226,8 +259,10 @@ class NexusOtaWebManager(context: Context) {
         connection.readTimeout = READ_TIMEOUT_MS
         connection.instanceFollowRedirects = true
         connection.useCaches = false
-        connection.setRequestProperty("User-Agent", "NexusNova-Android-OTA/3")
-        connection.setRequestProperty("Cache-Control", "no-cache")
+        connection.defaultUseCaches = false
+        connection.setRequestProperty("User-Agent", "NexusNova-Android-OTA/4")
+        connection.setRequestProperty("Cache-Control", "no-cache, no-store, max-age=0")
+        connection.setRequestProperty("Pragma", "no-cache")
         connection.connect()
         if (connection.responseCode !in 200..299) {
             val code = connection.responseCode
@@ -258,6 +293,9 @@ class NexusOtaWebManager(context: Context) {
     private fun encodePath(path: String): String = path.split('/').joinToString("/") { segment ->
         URLEncoder.encode(segment, Charsets.UTF_8.name()).replace("+", "%20")
     }
+
+    private fun addQuery(url: String, key: String, value: String): String =
+        Uri.parse(url).buildUpon().appendQueryParameter(key, value).build().toString()
 
     private fun sha256(file: File): String {
         val digest = MessageDigest.getInstance("SHA-256")
@@ -309,6 +347,8 @@ class NexusOtaWebManager(context: Context) {
         const val FILE_BASE_URL = "https://raw.githubusercontent.com/fahadsoomro123/nexusnova-website/nexusnova-ota-public/ota/files/"
         const val CONNECT_TIMEOUT_MS = 8_000
         const val READ_TIMEOUT_MS = 12_000
+        const val UPDATE_CHECK_ATTEMPTS = 4
+        const val UPDATE_RETRY_DELAY_MS = 2_500L
         const val MAX_MANIFEST_BYTES = 1L * 1024L * 1024L
         const val MAX_SINGLE_FILE_BYTES = 20L * 1024L * 1024L
         const val MAX_TOTAL_BYTES = 60L * 1024L * 1024L
