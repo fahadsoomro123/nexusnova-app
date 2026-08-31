@@ -217,7 +217,13 @@ export function renderMarket() {
     list.innerHTML = filtered.length ? filtered.map((coin,index) => {
       const change = Number(coin.price_change_percentage_24h);
       const tone = Number.isFinite(change) ? (change >= 0 ? 'up' : 'down') : '';
-      return `<article class="nx-market-row"><span class="nx-market-rank">${coin.market_cap_rank || index+1}</span><div><strong>${escapeHtml(coin.name)}</strong><small>${escapeHtml(String(coin.symbol || '').toUpperCase())}</small></div><div class="right"><strong>${formatUsd(coin.current_price)}</strong><small class="${tone}">${Number.isFinite(change) ? `${change >= 0 ? '+' : ''}${change.toFixed(2)}%` : '—'}</small></div></article>`;
+      const symbol = String(coin.symbol || '').toUpperCase();
+      const rawImage = String(coin.image || '').trim();
+      const image = /^https:\/\//i.test(rawImage) ? rawImage : '';
+      const logo = image
+        ? `<img src="${escapeHtml(image)}" alt="${escapeHtml(coin.name)} logo" loading="lazy" decoding="async" referrerpolicy="no-referrer">`
+        : `<span class="nx-market-logo-fallback">${escapeHtml(symbol.slice(0,2) || '?')}</span>`;
+      return `<article class="nx-market-row"><div class="nx-market-brandmark"><span class="nx-market-coin-logo">${logo}</span><span class="nx-market-rank">${coin.market_cap_rank || index+1}</span></div><div class="nx-market-copy"><strong>${escapeHtml(coin.name)}</strong><small>${escapeHtml(symbol)}</small></div><div class="right"><strong>${formatUsd(coin.current_price)}</strong><small class="${tone}">${Number.isFinite(change) ? `${change >= 0 ? '+' : ''}${change.toFixed(2)}%` : '—'}</small></div></article>`;
     }).join('') : '<div class="nx-empty">No matching assets.</div>';
   };
   const load = async () => {
