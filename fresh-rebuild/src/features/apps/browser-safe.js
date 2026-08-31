@@ -1,6 +1,7 @@
 import { everydayPremiumRenderers } from './everyday-premium-labs.js';
 import { everydayFocusHealthRenderers } from './everyday-premium-focus-health.js';
 import { everydayTimeQrRenderers } from './everyday-premium-time-qr.js';
+import { liveLocalCockpitRenderers } from './live-local-premium-skin.js';
 
 function node(html) {
   const root = document.createElement('div');
@@ -74,5 +75,6 @@ export const browserSafeRenderers = Object.freeze({
   browser: renderBrowserSafe,
   ...everydayPremiumRenderers,
   ...everydayFocusHealthRenderers,
-  ...everydayTimeQrRenderers
+  ...everydayTimeQrRenderers,
+  ...liveLocalCockpitRenderers
 });
