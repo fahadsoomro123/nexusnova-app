@@ -1,0 +1,105 @@
+name: NexusNova Nova Vault Functions Release
+
+on:
+  push:
+    branches: [nova-sol57-pro-v128]
+    paths:
+      - '.github/workflows/nova-vault-functions-release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-vault-functions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Verify exact Vault function source
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check functions/index.js
+          node --check functions/main.js
+          node --check functions/novaVault10x.js
+          grep -Fq 'exports.openNovaVault=protectedCallable' functions/index.js
+          grep -Fq 'exports.openNovaVaultBoosted=protectedCallable' functions/novaVault10x.js
+          grep -Fq 'Object.assign(exports, require("./index"))' functions/main.js
+          echo 'Nova Vault Functions source: PASS'
+
+      - name: Install Functions dependencies
+        run: npm install --prefix functions --ignore-scripts --no-audit --no-fund
+
+      - name: Load Functions bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const m = require('./functions/main.js');
+          if (typeof m.openNovaVault !== 'function') throw new Error('openNovaVault export missing');
+          if (typeof m.openNovaVaultBoosted !== 'function') throw new Error('openNovaVaultBoosted export missing');
+          console.log('Nova Vault callable exports: PASS');
+          NODE
+
+      - name: Resolve Firebase deploy credential
+        id: auth
+        shell: bash
+        env:
+          SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON || secrets.FIREBASE_SERVICE_ACCOUNT || secrets.GCP_SERVICE_ACCOUNT_JSON || secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN || secrets.FIREBASE_CI_TOKEN || secrets.NEXUSNOVA_FIREBASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -n "${SERVICE_ACCOUNT_JSON:-}" ]; then
+            CRED="$RUNNER_TEMP/nexusnova-firebase-sa.json"
+            printf '%s' "$SERVICE_ACCOUNT_JSON" > "$CRED"
+            python3 - <<PY
+          import json
+          json.load(open('$RUNNER_TEMP/nexusnova-firebase-sa.json', encoding='utf-8'))
+          print('Firebase service-account credential: PRESENT')
+          PY
+            echo "GOOGLE_APPLICATION_CREDENTIALS=$CRED" >> "$GITHUB_ENV"
+            echo 'mode=service-account' >> "$GITHUB_OUTPUT"
+          elif [ -n "${FIREBASE_TOKEN:-}" ]; then
+            echo 'Firebase CI token credential: PRESENT'
+            echo "FIREBASE_DEPLOY_TOKEN=$FIREBASE_TOKEN" >> "$GITHUB_ENV"
+            echo 'mode=token' >> "$GITHUB_OUTPUT"
+          else
+            echo 'No Firebase deployment credential is configured in the known repository secret names.' >&2
+            exit 1
+          fi
+
+      - name: Deploy only Nova Vault callable functions
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.auth.outputs.mode }}" = 'token' ]; then
+            npx --yes firebase-tools@14.12.1 deploy \
+              --only functions:openNovaVault,functions:openNovaVaultBoosted \
+              --project nexusnova-6ade2 \
+              --token "$FIREBASE_DEPLOY_TOKEN" \
+              --non-interactive
+          else
+            npx --yes firebase-tools@14.12.1 deploy \
+              --only functions:openNovaVault,functions:openNovaVaultBoosted \
+              --project nexusnova-6ade2 \
+              --non-interactive
+          fi
+
+      - name: Record release result
+        run: |
+          echo 'openNovaVault: DEPLOYED'
+          echo 'openNovaVaultBoosted: DEPLOYED'
+          echo 'Other Firebase Functions: UNTOUCHED'
+
+      - name: Remove temporary credential material
+        if: always()
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/nexusnova-firebase-sa.json"
