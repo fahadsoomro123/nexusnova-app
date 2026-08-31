@@ -5,7 +5,8 @@ const KEYS = {
   todos: 'nexus_todos_v1',
   expenses: 'nexus_expenses_v1',
   calcHistory: 'nexus_calc_history_v2',
-  calcMode: 'nexus_calc_angle_mode_v1'
+  calcMode: 'nexus_calc_angle_mode_v1',
+  calcProfile: 'nexus_calc_profile_v1'
 };
 
 function node(html) {
@@ -163,11 +164,20 @@ function calculateScientific(expression, { mode = 'DEG', ans = 0 } = {}) {
   const functions = {
     sin:value => Math.sin(toRad(value)), cos:value => Math.cos(toRad(value)), tan:value => Math.tan(toRad(value)),
     asin:value => fromRad(Math.asin(value)), acos:value => fromRad(Math.acos(value)), atan:value => fromRad(Math.atan(value)),
+    sinh:value => Math.sinh(value), cosh:value => Math.cosh(value), tanh:value => Math.tanh(value),
+    asinh:value => Math.asinh(value),
+    acosh:value => { if (value < 1) throw new Error('acosh requires ≥ 1'); return Math.acosh(value); },
+    atanh:value => { if (Math.abs(value) >= 1) throw new Error('atanh requires |x| < 1'); return Math.atanh(value); },
     sqrt:value => { if (value < 0) throw new Error('Square root requires ≥ 0'); return Math.sqrt(value); },
     cbrt:value => Math.cbrt(value),
     log:value => { if (value <= 0) throw new Error('Log requires > 0'); return Math.log10(value); },
     ln:value => { if (value <= 0) throw new Error('Ln requires > 0'); return Math.log(value); },
-    abs:value => Math.abs(value), exp:value => Math.exp(value), floor:value => Math.floor(value), ceil:value => Math.ceil(value), round:value => Math.round(value)
+    abs:value => Math.abs(value),
+    exp:value => Math.exp(value),
+    inv:value => { if (value === 0) throw new Error('Cannot divide by zero'); return 1 / value; },
+    sq:value => value * value,
+    cube:value => value * value * value,
+    floor:value => Math.floor(value), ceil:value => Math.ceil(value), round:value => Math.round(value), trunc:value => Math.trunc(value)
   };
 
   const primary = () => {
@@ -253,24 +263,27 @@ function calcFormat(value) {
 }
 
 function ensureCalculatorProStyles() {
-  if (document.getElementById('nx-calculator-pro-v1')) return;
+  if (document.getElementById('nx-calculator-pro-v2')) return;
   const style = document.createElement('style');
-  style.id = 'nx-calculator-pro-v1';
+  style.id = 'nx-calculator-pro-v2';
   style.textContent = `
     .nx-everyday-calculator{--calc-light-x:50%;--calc-light-y:10%;position:relative;isolation:isolate;min-height:calc(100dvh - 185px);padding:7px;border-radius:30px;overflow:hidden;background:radial-gradient(circle at var(--calc-light-x) var(--calc-light-y),rgba(112,235,255,.16),transparent 24%),radial-gradient(circle at 88% 85%,rgba(120,88,255,.11),transparent 28%),linear-gradient(150deg,#18212b 0%,#0b1119 48%,#06090e 100%);box-shadow:inset 0 1px 0 rgba(255,255,255,.12),inset 0 -2px 0 rgba(0,0,0,.8)}
     .nx-everyday-calculator::before{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(108deg,transparent 43%,rgba(255,255,255,.035) 50%,transparent 57%);transform:translateX(-70%);animation:nxCalcShellSheen 9s ease-in-out infinite}
-    .nx-calculator-pro{position:relative;z-index:2;margin:0!important;padding:12px!important;border:1px solid rgba(198,226,244,.16)!important;border-radius:26px!important;background:linear-gradient(135deg,rgba(255,255,255,.055),transparent 18% 82%,rgba(255,255,255,.02)),linear-gradient(155deg,#1b242e 0%,#0c121a 45%,#080b10 100%)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.18),inset 0 -3px 0 rgba(0,0,0,.92),inset 12px 0 28px rgba(63,210,255,.025),0 18px 38px rgba(0,0,0,.34),0 0 0 1px rgba(0,0,0,.56)!important}
-    .nx-calc-pro-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 2px 9px}.nx-calc-pro-brand{display:flex;align-items:center;gap:8px;min-width:0}.nx-calc-pro-led{width:8px;height:8px;border-radius:50%;background:#57ffd0;box-shadow:0 0 0 3px rgba(87,255,208,.07),0 0 14px rgba(87,255,208,.5);animation:nxCalcLed 2s ease-in-out infinite}.nx-calc-pro-brand strong{font-size:9px!important;letter-spacing:.12em!important;color:#dff8ff!important}.nx-calc-pro-brand small{display:block;margin-top:2px;color:#647484;font-size:6.8px;letter-spacing:.07em}.nx-calc-mode{min-width:64px;min-height:30px;border:1px solid rgba(123,222,255,.16);border-radius:10px;background:linear-gradient(180deg,#163445,#0b1d29);box-shadow:inset 0 1px 0 rgba(255,255,255,.09),0 3px 0 #041018;color:#9ceeff;font-size:7px;font-weight:1000;letter-spacing:.11em}
-    .nx-calc-screen{position:relative;overflow:hidden;min-height:106px;padding:13px 14px 12px;border:1px solid rgba(104,225,255,.17);border-radius:19px;background:radial-gradient(circle at 85% 12%,rgba(77,223,255,.08),transparent 28%),linear-gradient(180deg,#07151c,#041017 58%,#030a0f);box-shadow:inset 0 5px 16px rgba(0,0,0,.72),inset 0 -1px 0 rgba(255,255,255,.04),0 1px 0 rgba(255,255,255,.045)}
-    .nx-calc-screen::after{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(110deg,transparent 38%,rgba(196,245,255,.055) 48%,transparent 58%);transform:translateX(-65%);animation:nxCalcGlass 7.5s ease-in-out infinite}.nx-calc-expression{position:relative;z-index:2;min-height:25px;overflow:auto hidden;white-space:nowrap;text-align:right;color:#6e91a0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;letter-spacing:.02em}.nx-calc-result{position:relative;z-index:2;min-height:48px;display:flex;align-items:flex-end;justify-content:flex-end;overflow:auto hidden;white-space:nowrap;color:#eaffff;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:clamp(30px,9vw,43px);font-weight:850;letter-spacing:-.055em;font-variant-numeric:tabular-nums;text-shadow:0 0 18px rgba(105,235,255,.11)}
-    .nx-calc-statusline{position:relative;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:5px;color:#54717f;font-size:6.5px;font-weight:850;letter-spacing:.08em;text-transform:uppercase}.nx-calc-statusline .hot{color:#72f3ff}.nx-calc-statusline .memory{color:#d6b8ff}
-    .nx-calc-history{display:flex;gap:6px;overflow:auto hidden;margin:8px 1px 2px;padding:2px 1px 4px;scrollbar-width:none}.nx-calc-history::-webkit-scrollbar{display:none}.nx-calc-history button{flex:0 0 auto;max-width:170px;min-height:30px;padding:0 9px;border:1px solid rgba(150,190,215,.08);border-radius:10px;background:linear-gradient(180deg,rgba(255,255,255,.035),rgba(0,0,0,.12));color:#718491;font-size:6.8px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.nx-calc-history button strong{color:#abc6d2;font-size:7px}
-    .nx-calc-memory,.nx-calc-science,.nx-calc-main{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px}.nx-calc-memory{margin-top:8px}.nx-calc-science{margin-top:6px}.nx-calc-main{margin-top:6px}
-    .nx-calculator-pro [data-calc-key]{position:relative;min-width:0;min-height:38px;padding:0 3px;border:1px solid rgba(193,224,241,.10);border-radius:11px;background:linear-gradient(180deg,#263440 0%,#17222c 53%,#0e151c 100%);box-shadow:inset 0 1px 1px rgba(255,255,255,.18),inset 0 -5px 7px rgba(0,0,0,.24),0 3px 0 #05090d,0 6px 10px rgba(0,0,0,.18);color:#e9f3f8;font-size:9px;font-weight:950;letter-spacing:.01em;text-shadow:0 1px 1px rgba(0,0,0,.8);transform:translateY(-1px);transition:transform .08s ease,box-shadow .08s ease,filter .12s linear;touch-action:manipulation}.nx-calculator-pro [data-calc-key]:active{transform:translateY(2px)!important;box-shadow:inset 0 3px 6px rgba(0,0,0,.3),inset 0 -1px 0 rgba(255,255,255,.06),0 1px 0 #05090d,0 2px 5px rgba(0,0,0,.18)!important}.nx-calculator-pro [data-calc-key].memory{min-height:30px;border-color:rgba(176,142,255,.13);background:linear-gradient(180deg,#2c2942,#19172a);color:#d8caff;font-size:7px}.nx-calculator-pro [data-calc-key].science{border-color:rgba(104,216,255,.12);background:linear-gradient(180deg,#173342,#0d202b);color:#aeefff;font-size:7.5px}.nx-calculator-pro [data-calc-key].operator{border-color:rgba(255,192,90,.16);background:linear-gradient(180deg,#59401d,#32230f);color:#ffd68a}.nx-calculator-pro [data-calc-key].danger{border-color:rgba(255,100,125,.16);background:linear-gradient(180deg,#542332,#2c1119);color:#ffadbd}.nx-calculator-pro [data-calc-key].equals{border-color:rgba(92,239,220,.24);background:linear-gradient(180deg,#32cfbb 0%,#159380 52%,#0b594f 100%);box-shadow:inset 0 2px 1px rgba(255,255,255,.28),inset 0 -5px 7px rgba(0,0,0,.2),0 3px 0 #063c35,0 7px 13px rgba(0,0,0,.23),0 0 18px rgba(59,235,211,.08);color:#f4fffd;font-size:13px}.nx-calculator-pro [data-calc-key].zero{grid-column:span 2}
-    .nx-calc-pro-note{margin:8px 3px 0;color:#566876;font-size:6.7px;line-height:1.4;text-align:center;letter-spacing:.025em}
+    .nx-calculator-pro{position:relative;z-index:2;margin:0!important;padding:11px!important;border:1px solid rgba(198,226,244,.16)!important;border-radius:26px!important;background:linear-gradient(135deg,rgba(255,255,255,.055),transparent 18% 82%,rgba(255,255,255,.02)),linear-gradient(155deg,#1b242e 0%,#0c121a 45%,#080b10 100%)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.18),inset 0 -3px 0 rgba(0,0,0,.92),inset 12px 0 28px rgba(63,210,255,.025),0 18px 38px rgba(0,0,0,.34),0 0 0 1px rgba(0,0,0,.56)!important}
+    .nx-calc-pro-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 2px 8px}.nx-calc-pro-brand{display:flex;align-items:center;gap:8px;min-width:0}.nx-calc-pro-led{width:8px;height:8px;border-radius:50%;background:#57ffd0;box-shadow:0 0 0 3px rgba(87,255,208,.07),0 0 14px rgba(87,255,208,.5);animation:nxCalcLed 2s ease-in-out infinite}.nx-calc-pro-brand strong{font-size:9px!important;letter-spacing:.12em!important;color:#dff8ff!important}.nx-calc-pro-brand small{display:block;margin-top:2px;color:#647484;font-size:6.6px;letter-spacing:.07em}.nx-calc-mode{min-width:58px;min-height:29px;border:1px solid rgba(123,222,255,.16);border-radius:10px;background:linear-gradient(180deg,#163445,#0b1d29);box-shadow:inset 0 1px 0 rgba(255,255,255,.09),0 3px 0 #041018;color:#9ceeff;font-size:7px;font-weight:1000;letter-spacing:.11em}
+    .nx-calc-profile{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin:0 1px 7px;padding:4px;border:1px solid rgba(139,202,231,.10);border-radius:13px;background:linear-gradient(180deg,rgba(2,8,13,.78),rgba(5,13,20,.62));box-shadow:inset 0 3px 8px rgba(0,0,0,.52),0 1px 0 rgba(255,255,255,.035)}
+    .nx-calc-profile button{min-height:31px;border:1px solid transparent;border-radius:9px;background:transparent;color:#627481;font-size:6.8px;font-weight:1000;letter-spacing:.08em;transition:transform .09s ease,background .15s ease,color .15s ease,box-shadow .15s ease}.nx-calc-profile button.is-active{border-color:rgba(111,226,255,.16);background:linear-gradient(180deg,#1d4659,#102a38);box-shadow:inset 0 1px 0 rgba(255,255,255,.10),0 3px 0 #06151d,0 0 16px rgba(68,220,255,.055);color:#bff5ff}.nx-calc-profile button[data-calc-profile="pro"].is-active{border-color:rgba(192,139,255,.20);background:linear-gradient(180deg,#49366a,#271c3c);box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 3px 0 #160e25,0 0 18px rgba(177,102,255,.07);color:#eadbff}
+    .nx-calc-screen{position:relative;overflow:hidden;min-height:100px;padding:11px 13px 10px;border:1px solid rgba(104,225,255,.17);border-radius:18px;background:radial-gradient(circle at 85% 12%,rgba(77,223,255,.08),transparent 28%),linear-gradient(180deg,#07151c,#041017 58%,#030a0f);box-shadow:inset 0 5px 16px rgba(0,0,0,.72),inset 0 -1px 0 rgba(255,255,255,.04),0 1px 0 rgba(255,255,255,.045)}
+    .nx-calc-screen::after{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(110deg,transparent 38%,rgba(196,245,255,.055) 48%,transparent 58%);transform:translateX(-65%);animation:nxCalcGlass 7.5s ease-in-out infinite}.nx-calc-expression{position:relative;z-index:2;min-height:23px;overflow:auto hidden;white-space:nowrap;text-align:right;color:#6e91a0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;letter-spacing:.02em}.nx-calc-result{position:relative;z-index:2;min-height:45px;display:flex;align-items:flex-end;justify-content:flex-end;overflow:auto hidden;white-space:nowrap;color:#eaffff;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:clamp(29px,8.7vw,41px);font-weight:850;letter-spacing:-.055em;font-variant-numeric:tabular-nums;text-shadow:0 0 18px rgba(105,235,255,.11)}
+    .nx-calc-statusline{position:relative;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:4px;color:#54717f;font-size:6.2px;font-weight:850;letter-spacing:.075em;text-transform:uppercase}.nx-calc-statusline .hot{color:#72f3ff}.nx-calc-statusline .memory{color:#d6b8ff}
+    .nx-calc-history{display:flex;gap:5px;overflow:auto hidden;margin:6px 1px 1px;padding:2px 1px 3px;scrollbar-width:none}.nx-calc-history::-webkit-scrollbar{display:none}.nx-calc-history button{flex:0 0 auto;max-width:160px;min-height:27px;padding:0 8px;border:1px solid rgba(150,190,215,.08);border-radius:9px;background:linear-gradient(180deg,rgba(255,255,255,.035),rgba(0,0,0,.12));color:#718491;font-size:6.4px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.nx-calc-history button strong{color:#abc6d2;font-size:6.6px}
+    .nx-calc-memory,.nx-calc-bank{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px}.nx-calc-memory{margin-top:6px}.nx-calc-bank{margin-top:5px}.nx-calc-bank.six{grid-template-columns:repeat(6,minmax(0,1fr))}.nx-calc-bank[hidden]{display:none!important}
+    .nx-calculator-pro [data-calc-key]{position:relative;min-width:0;min-height:35px;padding:0 2px;border:1px solid rgba(193,224,241,.10);border-radius:10px;background:linear-gradient(180deg,#263440 0%,#17222c 53%,#0e151c 100%);box-shadow:inset 0 1px 1px rgba(255,255,255,.18),inset 0 -5px 7px rgba(0,0,0,.24),0 3px 0 #05090d,0 5px 8px rgba(0,0,0,.17);color:#e9f3f8;font-size:8.5px;font-weight:950;letter-spacing:.005em;text-shadow:0 1px 1px rgba(0,0,0,.8);transform:translateY(-1px);transition:transform .08s ease,box-shadow .08s ease,filter .12s linear;touch-action:manipulation}.nx-calculator-pro [data-calc-key]:active{transform:translateY(2px)!important;box-shadow:inset 0 3px 6px rgba(0,0,0,.3),inset 0 -1px 0 rgba(255,255,255,.06),0 1px 0 #05090d,0 2px 5px rgba(0,0,0,.18)!important}.nx-calculator-pro [data-calc-key].memory{min-height:28px;border-color:rgba(176,142,255,.13);background:linear-gradient(180deg,#2c2942,#19172a);color:#d8caff;font-size:6.8px}.nx-calculator-pro [data-calc-key].science{border-color:rgba(104,216,255,.12);background:linear-gradient(180deg,#173342,#0d202b);color:#aeefff;font-size:7px}.nx-calculator-pro [data-calc-key].pro{border-color:rgba(195,142,255,.15);background:linear-gradient(180deg,#342847,#1b1428);color:#dfc9ff;font-size:6.6px}.nx-calculator-pro [data-calc-key].operator{border-color:rgba(255,192,90,.16);background:linear-gradient(180deg,#59401d,#32230f);color:#ffd68a}.nx-calculator-pro [data-calc-key].danger{border-color:rgba(255,100,125,.16);background:linear-gradient(180deg,#542332,#2c1119);color:#ffadbd}.nx-calculator-pro [data-calc-key].equals{border-color:rgba(92,239,220,.24);background:linear-gradient(180deg,#32cfbb 0%,#159380 52%,#0b594f 100%);box-shadow:inset 0 2px 1px rgba(255,255,255,.28),inset 0 -5px 7px rgba(0,0,0,.2),0 3px 0 #063c35,0 7px 13px rgba(0,0,0,.23),0 0 18px rgba(59,235,211,.08);color:#f4fffd;font-size:12px}.nx-calculator-pro [data-calc-key].zero{grid-column:span 2}
+    .nx-everyday-calculator[data-calc-profile="standard"] .nx-calc-bank [data-calc-key]{min-height:45px;font-size:10px}.nx-everyday-calculator[data-calc-profile="pro"] .nx-calc-bank [data-calc-key]{min-height:30px;font-size:6.8px}.nx-everyday-calculator[data-calc-profile="pro"] .nx-calc-history{display:none}
+    .nx-calc-pro-note{margin:6px 3px 0;color:#566876;font-size:6.3px;line-height:1.35;text-align:center;letter-spacing:.02em}
     @keyframes nxCalcShellSheen{0%,22%{transform:translateX(-72%)}64%,100%{transform:translateX(72%)}}@keyframes nxCalcGlass{0%,35%{transform:translateX(-68%)}70%,100%{transform:translateX(68%)}}@keyframes nxCalcLed{0%,100%{opacity:.65}50%{opacity:1}}
-    @media(max-width:390px){.nx-everyday-calculator{min-height:calc(100dvh - 178px);padding:5px}.nx-calculator-pro{padding:9px!important}.nx-calc-screen{min-height:96px;padding:10px 11px}.nx-calc-result{font-size:clamp(27px,8.5vw,38px)}.nx-calculator-pro [data-calc-key]{min-height:35px;font-size:8.2px}.nx-calculator-pro [data-calc-key].science{font-size:7px}.nx-calc-memory,.nx-calc-science,.nx-calc-main{gap:4px}}
-    @media(max-height:720px){.nx-calculator-pro [data-calc-key]{min-height:32px}.nx-calc-screen{min-height:86px}.nx-calc-history{display:none}.nx-calc-pro-note{display:none}}
+    @media(max-width:390px){.nx-everyday-calculator{min-height:calc(100dvh - 178px);padding:5px}.nx-calculator-pro{padding:8px!important}.nx-calc-screen{min-height:91px;padding:9px 10px}.nx-calc-result{font-size:clamp(26px,8.3vw,36px)}.nx-calculator-pro [data-calc-key]{min-height:32px;font-size:7.7px}.nx-everyday-calculator[data-calc-profile="standard"] .nx-calc-bank [data-calc-key]{min-height:41px}.nx-everyday-calculator[data-calc-profile="pro"] .nx-calc-bank [data-calc-key]{min-height:28px;font-size:6.2px}.nx-calc-memory,.nx-calc-bank{gap:3px}}
+    @media(max-height:720px){.nx-calc-screen{min-height:82px}.nx-calc-history{display:none}.nx-calc-pro-note{display:none}.nx-calculator-pro [data-calc-key]{min-height:29px}.nx-everyday-calculator[data-calc-profile="standard"] .nx-calc-bank [data-calc-key]{min-height:38px}.nx-everyday-calculator[data-calc-profile="pro"] .nx-calc-bank [data-calc-key]{min-height:26px}}
     @media(prefers-reduced-motion:reduce){.nx-everyday-calculator::before,.nx-calc-screen::after,.nx-calc-pro-led{animation:none!important}}
   `;
   document.head.appendChild(style);
@@ -281,35 +294,56 @@ export function renderCalculator() {
   const memoryKeys = [
     ['MC','mc'], ['MR','mr'], ['M+','mplus'], ['M−','mminus'], ['DEG','mode']
   ];
-  const scienceKeys = [
-    ['sin','sin('], ['cos','cos('], ['tan','tan('], ['log','log('], ['ln','ln('],
-    ['asin','asin('], ['acos','acos('], ['atan','atan('], ['√','sqrt('], ['xʸ','^'],
-    ['π','pi'], ['e','e'], ['ANS','ans'], ['x!','!'], ['%','%']
-  ];
-  const mainKeys = [
+  const standardKeys = [
     ['C','clear','danger'], ['(', '(', 'science'], [')', ')', 'science'], ['⌫','back','danger'], ['÷','/','operator'],
-    ['7','7',''], ['8','8',''], ['9','9',''], ['×','*','operator'], ['x²','^2','science'],
+    ['7','7',''], ['8','8',''], ['9','9',''], ['×','*','operator'], ['%','%','science'],
     ['4','4',''], ['5','5',''], ['6','6',''], ['−','-','operator'], ['+','+','operator'],
     ['1','1',''], ['2','2',''], ['3','3',''], ['.','.',''], ['=','equals','equals'],
-    ['0','0','zero'], ['00','00',''], ['cbrt','cbrt(','science'], ['abs','abs(','science']
+    ['0','0','zero'], ['00','00',''], ['ANS','ans','science'], ['±','negate','science']
   ];
-  const makeKeys = (rows, group) => rows.map(([label,value,extra = '']) => `<button type="button" class="${group} ${extra}" data-calc-key data-calc-value="${escapeHtml(value)}">${escapeHtml(label)}</button>`).join('');
+  const scientificKeys = [
+    ['sin','sin(','science'], ['cos','cos(','science'], ['tan','tan(','science'], ['log','log(','science'], ['ln','ln(','science'],
+    ['asin','asin(','science'], ['acos','acos(','science'], ['atan','atan(','science'], ['√','sqrt(','science'], ['∛','cbrt(','science'],
+    ['π','pi','science'], ['e','e','science'], ['ANS','ans','science'], ['x!','!','science'], ['xʸ','^','science'],
+    ['(', '(', 'science'], [')', ')', 'science'], ['%','%','science'], ['C','clear','danger'], ['⌫','back','danger'],
+    ['7','7',''], ['8','8',''], ['9','9',''], ['÷','/','operator'], ['×','*','operator'],
+    ['4','4',''], ['5','5',''], ['6','6',''], ['−','-','operator'], ['+','+','operator'],
+    ['1','1',''], ['2','2',''], ['3','3',''], ['.','.',''], ['=','equals','equals'],
+    ['0','0','zero'], ['00','00',''], ['±','negate','science'], ['abs','abs(','science']
+  ];
+  const proKeys = [
+    ['sinh','sinh(','pro'], ['cosh','cosh(','pro'], ['tanh','tanh(','pro'], ['exp','exp(','pro'], ['1/x','inv(','pro'], ['abs','abs(','pro'],
+    ['asinh','asinh(','pro'], ['acosh','acosh(','pro'], ['atanh','atanh(','pro'], ['floor','floor(','pro'], ['ceil','ceil(','pro'], ['trunc','trunc(','pro'],
+    ['√','sqrt(','science'], ['∛','cbrt(','science'], ['x²','sq(','pro'], ['x³','cube(','pro'], ['log','log(','science'], ['ln','ln(','science'],
+    ['π','pi','science'], ['e','e','science'], ['ANS','ans','science'], ['x!','!','science'], ['%','%','science'], ['xʸ','^','science'],
+    ['(', '(', 'science'], [')', ')', 'science'], ['round','round(','pro'], ['C','clear','danger'], ['⌫','back','danger'], ['÷','/','operator'],
+    ['7','7',''], ['8','8',''], ['9','9',''], ['×','*','operator'], ['−','-','operator'], ['+','+','operator'],
+    ['4','4',''], ['5','5',''], ['6','6',''], ['1','1',''], ['2','2',''], ['3','3',''],
+    ['0','0',''], ['00','00',''], ['.','.',''], ['=','equals','equals'], ['±','negate','pro'], ['DEG','mode','pro']
+  ];
+  const makeKeys = (rows, group = '') => rows.map(([label,value,extra = '']) => `<button type="button" class="${group} ${extra}" data-calc-key data-calc-value="${escapeHtml(value)}">${escapeHtml(label)}</button>`).join('');
   const root = node(`
     <section class="nx-tool-card nx-calculator nx-calculator-pro">
       <div class="nx-calc-pro-head">
-        <div class="nx-calc-pro-brand"><i class="nx-calc-pro-led"></i><div><strong>NEXUS SCIENTIFIC CORE</strong><small>SAFE PARSER • 13 DIGIT PRECISION</small></div></div>
+        <div class="nx-calc-pro-brand"><i class="nx-calc-pro-led"></i><div><strong>NEXUS CALC CORE</strong><small>SAFE ENGINE • 13 DIGIT PRECISION</small></div></div>
         <button class="nx-calc-mode" type="button" data-calc-mode>DEG</button>
+      </div>
+      <div class="nx-calc-profile" role="tablist" aria-label="Calculator mode">
+        <button type="button" data-calc-profile="standard">STANDARD</button>
+        <button type="button" data-calc-profile="scientific">SCIENTIFIC</button>
+        <button type="button" data-calc-profile="pro">PRO LAB</button>
       </div>
       <div class="nx-calc-screen">
         <div class="nx-calc-expression" data-calc-expression>Ready</div>
         <div class="nx-calc-result" data-calc-result>0</div>
-        <div class="nx-calc-statusline"><span data-calc-state class="hot">LIVE PREVIEW</span><span data-calc-memory-state>M 0</span></div>
+        <div class="nx-calc-statusline"><span data-calc-state class="hot">LIVE PREVIEW</span><span><b data-calc-profile-label>STANDARD</b> • <span data-calc-memory-state>M 0</span></span></div>
       </div>
       <div class="nx-calc-history" data-calc-history></div>
       <div class="nx-calc-memory">${makeKeys(memoryKeys,'memory')}</div>
-      <div class="nx-calc-science">${makeKeys(scienceKeys,'science')}</div>
-      <div class="nx-calc-main">${makeKeys(mainKeys,'')}</div>
-      <p class="nx-calc-pro-note">Scientific functions, memory, ANS, history, factorial, powers and keyboard input • no JavaScript eval()</p>
+      <div class="nx-calc-bank" data-calc-bank="standard">${makeKeys(standardKeys)}</div>
+      <div class="nx-calc-bank" data-calc-bank="scientific" hidden>${makeKeys(scientificKeys)}</div>
+      <div class="nx-calc-bank six" data-calc-bank="pro" hidden>${makeKeys(proKeys)}</div>
+      <p class="nx-calc-pro-note" data-calc-note>Standard mode • fast daily arithmetic with memory, ANS and live preview.</p>
     </section>
   `);
   root.classList.add('nx-everyday-calculator');
@@ -319,10 +353,14 @@ export function renderCalculator() {
   const memoryEl = root.querySelector('[data-calc-memory-state]');
   const historyEl = root.querySelector('[data-calc-history]');
   const modeButton = root.querySelector('[data-calc-mode]');
+  const profileLabel = root.querySelector('[data-calc-profile-label]');
+  const noteEl = root.querySelector('[data-calc-note]');
   let expr = '';
   let ans = 0;
   let memory = 0;
   let mode = localStorage.getItem(KEYS.calcMode) === 'RAD' ? 'RAD' : 'DEG';
+  const savedProfile = localStorage.getItem(KEYS.calcProfile);
+  let profile = ['standard','scientific','pro'].includes(savedProfile) ? savedProfile : 'standard';
   let disposed = false;
 
   const readHistory = () => {
@@ -342,11 +380,29 @@ export function renderCalculator() {
   };
   const updateMode = () => {
     modeButton.textContent = mode;
-    root.querySelector('[data-calc-value="mode"]').textContent = mode;
+    root.querySelectorAll('[data-calc-value="mode"]').forEach(button => { button.textContent = mode; });
     localStorage.setItem(KEYS.calcMode, mode);
   };
+  const updateProfile = () => {
+    root.dataset.calcProfile = profile;
+    root.querySelectorAll('[data-calc-profile]').forEach(button => {
+      const active = button.dataset.calcProfile === profile;
+      button.classList.toggle('is-active', active);
+      button.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+    root.querySelectorAll('[data-calc-bank]').forEach(bank => { bank.hidden = bank.dataset.calcBank !== profile; });
+    const labels = { standard:'STANDARD', scientific:'SCIENTIFIC', pro:'PRO LAB' };
+    const notes = {
+      standard:'Standard mode • fast daily arithmetic with memory, ANS and live preview.',
+      scientific:'Scientific mode • trig, inverse trig, roots, logs, powers, constants and factorial.',
+      pro:'Pro Lab • hyperbolic math, inverse hyperbolic, reciprocal, exp, precision rounding and engineering functions.'
+    };
+    profileLabel.textContent = labels[profile];
+    noteEl.textContent = notes[profile];
+    localStorage.setItem(KEYS.calcProfile, profile);
+  };
   const isValueEnding = value => /(?:\d|\)|!|%)$/.test(value) || /(?:pi|ans|e)$/.test(value);
-  const startsValue = value => /^(?:pi|ans|e|sin\(|cos\(|tan\(|asin\(|acos\(|atan\(|sqrt\(|cbrt\(|log\(|ln\(|abs\(|exp\(|floor\(|ceil\(|round\(|\()/.test(value);
+  const startsValue = value => /^(?:pi|ans|e|sin\(|cos\(|tan\(|asin\(|acos\(|atan\(|sinh\(|cosh\(|tanh\(|asinh\(|acosh\(|atanh\(|sqrt\(|cbrt\(|log\(|ln\(|abs\(|exp\(|inv\(|sq\(|cube\(|floor\(|ceil\(|round\(|trunc\(|\()/.test(value);
   const append = value => {
     if (expr.length >= 240) return;
     if (startsValue(value) && isValueEnding(expr)) expr += '*';
@@ -366,6 +422,7 @@ export function renderCalculator() {
     stateEl.classList.toggle('hot', live.ok);
     memoryEl.textContent = `M ${calcFormat(memory)}`;
     updateMode();
+    updateProfile();
   };
   const currentValue = () => {
     if (!expr) return Number(ans) || 0;
@@ -394,6 +451,7 @@ export function renderCalculator() {
     if (value === 'back') { expr = expr.slice(0,-1); paint(); return; }
     if (value === 'equals') { solve(); return; }
     if (value === 'mode') { mode = mode === 'DEG' ? 'RAD' : 'DEG'; paint(`${mode} MODE`); return; }
+    if (value === 'negate') { expr = expr ? `-(${expr})` : '-'; paint('SIGN CHANGED'); return; }
     if (value === 'mc') { memory = 0; paint('MEMORY CLEARED'); return; }
     if (value === 'mr') { append(calcFormat(memory)); paint('MEMORY RECALL'); return; }
     if (value === 'mplus' || value === 'mminus') {
@@ -406,6 +464,10 @@ export function renderCalculator() {
   };
 
   root.querySelectorAll('[data-calc-key]').forEach(button => button.addEventListener('click', () => handle(button.dataset.calcValue)));
+  root.querySelectorAll('[data-calc-profile]').forEach(button => button.addEventListener('click', () => {
+    profile = button.dataset.calcProfile;
+    paint(`${profile === 'pro' ? 'PRO LAB' : profile.toUpperCase()} READY`);
+  }));
   modeButton.addEventListener('click', () => handle('mode'));
   const keyboard = event => {
     if (disposed || event.ctrlKey || event.metaKey || event.altKey) return;
