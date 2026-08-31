@@ -3,7 +3,9 @@ import { escapeHtml, loadJson, saveJson, uid } from '../../core/local-store.js';
 const KEYS = {
   notes: 'nexus_notes_v1',
   todos: 'nexus_todos_v1',
-  expenses: 'nexus_expenses_v1'
+  expenses: 'nexus_expenses_v1',
+  calcHistory: 'nexus_calc_history_v2',
+  calcMode: 'nexus_calc_angle_mode_v1'
 };
 
 function node(html) {
@@ -109,85 +111,324 @@ export function renderTodo() {
   return root;
 }
 
-function evaluate(expression) {
-  const source = String(expression || '').replace(/\s+/g, '');
-  if (!source || source.length > 160 || !/^[0-9+\-*/().%]+$/.test(source)) throw new Error('Invalid expression');
-  let index = 0, operations = 0, depth = 0;
-  const peek = () => source[index] || '';
-  const op = () => { if (++operations > 128) throw new Error('Too complex'); };
-  const primary = () => {
-    if (peek() === '(') {
-      if (++depth > 24) throw new Error('Too deep');
-      index++;
-      const value = expressionParser();
-      if (peek() !== ')') throw new Error('Missing )');
-      index++; depth--;
-      return value;
+function calcTokens(expression) {
+  const source = String(expression || '').replace(/×/g, '*').replace(/÷/g, '/').replace(/π/g, 'pi').replace(/\s+/g, '');
+  if (!source || source.length > 240) throw new Error('Invalid expression');
+  const tokens = [];
+  let index = 0;
+  while (index < source.length) {
+    const rest = source.slice(index);
+    const number = rest.match(/^(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?/i);
+    if (number) {
+      tokens.push({ type:'number', value:Number(number[0]) });
+      index += number[0].length;
+      continue;
     }
-    const start = index;
-    let decimal = false, digit = false;
-    while (/[0-9.]/.test(peek())) {
-      if (peek() === '.') { if (decimal) break; decimal = true; } else digit = true;
-      index++;
+    const identifier = rest.match(/^[a-z]+/i);
+    if (identifier) {
+      tokens.push({ type:'id', value:identifier[0].toLowerCase() });
+      index += identifier[0].length;
+      continue;
     }
-    if (!digit) throw new Error('Expected number');
-    const value = Number(source.slice(start, index));
-    if (!Number.isFinite(value)) throw new Error('Bad number');
+    const char = source[index];
+    if ('+-*/^()%!'.includes(char)) {
+      tokens.push({ type:'op', value:char });
+      index++;
+      continue;
+    }
+    throw new Error('Invalid symbol');
+  }
+  return tokens;
+}
+
+function calculateScientific(expression, { mode = 'DEG', ans = 0 } = {}) {
+  const tokens = calcTokens(expression);
+  let index = 0;
+  let operations = 0;
+  const peek = value => tokens[index]?.value === value;
+  const take = () => tokens[index++];
+  const count = () => { if (++operations > 256) throw new Error('Expression too complex'); };
+  const finite = value => {
+    if (!Number.isFinite(value)) throw new Error('Result out of range');
     return value;
   };
-  const unary = () => {
-    if (peek() === '+') { index++; return unary(); }
-    if (peek() === '-') { index++; return -unary(); }
-    return primary();
+  const toRad = value => mode === 'DEG' ? value * Math.PI / 180 : value;
+  const fromRad = value => mode === 'DEG' ? value * 180 / Math.PI : value;
+  const factorial = value => {
+    if (!Number.isInteger(value) || value < 0 || value > 170) throw new Error('Factorial supports integers 0–170');
+    let out = 1;
+    for (let i = 2; i <= value; i++) out *= i;
+    return out;
   };
-  const factor = () => { let value = unary(); while (peek() === '%') { op(); index++; value /= 100; } return value; };
+  const functions = {
+    sin:value => Math.sin(toRad(value)), cos:value => Math.cos(toRad(value)), tan:value => Math.tan(toRad(value)),
+    asin:value => fromRad(Math.asin(value)), acos:value => fromRad(Math.acos(value)), atan:value => fromRad(Math.atan(value)),
+    sqrt:value => { if (value < 0) throw new Error('Square root requires ≥ 0'); return Math.sqrt(value); },
+    cbrt:value => Math.cbrt(value),
+    log:value => { if (value <= 0) throw new Error('Log requires > 0'); return Math.log10(value); },
+    ln:value => { if (value <= 0) throw new Error('Ln requires > 0'); return Math.log(value); },
+    abs:value => Math.abs(value), exp:value => Math.exp(value), floor:value => Math.floor(value), ceil:value => Math.ceil(value), round:value => Math.round(value)
+  };
+
+  const primary = () => {
+    const token = take();
+    if (!token) throw new Error('Expected value');
+    if (token.type === 'number') return token.value;
+    if (token.type === 'id') {
+      if (token.value === 'pi') return Math.PI;
+      if (token.value === 'e') return Math.E;
+      if (token.value === 'ans') return Number(ans) || 0;
+      const fn = functions[token.value];
+      if (!fn || !peek('(')) throw new Error('Unknown function');
+      take();
+      const value = expressionParser();
+      if (!peek(')')) throw new Error('Missing )');
+      take(); count();
+      return finite(fn(value));
+    }
+    if (token.value === '(') {
+      const value = expressionParser();
+      if (!peek(')')) throw new Error('Missing )');
+      take();
+      return value;
+    }
+    throw new Error('Expected value');
+  };
+
+  const postfix = () => {
+    let value = primary();
+    while (peek('%') || peek('!')) {
+      const operator = take().value; count();
+      value = operator === '%' ? value / 100 : factorial(value);
+    }
+    return finite(value);
+  };
+  const unary = () => {
+    if (peek('+')) { take(); return unary(); }
+    if (peek('-')) { take(); return -unary(); }
+    return postfix();
+  };
+  const power = () => {
+    let value = unary();
+    if (peek('^')) {
+      take(); count();
+      value = Math.pow(value, power());
+    }
+    return finite(value);
+  };
   const term = () => {
-    let value = factor();
-    while (peek() === '*' || peek() === '/') {
-      const operator = peek(); op(); index++;
-      const right = factor();
+    let value = power();
+    while (peek('*') || peek('/')) {
+      const operator = take().value; count();
+      const right = power();
       if (operator === '/' && right === 0) throw new Error('Division by zero');
       value = operator === '*' ? value * right : value / right;
-      if (!Number.isFinite(value)) throw new Error('Bad result');
+      finite(value);
     }
     return value;
   };
   const expressionParser = () => {
     let value = term();
-    while (peek() === '+' || peek() === '-') {
-      const operator = peek(); op(); index++;
+    while (peek('+') || peek('-')) {
+      const operator = take().value; count();
       const right = term();
       value = operator === '+' ? value + right : value - right;
+      finite(value);
     }
     return value;
   };
+
   const result = expressionParser();
-  if (index !== source.length || !Number.isFinite(result)) throw new Error('Invalid expression');
-  return result;
+  if (index !== tokens.length) throw new Error('Invalid expression');
+  return finite(result);
+}
+
+function calcFormat(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 'Error';
+  if (Object.is(n, -0)) return '0';
+  const abs = Math.abs(n);
+  if (abs !== 0 && (abs >= 1e13 || abs < 1e-9)) return n.toExponential(10).replace(/\.0+e/, 'e').replace(/(\.\d*?)0+e/, '$1e');
+  return String(Number(n.toPrecision(13)));
+}
+
+function ensureCalculatorProStyles() {
+  if (document.getElementById('nx-calculator-pro-v1')) return;
+  const style = document.createElement('style');
+  style.id = 'nx-calculator-pro-v1';
+  style.textContent = `
+    .nx-everyday-calculator{--calc-light-x:50%;--calc-light-y:10%;position:relative;isolation:isolate;min-height:calc(100dvh - 185px);padding:7px;border-radius:30px;overflow:hidden;background:radial-gradient(circle at var(--calc-light-x) var(--calc-light-y),rgba(112,235,255,.16),transparent 24%),radial-gradient(circle at 88% 85%,rgba(120,88,255,.11),transparent 28%),linear-gradient(150deg,#18212b 0%,#0b1119 48%,#06090e 100%);box-shadow:inset 0 1px 0 rgba(255,255,255,.12),inset 0 -2px 0 rgba(0,0,0,.8)}
+    .nx-everyday-calculator::before{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(108deg,transparent 43%,rgba(255,255,255,.035) 50%,transparent 57%);transform:translateX(-70%);animation:nxCalcShellSheen 9s ease-in-out infinite}
+    .nx-calculator-pro{position:relative;z-index:2;margin:0!important;padding:12px!important;border:1px solid rgba(198,226,244,.16)!important;border-radius:26px!important;background:linear-gradient(135deg,rgba(255,255,255,.055),transparent 18% 82%,rgba(255,255,255,.02)),linear-gradient(155deg,#1b242e 0%,#0c121a 45%,#080b10 100%)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.18),inset 0 -3px 0 rgba(0,0,0,.92),inset 12px 0 28px rgba(63,210,255,.025),0 18px 38px rgba(0,0,0,.34),0 0 0 1px rgba(0,0,0,.56)!important}
+    .nx-calc-pro-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 2px 9px}.nx-calc-pro-brand{display:flex;align-items:center;gap:8px;min-width:0}.nx-calc-pro-led{width:8px;height:8px;border-radius:50%;background:#57ffd0;box-shadow:0 0 0 3px rgba(87,255,208,.07),0 0 14px rgba(87,255,208,.5);animation:nxCalcLed 2s ease-in-out infinite}.nx-calc-pro-brand strong{font-size:9px!important;letter-spacing:.12em!important;color:#dff8ff!important}.nx-calc-pro-brand small{display:block;margin-top:2px;color:#647484;font-size:6.8px;letter-spacing:.07em}.nx-calc-mode{min-width:64px;min-height:30px;border:1px solid rgba(123,222,255,.16);border-radius:10px;background:linear-gradient(180deg,#163445,#0b1d29);box-shadow:inset 0 1px 0 rgba(255,255,255,.09),0 3px 0 #041018;color:#9ceeff;font-size:7px;font-weight:1000;letter-spacing:.11em}
+    .nx-calc-screen{position:relative;overflow:hidden;min-height:106px;padding:13px 14px 12px;border:1px solid rgba(104,225,255,.17);border-radius:19px;background:radial-gradient(circle at 85% 12%,rgba(77,223,255,.08),transparent 28%),linear-gradient(180deg,#07151c,#041017 58%,#030a0f);box-shadow:inset 0 5px 16px rgba(0,0,0,.72),inset 0 -1px 0 rgba(255,255,255,.04),0 1px 0 rgba(255,255,255,.045)}
+    .nx-calc-screen::after{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(110deg,transparent 38%,rgba(196,245,255,.055) 48%,transparent 58%);transform:translateX(-65%);animation:nxCalcGlass 7.5s ease-in-out infinite}.nx-calc-expression{position:relative;z-index:2;min-height:25px;overflow:auto hidden;white-space:nowrap;text-align:right;color:#6e91a0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;letter-spacing:.02em}.nx-calc-result{position:relative;z-index:2;min-height:48px;display:flex;align-items:flex-end;justify-content:flex-end;overflow:auto hidden;white-space:nowrap;color:#eaffff;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:clamp(30px,9vw,43px);font-weight:850;letter-spacing:-.055em;font-variant-numeric:tabular-nums;text-shadow:0 0 18px rgba(105,235,255,.11)}
+    .nx-calc-statusline{position:relative;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:5px;color:#54717f;font-size:6.5px;font-weight:850;letter-spacing:.08em;text-transform:uppercase}.nx-calc-statusline .hot{color:#72f3ff}.nx-calc-statusline .memory{color:#d6b8ff}
+    .nx-calc-history{display:flex;gap:6px;overflow:auto hidden;margin:8px 1px 2px;padding:2px 1px 4px;scrollbar-width:none}.nx-calc-history::-webkit-scrollbar{display:none}.nx-calc-history button{flex:0 0 auto;max-width:170px;min-height:30px;padding:0 9px;border:1px solid rgba(150,190,215,.08);border-radius:10px;background:linear-gradient(180deg,rgba(255,255,255,.035),rgba(0,0,0,.12));color:#718491;font-size:6.8px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.nx-calc-history button strong{color:#abc6d2;font-size:7px}
+    .nx-calc-memory,.nx-calc-science,.nx-calc-main{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px}.nx-calc-memory{margin-top:8px}.nx-calc-science{margin-top:6px}.nx-calc-main{margin-top:6px}
+    .nx-calculator-pro [data-calc-key]{position:relative;min-width:0;min-height:38px;padding:0 3px;border:1px solid rgba(193,224,241,.10);border-radius:11px;background:linear-gradient(180deg,#263440 0%,#17222c 53%,#0e151c 100%);box-shadow:inset 0 1px 1px rgba(255,255,255,.18),inset 0 -5px 7px rgba(0,0,0,.24),0 3px 0 #05090d,0 6px 10px rgba(0,0,0,.18);color:#e9f3f8;font-size:9px;font-weight:950;letter-spacing:.01em;text-shadow:0 1px 1px rgba(0,0,0,.8);transform:translateY(-1px);transition:transform .08s ease,box-shadow .08s ease,filter .12s linear;touch-action:manipulation}.nx-calculator-pro [data-calc-key]:active{transform:translateY(2px)!important;box-shadow:inset 0 3px 6px rgba(0,0,0,.3),inset 0 -1px 0 rgba(255,255,255,.06),0 1px 0 #05090d,0 2px 5px rgba(0,0,0,.18)!important}.nx-calculator-pro [data-calc-key].memory{min-height:30px;border-color:rgba(176,142,255,.13);background:linear-gradient(180deg,#2c2942,#19172a);color:#d8caff;font-size:7px}.nx-calculator-pro [data-calc-key].science{border-color:rgba(104,216,255,.12);background:linear-gradient(180deg,#173342,#0d202b);color:#aeefff;font-size:7.5px}.nx-calculator-pro [data-calc-key].operator{border-color:rgba(255,192,90,.16);background:linear-gradient(180deg,#59401d,#32230f);color:#ffd68a}.nx-calculator-pro [data-calc-key].danger{border-color:rgba(255,100,125,.16);background:linear-gradient(180deg,#542332,#2c1119);color:#ffadbd}.nx-calculator-pro [data-calc-key].equals{border-color:rgba(92,239,220,.24);background:linear-gradient(180deg,#32cfbb 0%,#159380 52%,#0b594f 100%);box-shadow:inset 0 2px 1px rgba(255,255,255,.28),inset 0 -5px 7px rgba(0,0,0,.2),0 3px 0 #063c35,0 7px 13px rgba(0,0,0,.23),0 0 18px rgba(59,235,211,.08);color:#f4fffd;font-size:13px}.nx-calculator-pro [data-calc-key].zero{grid-column:span 2}
+    .nx-calc-pro-note{margin:8px 3px 0;color:#566876;font-size:6.7px;line-height:1.4;text-align:center;letter-spacing:.025em}
+    @keyframes nxCalcShellSheen{0%,22%{transform:translateX(-72%)}64%,100%{transform:translateX(72%)}}@keyframes nxCalcGlass{0%,35%{transform:translateX(-68%)}70%,100%{transform:translateX(68%)}}@keyframes nxCalcLed{0%,100%{opacity:.65}50%{opacity:1}}
+    @media(max-width:390px){.nx-everyday-calculator{min-height:calc(100dvh - 178px);padding:5px}.nx-calculator-pro{padding:9px!important}.nx-calc-screen{min-height:96px;padding:10px 11px}.nx-calc-result{font-size:clamp(27px,8.5vw,38px)}.nx-calculator-pro [data-calc-key]{min-height:35px;font-size:8.2px}.nx-calculator-pro [data-calc-key].science{font-size:7px}.nx-calc-memory,.nx-calc-science,.nx-calc-main{gap:4px}}
+    @media(max-height:720px){.nx-calculator-pro [data-calc-key]{min-height:32px}.nx-calc-screen{min-height:86px}.nx-calc-history{display:none}.nx-calc-pro-note{display:none}}
+    @media(prefers-reduced-motion:reduce){.nx-everyday-calculator::before,.nx-calc-screen::after,.nx-calc-pro-led{animation:none!important}}
+  `;
+  document.head.appendChild(style);
 }
 
 export function renderCalculator() {
+  ensureCalculatorProStyles();
+  const memoryKeys = [
+    ['MC','mc'], ['MR','mr'], ['M+','mplus'], ['M−','mminus'], ['DEG','mode']
+  ];
+  const scienceKeys = [
+    ['sin','sin('], ['cos','cos('], ['tan','tan('], ['log','log('], ['ln','ln('],
+    ['asin','asin('], ['acos','acos('], ['atan','atan('], ['√','sqrt('], ['xʸ','^'],
+    ['π','pi'], ['e','e'], ['ANS','ans'], ['x!','!'], ['%','%']
+  ];
+  const mainKeys = [
+    ['C','clear','danger'], ['(', '(', 'science'], [')', ')', 'science'], ['⌫','back','danger'], ['÷','/','operator'],
+    ['7','7',''], ['8','8',''], ['9','9',''], ['×','*','operator'], ['x²','^2','science'],
+    ['4','4',''], ['5','5',''], ['6','6',''], ['−','-','operator'], ['+','+','operator'],
+    ['1','1',''], ['2','2',''], ['3','3',''], ['.','.',''], ['=','equals','equals'],
+    ['0','0','zero'], ['00','00',''], ['cbrt','cbrt(','science'], ['abs','abs(','science']
+  ];
+  const makeKeys = (rows, group) => rows.map(([label,value,extra = '']) => `<button type="button" class="${group} ${extra}" data-calc-key data-calc-value="${escapeHtml(value)}">${escapeHtml(label)}</button>`).join('');
   const root = node(`
-    <section class="nx-tool-card nx-calculator">
-      <div class="nx-calc-display" data-calc-display>0</div>
-      <div class="nx-calc-grid">
-        ${['C','(',')','⌫','7','8','9','/','4','5','6','*','1','2','3','-','0','.','%','+'].map(value => `<button type="button" data-calc="${value}">${value}</button>`).join('')}
-        <button class="equals" type="button" data-calc="=">=</button>
+    <section class="nx-tool-card nx-calculator nx-calculator-pro">
+      <div class="nx-calc-pro-head">
+        <div class="nx-calc-pro-brand"><i class="nx-calc-pro-led"></i><div><strong>NEXUS SCIENTIFIC CORE</strong><small>SAFE PARSER • 13 DIGIT PRECISION</small></div></div>
+        <button class="nx-calc-mode" type="button" data-calc-mode>DEG</button>
       </div>
+      <div class="nx-calc-screen">
+        <div class="nx-calc-expression" data-calc-expression>Ready</div>
+        <div class="nx-calc-result" data-calc-result>0</div>
+        <div class="nx-calc-statusline"><span data-calc-state class="hot">LIVE PREVIEW</span><span data-calc-memory-state>M 0</span></div>
+      </div>
+      <div class="nx-calc-history" data-calc-history></div>
+      <div class="nx-calc-memory">${makeKeys(memoryKeys,'memory')}</div>
+      <div class="nx-calc-science">${makeKeys(scienceKeys,'science')}</div>
+      <div class="nx-calc-main">${makeKeys(mainKeys,'')}</div>
+      <p class="nx-calc-pro-note">Scientific functions, memory, ANS, history, factorial, powers and keyboard input • no JavaScript eval()</p>
     </section>
   `);
+  root.classList.add('nx-everyday-calculator');
+  const expressionEl = root.querySelector('[data-calc-expression]');
+  const resultEl = root.querySelector('[data-calc-result]');
+  const stateEl = root.querySelector('[data-calc-state]');
+  const memoryEl = root.querySelector('[data-calc-memory-state]');
+  const historyEl = root.querySelector('[data-calc-history]');
+  const modeButton = root.querySelector('[data-calc-mode]');
   let expr = '';
-  const display = root.querySelector('[data-calc-display]');
-  const press = value => {
-    if (value === 'C') expr = '';
-    else if (value === '⌫') expr = expr.slice(0, -1);
-    else if (value === '=') {
-      try { expr = String(Number(evaluate(expr).toPrecision(12))); }
-      catch { display.textContent = 'Error'; expr = ''; return; }
-    } else if (/^[0-9+\-*/().%]$/.test(value) && expr.length < 160) expr += value;
-    display.textContent = expr || '0';
+  let ans = 0;
+  let memory = 0;
+  let mode = localStorage.getItem(KEYS.calcMode) === 'RAD' ? 'RAD' : 'DEG';
+  let disposed = false;
+
+  const readHistory = () => {
+    const rows = loadJson(KEYS.calcHistory, []);
+    return Array.isArray(rows) ? rows.slice(0, 12) : [];
   };
-  root.querySelectorAll('[data-calc]').forEach(button => button.addEventListener('click', () => press(button.dataset.calc)));
+  const drawHistory = () => {
+    const rows = readHistory();
+    historyEl.innerHTML = rows.length ? rows.slice(0, 6).map((item,index) => `<button type="button" data-calc-history-index="${index}" title="Reuse result"><span>${escapeHtml(item.expression)}</span> <strong>= ${escapeHtml(item.result)}</strong></button>`).join('') : '<button type="button" disabled>History appears here after =</button>';
+    historyEl.querySelectorAll('[data-calc-history-index]').forEach(button => button.addEventListener('click', () => {
+      const item = readHistory()[Number(button.dataset.calcHistoryIndex)];
+      if (!item) return;
+      expr = String(item.result || '');
+      ans = Number(item.result) || ans;
+      paint();
+    }));
+  };
+  const updateMode = () => {
+    modeButton.textContent = mode;
+    root.querySelector('[data-calc-value="mode"]').textContent = mode;
+    localStorage.setItem(KEYS.calcMode, mode);
+  };
+  const isValueEnding = value => /(?:\d|\)|!|%)$/.test(value) || /(?:pi|ans|e)$/.test(value);
+  const startsValue = value => /^(?:pi|ans|e|sin\(|cos\(|tan\(|asin\(|acos\(|atan\(|sqrt\(|cbrt\(|log\(|ln\(|abs\(|exp\(|floor\(|ceil\(|round\(|\()/.test(value);
+  const append = value => {
+    if (expr.length >= 240) return;
+    if (startsValue(value) && isValueEnding(expr)) expr += '*';
+    if (/^(?:\d|\.)/.test(value) && /(?:\)|!|%|pi|ans|e)$/.test(expr)) expr += '*';
+    expr += value;
+  };
+  const preview = () => {
+    if (!expr) return { text:'0', ok:true };
+    try { return { text:calcFormat(calculateScientific(expr,{ mode, ans })), ok:true }; }
+    catch { return { text:ans ? calcFormat(ans) : '0', ok:false }; }
+  };
+  const paint = (message = '') => {
+    const live = preview();
+    expressionEl.textContent = expr || 'Ready';
+    resultEl.textContent = live.text;
+    stateEl.textContent = message || (live.ok && expr ? 'LIVE RESULT' : 'LIVE PREVIEW');
+    stateEl.classList.toggle('hot', live.ok);
+    memoryEl.textContent = `M ${calcFormat(memory)}`;
+    updateMode();
+  };
+  const currentValue = () => {
+    if (!expr) return Number(ans) || 0;
+    return calculateScientific(expr,{ mode, ans });
+  };
+  const solve = () => {
+    try {
+      const original = expr || '0';
+      const value = currentValue();
+      const result = calcFormat(value);
+      ans = value;
+      expr = result;
+      const history = readHistory();
+      history.unshift({ expression:original, result, at:new Date().toISOString() });
+      saveJson(KEYS.calcHistory, history.slice(0, 12));
+      drawHistory();
+      paint('RESULT LOCKED');
+    } catch (error) {
+      resultEl.textContent = 'Error';
+      stateEl.textContent = error?.message || 'Invalid expression';
+      stateEl.classList.remove('hot');
+    }
+  };
+  const handle = value => {
+    if (value === 'clear') { expr = ''; paint('CLEARED'); return; }
+    if (value === 'back') { expr = expr.slice(0,-1); paint(); return; }
+    if (value === 'equals') { solve(); return; }
+    if (value === 'mode') { mode = mode === 'DEG' ? 'RAD' : 'DEG'; paint(`${mode} MODE`); return; }
+    if (value === 'mc') { memory = 0; paint('MEMORY CLEARED'); return; }
+    if (value === 'mr') { append(calcFormat(memory)); paint('MEMORY RECALL'); return; }
+    if (value === 'mplus' || value === 'mminus') {
+      try { const v = currentValue(); memory += value === 'mplus' ? v : -v; paint(value === 'mplus' ? 'MEMORY +' : 'MEMORY −'); }
+      catch (error) { stateEl.textContent = error?.message || 'Memory operation failed'; }
+      return;
+    }
+    append(value);
+    paint();
+  };
+
+  root.querySelectorAll('[data-calc-key]').forEach(button => button.addEventListener('click', () => handle(button.dataset.calcValue)));
+  modeButton.addEventListener('click', () => handle('mode'));
+  const keyboard = event => {
+    if (disposed || event.ctrlKey || event.metaKey || event.altKey) return;
+    const key = event.key;
+    if (/^[0-9.+\-*/^()%!]$/.test(key)) { event.preventDefault(); handle(key); return; }
+    if (key === 'Enter' || key === '=') { event.preventDefault(); handle('equals'); return; }
+    if (key === 'Backspace') { event.preventDefault(); handle('back'); return; }
+    if (key === 'Escape' || key === 'Delete') { event.preventDefault(); handle('clear'); }
+  };
+  window.addEventListener('keydown', keyboard);
+  const pointerMove = event => {
+    const rect = root.getBoundingClientRect();
+    root.style.setProperty('--calc-light-x', `${((event.clientX - rect.left) / Math.max(1,rect.width)) * 100}%`);
+    root.style.setProperty('--calc-light-y', `${((event.clientY - rect.top) / Math.max(1,rect.height)) * 100}%`);
+  };
+  root.addEventListener('pointermove', pointerMove,{ passive:true });
+  root.__cleanup = () => {
+    disposed = true;
+    window.removeEventListener('keydown', keyboard);
+    root.removeEventListener('pointermove', pointerMove);
+  };
+  drawHistory();
+  paint();
   return root;
 }
 
