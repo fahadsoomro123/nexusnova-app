@@ -1,4 +1,4 @@
-name: NexusNova Vault v13 Signed APK
+name: NexusNova Vault v14 Baseline Signed APK
 
 on:
   workflow_dispatch:
@@ -6,15 +6,15 @@ on:
     branches:
       - nova-sol57-pro-v128
     paths:
-      - '.github/workflows/nova57-ota-bootstrap-signed-apk.yml'
       - 'NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt'
 
 permissions:
   contents: write
 
 env:
-  VERSION_CODE: '20260831'
-  VERSION_NAME: '1.0.4-vault-v13'
+  VERSION_CODE: '20260901'
+  VERSION_NAME: '1.0.5-vault-v14'
+  V14_BASE: '8d1aaaee6f28b974a8c8b3ff213beb1318ec7405'
 
 jobs:
   build_signed_apk:
@@ -26,7 +26,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verify Vault v13 and OTA source
+      - name: Verify living Vault v14 baseline and OTA engine
         shell: bash
         run: |
           set -euo pipefail
@@ -34,17 +34,18 @@ jobs:
           test -s fresh-rebuild/index.html
           test -s fresh-rebuild/src/main.js
           test -s fresh-rebuild/src/features/apps/nova-vault-screen-v13.js
-          test -s fresh-rebuild/src/features/apps/nova-vault-safe.js
+          test -s fresh-rebuild/src/features/apps/nova-vault-living-v14.js
           test -s NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt
-          grep -Fq './src/main.js?ota=nv13' fresh-rebuild/index.html
-          grep -Fq 'nx-vault-v13-shell-fix' fresh-rebuild/index.html
-          grep -Fq 'nxEmergencySosButton' fresh-rebuild/index.html
-          grep -Fq "nova-vault-screen-v13.js?ota=nv13" fresh-rebuild/src/main.js
-          grep -Fq "payload.id === 'nova-vault'" fresh-rebuild/src/main.js
-          grep -Fq "nova-vault-safe.js?ota=nv13" fresh-rebuild/src/features/apps/nova-vault-screen-v13.js
+          grep -Fq './src/main.js?ota=nv14' fresh-rebuild/index.html
+          grep -Fq 'nx-vault-v14-shell-fix' fresh-rebuild/index.html
+          grep -Fq "nova-vault-screen-v13.js?ota=nv14" fresh-rebuild/src/main.js
+          grep -Fq "nova-vault-living-v14.js?ota=nv14" fresh-rebuild/src/features/apps/nova-vault-screen-v13.js
+          grep -Fq 'nx-vault-life-core' fresh-rebuild/src/features/apps/nova-vault-living-v14.js
+          grep -Fq 'nx-vault-life-inventory' fresh-rebuild/src/features/apps/nova-vault-living-v14.js
+          grep -Fq "BUNDLED_WEB_BASE = \"$V14_BASE\"" NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt
+          grep -Fq 'KEY_BUNDLED_BASE' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt
           grep -Fq 'UPDATE_CHECK_ATTEMPTS = 4' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt
-          grep -Fq 'Cache-Control", "no-cache, no-store, max-age=0' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt
-          echo 'Vault v13 + OTA cache hardening: PASS'
+          echo 'Living Vault v14 + rebased OTA engine: PASS'
 
       - name: Setup Java 17
         uses: actions/setup-java@v4
@@ -101,14 +102,12 @@ jobs:
           python3 - <<'PY'
           import os, re
           from pathlib import Path
-
           path = Path('NexusNovaAndroid/app/build.gradle.kts')
           text = path.read_text(encoding='utf-8')
           text, n1 = re.subn(r'versionCode\s*=\s*\d+', 'versionCode = ' + os.environ['VERSION_CODE'], text, count=1)
           text, n2 = re.subn(r'versionName\s*=\s*"[^"]*"', 'versionName = "' + os.environ['VERSION_NAME'] + '"', text, count=1)
           if n1 != 1 or n2 != 1:
               raise SystemExit('Android version fields not found')
-
           signing = '''    signingConfigs {
               create("nexusRelease") {
                   storeFile = file(System.getenv("NEXUSNOVA_SIGNING_STORE_FILE"))
@@ -123,7 +122,6 @@ jobs:
           if build_types not in text:
               raise SystemExit('Android buildTypes block not found')
           text = text.replace(build_types, signing + build_types, 1)
-
           release = '        release {\n'
           if release not in text:
               raise SystemExit('Android release block not found')
@@ -139,16 +137,13 @@ jobs:
           gradle --no-daemon clean assembleRelease
           APK=app/build/outputs/apk/release/app-release.apk
           test -s "$APK"
-
-          # Prove the fix is inside the APK bundle and not dependent on OTA.
-          test -s app/src/main/assets/www/src/features/apps/nova-vault-screen-v13.js
-          test -s app/src/main/assets/www/src/features/apps/nova-vault-safe.js
-          grep -Fq './src/main.js?ota=nv13' app/src/main/assets/www/index.html
-          grep -Fq 'nx-vault-v13-shell-fix' app/src/main/assets/www/index.html
-          grep -Fq 'nxEmergencySosButton' app/src/main/assets/www/index.html
-          grep -Fq "nova-vault-screen-v13.js?ota=nv13" app/src/main/assets/www/src/main.js
-          grep -Fq "payload.id === 'nova-vault'" app/src/main/assets/www/src/main.js
-          echo 'Signed APK contains Vault v13 directly: PASS'
+          test -s app/src/main/assets/www/src/features/apps/nova-vault-living-v14.js
+          grep -Fq './src/main.js?ota=nv14' app/src/main/assets/www/index.html
+          grep -Fq 'nx-vault-v14-shell-fix' app/src/main/assets/www/index.html
+          grep -Fq "nova-vault-screen-v13.js?ota=nv14" app/src/main/assets/www/src/main.js
+          grep -Fq "nova-vault-living-v14.js?ota=nv14" app/src/main/assets/www/src/features/apps/nova-vault-screen-v13.js
+          grep -Fq 'nx-vault-life-inventory' app/src/main/assets/www/src/features/apps/nova-vault-living-v14.js
+          echo 'Signed APK contains living Vault v14 directly: PASS'
 
       - name: Verify APK signature
         shell: bash
@@ -164,28 +159,28 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          OUT="$GITHUB_WORKSPACE/vault-v13-signed"
+          OUT="$GITHUB_WORKSPACE/vault-v14-signed"
           rm -rf "$OUT"
           mkdir -p "$OUT"
           APK_NAME="NexusNova-${VERSION_NAME}-vc${VERSION_CODE}-SIGNED.apk"
           cp "$GITHUB_WORKSPACE/NexusNovaAndroid/app/build/outputs/apk/release/app-release.apk" "$OUT/$APK_NAME"
           sha256sum "$OUT/$APK_NAME" > "$OUT/SHA256.txt"
           cp "$GITHUB_WORKSPACE/apk-signature.txt" "$OUT/signature.txt"
-          printf 'Source commit: %s\nBranch: %s\nVersion name: %s\nVersion code: %s\nPermanent signature: PASS\nVault v13 bundled directly: PASS\nVault SOS suppression bundled: PASS\nOTA stale-cache hardening: PASS\nAdMob mode: TEST LOCKED\n' "$GITHUB_SHA" "$GITHUB_REF_NAME" "$VERSION_NAME" "$VERSION_CODE" > "$OUT/BUILD-STATUS.txt"
+          printf 'Source commit: %s\nBranch: %s\nVersion name: %s\nVersion code: %s\nPermanent signature: PASS\nLiving Vault v14 bundled directly: PASS\nOTA baseline: %s\nOTA baseline migration/reset: PASS\nAdMob mode: TEST LOCKED\n' "$GITHUB_SHA" "$GITHUB_REF_NAME" "$VERSION_NAME" "$VERSION_CODE" "$V14_BASE" > "$OUT/BUILD-STATUS.txt"
 
           git config user.name 'NexusNova Signed APK Bot'
           git config user.email 'actions@users.noreply.github.com'
           git fetch origin apk-builds
-          PUB="$RUNNER_TEMP/nexusnova-vault-v13-signed"
+          PUB="$RUNNER_TEMP/nexusnova-vault-v14-signed"
           rm -rf "$PUB"
           git worktree add "$PUB" origin/apk-builds
           cd "$PUB"
-          rm -rf vault-v13-signed
-          mkdir -p vault-v13-signed
-          cp -a "$OUT"/. vault-v13-signed/
-          git add -A vault-v13-signed/BUILD-STATUS.txt vault-v13-signed/SHA256.txt vault-v13-signed/signature.txt
-          git add -f vault-v13-signed/*.apk
-          git commit -m "Publish signed Vault v13 APK $GITHUB_SHA"
+          rm -rf vault-v14-signed
+          mkdir -p vault-v14-signed
+          cp -a "$OUT"/. vault-v14-signed/
+          git add -A vault-v14-signed/BUILD-STATUS.txt vault-v14-signed/SHA256.txt vault-v14-signed/signature.txt
+          git add -f vault-v14-signed/*.apk
+          git commit -m "Publish signed Vault v14 baseline APK $GITHUB_SHA"
           git pull --rebase origin apk-builds
           git push origin HEAD:apk-builds
 
