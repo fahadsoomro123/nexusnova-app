@@ -7,6 +7,7 @@ import { liveLocationDriveRenderers } from './live-location-drive-skin.js';
 import { discoverSafeDeskRenderers } from './discover-premium-safe.js';
 import { discoverStudyTravelRenderers } from './discover-study-travel-skin.js';
 import { discoverDocsEntertainmentRenderers } from './discover-docs-entertainment-skin.js';
+import { faithReadingPremiumRenderers } from './faith-reading-premium-skin.js';
 
 function node(html) {
   const root = document.createElement('div');
@@ -104,5 +105,6 @@ export const browserSafeRenderers = Object.freeze({
   ...liveLocationDriveRenderers,
   ...discoverSafeDeskRenderers,
   ...discoverStudyTravelRenderers,
-  ...discoverDocsEntertainmentRenderers
+  ...discoverDocsEntertainmentRenderers,
+  ...faithReadingPremiumRenderers
 });
