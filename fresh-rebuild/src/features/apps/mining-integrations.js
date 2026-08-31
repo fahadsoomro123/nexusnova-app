@@ -5,13 +5,22 @@ import { nativeAds } from '../../core/native-ads.js';
 
 const TASK_SOCIALS = Object.freeze([
   {
-    id: 'telegram',
-    label: 'Telegram',
+    id: 'x',
+    label: 'X',
     handle: '@NexusNovaTools',
-    detail: 'Official NexusNova channel',
-    href: 'https://t.me/NexusNovaTools',
-    glyph: 'TG',
-    action: 'OPEN'
+    detail: 'Official NexusNova profile',
+    href: 'https://x.com/NexusNovaTools',
+    glyph: 'X',
+    action: 'FOLLOW'
+  },
+  {
+    id: 'instagram',
+    label: 'Instagram',
+    handle: '@nexusnovatools',
+    detail: 'Official NexusNova profile',
+    href: 'https://www.instagram.com/nexusnovatools/',
+    glyph: 'IG',
+    action: 'FOLLOW'
   },
   {
     id: 'facebook',
@@ -20,112 +29,127 @@ const TASK_SOCIALS = Object.freeze([
     detail: 'Official NexusNova page',
     href: 'https://web.facebook.com/NexusNovaTools/',
     glyph: 'f',
-    action: 'OPEN'
+    action: 'FOLLOW'
   },
   {
-    id: 'website',
-    label: 'NexusNova Tools',
-    handle: 'nexusnovatools.com',
-    detail: 'Official NexusNova home',
-    href: 'https://nexusnovatools.com/',
-    glyph: 'N',
-    action: 'VISIT'
+    id: 'telegram',
+    label: 'Telegram',
+    handle: '@NexusNovaTools',
+    detail: 'Official NexusNova channel',
+    href: 'https://t.me/NexusNovaTools',
+    glyph: 'TG',
+    action: 'JOIN'
   }
 ]);
 
 function ensureMiningTasksPremiumStyles() {
-  if (document.getElementById('nx-mining-tasks-premium-v1')) return;
+  if (document.getElementById('nx-mining-tasks-premium-v2')) return;
   const style = document.createElement('style');
-  style.id = 'nx-mining-tasks-premium-v1';
+  style.id = 'nx-mining-tasks-premium-v2';
   style.textContent = `
     .nx-tasks-premium{
-      position:relative;isolation:isolate;display:flex!important;flex-direction:column!important;gap:10px!important;
-      min-height:calc(100dvh - 190px);padding:0 0 8px;overflow:visible;
+      position:relative;isolation:isolate;display:grid!important;gap:9px!important;padding:0 0 8px!important;
       background:
-        radial-gradient(circle at 92% 12%,rgba(44,205,255,.10),transparent 24%),
-        radial-gradient(circle at 5% 70%,rgba(126,88,255,.085),transparent 28%),
-        linear-gradient(180deg,rgba(6,18,32,.02),rgba(5,15,28,.28) 64%,rgba(7,19,34,.58));
+        radial-gradient(circle at 94% 12%,rgba(44,205,255,.09),transparent 22%),
+        radial-gradient(circle at 8% 62%,rgba(126,88,255,.065),transparent 24%);
     }
     .nx-tasks-premium>.nx-reward-hero{
-      position:relative;overflow:hidden;min-height:132px;padding:18px 18px 16px;border-color:rgba(67,213,255,.24)!important;
+      position:relative;overflow:hidden;min-height:118px;padding:16px 17px 14px;border-color:rgba(67,213,255,.23)!important;
       background:
-        radial-gradient(circle at 82% 8%,rgba(89,214,255,.21),transparent 30%),
-        radial-gradient(circle at 98% 92%,rgba(125,82,255,.16),transparent 34%),
+        radial-gradient(circle at 84% 8%,rgba(89,214,255,.20),transparent 29%),
+        radial-gradient(circle at 100% 94%,rgba(125,82,255,.14),transparent 31%),
         linear-gradient(145deg,rgba(13,50,78,.97),rgba(7,24,43,.98) 58%,rgba(8,18,34,.99))!important;
-      box-shadow:0 18px 44px rgba(0,0,0,.24),inset 0 1px 0 rgba(255,255,255,.055),0 0 34px rgba(40,190,255,.055)!important;
+      box-shadow:0 16px 38px rgba(0,0,0,.22),inset 0 1px 0 rgba(255,255,255,.05),0 0 30px rgba(40,190,255,.045)!important;
     }
     .nx-tasks-premium>.nx-reward-hero::before{
-      content:'';position:absolute;right:-34px;top:-51px;width:170px;height:170px;border-radius:50%;
-      border:1px solid rgba(118,225,255,.13);box-shadow:inset 0 0 42px rgba(68,194,255,.06),0 0 36px rgba(84,115,255,.06);
-      animation:nxTasksOrbit 8s linear infinite;pointer-events:none;
+      content:'';position:absolute;right:-38px;top:-58px;width:164px;height:164px;border-radius:50%;
+      border:1px solid rgba(118,225,255,.12);box-shadow:inset 0 0 38px rgba(68,194,255,.055),0 0 30px rgba(84,115,255,.055);
+      animation:nxTasksOrbit 9s linear infinite;pointer-events:none;
     }
     .nx-tasks-premium>.nx-reward-hero::after{
-      content:'';position:absolute;right:32px;top:25px;width:8px;height:8px;border-radius:50%;background:#63e9ff;
-      box-shadow:0 0 0 7px rgba(99,233,255,.055),0 0 22px rgba(99,233,255,.7);animation:nxTasksPulse 2.4s ease-in-out infinite;pointer-events:none;
+      content:'';position:absolute;right:31px;top:23px;width:7px;height:7px;border-radius:50%;background:#63e9ff;
+      box-shadow:0 0 0 6px rgba(99,233,255,.05),0 0 19px rgba(99,233,255,.68);animation:nxTasksPulse 2.4s ease-in-out infinite;pointer-events:none;
     }
-    .nx-tasks-premium>.nx-reward-hero .nx-eyebrow{position:relative;z-index:1;margin-bottom:8px;color:#70e6ff;letter-spacing:.18em}
-    .nx-tasks-premium>.nx-reward-hero>strong{position:relative;z-index:1;display:block;font-size:clamp(28px,8vw,40px);letter-spacing:-.045em;line-height:1;font-variant-numeric:tabular-nums;text-shadow:0 0 24px rgba(77,213,255,.08)}
-    .nx-tasks-premium>.nx-reward-hero>span{position:relative;z-index:1;display:inline-flex;margin-top:11px;padding:5px 8px;border:1px solid rgba(107,221,255,.12);border-radius:999px;background:rgba(6,23,40,.46);color:#a9bed0;font-size:9px;font-weight:800;letter-spacing:.035em}
+    .nx-tasks-premium>.nx-reward-hero .nx-eyebrow{position:relative;z-index:1;margin-bottom:7px;color:#70e6ff;letter-spacing:.18em}
+    .nx-tasks-premium>.nx-reward-hero>strong{position:relative;z-index:1;display:block;font-size:clamp(27px,7.5vw,38px);letter-spacing:-.045em;line-height:1;font-variant-numeric:tabular-nums}
+    .nx-tasks-premium>.nx-reward-hero>span{position:relative;z-index:1;display:inline-flex;margin-top:10px;padding:4px 8px;border:1px solid rgba(107,221,255,.11);border-radius:999px;background:rgba(6,23,40,.43);color:#a9bed0;font-size:8.5px;font-weight:800;letter-spacing:.035em}
 
     .nx-community-live{
-      position:relative;overflow:hidden;padding:14px!important;border-color:rgba(99,188,255,.16)!important;
+      position:relative;overflow:hidden;padding:12px!important;border-color:rgba(99,188,255,.15)!important;
       background:linear-gradient(155deg,rgba(10,32,52,.95),rgba(7,19,34,.96))!important;
-      box-shadow:0 15px 35px rgba(0,0,0,.18),inset 0 1px 0 rgba(255,255,255,.035)!important;
+      box-shadow:0 13px 30px rgba(0,0,0,.16),inset 0 1px 0 rgba(255,255,255,.03)!important;
     }
-    .nx-community-live::before{content:'';position:absolute;inset:0;background:linear-gradient(110deg,transparent 0 41%,rgba(83,216,255,.035) 49%,transparent 58%);transform:translateX(-65%);animation:nxTasksScan 7s ease-in-out infinite;pointer-events:none}
-    .nx-community-head{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+    .nx-community-live::before{content:'';position:absolute;inset:0;background:linear-gradient(110deg,transparent 0 42%,rgba(83,216,255,.03) 49%,transparent 57%);transform:translateX(-70%);animation:nxTasksScan 8s ease-in-out infinite;pointer-events:none}
+    .nx-community-head{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
     .nx-community-head .nx-eyebrow{margin:0}
-    .nx-community-live-state{display:inline-flex;align-items:center;gap:6px;padding:5px 8px;border:1px solid rgba(58,224,171,.16);border-radius:999px;background:rgba(39,226,164,.07);color:#8ff0ca;font-size:8px;font-weight:900;letter-spacing:.08em}
-    .nx-community-live-state i{width:6px;height:6px;border-radius:50%;background:#35e3a7;box-shadow:0 0 12px rgba(53,227,167,.75);animation:nxTasksPulse 2s ease-in-out infinite}
-    .nx-community-grid{position:relative;z-index:1;display:grid;gap:7px}
+    .nx-community-live-state{display:inline-flex;align-items:center;gap:5px;padding:4px 7px;border:1px solid rgba(58,224,171,.14);border-radius:999px;background:rgba(39,226,164,.055);color:#8ff0ca;font-size:7px;font-weight:900;letter-spacing:.08em}
+    .nx-community-live-state i{width:5px;height:5px;border-radius:50%;background:#35e3a7;box-shadow:0 0 10px rgba(53,227,167,.7);animation:nxTasksPulse 2s ease-in-out infinite}
+    .nx-community-grid{position:relative;z-index:1;display:grid;gap:6px}
     .nx-social-mission{
-      min-width:0;min-height:60px;padding:9px 10px;display:grid;grid-template-columns:38px minmax(0,1fr) auto;align-items:center;gap:10px;
-      border:1px solid rgba(139,199,237,.11);border-radius:15px;background:linear-gradient(145deg,rgba(15,42,65,.82),rgba(7,24,41,.9));
-      color:inherit;text-decoration:none;box-shadow:inset 0 1px 0 rgba(255,255,255,.025);transition:transform .16s ease,border-color .16s linear,background .16s linear;
+      width:100%;min-width:0;min-height:54px;padding:7px 9px;display:grid;grid-template-columns:36px minmax(0,1fr) auto;align-items:center;gap:9px;
+      border:1px solid rgba(139,199,237,.10);border-radius:14px;background:linear-gradient(145deg,rgba(15,42,65,.80),rgba(7,24,41,.89));
+      color:inherit;text-align:left;box-shadow:inset 0 1px 0 rgba(255,255,255,.022);cursor:pointer;
+      transition:transform .15s ease,border-color .15s linear,background .15s linear;
     }
-    .nx-social-mission:active{transform:scale(.987)}
-    .nx-social-mission:hover{border-color:rgba(91,213,255,.25);background:linear-gradient(145deg,rgba(18,51,76,.9),rgba(8,28,47,.94))}
-    .nx-social-glyph{width:38px;height:38px;display:grid;place-items:center;border:1px solid rgba(109,215,255,.15);border-radius:12px;background:radial-gradient(circle at 34% 25%,rgba(100,226,255,.20),transparent 38%),linear-gradient(145deg,rgba(27,108,158,.56),rgba(17,54,94,.72));box-shadow:0 7px 18px rgba(0,0,0,.18),inset 0 1px 0 rgba(255,255,255,.06);color:#e9fbff;font-size:12px;font-weight:950;letter-spacing:-.03em}
-    .nx-social-mission[data-social-task="facebook"] .nx-social-glyph{background:linear-gradient(145deg,rgba(52,112,226,.72),rgba(22,63,146,.78));font-size:20px}
-    .nx-social-mission[data-social-task="telegram"] .nx-social-glyph{background:linear-gradient(145deg,rgba(45,177,229,.72),rgba(18,89,154,.8));font-size:10px;letter-spacing:.02em}
-    .nx-social-mission[data-social-task="website"] .nx-social-glyph{background:linear-gradient(145deg,rgba(80,91,226,.66),rgba(68,38,154,.74));font-size:16px}
+    .nx-social-mission:active{transform:scale(.986)}
+    .nx-social-mission:hover{border-color:rgba(91,213,255,.24);background:linear-gradient(145deg,rgba(18,51,76,.88),rgba(8,28,47,.93))}
+    .nx-social-glyph{width:36px;height:36px;display:grid;place-items:center;border:1px solid rgba(109,215,255,.14);border-radius:11px;background:linear-gradient(145deg,rgba(27,108,158,.56),rgba(17,54,94,.72));box-shadow:0 6px 16px rgba(0,0,0,.17),inset 0 1px 0 rgba(255,255,255,.055);color:#f4fcff;font-size:11px;font-weight:950;letter-spacing:-.03em}
+    .nx-social-mission[data-social-task="x"] .nx-social-glyph{background:linear-gradient(145deg,rgba(32,38,48,.96),rgba(4,8,14,.99));border-color:rgba(255,255,255,.13);font-size:15px}
+    .nx-social-mission[data-social-task="instagram"] .nx-social-glyph{background:radial-gradient(circle at 69% 72%,rgba(255,188,64,.68),transparent 29%),linear-gradient(145deg,rgba(203,51,126,.88),rgba(100,55,201,.92));border-color:rgba(255,190,230,.17);font-size:8px;letter-spacing:.03em}
+    .nx-social-mission[data-social-task="facebook"] .nx-social-glyph{background:linear-gradient(145deg,rgba(52,112,226,.72),rgba(22,63,146,.80));font-size:19px}
+    .nx-social-mission[data-social-task="telegram"] .nx-social-glyph{background:linear-gradient(145deg,rgba(45,177,229,.72),rgba(18,89,154,.82));font-size:9px;letter-spacing:.02em}
     .nx-social-copy{min-width:0}
-    .nx-social-copy strong{display:block;font-size:11.5px;line-height:1.2;color:#f2f8ff}
-    .nx-social-copy span{display:block;margin-top:3px;color:#8fb0c7;font-size:9px;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .nx-social-copy small{display:block;margin-top:2px;color:#607d95;font-size:7.5px;line-height:1.2}
-    .nx-social-action{min-width:49px;padding:6px 7px;border:1px solid rgba(89,212,255,.17);border-radius:10px;background:rgba(31,137,186,.11);color:#a9eaff;font-size:7.5px;font-weight:950;letter-spacing:.075em;text-align:center}
-    .nx-community-security{position:relative;z-index:1;display:flex;align-items:center;gap:7px;margin:10px 2px 0;color:#708aa0;font-size:8px;line-height:1.35}
-    .nx-community-security i{flex:0 0 7px;width:7px;height:7px;border-radius:50%;background:#43d8ff;box-shadow:0 0 11px rgba(67,216,255,.5)}
+    .nx-social-copy strong{display:block;color:#f2f8ff;font-size:11px;line-height:1.15}
+    .nx-social-copy span{display:block;margin-top:3px;color:#8fb0c7;font-size:8.5px;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .nx-social-copy small{display:block;margin-top:2px;color:#607d95;font-size:7px;line-height:1.15}
+    .nx-social-action{min-width:51px;padding:6px 7px;border:1px solid rgba(89,212,255,.16);border-radius:9px;background:rgba(31,137,186,.10);color:#b4edff;font-size:7px;font-weight:950;letter-spacing:.075em;text-align:center}
 
     .nx-tasks-premium>.nx-tool-card:not(.nx-community-live){
-      padding:12px 13px!important;border-radius:17px!important;border-color:rgba(128,192,230,.12)!important;
-      background:linear-gradient(150deg,rgba(10,29,48,.91),rgba(6,18,32,.95))!important;
-      box-shadow:0 12px 30px rgba(0,0,0,.15),inset 0 1px 0 rgba(255,255,255,.025)!important;
+      padding:11px 12px!important;border-radius:16px!important;border-color:rgba(128,192,230,.11)!important;
+      background:linear-gradient(150deg,rgba(10,29,48,.90),rgba(6,18,32,.94))!important;
+      box-shadow:0 11px 26px rgba(0,0,0,.14),inset 0 1px 0 rgba(255,255,255,.022)!important;
     }
-    .nx-tasks-premium .nx-reward-row{gap:10px}
-    .nx-tasks-premium .nx-reward-row>div>strong{font-size:12px}
-    .nx-tasks-premium .nx-reward-row>div>p{margin:4px 0 0;color:#7893a9;font-size:9px;line-height:1.4}
-    .nx-tasks-premium .nx-reward-row>button{min-height:42px;padding:0 12px;border-radius:13px;border-color:rgba(80,203,255,.18);background:linear-gradient(145deg,rgba(17,104,157,.58),rgba(13,67,112,.62));box-shadow:inset 0 1px 0 rgba(255,255,255,.04),0 8px 20px rgba(0,0,0,.13);font-size:8px}
-    .nx-tasks-premium .nx-tool-meta{margin-top:8px;color:#637e94;font-size:8.5px;line-height:1.4}
-    .nx-task-network-floor{position:relative;overflow:hidden;min-height:82px;margin-top:auto;padding:13px 14px;display:flex;align-items:center;justify-content:space-between;gap:13px;border:1px solid rgba(96,162,210,.09);border-radius:18px;background:radial-gradient(circle at 92% 20%,rgba(109,78,255,.13),transparent 34%),linear-gradient(145deg,rgba(7,24,41,.74),rgba(6,16,30,.82));box-shadow:inset 0 1px 0 rgba(255,255,255,.02)}
-    .nx-task-network-floor strong{display:block;color:#cae9f7;font-size:9px;letter-spacing:.1em}
-    .nx-task-network-floor span{display:block;margin-top:5px;color:#5e7b91;font-size:8px;line-height:1.35}
-    .nx-task-network-core{position:relative;flex:0 0 46px;width:46px;height:46px;border-radius:50%;border:1px solid rgba(95,211,255,.18);box-shadow:inset 0 0 18px rgba(63,198,255,.08),0 0 22px rgba(87,86,255,.08);animation:nxTasksOrbit 7s linear infinite}
-    .nx-task-network-core::before,.nx-task-network-core::after{content:'';position:absolute;border-radius:50%}
-    .nx-task-network-core::before{inset:10px;border:1px solid rgba(137,104,255,.24)}
-    .nx-task-network-core::after{left:50%;top:50%;width:8px;height:8px;transform:translate(-50%,-50%);background:#6be4ff;box-shadow:0 0 16px rgba(107,228,255,.75)}
+    .nx-tasks-premium .nx-reward-row{gap:9px}
+    .nx-tasks-premium .nx-reward-row>div>strong{font-size:11.5px}
+    .nx-tasks-premium .nx-reward-row>div>p{margin:4px 0 0;color:#7893a9;font-size:8.5px;line-height:1.35}
+    .nx-tasks-premium .nx-reward-row>button{min-height:40px;padding:0 11px;border-radius:12px;border-color:rgba(80,203,255,.17);background:linear-gradient(145deg,rgba(17,104,157,.56),rgba(13,67,112,.60));box-shadow:inset 0 1px 0 rgba(255,255,255,.035),0 7px 18px rgba(0,0,0,.12);font-size:7.5px}
+    .nx-tasks-premium .nx-tool-meta{margin-top:7px;color:#637e94;font-size:8px;line-height:1.35}
+
+    .nx-task-follow-gate{
+      position:fixed;inset:0;z-index:2147483600;display:grid;align-items:end;padding:14px 12px calc(env(safe-area-inset-bottom) + 14px);
+      background:rgba(1,7,16,.74);backdrop-filter:blur(9px) saturate(115%);-webkit-backdrop-filter:blur(9px) saturate(115%);
+      opacity:0;pointer-events:none;transition:opacity .16s ease;
+    }
+    .nx-task-follow-gate[hidden]{display:none!important}
+    .nx-task-follow-gate.is-open{opacity:1;pointer-events:auto}
+    .nx-task-follow-sheet{
+      width:min(100%,520px);margin:0 auto;padding:15px;border:1px solid rgba(96,208,255,.19);border-radius:22px;
+      background:radial-gradient(circle at 92% 0,rgba(94,95,255,.15),transparent 31%),linear-gradient(155deg,rgba(13,37,59,.995),rgba(5,18,32,.998));
+      box-shadow:0 24px 64px rgba(0,0,0,.50),inset 0 1px 0 rgba(255,255,255,.05);transform:translateY(18px) scale(.987);transition:transform .18s cubic-bezier(.2,.8,.2,1);
+    }
+    .nx-task-follow-gate.is-open .nx-task-follow-sheet{transform:none}
+    .nx-task-follow-top{display:flex;align-items:center;justify-content:space-between;gap:11px}
+    .nx-task-follow-id{display:flex;align-items:center;gap:10px;min-width:0}
+    .nx-task-follow-mark{flex:0 0 42px;width:42px;height:42px;display:grid;place-items:center;border:1px solid rgba(114,218,255,.16);border-radius:13px;background:linear-gradient(145deg,rgba(25,106,157,.64),rgba(31,50,110,.74));box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 7px 18px rgba(0,0,0,.20);font-size:11px;font-weight:950;color:#fff}
+    .nx-task-follow-copy{min-width:0}.nx-task-follow-copy small{display:block;color:#61dffc;font-size:7px;font-weight:900;letter-spacing:.13em}.nx-task-follow-copy strong{display:block;margin-top:3px;font-size:15px;line-height:1.15}.nx-task-follow-copy span{display:block;margin-top:3px;color:#8da9bd;font-size:8.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .nx-task-follow-close{flex:0 0 36px;width:36px;height:36px;border:1px solid rgba(154,204,255,.11);border-radius:11px;background:rgba(11,31,50,.86);color:#b8ccda;font-size:18px;cursor:pointer}
+    .nx-task-follow-message{margin:13px 1px 0;color:#9cb2c4;font-size:9.5px;line-height:1.5}
+    .nx-task-follow-actions{display:grid;grid-template-columns:82px minmax(0,1fr);gap:7px;margin-top:12px}
+    .nx-task-follow-actions button{min-height:44px;border-radius:13px;font-size:8.5px;font-weight:950;letter-spacing:.06em;cursor:pointer}
+    .nx-task-follow-cancel{border:1px solid rgba(149,178,203,.12);background:rgba(12,30,48,.76);color:#8ca5b8}
+    .nx-task-follow-go{border:1px solid rgba(86,220,255,.24);background:linear-gradient(135deg,rgba(24,135,197,.92),rgba(57,82,199,.84));color:#fff;box-shadow:0 9px 22px rgba(18,96,184,.18),inset 0 1px 0 rgba(255,255,255,.08)}
 
     @keyframes nxTasksPulse{0%,100%{opacity:.72;transform:scale(.92)}50%{opacity:1;transform:scale(1.08)}}
     @keyframes nxTasksOrbit{to{transform:rotate(360deg)}}
-    @keyframes nxTasksScan{0%,18%{transform:translateX(-70%)}62%,100%{transform:translateX(82%)}}
+    @keyframes nxTasksScan{0%,18%{transform:translateX(-72%)}62%,100%{transform:translateX(84%)}}
     @media(max-width:380px){
-      .nx-tasks-premium{min-height:calc(100dvh - 178px)}
-      .nx-social-mission{grid-template-columns:36px minmax(0,1fr) auto;gap:8px;padding:8px;min-height:56px}
-      .nx-social-glyph{width:36px;height:36px}.nx-social-action{min-width:44px;padding-inline:5px}
-      .nx-tasks-premium>.nx-reward-hero{min-height:124px;padding:16px}
+      .nx-social-mission{grid-template-columns:34px minmax(0,1fr) auto;gap:7px;padding:7px 8px;min-height:52px}
+      .nx-social-glyph{width:34px;height:34px}.nx-social-action{min-width:46px;padding-inline:5px}
+      .nx-tasks-premium>.nx-reward-hero{min-height:112px;padding:15px}
+      .nx-task-follow-gate{padding-inline:9px}.nx-task-follow-sheet{padding:13px;border-radius:20px}.nx-task-follow-actions{grid-template-columns:76px minmax(0,1fr)}
     }
     @media(prefers-reduced-motion:reduce){
-      .nx-tasks-premium>.nx-reward-hero::before,.nx-tasks-premium>.nx-reward-hero::after,.nx-community-live::before,.nx-community-live-state i,.nx-task-network-core{animation:none!important}
+      .nx-tasks-premium>.nx-reward-hero::before,.nx-tasks-premium>.nx-reward-hero::after,.nx-community-live::before,.nx-community-live-state i,.nx-task-follow-gate,.nx-task-follow-sheet{animation:none!important;transition:none!important}
     }
   `;
   document.head.appendChild(style);
@@ -133,11 +157,11 @@ function ensureMiningTasksPremiumStyles() {
 
 function socialRowsHtml() {
   return TASK_SOCIALS.map(item => `
-    <a class="nx-social-mission" data-social-task="${item.id}" href="${item.href}" target="_blank" rel="noopener noreferrer" aria-label="Open ${item.label} ${item.handle}">
+    <button class="nx-social-mission" data-social-task="${item.id}" type="button" aria-label="${item.action} ${item.label} ${item.handle}">
       <span class="nx-social-glyph" aria-hidden="true">${item.glyph}</span>
       <span class="nx-social-copy"><strong>${item.label}</strong><span>${item.handle}</span><small>${item.detail}</small></span>
       <span class="nx-social-action">${item.action}</span>
-    </a>
+    </button>
   `).join('');
 }
 
@@ -146,36 +170,102 @@ function communityTaskPanel() {
   section.className = 'nx-tool-card nx-community-live';
   section.innerHTML = `
     <div class="nx-community-head">
-      <p class="nx-eyebrow">COMMUNITY NETWORK</p>
-      <span class="nx-community-live-state"><i aria-hidden="true"></i>LINKS ONLINE</span>
+      <p class="nx-eyebrow">OFFICIAL COMMUNITY</p>
+      <span class="nx-community-live-state"><i aria-hidden="true"></i>ONLINE</span>
     </div>
     <div class="nx-community-grid">${socialRowsHtml()}</div>
-    <p class="nx-community-security"><i aria-hidden="true"></i>Community mission verification stays server-side; profile opening never credits NVX on the client.</p>
   `;
   return section;
 }
 
-function networkFloor() {
-  const floor = document.createElement('div');
-  floor.className = 'nx-task-network-floor';
-  floor.setAttribute('aria-label', 'NexusNova community network status');
-  floor.innerHTML = `
-    <div><strong>NEXUSNOVA NETWORK</strong><span>Official community destinations connected to Tasks.</span></div>
-    <span class="nx-task-network-core" aria-hidden="true"></span>
+function followGate() {
+  const gate = document.createElement('div');
+  gate.className = 'nx-task-follow-gate';
+  gate.hidden = true;
+  gate.innerHTML = `
+    <section class="nx-task-follow-sheet" role="dialog" aria-modal="true" aria-labelledby="nxTaskFollowTitle">
+      <div class="nx-task-follow-top">
+        <div class="nx-task-follow-id">
+          <span class="nx-task-follow-mark" data-follow-mark aria-hidden="true">N</span>
+          <span class="nx-task-follow-copy">
+            <small data-follow-kicker>OFFICIAL PROFILE</small>
+            <strong id="nxTaskFollowTitle" data-follow-title>NexusNova</strong>
+            <span data-follow-handle>@NexusNovaTools</span>
+          </span>
+        </div>
+        <button class="nx-task-follow-close" type="button" data-follow-close aria-label="Close">×</button>
+      </div>
+      <p class="nx-task-follow-message" data-follow-message>Open the official profile, tap Follow there, then return to NexusNova.</p>
+      <div class="nx-task-follow-actions">
+        <button class="nx-task-follow-cancel" type="button" data-follow-cancel>CANCEL</button>
+        <button class="nx-task-follow-go" type="button" data-follow-go>OPEN & FOLLOW</button>
+      </div>
+    </section>
   `;
-  return floor;
+  return gate;
+}
+
+function bindSocialMissions(root, gate) {
+  const mark = gate.querySelector('[data-follow-mark]');
+  const kicker = gate.querySelector('[data-follow-kicker]');
+  const title = gate.querySelector('[data-follow-title]');
+  const handle = gate.querySelector('[data-follow-handle]');
+  const message = gate.querySelector('[data-follow-message]');
+  const go = gate.querySelector('[data-follow-go]');
+  const close = gate.querySelector('[data-follow-close]');
+  const cancel = gate.querySelector('[data-follow-cancel]');
+  let activeItem = null;
+
+  const hide = () => {
+    gate.classList.remove('is-open');
+    activeItem = null;
+    window.setTimeout(() => { if (!gate.classList.contains('is-open')) gate.hidden = true; }, 170);
+  };
+
+  const show = item => {
+    activeItem = item;
+    mark.textContent = item.glyph;
+    kicker.textContent = item.action === 'JOIN' ? 'OFFICIAL CHANNEL' : 'OFFICIAL PROFILE';
+    title.textContent = item.label;
+    handle.textContent = item.handle;
+    message.textContent = item.action === 'JOIN'
+      ? 'Open the official Telegram channel, tap Join there, then return to NexusNova.'
+      : `Open the official ${item.label} profile, tap Follow there, then return to NexusNova.`;
+    go.textContent = item.action === 'JOIN' ? 'OPEN & JOIN' : 'OPEN & FOLLOW';
+    gate.hidden = false;
+    requestAnimationFrame(() => gate.classList.add('is-open'));
+  };
+
+  root.querySelectorAll('.nx-social-mission[data-social-task]').forEach(button => {
+    const item = TASK_SOCIALS.find(entry => entry.id === button.dataset.socialTask);
+    if (item) button.addEventListener('click', () => show(item));
+  });
+
+  close.addEventListener('click', hide);
+  cancel.addEventListener('click', hide);
+  gate.addEventListener('click', event => { if (event.target === gate) hide(); });
+  go.addEventListener('click', () => {
+    const item = activeItem;
+    if (!item) return;
+    const opened = window.open(item.href, '_blank', 'noopener,noreferrer');
+    if (!opened) window.location.assign(item.href);
+    hide();
+  });
 }
 
 function enhanceMiningTasks(root) {
   ensureMiningTasksPremiumStyles();
   root.classList.add('nx-tasks-premium');
-  root.dataset.socialMissionVerification = 'server-only';
 
   const hero = root.querySelector('.nx-reward-hero');
   const eyebrow = hero?.querySelector('.nx-eyebrow');
   if (eyebrow) eyebrow.textContent = 'MINING TASKS';
-  hero?.insertAdjacentElement('afterend', communityTaskPanel());
-  root.appendChild(networkFloor());
+
+  const community = communityTaskPanel();
+  const gate = followGate();
+  hero?.insertAdjacentElement('afterend', community);
+  root.appendChild(gate);
+  bindSocialMissions(root, gate);
 }
 
 function rewardText(reward = {}) {
