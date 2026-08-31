@@ -1,3 +1,5 @@
+import { everydayPremiumRenderers } from './everyday-premium-labs.js';
+
 function node(html) {
   const root = document.createElement('div');
   root.className = 'nx-app-body';
@@ -66,4 +68,7 @@ export function renderBrowserSafe() {
   return root;
 }
 
-export const browserSafeRenderers = Object.freeze({ browser: renderBrowserSafe });
+export const browserSafeRenderers = Object.freeze({
+  browser: renderBrowserSafe,
+  ...everydayPremiumRenderers
+});
