@@ -3,6 +3,7 @@ import { everydayFocusHealthRenderers } from './everyday-premium-focus-health.js
 import { everydayTimeQrRenderers } from './everyday-premium-time-qr.js';
 import { liveLocalCockpitRenderers } from './live-local-premium-skin.js';
 import { liveFeedDeskRenderers } from './live-feed-premium-skin.js';
+import { liveLocationDriveRenderers } from './live-location-drive-skin.js';
 
 function node(html) {
   const root = document.createElement('div');
@@ -78,5 +79,6 @@ export const browserSafeRenderers = Object.freeze({
   ...everydayFocusHealthRenderers,
   ...everydayTimeQrRenderers,
   ...liveLocalCockpitRenderers,
-  ...liveFeedDeskRenderers
+  ...liveFeedDeskRenderers,
+  ...liveLocationDriveRenderers
 });
