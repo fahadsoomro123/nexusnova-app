@@ -3,16 +3,6 @@ import { doc, onSnapshot } from 'https://www.gstatic.com/firebasejs/12.1.0/fireb
 import { firebaseApp, firestoreDb, requireFirebaseUser } from '../../core/firebase-backend.js';
 import { nativeAds } from '../../core/native-ads.js';
 
-const NOVA_VAULT_RASTER_PARTS = 12;
-const NOVA_VAULT_RASTER_BASE = new URL('../../../assets/skins/nova-vault-ref-v9-data/', import.meta.url);
-const NOVA_VAULT_SOURCE_WIDTH = 512;
-const NOVA_VAULT_SOURCE_HEIGHT = 712;
-const NOVA_VAULT_SOURCE_BYTES = 107442;
-const NOVA_VAULT_SOURCE_RATIO = NOVA_VAULT_SOURCE_WIDTH / NOVA_VAULT_SOURCE_HEIGHT;
-let vaultRasterUrl = null;
-let vaultRasterPromise = null;
-let vaultRasterRefs = 0;
-
 async function secureCall(name, data = {}) {
   await requireFirebaseUser({ write:true });
   const call = httpsCallable(getFunctions(firebaseApp, 'us-central1'), name);
@@ -26,216 +16,145 @@ function rewardText(reward = {}) {
   return Number.isFinite(amount) && amount > 0 ? `${type} ${amount}` : type;
 }
 
-function verifyRasterUrl(url) {
-  return new Promise((resolve, reject) => {
-    const image = new Image();
-    image.onload = () => {
-      const width = image.naturalWidth || 0;
-      const height = image.naturalHeight || 0;
-      const ratio = height ? width / height : 0;
-      if (
-        width !== NOVA_VAULT_SOURCE_WIDTH ||
-        height !== NOVA_VAULT_SOURCE_HEIGHT ||
-        Math.abs(ratio - NOVA_VAULT_SOURCE_RATIO) > 0.001
-      ) {
-        reject(new Error(`Nova Vault reference dimensions ${width}x${height}`));
-        return;
-      }
-      resolve({ width, height });
-    };
-    image.onerror = () => reject(new Error('Nova Vault reference image decode failed'));
-    image.src = url;
-  });
-}
-
-async function loadVaultRasterBytes() {
-  const chunks = [];
-  for (let index = 1; index <= NOVA_VAULT_RASTER_PARTS; index += 1) {
-    const partName = `reference.${String(index).padStart(2, '0')}.b64`;
-    const response = await fetch(new URL(partName, NOVA_VAULT_RASTER_BASE), { cache:'no-store' });
-    if (!response.ok) throw new Error(`Nova Vault raster part ${index} HTTP ${response.status}`);
-    const text = (await response.text()).replace(/\s+/g, '');
-    if (!text) throw new Error(`Nova Vault raster part ${index} is empty`);
-    chunks.push(text);
-  }
-  const encoded = chunks.join('');
-  const binary = atob(encoded);
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
-  if (bytes.byteLength !== NOVA_VAULT_SOURCE_BYTES) {
-    throw new Error(`Nova Vault raster byte size ${bytes.byteLength}`);
-  }
-  const ascii = offset => String.fromCharCode(...bytes.subarray(offset, offset + 4));
-  if (ascii(0) !== 'RIFF' || ascii(8) !== 'WEBP') {
-    throw new Error('Nova Vault raster container signature is invalid');
-  }
-  return bytes;
-}
-
-async function prepareVaultRasterUrl() {
-  if (vaultRasterUrl) return vaultRasterUrl;
-  if (vaultRasterPromise) return vaultRasterPromise;
-  vaultRasterPromise = (async () => {
-    const bytes = await loadVaultRasterBytes();
-    const blob = new Blob([bytes], { type:'image/webp' });
-    const objectUrl = URL.createObjectURL(blob);
-    try {
-      await verifyRasterUrl(objectUrl);
-    } catch (error) {
-      URL.revokeObjectURL(objectUrl);
-      throw error;
-    }
-    vaultRasterUrl = objectUrl;
-    return objectUrl;
-  })();
-  try {
-    return await vaultRasterPromise;
-  } finally {
-    vaultRasterPromise = null;
-  }
-}
-
-async function attachVaultRaster(root) {
-  const url = await prepareVaultRasterUrl();
-  if (!root.isConnected) return () => {};
-  const images = [...root.querySelectorAll('[data-vault-raster]')];
-  images.forEach(image => { image.src = url; });
-  await Promise.all(images.map(image => image.decode?.().catch(() => undefined)));
-  if (!root.isConnected) return () => {};
-  root.dataset.rasterReady = 'true';
-  vaultRasterRefs += 1;
-  let released = false;
-  return () => {
-    if (released) return;
-    released = true;
-    vaultRasterRefs = Math.max(0, vaultRasterRefs - 1);
-    root.removeAttribute('data-raster-ready');
-    images.forEach(image => image.removeAttribute('src'));
-    if (!vaultRasterRefs && vaultRasterUrl) {
-      URL.revokeObjectURL(vaultRasterUrl);
-      vaultRasterUrl = null;
-    }
-  };
-}
-
 function syncVaultViewportHeight() {
   const viewport = window.visualViewport;
   const height = Math.max(1, Math.round(viewport?.height || window.innerHeight || document.documentElement.clientHeight || 1));
   document.documentElement.style.setProperty('--nova-vault-viewport-height', `${height}px`);
 }
 
-function ensureNovaVaultRasterReferenceStyle() {
-  if (document.getElementById('nx-nova-vault-raster-v6-style')) return;
+function ensureNovaVaultSimpleStyle() {
+  if (document.getElementById('nx-nova-vault-simple-v10-style')) return;
   const style = document.createElement('style');
-  style.id = 'nx-nova-vault-raster-v6-style';
+  style.id = 'nx-nova-vault-simple-v10-style';
   style.textContent = `
-    html.nx-vault-raster-active .nx-app{width:100%!important;max-width:none!important;margin:0!important}
-    html.nx-vault-raster-active .nx-stage{
+    html.nx-vault-simple-active .nx-app{width:100%!important;max-width:none!important;margin:0!important}
+    html.nx-vault-simple-active .nx-stage{
       min-height:var(--nova-vault-viewport-height,100dvh)!important;
       padding:0!important;scroll-padding:0!important;overflow:hidden!important
     }
-    .nx-screen.nx-vault-raster-v6{
+    .nx-screen.nx-vault-simple-screen{
       position:relative!important;width:100%!important;max-width:none!important;
       height:calc(var(--nova-vault-viewport-height,100dvh) - 68px - env(safe-area-inset-bottom))!important;
       min-height:0!important;margin:0!important;padding:0!important;overflow:hidden!important;
-      background:#010710!important;color:#eef8ff!important;animation:none!important
+      background:linear-gradient(180deg,#071d31 0%,#061827 52%,#071b2d 100%)!important;
+      color:#eef8ff!important;animation:none!important
     }
-    .nx-vault-raster-v6 [data-app-mount]{
-      position:absolute!important;inset:0!important;width:100%!important;height:100%!important;
-      margin:0!important;padding:0!important;background:#010710!important;overflow:hidden!important
-    }
-    .nx-vault-raster-v6>.nx-app-head{
+    .nx-vault-simple-screen>.nx-app-head{
       position:absolute!important;left:0!important;top:0!important;z-index:60!important;
-      width:100%!important;height:9.8245614%!important;min-height:0!important;max-height:none!important;
-      margin:0!important;padding:0!important;border:0!important;border-radius:0!important;
-      background:transparent!important;box-shadow:none!important;pointer-events:none!important
+      width:100%!important;height:58px!important;min-height:58px!important;
+      margin:0!important;padding:8px 12px!important;box-sizing:border-box!important;
+      display:grid!important;grid-template-columns:44px 38px minmax(0,1fr)!important;align-items:center!important;gap:8px!important;
+      border:0!important;border-bottom:1px solid rgba(67,196,255,.24)!important;border-radius:0!important;
+      background:linear-gradient(180deg,#0a2b47,#082139)!important;
+      box-shadow:0 8px 22px rgba(0,0,0,.18)!important
     }
-    .nx-vault-raster-v6>.nx-app-head>.nx-app-head__icon,
-    .nx-vault-raster-v6>.nx-app-head>div{visibility:hidden!important;pointer-events:none!important}
-    .nx-vault-raster-v6>.nx-app-head>.nx-back{
-      position:absolute!important;left:1.7%!important;top:12%!important;width:9.4%!important;height:76%!important;
-      min-width:0!important;margin:0!important;padding:0!important;border:0!important;border-radius:0!important;
-      background:transparent!important;box-shadow:none!important;color:transparent!important;
-      opacity:0!important;pointer-events:auto!important;-webkit-tap-highlight-color:transparent!important
+    .nx-vault-simple-screen>.nx-app-head>.nx-back{
+      width:40px!important;height:40px!important;min-width:40px!important;margin:0!important;padding:0!important;
+      border:1px solid rgba(90,203,255,.35)!important;border-radius:12px!important;
+      background:linear-gradient(180deg,#12496f,#0a3150)!important;color:#fff!important;
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.08)!important;font-size:28px!important;line-height:1!important
     }
+    .nx-vault-simple-screen>.nx-app-head>.nx-app-head__icon{
+      width:34px!important;height:34px!important;display:grid!important;place-items:center!important;
+      border:1px solid rgba(75,210,255,.3)!important;border-radius:10px!important;background:#0b3857!important
+    }
+    .nx-vault-simple-screen>.nx-app-head>div{min-width:0!important}
+    .nx-vault-simple-screen>.nx-app-head>div .nx-eyebrow,
+    .nx-vault-simple-screen>.nx-app-head>div>p:last-child{display:none!important}
+    .nx-vault-simple-screen>.nx-app-head h1{
+      margin:0!important;font-size:19px!important;line-height:1!important;white-space:nowrap!important;
+      overflow:hidden!important;text-overflow:ellipsis!important;letter-spacing:.01em!important
+    }
+    .nx-vault-simple-screen [data-app-mount]{
+      position:absolute!important;left:0!important;right:0!important;top:58px!important;bottom:0!important;
+      min-height:0!important;margin:0!important;padding:0!important;overflow:hidden!important;
+      background:transparent!important
+    }
+    .nx-vault-simple{
+      position:absolute;inset:0;box-sizing:border-box;padding:9px 11px 10px;
+      display:grid;grid-template-rows:minmax(74px,.86fr) minmax(68px,.74fr) minmax(150px,1.55fr) minmax(104px,1.05fr);
+      gap:8px;overflow:hidden;background:linear-gradient(180deg,#071d31,#061827 55%,#071b2d);
+      font-family:inherit;color:#eef8ff;touch-action:manipulation
+    }
+    .nx-vault-panel{
+      min-width:0;min-height:0;box-sizing:border-box;border:1px solid rgba(83,191,238,.26);border-radius:16px;
+      background:linear-gradient(145deg,#0d3552,#0a2941);box-shadow:inset 0 1px 0 rgba(255,255,255,.045),0 8px 20px rgba(0,0,0,.12)
+    }
+    .nx-vault-summary{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;padding:10px 13px;gap:10px}
+    .nx-vault-kicker{display:block;margin-bottom:2px;color:#5ad8ff;font-size:10px;font-weight:900;letter-spacing:.14em;text-transform:uppercase}
+    .nx-vault-count-row{display:flex;align-items:baseline;gap:7px;min-width:0}
+    .nx-vault-count{font-size:clamp(34px,8.4vw,58px);line-height:.92;font-weight:950;letter-spacing:-.04em}
+    .nx-vault-count-label{font-size:clamp(16px,4vw,25px);font-weight:900;letter-spacing:.02em}
+    .nx-vault-ready{margin-top:3px;color:#a8c9dc;font-size:10px;font-weight:700}
+    .nx-vault-credit-card{
+      min-width:94px;padding:9px 10px;border:1px solid rgba(223,84,255,.36);border-radius:13px;
+      background:linear-gradient(145deg,#3a1854,#24143f);text-align:center
+    }
+    .nx-vault-credit-number{display:block;font-size:17px;font-weight:950;line-height:1.05;color:#fff}
+    .nx-vault-credit-label{display:block;margin-top:4px;font-size:9px;font-weight:900;letter-spacing:.08em;color:#e26aff;text-transform:uppercase}
 
-    .nx-vault-raster-stage{
-      position:absolute;inset:0;width:100%;height:100%;overflow:hidden;background:#010710;
-      isolation:isolate;touch-action:manipulation
-    }
-    .nx-vault-raster-skin{
-      position:absolute;left:0;width:100%;overflow:hidden;pointer-events:none;z-index:1;background:#010710
-    }
-    .nx-vault-raster-skin>img{
-      position:absolute;left:0;width:100%;max-width:none;object-fit:fill;opacity:0;
-      user-select:none;-webkit-user-drag:none;pointer-events:none
-    }
-    .nx-vault-raster-stage[data-raster-ready="true"] .nx-vault-raster-skin>img{opacity:1}
-    .nx-vault-raster-skin--header{top:0;height:9.8245614%}
-    .nx-vault-raster-skin--header>img{top:0;height:1097.142857%}
-    .nx-vault-raster-skin--hero{top:9.8245614%;height:24.5614035%}
-    .nx-vault-raster-skin--hero>img{top:-40%;height:438.8571429%}
-    .nx-vault-raster-skin--stats{top:34.3859649%;height:11.9298246%}
-    .nx-vault-raster-skin--stats>img{top:-288.2352941%;height:903.5294118%}
-    .nx-vault-raster-skin--primary{top:46.3157895%;height:29.8245614%}
-    .nx-vault-raster-skin--primary>img{top:-155.2941176%;height:361.4117647%}
-    .nx-vault-raster-skin--inventory{top:76.1403509%;height:23.8596491%}
-    .nx-vault-raster-skin--inventory>img{top:-319.1176471%;height:451.7647059%}
+    .nx-vault-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+    .nx-vault-stat{min-width:0;padding:8px 7px;display:grid;grid-template-columns:34px minmax(0,1fr);align-items:center;gap:7px}
+    .nx-vault-stat-icon{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:#0e4a70;color:#5de0ff;font-size:18px;font-weight:900}
+    .nx-vault-stat--purple .nx-vault-stat-icon{background:#45175f;color:#ee73ff}
+    .nx-vault-stat-name{display:block;color:#a9c4d6;font-size:8.5px;font-weight:850;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-transform:uppercase}
+    .nx-vault-stat-value{display:block;margin-top:2px;font-size:23px;line-height:1;font-weight:950;color:#fff}
 
-    .nx-vault-hotspot{
-      position:absolute;z-index:20;margin:0;padding:0;border:0;border-radius:0;background:transparent;
-      color:transparent;font-size:0;box-shadow:none;outline:0;-webkit-tap-highlight-color:transparent;touch-action:manipulation
+    .nx-vault-actions{display:grid;grid-template-columns:minmax(0,1.03fr) minmax(0,.97fr);gap:8px;min-height:0}
+    .nx-vault-action-card{min-width:0;min-height:0;padding:11px;display:flex;flex-direction:column;justify-content:space-between;gap:7px}
+    .nx-vault-action-card--boost{border-color:rgba(222,79,255,.32);background:linear-gradient(145deg,#32164b,#22113c)}
+    .nx-vault-action-title{margin:0;color:#60dcff;font-size:13px;font-weight:950;letter-spacing:.055em;text-transform:uppercase}
+    .nx-vault-action-card--boost .nx-vault-action-title{color:#ed72ff}
+    .nx-vault-action-copy{margin:0;color:#b9cddd;font-size:10px;line-height:1.32}
+    .nx-vault-mode{display:flex;align-items:center;gap:6px;color:#9fd3eb;font-size:9px;font-weight:900;letter-spacing:.05em;text-transform:uppercase}
+    .nx-vault-mode-dot{width:7px;height:7px;border-radius:50%;background:#44d6ff;box-shadow:0 0 9px rgba(68,214,255,.7)}
+    .nx-vault-mode.is-boosted{color:#ef78ff}.nx-vault-mode.is-boosted .nx-vault-mode-dot{background:#e458ff;box-shadow:0 0 9px rgba(228,88,255,.72)}
+    .nx-vault-main-button{
+      width:100%;min-height:47px;padding:9px 8px;border:1px solid rgba(87,216,255,.5);border-radius:13px;
+      background:linear-gradient(180deg,#1471a8,#0c4f79);color:#fff;font-size:14px;font-weight:950;letter-spacing:.035em;
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 5px 14px rgba(0,83,134,.2)
     }
-    .nx-vault-hotspot:disabled{pointer-events:none}
-    .nx-vault-hotspot--open{left:8.4%;top:61.0%;width:45.2%;height:10.1%}
-    .nx-vault-hotspot--watch{left:61.8%;top:61.1%;width:34.0%;height:9.8%}
-    .nx-vault-hotspot--booster{left:5.2%;top:79.4%;width:27.0%;height:9.6%}
-    .nx-vault-hotspot--rain{left:32.7%;top:79.4%;width:29.0%;height:9.6%}
-    .nx-vault-hotspot--warp{left:62.3%;top:79.4%;width:32.8%;height:9.6%}
-    .nx-vault-hotspot--warp24{left:5.2%;top:89.2%;width:89.8%;height:8.7%}
+    .nx-vault-main-button--boost{border-color:rgba(236,105,255,.5);background:linear-gradient(180deg,#8e28ad,#5c177d);box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 5px 14px rgba(113,20,140,.2)}
 
-    .nx-vault-dynamic{
-      position:absolute;z-index:12;display:grid;place-items:center;margin:0;color:#f5f8fd;font-family:inherit;
-      font-weight:950;line-height:1;text-align:center;text-shadow:0 2px 0 #000,0 0 12px rgba(21,194,255,.15);pointer-events:none
+    .nx-vault-inventory{padding:9px;display:grid;grid-template-rows:auto minmax(0,1fr);gap:7px}
+    .nx-vault-inventory-title{margin:0;text-align:center;color:#59d8ff;font-size:11px;font-weight:950;letter-spacing:.1em;text-transform:uppercase}
+    .nx-vault-inventory-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr));gap:6px;min-height:0}
+    .nx-vault-small-button{
+      min-width:0;min-height:0;padding:7px;border:1px solid rgba(77,188,232,.28);border-radius:11px;
+      background:linear-gradient(180deg,#0f4262,#0b304b);color:#dff8ff;font-size:9.2px;font-weight:900;line-height:1.12;letter-spacing:.025em
     }
-    .nx-vault-dynamic[hidden]{display:none!important}
-    .nx-vault-dynamic--pending{
-      left:11.1%;top:18.2%;width:11.9%;height:7.8%;background:linear-gradient(90deg,rgba(3,15,25,.985),rgba(3,17,28,.985));
-      font-size:clamp(44px,9vw,92px);letter-spacing:-.05em
-    }
-    .nx-vault-dynamic--booster,.nx-vault-dynamic--rain,.nx-vault-dynamic--warp{
-      top:39.3%;width:8.1%;height:5.5%;background:rgba(3,14,24,.985);font-size:clamp(28px,5.4vw,58px)
-    }
-    .nx-vault-dynamic--booster{left:15.8%}.nx-vault-dynamic--rain{left:47.3%}
-    .nx-vault-dynamic--warp{left:77.6%;background:rgba(7,8,22,.985)}
-    .nx-vault-dynamic--credits{
-      left:83.1%;top:2.25%;width:13.1%;height:3.55%;background:linear-gradient(90deg,rgba(16,8,26,.985),rgba(12,7,21,.985));
-      color:#fff;font-size:clamp(10px,1.9vw,19px);white-space:nowrap;letter-spacing:.01em
-    }
-    .nx-vault-dynamic--boost-state{
-      left:65.0%;top:71.2%;width:28.0%;height:2.7%;background:rgba(9,6,21,.985);color:#dd54ff;
-      font-size:clamp(9px,1.65vw,16px);letter-spacing:.05em;white-space:nowrap
-    }
+    .nx-vault-small-button:nth-child(3),.nx-vault-small-button:nth-child(4){border-color:rgba(207,80,239,.28);background:linear-gradient(180deg,#35184c,#27133d);color:#f2c8ff}
+    .nx-vault-simple button:active:not(:disabled){transform:scale(.985)}
+    .nx-vault-simple button:disabled{opacity:.42;filter:saturate(.65)}
     .nx-vault-live-status{
-      position:absolute;left:7%;right:7%;bottom:7.2%;z-index:80;min-height:42px;padding:10px 14px;
-      border:1px solid rgba(63,195,255,.44);border-radius:11px;background:rgba(3,16,27,.96);box-shadow:0 8px 24px rgba(0,0,0,.46);
-      color:#dff7ff;font-size:12px;font-weight:750;line-height:1.35;text-align:center;opacity:0;transform:translateY(8px);
+      position:absolute;left:18px;right:18px;bottom:13px;z-index:80;min-height:38px;padding:9px 12px;box-sizing:border-box;
+      border:1px solid rgba(87,205,255,.42);border-radius:11px;background:rgba(8,41,64,.97);box-shadow:0 8px 24px rgba(0,0,0,.32);
+      color:#e4f9ff;font-size:10px;font-weight:750;line-height:1.35;text-align:center;opacity:0;transform:translateY(8px);
       pointer-events:none;transition:opacity .16s ease,transform .16s ease
     }
     .nx-vault-live-status.is-visible{opacity:1;transform:none}
-    @media(prefers-reduced-motion:reduce){.nx-vault-live-status{transition:none}}
+    @media(max-height:690px){
+      .nx-vault-simple{padding:7px 9px 8px;gap:6px;grid-template-rows:minmax(66px,.82fr) minmax(60px,.68fr) minmax(132px,1.45fr) minmax(94px,.98fr)}
+      .nx-vault-panel{border-radius:13px}.nx-vault-summary{padding:8px 10px}.nx-vault-action-card{padding:9px}
+      .nx-vault-action-copy{font-size:9px}.nx-vault-main-button{min-height:42px;font-size:13px}.nx-vault-small-button{font-size:8.6px}
+    }
+    @media(max-width:360px){
+      .nx-vault-simple{padding-left:8px;padding-right:8px}.nx-vault-stat{grid-template-columns:28px minmax(0,1fr);gap:5px;padding:6px 5px}
+      .nx-vault-stat-icon{width:28px;height:28px;font-size:15px}.nx-vault-stat-value{font-size:20px}.nx-vault-credit-card{min-width:82px;padding:8px}
+    }
+    @media(prefers-reduced-motion:reduce){.nx-vault-live-status{transition:none}.nx-vault-simple button{transition:none!important}}
   `;
   document.head.appendChild(style);
 }
 
-function installRasterScreen(root) {
+function installSimpleScreen(root) {
   let screen = null;
   const apply = () => {
     if (!root.isConnected) return;
     screen = root.closest('.nx-screen');
     if (!screen) return;
-    screen.classList.add('nx-vault-raster-v6');
-    document.documentElement.classList.add('nx-vault-raster-active');
+    screen.classList.add('nx-vault-simple-screen');
+    document.documentElement.classList.add('nx-vault-simple-active');
     syncVaultViewportHeight();
   };
   queueMicrotask(apply);
@@ -243,8 +162,8 @@ function installRasterScreen(root) {
   window.visualViewport?.addEventListener('resize', syncVaultViewportHeight);
   window.addEventListener('resize', syncVaultViewportHeight);
   return () => {
-    screen?.classList.remove('nx-vault-raster-v6');
-    document.documentElement.classList.remove('nx-vault-raster-active');
+    screen?.classList.remove('nx-vault-simple-screen');
+    document.documentElement.classList.remove('nx-vault-simple-active');
     document.documentElement.style.removeProperty('--nova-vault-viewport-height');
     window.visualViewport?.removeEventListener('resize', syncVaultViewportHeight);
     window.removeEventListener('resize', syncVaultViewportHeight);
@@ -252,42 +171,67 @@ function installRasterScreen(root) {
 }
 
 export function renderNovaVaultSafe() {
-  ensureNovaVaultRasterReferenceStyle();
+  ensureNovaVaultSimpleStyle();
   const root = document.createElement('div');
-  root.className = 'nx-vault-raster-stage';
+  root.className = 'nx-vault-simple';
   root.dataset.vaultV3Integrated = 'true';
+  root.dataset.vaultSimpleV10 = 'true';
   root.innerHTML = `
-    <div class="nx-vault-raster-skin nx-vault-raster-skin--header" aria-hidden="true"><img data-vault-raster alt="" decoding="async" draggable="false"></div>
-    <div class="nx-vault-raster-skin nx-vault-raster-skin--hero" aria-hidden="true"><img data-vault-raster alt="" decoding="async" draggable="false"></div>
-    <div class="nx-vault-raster-skin nx-vault-raster-skin--stats" aria-hidden="true"><img data-vault-raster alt="" decoding="async" draggable="false"></div>
-    <div class="nx-vault-raster-skin nx-vault-raster-skin--primary" aria-hidden="true"><img data-vault-raster alt="" decoding="async" draggable="false"></div>
-    <div class="nx-vault-raster-skin nx-vault-raster-skin--inventory" aria-hidden="true"><img data-vault-raster alt="" decoding="async" draggable="false"></div>
+    <section class="nx-vault-panel nx-vault-summary" aria-label="Nova Vault summary">
+      <div>
+        <span class="nx-vault-kicker">Nova Reward System</span>
+        <div class="nx-vault-count-row"><strong class="nx-vault-count" data-vault-pending>7</strong><span class="nx-vault-count-label">VAULTS</span></div>
+        <div class="nx-vault-ready">READY TO OPEN</div>
+      </div>
+      <div class="nx-vault-credit-card">
+        <strong class="nx-vault-credit-number" data-vault-credits>0 CREDITS</strong>
+        <span class="nx-vault-credit-label">10X BOOST</span>
+      </div>
+    </section>
 
-    <span class="nx-vault-dynamic nx-vault-dynamic--pending" data-vault-pending hidden></span>
-    <span class="nx-vault-dynamic nx-vault-dynamic--booster" data-vault-booster hidden></span>
-    <span class="nx-vault-dynamic nx-vault-dynamic--rain" data-vault-rain hidden></span>
-    <span class="nx-vault-dynamic nx-vault-dynamic--warp" data-vault-warp hidden></span>
-    <span class="nx-vault-dynamic nx-vault-dynamic--credits" data-vault-credits hidden></span>
-    <span class="nx-vault-dynamic nx-vault-dynamic--boost-state" data-vault-boost-state hidden></span>
+    <section class="nx-vault-stats" aria-label="Nova inventory counts">
+      <div class="nx-vault-panel nx-vault-stat"><span class="nx-vault-stat-icon">⚡</span><div><span class="nx-vault-stat-name">Booster</span><strong class="nx-vault-stat-value" data-vault-booster>0</strong></div></div>
+      <div class="nx-vault-panel nx-vault-stat"><span class="nx-vault-stat-icon">☁</span><div><span class="nx-vault-stat-name">Nova Rain</span><strong class="nx-vault-stat-value" data-vault-rain>0</strong></div></div>
+      <div class="nx-vault-panel nx-vault-stat nx-vault-stat--purple"><span class="nx-vault-stat-icon">◷</span><div><span class="nx-vault-stat-name">Time Warp</span><strong class="nx-vault-stat-value" data-vault-warp>0</strong></div></div>
+    </section>
 
-    <button class="nx-vault-hotspot nx-vault-hotspot--open" type="button" data-vault-open aria-label="Open Vault">OPEN VAULT</button>
-    <button class="nx-vault-hotspot nx-vault-hotspot--watch" type="button" data-vault-watch aria-label="Watch ad for 10X">WATCH AD FOR 10X</button>
-    <button class="nx-vault-hotspot nx-vault-hotspot--booster" type="button" data-vault-boost aria-label="Use Booster">USE BOOSTER</button>
-    <button class="nx-vault-hotspot nx-vault-hotspot--rain" type="button" data-vault-rain-use aria-label="Use Nova Rain">USE NOVA RAIN</button>
-    <button class="nx-vault-hotspot nx-vault-hotspot--warp" type="button" data-vault-warp-use aria-label="Use Time Warp">USE TIME WARP</button>
-    <button class="nx-vault-hotspot nx-vault-hotspot--warp24" type="button" data-vault-warp-use aria-label="Use 24 hour Time Warp">USE 24H TIME WARP</button>
+    <section class="nx-vault-actions">
+      <article class="nx-vault-panel nx-vault-action-card">
+        <div><h2 class="nx-vault-action-title">Open Your Vault</h2><p class="nx-vault-action-copy">Open an earned Vault for a secure server-selected reward.</p></div>
+        <div class="nx-vault-mode" data-vault-mode><span class="nx-vault-mode-dot"></span><span data-vault-mode-text>NORMAL VAULT MODE</span></div>
+        <button class="nx-vault-main-button" type="button" data-vault-open>OPEN VAULT</button>
+      </article>
+      <article class="nx-vault-panel nx-vault-action-card nx-vault-action-card--boost">
+        <div><h2 class="nx-vault-action-title">10X Boost</h2><p class="nx-vault-action-copy">Watch a rewarded ad to upgrade your next Vault opening to the secure 10X pool.</p></div>
+        <div class="nx-vault-mode" data-vault-boost-state><span class="nx-vault-mode-dot"></span><span data-vault-boost-text>10X BOOST NOT ACTIVE</span></div>
+        <button class="nx-vault-main-button nx-vault-main-button--boost" type="button" data-vault-watch>WATCH AD FOR 10X</button>
+      </article>
+    </section>
+
+    <section class="nx-vault-panel nx-vault-inventory">
+      <h2 class="nx-vault-inventory-title">Boost Inventory</h2>
+      <div class="nx-vault-inventory-grid">
+        <button class="nx-vault-small-button" type="button" data-vault-boost>USE BOOSTER</button>
+        <button class="nx-vault-small-button" type="button" data-vault-rain-use>USE NOVA RAIN</button>
+        <button class="nx-vault-small-button" type="button" data-vault-warp-use>USE TIME WARP</button>
+        <button class="nx-vault-small-button" type="button" data-vault-warp-use>USE 24H TIME WARP</button>
+      </div>
+    </section>
 
     <div class="nx-vault-live-status" data-vault-status role="status" aria-live="polite"></div>
   `;
 
-  const removeScreenClass = installRasterScreen(root);
+  const removeScreenClass = installSimpleScreen(root);
   const refs = {
     pending: root.querySelector('[data-vault-pending]'),
     booster: root.querySelector('[data-vault-booster]'),
     rain: root.querySelector('[data-vault-rain]'),
     warp: root.querySelector('[data-vault-warp]'),
     credits: root.querySelector('[data-vault-credits]'),
+    mode: root.querySelector('[data-vault-mode]'),
+    modeText: root.querySelector('[data-vault-mode-text]'),
     boostState: root.querySelector('[data-vault-boost-state]'),
+    boostText: root.querySelector('[data-vault-boost-text]'),
     open: root.querySelector('[data-vault-open]'),
     watch: root.querySelector('[data-vault-watch]'),
     status: root.querySelector('[data-vault-status]'),
@@ -297,7 +241,6 @@ export function renderNovaVaultSafe() {
   };
 
   let off = null;
-  let releaseRaster = null;
   let active = true;
   let busy = false;
   let pending = 7;
@@ -320,19 +263,20 @@ export function renderNovaVaultSafe() {
     }
   };
 
-  const showDynamic = (element, shouldShow, value) => {
-    element.hidden = !shouldShow;
-    if (shouldShow) element.textContent = String(value);
-  };
-
   const paint = () => {
     if (!active) return;
-    showDynamic(refs.pending, pending !== 7, pending);
-    showDynamic(refs.booster, booster !== 0, booster);
-    showDynamic(refs.rain, rain !== 0, rain);
-    showDynamic(refs.warp, warp !== 0, warp);
-    showDynamic(refs.credits, credits !== 0, `${credits} CREDIT${credits === 1 ? '' : 'S'}`);
-    showDynamic(refs.boostState, credits > 0, `10X BOOST ACTIVE • ${credits} CREDIT${credits === 1 ? '' : 'S'}`);
+    refs.pending.textContent = String(pending);
+    refs.booster.textContent = String(booster);
+    refs.rain.textContent = String(rain);
+    refs.warp.textContent = String(warp);
+    refs.credits.textContent = `${credits} CREDIT${credits === 1 ? '' : 'S'}`;
+
+    const boosted = credits > 0;
+    refs.mode.classList.toggle('is-boosted', boosted);
+    refs.modeText.textContent = boosted ? '10X VAULT READY' : 'NORMAL VAULT MODE';
+    refs.boostState.classList.toggle('is-boosted', boosted);
+    refs.boostText.textContent = boosted ? `10X BOOST ACTIVE • ${credits} CREDIT${credits === 1 ? '' : 'S'}` : '10X BOOST NOT ACTIVE';
+
     refs.open.disabled = busy || pending < 1;
     refs.watch.disabled = busy || credits >= 3;
     refs.boostButtons.forEach(button => { button.disabled = busy || booster < 1; });
@@ -383,7 +327,7 @@ export function renderNovaVaultSafe() {
     try {
       const result = await secureCall(
         boosted ? 'openNovaVaultBoosted' : 'openNovaVault',
-        boosted ? { source:'fresh-rebuild-raster-reference-v6' } : {}
+        boosted ? { source:'fresh-rebuild-simple-v10' } : {}
       );
       if (active) announce(`✓ ${boosted ? '10X ' : ''}Vault opened • ${rewardText(result.reward)}.`, 4800);
     } catch (error) {
@@ -443,21 +387,12 @@ export function renderNovaVaultSafe() {
   nativeAds.requestStatus();
   bind();
   paint();
-  attachVaultRaster(root).then(cleanup => {
-    if (!active) cleanup();
-    else releaseRaster = cleanup;
-  }).catch(error => {
-    console.warn('[NexusNova Nova Vault] raster loader:', error);
-    announce('Nova Vault visual asset could not load. Reopen the screen after OTA sync.', 5200);
-  });
 
   root.__cleanup = () => {
     active = false;
     clearTimeout(statusTimer);
     off?.();
     off = null;
-    releaseRaster?.();
-    releaseRaster = null;
     removeScreenClass();
   };
   return root;
