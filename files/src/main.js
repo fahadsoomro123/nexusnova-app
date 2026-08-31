@@ -25,7 +25,7 @@ let appScreenModulePromise = null;
 let appScreenModule = null;
 function loadAppScreenModule() {
   if (!appScreenModulePromise) {
-    appScreenModulePromise = import('./features/apps/app-screen.js?ota=nv13').then(module => {
+    appScreenModulePromise = import('./features/apps/app-screen.js?ota=nv14').then(module => {
       appScreenModule = module;
       return module;
     }).catch(error => {
@@ -41,7 +41,7 @@ let novaVaultModulePromise = null;
 let novaVaultModule = null;
 function loadNovaVaultModule() {
   if (!novaVaultModulePromise) {
-    novaVaultModulePromise = import('./features/apps/nova-vault-screen-v13.js?ota=nv13').then(module => {
+    novaVaultModulePromise = import('./features/apps/nova-vault-screen-v13.js?ota=nv14').then(module => {
       novaVaultModule = module;
       return module;
     }).catch(error => {
@@ -220,8 +220,6 @@ router = createRouter({
   stage,
   routes: {
     auth: () => authScreen({ onSignedIn: handleSignedIn }),
-    // Every eligible app-open transition uses the same ad policy regardless of
-    // whether the entry came from Nova Hub, Mine quick access, or another app.
     mine: () => mineScreen({
       openHubApp: openAppWithAd,
       beforeMiningRenewal: continueMining => adPolicy.gateMiningRenewal(continueMining)
@@ -276,9 +274,6 @@ window.NexusNovaFresh = Object.freeze({
   }
 });
 
-/* Android MainActivity already asks NexusNovaUxSimplify.systemBack().
-   Keep that native contract, but give it a fresh implementation instead of
-   loading any legacy UX script. */
 window.NexusNovaUxSimplify = Object.freeze({
   systemBack() {
     if (!router?.current || router.current === 'auth' || router.current === 'mine') return false;

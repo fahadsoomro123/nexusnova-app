@@ -38,35 +38,42 @@
   <link rel="stylesheet" href="./assets/styles/nova57-gradient-premium.css">
   <link rel="stylesheet" href="./assets/styles/premium-mine-reference-locked.css">
   <link rel="stylesheet" href="./assets/styles/premium-mine-branding-v8.css">
-  <style id="nx-vault-v13-shell-fix">
+  <style id="nx-vault-v14-shell-fix">
     html.nx-vault-premium-active body,
     html.nx-vault-premium-active body .nx-app,
     html.nx-vault-premium-active body .nx-app .nx-stage,
     html.nx-vault-simple-active body,
     html.nx-vault-simple-active body .nx-app,
-    html.nx-vault-simple-active body .nx-app .nx-stage {
-      background:#061522!important;
+    html.nx-vault-simple-active body .nx-app .nx-stage,
+    html.nx-vault-living-active body,
+    html.nx-vault-living-active body .nx-app,
+    html.nx-vault-living-active body .nx-app .nx-stage {
+      background:#04111c!important;
     }
     html.nx-vault-premium-active body .nx-app .nx-stage,
-    html.nx-vault-simple-active body .nx-app .nx-stage {
+    html.nx-vault-simple-active body .nx-app .nx-stage,
+    html.nx-vault-living-active body .nx-app .nx-stage {
       min-height:100dvh!important;
       height:100dvh!important;
       padding:0!important;
       overflow:hidden!important;
     }
     html.nx-vault-premium-active body .nx-app .nx-stage .nx-screen.nx-vault-premium-screen,
-    html.nx-vault-simple-active body .nx-app .nx-stage .nx-screen.nx-vault-simple-screen {
+    html.nx-vault-simple-active body .nx-app .nx-stage .nx-screen.nx-vault-simple-screen,
+    html.nx-vault-living-active body .nx-app .nx-stage .nx-screen.nx-vault-living-screen {
       height:calc(100dvh - 82px)!important;
       min-height:calc(100dvh - 82px)!important;
       max-height:calc(100dvh - 82px)!important;
       margin:0!important;
       overflow:hidden!important;
-      background:#061522!important;
+      background:#04111c!important;
     }
     html.nx-vault-premium-active #nxEmergencySosButton,
     html.nx-vault-premium-active #nxEmergencySosEdit,
     html.nx-vault-simple-active #nxEmergencySosButton,
-    html.nx-vault-simple-active #nxEmergencySosEdit {
+    html.nx-vault-simple-active #nxEmergencySosEdit,
+    html.nx-vault-living-active #nxEmergencySosButton,
+    html.nx-vault-living-active #nxEmergencySosEdit {
       display:none!important;
       visibility:hidden!important;
       opacity:0!important;
@@ -99,11 +106,12 @@
   <script type="module" src="./src/nova57-stage-compat.js"></script>
   <script type="module" src="./src/nova57-human-response.js"></script>
   <script type="module" src="./src/mine-raster-skin-loader.js"></script>
-  <script type="module" src="./src/main.js?ota=nv13"></script>
+  <script type="module" src="./src/main.js?ota=nv14"></script>
   <!-- Native Android App Check OTA sync marker. -->
   <!-- Mine reference raster v2 activates only after every component is verified present. -->
   <!-- True pre-dashboard direct Gemini runtime 2026-08-29. -->
   <!-- OTA republish marker: verified Mine branding after crash-safe raster loader. -->
-  <!-- Nova Vault v13: direct fresh route, shell gap fix, SOS suppression. -->
+  <!-- Nova Vault v14: living core, live inventory, single-screen OTA route. -->
+  <!-- v14 release marker: 2026-08-31 living-vault -->
 </body>
 </html>
