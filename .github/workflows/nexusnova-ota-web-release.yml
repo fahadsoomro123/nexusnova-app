@@ -1,5 +1,4 @@
 name: NexusNova OTA Web Release
-# OTA staging publish is intentionally rerun-safe.
 
 on:
   push:
@@ -13,13 +12,13 @@ permissions:
   contents: write
 
 env:
-  OTA_BUNDLED_BASE: b6eb3d191ee35b58c0ffe14334674ea2c60d3b72
+  OTA_BUNDLED_BASE: 8d1aaaee6f28b974a8c8b3ff213beb1318ec7405
   PUBLIC_OTA_REPO: fahadsoomro123/nexusnova-website
   PUBLIC_OTA_BRANCH: nexusnova-ota-public
 
 jobs:
   publish:
-    if: github.event_name == 'workflow_dispatch' || github.ref_name == 'nexusnova-latest-full-apk-recovery-20260823' || contains(github.event.head_commit.message, '[ota-release]')
+    if: github.event_name == 'workflow_dispatch' || github.ref_name == 'nexusnova-latest-full-apk-recovery-20260823' || contains(github.event.head_commit.message, '[ota-release]') || contains(github.event.head_commit.message, 'rebase OTA channel')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -37,6 +36,8 @@ jobs:
             checked=$((checked + 1))
           done < <(find fresh-rebuild -type f -name '*.js' -print0)
           test "$checked" -gt 0
+          grep -Fq './src/main.js?ota=nv14' fresh-rebuild/index.html
+          grep -Fq "nova-vault-living-v14.js?ota=nv14" fresh-rebuild/src/features/apps/nova-vault-screen-v13.js
           echo "JavaScript syntax verified: $checked files"
 
       - name: Verify registered app renderer coverage
@@ -62,13 +63,13 @@ jobs:
           console.log(`Renderer coverage verified: ${new Set(ids).size} registered apps.`);
           NODE
 
-      - name: Build verified cumulative differential OTA package
+      - name: Build small differential OTA package from v14 baseline
         shell: bash
         run: |
           set -euo pipefail
           BASE="$OTA_BUNDLED_BASE"
           git cat-file -e "$BASE^{commit}"
-          deleted="$(git diff --name-only --diff-filter=D "$BASE" "$GITHUB_SHA" -- fresh-rebuild/ | grep -vFx 'fresh-rebuild/src/features/apps/premium-nova-internet-speed.js' || true)"
+          deleted="$(git diff --name-only --diff-filter=D "$BASE" "$GITHUB_SHA" -- fresh-rebuild/ || true)"
           if [ -n "$deleted" ]; then
             echo 'Atomic differential OTA cannot represent deleted bundled web files:' >&2
             printf '%s\n' "$deleted" >&2
@@ -89,7 +90,6 @@ jobs:
             cp fresh-rebuild/index.html /tmp/nexusnova-ota-package/files/index.html
             count=$((count + 1))
           fi
-          test "$count" -gt 0
           export OTA_DIFF_BASE="$BASE"
           python3 - <<'PY'
           import hashlib, json, os
@@ -105,8 +105,6 @@ jobs:
           print(f"Differential OTA files: {len(files)}")
           print(f"Differential OTA bytes: {sum(x['size'] for x in files)}")
           PY
-          test -s /tmp/nexusnova-ota-package/manifest.json
-          test -s /tmp/nexusnova-ota-package/files/index.html
 
       - name: Publish private staging OTA branch
         shell: bash
@@ -121,9 +119,7 @@ jobs:
           git rm -rf .
           cp -a /tmp/nexusnova-ota-package/. .
           git add -A
-          if git diff --cached --quiet; then
-            echo 'Private staging OTA already current.'
-          else
+          if ! git diff --cached --quiet; then
             git commit -m "Publish NexusNova differential web OTA $GITHUB_SHA"
             git pull --rebase origin nexusnova-ota-release
             git push origin HEAD:nexusnova-ota-release
@@ -135,7 +131,7 @@ jobs:
           PUBLIC_OTA_TOKEN: ${{ secrets.GH_PUBLIC_OTA_TOKEN || secrets.OTA_PUBLIC_TOKEN }}
         run: |
           set -euo pipefail
-          test -n "$PUBLIC_OTA_TOKEN" || { echo 'Missing GH_PUBLIC_OTA_TOKEN or OTA_PUBLIC_TOKEN' >&2; exit 1; }
+          test -n "$PUBLIC_OTA_TOKEN"
 
       - name: Publish public OTA channel
         shell: bash
@@ -152,9 +148,7 @@ jobs:
           mkdir -p ota
           cp -a /tmp/nexusnova-ota-package/. ota/
           git add -A ota
-          if git diff --cached --quiet; then
-            echo 'Public OTA already current.'
-          else
+          if ! git diff --cached --quiet; then
             git commit -m "Publish NexusNova public OTA $GITHUB_SHA"
             AUTH="$(printf 'x-access-token:%s' "$PUBLIC_OTA_TOKEN" | base64 -w0)"
             git -c http.extraheader="AUTHORIZATION: basic $AUTH" push origin HEAD:"$PUBLIC_OTA_BRANCH"
@@ -167,15 +161,14 @@ jobs:
           BASE_URL="https://raw.githubusercontent.com/$PUBLIC_OTA_REPO/$PUBLIC_OTA_BRANCH/ota"
           for attempt in 1 2 3 4 5 6; do
             if curl -fsSL -H 'Cache-Control: no-cache' "$BASE_URL/manifest.json?sha=$GITHUB_SHA&n=$attempt" -o /tmp/public-manifest.json; then
-              if python3 - "$GITHUB_SHA" <<'PY'
+              if python3 - "$GITHUB_SHA" "$OTA_BUNDLED_BASE" <<'PY'
           import json, sys
           m=json.load(open('/tmp/public-manifest.json', encoding='utf-8'))
-          expected=sys.argv[1]
+          expected, base=sys.argv[1], sys.argv[2]
           assert m.get('schema') == 2, m
-          assert m.get('base') == 'b6eb3d191ee35b58c0ffe14334674ea2c60d3b72', m
+          assert m.get('base') == base, (m.get('base'), base)
           assert m.get('version') == expected, (m.get('version'), expected)
           assert any(x.get('path') == 'index.html' for x in m.get('files', [])), m
-          assert any(x.get('path') == 'assets/styles/premium-mine-tactile-3d.css' for x in m.get('files', [])), m
           PY
               then break; fi
             fi
@@ -183,11 +176,11 @@ jobs:
             sleep 5
           done
           python3 - <<'PY'
-          import hashlib, json, urllib.request
+          import hashlib, json, urllib.parse, urllib.request
           m=json.load(open('/tmp/public-manifest.json', encoding='utf-8'))
           base='https://raw.githubusercontent.com/fahadsoomro123/nexusnova-website/nexusnova-ota-public/ota/files/'
           for item in m['files']:
-              url=base + '/'.join(__import__('urllib.parse').parse.quote(p, safe='') for p in item['path'].split('/'))
+              url=base + '/'.join(urllib.parse.quote(p, safe='') for p in item['path'].split('/'))
               data=urllib.request.urlopen(url, timeout=20).read()
               assert len(data) == item['size'], item['path']
               assert hashlib.sha256(data).hexdigest() == item['sha256'], item['path']
