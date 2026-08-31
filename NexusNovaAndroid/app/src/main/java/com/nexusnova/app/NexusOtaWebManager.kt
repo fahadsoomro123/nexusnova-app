@@ -14,16 +14,11 @@ import java.security.MessageDigest
 import java.util.concurrent.Executors
 
 /**
- * Atomic differential web OTA layered over the signed bundled web baseline via the public channel.
+ * Atomic differential web OTA layered over the signed bundled web baseline.
  *
- * A package is activated only after every declared file has been downloaded and
- * SHA-256 verified. The manifest must name the exact bundled baseline this APK
- * was built with, so a differential can never be applied to an incompatible app.
- *
- * Public raw endpoints can briefly serve an older cached branch snapshot after a
- * publish. Every startup check therefore uses cache-busting request nonces and a
- * few bounded retries so a stale CDN response cannot silently strand the phone on
- * an old renderer.
+ * Each APK records the exact bundled web baseline it contains. When that baseline
+ * changes, any OTA overlay created for an older APK is discarded before WebView
+ * can serve it. This prevents an old Vault renderer from shadowing a newer APK.
  */
 class NexusOtaWebManager(context: Context) {
     private val appContext = context.applicationContext
@@ -31,12 +26,24 @@ class NexusOtaWebManager(context: Context) {
     private val versionsRoot = File(appContext.filesDir, "nexusnova-ota-web/versions")
 
     init {
-        // Never revive packages created by the pre-atomic OTA implementations.
         runCatching {
             appContext.getSharedPreferences("nexusnova_ota_web_v1", Context.MODE_PRIVATE)
                 .edit().clear().apply()
             appContext.getSharedPreferences("nexusnova_ota_web_v2_stable", Context.MODE_PRIVATE)
                 .edit().clear().apply()
+        }
+
+        // APK updates preserve SharedPreferences and files. If a newly installed APK
+        // contains a newer bundled web baseline, an old active differential package
+        // must never keep overriding that newer bundle. Reset the overlay atomically.
+        val storedBase = prefs.getString(KEY_BUNDLED_BASE, "")?.trim()?.lowercase().orEmpty()
+        if (storedBase != BUNDLED_WEB_BASE) {
+            runCatching { versionsRoot.deleteRecursively() }
+            prefs.edit()
+                .clear()
+                .putString(KEY_BUNDLED_BASE, BUNDLED_WEB_BASE)
+                .apply()
+            android.util.Log.i(TAG, "Reset OTA overlay for bundled base $BUNDLED_WEB_BASE")
         }
     }
 
@@ -75,11 +82,7 @@ class NexusOtaWebManager(context: Context) {
                     if (updated) break
                 } catch (error: Throwable) {
                     lastError = error
-                    android.util.Log.w(
-                        TAG,
-                        "OTA check attempt $attempt/$UPDATE_CHECK_ATTEMPTS failed",
-                        error
-                    )
+                    android.util.Log.w(TAG, "OTA check attempt $attempt/$UPDATE_CHECK_ATTEMPTS failed", error)
                 }
 
                 if (attempt < UPDATE_CHECK_ATTEMPTS) {
@@ -105,6 +108,7 @@ class NexusOtaWebManager(context: Context) {
         prefs.edit()
             .remove(KEY_ACTIVE_VERSION)
             .putString(KEY_BLOCKED_VERSION, active)
+            .putString(KEY_BUNDLED_BASE, BUNDLED_WEB_BASE)
             .apply()
         runCatching { File(versionsRoot, active).deleteRecursively() }
         android.util.Log.w(TAG, "Rolled back OTA version $active to bundled assets")
@@ -181,6 +185,7 @@ class NexusOtaWebManager(context: Context) {
 
             prefs.edit()
                 .putString(KEY_ACTIVE_VERSION, version)
+                .putString(KEY_BUNDLED_BASE, BUNDLED_WEB_BASE)
                 .remove(KEY_BLOCKED_VERSION)
                 .apply()
             cleanupOldVersions(keep = version)
@@ -260,7 +265,7 @@ class NexusOtaWebManager(context: Context) {
         connection.instanceFollowRedirects = true
         connection.useCaches = false
         connection.defaultUseCaches = false
-        connection.setRequestProperty("User-Agent", "NexusNova-Android-OTA/4")
+        connection.setRequestProperty("User-Agent", "NexusNova-Android-OTA/5")
         connection.setRequestProperty("Cache-Control", "no-cache, no-store, max-age=0")
         connection.setRequestProperty("Pragma", "no-cache")
         connection.connect()
@@ -339,16 +344,17 @@ class NexusOtaWebManager(context: Context) {
         const val PREFS_NAME = "nexusnova_ota_web_v3_atomic"
         const val KEY_ACTIVE_VERSION = "active_version"
         const val KEY_BLOCKED_VERSION = "blocked_version"
+        const val KEY_BUNDLED_BASE = "bundled_base"
         const val MANIFEST_SCHEMA = 2
         const val ASSET_HOST = "appassets.androidplatform.net"
         const val ASSET_PATH = "/assets/www/"
-        const val BUNDLED_WEB_BASE = "b6eb3d191ee35b58c0ffe14334674ea2c60d3b72"
+        const val BUNDLED_WEB_BASE = "8d1aaaee6f28b974a8c8b3ff213beb1318ec7405"
         const val MANIFEST_URL = "https://raw.githubusercontent.com/fahadsoomro123/nexusnova-website/nexusnova-ota-public/ota/manifest.json"
         const val FILE_BASE_URL = "https://raw.githubusercontent.com/fahadsoomro123/nexusnova-website/nexusnova-ota-public/ota/files/"
         const val CONNECT_TIMEOUT_MS = 8_000
         const val READ_TIMEOUT_MS = 12_000
         const val UPDATE_CHECK_ATTEMPTS = 4
-        const val UPDATE_RETRY_DELAY_MS = 2_500L
+        const val UPDATE_RETRY_DELAY_MS = 1_500L
         const val MAX_MANIFEST_BYTES = 1L * 1024L * 1024L
         const val MAX_SINGLE_FILE_BYTES = 20L * 1024L * 1024L
         const val MAX_TOTAL_BYTES = 60L * 1024L * 1024L
