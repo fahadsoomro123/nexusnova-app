@@ -21,6 +21,8 @@ function ensureLiveLocalSkin() {
     @keyframes nxLiveLocalSheen{0%,24%{transform:translateX(-74%)}67%,100%{transform:translateX(74%)}}@keyframes nxLiveLocalLed{0%,100%{opacity:.58}50%{opacity:1}}
     @media(max-width:390px){.nx-live-local-pro{padding:5px}.nx-live-local-cockpit{padding:7px 8px}.nx-live-local-copy small{display:none}.nx-live-local-pro>.nx-weather-premium,.nx-live-prayer-pro>.nx-prayer-premium,.nx-live-qibla-pro>.nx2-qibla{max-height:calc(100dvh - 214px)!important}}
     @media(max-height:720px){.nx-live-local-pro{min-height:0}.nx-live-local-cockpit{margin-bottom:4px;padding:5px 7px}.nx-live-local-copy small{display:none}.nx-live-local-pro>.nx-weather-premium,.nx-live-prayer-pro>.nx-prayer-premium,.nx-live-qibla-pro>.nx2-qibla{max-height:calc(100dvh - 202px)!important}}
+    .nx-live-qibla-pro,.nx-live-prayer-pro{max-height:none!important;min-height:0!important;overflow:visible!important}
+    .nx-live-qibla-pro>.nx2-qibla,.nx-live-prayer-pro>.nx-prayer-premium{max-height:none!important;overflow:visible!important;overscroll-behavior:auto!important;scrollbar-width:auto!important}
     @media(prefers-reduced-motion:reduce){.nx-live-local-pro::before,.nx-live-local-led{animation:none!important}}
   `;
   document.head.appendChild(style);
