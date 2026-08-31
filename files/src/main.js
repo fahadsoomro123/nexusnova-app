@@ -25,7 +25,7 @@ let appScreenModulePromise = null;
 let appScreenModule = null;
 function loadAppScreenModule() {
   if (!appScreenModulePromise) {
-    appScreenModulePromise = import('./features/apps/app-screen.js').then(module => {
+    appScreenModulePromise = import('./features/apps/app-screen.js?ota=nv13').then(module => {
       appScreenModule = module;
       return module;
     }).catch(error => {
@@ -37,7 +37,25 @@ function loadAppScreenModule() {
   return appScreenModulePromise;
 }
 
+let novaVaultModulePromise = null;
+let novaVaultModule = null;
+function loadNovaVaultModule() {
+  if (!novaVaultModulePromise) {
+    novaVaultModulePromise = import('./features/apps/nova-vault-screen-v13.js?ota=nv13').then(module => {
+      novaVaultModule = module;
+      return module;
+    }).catch(error => {
+      novaVaultModulePromise = null;
+      novaVaultModule = null;
+      throw error;
+    });
+  }
+  return novaVaultModulePromise;
+}
+
 function cleanupActiveAppScreen() {
+  try { novaVaultModule?.cleanupNovaVaultScreen?.(); }
+  catch (error) { console.warn('[NexusNova Fresh] Vault cleanup:', error); }
   try { appScreenModule?.cleanupAppScreen?.(); }
   catch (error) { console.warn('[NexusNova Fresh] app cleanup:', error); }
 }
@@ -211,6 +229,10 @@ router = createRouter({
     hub: () => hubScreen({ openApp: openAppWithAd }),
     app: async payload => {
       try {
+        if (payload.id === 'nova-vault') {
+          const { novaVaultScreen } = await loadNovaVaultModule();
+          return novaVaultScreen({ backToMine });
+        }
         const { appScreen } = await loadAppScreenModule();
         return appScreen({ id: payload.id, backToHub, backToMine });
       } catch (error) {
@@ -229,6 +251,7 @@ router = createRouter({
     syncDock(route, payload);
     showDock(route !== 'auth');
     if (route !== 'app' && appScreenModulePromise) appScreenModulePromise.then(module => module.cleanupAppScreen()).catch(() => {});
+    if (route !== 'app' && novaVaultModulePromise) novaVaultModulePromise.then(module => module.cleanupNovaVaultScreen()).catch(() => {});
   }
 });
 
