@@ -1,0 +1,3 @@
+Nova Vault v3 OTA release trigger.
+Scope: Nova Vault visual + single OPEN VAULT normal/10X flow only.
+No SOS, Mine screen, mining backend, auth, dock, or unrelated app changes.
