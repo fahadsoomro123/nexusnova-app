@@ -1,4 +1,7 @@
 // Reference raster v2 package counts verified for OTA release.
+// Crash-safety note: skin bytes are now kept as Blob URLs instead of being
+// re-encoded into large data: URLs. This preserves the exact raster bytes
+// while sharply reducing peak WebView memory during Mine startup.
 const MINE_SKINS = {
   header: 2,
   miner: 4,
@@ -11,6 +14,7 @@ const MINE_SKINS = {
 const OTA_PROOF_ID = 'nx-ota-v2-proof';
 const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 let activatedStyle = null;
+const skinObjectUrls = new Map();
 
 function syncMineViewportHeight() {
   const viewport = window.visualViewport;
@@ -84,45 +88,7 @@ function decodeBase64Pure(input, label) {
   return out;
 }
 
-function concatBytes(parts) {
-  const total = parts.reduce((sum, part) => sum + part.length, 0);
-  const out = new Uint8Array(total);
-  let offset = 0;
-  parts.forEach(part => {
-    out.set(part, offset);
-    offset += part.length;
-  });
-  return out;
-}
-
-function encodeBase64Pure(bytes) {
-  let out = '';
-  for (let i = 0; i < bytes.length; i += 3) {
-    const a = bytes[i];
-    const hasB = i + 1 < bytes.length;
-    const hasC = i + 2 < bytes.length;
-    const b = hasB ? bytes[i + 1] : 0;
-    const c = hasC ? bytes[i + 2] : 0;
-    const triple = (a << 16) | (b << 8) | c;
-
-    out += B64[(triple >> 18) & 63];
-    out += B64[(triple >> 12) & 63];
-    out += hasB ? B64[(triple >> 6) & 63] : '=';
-    out += hasC ? B64[triple & 63] : '=';
-  }
-  return out;
-}
-
-function piecesToDataUrl(pieces, name) {
-  const decoded = pieces.map((piece, idx) =>
-    decodeBase64Pure(piece, `${name}.${String(idx + 1).padStart(2, '0')}`)
-  );
-  const bytes = concatBytes(decoded);
-  if (bytes.length < 16) throw new Error(`${name} bytes short`);
-  return `data:image/webp;base64,${encodeBase64Pure(bytes)}`;
-}
-
-function verifyImageDataUrl(dataUrl, name) {
+function verifyImageUrl(url, name) {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
@@ -130,10 +96,10 @@ function verifyImageDataUrl(dataUrl, name) {
         reject(new Error(`${name} decode empty`));
         return;
       }
-      resolve(dataUrl);
+      resolve(url);
     };
     img.onerror = () => reject(new Error(`${name} image decode`));
-    img.src = dataUrl;
+    img.src = url;
   });
 }
 
@@ -145,17 +111,34 @@ async function fetchText(url, label) {
 
 async function loadSkin(name, count) {
   setProof(`V2 LOAD ${name}`, '#f59e0b');
-  const pieces = await Promise.all(
-    Array.from({ length: count }, (_, idx) => {
-      const part = String(idx + 1).padStart(2, '0');
-      const url = new URL(`../assets/skins/mine-ref-v2-data/${name}.${part}.b64`, import.meta.url);
-      return fetchText(url, `${name}.${part}`);
-    })
-  );
 
-  const dataUrl = piecesToDataUrl(pieces, name);
-  await verifyImageDataUrl(dataUrl, name);
-  document.documentElement.style.setProperty(`--mine-skin-${name}`, `url("${dataUrl}")`);
+  // Decode one local chunk at a time. The previous implementation fetched all
+  // chunks concurrently, concatenated them, then base64-encoded the full image
+  // again into a data: URL. On low-memory Android WebViews that briefly held
+  // several copies of every Mine raster in memory at once.
+  const decodedParts = [];
+  for (let idx = 0; idx < count; idx += 1) {
+    const part = String(idx + 1).padStart(2, '0');
+    const url = new URL(`../assets/skins/mine-ref-v2-data/${name}.${part}.b64`, import.meta.url);
+    const text = await fetchText(url, `${name}.${part}`);
+    decodedParts.push(decodeBase64Pure(text, `${name}.${part}`));
+  }
+
+  const blob = new Blob(decodedParts, { type: 'image/webp' });
+  if (blob.size < 16) throw new Error(`${name} bytes short`);
+
+  const objectUrl = URL.createObjectURL(blob);
+  try {
+    await verifyImageUrl(objectUrl, name);
+  } catch (error) {
+    URL.revokeObjectURL(objectUrl);
+    throw error;
+  }
+
+  const previousUrl = skinObjectUrls.get(name);
+  if (previousUrl) URL.revokeObjectURL(previousUrl);
+  skinObjectUrls.set(name, objectUrl);
+  document.documentElement.style.setProperty(`--mine-skin-${name}`, `url("${objectUrl}")`);
 }
 
 async function loadReferenceCss() {
@@ -200,21 +183,27 @@ function activateReferenceSkin(css) {
   setProof('V2 READY', '#16a34a');
 }
 
+async function prepareReferenceSkin() {
+  // CSS is tiny compared with the rasters, so fetch it in parallel while the
+  // six raster groups are decoded sequentially to cap startup memory.
+  const cssPromise = loadReferenceCss();
+  for (const [name, count] of Object.entries(MINE_SKINS)) {
+    await loadSkin(name, count);
+  }
+  const css = await cssPromise;
+  activateReferenceSkin(css);
+}
+
 syncMineViewportHeight();
 window.visualViewport?.addEventListener('resize', syncMineViewportHeight);
 window.addEventListener('resize', syncMineViewportHeight);
 setProof('V2 LOAD', '#f59e0b');
 
-Promise.all([
-  ...Object.entries(MINE_SKINS).map(([name, count]) => loadSkin(name, count)),
-  loadReferenceCss(),
-])
-  .then(results => activateReferenceSkin(results[results.length - 1]))
-  .catch(error => {
-    console.warn('[NexusNova Mine] reference skin loader:', error);
-    document.documentElement.dataset.mineRasterSkin = 'waiting';
-    setProof(`V2 ERR ${String(error?.message || 'unknown').slice(0, 70)}`, '#dc2626');
-  });
+prepareReferenceSkin().catch(error => {
+  console.warn('[NexusNova Mine] reference skin loader:', error);
+  document.documentElement.dataset.mineRasterSkin = 'waiting';
+  setProof(`V2 ERR ${String(error?.message || 'unknown').slice(0, 70)}`, '#dc2626');
+});
 
 window.addEventListener('pagehide', () => {
   activatedStyle?.remove();
@@ -225,4 +214,6 @@ window.addEventListener('pagehide', () => {
   Object.keys(MINE_SKINS).forEach(name => {
     document.documentElement.style.removeProperty(`--mine-skin-${name}`);
   });
+  skinObjectUrls.forEach(url => URL.revokeObjectURL(url));
+  skinObjectUrls.clear();
 }, { once: true });
