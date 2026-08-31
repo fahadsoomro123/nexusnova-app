@@ -1,0 +1,9 @@
+Source commit: 9c46a2163d3e57d5fd7a10277db4baee0280c8f9
+Branch: nova-sol57-pro-v128
+Version name: 1.0.4-vault-v13
+Version code: 20260831
+Permanent signature: PASS
+Vault v13 bundled directly: PASS
+Vault SOS suppression bundled: PASS
+OTA stale-cache hardening: PASS
+AdMob mode: TEST LOCKED
