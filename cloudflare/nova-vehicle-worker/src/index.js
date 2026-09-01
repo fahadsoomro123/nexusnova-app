@@ -103,9 +103,11 @@ async function verifyFirebaseOwner(request, env) {
   const verified = user?.emailVerified === true;
   if (!uid || !verified) return { error: fail('verification_required', 'A verified account is required.', 403) };
 
-  const uidAllow = csvSet(env.PREMIUM_OWNER_UIDS);
-  const emailAllow = csvSet(env.PREMIUM_OWNER_EMAILS);
-  const entitled = uidAllow.has(uid.toLowerCase()) || (email && emailAllow.has(email));
+  const uidHashAllow = csvSet(env.PREMIUM_OWNER_UID_SHA256S);
+  const emailHashAllow = csvSet(env.PREMIUM_OWNER_EMAIL_SHA256S);
+  const uidHash = await sha256(uid);
+  const emailHash = email ? await sha256(email) : '';
+  const entitled = uidHashAllow.has(uidHash) || (emailHash && emailHashAllow.has(emailHash));
   if (!entitled) return { error: fail('premium_required', 'Nova Vehicle Premium is not enabled for this account.', 403) };
   return { uid, email };
 }
