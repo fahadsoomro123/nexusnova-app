@@ -23,11 +23,13 @@ import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
+import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.math.max
 
 class NovaVehicleTrackerService : Service() {
     private lateinit var fused: FusedLocationProviderClient
@@ -109,15 +111,9 @@ class NovaVehicleTrackerService : Service() {
         }
     }
 
-    private fun sendTelemetry(location: Location, speedKmh: Double) {
-        if (!sending.compareAndSet(false, true)) return
-        val token = prefs.getString(MainActivity.KEY_TOKEN, "").orEmpty()
-        if (token.length != 64) {
-            sending.set(false)
-            return
-        }
+    private fun telemetryPayload(location: Location, speedKmh: Double): JSONObject {
         val battery = batterySnapshot()
-        val payload = JSONObject()
+        return JSONObject()
             .put("latitude", location.latitude)
             .put("longitude", location.longitude)
             .put("accuracyM", if (location.hasAccuracy()) location.accuracy.toDouble() else 0.0)
@@ -127,10 +123,20 @@ class NovaVehicleTrackerService : Service() {
             .put("charging", battery.charging)
             .put("externalPower", battery.externalPower)
             .put("observedAt", location.time.takeIf { it > 0 } ?: System.currentTimeMillis())
-            .toString()
+    }
+
+    private fun sendTelemetry(location: Location, speedKmh: Double) {
+        if (!sending.compareAndSet(false, true)) return
+        val token = prefs.getString(MainActivity.KEY_TOKEN, "").orEmpty()
+        if (token.length != 64) {
+            sending.set(false)
+            return
+        }
+        val payload = telemetryPayload(location, speedKmh)
 
         networkExecutor.execute {
             try {
+                val upload = JSONObject(payload.toString()).put("history", pendingQueue())
                 val connection = (URL(TELEMETRY_URL).openConnection() as HttpURLConnection).apply {
                     requestMethod = "POST"
                     connectTimeout = 12_000
@@ -140,7 +146,7 @@ class NovaVehicleTrackerService : Service() {
                     setRequestProperty("Accept", "application/json")
                     setRequestProperty("Authorization", "Bearer $token")
                 }
-                connection.outputStream.use { it.write(payload.toByteArray(Charsets.UTF_8)) }
+                connection.outputStream.use { it.write(upload.toString().toByteArray(Charsets.UTF_8)) }
                 val responseCode = connection.responseCode
                 val stream = if (responseCode in 200..299) connection.inputStream else connection.errorStream
                 stream?.bufferedReader()?.use { it.readText() }
@@ -148,25 +154,72 @@ class NovaVehicleTrackerService : Service() {
                 when {
                     responseCode in 200..299 -> {
                         lastSentAt = System.currentTimeMillis()
-                        prefs.edit().remove(KEY_PENDING_PAYLOAD).apply()
+                        clearPendingQueue()
                     }
                     responseCode == 401 -> {
+                        clearPendingQueue()
                         prefs.edit()
                             .putBoolean(MainActivity.KEY_TRACKING_ENABLED, false)
                             .remove(MainActivity.KEY_TOKEN)
-                            .putString(KEY_PENDING_PAYLOAD, payload)
                             .apply()
                         updateNotification("Tracker access revoked • open app to pair again")
                         stopSelf()
                     }
-                    else -> prefs.edit().putString(KEY_PENDING_PAYLOAD, payload).apply()
+                    else -> enqueuePending(payload)
                 }
             } catch (_: Exception) {
-                prefs.edit().putString(KEY_PENDING_PAYLOAD, payload).apply()
+                enqueuePending(payload)
             } finally {
                 sending.set(false)
             }
         }
+    }
+
+    private fun pendingQueue(): JSONArray {
+        val raw = prefs.getString(KEY_PENDING_QUEUE, "").orEmpty()
+        val queue = if (raw.isBlank()) JSONArray() else runCatching { JSONArray(raw) }.getOrDefault(JSONArray())
+
+        // One-time migration from the earliest tracker build, which kept only one
+        // failed payload. This avoids silently discarding that point after upgrade.
+        if (queue.length() == 0) {
+            val legacy = prefs.getString(KEY_LEGACY_PENDING_PAYLOAD, "").orEmpty()
+            val legacyJson = runCatching { JSONObject(legacy) }.getOrNull()
+            if (legacyJson != null) queue.put(legacyJson)
+        }
+        return queue
+    }
+
+    private fun enqueuePending(payload: JSONObject) {
+        val queue = pendingQueue()
+        val observedAt = payload.optLong("observedAt", System.currentTimeMillis())
+        val lastIndex = queue.length() - 1
+        val lastObservedAt = if (lastIndex >= 0) queue.optJSONObject(lastIndex)?.optLong("observedAt", 0L) ?: 0L else 0L
+
+        // Keep route history useful without growing storage/network cost: while
+        // offline retain roughly one point per 30 seconds, replacing the latest
+        // point inside the same bucket with the freshest GPS fix.
+        if (lastIndex >= 0 && observedAt - lastObservedAt < OFFLINE_QUEUE_SAMPLE_MS) {
+            queue.put(lastIndex, payload)
+        } else {
+            queue.put(payload)
+        }
+
+        val trimmed = JSONArray()
+        val start = max(0, queue.length() - MAX_PENDING_POINTS)
+        for (index in start until queue.length()) {
+            queue.optJSONObject(index)?.let { trimmed.put(it) }
+        }
+        prefs.edit()
+            .putString(KEY_PENDING_QUEUE, trimmed.toString())
+            .remove(KEY_LEGACY_PENDING_PAYLOAD)
+            .apply()
+    }
+
+    private fun clearPendingQueue() {
+        prefs.edit()
+            .remove(KEY_PENDING_QUEUE)
+            .remove(KEY_LEGACY_PENDING_PAYLOAD)
+            .apply()
     }
 
     private fun batterySnapshot(): BatterySnapshot {
@@ -249,6 +302,9 @@ class NovaVehicleTrackerService : Service() {
         private const val MOVING_UPLOAD_MS = 10_000L
         private const val PARKED_UPLOAD_MS = 60_000L
         private const val NOTIFICATION_UPDATE_MS = 30_000L
-        private const val KEY_PENDING_PAYLOAD = "pending_payload"
+        private const val OFFLINE_QUEUE_SAMPLE_MS = 30_000L
+        private const val MAX_PENDING_POINTS = 40
+        private const val KEY_PENDING_QUEUE = "pending_payload_queue_v2"
+        private const val KEY_LEGACY_PENDING_PAYLOAD = "pending_payload"
     }
 }
