@@ -1,6 +1,7 @@
 import { premiumWeatherRenderers } from './premium-weather.js';
 import { qiblaSafeV2Renderers } from './premium-qibla-safe-v2.js';
 import { premiumPrayerSafeRenderers } from './premium-prayer-safe.js';
+import { sacredZeroScrollRenderers } from './sacred-zero-scroll.js';
 
 function ensureLiveLocalSkin() {
   if (document.getElementById('nx-live-local-cockpit-v1')) return;
@@ -59,11 +60,11 @@ export function renderWeatherCockpit() {
 }
 
 export function renderQiblaCockpit() {
-  return wrap(qiblaSafeV2Renderers.qibla, 'nx-live-qibla-pro', 'QIBLA INSTRUMENT DESK', 'GPS BEARING • DAMPED COMPASS • SENSOR SAFE', 'PRIVATE GPS');
+  return sacredZeroScrollRenderers.qibla();
 }
 
 export function renderPrayerCockpit() {
-  return wrap(premiumPrayerSafeRenderers['prayer-times'], 'nx-live-prayer-pro', 'PRAYER SCHEDULE DESK', 'LIVE SOURCE • NEXT PRAYER COUNTDOWN • CITY/GPS', 'LIVE TIMES');
+  return sacredZeroScrollRenderers['prayer-times']();
 }
 
 export const liveLocalCockpitRenderers = Object.freeze({
