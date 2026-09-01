@@ -3,6 +3,12 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+val novaVehicleApiBase = (project.findProperty("NOVA_VEHICLE_API_BASE") as String?)
+    ?.trim()
+    ?.trimEnd('/')
+    ?.takeIf { it.isNotBlank() }
+    ?: "https://nova-vehicle-api.nexusnovatools.com"
+
 android {
     namespace = "com.nexusnova.tracker"
     compileSdk = 35
@@ -13,6 +19,11 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "1.0.0"
+        buildConfigField("String", "NOVA_VEHICLE_API_BASE", "\"$novaVehicleApiBase\"")
+    }
+
+    buildFeatures {
+        buildConfig = true
     }
 
     buildTypes {
