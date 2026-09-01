@@ -4,6 +4,7 @@ const MAX_NAME = 40;
 const MAX_DEVICE_LABEL = 60;
 const HISTORY_INTERVAL_MS = 60 * 1000;
 const MIN_TELEMETRY_INTERVAL_MS = 3_000;
+const MAX_REPLAY_POINTS = 40;
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
 const CORS_HEADERS = Object.freeze({
@@ -62,7 +63,7 @@ async function sha256(value) {
 
 async function requestJson(request) {
   const length = Number(request.headers.get('content-length') || 0);
-  if (length > 16_384) throw new Error('payload-too-large');
+  if (length > 32_768) throw new Error('payload-too-large');
   try { return await request.json(); }
   catch { return {}; }
 }
@@ -140,6 +141,31 @@ function mapVehicle(row, now) {
   };
 }
 
+function telemetryPoint(raw, now) {
+  if (!raw || typeof raw !== 'object') return null;
+  const latitude = finite(raw.latitude, NaN);
+  const longitude = finite(raw.longitude, NaN);
+  if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90 || !Number.isFinite(longitude) || longitude < -180 || longitude > 180) return null;
+  return {
+    latitude,
+    longitude,
+    accuracyM: clamp(raw.accuracyM, 0, 5000),
+    speedKmh: clamp(raw.speedKmh, 0, 350),
+    heading: ((finite(raw.heading, 0) % 360) + 360) % 360,
+    batteryPct: clamp(raw.batteryPct, 0, 100),
+    charging: raw.charging === true ? 1 : 0,
+    externalPower: raw.externalPower === true ? 1 : 0,
+    observedAt: Math.round(Math.min(now + 60_000, Math.max(now - 24 * 60 * 60 * 1000, finite(raw.observedAt, now))))
+  };
+}
+
+function historyInsert(store, vehicleId, point, receivedAt) {
+  return store.prepare(`INSERT OR IGNORE INTO telemetry_history
+    (vehicle_id, observed_at, received_at, latitude, longitude, accuracy_m, speed_kmh, heading, battery_pct, external_power)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .bind(vehicleId, point.observedAt, receivedAt, point.latitude, point.longitude, point.accuracyM, point.speedKmh, point.heading, point.batteryPct, point.externalPower);
+}
+
 async function createPairing(request, env, owner) {
   const body = await requestJson(request);
   const store = db(env);
@@ -175,6 +201,19 @@ async function ownerDashboard(env, owner) {
     ORDER BY created_at DESC LIMIT ?`)
     .bind(owner.uid, MAX_VEHICLES).all();
   return json({ ok: true, entitled: true, vehicles: (result.results || []).map(row => mapVehicle(row, now)), serverNow: now });
+}
+
+async function ownerHistory(url, env, owner) {
+  const vehicleId = cleanText(url.searchParams.get('vehicleId'), '', 100);
+  const limit = Math.max(10, Math.min(500, Math.round(finite(url.searchParams.get('limit'), 180))));
+  if (!vehicleId) return fail('missing_vehicle', 'Vehicle id is missing.');
+  const result = await db(env).prepare(`SELECT h.observed_at, h.received_at, h.latitude, h.longitude,
+      h.accuracy_m, h.speed_kmh, h.heading, h.battery_pct, h.external_power
+    FROM telemetry_history h JOIN vehicles v ON v.vehicle_id = h.vehicle_id
+    WHERE h.vehicle_id = ? AND v.owner_uid = ? AND v.revoked_at IS NULL
+    ORDER BY h.observed_at DESC LIMIT ?`)
+    .bind(vehicleId, owner.uid, limit).all();
+  return json({ ok: true, vehicleId, points: result.results || [] });
 }
 
 async function revokeVehicle(request, env, owner) {
@@ -237,37 +276,37 @@ async function pushTelemetry(request, env) {
   if (lastSeen > 0 && now - lastSeen < MIN_TELEMETRY_INTERVAL_MS) return fail('too_fast', 'Telemetry rate is too high.', 429);
 
   const body = await requestJson(request);
-  const latitude = finite(body?.latitude, NaN);
-  const longitude = finite(body?.longitude, NaN);
-  if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90 || !Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
-    return fail('invalid_location', 'Location coordinates are invalid.');
-  }
-  const accuracyM = clamp(body?.accuracyM, 0, 5000);
-  const speedKmh = clamp(body?.speedKmh, 0, 350);
-  const heading = ((finite(body?.heading, 0) % 360) + 360) % 360;
-  const batteryPct = clamp(body?.batteryPct, 0, 100);
-  const charging = body?.charging === true ? 1 : 0;
-  const externalPower = body?.externalPower === true ? 1 : 0;
-  const observedAt = Math.min(now + 60_000, Math.max(now - 24 * 60 * 60 * 1000, finite(body?.observedAt, now)));
+  const current = telemetryPoint(body, now);
+  if (!current) return fail('invalid_location', 'Location coordinates are invalid.');
 
-  await store.prepare(`UPDATE vehicles SET
-    last_seen_at = ?, live_lat = ?, live_lng = ?, live_accuracy = ?, live_speed = ?, live_heading = ?,
-    live_battery = ?, live_charging = ?, live_external_power = ?, observed_at = ?, received_at = ?
-    WHERE vehicle_id = ?`)
-    .bind(now, latitude, longitude, accuracyM, speedKmh, heading, batteryPct, charging, externalPower, observedAt, now, vehicle.vehicle_id).run();
+  const replaySeen = new Set();
+  const replay = (Array.isArray(body?.history) ? body.history : [])
+    .slice(-MAX_REPLAY_POINTS)
+    .map(point => telemetryPoint(point, now))
+    .filter(point => {
+      if (!point || point.observedAt >= current.observedAt || replaySeen.has(point.observedAt)) return false;
+      replaySeen.add(point.observedAt);
+      return true;
+    });
+
+  const statements = [
+    store.prepare(`UPDATE vehicles SET
+      last_seen_at = ?, live_lat = ?, live_lng = ?, live_accuracy = ?, live_speed = ?, live_heading = ?,
+      live_battery = ?, live_charging = ?, live_external_power = ?, observed_at = ?, received_at = ?
+      WHERE vehicle_id = ?`)
+      .bind(now, current.latitude, current.longitude, current.accuracyM, current.speedKmh, current.heading,
+        current.batteryPct, current.charging, current.externalPower, current.observedAt, now, vehicle.vehicle_id),
+    ...replay.map(point => historyInsert(store, vehicle.vehicle_id, point, now))
+  ];
 
   const lastHistoryAt = finite(vehicle.last_history_at, 0);
   if (now - lastHistoryAt >= HISTORY_INTERVAL_MS) {
-    await store.batch([
-      store.prepare(`INSERT INTO telemetry_history
-        (vehicle_id, observed_at, received_at, latitude, longitude, accuracy_m, speed_kmh, heading, battery_pct, external_power)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-        .bind(vehicle.vehicle_id, observedAt, now, latitude, longitude, accuracyM, speedKmh, heading, batteryPct, externalPower),
-      store.prepare('UPDATE vehicles SET last_history_at = ? WHERE vehicle_id = ?').bind(now, vehicle.vehicle_id)
-    ]);
+    statements.push(historyInsert(store, vehicle.vehicle_id, current, now));
+    statements.push(store.prepare('UPDATE vehicles SET last_history_at = ? WHERE vehicle_id = ?').bind(now, vehicle.vehicle_id));
   }
+  await store.batch(statements);
 
-  return json({ ok: true, serverNow: now });
+  return json({ ok: true, serverNow: now, replayed: replay.length });
 }
 
 async function cleanup(env) {
@@ -295,6 +334,7 @@ async function route(request, env) {
     if (owner.error) return owner.error;
     if (path === '/v1/owner/pairing' && request.method === 'POST') return createPairing(request, env, owner);
     if (path === '/v1/owner/dashboard' && request.method === 'GET') return ownerDashboard(env, owner);
+    if (path === '/v1/owner/history' && request.method === 'GET') return ownerHistory(url, env, owner);
     if (path === '/v1/owner/revoke' && request.method === 'POST') return revokeVehicle(request, env, owner);
   }
 
