@@ -1,0 +1,115 @@
+/* Nova Drive / Vehicle Tracking approved visual viewport lock.
+   Fixes the Android black-gap bug by giving exactly one element ownership of
+   the available WebView viewport. No image scaling/upscaling is performed here. */
+
+html.nx-approved-drive-active,
+html.nx-approved-drive-active body,
+html.nx-approved-drive-active body .nx-app {
+  width: 100% !important;
+  height: 100dvh !important;
+  min-height: 0 !important;
+  max-height: 100dvh !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+}
+
+/* The approved cockpit owns the whole app viewport. The global dock and the
+   generic app header are intentionally not part of this screen. */
+html.nx-approved-drive-active body .nx-app .nx-stage {
+  position: relative !important;
+  width: 100% !important;
+  height: 100dvh !important;
+  min-height: 0 !important;
+  max-height: 100dvh !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  scroll-padding: 0 !important;
+  overflow: hidden !important;
+}
+
+html.nx-approved-drive-active .nx-stage > .nx-screen.nx-drive-v3-screen {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+html.nx-approved-drive-active .nx-drive-v3-screen > .nx-app-head {
+  display: none !important;
+}
+
+html.nx-approved-drive-active .nx-drive-v3-screen > [data-app-mount] {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+html.nx-approved-drive-active .nx-drive-v3-screen > [data-app-mount] > .nxdr3 {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  display: block !important;
+  overflow: hidden !important;
+}
+
+html.nx-approved-drive-active .nxdr3 > .nx-approved-drive {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+}
+
+html.nx-approved-drive-active .nx-approved-view {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: hidden !important;
+}
+
+/* Keep raster pixels mapped directly to the viewport box. This declaration
+   deliberately does not apply filters, transforms, zoom, image-rendering hacks,
+   or synthetic sharpening. */
+html.nx-approved-drive-active .nx-approved-art {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  margin: 0 !important;
+  display: block !important;
+  object-fit: fill !important;
+  filter: none !important;
+  transform: none !important;
+}
+
+html.nx-approved-drive-active .nx-dock,
+html.nx-approved-drive-active #nxEmergencySosButton,
+html.nx-approved-drive-active #nxEmergencySosEdit {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
