@@ -7,7 +7,7 @@ val novaVehicleApiBase = (project.findProperty("NOVA_VEHICLE_API_BASE") as Strin
     ?.trim()
     ?.trimEnd('/')
     ?.takeIf { it.isNotBlank() }
-    ?: "https://nova-vehicle-api.nexusnovatools.com"
+    ?: "https://nova-vehicle-premium.fahadsoomro123.workers.dev"
 
 android {
     namespace = "com.nexusnova.tracker"
