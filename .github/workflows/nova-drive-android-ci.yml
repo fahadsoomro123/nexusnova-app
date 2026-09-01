@@ -67,7 +67,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          npm ci --prefix functions --ignore-scripts
+          npm install --prefix functions --ignore-scripts --no-audit --no-fund
           node -e "const f=require('./functions/novaVehicle.js'); for (const n of ['createNovaVehiclePairing','getNovaVehicleDashboard','revokeNovaVehicle','claimNovaVehiclePairing','pushNovaVehicleTelemetry']) if(typeof f[n]!=='function') throw new Error('missing '+n); console.log('Nova Vehicle Functions load PASS')"
 
       - name: Java 17
