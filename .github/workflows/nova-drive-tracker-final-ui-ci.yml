@@ -1,0 +1,38 @@
+name: Nova Drive Tracker Final UI CI
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [nova-drive-tracker-final-ui-v1]
+    paths:
+      - 'fresh-rebuild/src/nova-drive-approved-ui.js'
+      - 'fresh-rebuild/src/nova-vehicle-premium-ui.js'
+      - 'fresh-rebuild/src/core/nova-vehicle-premium-store.js'
+      - 'fresh-rebuild/assets/visuals/nova-drive-approved-v7.webp'
+      - 'fresh-rebuild/assets/visuals/nova-vehicle-tracking-approved-v2.webp'
+      - 'cloudflare/nova-vehicle-worker/**'
+      - '.github/workflows/nova-drive-tracker-final-ui-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - name: Validate approved Drive and Tracker implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check fresh-rebuild/src/nova-drive-approved-ui.js
+          node --check fresh-rebuild/src/nova-vehicle-premium-ui.js
+          node --check fresh-rebuild/src/core/nova-vehicle-premium-store.js
+          node --check cloudflare/nova-vehicle-worker/src/index.js
+          test -s fresh-rebuild/assets/visuals/nova-drive-approved-v7.webp
+          test -s fresh-rebuild/assets/visuals/nova-vehicle-tracking-approved-v2.webp
+          grep -Fq '/v1/owner/pause' cloudflare/nova-vehicle-worker/src/index.js
+          grep -Fq 'vehicle_controls' cloudflare/nova-vehicle-worker/schema.sql
+          grep -Fq 'TRACKER PAIRED' fresh-rebuild/src/nova-drive-approved-ui.js
+          grep -Fq 'HOLD 3s TO UNPAIR' fresh-rebuild/src/nova-drive-approved-ui.js
