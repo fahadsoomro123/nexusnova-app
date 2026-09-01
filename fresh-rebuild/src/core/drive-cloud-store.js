@@ -23,6 +23,11 @@ function dayKey(value) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
+function normalizeMode(value) {
+  const mode = String(value || '').trim().toLowerCase();
+  return mode === 'bicycle' ? 'bicycle' : mode === 'motor' ? 'motor' : 'unknown';
+}
+
 function tripKey(trip) {
   const nativeId = String(trip?.nativeId || '').trim();
   if (nativeId) return `native:${nativeId}`;
@@ -34,14 +39,20 @@ function normalizeTrip(raw) {
   const at = isoOrNow(raw.at);
   const endedAt = isoOrNow(raw.endedAt || raw.at);
   const nativeId = String(raw.nativeId || '').trim().slice(0, 180);
+  const distanceM = finiteNonNegative(raw.distanceM);
+  const movingMs = Math.round(finiteNonNegative(raw.movingMs));
+  const durationMs = Math.round(finiteNonNegative(raw.durationMs));
+  const avgKmh = movingMs > 0 ? (distanceM / (movingMs / 1000)) * 3.6 : finiteNonNegative(raw.avgKmh);
   return {
     ...(nativeId ? { nativeId } : {}),
     at,
     endedAt,
-    distanceM: finiteNonNegative(raw.distanceM),
-    movingMs: Math.round(finiteNonNegative(raw.movingMs)),
-    durationMs: Math.round(finiteNonNegative(raw.durationMs)),
-    topKmh: finiteNonNegative(raw.topKmh)
+    distanceM,
+    movingMs,
+    durationMs,
+    topKmh: finiteNonNegative(raw.topKmh),
+    avgKmh: finiteNonNegative(avgKmh),
+    mode: normalizeMode(raw.mode)
   };
 }
 
