@@ -1,0 +1,27 @@
+name = "nova-vehicle-premium"
+main = "src/index.js"
+compatibility_date = "2026-08-01"
+workers_dev = true
+
+# Recommended production custom domain:
+# https://nova-vehicle-api.nexusnovatools.com
+# Configure the custom domain in Cloudflare after first deploy.
+
+[[d1_databases]]
+binding = "NOVA_VEHICLE_DB"
+database_name = "nexusnova-vehicle"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+
+[vars]
+# Firebase Auth remains the identity provider; billing is not required merely
+# for verifying an existing Firebase ID token through Identity Toolkit.
+FIREBASE_WEB_API_KEY = "REPLACE_WITH_FIREBASE_WEB_API_KEY"
+# Comma-separated allowlists. Keep at least one non-empty in production.
+PREMIUM_OWNER_EMAILS = "REPLACE_WITH_AUTHORIZED_EMAIL"
+PREMIUM_OWNER_UIDS = ""
+
+[triggers]
+crons = ["17 */6 * * *"]
+
+# Set this as an encrypted Worker secret instead of plaintext:
+# wrangler secret put CLEANUP_SECRET

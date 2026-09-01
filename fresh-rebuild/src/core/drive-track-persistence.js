@@ -66,18 +66,26 @@ export async function hydrateDriveTrackState() {
 
     try {
       const result = await syncDriveCloudStore(localCandidate);
-      const restored = normalizeDriveStore(result?.store || localCandidate);
+      // A trip can finish while hydration is awaiting Firestore. Merge the
+      // response into whatever is local NOW so an older restore result can
+      // never erase a newly completed trip.
+      let restored = mergeDriveStores(readKey(key), result?.store || localCandidate);
+      const latestDevice = readKey(DEVICE_KEY);
+      if (hasData(latestDevice)) restored = mergeDriveStores(restored, latestDevice);
       saveJson(key, restored);
       if (result?.cloud) {
-        if (hasData(deviceLocal)) removeDeviceStore();
+        if (hasData(latestDevice)) removeDeviceStore();
         announceUpdate();
       }
       return { key, user, store: restored, cloud: result?.cloud === true };
     } catch (error) {
-      // Keep the complete local candidate if cloud is temporarily unavailable.
-      saveJson(key, localCandidate);
+      // Keep the newest local candidate if cloud is temporarily unavailable.
+      let kept = mergeDriveStores(readKey(key), localCandidate);
+      const latestDevice = readKey(DEVICE_KEY);
+      if (hasData(latestDevice)) kept = mergeDriveStores(kept, latestDevice);
+      saveJson(key, kept);
       console.warn('[NexusNova Drive] cloud restore deferred:', error);
-      return { key, user, store: localCandidate, cloud: false, error };
+      return { key, user, store: kept, cloud: false, error };
     }
   })().finally(() => { hydrateInFlight = null; });
   return hydrateInFlight;
@@ -111,15 +119,21 @@ export async function persistDriveTrackState(rawStore) {
 
   try {
     const result = await pushDriveCloudStore(local);
-    const saved = normalizeDriveStore(result?.store || local);
+    // Never save a stale cloud response over a newer local trip. Another
+    // persistence call may have written newer data while this request waited.
+    let saved = mergeDriveStores(readKey(key), result?.store || local);
+    const latestDevice = readKey(DEVICE_KEY);
+    if (hasData(latestDevice)) saved = mergeDriveStores(saved, latestDevice);
     saveJson(key, saved);
     if (result?.cloud) {
-      if (hasData(deviceLocal)) removeDeviceStore();
+      if (hasData(latestDevice)) removeDeviceStore();
       announceUpdate();
     }
     return { key, user, store: saved, cloud: result?.cloud === true };
   } catch (error) {
+    const kept = mergeDriveStores(readKey(key), local);
+    saveJson(key, kept);
     console.warn('[NexusNova Drive] cloud backup deferred:', error);
-    return { key, user, store: local, cloud: false, error };
+    return { key, user, store: kept, cloud: false, error };
   }
 }
