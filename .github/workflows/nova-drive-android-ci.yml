@@ -61,7 +61,8 @@ jobs:
           grep -Fq 'RECOVER' fresh-rebuild/src/features/apps/premium-drive-native-v2.js
           grep -Fq 'nova-track' fresh-rebuild/src/features/hub/hub-screen.js
           grep -Fq 'Nova Vehicle Premium' fresh-rebuild/src/nova-vehicle-premium-ui.js
-          grep -Fq 'nova-vehicle-api.nexusnovatools.com' fresh-rebuild/src/core/nova-vehicle-premium-store.js
+          grep -Fq 'nova-vehicle-premium.fahadsoomro123.workers.dev' fresh-rebuild/src/core/nova-vehicle-premium-store.js
+          grep -Fq 'nova-vehicle-premium.fahadsoomro123.workers.dev' NexusNovaAndroid/tracker/build.gradle.kts
           grep -Fq 'NOVA_VEHICLE_API_BASE' NexusNovaAndroid/tracker/build.gradle.kts
           grep -Fq 'FOREGROUND_SERVICE_LOCATION' NexusNovaAndroid/tracker/src/main/AndroidManifest.xml
           echo 'Nova Drive + Cloudflare Nova Vehicle source validation PASS'
