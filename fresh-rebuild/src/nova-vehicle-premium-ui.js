@@ -40,6 +40,7 @@ function styles() {
   .nxdr3{position:relative!important}
   .nxdr3-bottom{grid-template-columns:minmax(0,1fr) auto auto!important}
   .nxdr3-vehicle{min-width:92px;border:1px solid rgba(146,113,255,.28);border-radius:14px;background:linear-gradient(180deg,rgba(51,36,101,.95),rgba(12,29,57,.96));color:#e8e0ff;font-size:6.5px;font-weight:950;letter-spacing:.055em;padding:0 8px;box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 6px 18px rgba(73,70,255,.12)}
+  .nxdr3-vehicle[hidden]{display:none!important}
   .nxvp{position:absolute;inset:5px;z-index:80;display:grid;grid-template-rows:auto auto minmax(0,1fr) auto;gap:7px;padding:9px;border:1px solid rgba(95,204,255,.22);border-radius:21px;overflow:hidden;background:radial-gradient(circle at 72% 3%,rgba(118,74,255,.2),transparent 30%),radial-gradient(circle at 20% 50%,rgba(37,184,255,.14),transparent 32%),linear-gradient(165deg,#07182b 0%,#020a14 66%,#02060d 100%);box-shadow:0 24px 80px rgba(0,0,0,.75),inset 0 1px 0 rgba(255,255,255,.06);color:#f5fbff}
   .nxvp[hidden]{display:none!important}.nxvp *{box-sizing:border-box}
   .nxvp-head{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px}.nxvp-head small{display:block;color:#65ddff;font-size:6px;font-weight:950;letter-spacing:.18em}.nxvp-head strong{display:block;margin-top:2px;font-size:17px;letter-spacing:-.035em}.nxvp-head span{display:block;margin-top:2px;color:#839db2;font-size:7px}.nxvp-close{width:34px;height:34px;border:1px solid rgba(126,185,225,.18);border-radius:12px;background:linear-gradient(160deg,#102940,#061523);color:#d9f3ff;font-size:17px}
@@ -85,6 +86,7 @@ function attach(root) {
   launcher.type = 'button';
   launcher.className = 'nxdr3-vehicle';
   launcher.textContent = 'NOVA VEHICLE PREMIUM';
+  launcher.hidden = true;
   footer.insertBefore(launcher, recover);
   const panel = buildPanel(root);
   if (!panel) return;
@@ -132,17 +134,40 @@ function attach(root) {
     if (pairBtn) pairBtn.textContent = current ? 'PAIR NEW' : 'PAIR TRACKER';
   };
 
+  const probeEntitlement = async () => {
+    try {
+      const payload = await loadNovaVehicleDashboard();
+      if (!root.isConnected || payload?.entitled !== true) return;
+      launcher.hidden = false;
+      paint(payload);
+    } catch {
+      launcher.hidden = true;
+      panel.hidden = true;
+    }
+  };
+
   const refresh = async () => {
     if (busy || panel.hidden) return;
     try {
       const payload = await loadNovaVehicleDashboard();
+      if (payload?.entitled !== true) {
+        launcher.hidden = true;
+        panel.hidden = true;
+        return;
+      }
       if (root.isConnected) paint(payload);
     } catch (error) {
+      if (error?.code === 'premium_required' || error?.status === 403) {
+        launcher.hidden = true;
+        panel.hidden = true;
+        return;
+      }
       if (statusEl) statusEl.textContent = error?.message || 'Nova Vehicle Premium is unavailable.';
     }
   };
 
   const open = () => {
+    if (launcher.hidden) return;
     panel.hidden = false;
     refresh();
     clearInterval(polling);
@@ -199,6 +224,8 @@ function attach(root) {
       revokeBtn.disabled = !current?.trackerBound;
     }
   });
+
+  probeEntitlement();
 
   const life = setInterval(() => {
     if (root.isConnected) return;
