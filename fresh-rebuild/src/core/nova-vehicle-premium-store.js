@@ -13,6 +13,7 @@ function cleanVehicle(raw = {}) {
     status: String(raw?.status || 'offline'),
     trackerBound: raw?.trackerBound === true,
     trackerOnline: raw?.trackerOnline === true,
+    trackingPaused: raw?.trackingPaused === true,
     lastSeenAt: Math.max(0, Number(raw?.lastSeenAt) || 0),
     live: live ? {
       latitude: Number(live.latitude) || 0,
@@ -84,6 +85,16 @@ export async function loadNovaVehicleDashboard() {
     vehicles:Array.isArray(result.vehicles) ? result.vehicles.map(cleanVehicle) : [],
     serverNow:Math.max(0, Number(result.serverNow) || Date.now())
   };
+}
+
+export async function setNovaVehiclePaused(vehicleId, paused) {
+  const id = String(vehicleId || '').trim();
+  if (!id) throw new Error('Vehicle id is missing.');
+  const result = await api('/v1/owner/pause', {
+    method:'POST',
+    body:{ vehicleId:id, paused:paused === true }
+  });
+  return result?.ok === true;
 }
 
 export async function revokeNovaVehicle(vehicleId) {
