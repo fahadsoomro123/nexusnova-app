@@ -2,6 +2,9 @@ import { loadDriveTrackState, persistDriveTrackState, hydrateDriveTrackState } f
 
 const seen = new Set();
 let syncing = false;
+let fallbackFlushTimer = null;
+let fallbackFlushing = false;
+let fallbackLastSignature = '';
 
 function nativeReady() {
   return typeof window.NexusAndroid?.postMessage === 'function' && typeof window.nexusPostNativeAction === 'function';
@@ -10,6 +13,11 @@ function nativeReady() {
 function dayKey(value = new Date()) {
   const d = new Date(value);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function storeSignature(store) {
+  try { return JSON.stringify(store || {}); }
+  catch { return ''; }
 }
 
 function installDriveStageGuard() {
@@ -86,9 +94,37 @@ async function syncDetail(detail) {
   }
 }
 
+/**
+ * The legacy/web Drive renderer still writes localStorage directly. Mirror any
+ * store-update event through the same account-backed persistence coordinator so
+ * unsupported/older native bridges are reinstall-safe too. Debounce + signature
+ * guards prevent the persistence coordinator's own update event from looping.
+ */
+async function flushFallbackCloudStore() {
+  if (fallbackFlushing) return;
+  fallbackFlushing = true;
+  try {
+    const state = await loadDriveTrackState();
+    const before = storeSignature(state?.store);
+    if (!before || before === fallbackLastSignature) return;
+    const result = await persistDriveTrackState(state.store);
+    fallbackLastSignature = storeSignature(result?.store || state.store);
+  } catch (error) {
+    console.warn('[NexusNova Drive] fallback cloud sync deferred:', error);
+  } finally {
+    fallbackFlushing = false;
+  }
+}
+
+function scheduleFallbackCloudStore() {
+  clearTimeout(fallbackFlushTimer);
+  fallbackFlushTimer = setTimeout(() => flushFallbackCloudStore().catch(() => {}), 650);
+}
+
 window.addEventListener('nexusnova:native-drive', event => {
   syncDetail(event?.detail).catch(() => {});
 });
+window.addEventListener('nexusnova:drive-track-updated', scheduleFallbackCloudStore);
 
 function requestNativeQueue() {
   if (!nativeReady()) return false;
@@ -99,7 +135,9 @@ function requestNativeQueue() {
 installDriveStageGuard();
 
 // Restore Firestore history on every app launch, not only when Nova Drive opens.
-hydrateDriveTrackState().catch(() => {});
+hydrateDriveTrackState()
+  .then(result => { fallbackLastSignature = storeSignature(result?.store); })
+  .catch(() => {});
 
 let startupChecks = 0;
 const startupTimer = setInterval(() => {
