@@ -1,0 +1,16 @@
+name = "nova-mining-rewards"
+main = "src/index.js"
+compatibility_date = "2026-09-01"
+workers_dev = true
+
+[[d1_databases]]
+binding = "NOVA_MINING_REWARDS_DB"
+database_name = "nexusnova-mining-rewards"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+
+[vars]
+FIREBASE_PROJECT_ID = "nexusnova-6ade2"
+FIREBASE_WEB_API_KEY = "REPLACE_WITH_FIREBASE_WEB_API_KEY"
+
+# Runtime secret required:
+# FIREBASE_SERVICE_ACCOUNT_JSON
