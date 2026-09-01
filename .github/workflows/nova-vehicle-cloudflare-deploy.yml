@@ -87,13 +87,14 @@ jobs:
           echo "NOVA_VEHICLE_D1_DATABASE_ID=$DB_ID" >> "$GITHUB_ENV"
           echo 'Nova Vehicle D1 database ready.'
 
-      - name: Require private owner entitlement
+      - name: Report owner entitlement mode
         shell: bash
         run: |
           set -euo pipefail
           if [ -z "$NOVA_VEHICLE_OWNER_UIDS" ] && [ -z "$NOVA_VEHICLE_OWNER_EMAILS" ]; then
-            echo 'Missing Nova Vehicle owner entitlement secret (NOVA_VEHICLE_OWNER_UIDS or NOVA_VEHICLE_OWNER_EMAILS)'
-            exit 2
+            echo 'Nova Vehicle will deploy LOCKED: no owner account is entitled yet.'
+          else
+            echo 'Nova Vehicle owner entitlement is configured.'
           fi
 
       - name: Build production Wrangler config
