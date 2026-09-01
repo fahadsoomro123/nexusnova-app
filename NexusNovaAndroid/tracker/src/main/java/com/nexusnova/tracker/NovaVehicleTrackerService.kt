@@ -242,7 +242,7 @@ class NovaVehicleTrackerService : Service() {
     companion object {
         const val ACTION_START = "com.nexusnova.tracker.START"
         const val ACTION_STOP = "com.nexusnova.tracker.STOP"
-        private const val TELEMETRY_URL = "https://us-central1-nexusnova-6ade2.cloudfunctions.net/pushNovaVehicleTelemetry"
+        private val TELEMETRY_URL = "${BuildConfig.NOVA_VEHICLE_API_BASE}/v1/tracker/telemetry"
         private const val CHANNEL_ID = "nova_vehicle_tracker"
         private const val NOTIFICATION_ID = 9107
         private const val LOCATION_INTERVAL_MS = 10_000L
