@@ -77,6 +77,9 @@ dependencies {
     implementation("androidx.webkit:webkit:1.10.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 
+    // Activity Recognition + location context for smart Nova Drive auto trips.
+    implementation("com.google.android.gms:play-services-location:21.4.0")
+
     // Native Firebase App Check for the Android WebView shell.
     implementation(platform("com.google.firebase:firebase-bom:34.17.0"))
     implementation("com.google.firebase:firebase-appcheck-recaptcha")
