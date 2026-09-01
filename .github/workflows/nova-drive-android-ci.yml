@@ -63,6 +63,13 @@ jobs:
           grep -Fq 'FOREGROUND_SERVICE_LOCATION' NexusNovaAndroid/tracker/src/main/AndroidManifest.xml
           echo 'Nova Drive + Nova Vehicle source validation PASS'
 
+      - name: Validate Cloud Functions module
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci --prefix functions --ignore-scripts
+          node -e "const f=require('./functions/novaVehicle.js'); for (const n of ['createNovaVehiclePairing','getNovaVehicleDashboard','revokeNovaVehicle','claimNovaVehiclePairing','pushNovaVehicleTelemetry']) if(typeof f[n]!=='function') throw new Error('missing '+n); console.log('Nova Vehicle Functions load PASS')"
+
       - name: Java 17
         uses: actions/setup-java@v5
         with:
@@ -88,3 +95,13 @@ jobs:
           grep -Fq 'nova-vehicle-premium-ui.js' app/src/main/assets/www/index.html
           grep -Fq 'AUTO-DETECT READY' app/src/main/assets/www/src/features/apps/premium-drive-native-v2.js
           echo 'Nova Drive + Nova Vehicle Android compile PASS'
+
+      - name: Upload debug APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: nova-drive-vehicle-debug-apks-${{ github.sha }}
+          if-no-files-found: error
+          retention-days: 7
+          path: |
+            NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk
+            NexusNovaAndroid/tracker/build/outputs/apk/debug/tracker-debug.apk
