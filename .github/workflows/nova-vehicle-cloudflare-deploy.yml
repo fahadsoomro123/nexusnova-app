@@ -1,0 +1,136 @@
+name: Nova Vehicle Cloudflare Deploy
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [nova-vehicle-premium-v1]
+    paths:
+      - 'cloudflare/nova-vehicle-worker/**'
+      - '.github/workflows/nova-vehicle-cloudflare-deploy.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nova-vehicle-cloudflare-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  WORKER_DIR: cloudflare/nova-vehicle-worker
+  API_HOST: nova-vehicle-api.nexusnovatools.com
+  D1_NAME: nexusnova-vehicle
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      NOVA_VEHICLE_D1_DATABASE_ID: ${{ secrets.NOVA_VEHICLE_D1_DATABASE_ID }}
+      NOVA_VEHICLE_OWNER_UIDS: ${{ secrets.NOVA_VEHICLE_OWNER_UIDS }}
+      NOVA_VEHICLE_OWNER_EMAILS: ${{ secrets.NOVA_VEHICLE_OWNER_EMAILS }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Validate Worker source
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check "$WORKER_DIR/src/index.js"
+          test -s "$WORKER_DIR/schema.sql"
+          grep -Fq '/v1/tracker/telemetry' "$WORKER_DIR/src/index.js"
+          grep -Fq '/v1/owner/dashboard' "$WORKER_DIR/src/index.js"
+
+      - name: Require Cloudflare deployment credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo 'Missing CLOUDFLARE_API_TOKEN'; exit 2; }
+          test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo 'Missing CLOUDFLARE_ACCOUNT_ID'; exit 2; }
+          test -n "$NOVA_VEHICLE_D1_DATABASE_ID" || { echo 'Missing NOVA_VEHICLE_D1_DATABASE_ID'; exit 2; }
+          if [ -z "$NOVA_VEHICLE_OWNER_UIDS" ] && [ -z "$NOVA_VEHICLE_OWNER_EMAILS" ]; then
+            echo 'Missing Nova Vehicle owner entitlement secret (UIDs or emails)'
+            exit 2
+          fi
+
+      - name: Build production Wrangler config
+        shell: bash
+        run: |
+          set -euo pipefail
+          export FIREBASE_WEB_API_KEY="$(python3 - <<'PY'
+          import re
+          text=open('fresh-rebuild/src/core/firebase-backend.js', encoding='utf-8').read()
+          m=re.search(r"apiKey:\s*['\"]([^'\"]+)['\"]", text)
+          if not m: raise SystemExit('Firebase web API key not found')
+          print(m.group(1))
+          PY
+          )"
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          def toml_string(value):
+              return '"' + str(value).replace('\\','\\\\').replace('"','\\"').replace('\n','') + '"'
+          p=Path(os.environ['WORKER_DIR'])/'wrangler.toml'
+          text='\n'.join([
+              'name = "nova-vehicle-premium"',
+              'main = "src/index.js"',
+              'compatibility_date = "2026-09-01"',
+              'workers_dev = true',
+              '',
+              '[[routes]]',
+              f'pattern = {toml_string(os.environ["API_HOST"])}',
+              'custom_domain = true',
+              '',
+              '[[d1_databases]]',
+              'binding = "NOVA_VEHICLE_DB"',
+              f'database_name = {toml_string(os.environ["D1_NAME"])}',
+              f'database_id = {toml_string(os.environ["NOVA_VEHICLE_D1_DATABASE_ID"])}',
+              '',
+              '[vars]',
+              f'FIREBASE_WEB_API_KEY = {toml_string(os.environ["FIREBASE_WEB_API_KEY"])}',
+              f'PREMIUM_OWNER_UIDS = {toml_string(os.environ.get("NOVA_VEHICLE_OWNER_UIDS", ""))}',
+              f'PREMIUM_OWNER_EMAILS = {toml_string(os.environ.get("NOVA_VEHICLE_OWNER_EMAILS", ""))}',
+              '',
+              '[triggers]',
+              'crons = ["17 */6 * * *"]',
+              ''
+          ])
+          p.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Install Wrangler
+        shell: bash
+        run: npm install --global wrangler@latest
+
+      - name: Apply D1 schema
+        shell: bash
+        working-directory: cloudflare/nova-vehicle-worker
+        run: wrangler d1 execute "$D1_NAME" --remote --file=schema.sql --config=wrangler.toml --yes
+
+      - name: Deploy Worker and custom domain
+        shell: bash
+        working-directory: cloudflare/nova-vehicle-worker
+        run: wrangler deploy --config=wrangler.toml
+
+      - name: Verify production health
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3 4 5 6; do
+            if curl -fsS --max-time 12 "https://$API_HOST/health?attempt=$attempt" -o /tmp/nv-health.json; then
+              python3 - <<'PY'
+          import json
+          data=json.load(open('/tmp/nv-health.json', encoding='utf-8'))
+          assert data.get('ok') is True, data
+          assert data.get('service') == 'nova-vehicle-premium', data
+          assert data.get('storage') == 'cloudflare-d1', data
+          print('Nova Vehicle Cloudflare production health PASS')
+          PY
+              exit 0
+            fi
+            sleep 5
+          done
+          echo 'Nova Vehicle custom-domain health check failed' >&2
+          exit 1
