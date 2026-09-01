@@ -14,10 +14,13 @@ on:
       - 'NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusDrivePermissionActivity.kt'
       - 'NexusNovaAndroid/tracker/**'
       - 'fresh-rebuild/index.html'
+      - 'fresh-rebuild/assets/visuals/nova-drive-approved-v7.webp'
+      - 'fresh-rebuild/assets/visuals/nova-vehicle-tracking-approved-v2.webp'
       - 'fresh-rebuild/src/core/drive-cloud-store.js'
       - 'fresh-rebuild/src/core/drive-track-persistence.js'
       - 'fresh-rebuild/src/core/nova-vehicle-premium-store.js'
       - 'fresh-rebuild/src/drive-background-sync.js'
+      - 'fresh-rebuild/src/nova-drive-approved-ui-v2.js'
       - 'fresh-rebuild/src/nova-vehicle-premium-ui.js'
       - 'fresh-rebuild/src/features/apps/premium-drive-native-v2.js'
       - 'fresh-rebuild/src/features/hub/hub-screen.js'
@@ -48,8 +51,11 @@ jobs:
           node --check fresh-rebuild/src/features/hub/hub-screen.js
           node --check fresh-rebuild/src/core/nova-vehicle-premium-store.js
           node --check fresh-rebuild/src/nova-vehicle-premium-ui.js
+          node --check fresh-rebuild/src/nova-drive-approved-ui-v2.js
           node --check cloudflare/nova-vehicle-worker/src/index.js
           test -s cloudflare/nova-vehicle-worker/schema.sql
+          test -s fresh-rebuild/assets/visuals/nova-drive-approved-v7.webp
+          test -s fresh-rebuild/assets/visuals/nova-vehicle-tracking-approved-v2.webp
           grep -Fq 'NOVA_VEHICLE_DB' cloudflare/nova-vehicle-worker/src/index.js
           grep -Fq '/v1/tracker/telemetry' cloudflare/nova-vehicle-worker/src/index.js
           grep -Fq 'premium_required' cloudflare/nova-vehicle-worker/src/index.js
@@ -60,7 +66,9 @@ jobs:
           grep -Fq 'WALKING' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusDriveForegroundService.kt
           grep -Fq 'RECOVER' fresh-rebuild/src/features/apps/premium-drive-native-v2.js
           grep -Fq 'nova-track' fresh-rebuild/src/features/hub/hub-screen.js
-          grep -Fq 'Nova Vehicle Premium' fresh-rebuild/src/nova-vehicle-premium-ui.js
+          grep -Fq "import './nova-drive-approved-ui-v2.js'" fresh-rebuild/src/nova-vehicle-premium-ui.js
+          grep -Fq 'Vehicle Tracking is private-owner only.' fresh-rebuild/src/nova-drive-approved-ui-v2.js
+          grep -Fq 'TRACKER SECURITY' fresh-rebuild/src/nova-drive-approved-ui-v2.js
           grep -Fq 'nova-vehicle-premium.fahadsoomro123.workers.dev' fresh-rebuild/src/core/nova-vehicle-premium-store.js
           grep -Fq 'nova-vehicle-premium.fahadsoomro123.workers.dev' NexusNovaAndroid/tracker/build.gradle.kts
           grep -Fq 'NOVA_VEHICLE_API_BASE' NexusNovaAndroid/tracker/build.gradle.kts
@@ -88,6 +96,9 @@ jobs:
           test -s tracker/build/outputs/apk/debug/tracker-debug.apk
           test -s app/src/main/assets/www/src/features/apps/premium-drive-native-v2.js
           test -s app/src/main/assets/www/src/nova-vehicle-premium-ui.js
+          test -s app/src/main/assets/www/src/nova-drive-approved-ui-v2.js
+          test -s app/src/main/assets/www/assets/visuals/nova-drive-approved-v7.webp
+          test -s app/src/main/assets/www/assets/visuals/nova-vehicle-tracking-approved-v2.webp
           grep -Fq 'drive-background-sync.js' app/src/main/assets/www/index.html
           grep -Fq 'nova-vehicle-premium-ui.js' app/src/main/assets/www/index.html
           grep -Fq 'AUTO-DETECT READY' app/src/main/assets/www/src/features/apps/premium-drive-native-v2.js
