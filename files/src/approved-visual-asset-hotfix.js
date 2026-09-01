@@ -1,22 +1,26 @@
-const PUBLIC_OTA_VISUAL_BASE = 'https://raw.githubusercontent.com/fahadsoomro123/nexusnova-website/nexusnova-ota-public/ota/files/assets/visuals/';
-
 const VISUALS = Object.freeze({
-  'nova-drive-approved-v7.webp': `${PUBLIC_OTA_VISUAL_BASE}nova-drive-approved-v7.webp`,
-  'nova-vehicle-tracking-approved-v2.webp': `${PUBLIC_OTA_VISUAL_BASE}nova-vehicle-tracking-approved-v2.webp`
+  'nova-drive-approved-v7.webp': new URL('../assets/visuals/nova-drive-approved-v7.webp', import.meta.url).href,
+  'nova-vehicle-tracking-approved-v2.webp': new URL('../assets/visuals/nova-vehicle-tracking-approved-v2.webp', import.meta.url).href
 });
+
+function approvedVisualKey(img) {
+  const declared = img.getAttribute('src') || '';
+  const current = img.currentSrc || img.src || '';
+  return Object.keys(VISUALS).find((name) => declared.includes(name) || current.includes(name)) || '';
+}
 
 function repairApprovedVisual(img) {
   if (!(img instanceof HTMLImageElement)) return;
   if (!img.classList.contains('nx-approved-art')) return;
 
-  const declared = img.getAttribute('src') || '';
-  const key = Object.keys(VISUALS).find((name) => declared.includes(name));
+  const key = approvedVisualKey(img);
   if (!key) return;
 
   const expected = VISUALS[key];
-  if (img.src === expected || img.dataset.nxApprovedVisualFixed === expected) return;
+  if (img.getAttribute('src') === expected || img.dataset.nxApprovedVisualFixed === expected) return;
 
   img.dataset.nxApprovedVisualFixed = expected;
+  img.removeAttribute('srcset');
   img.src = expected;
 }
 
@@ -32,10 +36,18 @@ const observer = new MutationObserver((mutations) => {
     for (const node of mutation.addedNodes) {
       if (node instanceof Element) repairTree(node);
     }
+    if (mutation.type === 'attributes' && mutation.target instanceof HTMLImageElement) {
+      repairApprovedVisual(mutation.target);
+    }
   }
 });
 
-observer.observe(document.documentElement, { childList: true, subtree: true });
+observer.observe(document.documentElement, {
+  childList: true,
+  subtree: true,
+  attributes: true,
+  attributeFilter: ['src', 'srcset']
+});
 
 document.addEventListener('error', (event) => {
   const img = event.target;
