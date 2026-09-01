@@ -1,10 +1,13 @@
 import { loadDriveTrackState, persistDriveTrackState, hydrateDriveTrackState } from './core/drive-track-persistence.js';
 
 const seen = new Set();
+const FALLBACK_LIVE_BACKUP_MS = 30_000;
 let syncing = false;
 let fallbackFlushTimer = null;
 let fallbackFlushing = false;
 let fallbackLastSignature = '';
+let fallbackLastTripHead = '';
+let fallbackLastCloudAt = 0;
 
 function nativeReady() {
   return typeof window.NexusAndroid?.postMessage === 'function' && typeof window.nexusPostNativeAction === 'function';
@@ -18,6 +21,12 @@ function dayKey(value = new Date()) {
 function storeSignature(store) {
   try { return JSON.stringify(store || {}); }
   catch { return ''; }
+}
+
+function tripHead(store) {
+  const trip = Array.isArray(store?.trips) ? store.trips[0] : null;
+  if (!trip) return '';
+  return String(trip.nativeId || `${trip.at || ''}|${trip.endedAt || ''}|${Math.round(Number(trip.distanceM) || 0)}`);
 }
 
 function installDriveStageGuard() {
@@ -95,20 +104,37 @@ async function syncDetail(detail) {
 }
 
 /**
- * The legacy/web Drive renderer still writes localStorage directly. Mirror any
- * store-update event through the same account-backed persistence coordinator so
- * unsupported/older native bridges are reinstall-safe too. Debounce + signature
- * guards prevent the persistence coordinator's own update event from looping.
+ * The legacy/web Drive renderer still writes localStorage directly. Mirror it
+ * through account-backed persistence without turning every GPS fix into a
+ * Firestore write. A newly completed trip is backed up immediately; live/day
+ * aggregate changes are throttled to one cloud attempt every 30 seconds.
  */
-async function flushFallbackCloudStore() {
+async function inspectAndFlushFallbackCloudStore() {
   if (fallbackFlushing) return;
+  const state = await loadDriveTrackState();
+  const store = state?.store;
+  const before = storeSignature(store);
+  if (!before || before === fallbackLastSignature) return;
+
+  const head = tripHead(store);
+  const completedTripChanged = Boolean(head && head !== fallbackLastTripHead);
+  const sinceCloud = Date.now() - fallbackLastCloudAt;
+  if (!completedTripChanged && fallbackLastCloudAt > 0 && sinceCloud < FALLBACK_LIVE_BACKUP_MS) {
+    clearTimeout(fallbackFlushTimer);
+    fallbackFlushTimer = setTimeout(
+      () => inspectAndFlushFallbackCloudStore().catch(() => {}),
+      Math.max(750, FALLBACK_LIVE_BACKUP_MS - sinceCloud)
+    );
+    return;
+  }
+
   fallbackFlushing = true;
   try {
-    const state = await loadDriveTrackState();
-    const before = storeSignature(state?.store);
-    if (!before || before === fallbackLastSignature) return;
-    const result = await persistDriveTrackState(state.store);
-    fallbackLastSignature = storeSignature(result?.store || state.store);
+    const result = await persistDriveTrackState(store);
+    const saved = result?.store || store;
+    fallbackLastSignature = storeSignature(saved);
+    fallbackLastTripHead = tripHead(saved);
+    if (result?.cloud === true) fallbackLastCloudAt = Date.now();
   } catch (error) {
     console.warn('[NexusNova Drive] fallback cloud sync deferred:', error);
   } finally {
@@ -118,7 +144,7 @@ async function flushFallbackCloudStore() {
 
 function scheduleFallbackCloudStore() {
   clearTimeout(fallbackFlushTimer);
-  fallbackFlushTimer = setTimeout(() => flushFallbackCloudStore().catch(() => {}), 650);
+  fallbackFlushTimer = setTimeout(() => inspectAndFlushFallbackCloudStore().catch(() => {}), 650);
 }
 
 window.addEventListener('nexusnova:native-drive', event => {
@@ -136,7 +162,11 @@ installDriveStageGuard();
 
 // Restore Firestore history on every app launch, not only when Nova Drive opens.
 hydrateDriveTrackState()
-  .then(result => { fallbackLastSignature = storeSignature(result?.store); })
+  .then(result => {
+    fallbackLastSignature = storeSignature(result?.store);
+    fallbackLastTripHead = tripHead(result?.store);
+    if (result?.cloud === true) fallbackLastCloudAt = Date.now();
+  })
   .catch(() => {});
 
 let startupChecks = 0;
