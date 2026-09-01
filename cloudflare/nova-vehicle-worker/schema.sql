@@ -54,4 +54,6 @@ CREATE TABLE IF NOT EXISTS telemetry_history (
 );
 
 CREATE INDEX IF NOT EXISTS idx_telemetry_vehicle_time ON telemetry_history(vehicle_id, received_at DESC);
+CREATE INDEX IF NOT EXISTS idx_telemetry_vehicle_observed ON telemetry_history(vehicle_id, observed_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_telemetry_vehicle_observed_unique ON telemetry_history(vehicle_id, observed_at);
 CREATE INDEX IF NOT EXISTS idx_telemetry_cleanup ON telemetry_history(received_at);
