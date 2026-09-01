@@ -1,0 +1,46 @@
+/* Nova Drive v3 must be a true one-screen console inside the global dock shell. */
+html.nx-drive-v3-open,
+html.nx-drive-v3-open body,
+html:has(.nx-drive-v3-screen),
+body:has(.nx-drive-v3-screen) {
+  height: 100dvh !important;
+  max-height: 100dvh !important;
+  overflow: hidden !important;
+  overscroll-behavior: none;
+}
+
+.nx-stage.nx-drive-v3-stage,
+.nx-stage:has(> .nx-drive-v3-screen) {
+  height: 100dvh !important;
+  min-height: 100dvh !important;
+  max-height: 100dvh !important;
+  padding: 0 !important;
+  scroll-padding-bottom: 0 !important;
+  overflow: hidden !important;
+}
+
+.nx-stage.nx-drive-v3-stage > .nx-drive-v3-screen,
+.nx-stage > .nx-drive-v3-screen {
+  height: calc(100dvh - var(--nx-dock-height, 76px) - var(--nx-safe-bottom, 0px)) !important;
+  min-height: 0 !important;
+  max-height: calc(100dvh - var(--nx-dock-height, 76px) - var(--nx-safe-bottom, 0px)) !important;
+  overflow: hidden !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.nx-stage > .nx-drive-v3-screen > [data-app-mount],
+.nx-stage > .nx-drive-v3-screen > [data-app-mount] > .nxdr3 {
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  overflow: hidden !important;
+}
+
+@supports not selector(:has(*)) {
+  html.nx-drive-v3-open,
+  html.nx-drive-v3-open body,
+  .nx-stage.nx-drive-v3-stage {
+    overflow: hidden !important;
+  }
+}
