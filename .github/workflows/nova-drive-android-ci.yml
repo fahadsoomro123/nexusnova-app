@@ -68,7 +68,7 @@ jobs:
           grep -Fq 'nova-track' fresh-rebuild/src/features/hub/hub-screen.js
           grep -Fq "import './nova-drive-approved-ui-v2.js'" fresh-rebuild/src/nova-vehicle-premium-ui.js
           grep -Fq 'Vehicle Tracking is private-owner only.' fresh-rebuild/src/nova-drive-approved-ui-v2.js
-          grep -Fq 'TRACKER SECURITY' fresh-rebuild/src/nova-drive-approved-ui-v2.js
+          grep -Fq 'Tracker Security' fresh-rebuild/src/nova-drive-approved-ui-v2.js
           grep -Fq 'nova-vehicle-premium.fahadsoomro123.workers.dev' fresh-rebuild/src/core/nova-vehicle-premium-store.js
           grep -Fq 'nova-vehicle-premium.fahadsoomro123.workers.dev' NexusNovaAndroid/tracker/build.gradle.kts
           grep -Fq 'NOVA_VEHICLE_API_BASE' NexusNovaAndroid/tracker/build.gradle.kts
