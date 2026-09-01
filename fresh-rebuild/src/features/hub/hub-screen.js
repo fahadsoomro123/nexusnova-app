@@ -2,6 +2,7 @@ import { hubApps } from './app-registry.js';
 
 const hubState = { scrollY: 0, lastAppId: '', query: '' };
 let restoreOnNextRender = false;
+const HIDDEN_HUB_APP_IDS = new Set(['nova-track']);
 
 export function requestHubReturnRestore() {
   restoreOnNextRender = true;
@@ -32,6 +33,7 @@ export function hubScreen({ openApp } = {}) {
     const needle = String(input.value || '').trim().toLowerCase();
     hubState.query = String(input.value || '');
     const filtered = hubApps.filter(app => {
+      if (HIDDEN_HUB_APP_IDS.has(app.id)) return false;
       return !needle || `${app.name} ${app.category} ${app.description}`.toLowerCase().includes(needle);
     });
 
