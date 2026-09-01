@@ -154,20 +154,31 @@ async function writeRemote(user, store) {
   return normalized;
 }
 
+/**
+ * Serialize cloud merges per UID. The old implementation returned an already
+ * in-flight promise and silently discarded the newer caller's local store.
+ * Queueing each candidate guarantees every newly completed trip participates
+ * in a remote merge before that caller resolves.
+ */
 async function mergeAndWrite(user, local) {
-  const existing = syncInFlight.get(user.uid);
-  if (existing) return existing;
-  const operation = (async () => {
-    const remote = await readRemote(user);
-    const merged = mergeDriveStores(local, remote);
-    const mergedSignature = signature(merged);
-    if (lastSyncedSignature.get(user.uid) === mergedSignature) return merged;
-    return writeRemote(user, merged);
-  })().finally(() => {
-    if (syncInFlight.get(user.uid) === operation) syncInFlight.delete(user.uid);
-  });
-  syncInFlight.set(user.uid, operation);
-  return operation;
+  const uid = user.uid;
+  const previous = syncInFlight.get(uid) || Promise.resolve();
+  const operation = previous
+    .catch(() => null)
+    .then(async () => {
+      const remote = await readRemote(user);
+      const merged = mergeDriveStores(local, remote);
+      const mergedSignature = signature(merged);
+      if (lastSyncedSignature.get(uid) === mergedSignature) return merged;
+      return writeRemote(user, merged);
+    });
+
+  syncInFlight.set(uid, operation);
+  try {
+    return await operation;
+  } finally {
+    if (syncInFlight.get(uid) === operation) syncInFlight.delete(uid);
+  }
 }
 
 export async function syncDriveCloudStore(localRaw) {
@@ -184,7 +195,9 @@ export async function pushDriveCloudStore(localRaw) {
   const user = await activeUser();
   if (!user) return { store:local, cloud:false };
   const localSignature = signature(local);
-  if (lastSyncedSignature.get(user.uid) === localSignature) return { store:local, cloud:true, unchanged:true };
+  if (lastSyncedSignature.get(user.uid) === localSignature && !syncInFlight.has(user.uid)) {
+    return { store:local, cloud:true, unchanged:true };
+  }
   const merged = await mergeAndWrite(user, local);
   lastSyncedSignature.set(user.uid, signature(merged));
   return { store:merged, cloud:true };
