@@ -3,7 +3,7 @@ name: Nova Vehicle Cloudflare Deploy
 on:
   workflow_dispatch:
   push:
-    branches: [nova-vehicle-premium-v1]
+    branches: [nova-sol57-pro-v128, nova-vehicle-premium-v1]
     paths:
       - 'cloudflare/nova-vehicle-worker/**'
       - '.github/workflows/nova-vehicle-cloudflare-deploy.yml'
