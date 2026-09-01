@@ -22,8 +22,8 @@ export const novaApps = Object.freeze([
   { id: 'news', name: 'News', category: 'Live & Local', icon: 'news', description: 'Current headlines and feeds' },
   { id: 'articles', name: 'Articles', category: 'Live & Local', icon: 'articles', description: 'NexusNova website articles, automatically synced' },
   { id: 'location', name: 'My Location', category: 'Live & Local', icon: 'location', description: 'Live GPS coordinates and accuracy without storage' },
-  { id: 'nova-drive', name: 'Nova Drive', category: 'Live & Local', icon: 'drive', description: 'Foreground GPS speed, distance and trip recording' },
-  { id: 'nova-track', name: 'Nova Track', category: 'Live & Local', icon: 'track', description: 'Daily, weekly and monthly drive summaries' },
+  { id: 'nova-drive', name: 'Nova Drive', category: 'Live & Local', icon: 'drive', description: 'Automatic vehicle and bicycle trips, live speed, analytics and recovery' },
+  { id: 'nova-track', name: 'Nova Track', category: 'Live & Local', icon: 'track', description: 'Legacy route into Nova Drive history and analytics' },
 
   { id: 'ai', name: 'Nova AI', category: 'Discover', icon: 'ai', description: 'AI chat, voice and research tools' },
   { id: 'smart', name: 'Smart Hub', category: 'Discover', icon: 'smart', description: 'AI, voice, file understanding and real-data daily brief' },
