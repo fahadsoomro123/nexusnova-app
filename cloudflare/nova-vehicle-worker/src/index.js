@@ -120,13 +120,15 @@ function db(env) {
 function mapVehicle(row, now) {
   const receivedAt = finite(row.received_at, 0);
   const trackerBound = Number(row.tracker_bound) === 1 && !row.revoked_at;
+  const trackingPaused = Number(row.tracking_paused) === 1;
   const hasLive = Number.isFinite(Number(row.live_lat)) && Number.isFinite(Number(row.live_lng));
   return {
     vehicleId: String(row.vehicle_id || ''),
     displayName: String(row.display_name || 'Vehicle'),
-    status: trackerBound && receivedAt > 0 && now - receivedAt < 120_000 ? 'online' : trackerBound ? 'offline' : 'unpaired',
+    status: trackingPaused && trackerBound ? 'paused' : trackerBound && receivedAt > 0 && now - receivedAt < 120_000 ? 'online' : trackerBound ? 'offline' : 'unpaired',
     trackerBound,
-    trackerOnline: trackerBound && receivedAt > 0 && now - receivedAt < 120_000,
+    trackerOnline: !trackingPaused && trackerBound && receivedAt > 0 && now - receivedAt < 120_000,
+    trackingPaused,
     lastSeenAt: finite(row.last_seen_at, 0),
     live: hasLive ? {
       latitude: finite(row.live_lat, 0),
@@ -198,9 +200,10 @@ async function createPairing(request, env, owner) {
 
 async function ownerDashboard(env, owner) {
   const now = Date.now();
-  const result = await db(env).prepare(`SELECT * FROM vehicles
-    WHERE owner_uid = ? AND revoked_at IS NULL
-    ORDER BY created_at DESC LIMIT ?`)
+  const result = await db(env).prepare(`SELECT v.*, COALESCE(c.tracking_paused, 0) AS tracking_paused
+    FROM vehicles v LEFT JOIN vehicle_controls c ON c.vehicle_id = v.vehicle_id
+    WHERE v.owner_uid = ? AND v.revoked_at IS NULL
+    ORDER BY v.created_at DESC LIMIT ?`)
     .bind(owner.uid, MAX_VEHICLES).all();
   return json({ ok: true, entitled: true, vehicles: (result.results || []).map(row => mapVehicle(row, now)), serverNow: now });
 }
@@ -218,6 +221,24 @@ async function ownerHistory(url, env, owner) {
   return json({ ok: true, vehicleId, points: result.results || [] });
 }
 
+async function setTrackingPaused(request, env, owner) {
+  const body = await requestJson(request);
+  const vehicleId = cleanText(body?.vehicleId, '', 100);
+  const paused = body?.paused === true ? 1 : 0;
+  if (!vehicleId) return fail('missing_vehicle', 'Vehicle id is missing.');
+  const store = db(env);
+  const vehicle = await store.prepare(`SELECT vehicle_id FROM vehicles
+    WHERE vehicle_id = ? AND owner_uid = ? AND revoked_at IS NULL AND tracker_bound = 1`)
+    .bind(vehicleId, owner.uid).first();
+  if (!vehicle) return fail('not_found', 'Paired tracker was not found.', 404);
+  const now = Date.now();
+  await store.prepare(`INSERT INTO vehicle_controls (vehicle_id, tracking_paused, updated_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(vehicle_id) DO UPDATE SET tracking_paused = excluded.tracking_paused, updated_at = excluded.updated_at`)
+    .bind(vehicleId, paused, now).run();
+  return json({ ok:true, vehicleId, trackingPaused:paused === 1, serverNow:now });
+}
+
 async function revokeVehicle(request, env, owner) {
   const body = await requestJson(request);
   const vehicleId = cleanText(body?.vehicleId, '', 100);
@@ -229,7 +250,10 @@ async function revokeVehicle(request, env, owner) {
     WHERE vehicle_id = ? AND owner_uid = ? AND revoked_at IS NULL`)
     .bind(now, vehicleId, owner.uid).run();
   if (!result.meta?.changes) return fail('not_found', 'Vehicle was not found.', 404);
-  await store.prepare('DELETE FROM pairings WHERE vehicle_id = ?').bind(vehicleId).run();
+  await store.batch([
+    store.prepare('DELETE FROM pairings WHERE vehicle_id = ?').bind(vehicleId),
+    store.prepare('DELETE FROM vehicle_controls WHERE vehicle_id = ?').bind(vehicleId)
+  ]);
   return json({ ok: true });
 }
 
@@ -255,10 +279,16 @@ async function claimPairing(request, env) {
   const token = randomToken();
   const tokenHash = await sha256(token);
   const deviceLabel = cleanText(body?.deviceLabel, 'NexusNova Tracker', MAX_DEVICE_LABEL);
-  await store.prepare(`UPDATE vehicles SET
-    device_token_hash = ?, device_label = ?, tracker_bound = 1, revoked_at = NULL
-    WHERE vehicle_id = ?`)
-    .bind(tokenHash, deviceLabel, row.vehicle_id).run();
+  await store.batch([
+    store.prepare(`UPDATE vehicles SET
+      device_token_hash = ?, device_label = ?, tracker_bound = 1, revoked_at = NULL
+      WHERE vehicle_id = ?`)
+      .bind(tokenHash, deviceLabel, row.vehicle_id),
+    store.prepare(`INSERT INTO vehicle_controls (vehicle_id, tracking_paused, updated_at)
+      VALUES (?, 0, ?)
+      ON CONFLICT(vehicle_id) DO UPDATE SET tracking_paused = 0, updated_at = excluded.updated_at`)
+      .bind(row.vehicle_id, now)
+  ]);
 
   return json({ ok: true, token, vehicleId: row.vehicle_id, vehicleName: row.display_name || 'Vehicle' });
 }
@@ -268,12 +298,19 @@ async function pushTelemetry(request, env) {
   if (!/^[a-f0-9]{64}$/i.test(token)) return fail('unauthorized_tracker', 'Tracker token is invalid.', 401);
   const tokenHash = await sha256(token.toLowerCase());
   const store = db(env);
-  const vehicle = await store.prepare(`SELECT vehicle_id, last_seen_at, last_history_at
-    FROM vehicles WHERE device_token_hash = ? AND revoked_at IS NULL AND tracker_bound = 1`)
+  const vehicle = await store.prepare(`SELECT v.vehicle_id, v.last_seen_at, v.last_history_at,
+      COALESCE(c.tracking_paused, 0) AS tracking_paused
+    FROM vehicles v LEFT JOIN vehicle_controls c ON c.vehicle_id = v.vehicle_id
+    WHERE v.device_token_hash = ? AND v.revoked_at IS NULL AND v.tracker_bound = 1`)
     .bind(tokenHash).first();
   if (!vehicle) return fail('unauthorized_tracker', 'Tracker access is invalid or revoked.', 401);
 
   const now = Date.now();
+  if (Number(vehicle.tracking_paused) === 1) {
+    await store.prepare('UPDATE vehicles SET last_seen_at = ? WHERE vehicle_id = ?').bind(now, vehicle.vehicle_id).run();
+    return json({ ok:true, paused:true, serverNow:now, replayed:0 });
+  }
+
   const lastSeen = finite(vehicle.last_seen_at, 0);
   if (lastSeen > 0 && now - lastSeen < MIN_TELEMETRY_INTERVAL_MS) return fail('too_fast', 'Telemetry rate is too high.', 429);
 
@@ -308,7 +345,7 @@ async function pushTelemetry(request, env) {
   }
   await store.batch(statements);
 
-  return json({ ok: true, serverNow: now, replayed: replay.length });
+  return json({ ok: true, paused:false, serverNow: now, replayed: replay.length });
 }
 
 async function cleanup(env) {
@@ -337,6 +374,7 @@ async function route(request, env) {
     if (path === '/v1/owner/pairing' && request.method === 'POST') return createPairing(request, env, owner);
     if (path === '/v1/owner/dashboard' && request.method === 'GET') return ownerDashboard(env, owner);
     if (path === '/v1/owner/history' && request.method === 'GET') return ownerHistory(url, env, owner);
+    if (path === '/v1/owner/pause' && request.method === 'POST') return setTrackingPaused(request, env, owner);
     if (path === '/v1/owner/revoke' && request.method === 'POST') return revokeVehicle(request, env, owner);
   }
 

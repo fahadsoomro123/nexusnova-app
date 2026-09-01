@@ -25,6 +25,13 @@ CREATE TABLE IF NOT EXISTS vehicles (
 CREATE INDEX IF NOT EXISTS idx_vehicles_owner ON vehicles(owner_uid, created_at DESC);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_vehicles_token ON vehicles(device_token_hash) WHERE device_token_hash IS NOT NULL;
 
+CREATE TABLE IF NOT EXISTS vehicle_controls (
+  vehicle_id TEXT PRIMARY KEY,
+  tracking_paused INTEGER NOT NULL DEFAULT 0,
+  updated_at INTEGER NOT NULL,
+  FOREIGN KEY(vehicle_id) REFERENCES vehicles(vehicle_id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS pairings (
   code_hash TEXT PRIMARY KEY,
   owner_uid TEXT NOT NULL,
