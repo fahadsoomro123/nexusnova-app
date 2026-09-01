@@ -30,6 +30,12 @@
             android:foregroundServiceType="location" />
 
         <activity
+            android:name=".NexusDrivePermissionActivity"
+            android:exported="false"
+            android:noHistory="true"
+            android:excludeFromRecents="true" />
+
+        <activity
             android:name=".BrowserActivity"
             android:exported="false"
             android:screenOrientation="portrait" />
