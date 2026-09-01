@@ -17,7 +17,7 @@ concurrency:
 
 env:
   WORKER_DIR: cloudflare/nova-vehicle-worker
-  API_HOST: nova-vehicle-api.nexusnovatools.com
+  API_HOST: nova-vehicle-premium.fahadsoomro123.workers.dev
   D1_NAME: nexusnova-vehicle
 
 jobs:
@@ -121,10 +121,6 @@ jobs:
               'compatibility_date = "2026-09-01"',
               'workers_dev = true',
               '',
-              '[[routes]]',
-              f'pattern = {toml_string(os.environ["API_HOST"])}',
-              'custom_domain = true',
-              '',
               '[[d1_databases]]',
               'binding = "NOVA_VEHICLE_DB"',
               f'database_name = {toml_string(os.environ["D1_NAME"])}',
@@ -147,7 +143,7 @@ jobs:
         working-directory: cloudflare/nova-vehicle-worker
         run: wrangler d1 execute "$D1_NAME" --remote --file=schema.sql --config=wrangler.toml --yes
 
-      - name: Deploy Worker and custom domain
+      - name: Deploy Worker
         shell: bash
         working-directory: cloudflare/nova-vehicle-worker
         run: wrangler deploy --config=wrangler.toml
@@ -170,5 +166,5 @@ jobs:
             fi
             sleep 5
           done
-          echo 'Nova Vehicle custom-domain health check failed' >&2
+          echo 'Nova Vehicle workers.dev health check failed' >&2
           exit 1
