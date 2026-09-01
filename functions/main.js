@@ -8,4 +8,3 @@ Object.assign(exports, require("./providerHealth"));
 Object.assign(exports, require("./novaBrainRegistry"));
 Object.assign(exports, require("./novaAtomicChain"));
 Object.assign(exports, require("./novaBrainProfiler"));
-Object.assign(exports, require("./novaVehicle"));
