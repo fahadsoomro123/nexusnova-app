@@ -339,7 +339,11 @@ class NexusDriveForegroundService : Service(), LocationListener {
         val qualifies = mode != MODE_UNKNOWN && acceptedDistance > 0.0 && liveKmh >= threshold
         if (!qualifies) {
             if (liveKmh < 3.0 || acceptedDistance <= 0.0) resetCandidate()
-            lastStatus = "Armed • waiting for vehicle or bicycle movement"
+            lastStatus = if (!hasActivityRecognitionPermission()) {
+                "Armed • allow Motion permission for bicycle + walking detection"
+            } else {
+                "Armed • waiting for vehicle or bicycle movement"
+            }
             return
         }
 
@@ -476,11 +480,18 @@ class NexusDriveForegroundService : Service(), LocationListener {
     private fun candidateModeFor(liveKmh: Double): String {
         if (activityType == DetectedActivity.ON_BICYCLE && activityConfidence >= 35) return MODE_BICYCLE
         if (activityType == DetectedActivity.IN_VEHICLE && activityConfidence >= 35) return MODE_MOTOR
-        // GPS fallback for devices where Activity Recognition permission/API is
-        // unavailable. Walking/running is filtered before this point.
-        if (liveKmh >= 22.0) return MODE_MOTOR
-        if (liveKmh >= 7.5) return MODE_BICYCLE
-        return MODE_UNKNOWN
+
+        // Fail-safe fallback: never infer a bicycle from GPS speed alone. Fast
+        // running can overlap with bicycle speed, so bicycle auto-start requires
+        // Activity Recognition evidence. With motion permission unavailable, only
+        // unmistakably fast motor movement may start via GPS as a last resort.
+        if (!hasActivityRecognitionPermission()) {
+            return if (liveKmh >= GPS_FAILSAFE_MOTOR_KMH) MODE_MOTOR else MODE_UNKNOWN
+        }
+
+        // While Activity Recognition is warming up, retain only the same very-high
+        // speed motor fallback. Walking/running stays out of Nova Drive history.
+        return if (activityConfidence <= 0 && liveKmh >= GPS_FAILSAFE_MOTOR_KMH) MODE_MOTOR else MODE_UNKNOWN
     }
 
     private fun isFootActivity(): Boolean =
@@ -767,6 +778,7 @@ class NexusDriveForegroundService : Service(), LocationListener {
         private const val MIN_MOVING_KMH = 2.5
         private const val MOTOR_START_KMH = 5.0
         private const val BICYCLE_START_KMH = 4.0
+        private const val GPS_FAILSAFE_MOTOR_KMH = 32.0
 
         private const val AUTO_PAUSE_AFTER_MS = 20_000L
         private const val AUTO_END_AFTER_MS = 4L * 60L * 1000L
