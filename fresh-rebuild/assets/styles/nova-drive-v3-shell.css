@@ -1,4 +1,6 @@
 /* Nova Drive v3 must be a true one-screen console inside the global dock shell. */
+html.nx-drive-v3-open,
+html.nx-drive-v3-open body,
 html:has(.nx-drive-v3-screen),
 body:has(.nx-drive-v3-screen) {
   height: 100dvh !important;
@@ -7,6 +9,7 @@ body:has(.nx-drive-v3-screen) {
   overscroll-behavior: none;
 }
 
+.nx-stage.nx-drive-v3-stage,
 .nx-stage:has(> .nx-drive-v3-screen) {
   height: 100dvh !important;
   min-height: 100dvh !important;
@@ -16,6 +19,7 @@ body:has(.nx-drive-v3-screen) {
   overflow: hidden !important;
 }
 
+.nx-stage.nx-drive-v3-stage > .nx-drive-v3-screen,
 .nx-stage > .nx-drive-v3-screen {
   height: calc(100dvh - var(--nx-dock-height, 76px) - var(--nx-safe-bottom, 0px)) !important;
   min-height: 0 !important;
@@ -34,10 +38,9 @@ body:has(.nx-drive-v3-screen) {
 }
 
 @supports not selector(:has(*)) {
-  /* Conservative fallback: the dashboard itself still cannot create body scroll. */
-  .nx-drive-v3-screen,
-  .nx-drive-v3-screen .nxdr3 {
-    max-height: calc(100dvh - 82px) !important;
+  html.nx-drive-v3-open,
+  html.nx-drive-v3-open body,
+  .nx-stage.nx-drive-v3-stage {
     overflow: hidden !important;
   }
 }
