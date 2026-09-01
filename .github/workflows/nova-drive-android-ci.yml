@@ -1,0 +1,74 @@
+name: Nova Drive Android CI
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [nova-sol57-pro-v128]
+    paths:
+      - '.github/workflows/nova-drive-android-ci.yml'
+      - 'NexusNovaAndroid/app/build.gradle.kts'
+      - 'NexusNovaAndroid/app/src/main/AndroidManifest.xml'
+      - 'NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusDriveForegroundService.kt'
+      - 'NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusDrivePermissionActivity.kt'
+      - 'fresh-rebuild/index.html'
+      - 'fresh-rebuild/src/core/drive-cloud-store.js'
+      - 'fresh-rebuild/src/core/drive-track-persistence.js'
+      - 'fresh-rebuild/src/drive-background-sync.js'
+      - 'fresh-rebuild/src/features/apps/premium-drive-native-v2.js'
+      - 'fresh-rebuild/src/features/hub/hub-screen.js'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nova-drive-android-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  drive-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Validate Nova Drive web source
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check fresh-rebuild/src/features/apps/premium-drive-native-v2.js
+          node --check fresh-rebuild/src/core/drive-cloud-store.js
+          node --check fresh-rebuild/src/core/drive-track-persistence.js
+          node --check fresh-rebuild/src/drive-background-sync.js
+          node --check fresh-rebuild/src/features/hub/hub-screen.js
+          grep -Fq 'ACTIVITY_RECOGNITION' NexusNovaAndroid/app/src/main/AndroidManifest.xml
+          grep -Fq 'AUTO_PAUSE_AFTER_MS' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusDriveForegroundService.kt
+          grep -Fq 'AUTO_END_AFTER_MS' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusDriveForegroundService.kt
+          grep -Fq 'MODE_BICYCLE' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusDriveForegroundService.kt
+          grep -Fq 'WALKING' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusDriveForegroundService.kt
+          grep -Fq 'RECOVER' fresh-rebuild/src/features/apps/premium-drive-native-v2.js
+          grep -Fq 'nova-track' fresh-rebuild/src/features/hub/hub-screen.js
+          echo 'Nova Drive source validation PASS'
+
+      - name: Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Gradle 8.13
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Compile debug APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd NexusNovaAndroid
+          gradle --no-daemon clean assembleDebug
+          test -s app/build/outputs/apk/debug/app-debug.apk
+          test -s app/src/main/assets/www/src/features/apps/premium-drive-native-v2.js
+          grep -Fq 'drive-background-sync.js' app/src/main/assets/www/index.html
+          grep -Fq 'AUTO-DETECT READY' app/src/main/assets/www/src/features/apps/premium-drive-native-v2.js
+          echo 'Nova Drive Android compile PASS'
