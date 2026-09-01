@@ -106,7 +106,7 @@ class NexusDriveForegroundService : Service(), LocationListener {
             ACTION_PAUSE -> legacyPause()
             ACTION_RESUME -> legacyResume()
             ACTION_STOP -> disarmTracking(saveCurrent = true)
-            ACTION_ACTIVITY_UPDATE -> handleActivityUpdate(intent)
+            ACTION_ACTIVITY_UPDATE -> intent?.let(::handleActivityUpdate)
             ACTION_STATUS -> {
                 if (armed) {
                     ensureForeground()
