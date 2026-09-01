@@ -1,13 +1,10 @@
-import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-functions.js';
+import { callNovaMiningRewards } from '../../core/nova-mining-rewards-store.js';
 import { doc, onSnapshot } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js';
-import { firebaseApp, firestoreDb, requireFirebaseUser } from '../../core/firebase-backend.js';
+import { firestoreDb, requireFirebaseUser } from '../../core/firebase-backend.js';
 import { nativeAds } from '../../core/native-ads.js';
 
 async function secureCall(name, data = {}) {
-  await requireFirebaseUser({ write:true });
-  const call = httpsCallable(getFunctions(firebaseApp, 'us-central1'), name);
-  const response = await call(data);
-  return response?.data || {};
+  return callNovaMiningRewards(name, data);
 }
 
 function rewardText(reward = {}) {

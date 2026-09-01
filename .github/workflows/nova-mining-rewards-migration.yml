@@ -1,0 +1,72 @@
+name: Nova Mining Rewards Cloudflare Migration
+
+on:
+  push:
+    branches: [nova-mining-rewards-cloudflare-v1]
+    paths:
+      - 'scripts/migrate-mining-rewards-cloudflare.py'
+      - '.github/workflows/nova-mining-rewards-migration.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout migration branch
+        uses: actions/checkout@v6
+        with:
+          ref: nova-mining-rewards-cloudflare-v1
+          fetch-depth: 2
+
+      - name: Apply deterministic migration
+        run: python3 scripts/migrate-mining-rewards-cloudflare.py
+
+      - name: Validate migrated JavaScript
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check fresh-rebuild/src/core/nova-mining-rewards-store.js
+          node --check fresh-rebuild/src/features/apps/core-apps.js
+          node --check fresh-rebuild/src/features/apps/nova-vault-safe.js
+          node --check fresh-rebuild/src/features/apps/mining-integrations.js
+          node --check cloudflare/nova-mining-rewards-worker/src/index.js
+          ! grep -Fq 'httpsCallable(' fresh-rebuild/src/features/apps/nova-vault-safe.js
+          ! grep -Fq 'httpsCallable(' fresh-rebuild/src/features/apps/mining-integrations.js
+          grep -Fq 'claimDailyRewardCloudflare' fresh-rebuild/src/features/apps/core-apps.js
+          grep -Fq 'callNovaMiningRewards' fresh-rebuild/src/features/apps/nova-vault-safe.js
+          grep -Fq 'nova-mining-rewards.fahadsoomro123.workers.dev' fresh-rebuild/src/core/nova-mining-rewards-store.js
+
+      - name: Enforce protected-file boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          CHANGED="$(git diff --name-only)"
+          printf '%s\n' "$CHANGED"
+          while IFS= read -r path; do
+            [ -z "$path" ] && continue
+            case "$path" in
+              fresh-rebuild/src/features/apps/core-apps.js|fresh-rebuild/src/features/apps/nova-vault-safe.js|fresh-rebuild/src/features/apps/mining-integrations.js) ;;
+              *) echo "Unexpected migration change: $path" >&2; exit 3 ;;
+            esac
+          done <<< "$CHANGED"
+          ! git diff --name-only | grep -Fq 'fresh-rebuild/src/features/mine/mine-screen.js'
+
+      - name: Commit migrated client wiring
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo 'Migration already applied; no commit needed.'
+            exit 0
+          fi
+          git config user.name 'Fahad Hussain'
+          git config user.email '166254374+fahadsoomro123@users.noreply.github.com'
+          git add fresh-rebuild/src/features/apps/core-apps.js \
+                  fresh-rebuild/src/features/apps/nova-vault-safe.js \
+                  fresh-rebuild/src/features/apps/mining-integrations.js
+          git commit -m '[migration] route Tasks and Nova Vault through Cloudflare'
+          git push origin HEAD:nova-mining-rewards-cloudflare-v1

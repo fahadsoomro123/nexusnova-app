@@ -1,8 +1,7 @@
-import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-functions.js';
+import { claimDailyRewardCloudflare } from '../../core/nova-mining-rewards-store.js';
 import { doc, onSnapshot, serverTimestamp, updateDoc } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js';
 import { authService } from '../../core/auth-service.js';
 import {
-  firebaseApp,
   firebaseAuth,
   firestoreDb,
   readUserProfile,
@@ -308,9 +307,7 @@ export function renderRewards() {
       const ad = await nativeAds.showRewarded({ purpose:'daily-reward-test', userId:user.uid });
       if (!ad.earned) throw new Error('Ad closed before reward completion.');
       if (!disposed) dailyStatus.textContent = 'Ad completed • confirming Daily Reward with secure server…';
-      const call = httpsCallable(getFunctions(firebaseApp,'us-central1'),'claimDailyReward');
-      const response = await call({ source:'fresh-rebuild-daily-test-gate' });
-      const data = response?.data || {};
+      const data = await claimDailyRewardCloudflare({ source:'fresh-rebuild-daily-test-gate' });
       const reward = Number(data.reward);
       const nextBalance = Number(data.balance);
       if (!(reward > 0) || !Number.isFinite(nextBalance)) throw new Error('Secure Daily Reward response was invalid.');

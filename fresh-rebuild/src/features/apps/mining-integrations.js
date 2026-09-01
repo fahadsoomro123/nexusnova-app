@@ -1,6 +1,6 @@
-import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-functions.js';
+import { callNovaMiningRewards } from '../../core/nova-mining-rewards-store.js';
 import { doc, onSnapshot } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js';
-import { firebaseApp, firestoreDb, requireFirebaseUser } from '../../core/firebase-backend.js';
+import { firestoreDb, requireFirebaseUser } from '../../core/firebase-backend.js';
 import { nativeAds } from '../../core/native-ads.js';
 
 const TASK_SOCIALS = Object.freeze([
@@ -324,9 +324,7 @@ function enhanceMiningNovaVault(root) {
     if (active) status.textContent = 'Opening boosted Vault on the secure server…';
     try {
       await requireFirebaseUser({ write:true });
-      const call = httpsCallable(getFunctions(firebaseApp, 'us-central1'), 'openNovaVaultBoosted');
-      const response = await call({ source:'fresh-rebuild-10x' });
-      const data = response?.data || {};
+      const data = await callNovaMiningRewards('openNovaVaultBoosted', { source:'fresh-rebuild-10x' });
       if (data.opened !== true || data.boosted !== true) throw new Error('Secure 10X Vault response was invalid.');
       if (active) status.textContent = `✓ 10X Vault opened • ${rewardText(data.reward)}.`;
     } catch (error) {
