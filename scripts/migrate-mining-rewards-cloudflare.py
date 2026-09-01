@@ -74,8 +74,8 @@ changed |= replace_exact(
 )
 changed |= replace_exact(
     'fresh-rebuild/src/features/apps/mining-integrations.js',
-    "    const call = httpsCallable(getFunctions(firebaseApp, 'us-central1'), 'openNovaVaultBoosted');\n    const response = await call({ source:'fresh-rebuild-10x' });\n    const data = response?.data || {};",
-    "    const data = await callNovaMiningRewards('openNovaVaultBoosted', { source:'fresh-rebuild-10x' });",
+    "      const call = httpsCallable(getFunctions(firebaseApp, 'us-central1'), 'openNovaVaultBoosted');\n      const response = await call({ source:'fresh-rebuild-10x' });\n      const data = response?.data || {};",
+    "      const data = await callNovaMiningRewards('openNovaVaultBoosted', { source:'fresh-rebuild-10x' });",
     'mining integration 10x callable'
 )
 
