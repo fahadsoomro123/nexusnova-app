@@ -1,5 +1,5 @@
 name: NexusNova OTA Web Release
-# Release trigger note: premium Tasks community UI.
+# Release trigger note: Nova Vehicle Premium production OTA.
 
 on:
   push:
