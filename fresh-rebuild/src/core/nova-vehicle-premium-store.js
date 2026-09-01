@@ -2,7 +2,7 @@ import { waitForFirebaseUser } from './firebase-backend.js';
 
 const API_BASE = String(
   globalThis.__NEXUSNOVA_CONFIG__?.novaVehicleApiBase ||
-  'https://nova-vehicle-api.nexusnovatools.com'
+  'https://nova-vehicle-premium.fahadsoomro123.workers.dev'
 ).replace(/\/+$/, '');
 
 function cleanVehicle(raw = {}) {
