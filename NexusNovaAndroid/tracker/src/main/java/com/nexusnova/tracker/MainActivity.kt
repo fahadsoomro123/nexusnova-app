@@ -321,7 +321,7 @@ class MainActivity : AppCompatActivity() {
         const val KEY_VEHICLE_ID = "vehicle_id"
         const val KEY_VEHICLE_NAME = "vehicle_name"
         const val KEY_TRACKING_ENABLED = "tracking_enabled"
-        private const val CLAIM_URL = "https://us-central1-nexusnova-6ade2.cloudfunctions.net/claimNovaVehiclePairing"
+        private val CLAIM_URL = "${BuildConfig.NOVA_VEHICLE_API_BASE}/v1/tracker/claim"
         private const val REQ_FOREGROUND = 301
         private const val REQ_BACKGROUND = 302
     }
