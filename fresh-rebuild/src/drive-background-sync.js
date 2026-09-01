@@ -12,6 +12,19 @@ function dayKey(value = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+function installDriveStageGuard() {
+  const stage = document.getElementById('nx-stage');
+  if (!stage) return;
+  const syncClass = () => {
+    const driveOpen = Boolean(stage.querySelector(':scope > .nx-drive-v3-screen'));
+    stage.classList.toggle('nx-drive-v3-stage', driveOpen);
+    document.documentElement.classList.toggle('nx-drive-v3-open', driveOpen);
+  };
+  const observer = new MutationObserver(syncClass);
+  observer.observe(stage, { childList:true, subtree:true, attributes:true, attributeFilter:['class'] });
+  syncClass();
+}
+
 async function importTrip(completed) {
   const nativeId = String(completed?.nativeId || '').trim();
   if (!nativeId || seen.has(nativeId)) return false;
@@ -82,6 +95,8 @@ function requestNativeQueue() {
   try { return window.nexusPostNativeAction('nativeDriveStatus') === true; }
   catch { return false; }
 }
+
+installDriveStageGuard();
 
 // Restore Firestore history on every app launch, not only when Nova Drive opens.
 hydrateDriveTrackState().catch(() => {});
