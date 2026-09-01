@@ -32,7 +32,6 @@
         <activity
             android:name=".NexusDrivePermissionActivity"
             android:exported="false"
-            android:noHistory="true"
             android:excludeFromRecents="true" />
 
         <activity
