@@ -41,6 +41,7 @@ jobs:
           test -s "$WORKER_DIR/schema.sql"
           grep -Fq '/v1/tracker/telemetry' "$WORKER_DIR/src/index.js"
           grep -Fq '/v1/owner/dashboard' "$WORKER_DIR/src/index.js"
+          grep -Fq 'PREMIUM_OWNER_EMAIL_SHA256S' "$WORKER_DIR/src/index.js"
 
       - name: Require Cloudflare account credentials
         shell: bash
@@ -94,7 +95,7 @@ jobs:
           if [ -z "$NOVA_VEHICLE_OWNER_UIDS" ] && [ -z "$NOVA_VEHICLE_OWNER_EMAILS" ]; then
             echo 'Nova Vehicle will deploy LOCKED: no owner account is entitled yet.'
           else
-            echo 'Nova Vehicle owner entitlement is configured.'
+            echo 'Nova Vehicle owner entitlement is configured and will be hashed before deployment.'
           fi
 
       - name: Build production Wrangler config
@@ -110,10 +111,23 @@ jobs:
           PY
           )"
           python3 - <<'PY'
-          import os
+          import hashlib, os
           from pathlib import Path
+
           def toml_string(value):
               return '"' + str(value).replace('\\','\\\\').replace('"','\\"').replace('\n','') + '"'
+
+          def hash_csv(raw, lower=False):
+              values=[]
+              for item in str(raw or '').split(','):
+                  item=item.strip()
+                  if not item: continue
+                  if lower: item=item.lower()
+                  values.append(hashlib.sha256(item.encode('utf-8')).hexdigest())
+              return ','.join(values)
+
+          uid_hashes=hash_csv(os.environ.get('NOVA_VEHICLE_OWNER_UIDS', ''), lower=False)
+          email_hashes=hash_csv(os.environ.get('NOVA_VEHICLE_OWNER_EMAILS', ''), lower=True)
           p=Path(os.environ['WORKER_DIR'])/'wrangler.toml'
           text='\n'.join([
               'name = "nova-vehicle-premium"',
@@ -128,8 +142,8 @@ jobs:
               '',
               '[vars]',
               f'FIREBASE_WEB_API_KEY = {toml_string(os.environ["FIREBASE_WEB_API_KEY"])}',
-              f'PREMIUM_OWNER_UIDS = {toml_string(os.environ.get("NOVA_VEHICLE_OWNER_UIDS", ""))}',
-              f'PREMIUM_OWNER_EMAILS = {toml_string(os.environ.get("NOVA_VEHICLE_OWNER_EMAILS", ""))}',
+              f'PREMIUM_OWNER_UID_SHA256S = {toml_string(uid_hashes)}',
+              f'PREMIUM_OWNER_EMAIL_SHA256S = {toml_string(email_hashes)}',
               '',
               '[triggers]',
               'crons = ["17 */6 * * *"]',
