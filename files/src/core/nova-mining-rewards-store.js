@@ -1,11 +1,10 @@
-import { requireFirebaseUser } from './firebase-backend.js';
+import { waitForFirebaseUser } from './firebase-backend.js';
 
 const API_BASE = 'https://nova-mining-rewards.fahadsoomro123.workers.dev';
 
 // Cloudflare v2 is the active mutation backend while Firebase Functions are
-// temporarily unavailable. Firebase Auth remains the user identity source and
-// Firestore remains the account store, but reward/mining writes go through the
-// Cloudflare Worker rather than callable Functions/App Check.
+// unavailable. Firebase Auth supplies the existing ID token and Firestore stays
+// the account store, but reward/mining writes are owned by Cloudflare.
 const ACTIONS = Object.freeze({
   claimDailyReward: '/v1/tasks/daily/claim',
   toggleMining: '/v1/mining/toggle',
@@ -24,20 +23,37 @@ function apiError(body, status) {
 }
 
 async function post(path, data = {}) {
-  // Cloudflare verifies the refreshed Firebase ID token itself. Do not require
-  // Firebase App Check here; that would recreate the Functions dependency this
-  // bridge is meant to avoid during the temporary Firebase issue.
-  const user = await requireFirebaseUser({ verified:true });
-  const token = await user.getIdToken();
-  const response = await fetch(`${API_BASE}${path}`, {
-    method:'POST',
-    cache:'no-store',
-    headers:{
-      Authorization:`Bearer ${token}`,
-      'Content-Type':'application/json'
-    },
-    body:JSON.stringify(data || {})
-  });
+  // Do not call user.reload(), App Check, or Firebase Functions here. The user is
+  // already signed in and Cloudflare independently validates the ID token with
+  // Firebase Auth before touching Firestore. This keeps Vault/boost actions
+  // usable while Firebase callable/App-Check infrastructure is having issues.
+  const user = await waitForFirebaseUser(6_000);
+  if (!user) throw new Error('Please sign in first.');
+
+  const token = await user.getIdToken(false);
+  if (!token) throw new Error('Secure sign-in token is unavailable. Reopen NexusNova and try again.');
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15_000);
+  let response;
+  try {
+    response = await fetch(`${API_BASE}${path}`, {
+      method:'POST',
+      cache:'no-store',
+      signal:controller.signal,
+      headers:{
+        Authorization:`Bearer ${token}`,
+        'Content-Type':'application/json'
+      },
+      body:JSON.stringify(data || {})
+    });
+  } catch (error) {
+    if (error?.name === 'AbortError') throw new Error('Cloudflare request timed out. Please try again.');
+    throw new Error('Cloudflare secure connection is unavailable. Please try again.');
+  } finally {
+    clearTimeout(timer);
+  }
+
   let body = null;
   try { body = await response.json(); } catch {}
   if (!response.ok || body?.ok === false) throw apiError(body, response.status);
