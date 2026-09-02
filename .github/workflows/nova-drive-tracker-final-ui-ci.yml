@@ -3,13 +3,15 @@ name: Nova Drive Tracker Final UI CI
 on:
   workflow_dispatch:
   push:
-    branches: [nova-drive-tracker-final-ui-v1]
+    branches: [nova-drive-tracker-final-ui-v1, nova-sol57-pro-v128]
     paths:
       - 'fresh-rebuild/src/nova-drive-approved-ui-v2.js'
       - 'fresh-rebuild/src/nova-vehicle-premium-ui.js'
       - 'fresh-rebuild/src/core/nova-vehicle-premium-store.js'
-      - 'fresh-rebuild/assets/visuals/nova-drive-approved-v7.webp'
-      - 'fresh-rebuild/assets/visuals/nova-vehicle-tracking-approved-v2.webp'
+      - 'fresh-rebuild/assets/styles/nova-drive-approved-viewport-v4.css'
+      - 'fresh-rebuild/assets/visuals/nova-drive-approved-v7.png'
+      - 'fresh-rebuild/assets/visuals/nova-vehicle-tracking-approved-v2.png'
+      - 'fresh-rebuild/index.html'
       - 'cloudflare/nova-vehicle-worker/**'
       - '.github/workflows/nova-drive-tracker-final-ui-ci.yml'
 
@@ -21,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
       - name: Validate approved Drive and Tracker implementation
         shell: bash
         run: |
@@ -30,9 +32,30 @@ jobs:
           node --check fresh-rebuild/src/nova-vehicle-premium-ui.js
           node --check fresh-rebuild/src/core/nova-vehicle-premium-store.js
           node --check cloudflare/nova-vehicle-worker/src/index.js
-          test -s fresh-rebuild/assets/visuals/nova-drive-approved-v7.webp
-          test -s fresh-rebuild/assets/visuals/nova-vehicle-tracking-approved-v2.webp
+          node <<'NODE'
+          const fs = require('fs');
+          function pngDimensions(file) {
+            const data = fs.readFileSync(file);
+            if (data.subarray(0, 8).toString('hex') !== '89504e470d0a1a0a') throw new Error(`${file}: invalid PNG signature`);
+            return [data.readUInt32BE(16), data.readUInt32BE(20)];
+          }
+          const checks = [
+            ['fresh-rebuild/assets/visuals/nova-drive-approved-v7.png', 864, 1472],
+            ['fresh-rebuild/assets/visuals/nova-vehicle-tracking-approved-v2.png', 941, 1672]
+          ];
+          for (const [file, width, height] of checks) {
+            const actual = pngDimensions(file);
+            if (actual[0] !== width || actual[1] !== height) throw new Error(`${file}: ${actual.join('x')} != ${width}x${height}`);
+          }
+          NODE
           grep -Fq '/v1/owner/pause' cloudflare/nova-vehicle-worker/src/index.js
           grep -Fq 'vehicle_controls' cloudflare/nova-vehicle-worker/schema.sql
           grep -Fq 'TRACKER PAIRED' fresh-rebuild/src/nova-drive-approved-ui-v2.js
           grep -Fq 'HOLD 3s TO UNPAIR' fresh-rebuild/src/nova-drive-approved-ui-v2.js
+          grep -Fq 'aspect-ratio:941/1672' fresh-rebuild/src/nova-drive-approved-ui-v2.js
+          grep -Fq -- '--nx-approved-tracker-cover-h' fresh-rebuild/src/nova-drive-approved-ui-v2.js
+          grep -Fq 'drive-responsive-v2' fresh-rebuild/index.html
+          if grep -Fq 'height:max(100%,' fresh-rebuild/src/nova-drive-approved-ui-v2.js; then
+            echo 'Indefinite percentage viewport height returned' >&2
+            exit 1
+          fi

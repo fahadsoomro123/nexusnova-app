@@ -1,13 +1,15 @@
 /* Nova Drive / Vehicle Tracking approved visual viewport lock.
-   One fixed viewport owner removes the old 100dvh / dock-subtraction /
-   nested-height conflict. The approved raster is never resized out of aspect. */
+   The UI module writes pixel viewport/canvas variables from visualViewport so
+   older Android WebViews never resolve a percentage height against an
+   indefinite absolute-positioned ancestor. Each approved PNG keeps its own
+   native aspect ratio; a centered cover crop removes letterbox gaps. */
 
 html.nx-approved-drive-active,
 html.nx-approved-drive-active body {
   width: 100% !important;
-  height: 100% !important;
+  height: 100dvh !important;
   min-height: 0 !important;
-  max-height: none !important;
+  max-height: 100dvh !important;
   margin: 0 !important;
   overflow: hidden !important;
   overscroll-behavior: none !important;
@@ -29,8 +31,7 @@ html.nx-approved-drive-active body .nx-app {
 html.nx-approved-drive-active body .nx-app .nx-stage,
 html.nx-approved-drive-active .nx-stage > .nx-screen.nx-drive-v3-screen,
 html.nx-approved-drive-active .nx-drive-v3-screen > [data-app-mount],
-html.nx-approved-drive-active .nx-drive-v3-screen > [data-app-mount] > .nxdr3,
-html.nx-approved-drive-active .nxdr3 > .nx-approved-drive {
+html.nx-approved-drive-active .nx-drive-v3-screen > [data-app-mount] > .nxdr3 {
   position: absolute !important;
   inset: 0 !important;
   width: auto !important;
@@ -42,6 +43,29 @@ html.nx-approved-drive-active .nxdr3 > .nx-approved-drive {
   margin: 0 !important;
   padding: 0 !important;
   scroll-padding: 0 !important;
+  overflow: visible !important;
+}
+
+html.nx-approved-drive-active .nx-stage > .nx-screen.nx-drive-v3-screen {
+  animation: none !important;
+  transform: none !important;
+}
+
+/* Fixed positioning deliberately escapes every legacy Drive shell height. */
+html.nx-approved-drive-active .nxdr3 > .nx-approved-drive {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: auto !important;
+  bottom: auto !important;
+  width: var(--nx-approved-vw, 100vw) !important;
+  height: var(--nx-approved-vh, 100dvh) !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-width: none !important;
+  max-height: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
   overflow: hidden !important;
 }
 
@@ -53,31 +77,41 @@ html.nx-approved-drive-active .nx-drive-v3-screen > [data-app-mount] > .nxdr3 {
   display: block !important;
 }
 
-/* Match the approved HTML's 864x1472 composition, but size that composition as
-   a cover canvas. Narrow phones crop only the canvas sides; short viewports crop
-   its top/bottom. The raster and every functional hit target share the same
-   coordinate system, so controls stay aligned without stretching the artwork. */
+/* Drive is 864x1472; Tracker is 941x1672. Their independent pixel canvas
+   variables are calculated by JS with cover geometry. Artwork and controls
+   therefore share one coordinate system without stretching either PNG. */
 html.nx-approved-drive-active .nx-approved-view {
   position: absolute !important;
   top: 50% !important;
   left: 50% !important;
   right: auto !important;
   bottom: auto !important;
-  width: auto !important;
-  height: max(100%, 170.370371vw) !important;
+  width: var(--nx-approved-canvas-w) !important;
+  height: var(--nx-approved-canvas-h) !important;
   min-width: 0 !important;
-  min-height: 100% !important;
+  min-height: 0 !important;
   max-width: none !important;
   max-height: none !important;
-  aspect-ratio: 864 / 1472 !important;
   margin: 0 !important;
   overflow: hidden !important;
   transform: translate(-50%, -50%) !important;
   transform-origin: center !important;
 }
 
-/* `contain` is distortion-free. It exactly fills the Drive canvas because that
-   source is 864x1472; Tracker keeps the small side inset from the approved HTML. */
+html.nx-approved-drive-active .nx-approved-view[data-approved-drive-view] {
+  --nx-approved-canvas-w: var(--nx-approved-drive-cover-w, 100vw);
+  --nx-approved-canvas-h: var(--nx-approved-drive-cover-h, max(100dvh, 170.370371vw));
+  aspect-ratio: 864 / 1472 !important;
+}
+
+html.nx-approved-drive-active .nx-approved-view[data-approved-tracker-view] {
+  --nx-approved-canvas-w: var(--nx-approved-tracker-cover-w, 100vw);
+  --nx-approved-canvas-h: var(--nx-approved-tracker-cover-h, max(100dvh, 177.683316vw));
+  aspect-ratio: 941 / 1672 !important;
+}
+
+/* Canvas and source ratios are identical, so contain fills exactly and cannot
+   introduce the old Tracker side inset or any image distortion. */
 html.nx-approved-drive-active .nx-approved-art {
   position: absolute !important;
   inset: 0 !important;
@@ -100,4 +134,3 @@ html.nx-approved-drive-active #nxEmergencySosEdit {
   opacity: 0 !important;
   pointer-events: none !important;
 }
-
