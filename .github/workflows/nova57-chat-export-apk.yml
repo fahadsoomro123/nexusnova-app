@@ -20,21 +20,30 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Fetch latest published phone APK
+      - name: Fetch latest permanently signed TEST ads APK
         shell: bash
         run: |
           set -euo pipefail
           git fetch origin apk-builds
-          git show origin/apk-builds:nova57-phone-test/NexusNova-NOVA57-LATEST-phone-test.apk > NexusNova-NOVA57-LATEST-phone-test.apk
-          test -s NexusNova-NOVA57-LATEST-phone-test.apk
-          echo "APK bytes: $(wc -c < NexusNova-NOVA57-LATEST-phone-test.apk)"
-          sha256sum NexusNova-NOVA57-LATEST-phone-test.apk
+          APK_NAME='NexusNova-1.0.6-test-ads-vc20260902-SIGNED.apk'
+          git show "origin/apk-builds:test-ads-signed/$APK_NAME" > "$APK_NAME"
+          test -s "$APK_NAME"
+          git show origin/apk-builds:test-ads-signed/BUILD-STATUS.txt > BUILD-STATUS.txt
+          grep -Fq 'Permanent signature: PASS' BUILD-STATUS.txt
+          grep -Fq 'Native rewarded bridge: PASS' BUILD-STATUS.txt
+          grep -Fq 'Native interstitial bridge: PASS' BUILD-STATUS.txt
+          grep -Fq 'AdMob TEST units: PASS' BUILD-STATUS.txt
+          grep -Fq 'Cloudflare v2 bundled: PASS' BUILD-STATUS.txt
+          echo "APK bytes: $(wc -c < "$APK_NAME")"
+          sha256sum "$APK_NAME"
 
       - name: Upload APK for chat download
         uses: actions/upload-artifact@v4
         with:
-          name: NexusNova-NOVA57-LATEST-phone-test
-          path: NexusNova-NOVA57-LATEST-phone-test.apk
+          name: NexusNova-1.0.6-test-ads-SIGNED
+          path: |
+            NexusNova-1.0.6-test-ads-vc20260902-SIGNED.apk
+            BUILD-STATUS.txt
           if-no-files-found: error
           compression-level: 0
           retention-days: 1
