@@ -83,7 +83,7 @@ forbid('Cloudflare client scope', store, [
 ]);
 
 const releaseBlock = android.match(/release\s*\{([\s\S]*?)\n\s*\}/)?.[1] || '';
-if (!releaseBlock.includes('NEXUS_ADS_TEST_MODE\", \"true')) {
+if (!releaseBlock.includes('NEXUS_ADS_TEST_MODE", "true')) {
   throw new Error('Android release build is not locked to TEST ads.');
 }
 if (!releaseBlock.includes('ca-app-pub-3940256099942544~3347511713')) {
