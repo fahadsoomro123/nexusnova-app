@@ -1,0 +1,74 @@
+name: NexusNova Premium Studio v1
+
+on:
+  push:
+    branches:
+      - nova-sol57-pro-v128-premium-studio-v1
+    paths:
+      - 'fresh-rebuild/src/features/apps/*studio*.js'
+      - 'fresh-rebuild/src/features/apps/app-screen.js'
+      - 'fresh-rebuild/src/features/hub/app-registry.js'
+      - 'fresh-rebuild/src/features/hub/hub-screen.js'
+      - 'fresh-rebuild/assets/icons/nova-hub/*.svg'
+      - '.github/workflows/nexusnova-premium-studio-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  premium-studio-readiness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: JavaScript syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in \
+            fresh-rebuild/src/features/apps/premium-studio-core.js \
+            fresh-rebuild/src/features/apps/premium-studio-suite.js \
+            fresh-rebuild/src/features/apps/ai-photo-studio.js \
+            fresh-rebuild/src/features/apps/ai-video-studio.js \
+            fresh-rebuild/src/features/apps/pdf-pro-studio.js \
+            fresh-rebuild/src/features/apps/ai-transcribe-studio.js \
+            fresh-rebuild/src/features/apps/ai-writing-studio.js \
+            fresh-rebuild/src/features/apps/digital-sign-studio.js \
+            fresh-rebuild/src/features/apps/app-screen.js \
+            fresh-rebuild/src/features/hub/app-registry.js \
+            fresh-rebuild/src/features/hub/hub-screen.js; do
+            echo "Checking $file"
+            node --input-type=module --check < "$file"
+          done
+      - name: Six-tool contract and assets
+        shell: python
+        run: |
+          from pathlib import Path
+          import re, sys
+          root = Path('fresh-rebuild')
+          ids = ['ai-photo-studio','ai-video-studio','pdf-pro','ai-transcribe','ai-writing-pro','digital-sign']
+          registry = (root/'src/features/hub/app-registry.js').read_text()
+          router = (root/'src/features/apps/app-screen.js').read_text()
+          suite = (root/'src/features/apps/premium-studio-suite.js').read_text()
+          core = (root/'src/features/apps/premium-studio-core.js').read_text()
+          hub = (root/'src/features/hub/hub-screen.js').read_text()
+          failures=[]
+          for app_id in ids:
+              if f"id: '{app_id}'" not in registry: failures.append(f'missing registry id {app_id}')
+              if f"'{app_id}':" not in suite: failures.append(f'missing renderer map {app_id}')
+              icon=root/f'assets/icons/nova-hub/{app_id}.svg'
+              if not icon.is_file() or icon.stat().st_size < 500: failures.append(f'missing/weak icon {app_id}')
+              if app_id not in hub: failures.append(f'hub custom icon route missing {app_id}')
+          if "premiumStudioRenderers[id]" not in router: failures.append('premium studio renderer chain missing')
+          required=['overflow:hidden!important','data-studio-tab','nx-studio__panel','grid-template-rows:auto auto minmax(0,1fr)']
+          for marker in required:
+              if marker not in core: failures.append(f'no-scroll/tab contract missing: {marker}')
+          if failures:
+              print('Premium Studio readiness: FAIL')
+              print('\n'.join('- '+x for x in failures))
+              sys.exit(1)
+          print('Premium Studio readiness: PASS — 6 tools, 6 icons, tabbed no-scroll shell wired.')
