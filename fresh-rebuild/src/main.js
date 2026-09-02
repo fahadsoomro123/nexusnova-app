@@ -1,4 +1,5 @@
 import './core/browser-compat.js';
+import './core/release-mining-safety.js';
 import { icon } from './components/icons.js';
 import { createRouter } from './core/router.js';
 import { backend } from './core/backend-adapter.js';
