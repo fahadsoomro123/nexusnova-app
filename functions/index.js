@@ -5,6 +5,7 @@ initializeApp();
 const db=getFirestore();
 const DAY=86400000, MINING_REWARD=24, MAX_PROFILE_NAME=80;
 const NOVA_COOLDOWN=15*1000, NOVA_BOOST_MS=2*60*60*1000, NOVA_MAX_BOOST_USES=6;
+const NOVA_MAX_BOOSTER_USES=2, NOVA_MAX_RAIN_USES=4, NOVA_MAX_BOOST_CREDITS=3, NOVA_VAULTS_PER_BOOST_CREDIT=7;
 const WITHDRAWAL_COOLDOWN=60*1000, MAX_DESTINATION_LENGTH=160;
 const ALLOWED_ASSETS=new Set(["BTC","ETH","BNB","USDT","USDC"]);
 const ALLOWED_NETWORKS=new Set(["ethereum","bsc"]);
@@ -35,7 +36,7 @@ exports.finishMiningSession=protectedCallable(async req=>{
     if(elapsed<DAY)throw new HttpsError("failed-precondition","Mining session is not complete yet.");
     const balance=profileNumber(d,"balance"), total=profileNumber(d,"totalMined"), pending=optionalInt(d,"novaVaultPending",0);
     const nextBalance=balance+MINING_REWARD,nextTotal=total+MINING_REWARD;
-    tx.update(r,{balance:nextBalance,totalMined:nextTotal,miningActive:false,miningStartedAt:0,miningLastUpdate:now,novaVaultPending:pending+1});
+    tx.update(r,{balance:nextBalance,totalMined:nextTotal,miningActive:false,miningStartedAt:0,miningLastUpdate:now,novaVaultPending:pending+1,novaBoostUsesThisSession:0,novaBoosterUsesThisSession:0,novaRainUsesThisSession:0});
     return {balance:nextBalance,totalMined:nextTotal,miningActive:false,miningStartedAt:0,miningLastUpdate:now,novaVaultPending:pending+1,earned:MINING_REWARD};
   });
 });
@@ -64,10 +65,15 @@ exports.openNovaVault=protectedCallable(async req=>{
   return db.runTransaction(async tx=>{
     const r=ref(uid),s=await tx.get(r);if(!s.exists)throw new HttpsError("not-found","User profile not found.");const d=s.data()||{};cooldown(d,now);
     const inv=inventoryOf(d);if(inv.pendingVaults<1)throw new HttpsError("failed-precondition","No Nova Vault is ready.");
-    const updates={novaVaultPending:inv.pendingVaults-1,novaFeatureCooldownUntil:now+NOVA_COOLDOWN,novaLastVaultReward:reward.type,novaLastVaultAmount:reward.amount,novaLastVaultOpenedAt:now};
+    const credits=optionalInt(d,"novaVaultBoostCredits",0),rawProgress=optionalInt(d,"novaVaultMilestoneProgress",0),progress=Math.min(rawProgress,NOVA_VAULTS_PER_BOOST_CREDIT-1);
+    let nextCredits=credits,nextProgress=progress+1,boostCreditGranted=false;
+    if(nextProgress>=NOVA_VAULTS_PER_BOOST_CREDIT){
+      if(credits<NOVA_MAX_BOOST_CREDITS){nextCredits=credits+1;nextProgress=0;boostCreditGranted=true}else nextProgress=NOVA_VAULTS_PER_BOOST_CREDIT-1;
+    }
+    const updates={novaVaultPending:inv.pendingVaults-1,novaFeatureCooldownUntil:now+NOVA_COOLDOWN,novaLastVaultReward:reward.type,novaLastVaultAmount:reward.amount,novaLastVaultOpenedAt:now,novaVaultBoostCredits:nextCredits,novaVaultMilestoneProgress:nextProgress};
     let balance=profileNumber(d,"balance"),booster=inv.booster,rain=inv.rain,timeWarp=inv.timeWarp;
     if(reward.type==="nvx"){balance+=reward.amount;updates.balance=balance}else if(reward.type==="booster"){booster+=1;updates.novaBoosterInventory=booster}else if(reward.type==="rain"){rain+=1;updates.novaRainInventory=rain}else{timeWarp+=1;updates.novaTimeWarpInventory=timeWarp}
-    tx.update(r,updates);return {reward,balance,cooldownUntil:now+NOVA_COOLDOWN,novaVaultPending:inv.pendingVaults-1,inventory:{booster,rain,timeWarp,pendingVaults:inv.pendingVaults-1}};
+    tx.update(r,updates);return {reward,balance,cooldownUntil:now+NOVA_COOLDOWN,novaVaultPending:inv.pendingVaults-1,novaVaultBoostCredits:nextCredits,novaVaultMilestoneProgress:nextProgress,boostCreditGranted,inventory:{booster,rain,timeWarp,pendingVaults:inv.pendingVaults-1}};
   });
 });
 
@@ -76,11 +82,14 @@ exports.useNovaBoost=protectedCallable(async req=>{
   return db.runTransaction(async tx=>{
     const r=ref(uid),s=await tx.get(r);if(!s.exists)throw new HttpsError("not-found","User profile not found.");const d=s.data()||{};cooldown(d,now);
     const inv=inventoryOf(d),mining=miningElapsed(d,now);if(!mining.active||mining.started<=0)throw new HttpsError("failed-precondition","Start mining first.");if(mining.elapsed>=DAY)throw new HttpsError("failed-precondition","Mining session is already complete.");
-    const uses=optionalInt(d,"novaBoostUsesThisSession",0);if(uses>=NOVA_MAX_BOOST_USES)throw new HttpsError("resource-exhausted","Maximum Nova Boosts used this session.");
+    const uses=optionalInt(d,"novaBoostUsesThisSession",0),boosterUses=optionalInt(d,"novaBoosterUsesThisSession",0),rainUses=optionalInt(d,"novaRainUsesThisSession",0);
+    if(uses>=NOVA_MAX_BOOST_USES)throw new HttpsError("resource-exhausted","Maximum Nova Boosts used this session.");
+    if(kind==="booster"&&boosterUses>=NOVA_MAX_BOOSTER_USES)throw new HttpsError("resource-exhausted","Maximum 2 Nova Boosters can be used per mining session.");
+    if(kind==="rain"&&rainUses>=NOVA_MAX_RAIN_USES)throw new HttpsError("resource-exhausted","Maximum 4 Nova Rain uses are allowed per mining session.");
     if(kind==="booster"&&inv.booster<1)throw new HttpsError("failed-precondition","No Nova Booster available.");if(kind==="rain"&&inv.rain<1)throw new HttpsError("failed-precondition","No Nova Rain available.");
-    const newStart=Math.max(1,mining.started-NOVA_BOOST_MS),updates={miningStartedAt:newStart,novaBoostUsesThisSession:uses+1,novaFeatureCooldownUntil:now+NOVA_COOLDOWN,novaVaultPending:inv.pendingVaults+1};
-    if(kind==="booster")updates.novaBoosterInventory=inv.booster-1;else updates.novaRainInventory=inv.rain-1;
-    tx.update(r,updates);return {kind,miningActive:true,miningStartedAt:newStart,cooldownUntil:now+NOVA_COOLDOWN,reducedHours:(uses+1)*2,novaVaultPending:inv.pendingVaults+1,inventory:{booster:kind==="booster"?inv.booster-1:inv.booster,rain:kind==="rain"?inv.rain-1:inv.rain,timeWarp:inv.timeWarp,pendingVaults:inv.pendingVaults+1}};
+    const newStart=Math.max(1,mining.started-NOVA_BOOST_MS),updates={miningStartedAt:newStart,miningLastUpdate:now,novaBoostUsesThisSession:uses+1,novaFeatureCooldownUntil:now+NOVA_COOLDOWN};
+    if(kind==="booster"){updates.novaBoosterInventory=inv.booster-1;updates.novaBoosterUsesThisSession=boosterUses+1}else{updates.novaRainInventory=inv.rain-1;updates.novaRainUsesThisSession=rainUses+1}
+    tx.update(r,updates);return {kind,miningActive:true,miningStartedAt:newStart,cooldownUntil:now+NOVA_COOLDOWN,reducedHours:(uses+1)*2,novaVaultPending:inv.pendingVaults,inventory:{booster:kind==="booster"?inv.booster-1:inv.booster,rain:kind==="rain"?inv.rain-1:inv.rain,timeWarp:inv.timeWarp,pendingVaults:inv.pendingVaults}};
   });
 });
 
@@ -90,8 +99,8 @@ exports.useNovaTimeWarp=protectedCallable(async req=>{
     const r=ref(uid),s=await tx.get(r);if(!s.exists)throw new HttpsError("not-found","User profile not found.");const d=s.data()||{};cooldown(d,now);const inv=inventoryOf(d),mining=miningElapsed(d,now);
     if(inv.timeWarp<1)throw new HttpsError("failed-precondition","No Time Warp available.");if(!mining.active||mining.started<=0)throw new HttpsError("failed-precondition","Start mining first.");if(mining.elapsed>=DAY)throw new HttpsError("failed-precondition","Mining session is already complete.");
     const balance=profileNumber(d,"balance"),total=profileNumber(d,"totalMined"),nextBalance=balance+MINING_REWARD,nextTotal=total+MINING_REWARD;
-    tx.update(r,{balance:nextBalance,totalMined:nextTotal,miningActive:false,miningStartedAt:0,miningLastUpdate:now,novaTimeWarpInventory:inv.timeWarp-1,novaFeatureCooldownUntil:now+NOVA_COOLDOWN});
-    return {earned:MINING_REWARD,balance:nextBalance,totalMined:nextTotal,miningActive:false,miningStartedAt:0,cooldownUntil:now+NOVA_COOLDOWN,inventory:{booster:inv.booster,rain:inv.rain,timeWarp:inv.timeWarp-1,pendingVaults:inv.pendingVaults}};
+    tx.update(r,{balance:nextBalance,totalMined:nextTotal,miningActive:true,miningStartedAt:now,miningLastUpdate:now,novaTimeWarpInventory:inv.timeWarp-1,novaFeatureCooldownUntil:now+NOVA_COOLDOWN,novaBoostUsesThisSession:0,novaBoosterUsesThisSession:0,novaRainUsesThisSession:0});
+    return {earned:MINING_REWARD,balance:nextBalance,totalMined:nextTotal,miningActive:true,miningStartedAt:now,cooldownUntil:now+NOVA_COOLDOWN,inventory:{booster:inv.booster,rain:inv.rain,timeWarp:inv.timeWarp-1,pendingVaults:inv.pendingVaults}};
   });
 });
 
@@ -148,6 +157,7 @@ exports.requestWithdrawal=protectedCallable(async req=>{
 Object.assign(exports, require("./notifications"));
 Object.assign(exports, require("./admobRewardedSsv"));
 Object.assign(exports, require("./novaVault10x"));
-// v2 intentionally loads last so the deployed admobRewardedSsv export
-// routes both Watch Ad and Nova Vault 10x through one signed endpoint.
+// v2 intentionally loads last so the deployed admobRewardedSsv export uses
+// the release-safe signed endpoint, which records callbacks but grants no NVX
+// or mining acceleration value.
 Object.assign(exports, require("./admobRewardedSsvV2"));
