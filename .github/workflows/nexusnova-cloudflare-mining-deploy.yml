@@ -80,9 +80,9 @@ jobs:
           )
           creds.refresh(Request())
           project=info['project_id']
-          # A deliberately nonexistent document safely tests Firestore document-get IAM.
-          # 404 means authentication/authorization succeeded; 403 means IAM is broken.
-          url=f'https://firestore.googleapis.com/v1/projects/{project}/databases/(default)/documents/users/__nexusnova_cloudflare_probe__'
+          # A deliberately nonexistent, non-reserved document safely tests
+          # Firestore document-get IAM. 404 means auth/IAM succeeded.
+          url=f'https://firestore.googleapis.com/v1/projects/{project}/databases/(default)/documents/users/nexusnova-cloudflare-permission-probe-do-not-create'
           response=requests.get(url, headers={'Authorization': f'Bearer {creds.token}'}, timeout=15)
           if response.status_code not in (200, 404):
               try:
