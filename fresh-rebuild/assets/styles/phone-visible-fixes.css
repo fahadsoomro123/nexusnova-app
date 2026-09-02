@@ -102,3 +102,69 @@
 #nxEmergencySosButton[data-busy="1"] {
   opacity: 1;
 }
+
+/* Calculator: never let dense 5/6-column key banks widen the Android WebView.
+   Explicit min-width:0 + border-box wins over legacy/global button sizing. */
+.nx-everyday-calculator,
+.nx-everyday-calculator .nx-calculator-pro,
+.nx-everyday-calculator .nx-calc-pro-head,
+.nx-everyday-calculator .nx-calc-profile,
+.nx-everyday-calculator .nx-calc-screen,
+.nx-everyday-calculator .nx-calc-history,
+.nx-everyday-calculator .nx-calc-memory,
+.nx-everyday-calculator .nx-calc-bank {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+.nx-everyday-calculator {
+  overflow-x: hidden !important;
+  overflow-x: clip !important;
+}
+.nx-everyday-calculator .nx-calculator-pro {
+  overflow-x: hidden !important;
+}
+.nx-everyday-calculator .nx-calc-profile {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+}
+.nx-everyday-calculator .nx-calc-memory,
+.nx-everyday-calculator .nx-calc-bank {
+  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+}
+.nx-everyday-calculator .nx-calc-bank.six {
+  grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+}
+.nx-everyday-calculator .nx-calc-profile > button,
+.nx-everyday-calculator .nx-calc-memory > button,
+.nx-everyday-calculator .nx-calc-bank > button,
+.nx-everyday-calculator [data-calc-key] {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+.nx-everyday-calculator .nx-calc-history {
+  overscroll-behavior-x: contain;
+}
+.nx-everyday-calculator .nx-calc-history > button {
+  max-width: min(160px, 72vw) !important;
+}
+
+/* Low-end/touch Android performance: keep the premium static lighting but stop
+   continuously repainting the large animated glass gradients while calculating. */
+@media (hover: none), (pointer: coarse), (max-width: 700px) {
+  .nx-everyday-calculator {
+    --calc-light-x: 50% !important;
+    --calc-light-y: 10% !important;
+  }
+  .nx-everyday-calculator::before,
+  .nx-everyday-calculator .nx-calc-screen::after,
+  .nx-everyday-calculator .nx-calc-pro-led {
+    animation: none !important;
+  }
+  .nx-everyday-calculator .nx-calc-profile > button,
+  .nx-everyday-calculator [data-calc-key] {
+    transition-duration: .06s !important;
+  }
+}
