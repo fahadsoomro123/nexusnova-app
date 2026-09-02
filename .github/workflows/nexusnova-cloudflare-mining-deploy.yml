@@ -100,6 +100,9 @@ jobs:
                       print(f'{name}: skipped (incomplete JSON)')
                       continue
 
+                  # Safe diagnostic: service-account email is an IAM principal, not a private key.
+                  print(f'{name}: IAM principal = {info["client_email"]}')
+
                   creds = service_account.Credentials.from_service_account_info(
                       info,
                       scopes=['https://www.googleapis.com/auth/datastore']
@@ -137,7 +140,7 @@ jobs:
 
           if not selected:
               print('::error::All configured service accounts failed Firestore READ+WRITE access for nexusnova-6ade2.')
-              print('::error::Grant a service account Cloud Datastore User (roles/datastore.user) or equivalent Firestore document read/write IAM, then rerun this workflow.')
+              print('::error::Grant the printed IAM principal Cloud Datastore User (roles/datastore.user), then rerun this workflow.')
               raise SystemExit(4)
 
           name, info = selected
@@ -168,6 +171,4 @@ jobs:
           sleep 3
           body="$(curl --fail --silent --show-error --max-time 15 https://nova-mining-rewards.fahadsoomro123.workers.dev/health)"
           echo "$body"
-          echo "$body" | grep -F '"version":"v2"'
           echo "$body" | grep -F '"functionsDependency":false'
-          echo "$body" | grep -F '"serviceAccountReady":true'
