@@ -6,9 +6,15 @@ on:
       - main
       - codex-final-audit
       - nexusnova-latest-full-apk-recovery-20260823
+      - nova-sol57-pro-v128
     paths:
       - 'functions/**'
+      - 'fresh-rebuild/src/core/firebase-backend.js'
+      - 'fresh-rebuild/src/core/nova-mining-rewards-store.js'
+      - 'fresh-rebuild/src/core/release-mining-safety.js'
+      - 'NexusNovaAndroid/app/build.gradle.kts'
       - '.github/scripts/rewarded-ads-backend-smoke.mjs'
+      - '.github/scripts/mining-release-safety-smoke.mjs'
       - '.github/scripts/functions-appcheck-readiness.py'
       - '.github/workflows/nexusnova-rewarded-backend.yml'
   workflow_dispatch:
@@ -43,6 +49,8 @@ jobs:
           node --check functions/entertainmentSearch.js
           node --check functions/index.js
           node --check functions/main.js
+          node --check fresh-rebuild/src/core/release-mining-safety.js
+          node --check fresh-rebuild/src/core/nova-mining-rewards-store.js
 
       - name: Verify callable App Check boundaries
         run: python3 .github/scripts/functions-appcheck-readiness.py
@@ -53,9 +61,13 @@ jobs:
       - name: Load Functions modules
         run: |
           node -e "const m=require('./functions/rewardedAds.js'); if(typeof m.ayetRewardedVideoCallback!=='function') throw new Error('ayeT callback export missing'); console.log('ayeT rewarded callback module loaded')"
-          node -e "const m=require('./functions/admobRewardedSsv.js'); if(typeof m.admobRewardedSsv!=='function') throw new Error('AdMob SSV export missing'); if(m.__admobSsvTest.REWARD_NVX!==2.5) throw new Error('AdMob reward invariant changed'); console.log('AdMob SSV module loaded')"
+          node -e "const m=require('./functions/admobRewardedSsv.js'); if(typeof m.admobRewardedSsv!=='function') throw new Error('Legacy AdMob SSV export missing'); console.log('Legacy AdMob SSV module loaded for compatibility')"
+          node -e "const m=require('./functions/admobRewardedSsvV2.js'); if(typeof m.admobRewardedSsv!=='function') throw new Error('Safe AdMob SSV v2 export missing'); if(m.__admobSsvV2Test?.directNvx!==false||m.__admobSsvV2Test?.vaultBoostCredit!==false) throw new Error('AdMob SSV value isolation changed'); console.log('Safe AdMob SSV v2 loaded')"
           node -e "const m=require('./functions/notifications.js'); if(typeof m.ayetRewardedVideoCallback!=='function') throw new Error('Rewarded callback bundle export missing'); console.log('Functions bundle loaded')"
-          node -e "const m=require('./functions/index.js'); if(typeof m.admobRewardedSsv!=='function') throw new Error('AdMob SSV index export missing'); console.log('Functions index includes AdMob SSV')"
+          node -e "const m=require('./functions/index.js'); if(typeof m.admobRewardedSsv!=='function') throw new Error('AdMob SSV index export missing'); console.log('Functions index includes safe AdMob SSV')"
 
-      - name: Verify rewarded-ad security invariants
+      - name: Verify legacy rewarded backend security invariants
         run: node .github/scripts/rewarded-ads-backend-smoke.mjs
+
+      - name: Verify Mining release safety invariants
+        run: node .github/scripts/mining-release-safety-smoke.mjs
