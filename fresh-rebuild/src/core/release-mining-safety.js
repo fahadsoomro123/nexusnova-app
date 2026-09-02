@@ -2,11 +2,13 @@ import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/
 import { claimDailyRewardCloudflare } from './nova-mining-rewards-store.js';
 import { firebaseApp, requireFirebaseUser } from './firebase-backend.js';
 import { nativeAds } from './native-ads.js';
+import { adPolicy } from './ad-policy.js';
 
 const functions = getFunctions(firebaseApp, 'us-central1');
 let busyDaily = false;
 let busySupportAd = false;
 let busyVault10x = false;
+let busyVaultAction = false;
 
 function text(node, value) {
   if (node && node.textContent !== value) node.textContent = value;
@@ -43,6 +45,17 @@ function patchVisibleCopy(root = document) {
 function statusFor(button, selector) {
   return button?.closest('.nx-app-body, .nx-vault-life, [data-app-mount], .nx-screen')?.querySelector(selector)
     || document.querySelector(selector);
+}
+
+function cleanCallableError(error, fallback) {
+  const raw = String(error?.message || '').replace(/^FirebaseError:\s*/i, '').trim();
+  return raw || fallback;
+}
+
+function rewardLabel(reward = {}) {
+  const type = String(reward.type || 'reward').replace(/-/g, ' ');
+  const amount = Number(reward.amount);
+  return Number.isFinite(amount) && amount > 0 ? `${type} ${amount}` : type;
 }
 
 async function directDailyClaim(button) {
@@ -90,6 +103,27 @@ async function showSupportRewardedAd(button) {
   }
 }
 
+async function runVaultAction(button, { name, data = {}, label, adAction, rewardResult = false } = {}) {
+  if (busyVaultAction || button.disabled) return;
+  busyVaultAction = true;
+  const status = statusFor(button, '[data-vault-status]');
+  text(status, `${label} • secure request…`);
+  try {
+    await requireFirebaseUser({ write:true });
+    const call = httpsCallable(functions, name);
+    const response = await call(data);
+    const result = response?.data || {};
+    text(status, rewardResult
+      ? `✓ ${rewardLabel(result.reward)} received.`
+      : `✓ ${label} completed.`);
+    await adPolicy.showMiningActionAd(adAction);
+  } catch (error) {
+    text(status, cleanCallableError(error, `${label} could not be completed.`));
+  } finally {
+    busyVaultAction = false;
+  }
+}
+
 async function openMilestone10x(button) {
   if (busyVault10x || button.disabled) return;
   busyVault10x = true;
@@ -103,6 +137,7 @@ async function openMilestone10x(button) {
     const reward = response?.data?.reward || {};
     const label = String(reward.type || 'premium reward').replace(/-/g, ' ');
     text(status, `✓ 10X ${label} received.`);
+    await adPolicy.showMiningActionAd('vault-10x');
   } catch (error) {
     const raw = String(error?.message || '').replace(/^FirebaseError:\s*/i, '').trim();
     text(status, raw || '10X credit is not ready yet. Open normal Vaults to earn it.');
@@ -129,6 +164,57 @@ document.addEventListener('click', event => {
     event.preventDefault();
     event.stopImmediatePropagation();
     showSupportRewardedAd(watch);
+    return;
+  }
+
+  const normalVault = target.closest('[data-vault-open]');
+  if (normalVault) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    runVaultAction(normalVault, {
+      name:'openNovaVault',
+      label:'Vault',
+      adAction:'vault-open',
+      rewardResult:true
+    });
+    return;
+  }
+
+  const booster = target.closest('[data-vault-boost]');
+  if (booster) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    runVaultAction(booster, {
+      name:'useNovaBoost',
+      data:{ kind:'booster' },
+      label:'Booster',
+      adAction:'booster-use'
+    });
+    return;
+  }
+
+  const rain = target.closest('[data-vault-rain-use]');
+  if (rain) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    runVaultAction(rain, {
+      name:'useNovaBoost',
+      data:{ kind:'rain' },
+      label:'Nova Rain',
+      adAction:'rain-use'
+    });
+    return;
+  }
+
+  const warp = target.closest('[data-vault-warp-use]');
+  if (warp) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    runVaultAction(warp, {
+      name:'useNovaTimeWarp',
+      label:'Time Warp',
+      adAction:'time-warp-use'
+    });
     return;
   }
 
