@@ -12,11 +12,17 @@ function text(node, value) {
   if (node && node.textContent !== value) node.textContent = value;
 }
 
+function adCopy() {
+  return nativeAds.status().testMode
+    ? 'TEST rewarded ad • no NVX or mining reward.'
+    : 'Optional rewarded ad • no NVX or mining reward.';
+}
+
 function patchVisibleCopy(root = document) {
   const watch = root.querySelector?.('[data-watch-ad]');
-  if (watch) text(watch, 'WATCH AD');
+  if (watch) text(watch, nativeAds.status().testMode ? 'WATCH TEST AD' : 'WATCH AD');
   const watchStatus = root.querySelector?.('[data-watch-status]');
-  if (watchStatus) text(watchStatus, 'Optional support ad • no NVX or mining reward.');
+  if (watchStatus && !/Preparing|Opening|completed|closed|unavailable|timed out/i.test(watchStatus.textContent || '')) text(watchStatus, adCopy());
 
   const dailyStatus = root.querySelector?.('[data-daily-status]');
   if (dailyStatus && /TEST rewarded ad|current gate/i.test(dailyStatus.textContent || '')) {
@@ -58,45 +64,25 @@ async function directDailyClaim(button) {
   }
 }
 
-function waitForSupportAd(status) {
-  return new Promise((resolve, reject) => {
-    let settled = false;
-    const finish = (ok, message) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      off();
-      if (message) text(status, message);
-      ok ? resolve() : reject(new Error(message || 'Ad unavailable.'));
-    };
-    const off = nativeAds.subscribe(detail => {
-      const type = String(detail?.event || '');
-      const placement = String(detail?.placement || '');
-      if (placement && placement !== 'tasks-support') return;
-      if (type === 'interstitial-opened') text(status, 'Ad opened • thank you for supporting NexusNova.');
-      else if (type === 'interstitial-dismissed') finish(true, '✓ Thanks for supporting NexusNova.');
-      else if (type === 'interstitial-skipped') finish(false, detail?.reason === 'cooldown' ? 'Ad cooldown active. Try again later.' : 'Ad is not available right now.');
-      else if (type === 'interstitial-failed' || type === 'interstitial-unavailable') finish(false, 'Ad is not available right now.');
-    });
-    const timer = setTimeout(() => finish(false, 'Ad request timed out.'), 20_000);
-  });
-}
-
-async function showSupportAd(button) {
+async function showSupportRewardedAd(button) {
   if (busySupportAd) return;
   busySupportAd = true;
   button.disabled = true;
   const status = statusFor(button, '[data-watch-status]');
-  text(status, 'Preparing ad…');
+  text(status, 'Preparing rewarded ad…');
   try {
-    await nativeAds.waitForInterstitialReady(8_000);
-    const pending = waitForSupportAd(status);
-    if (!nativeAds.showInterstitial({ placement:'tasks-support', feature:'' })) {
-      throw new Error('Ads require the NexusNova Android app.');
+    const user = await requireFirebaseUser({ verified:true });
+    text(status, nativeAds.status().testMode ? 'Opening Google TEST rewarded ad…' : 'Opening rewarded ad…');
+    const result = await nativeAds.showRewarded({ purpose:'task-watch-ad', userId:user.uid });
+    if (!result.earned) {
+      text(status, 'Ad closed before completion. No NVX or mining reward was changed.');
+      return;
     }
-    await pending;
+    text(status, nativeAds.status().testMode || result.testMode
+      ? '✓ TEST rewarded ad completed. No NVX or mining reward was credited.'
+      : '✓ Rewarded ad completed. No NVX or mining reward was credited.');
   } catch (error) {
-    text(status, error?.message || 'Ad is not available right now.');
+    text(status, error?.message || 'Rewarded ad unavailable.');
   } finally {
     busySupportAd = false;
     button.disabled = false;
@@ -141,7 +127,7 @@ document.addEventListener('click', event => {
   if (watch) {
     event.preventDefault();
     event.stopImmediatePropagation();
-    showSupportAd(watch);
+    showSupportRewardedAd(watch);
     return;
   }
 
@@ -162,5 +148,9 @@ const observer = new MutationObserver(records => {
   patchVisibleCopy(document);
 });
 observer.observe(document.documentElement, { childList:true, subtree:true, characterData:true });
+
+nativeAds.subscribe(detail => {
+  if (String(detail?.event || '') === 'status') patchVisibleCopy(document);
+});
 patchVisibleCopy(document);
 nativeAds.requestStatus();

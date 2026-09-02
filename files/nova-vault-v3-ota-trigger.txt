@@ -12,3 +12,11 @@ Calculator full-screen fit OTA marker: 2026-09-02
 Scope: calculator phone viewport sizing and removal of unused lower blank space only.
 Design skin, calculator engine/precision, Mine, mining backend, Drive/Tracker and unrelated app features remain unchanged.
 CSS target commit: 67fa7d1b3c130f74ae1369b6128972003a3e743a
+
+Mining safety OTA marker: 2026-09-02
+Scope: logic-only Mining Tasks / Nova Vault safety wiring; no visual redesign.
+- Daily +5 NVX uses secure direct claim with no ad gate.
+- TEST rewarded ads remain enabled for app testing and never credit NVX/mining value.
+- 10X is milestone-credit based, not ad-unlocked; 10X pool has no direct NVX.
+- Current web client uses Firebase secure callables for Vault/boost/time-warp; Cloudflare client is Daily-only.
+- Android debug and release variants remain locked to Google TEST ad inventory.
