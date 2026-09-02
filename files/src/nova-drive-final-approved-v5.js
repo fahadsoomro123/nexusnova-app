@@ -16,9 +16,9 @@ function speedValue(el) {
   return Math.max(0, Number(match?.[0]) || 0);
 }
 
-function speedAngle(kmh) {
+function speedSweep(kmh) {
   const value = Math.max(0, Math.min(160, Number(kmh) || 0));
-  return -130 + (value / 160) * 260;
+  return (value / 160) * 270;
 }
 
 function buildSharedFrame() {
@@ -30,11 +30,51 @@ function buildSharedFrame() {
       <span class="nx-approved-tab-icon"><svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="11" stroke="#75edff" stroke-width="2"/><circle cx="16" cy="16" r="3" fill="#eaffff"/><path d="M6 15h20M16 16l-7 7M16 16l7 7" stroke="#75edff" stroke-width="2" stroke-linecap="round"/></svg></span>
       <span class="nx-approved-tab-copy"><b>DRIVE</b><small>COCKPIT</small></span>
     </button>
+    <div class="nx-approved-shared-center" aria-hidden="true">
+      <svg viewBox="0 0 64 64" fill="none">
+        <path d="M32 6 51 17v30L32 58 13 47V17L32 6Z" stroke="#d9f8ff" stroke-width="4"/>
+        <path d="M22 43V21l20 22V21" stroke="#d9f8ff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
     <button class="nx-approved-shared-mode-tab vehicle" type="button" data-final-vehicle aria-label="Vehicle Tracking">
       <span class="nx-approved-tab-icon"><svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="13" r="9" stroke="#a378ff" stroke-width="2"/><circle cx="16" cy="13" r="4" stroke="#66ebff" stroke-width="2"/><circle cx="16" cy="13" r="1.7" fill="#efffff"/><path d="M16 22v7M11 28h10" stroke="#66ebff" stroke-width="2" stroke-linecap="round"/></svg></span>
       <span class="nx-approved-tab-copy"><b>VEHICLE TRACKING</b><small>LIVE TRACKER</small></span>
     </button>`;
   return frame;
+}
+
+function setImportantVar(el, name, value) {
+  el?.style?.setProperty(name, value, 'important');
+}
+
+function syncGeometry(ui, driveView, trackerView, frame) {
+  const rect = ui.getBoundingClientRect();
+  const visibleW = Math.max(1, rect.width || window.innerWidth || 1);
+  const visibleH = Math.max(1, rect.height || window.visualViewport?.height || window.innerHeight || 1);
+  const ratio = 864 / 1472;
+
+  let frameW;
+  let frameH;
+  if ((visibleW / visibleH) > ratio) {
+    frameW = visibleW;
+    frameH = visibleW / ratio;
+  } else {
+    frameH = visibleH;
+    frameW = visibleH * ratio;
+  }
+
+  const cropX = Math.max(0, (frameW - visibleW) / 2);
+  const cropY = Math.max(0, (frameH - visibleH) / 2);
+
+  const targets = [ui, driveView, trackerView, frame];
+  for (const target of targets) {
+    setImportantVar(target, '--nx-final-frame-w', `${frameW.toFixed(3)}px`);
+    setImportantVar(target, '--nx-final-frame-h', `${frameH.toFixed(3)}px`);
+    setImportantVar(target, '--nx-final-crop-x', `${cropX.toFixed(3)}px`);
+    setImportantVar(target, '--nx-final-crop-y', `${cropY.toFixed(3)}px`);
+    setImportantVar(target, '--nx-approved-crop-x', `${cropX.toFixed(3)}px`);
+    setImportantVar(target, '--nx-approved-crop-y', `${cropY.toFixed(3)}px`);
+  }
 }
 
 function mount(ui) {
@@ -43,7 +83,7 @@ function mount(ui) {
   const trackerView = ui.querySelector('[data-approved-tracker-view]');
   if (!driveView || !trackerView) return;
   mounted.add(ui);
-  ui.classList.add('nx-approved-final-v5');
+  ui.classList.add('nx-approved-final-v6');
 
   const originalDrive = driveView.querySelector('[data-approved-drive-hit]') || trackerView.querySelector('[data-approved-drive-hit]');
   const originalVehicle = driveView.querySelector('[data-approved-vehicle-hit]') || trackerView.querySelector('[data-approved-vehicle-hit]');
@@ -53,11 +93,21 @@ function mount(ui) {
   const driveTab = frame.querySelector('[data-final-drive]');
   const vehicleTab = frame.querySelector('[data-final-vehicle]');
 
+  let geometryRaf = 0;
+  const queueGeometry = () => {
+    cancelAnimationFrame(geometryRaf);
+    geometryRaf = requestAnimationFrame(() => syncGeometry(ui, driveView, trackerView, frame));
+  };
+  queueGeometry();
+  window.addEventListener('resize', queueGeometry, { passive:true });
+  window.visualViewport?.addEventListener('resize', queueGeometry, { passive:true });
+
   const syncDock = () => {
     const trackerActive = trackerView.classList.contains('is-active');
     driveTab?.classList.toggle('is-active', !trackerActive);
     vehicleTab?.classList.toggle('is-active', trackerActive);
     ui.classList.toggle('is-tracker-mode', trackerActive);
+    queueGeometry();
   };
   syncDock();
   const modeObserver = new MutationObserver(syncDock);
@@ -67,17 +117,20 @@ function mount(ui) {
   driveTab?.addEventListener('click', () => originalDrive?.click());
   vehicleTab?.addEventListener('click', () => originalVehicle?.click());
 
+  /* Dynamic LED speed arc: no needle. We reveal the original approved raster's
+     own cyan→purple scale from 0..160 km/h by masking only the unfilled arc. */
   const speedEl = driveView.querySelector('[data-approved-speed]');
   if (speedEl) {
-    const needle = document.createElement('i');
-    needle.className = 'nx-approved-speed-needle';
-    needle.setAttribute('data-approved-speed-needle', '');
-    driveView.insertBefore(needle, speedEl);
-    const syncNeedle = () => {
-      needle.style.setProperty('--nx-speed-angle', `${speedAngle(speedValue(speedEl)).toFixed(2)}deg`);
+    driveView.querySelector('[data-approved-speed-needle]')?.remove();
+    const arcMask = document.createElement('i');
+    arcMask.className = 'nx-approved-speed-arc-mask';
+    arcMask.setAttribute('data-approved-speed-arc-mask', '');
+    driveView.insertBefore(arcMask, speedEl);
+    const syncArc = () => {
+      arcMask.style.setProperty('--nx-speed-sweep', `${speedSweep(speedValue(speedEl)).toFixed(2)}deg`);
     };
-    syncNeedle();
-    new MutationObserver(syncNeedle).observe(speedEl, { childList:true, subtree:true, characterData:true });
+    syncArc();
+    new MutationObserver(syncArc).observe(speedEl, { childList:true, subtree:true, characterData:true });
   }
 
   const recover = driveView.querySelector('[data-approved-recover]');
