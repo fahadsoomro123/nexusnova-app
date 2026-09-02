@@ -47,7 +47,7 @@ function sessionProgress(state) {
   return Math.max(0, Math.min(1, (Date.now() - state.startedAt) / DAY_MS));
 }
 
-export async function mineScreen({ openHubApp, beforeMiningRenewal } = {}) {
+export async function mineScreen({ openHubApp, afterMiningAction } = {}) {
   cleanupMineScreen();
 
   const root = document.createElement('section');
@@ -229,10 +229,12 @@ export async function mineScreen({ openHubApp, beforeMiningRenewal } = {}) {
     }
   };
 
-  const performMiningAction = async () => {
+  const performMiningAction = async actionName => {
+    let completed = false;
     try {
       state = await backend.toggleMining();
       render(state);
+      completed = true;
     } catch (error) {
       state = {
         ...state,
@@ -243,6 +245,11 @@ export async function mineScreen({ openHubApp, beforeMiningRenewal } = {}) {
     } finally {
       busy = false;
       render(state);
+    }
+
+    if (completed && typeof afterMiningAction === 'function') {
+      try { await afterMiningAction(actionName); }
+      catch (error) { console.warn('[NexusNova Fresh] mining post-action ad:', error); }
     }
   };
 
@@ -257,28 +264,14 @@ export async function mineScreen({ openHubApp, beforeMiningRenewal } = {}) {
     busy = true;
     render(state);
 
-    const proceed = () => {
-      state = {
-        ...state,
-        statusText: renewingCompletedSession
-          ? 'Starting the next secure 24-hour session…'
-          : 'Starting secure mining…'
-      };
-      render(state);
-      performMiningAction();
+    state = {
+      ...state,
+      statusText: renewingCompletedSession
+        ? 'Starting the next secure 24-hour session…'
+        : 'Starting secure mining…'
     };
-
-    if (renewingCompletedSession && typeof beforeMiningRenewal === 'function') {
-      state = { ...state, statusText: 'Opening ad before the next 24-hour session…' };
-      render(state);
-      Promise.resolve(beforeMiningRenewal(proceed)).catch(error => {
-        console.warn('[NexusNova Fresh] mining renewal ad gate:', error);
-        proceed();
-      });
-      return;
-    }
-
-    proceed();
+    render(state);
+    void performMiningAction(renewingCompletedSession ? 'session-renew' : 'session-start');
   });
 
   root.querySelectorAll('[data-open-app]').forEach(button => {
