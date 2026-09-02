@@ -44,13 +44,20 @@ jobs:
       - name: Verify v2 Worker syntax and safety markers
         run: |
           node --check cloudflare/nova-mining-rewards-worker/src/index-v2.js
+          node --check cloudflare/nova-mining-rewards-worker/src/index.js
           grep -F "NOVA_MAX_BOOSTER_USES = 2" cloudflare/nova-mining-rewards-worker/src/index-v2.js
           grep -F "NOVA_MAX_RAIN_USES = 4" cloudflare/nova-mining-rewards-worker/src/index-v2.js
           grep -F "novaVaultPending:inv.pendingVaults" cloudflare/nova-mining-rewards-worker/src/index-v2.js
           grep -F "miningActive:true" cloudflare/nova-mining-rewards-worker/src/index-v2.js
           grep -F "ads_do_not_grant_mining_or_token_value" cloudflare/nova-mining-rewards-worker/src/index-v2.js
-          if grep -F "WATCH_REWARD_NVX" cloudflare/nova-mining-rewards-worker/src/index-v2.js; then
-            echo '::error::Direct ad-to-NVX marker found in Cloudflare v2 worker.'
+          grep -F "import workerV2 from './index-v2.js';" cloudflare/nova-mining-rewards-worker/src/index.js
+          grep -F "export default workerV2;" cloudflare/nova-mining-rewards-worker/src/index.js
+          if grep -R -F "WATCH_REWARD_NVX" cloudflare/nova-mining-rewards-worker/src; then
+            echo '::error::Direct ad-to-NVX marker found in Cloudflare mining Worker sources.'
+            exit 1
+          fi
+          if grep -R -F "nova-vault-10x" cloudflare/nova-mining-rewards-worker/src; then
+            echo '::error::Legacy ad-unlocked 10X marker found in Cloudflare mining Worker sources.'
             exit 1
           fi
 
@@ -100,7 +107,6 @@ jobs:
                       print(f'{name}: skipped (incomplete JSON)')
                       continue
 
-                  # Safe diagnostic: service-account email is an IAM principal, not a private key.
                   print(f'{name}: IAM principal = {info["client_email"]}')
 
                   creds = service_account.Credentials.from_service_account_info(
@@ -171,4 +177,7 @@ jobs:
           sleep 3
           body="$(curl --fail --silent --show-error --max-time 15 https://nova-mining-rewards.fahadsoomro123.workers.dev/health)"
           echo "$body"
+          echo "$body" | grep -F '"ok":true'
+          echo "$body" | grep -F '"version":"v2"'
           echo "$body" | grep -F '"functionsDependency":false'
+          echo "$body" | grep -F '"serviceAccountReady":true'
