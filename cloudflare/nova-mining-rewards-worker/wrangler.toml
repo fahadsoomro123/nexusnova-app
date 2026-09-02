@@ -1,5 +1,5 @@
 name = "nova-mining-rewards"
-main = "src/index-v2.js"
+main = "src/storage-diagnostic-wrapper.js"
 compatibility_date = "2026-09-01"
 workers_dev = true
 
@@ -9,4 +9,4 @@ FIREBASE_WEB_API_KEY = "AIzaSyBU75WYp5ioaMD1LrNcDyAvROFW2wrTil0"
 
 # Existing Cloudflare secret is intentionally NOT stored in git:
 # FIREBASE_SERVICE_ACCOUNT_JSON
-# Runtime redeploy marker: current v2 Worker verified 2026-09-02.
+# Runtime redeploy marker: deep Firestore storage diagnostic enabled 2026-09-02.
