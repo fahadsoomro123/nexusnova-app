@@ -216,8 +216,23 @@ async function startFresh(user) {
     if (state.balance == null || state.totalMined == null) throw new Error('Account mining values need repair. No balance was changed.');
     if (state.active) return raw;
     if ((Number(raw.miningStartedAt) || 0) !== 0) throw new Error('Mining session state is inconsistent.');
-    tx.update(userRef, { miningActive: true, miningStartedAt: now, miningLastUpdate: now });
-    return { ...raw, miningActive: true, miningStartedAt: now, miningLastUpdate: now };
+    tx.update(userRef, {
+      miningActive: true,
+      miningStartedAt: now,
+      miningLastUpdate: now,
+      novaBoostUsesThisSession: 0,
+      novaBoosterUsesThisSession: 0,
+      novaRainUsesThisSession: 0
+    });
+    return {
+      ...raw,
+      miningActive: true,
+      miningStartedAt: now,
+      miningLastUpdate: now,
+      novaBoostUsesThisSession: 0,
+      novaBoosterUsesThisSession: 0,
+      novaRainUsesThisSession: 0
+    };
   });
 }
 
@@ -243,7 +258,10 @@ async function rolloverExpired(user) {
       miningActive: true,
       miningStartedAt: now,
       miningLastUpdate: now,
-      novaVaultPending: nextVaultPending
+      novaVaultPending: nextVaultPending,
+      novaBoostUsesThisSession: 0,
+      novaBoosterUsesThisSession: 0,
+      novaRainUsesThisSession: 0
     });
 
     return {
@@ -253,7 +271,10 @@ async function rolloverExpired(user) {
       miningActive: true,
       miningStartedAt: now,
       miningLastUpdate: now,
-      novaVaultPending: nextVaultPending
+      novaVaultPending: nextVaultPending,
+      novaBoostUsesThisSession: 0,
+      novaBoosterUsesThisSession: 0,
+      novaRainUsesThisSession: 0
     };
   });
 }
