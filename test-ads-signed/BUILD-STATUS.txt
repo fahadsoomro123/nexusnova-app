@@ -1,10 +1,11 @@
-Source commit: 67c68b429e414f3babf45c7cca948c2314f14084
+Source commit: 39ad4150296dcb0036ec5321efb4e4355d4be8cd
 Branch: nova-sol57-pro-v128
 Version name: 1.0.6-test-ads
 Version code: 20260902
 Permanent signature: PASS
 Native rewarded bridge: PASS
 Native interstitial bridge: PASS
+AdMob TEST units: PASS
 Cloudflare v2 bundled: PASS
 OTA baseline: 8d1aaaee6f28b974a8c8b3ff213beb1318ec7405
 AdMob mode: GOOGLE TEST LOCKED
