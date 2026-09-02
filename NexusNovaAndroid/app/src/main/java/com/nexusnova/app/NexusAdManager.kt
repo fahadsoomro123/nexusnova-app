@@ -30,11 +30,10 @@ import org.json.JSONObject
  * events.
  *
  * TEST MODE only:
- * - Primary: Google Ad Manager's direct-sold Rewarded demo unit.
- * - Fallback: Google Ad Manager's direct-sold Rewarded Interstitial demo unit.
- *   Google documents both demo units as configured to return test ads for
- *   development requests. Using direct-sold demo inventory avoids depending on
- *   an auction/no-fill path while validating NexusNova's reward plumbing.
+ * - Primary: Google's dedicated Android AdMob Rewarded test unit.
+ * - Fallback: Google's dedicated Android Rewarded Interstitial test unit.
+ * - Interstitial: Google's dedicated Android AdMob Interstitial test unit.
+ * These units are explicitly configured by Google for development/testing.
  */
 class NexusAdManager(
     private val activity: Activity,
@@ -823,9 +822,9 @@ class NexusAdManager(
         val TEST_MODE = BuildConfig.NEXUS_ADS_TEST_MODE
 
         const val TEST_ADMOB_APP_ID = "ca-app-pub-3940256099942544~3347511713"
-        const val TEST_REWARDED_AD_UNIT_ID = "/21775744923/example/rewarded"
-        const val TEST_REWARDED_INTERSTITIAL_AD_UNIT_ID = "/21775744923/example/rewarded-interstitial"
-        const val TEST_INTERSTITIAL_AD_UNIT_ID = "/21775744923/example/interstitial"
+        const val TEST_REWARDED_AD_UNIT_ID = "ca-app-pub-3940256099942544/5224354917"
+        const val TEST_REWARDED_INTERSTITIAL_AD_UNIT_ID = "ca-app-pub-3940256099942544/5354046379"
+        const val TEST_INTERSTITIAL_AD_UNIT_ID = "ca-app-pub-3940256099942544/1033173712"
 
         const val PRODUCTION_ADMOB_APP_ID = "ca-app-pub-5070673529890078~1824799663"
         const val PRODUCTION_REWARDED_AD_UNIT_ID = "ca-app-pub-5070673529890078/7194148596"
