@@ -3,6 +3,7 @@ import { nativeAds } from './native-ads.js';
 const SESSION_KEY = 'nx_fresh_ad_policy_session_v1';
 const HUB_PLACEMENT = 'hub-app-open';
 const MINING_PLACEMENT = 'mining-start';
+const MINING_ACTION_PLACEMENT = 'mining-action';
 const REQUEST_ACK_TIMEOUT_MS = 2_500;
 const DISMISS_FAILSAFE_MS = 90_000;
 
@@ -215,8 +216,6 @@ function startGate({ placement, feature = '', requestedFeature = '', continue: c
       return Promise.resolve({ shown:false, reason:'frequency-or-not-ready' });
     }
   } else if (nativeAds.status().interstitialReady !== true) {
-    // Mining renewal is a locked natural break, but never block the next secure
-    // session when Google inventory/native readiness is unavailable.
     nativeAds.requestStatus();
     continuation?.();
     return Promise.resolve({ shown:false, reason:'not-ready' });
@@ -253,8 +252,6 @@ function gateHubApp(appId, open) {
     open?.();
     return Promise.resolve({ shown:false, reason:'protected-or-ineligible' });
   }
-  // Ignore an accidental second card tap while the first ad transition owns
-  // navigation. The first requested app remains the exact continuation target.
   if (inFlight) return Promise.resolve({ shown:false, reason:'transition-pending' });
   return startGate({
     placement:HUB_PLACEMENT,
@@ -266,17 +263,11 @@ function gateHubApp(appId, open) {
 }
 
 async function gateMiningRenewal(continueMining) {
-  // A full-screen transition is already satisfying the natural break. Never
-  // leave the completed-session button locked behind a second pending ad.
   if (inFlight) {
     continueMining?.();
     return { shown:false, reason:'transition-pending' };
   }
 
-  // A completed 24H session is an infrequent natural break. Give the native
-  // interstitial slot a brief chance to finish loading before deciding there is
-  // no inventory. This avoids silently skipping an ad just because status was
-  // sampled a moment too early.
   if (nativeAds.status().interstitialReady !== true) {
     try {
       await nativeAds.waitForInterstitialReady(8_000);
@@ -290,6 +281,37 @@ async function gateMiningRenewal(continueMining) {
     feature:'',
     requestedFeature:'mine',
     continue:continueMining,
+    requireWarmup:false
+  });
+}
+
+// Mining monetization placement: the mining/Vault action is already complete
+// before this is called. The ad is therefore a natural post-action transition,
+// never a condition for NVX, Vault, Booster, Rain or Time Warp value.
+async function showMiningActionAd(action = 'mining-action') {
+  const requested = normalize(action) || 'mining-action';
+  if (inFlight) return { shown:false, reason:'transition-pending' };
+  if (sessionInterstitialCount >= interstitialSessionMax()) return { shown:false, reason:'session-cap' };
+  if (Date.now() - lastInterstitialAt < interstitialMinGapMs()) return { shown:false, reason:'frequency-cap' };
+
+  if (nativeAds.status().interstitialReady !== true) {
+    nativeAds.requestStatus();
+    if (nativeTestMode()) {
+      try {
+        await nativeAds.waitForInterstitialReady(4_000);
+      } catch (error) {
+        console.warn('[NexusNova Fresh] mining action interstitial readiness:', error);
+      }
+    }
+  }
+
+  if (!readyForHubInterstitial()) return { shown:false, reason:'not-ready-or-capped' };
+
+  return startGate({
+    placement:MINING_ACTION_PLACEMENT,
+    feature:'tools',
+    requestedFeature:requested,
+    continue:null,
     requireWarmup:false
   });
 }
@@ -326,6 +348,7 @@ readSession();
 export const adPolicy = Object.freeze({
   gateHubApp,
   gateMiningRenewal,
+  showMiningActionAd,
   cancelPendingHubNavigation,
   isProtected,
   isEligibleHubApp,
