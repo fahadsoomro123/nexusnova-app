@@ -116,7 +116,7 @@ async function showSupportRewardedAd(button) {
   }
 }
 
-async function runVaultAction(button, { call, data = {}, label, adAction, rewardResult = false } = {}) {
+async function runVaultAction(button, { call, data = {}, label, adAction, rewardResult = false, boostHours = 0 } = {}) {
   if (busyVaultAction || button.disabled || typeof call !== 'function') return;
   busyVaultAction = true;
   button.disabled = true;
@@ -124,9 +124,18 @@ async function runVaultAction(button, { call, data = {}, label, adAction, reward
   text(status, `${label} • Cloudflare secure request…`);
   try {
     const result = await call(data);
-    text(status, rewardResult
-      ? `✓ ${rewardLabel(result.reward)} received.`
-      : `✓ ${label} completed.`);
+    if (boostHours > 0) {
+      const startedAt = Number(result?.miningStartedAt);
+      const remainingInventory = Number(result?.inventory?.[data?.kind === 'rain' ? 'rain' : 'booster']);
+      if (!Number.isFinite(startedAt) || startedAt <= 0 || !Number.isFinite(remainingInventory) || remainingInventory < 0) {
+        throw new Error(`Secure ${label} response was invalid. No success was confirmed.`);
+      }
+      text(status, `✓ ${label} applied • mining timer −${boostHours}h • ${remainingInventory} left.`);
+    } else {
+      text(status, rewardResult
+        ? `✓ ${rewardLabel(result.reward)} received.`
+        : `✓ ${label} completed.`);
+    }
     await adPolicy.showMiningActionAd(adAction);
   } catch (error) {
     text(status, cleanCloudflareError(error, `${label} could not be completed.`));
@@ -195,7 +204,8 @@ document.addEventListener('click', event => {
       call:useNovaBoostCloudflare,
       data:{ kind:'booster' },
       label:'Booster',
-      adAction:'booster-use'
+      adAction:'booster-use',
+      boostHours:2
     });
     return;
   }
@@ -208,7 +218,8 @@ document.addEventListener('click', event => {
       call:useNovaBoostCloudflare,
       data:{ kind:'rain' },
       label:'Nova Rain',
-      adAction:'rain-use'
+      adAction:'rain-use',
+      boostHours:2
     });
     return;
   }
