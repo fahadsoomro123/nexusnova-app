@@ -1,4 +1,4 @@
-Source commit: 39ad4150296dcb0036ec5321efb4e4355d4be8cd
+Source commit: b0475123903dd95a3b08d1ee23d3b46715a73e53
 Branch: nova-sol57-pro-v128
 Version name: 1.0.6-test-ads
 Version code: 20260902
