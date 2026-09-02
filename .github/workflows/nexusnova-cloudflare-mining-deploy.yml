@@ -24,6 +24,7 @@ jobs:
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON || secrets.FIREBASE_SERVICE_ACCOUNT || secrets.GCP_SERVICE_ACCOUNT_JSON || secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -46,15 +47,59 @@ jobs:
             exit 1
           fi
 
-      - name: Require Cloudflare deployment credentials
+      - name: Require deployment and Firestore credentials
         shell: bash
         run: |
           set -euo pipefail
-          if [ -z "${CLOUDFLARE_API_TOKEN:-}" ] || [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
-            echo '::error::Cloudflare GitHub credentials are not configured.'
-            echo '::error::Expected CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID repository secrets.'
-            exit 1
-          fi
+          test -n "${CLOUDFLARE_API_TOKEN:-}" || { echo '::error::CLOUDFLARE_API_TOKEN is not configured.'; exit 2; }
+          test -n "${CLOUDFLARE_ACCOUNT_ID:-}" || { echo '::error::CLOUDFLARE_ACCOUNT_ID is not configured.'; exit 2; }
+          test -n "${FIREBASE_SERVICE_ACCOUNT_JSON:-}" || { echo '::error::Firebase service-account JSON GitHub secret is not configured.'; exit 3; }
+          python3 - <<'PY'
+          import json, os
+          data=json.loads(os.environ['FIREBASE_SERVICE_ACCOUNT_JSON'])
+          assert data.get('client_email'), 'service account client_email missing'
+          assert 'BEGIN PRIVATE KEY' in data.get('private_key',''), 'service account private_key missing'
+          assert data.get('project_id') == 'nexusnova-6ade2', 'unexpected Firebase project'
+          print('Firebase service-account JSON: VALID for nexusnova-6ade2')
+          PY
+
+      - name: Verify service account can read Firestore
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet google-auth requests
+          python3 - <<'PY'
+          import json, os, requests
+          from google.oauth2 import service_account
+          from google.auth.transport.requests import Request
+
+          info=json.loads(os.environ['FIREBASE_SERVICE_ACCOUNT_JSON'])
+          creds=service_account.Credentials.from_service_account_info(
+              info,
+              scopes=['https://www.googleapis.com/auth/datastore']
+          )
+          creds.refresh(Request())
+          project=info['project_id']
+          # A deliberately nonexistent document safely tests Firestore document-get IAM.
+          # 404 means authentication/authorization succeeded; 403 means IAM is broken.
+          url=f'https://firestore.googleapis.com/v1/projects/{project}/databases/(default)/documents/users/__nexusnova_cloudflare_probe__'
+          response=requests.get(url, headers={'Authorization': f'Bearer {creds.token}'}, timeout=15)
+          if response.status_code not in (200, 404):
+              try:
+                  err=response.json().get('error', {})
+              except Exception:
+                  err={}
+              print(f'::error::Firestore IAM probe HTTP {response.status_code} status={err.get("status","unknown")}')
+              print(f'::error::{str(err.get("message","Firestore access denied"))[:260]}')
+              raise SystemExit(4)
+          print(f'Firestore service-account document-get probe: PASS (HTTP {response.status_code})')
+          PY
+
+      - name: Refresh Cloudflare runtime Firestore credential
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" | npx --yes wrangler@latest secret put FIREBASE_SERVICE_ACCOUNT_JSON --config cloudflare/nova-mining-rewards-worker/wrangler.toml
 
       - name: Deploy nova-mining-rewards v2
         run: npx --yes wrangler@latest deploy --config cloudflare/nova-mining-rewards-worker/wrangler.toml
