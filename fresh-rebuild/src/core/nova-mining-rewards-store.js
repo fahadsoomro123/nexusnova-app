@@ -2,12 +2,12 @@ import { requireFirebaseUser } from './firebase-backend.js';
 
 const API_BASE = 'https://nova-mining-rewards.fahadsoomro123.workers.dev';
 
+// Release/test safety: active Nova Vault, Booster, Rain and Time Warp flows use
+// App-Check-protected Firebase callables. Keep this Cloudflare client scoped to
+// the Daily Reward only so stale duplicate reward routes cannot be invoked by
+// current web code.
 const ACTIONS = Object.freeze({
-  claimDailyReward: '/v1/tasks/daily/claim',
-  openNovaVault: '/v1/vault/open',
-  openNovaVaultBoosted: '/v1/vault/boosted/open',
-  useNovaBoost: '/v1/boost/use',
-  useNovaTimeWarp: '/v1/boost/time-warp'
+  claimDailyReward: '/v1/tasks/daily/claim'
 });
 
 function apiError(body, status) {
@@ -42,7 +42,7 @@ async function post(path, data = {}) {
 
 export async function callNovaMiningRewards(name, data = {}) {
   const path = ACTIONS[String(name || '')];
-  if (!path) throw new Error('Unknown secure mining reward action.');
+  if (!path) throw new Error('This mining reward action is handled by the Firebase secure backend.');
   return post(path, data);
 }
 
