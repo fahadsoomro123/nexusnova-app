@@ -1,0 +1,170 @@
+/* Phone-visible fixes: keep screen-level layouts stable on narrow Android WebViews. */
+
+/* Weather: inner carousels may scroll, the whole app screen must not. */
+.nx-weather-premium,
+.nx-weather-premium .nxwx-shell,
+.nx-weather-premium .nxwx-locationbar,
+.nx-weather-premium .nxwx-search,
+.nx-weather-premium .nxwx-hero,
+.nx-weather-premium .nxwx-metrics,
+.nx-weather-premium .nxwx-forecast-panel,
+.nx-weather-premium .nxwx-radar,
+.nx-weather-premium .nxwx-prayer-strip,
+.nx-weather-premium .nxwx-footer {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.nx-weather-premium,
+.nx-weather-premium .nxwx-shell {
+  overflow-x: hidden;
+  overflow-x: clip;
+}
+.nx-weather-premium .nxwx-forecast,
+.nx-weather-premium .nxwx-layers {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overscroll-behavior-x: contain;
+}
+
+/* Qibla: the old phone layout squeezed a 142% compass into a 54% column. */
+.nx2-qibla,
+.nx2-qb-page {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
+  overflow-x: clip;
+}
+@media (max-width: 700px) {
+  .nx2-qb-grid {
+    display: flex !important;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 16px;
+  }
+  .nx2-qb-visual {
+    order: -1;
+    width: 100%;
+    min-width: 0;
+    padding-top: 4px !important;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+  }
+  .nx2-qb-compass {
+    width: min(100%, 430px) !important;
+    max-width: 100% !important;
+    margin: 0 auto;
+    transform: none !important;
+  }
+  .nx2-qb-svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    overflow: hidden;
+  }
+  .nx2-qb-side {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    width: 100%;
+    height: auto !important;
+  }
+  .nx2-qb-side .nx2-qb-card,
+  .nx2-qb-side--right > .nx2-qb-card:first-child,
+  .nx2-qb-mag {
+    height: auto !important;
+    min-height: 106px;
+  }
+  .nx2-qb-ready {
+    grid-template-columns: 52px minmax(0, 1fr) !important;
+  }
+  .nx2-qb-ready-art { display: none; }
+}
+
+/* SOS: compact floating action instead of a permanently dominant button. */
+#nxEmergencySosButton {
+  right: 12px !important;
+  bottom: calc(82px + env(safe-area-inset-bottom)) !important;
+  width: 46px !important;
+  height: 46px !important;
+  font-size: 12px !important;
+  opacity: .42;
+  transition: opacity .2s ease, transform .2s ease, box-shadow .2s ease;
+}
+#nxEmergencySosButton:hover,
+#nxEmergencySosButton:focus-visible,
+#nxEmergencySosButton:active,
+#nxEmergencySosButton[data-active="1"],
+#nxEmergencySosButton[data-busy="1"] {
+  opacity: 1;
+}
+
+/* Calculator: never let dense 5/6-column key banks widen the Android WebView.
+   Explicit min-width:0 + border-box wins over legacy/global button sizing. */
+.nx-everyday-calculator,
+.nx-everyday-calculator .nx-calculator-pro,
+.nx-everyday-calculator .nx-calc-pro-head,
+.nx-everyday-calculator .nx-calc-profile,
+.nx-everyday-calculator .nx-calc-screen,
+.nx-everyday-calculator .nx-calc-history,
+.nx-everyday-calculator .nx-calc-memory,
+.nx-everyday-calculator .nx-calc-bank {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+.nx-everyday-calculator {
+  overflow-x: hidden !important;
+  overflow-x: clip !important;
+}
+.nx-everyday-calculator .nx-calculator-pro {
+  overflow-x: hidden !important;
+}
+.nx-everyday-calculator .nx-calc-profile {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+}
+.nx-everyday-calculator .nx-calc-memory,
+.nx-everyday-calculator .nx-calc-bank {
+  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+}
+.nx-everyday-calculator .nx-calc-bank.six {
+  grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+}
+.nx-everyday-calculator .nx-calc-profile > button,
+.nx-everyday-calculator .nx-calc-memory > button,
+.nx-everyday-calculator .nx-calc-bank > button,
+.nx-everyday-calculator [data-calc-key] {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+.nx-everyday-calculator .nx-calc-history {
+  overscroll-behavior-x: contain;
+}
+.nx-everyday-calculator .nx-calc-history > button {
+  max-width: min(160px, 72vw) !important;
+}
+
+/* Low-end/touch Android performance: keep the premium static lighting but stop
+   continuously repainting the large animated glass gradients while calculating. */
+@media (hover: none), (pointer: coarse), (max-width: 700px) {
+  .nx-everyday-calculator {
+    --calc-light-x: 50% !important;
+    --calc-light-y: 10% !important;
+  }
+  .nx-everyday-calculator::before,
+  .nx-everyday-calculator .nx-calc-screen::after,
+  .nx-everyday-calculator .nx-calc-pro-led {
+    animation: none !important;
+  }
+  .nx-everyday-calculator .nx-calc-profile > button,
+  .nx-everyday-calculator [data-calc-key] {
+    transition-duration: .06s !important;
+  }
+}
