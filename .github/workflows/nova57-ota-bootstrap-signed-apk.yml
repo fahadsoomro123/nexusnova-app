@@ -1,4 +1,4 @@
-name: NexusNova Vault v14 Baseline Signed APK
+name: NexusNova TEST Ads Permanent Signed APK
 
 on:
   workflow_dispatch:
@@ -6,14 +6,23 @@ on:
     branches:
       - nova-sol57-pro-v128
     paths:
-      - 'NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt'
+      - '.github/workflows/nova57-ota-bootstrap-signed-apk.yml'
+      - 'NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt'
+      - 'NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt'
+      - 'NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdConsentManager.kt'
+      - 'NexusNovaAndroid/app/build.gradle.kts'
+      - 'fresh-rebuild/src/core/native-ads.js'
+      - 'fresh-rebuild/src/core/ad-policy.js'
+      - 'fresh-rebuild/src/core/backend-adapter.js'
+      - 'fresh-rebuild/src/core/nova-mining-rewards-store.js'
+      - 'fresh-rebuild/src/core/release-mining-safety.js'
 
 permissions:
   contents: write
 
 env:
-  VERSION_CODE: '20260901'
-  VERSION_NAME: '1.0.5-vault-v14'
+  VERSION_CODE: '20260902'
+  VERSION_NAME: '1.0.6-test-ads'
   V14_BASE: '8d1aaaee6f28b974a8c8b3ff213beb1318ec7405'
 
 jobs:
@@ -26,26 +35,36 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verify living Vault v14 baseline and OTA engine
+      - name: Verify current TEST ad bridge, Cloudflare v2, and OTA baseline
         shell: bash
         run: |
           set -euo pipefail
           test "$GITHUB_REF_NAME" = "nova-sol57-pro-v128"
           test -s fresh-rebuild/index.html
           test -s fresh-rebuild/src/main.js
-          test -s fresh-rebuild/src/features/apps/nova-vault-screen-v13.js
-          test -s fresh-rebuild/src/features/apps/nova-vault-living-v14.js
+          test -s fresh-rebuild/src/core/native-ads.js
+          test -s fresh-rebuild/src/core/backend-adapter.js
+          test -s fresh-rebuild/src/core/nova-mining-rewards-store.js
+          test -s fresh-rebuild/src/core/release-mining-safety.js
+          test -s NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          test -s NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
           test -s NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt
-          grep -Fq './src/main.js?ota=nv14' fresh-rebuild/index.html
-          grep -Fq 'nx-vault-v14-shell-fix' fresh-rebuild/index.html
-          grep -Fq "nova-vault-screen-v13.js?ota=nv14" fresh-rebuild/src/main.js
-          grep -Fq "nova-vault-living-v14.js?ota=nv14" fresh-rebuild/src/features/apps/nova-vault-screen-v13.js
-          grep -Fq 'nx-vault-life-core' fresh-rebuild/src/features/apps/nova-vault-living-v14.js
-          grep -Fq 'nx-vault-life-inventory' fresh-rebuild/src/features/apps/nova-vault-living-v14.js
+          test -s NexusNovaAndroid/app/build.gradle.kts
+
+          grep -Fq 'ACTION_SHOW_REWARDED_AD = "showRewardedAd"' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -Fq 'ACTION_SHOW_INTERSTITIAL_AD = "showInterstitialAd"' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -Fq 'ACTION_AD_STATUS = "adStatus"' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          grep -Fq 'showRewardedAd' fresh-rebuild/src/core/native-ads.js
+          grep -Fq 'showInterstitialAd' fresh-rebuild/src/core/native-ads.js
+          grep -Fq 'NEXUS_ADS_TEST_MODE", "true"' NexusNovaAndroid/app/build.gradle.kts
+          grep -Fq 'ca-app-pub-3940256099942544~3347511713' NexusNovaAndroid/app/build.gradle.kts
+          grep -Fq 'BuildConfig.NEXUS_ADS_TEST_MODE' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
+          grep -Fq '/21775744923/example/rewarded' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
+          grep -Fq '/21775744923/example/interstitial' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
+          grep -Fq 'https://nova-mining-rewards.fahadsoomro123.workers.dev' fresh-rebuild/src/core/nova-mining-rewards-store.js
+          grep -Fq "toggleMiningCloudflare({ source:'fresh-rebuild-cloudflare-v2' })" fresh-rebuild/src/core/backend-adapter.js
           grep -Fq "BUNDLED_WEB_BASE = \"$V14_BASE\"" NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt
-          grep -Fq 'KEY_BUNDLED_BASE' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt
-          grep -Fq 'UPDATE_CHECK_ATTEMPTS = 4' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt
-          echo 'Living Vault v14 + rebased OTA engine: PASS'
+          echo 'Native TEST ad bridge + Cloudflare v2 + OTA baseline: PASS'
 
       - name: Setup Java 17
         uses: actions/setup-java@v4
@@ -137,13 +156,17 @@ jobs:
           gradle --no-daemon clean assembleRelease
           APK=app/build/outputs/apk/release/app-release.apk
           test -s "$APK"
-          test -s app/src/main/assets/www/src/features/apps/nova-vault-living-v14.js
-          grep -Fq './src/main.js?ota=nv14' app/src/main/assets/www/index.html
-          grep -Fq 'nx-vault-v14-shell-fix' app/src/main/assets/www/index.html
-          grep -Fq "nova-vault-screen-v13.js?ota=nv14" app/src/main/assets/www/src/main.js
-          grep -Fq "nova-vault-living-v14.js?ota=nv14" app/src/main/assets/www/src/features/apps/nova-vault-screen-v13.js
-          grep -Fq 'nx-vault-life-inventory' app/src/main/assets/www/src/features/apps/nova-vault-living-v14.js
-          echo 'Signed APK contains living Vault v14 directly: PASS'
+
+          # Canonical current web bundle must be inside the APK build, not only OTA.
+          test -s app/src/main/assets/www/src/core/native-ads.js
+          test -s app/src/main/assets/www/src/core/backend-adapter.js
+          test -s app/src/main/assets/www/src/core/nova-mining-rewards-store.js
+          test -s app/src/main/assets/www/src/core/release-mining-safety.js
+          grep -Fq 'showRewardedAd' app/src/main/assets/www/src/core/native-ads.js
+          grep -Fq 'showInterstitialAd' app/src/main/assets/www/src/core/native-ads.js
+          grep -Fq 'https://nova-mining-rewards.fahadsoomro123.workers.dev' app/src/main/assets/www/src/core/nova-mining-rewards-store.js
+          grep -Fq "toggleMiningCloudflare({ source:'fresh-rebuild-cloudflare-v2' })" app/src/main/assets/www/src/core/backend-adapter.js
+          echo 'Signed APK bundles current TEST ad + Cloudflare web bridge: PASS'
 
       - name: Verify APK signature
         shell: bash
@@ -155,32 +178,32 @@ jobs:
           "$APKSIGNER" verify --verbose --print-certs "$APK" | tee "$GITHUB_WORKSPACE/apk-signature.txt"
           grep -Eq 'Verified using v(2|3) scheme .*: true' "$GITHUB_WORKSPACE/apk-signature.txt"
 
-      - name: Publish signed APK
+      - name: Publish signed TEST ad APK
         shell: bash
         run: |
           set -euo pipefail
-          OUT="$GITHUB_WORKSPACE/vault-v14-signed"
+          OUT="$GITHUB_WORKSPACE/test-ads-signed"
           rm -rf "$OUT"
           mkdir -p "$OUT"
           APK_NAME="NexusNova-${VERSION_NAME}-vc${VERSION_CODE}-SIGNED.apk"
           cp "$GITHUB_WORKSPACE/NexusNovaAndroid/app/build/outputs/apk/release/app-release.apk" "$OUT/$APK_NAME"
           sha256sum "$OUT/$APK_NAME" > "$OUT/SHA256.txt"
           cp "$GITHUB_WORKSPACE/apk-signature.txt" "$OUT/signature.txt"
-          printf 'Source commit: %s\nBranch: %s\nVersion name: %s\nVersion code: %s\nPermanent signature: PASS\nLiving Vault v14 bundled directly: PASS\nOTA baseline: %s\nOTA baseline migration/reset: PASS\nAdMob mode: TEST LOCKED\n' "$GITHUB_SHA" "$GITHUB_REF_NAME" "$VERSION_NAME" "$VERSION_CODE" "$V14_BASE" > "$OUT/BUILD-STATUS.txt"
+          printf 'Source commit: %s\nBranch: %s\nVersion name: %s\nVersion code: %s\nPermanent signature: PASS\nNative rewarded bridge: PASS\nNative interstitial bridge: PASS\nCloudflare v2 bundled: PASS\nOTA baseline: %s\nAdMob mode: GOOGLE TEST LOCKED\n' "$GITHUB_SHA" "$GITHUB_REF_NAME" "$VERSION_NAME" "$VERSION_CODE" "$V14_BASE" > "$OUT/BUILD-STATUS.txt"
 
           git config user.name 'NexusNova Signed APK Bot'
           git config user.email 'actions@users.noreply.github.com'
           git fetch origin apk-builds
-          PUB="$RUNNER_TEMP/nexusnova-vault-v14-signed"
+          PUB="$RUNNER_TEMP/nexusnova-test-ads-signed"
           rm -rf "$PUB"
           git worktree add "$PUB" origin/apk-builds
           cd "$PUB"
-          rm -rf vault-v14-signed
-          mkdir -p vault-v14-signed
-          cp -a "$OUT"/. vault-v14-signed/
-          git add -A vault-v14-signed/BUILD-STATUS.txt vault-v14-signed/SHA256.txt vault-v14-signed/signature.txt
-          git add -f vault-v14-signed/*.apk
-          git commit -m "Publish signed Vault v14 baseline APK $GITHUB_SHA"
+          rm -rf test-ads-signed
+          mkdir -p test-ads-signed
+          cp -a "$OUT"/. test-ads-signed/
+          git add -A test-ads-signed/BUILD-STATUS.txt test-ads-signed/SHA256.txt test-ads-signed/signature.txt
+          git add -f test-ads-signed/*.apk
+          git commit -m "Publish signed TEST ad APK $GITHUB_SHA"
           git pull --rebase origin apk-builds
           git push origin HEAD:apk-builds
 
