@@ -1,9 +1,10 @@
 /* Nova Drive / Vehicle Tracking approved visual viewport lock.
-   2026-09-02 safe-edge patch:
-   - preserve the exact approved PNG aspect ratios (never stretch)
-   - cap horizontal overscan so side telemetry remains readable
+   2026-09-02 approved Drive-only correction:
+   - preserve exact approved PNG bytes/aspect ratio; never stretch
    - keep Tracker rendering unchanged
-   - Nova Drive only: top-align the approved canvas and paint the approved website strip over the source SOS row */
+   - restore Drive full-cover scale so the gauge is not reduced and no bottom dead area remains
+   - paint the approved Drive/Vehicle Tracking bottom tabs over the raster Mine/Nova Hub labels
+   - fully mask the source SOS row before painting the approved website strip */
 
 html.nx-approved-drive-active,
 html.nx-approved-drive-active body {
@@ -80,16 +81,14 @@ html.nx-approved-drive-active .nx-drive-v3-screen > [data-app-mount] > .nxdr3 {
   display: block !important;
 }
 
-/* Keep the approved rasters lossless and unstretched. Tracker stays centred.
-   Nova Drive is top-aligned so the dead band under the Android status bar is
-   not introduced by centring the shorter approved raster inside a tall phone. */
+/* Shared view geometry. Tracker keeps the previous safe-edge crop override.
+   Drive uses the renderer's exact full-cover width/height and real crop-x. */
 html.nx-approved-drive-active .nx-approved-view {
   position: absolute !important;
   top: 50% !important;
   left: 50% !important;
   right: auto !important;
   bottom: auto !important;
-  height: auto !important;
   min-width: 0 !important;
   min-height: 0 !important;
   max-width: none !important;
@@ -98,11 +97,11 @@ html.nx-approved-drive-active .nx-approved-view {
   overflow: hidden !important;
   transform: translate(-50%, -50%) !important;
   transform-origin: center !important;
-  --nx-approved-crop-x: min(30px, 4.5vw) !important;
 }
 
 html.nx-approved-drive-active .nx-approved-view[data-approved-drive-view] {
-  width: calc(var(--nx-approved-vw, 100vw) + min(60px, 9vw)) !important;
+  width: var(--nx-approved-drive-cover-w, 100vw) !important;
+  height: var(--nx-approved-drive-cover-h, 100dvh) !important;
   aspect-ratio: 864 / 1472 !important;
   top: 0 !important;
   transform: translate(-50%, 0) !important;
@@ -110,7 +109,9 @@ html.nx-approved-drive-active .nx-approved-view[data-approved-drive-view] {
 
 html.nx-approved-drive-active .nx-approved-view[data-approved-tracker-view] {
   width: calc(var(--nx-approved-vw, 100vw) + min(60px, 9vw)) !important;
+  height: auto !important;
   aspect-ratio: 941 / 1672 !important;
+  --nx-approved-crop-x: min(30px, 4.5vw) !important;
 }
 
 html.nx-approved-drive-active .nx-approved-art {
@@ -127,12 +128,9 @@ html.nx-approved-drive-active .nx-approved-art {
   image-rendering: auto !important;
 }
 
-/* Tracker's approved PNG already contains its website strip and both bottom mode
-   tabs, so those live controls remain transparent hit targets. Nova Drive's
-   source PNG still contains the SOS row; its approved live website button is
-   intentionally painted over that row, matching the uploaded final prototype. */
-html.nx-approved-drive-active .nx-approved-domain-strip.tracker,
-html.nx-approved-drive-active .nx-approved-mode-tab {
+/* Tracker controls stay exactly as before: raster-painted, transparent hit targets. */
+html.nx-approved-drive-active .nx-approved-view[data-approved-tracker-view] .nx-approved-domain-strip,
+html.nx-approved-drive-active .nx-approved-view[data-approved-tracker-view] .nx-approved-mode-tab {
   background: transparent !important;
   border-color: transparent !important;
   box-shadow: none !important;
@@ -140,13 +138,32 @@ html.nx-approved-drive-active .nx-approved-mode-tab {
   -webkit-tap-highlight-color: transparent !important;
 }
 
-html.nx-approved-drive-active .nx-approved-domain-strip.tracker > *,
-html.nx-approved-drive-active .nx-approved-mode-tab > * {
+html.nx-approved-drive-active .nx-approved-view[data-approved-tracker-view] .nx-approved-domain-strip > *,
+html.nx-approved-drive-active .nx-approved-view[data-approved-tracker-view] .nx-approved-mode-tab > * {
   visibility: hidden !important;
   opacity: 0 !important;
 }
 
-html.nx-approved-drive-active .nx-approved-domain-strip.drive {
+html.nx-approved-drive-active .nx-approved-view[data-approved-tracker-view] .nx-approved-mode-tab::after {
+  display: none !important;
+}
+
+/* Drive only: erase the complete source SOS row, including its red outer edges.
+   The approved website strip is painted immediately above this mask. */
+html.nx-approved-drive-active .nx-approved-view[data-approved-drive-view]::before {
+  content: '';
+  position: absolute;
+  z-index: 39;
+  left: var(--nx-approved-crop-x, 0px);
+  top: 83.95%;
+  width: var(--nx-approved-vw, 100vw);
+  height: 7.45%;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #071522 0%, #03101a 45%, #02070d 100%);
+  pointer-events: none;
+}
+
+html.nx-approved-drive-active .nx-approved-view[data-approved-drive-view] .nx-approved-domain-strip.drive {
   background:
     radial-gradient(circle at 50% 50%, rgba(0,205,255,.13), transparent 42%),
     linear-gradient(180deg, #0b293b 0%, #061725 46%, #020c15 100%) !important;
@@ -162,13 +179,17 @@ html.nx-approved-drive-active .nx-approved-domain-strip.drive {
   -webkit-tap-highlight-color: transparent !important;
 }
 
-html.nx-approved-drive-active .nx-approved-domain-strip.drive > * {
+html.nx-approved-drive-active .nx-approved-view[data-approved-drive-view] .nx-approved-domain-strip.drive > * {
   visibility: visible !important;
   opacity: 1 !important;
 }
 
-html.nx-approved-drive-active .nx-approved-mode-tab::after {
-  display: none !important;
+/* Drive only: use the exact approved live tabs from the prototype. They cover
+   the raster's Mine/Nova Hub labels while leaving the centre N medallion visible. */
+html.nx-approved-drive-active .nx-approved-view[data-approved-drive-view] .nx-approved-mode-tab,
+html.nx-approved-drive-active .nx-approved-view[data-approved-drive-view] .nx-approved-mode-tab > * {
+  visibility: visible !important;
+  opacity: 1 !important;
 }
 
 /* Pair and Open Map already exist in the approved tracker raster. Their DOM
@@ -187,8 +208,7 @@ html.nx-approved-drive-active .nx-approved-action:not(.security) > * {
 }
 
 /* The source raster says REVOKE. Final product behaviour is Tracker Security,
-   so only the inner face is replaced. Shrinking it inside the original raster
-   border removes the old double-border effect while keeping the approved shell. */
+   so only the inner face is replaced. */
 html.nx-approved-drive-active .nx-approved-action.security {
   margin: 4px !important;
   border: 0 !important;
@@ -199,8 +219,6 @@ html.nx-approved-drive-active .nx-approved-action.security {
   -webkit-tap-highlight-color: transparent !important;
 }
 
-/* When paired, cover only the inside of the source Pair Tracker card. The
-   original outer card border remains the single visible border. */
 html.nx-approved-drive-active .nx-approved-paired-mask.is-visible {
   left: calc(var(--nx-approved-crop-x, 0px) + 3vw + 4px) !important;
   top: calc(67.2% + 4px) !important;
