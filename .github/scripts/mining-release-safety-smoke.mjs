@@ -6,6 +6,7 @@ const store = fs.readFileSync('fresh-rebuild/src/core/nova-mining-rewards-store.
 const adapter = fs.readFileSync('fresh-rebuild/src/core/backend-adapter.js', 'utf8');
 const workerV2 = fs.readFileSync('cloudflare/nova-mining-rewards-worker/src/index-v2.js', 'utf8');
 const android = fs.readFileSync('NexusNovaAndroid/app/build.gradle.kts', 'utf8');
+const adManager = fs.readFileSync('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt', 'utf8');
 
 function requireTokens(name, source, tokens) {
   for (const token of tokens) {
@@ -19,8 +20,6 @@ function forbid(name, source, patterns) {
   }
 }
 
-// Canonical Firebase AdMob SSV remains no-value even though mining mutations are
-// now routed through Cloudflare v2.
 requireTokens('AdMob SSV', ssv, [
   "fulfillment:'no-value-release-safe'",
   "credited:false",
@@ -35,7 +34,6 @@ forbid('AdMob SSV', ssv, [
   /rewardedAdTotalNvx\s*:/
 ]);
 
-// Active Cloudflare v2 reward/mining backend invariants.
 requireTokens('Cloudflare v2 backend', workerV2, [
   'NOVA_MAX_BOOSTER_USES = 2',
   'NOVA_MAX_RAIN_USES = 4',
@@ -58,8 +56,6 @@ forbid('Cloudflare v2 backend', workerV2, [
   /novaVaultPending\s*:\s*inv\.pendingVaults\s*\+\s*1/
 ]);
 
-// Active web client must route mining value actions through Cloudflare, while
-// TEST rewarded ads remain no-value and can run without Firebase being healthy.
 requireTokens('Mining client safety', client, [
   "claimDailyRewardCloudflare({ source:'fresh-rebuild-cloudflare-v2' })",
   "purpose:'task-watch-ad'",
@@ -82,11 +78,14 @@ requireTokens('Cloudflare client scope', store, [
   "openNovaVaultBoosted: '/v1/vault/boosted/open'",
   "useNovaBoost: '/v1/boost/use'",
   "useNovaTimeWarp: '/v1/boost/time-warp'",
-  "const user = await requireFirebaseUser({ verified:true });"
+  "const user = await waitForFirebaseUser(6_000);",
+  "const token = await user.getIdToken(false);"
 ]);
 forbid('Cloudflare client scope', store, [
   /httpsCallable\(/,
-  /requireFirebaseUser\(\{\s*write\s*:\s*true\s*\}\)/
+  /requireFirebaseUser\(/,
+  /user\.reload\(/,
+  /requireFreshAppCheck\(/
 ]);
 
 requireTokens('Mining adapter', adapter, [
@@ -106,5 +105,14 @@ if (!releaseBlock.includes('NEXUS_ADS_TEST_MODE", "true')) {
 if (!releaseBlock.includes('ca-app-pub-3940256099942544~3347511713')) {
   throw new Error('Android release build is not using the Google TEST App ID.');
 }
+
+requireTokens('Native AdMob TEST units', adManager, [
+  'ca-app-pub-3940256099942544/5224354917',
+  'ca-app-pub-3940256099942544/5354046379',
+  'ca-app-pub-3940256099942544/1033173712'
+]);
+forbid('Native AdMob TEST units', adManager, [
+  /\/21775744923\/example\//
+]);
 
 console.log('Mining release safety smoke passed.');
