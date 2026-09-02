@@ -13,9 +13,16 @@ let busyDaily = false;
 let busySupportAd = false;
 let busyVault10x = false;
 let busyVaultAction = false;
+let vaultStatusTimer = null;
 
 function text(node, value) {
-  if (node && node.textContent !== value) node.textContent = value;
+  if (!node) return;
+  if (node.textContent !== value) node.textContent = value;
+  if (node.matches?.('[data-vault-status]')) {
+    node.classList.add('is-visible');
+    clearTimeout(vaultStatusTimer);
+    vaultStatusTimer = setTimeout(() => node.classList.remove('is-visible'), 6000);
+  }
 }
 
 function adCopy() {
