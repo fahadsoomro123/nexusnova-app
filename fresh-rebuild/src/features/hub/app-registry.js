@@ -25,6 +25,13 @@ export const novaApps = Object.freeze([
   { id: 'nova-drive', name: 'Nova Drive', category: 'Live & Local', icon: 'drive', description: 'Automatic vehicle and bicycle trips, live speed, analytics and recovery' },
   { id: 'nova-track', name: 'Nova Track', category: 'Live & Local', icon: 'track', description: 'Legacy route into Nova Drive history and analytics' },
 
+  { id: 'ai-photo-studio', name: 'AI Photo Studio', category: 'NexusNova Pro Studio', icon: 'ai', description: '3D pro photo editor, AI visual director and premium generation gateway' },
+  { id: 'ai-video-studio', name: 'AI Video Studio', category: 'NexusNova Pro Studio', icon: 'entertainment', description: 'Local trim, color, render, AI director and premium video gateway' },
+  { id: 'pdf-pro', name: 'PDF Pro', category: 'NexusNova Pro Studio', icon: 'document', description: 'Local merge, split, organize and image-to-PDF document engine' },
+  { id: 'ai-transcribe', name: 'AI Transcribe', category: 'NexusNova Pro Studio', icon: 'chat', description: 'Audio/video transcription, summaries and translation workspace' },
+  { id: 'ai-writing-pro', name: 'AI Writing Pro', category: 'NexusNova Pro Studio', icon: 'notes', description: 'Compose, rewrite, inspect and export polished writing' },
+  { id: 'digital-sign', name: 'Digital Sign', category: 'NexusNova Pro Studio', icon: 'document', description: 'Draw, place and export visual electronic signatures locally' },
+
   { id: 'ai', name: 'Nova AI', category: 'Discover', icon: 'ai', description: 'AI chat, voice and research tools' },
   { id: 'smart', name: 'Smart Hub', category: 'Discover', icon: 'smart', description: 'AI, voice, file understanding and real-data daily brief' },
   { id: 'chat', name: 'Community Chat', category: 'Discover', icon: 'chat', description: 'Real-time NexusNova community messages' },

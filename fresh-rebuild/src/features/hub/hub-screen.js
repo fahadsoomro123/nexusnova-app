@@ -3,6 +3,7 @@ import { hubApps } from './app-registry.js';
 const hubState = { scrollY: 0, lastAppId: '', query: '' };
 let restoreOnNextRender = false;
 const HIDDEN_HUB_APP_IDS = new Set(['nova-track']);
+const PREMIUM_STUDIO_APP_IDS = new Set(['ai-photo-studio','ai-video-studio','pdf-pro','ai-transcribe','ai-writing-pro','digital-sign']);
 
 export function requestHubReturnRestore() {
   restoreOnNextRender = true;
@@ -10,6 +11,12 @@ export function requestHubReturnRestore() {
 
 function currentScrollY() {
   return Math.max(0, Number(document.scrollingElement?.scrollTop ?? window.scrollY) || 0);
+}
+
+function hubIconPath(id) {
+  return PREMIUM_STUDIO_APP_IDS.has(String(id || ''))
+    ? `./assets/icons/nova-hub/${id}.svg`
+    : `./assets/icons/nova-hub/${id}.webp`;
 }
 
 export function hubScreen({ openApp } = {}) {
@@ -49,7 +56,7 @@ export function hubScreen({ openApp } = {}) {
           return `
             <button class="nx-app-card${isLastOpened ? ' is-last-opened' : ''}" type="button" data-app-id="${app.id}"${isLastOpened ? ' data-last-opened="true"' : ''} aria-label="Open ${app.name}">
               <span class="nx-app-card__icon" aria-hidden="true">
-                <img src="./assets/icons/nova-hub/${app.id}.webp" alt="" width="192" height="192" loading="lazy" decoding="async" draggable="false">
+                <img src="${hubIconPath(app.id)}" alt="" width="192" height="192" loading="lazy" decoding="async" draggable="false">
               </span>
               <strong>${app.name}</strong>
             </button>
