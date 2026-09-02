@@ -1,0 +1,71 @@
+name: NexusNova Cloudflare Mining Deploy
+
+on:
+  push:
+    branches:
+      - nova-sol57-pro-v128
+    paths:
+      - 'cloudflare/nova-mining-rewards-worker/**'
+      - '.github/workflows/nexusnova-cloudflare-mining-deploy.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nexusnova-cloudflare-mining-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[cloudflare-mining-deploy]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Verify v2 Worker syntax and safety markers
+        run: |
+          node --check cloudflare/nova-mining-rewards-worker/src/index-v2.js
+          grep -F "NOVA_MAX_BOOSTER_USES = 2" cloudflare/nova-mining-rewards-worker/src/index-v2.js
+          grep -F "NOVA_MAX_RAIN_USES = 4" cloudflare/nova-mining-rewards-worker/src/index-v2.js
+          grep -F "novaVaultPending:inv.pendingVaults" cloudflare/nova-mining-rewards-worker/src/index-v2.js
+          grep -F "miningActive:true" cloudflare/nova-mining-rewards-worker/src/index-v2.js
+          grep -F "ads_do_not_grant_mining_or_token_value" cloudflare/nova-mining-rewards-worker/src/index-v2.js
+          if grep -F "WATCH_REWARD_NVX" cloudflare/nova-mining-rewards-worker/src/index-v2.js; then
+            echo '::error::Direct ad-to-NVX marker found in Cloudflare v2 worker.'
+            exit 1
+          fi
+
+      - name: Require Cloudflare deployment credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${CLOUDFLARE_API_TOKEN:-}" ] || [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
+            echo '::error::Cloudflare GitHub credentials are not configured.'
+            echo '::error::Expected CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID repository secrets.'
+            exit 1
+          fi
+
+      - name: Deploy nova-mining-rewards v2
+        run: npx --yes wrangler@latest deploy --config cloudflare/nova-mining-rewards-worker/wrangler.toml
+
+      - name: Verify live Worker health
+        shell: bash
+        run: |
+          set -euo pipefail
+          sleep 3
+          body="$(curl --fail --silent --show-error --max-time 15 https://nova-mining-rewards.fahadsoomro123.workers.dev/health)"
+          echo "$body"
+          echo "$body" | grep -F '"version":"v2"'
+          echo "$body" | grep -F '"functionsDependency":false'
+          echo "$body" | grep -F '"serviceAccountReady":true'
