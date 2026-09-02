@@ -1,0 +1,82 @@
+name: NexusNova Mining Functions Deploy
+
+on:
+  push:
+    branches:
+      - nova-sol57-pro-v128
+    paths:
+      - '.github/workflows/nexusnova-mining-functions-deploy.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nexusnova-mining-functions-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[firebase-deploy]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      FIREBASE_PROJECT_ID: nexusnova-6ade2
+      FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_NEXUSNOVA_6ADE2 }}
+      FIREBASE_TOKEN_VALUE: ${{ secrets.FIREBASE_TOKEN }}
+    steps:
+      - name: Checkout verified branch
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Re-run Mining safety checks before deploy
+        run: |
+          node --check functions/index.js
+          node --check functions/novaVault10x.js
+          node --check functions/admobRewardedSsvV2.js
+          python3 .github/scripts/functions-appcheck-readiness.py
+          node .github/scripts/mining-release-safety-smoke.mjs
+
+      - name: Select Firebase credential without exposing it
+        id: auth
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "${FIREBASE_SERVICE_ACCOUNT_JSON:-}" ]; then
+            cred="$RUNNER_TEMP/nexusnova-firebase-service-account.json"
+            printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$cred"
+            chmod 600 "$cred"
+            echo "GOOGLE_APPLICATION_CREDENTIALS=$cred" >> "$GITHUB_ENV"
+            echo "mode=service-account" >> "$GITHUB_OUTPUT"
+            echo "Firebase deploy credential: service account configured."
+          elif [ -n "${FIREBASE_TOKEN_VALUE:-}" ]; then
+            echo "mode=token" >> "$GITHUB_OUTPUT"
+            echo "Firebase deploy credential: legacy CI token configured."
+          else
+            echo '::error::No Firebase deploy credential is configured in this repository.'
+            echo '::error::Expected FIREBASE_SERVICE_ACCOUNT_NEXUSNOVA_6ADE2 or FIREBASE_TOKEN.'
+            exit 1
+          fi
+
+      - name: Install Functions dependencies
+        run: npm install --prefix functions --ignore-scripts --no-audit --no-fund
+
+      - name: Deploy only verified Mining and Vault functions
+        shell: bash
+        run: |
+          set -euo pipefail
+          targets='functions:finishMiningSession,functions:openNovaVault,functions:useNovaBoost,functions:useNovaTimeWarp,functions:openNovaVaultBoosted,functions:admobRewardedSsv'
+          if [ "${{ steps.auth.outputs.mode }}" = 'service-account' ]; then
+            npx --yes firebase-tools@latest deploy --project "$FIREBASE_PROJECT_ID" --only "$targets" --non-interactive
+          else
+            npx --yes firebase-tools@latest deploy --project "$FIREBASE_PROJECT_ID" --only "$targets" --non-interactive --token "$FIREBASE_TOKEN_VALUE"
+          fi
+
+      - name: Deployment summary
+        run: |
+          echo 'Mining/Vault Firebase Functions deployment completed.'
+          echo 'Android AdMob TEST_MODE was not changed by this workflow.'
