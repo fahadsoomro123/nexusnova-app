@@ -1,6 +1,7 @@
 import { icon } from '../../components/icons.js';
 import { backend } from '../../core/backend-adapter.js';
 import { adPolicy } from '../../core/ad-policy.js';
+import { toggleMiningCloudflare } from '../../core/nova-mining-rewards-store.js';
 
 const DAY_SECONDS = 86_400;
 const DAY_MS = DAY_SECONDS * 1000;
@@ -233,14 +234,37 @@ export async function mineScreen({ openHubApp, afterMiningAction } = {}) {
   const performMiningAction = async actionName => {
     let completed = false;
     try {
-      state = await backend.toggleMining();
+      const result = await toggleMiningCloudflare({ source:'fresh-rebuild-cloudflare-v2', action:actionName });
+      const startedAt = Math.max(0, Math.floor(Number(result?.miningStartedAt) || 0));
+      const nextBalance = Number(result?.balance);
+      const nextTotal = Number(result?.totalMined);
+      state = {
+        ...state,
+        availability:'ready',
+        active:result?.miningActive === true,
+        startedAt,
+        balance:Number.isFinite(nextBalance) ? nextBalance : state.balance,
+        totalMined:Number.isFinite(nextTotal) ? nextTotal : state.totalMined,
+        rate:Number.isFinite(state.rate) ? state.rate : 1,
+        sessionRemainingSeconds:result?.miningActive === true ? DAY_SECONDS : DAY_SECONDS,
+        sessionComplete:false,
+        halvingStage:state.halvingStage ?? 1,
+        novaVaultPending:Math.max(0, Math.floor(Number(result?.novaVaultPending) || 0)),
+        statusText:result?.renewed === true ? 'New 24H mining session started' : 'Mining active'
+      };
       render(state);
       completed = true;
+      setTimeout(async () => {
+        try {
+          const fresh = await backend.getMiningSnapshot();
+          if (fresh?.availability === 'ready') render(fresh);
+        } catch {}
+      }, 300);
     } catch (error) {
       state = {
         ...state,
-        availability: 'error',
-        statusText: error?.message || 'Mining action failed.'
+        availability:'error',
+        statusText:error?.message || 'Cloudflare mining action failed.'
       };
       render(state);
     } finally {
@@ -273,7 +297,7 @@ export async function mineScreen({ openHubApp, afterMiningAction } = {}) {
 
     state = {
       ...state,
-      statusText: renewingCompletedSession
+      statusText:renewingCompletedSession
         ? 'Starting the next secure 24-hour session…'
         : 'Starting secure mining…'
     };
