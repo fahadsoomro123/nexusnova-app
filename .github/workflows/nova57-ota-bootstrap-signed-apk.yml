@@ -59,12 +59,17 @@ jobs:
           grep -Fq 'NEXUS_ADS_TEST_MODE", "true"' NexusNovaAndroid/app/build.gradle.kts
           grep -Fq 'ca-app-pub-3940256099942544~3347511713' NexusNovaAndroid/app/build.gradle.kts
           grep -Fq 'BuildConfig.NEXUS_ADS_TEST_MODE' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
-          grep -Fq '/21775744923/example/rewarded' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
-          grep -Fq '/21775744923/example/interstitial' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
+          grep -Fq 'ca-app-pub-3940256099942544/5224354917' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
+          grep -Fq 'ca-app-pub-3940256099942544/5354046379' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
+          grep -Fq 'ca-app-pub-3940256099942544/1033173712' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt
+          if grep -Fq '/21775744923/example/' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt; then
+            echo '::error::Old Google Ad Manager demo units are still present.'
+            exit 1
+          fi
           grep -Fq 'https://nova-mining-rewards.fahadsoomro123.workers.dev' fresh-rebuild/src/core/nova-mining-rewards-store.js
           grep -Fq "toggleMiningCloudflare({ source:'fresh-rebuild-cloudflare-v2' })" fresh-rebuild/src/core/backend-adapter.js
           grep -Fq "BUNDLED_WEB_BASE = \"$V14_BASE\"" NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt
-          echo 'Native TEST ad bridge + Cloudflare v2 + OTA baseline: PASS'
+          echo 'Native TEST ad bridge + AdMob TEST units + Cloudflare v2 + OTA baseline: PASS'
 
       - name: Setup Java 17
         uses: actions/setup-java@v4
@@ -157,7 +162,6 @@ jobs:
           APK=app/build/outputs/apk/release/app-release.apk
           test -s "$APK"
 
-          # Canonical current web bundle must be inside the APK build, not only OTA.
           test -s app/src/main/assets/www/src/core/native-ads.js
           test -s app/src/main/assets/www/src/core/backend-adapter.js
           test -s app/src/main/assets/www/src/core/nova-mining-rewards-store.js
@@ -189,7 +193,7 @@ jobs:
           cp "$GITHUB_WORKSPACE/NexusNovaAndroid/app/build/outputs/apk/release/app-release.apk" "$OUT/$APK_NAME"
           sha256sum "$OUT/$APK_NAME" > "$OUT/SHA256.txt"
           cp "$GITHUB_WORKSPACE/apk-signature.txt" "$OUT/signature.txt"
-          printf 'Source commit: %s\nBranch: %s\nVersion name: %s\nVersion code: %s\nPermanent signature: PASS\nNative rewarded bridge: PASS\nNative interstitial bridge: PASS\nCloudflare v2 bundled: PASS\nOTA baseline: %s\nAdMob mode: GOOGLE TEST LOCKED\n' "$GITHUB_SHA" "$GITHUB_REF_NAME" "$VERSION_NAME" "$VERSION_CODE" "$V14_BASE" > "$OUT/BUILD-STATUS.txt"
+          printf 'Source commit: %s\nBranch: %s\nVersion name: %s\nVersion code: %s\nPermanent signature: PASS\nNative rewarded bridge: PASS\nNative interstitial bridge: PASS\nAdMob TEST units: PASS\nCloudflare v2 bundled: PASS\nOTA baseline: %s\nAdMob mode: GOOGLE TEST LOCKED\n' "$GITHUB_SHA" "$GITHUB_REF_NAME" "$VERSION_NAME" "$VERSION_CODE" "$V14_BASE" > "$OUT/BUILD-STATUS.txt"
 
           git config user.name 'NexusNova Signed APK Bot'
           git config user.email 'actions@users.noreply.github.com'
