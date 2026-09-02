@@ -1,5 +1,6 @@
 import { icon } from '../../components/icons.js';
 import { backend } from '../../core/backend-adapter.js';
+import { adPolicy } from '../../core/ad-policy.js';
 
 const DAY_SECONDS = 86_400;
 const DAY_MS = DAY_SECONDS * 1000;
@@ -247,9 +248,15 @@ export async function mineScreen({ openHubApp, afterMiningAction } = {}) {
       render(state);
     }
 
-    if (completed && typeof afterMiningAction === 'function') {
-      try { await afterMiningAction(actionName); }
-      catch (error) { console.warn('[NexusNova Fresh] mining post-action ad:', error); }
+    if (completed) {
+      try {
+        const showAd = typeof afterMiningAction === 'function'
+          ? afterMiningAction
+          : action => adPolicy.showMiningActionAd(action);
+        await showAd(actionName);
+      } catch (error) {
+        console.warn('[NexusNova Fresh] mining post-action ad:', error);
+      }
     }
   };
 
