@@ -24,7 +24,14 @@ jobs:
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON || secrets.FIREBASE_SERVICE_ACCOUNT || secrets.GCP_SERVICE_ACCOUNT_JSON || secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+      SA_FIREBASE_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+      SA_FIREBASE: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+      SA_PROJECT_DEPLOY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_NEXUSNOVA_6ADE2 }}
+      SA_GCP_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+      SA_GOOGLE_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+      SA_GCP_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS_JSON }}
+      SA_FIREBASE_CREDENTIALS: ${{ secrets.FIREBASE_CREDENTIALS_JSON }}
+      SA_GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -47,59 +54,109 @@ jobs:
             exit 1
           fi
 
-      - name: Require deployment and Firestore credentials
+      - name: Require Cloudflare deployment credentials
         shell: bash
         run: |
           set -euo pipefail
           test -n "${CLOUDFLARE_API_TOKEN:-}" || { echo '::error::CLOUDFLARE_API_TOKEN is not configured.'; exit 2; }
           test -n "${CLOUDFLARE_ACCOUNT_ID:-}" || { echo '::error::CLOUDFLARE_ACCOUNT_ID is not configured.'; exit 2; }
-          test -n "${FIREBASE_SERVICE_ACCOUNT_JSON:-}" || { echo '::error::Firebase service-account JSON GitHub secret is not configured.'; exit 3; }
-          python3 - <<'PY'
-          import json, os
-          data=json.loads(os.environ['FIREBASE_SERVICE_ACCOUNT_JSON'])
-          assert data.get('client_email'), 'service account client_email missing'
-          assert 'BEGIN PRIVATE KEY' in data.get('private_key',''), 'service account private_key missing'
-          assert data.get('project_id') == 'nexusnova-6ade2', 'unexpected Firebase project'
-          print('Firebase service-account JSON: VALID for nexusnova-6ade2')
-          PY
 
-      - name: Verify service account can read Firestore
+      - name: Select Firestore-capable service account
         shell: bash
         run: |
           set -euo pipefail
           python3 -m pip install --quiet google-auth requests
           python3 - <<'PY'
-          import json, os, requests
+          import json, os, pathlib, requests
           from google.oauth2 import service_account
           from google.auth.transport.requests import Request
 
-          info=json.loads(os.environ['FIREBASE_SERVICE_ACCOUNT_JSON'])
-          creds=service_account.Credentials.from_service_account_info(
-              info,
-              scopes=['https://www.googleapis.com/auth/datastore']
-          )
-          creds.refresh(Request())
-          project=info['project_id']
-          # A deliberately nonexistent, non-reserved document safely tests
-          # Firestore document-get IAM. 404 means auth/IAM succeeded.
-          url=f'https://firestore.googleapis.com/v1/projects/{project}/databases/(default)/documents/users/nexusnova-cloudflare-permission-probe-do-not-create'
-          response=requests.get(url, headers={'Authorization': f'Bearer {creds.token}'}, timeout=15)
-          if response.status_code not in (200, 404):
+          candidates = [
+              ('FIREBASE_SERVICE_ACCOUNT_JSON', os.environ.get('SA_FIREBASE_JSON','')),
+              ('FIREBASE_SERVICE_ACCOUNT', os.environ.get('SA_FIREBASE','')),
+              ('FIREBASE_SERVICE_ACCOUNT_NEXUSNOVA_6ADE2', os.environ.get('SA_PROJECT_DEPLOY','')),
+              ('GCP_SERVICE_ACCOUNT_JSON', os.environ.get('SA_GCP_JSON','')),
+              ('GOOGLE_SERVICE_ACCOUNT_JSON', os.environ.get('SA_GOOGLE_JSON','')),
+              ('GCP_CREDENTIALS_JSON', os.environ.get('SA_GCP_CREDENTIALS','')),
+              ('FIREBASE_CREDENTIALS_JSON', os.environ.get('SA_FIREBASE_CREDENTIALS','')),
+              ('GOOGLE_CREDENTIALS', os.environ.get('SA_GOOGLE_CREDENTIALS','')),
+          ]
+          available = [(name, raw) for name, raw in candidates if raw.strip()]
+          if not available:
+              print('::error::No Firebase/Google service-account JSON secret is configured in this repository.')
+              raise SystemExit(3)
+
+          run_id = ''.join(ch for ch in os.environ.get('GITHUB_RUN_ID','probe') if ch.isdigit()) or 'probe'
+          probe_id = f'probe-{run_id}'
+          selected = None
+
+          for name, raw in available:
               try:
-                  err=response.json().get('error', {})
-              except Exception:
-                  err={}
-              print(f'::error::Firestore IAM probe HTTP {response.status_code} status={err.get("status","unknown")}')
-              print(f'::error::{str(err.get("message","Firestore access denied"))[:260]}')
+                  info = json.loads(raw)
+                  if info.get('project_id') != 'nexusnova-6ade2':
+                      print(f'{name}: skipped (different project)')
+                      continue
+                  if not info.get('client_email') or 'BEGIN PRIVATE KEY' not in info.get('private_key',''):
+                      print(f'{name}: skipped (incomplete JSON)')
+                      continue
+
+                  creds = service_account.Credentials.from_service_account_info(
+                      info,
+                      scopes=['https://www.googleapis.com/auth/datastore']
+                  )
+                  creds.refresh(Request())
+                  headers = {'Authorization': f'Bearer {creds.token}', 'Content-Type': 'application/json'}
+                  project = info['project_id']
+
+                  read_url = f'https://firestore.googleapis.com/v1/projects/{project}/databases/(default)/documents/users/nexusnova-cloudflare-permission-probe-do-not-create'
+                  read = requests.get(read_url, headers=headers, timeout=15)
+                  if read.status_code not in (200, 404):
+                      print(f'{name}: Firestore read probe HTTP {read.status_code}')
+                      continue
+
+                  write_url = f'https://firestore.googleapis.com/v1/projects/{project}/databases/(default)/documents/nexusnovaCloudflareHealth/{probe_id}'
+                  write = requests.patch(
+                      write_url,
+                      headers=headers,
+                      json={'fields': {'ok': {'booleanValue': True}, 'source': {'stringValue': 'github-permission-probe'}}},
+                      timeout=15
+                  )
+                  if write.status_code != 200:
+                      print(f'{name}: Firestore write probe HTTP {write.status_code}')
+                      continue
+
+                  cleanup = requests.delete(write_url, headers=headers, timeout=15)
+                  if cleanup.status_code not in (200, 404):
+                      print(f'{name}: warning - probe cleanup HTTP {cleanup.status_code}')
+
+                  selected = (name, info)
+                  print(f'{name}: Firestore READ+WRITE probe PASS')
+                  break
+              except Exception as exc:
+                  print(f'{name}: unusable ({type(exc).__name__})')
+
+          if not selected:
+              print('::error::All configured service accounts failed Firestore READ+WRITE access for nexusnova-6ade2.')
+              print('::error::Grant a service account Cloud Datastore User (roles/datastore.user) or equivalent Firestore document read/write IAM, then rerun this workflow.')
               raise SystemExit(4)
-          print(f'Firestore service-account document-get probe: PASS (HTTP {response.status_code})')
+
+          name, info = selected
+          target = pathlib.Path('/tmp/nexusnova-firestore-service-account.json')
+          target.write_text(json.dumps(info, separators=(',', ':')), encoding='utf-8')
+          target.chmod(0o600)
+          with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as env_file:
+              env_file.write(f'NEXUSNOVA_FIRESTORE_SA_SOURCE={name}\n')
+          print(f'Selected runtime credential source: {name}')
           PY
 
       - name: Refresh Cloudflare runtime Firestore credential
         shell: bash
         run: |
           set -euo pipefail
-          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" | npx --yes wrangler@latest secret put FIREBASE_SERVICE_ACCOUNT_JSON --config cloudflare/nova-mining-rewards-worker/wrangler.toml
+          test -s /tmp/nexusnova-firestore-service-account.json
+          cat /tmp/nexusnova-firestore-service-account.json | npx --yes wrangler@latest secret put FIREBASE_SERVICE_ACCOUNT_JSON --config cloudflare/nova-mining-rewards-worker/wrangler.toml
+          rm -f /tmp/nexusnova-firestore-service-account.json
+          echo "Cloudflare runtime credential refreshed from ${NEXUSNOVA_FIRESTORE_SA_SOURCE}."
 
       - name: Deploy nova-mining-rewards v2
         run: npx --yes wrangler@latest deploy --config cloudflare/nova-mining-rewards-worker/wrangler.toml
