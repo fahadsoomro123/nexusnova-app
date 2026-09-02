@@ -1,7 +1,7 @@
-Source commit: e67dfc3aff7e04dfe74feed7c57133a93ba9378e
+Source commit: acb85808be2a6d3baf9f14753a453bcba3533a77
 Branch: nova-sol57-pro-v128
 Build type: debug/installable phone test
-APK bytes: 32672610
+APK bytes: 32676316
 Nova Drive v7 no-crop web assets staged: PASS
 Nova Drive native compile: PASS
 MainActivity sensor rotation source: PASS
