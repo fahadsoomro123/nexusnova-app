@@ -7,3 +7,8 @@ Build commit target: 9161c72982d0d6572fa049ac7dbf31e0688a9950
 Calculator mobile OTA marker: 2026-09-02
 Scope: phone-visible calculator fit/overflow and touch-device rendering performance only.
 Calculator logic/precision, Mine, mining backend, Drive/Tracker and unrelated app features remain unchanged.
+
+Calculator full-screen fit OTA marker: 2026-09-02
+Scope: calculator phone viewport sizing and removal of unused lower blank space only.
+Design skin, calculator engine/precision, Mine, mining backend, Drive/Tracker and unrelated app features remain unchanged.
+CSS target commit: 67fa7d1b3c130f74ae1369b6128972003a3e743a

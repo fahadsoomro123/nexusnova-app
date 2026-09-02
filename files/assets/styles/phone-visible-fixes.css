@@ -168,3 +168,35 @@
     transition-duration: .06s !important;
   }
 }
+
+/* Calculator phone viewport fill: sizing only. Keep the approved visual skin and
+   calculator engine unchanged, while using the empty lower shell space. */
+@media (max-width: 700px) and (min-height: 721px) {
+  .nx-everyday-calculator {
+    min-height: calc(100dvh - 156px) !important;
+  }
+  .nx-everyday-calculator .nx-calculator-pro {
+    min-height: calc(100dvh - 166px) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+  }
+  .nx-everyday-calculator .nx-calc-profile > button {
+    min-height: clamp(33px, 4.6dvh, 36px) !important;
+  }
+  .nx-everyday-calculator .nx-calc-screen {
+    min-height: clamp(96px, 13.5dvh, 104px) !important;
+  }
+  .nx-everyday-calculator .nx-calc-history > button {
+    min-height: clamp(28px, 4dvh, 31px) !important;
+  }
+  .nx-everyday-calculator .nx-calc-memory > [data-calc-key] {
+    min-height: clamp(29px, 4.1dvh, 32px) !important;
+  }
+  .nx-everyday-calculator[data-calc-profile="standard"] .nx-calc-bank > [data-calc-key] {
+    min-height: clamp(46px, 6.4dvh, 50px) !important;
+  }
+  .nx-everyday-calculator[data-calc-profile="pro"] .nx-calc-bank > [data-calc-key] {
+    min-height: clamp(30px, 4.3dvh, 33px) !important;
+  }
+}
