@@ -34,7 +34,8 @@ function patchVisibleCopy(root = document) {
   const badge = root.querySelector?.('.nx-vault-life-badge span');
   if (badge) text(badge, 'Milestone premium pool');
   const hint = root.querySelector?.('.nx-vault-life-hint');
-  if (hint && /10X weighted premium pool|Normal:/i.test(hint.textContent || '')) {
+  const hintText = hint?.textContent || '';
+  if (hint && !/10X:\s*Booster\s*45\b/i.test(hintText)) {
     hint.innerHTML = '<b>Normal:</b> NVX 60 • Booster 18 • Rain 17 • Warp 5 &nbsp; · &nbsp; <em>10X: Booster 45 • Rain 42.5 • Warp 12.5</em>';
   }
 }
