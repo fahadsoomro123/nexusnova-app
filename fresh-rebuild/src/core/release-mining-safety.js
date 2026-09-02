@@ -89,14 +89,23 @@ async function showSupportRewardedAd(button) {
   const status = statusFor(button, '[data-watch-status]');
   text(status, 'Preparing rewarded ad…');
   try {
-    const user = await requireFirebaseUser({ verified:true });
-    text(status, nativeAds.status().testMode ? 'Opening Google TEST rewarded ad…' : 'Opening rewarded ad…');
-    const result = await nativeAds.showRewarded({ purpose:'task-watch-ad', userId:user.uid });
+    const testMode = nativeAds.status().testMode === true;
+    let userId = '';
+
+    // TEST rewarded ads are diagnostics only and credit no value, so they must
+    // remain testable even while Firebase/Auth/App Check is having an outage.
+    if (!testMode) {
+      const user = await requireFirebaseUser({ verified:true });
+      userId = user.uid;
+    }
+
+    text(status, testMode ? 'Opening Google TEST rewarded ad…' : 'Opening rewarded ad…');
+    const result = await nativeAds.showRewarded({ purpose:'task-watch-ad', userId });
     if (!result.earned) {
       text(status, 'Ad closed before completion. No NVX or mining reward was changed.');
       return;
     }
-    text(status, nativeAds.status().testMode || result.testMode
+    text(status, testMode || result.testMode
       ? '✓ TEST rewarded ad completed. No NVX or mining reward was credited.'
       : '✓ Rewarded ad completed. No NVX or mining reward was credited.');
   } catch (error) {
