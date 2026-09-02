@@ -1,8 +1,9 @@
 /* Nova Drive / Vehicle Tracking approved visual viewport lock.
-   The UI module writes pixel viewport/canvas variables from visualViewport so
-   older Android WebViews never resolve a percentage height against an
-   indefinite absolute-positioned ancestor. Each approved PNG keeps its own
-   native aspect ratio; a centered cover crop removes letterbox gaps. */
+   2026-09-02 safe-edge patch:
+   - preserve the exact approved PNG aspect ratios (never stretch)
+   - cap horizontal overscan so side telemetry remains readable
+   - keep the small unavoidable portrait-ratio remainder inside the cockpit frame
+   - remove duplicate painted controls while retaining their real hit targets */
 
 html.nx-approved-drive-active,
 html.nx-approved-drive-active body {
@@ -13,10 +14,9 @@ html.nx-approved-drive-active body {
   margin: 0 !important;
   overflow: hidden !important;
   overscroll-behavior: none !important;
+  background: #02070d !important;
 }
 
-/* The approved Drive artwork already contains its own bottom app dock, so the
-   generic HTML dock must not reserve a second strip below it. */
 html.nx-approved-drive-active body .nx-app {
   position: fixed !important;
   inset: 0 !important;
@@ -26,6 +26,8 @@ html.nx-approved-drive-active body .nx-app {
   max-height: none !important;
   margin: 0 !important;
   overflow: hidden !important;
+  background:
+    linear-gradient(180deg, #071522 0%, #02070d 8%, #01050a 50%, #02070d 92%, #071522 100%) !important;
 }
 
 html.nx-approved-drive-active body .nx-app .nx-stage,
@@ -51,7 +53,6 @@ html.nx-approved-drive-active .nx-stage > .nx-screen.nx-drive-v3-screen {
   transform: none !important;
 }
 
-/* Fixed positioning deliberately escapes every legacy Drive shell height. */
 html.nx-approved-drive-active .nxdr3 > .nx-approved-drive {
   position: fixed !important;
   top: 0 !important;
@@ -67,6 +68,8 @@ html.nx-approved-drive-active .nxdr3 > .nx-approved-drive {
   margin: 0 !important;
   padding: 0 !important;
   overflow: hidden !important;
+  background:
+    linear-gradient(180deg, #071522 0%, #02070d 8%, #01050a 50%, #02070d 92%, #071522 100%) !important;
 }
 
 html.nx-approved-drive-active .nx-drive-v3-screen > .nx-app-head {
@@ -77,17 +80,18 @@ html.nx-approved-drive-active .nx-drive-v3-screen > [data-app-mount] > .nxdr3 {
   display: block !important;
 }
 
-/* Drive is 864x1472; Tracker is 941x1672. Their independent pixel canvas
-   variables are calculated by JS with cover geometry. Artwork and controls
-   therefore share one coordinate system without stretching either PNG. */
+/* The phone is taller/narrower than either approved raster. Full-height cover
+   cropped ~70 px per side on this device. Limit that overscan to ~30 px so the
+   SPEED/BATTERY/POWER/HEADING panels stay readable, while preserving the PNG's
+   native aspect ratio. The small remaining top/bottom area is cockpit-frame
+   background, not a second viewport or an image stretch. */
 html.nx-approved-drive-active .nx-approved-view {
   position: absolute !important;
   top: 50% !important;
   left: 50% !important;
   right: auto !important;
   bottom: auto !important;
-  width: var(--nx-approved-canvas-w) !important;
-  height: var(--nx-approved-canvas-h) !important;
+  height: auto !important;
   min-width: 0 !important;
   min-height: 0 !important;
   max-width: none !important;
@@ -96,22 +100,19 @@ html.nx-approved-drive-active .nx-approved-view {
   overflow: hidden !important;
   transform: translate(-50%, -50%) !important;
   transform-origin: center !important;
+  --nx-approved-crop-x: min(30px, 4.5vw) !important;
 }
 
 html.nx-approved-drive-active .nx-approved-view[data-approved-drive-view] {
-  --nx-approved-canvas-w: var(--nx-approved-drive-cover-w, 100vw);
-  --nx-approved-canvas-h: var(--nx-approved-drive-cover-h, max(100dvh, 170.370371vw));
+  width: calc(var(--nx-approved-vw, 100vw) + min(60px, 9vw)) !important;
   aspect-ratio: 864 / 1472 !important;
 }
 
 html.nx-approved-drive-active .nx-approved-view[data-approved-tracker-view] {
-  --nx-approved-canvas-w: var(--nx-approved-tracker-cover-w, 100vw);
-  --nx-approved-canvas-h: var(--nx-approved-tracker-cover-h, max(100dvh, 177.683316vw));
+  width: calc(var(--nx-approved-vw, 100vw) + min(60px, 9vw)) !important;
   aspect-ratio: 941 / 1672 !important;
 }
 
-/* Canvas and source ratios are identical, so contain fills exactly and cannot
-   introduce the old Tracker side inset or any image distortion. */
 html.nx-approved-drive-active .nx-approved-art {
   position: absolute !important;
   inset: 0 !important;
@@ -124,6 +125,82 @@ html.nx-approved-drive-active .nx-approved-art {
   filter: none !important;
   transform: none !important;
   image-rendering: auto !important;
+}
+
+/* The approved PNG already contains the domain strip and both bottom mode tabs.
+   Keep the live buttons as transparent hit targets only; painting them again was
+   the source of the double navigation / double centre-logo borders. */
+html.nx-approved-drive-active .nx-approved-domain-strip,
+html.nx-approved-drive-active .nx-approved-mode-tab {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+html.nx-approved-drive-active .nx-approved-domain-strip > *,
+html.nx-approved-drive-active .nx-approved-mode-tab > * {
+  visibility: hidden !important;
+  opacity: 0 !important;
+}
+
+html.nx-approved-drive-active .nx-approved-mode-tab::after {
+  display: none !important;
+}
+
+/* Pair and Open Map already exist in the approved tracker raster. Their DOM
+   buttons remain fully clickable but no longer draw a second card/border. */
+html.nx-approved-drive-active .nx-approved-action:not(.security) {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+html.nx-approved-drive-active .nx-approved-action:not(.security) > * {
+  visibility: hidden !important;
+  opacity: 0 !important;
+}
+
+/* The source raster says REVOKE. Final product behaviour is Tracker Security,
+   so only the inner face is replaced. Shrinking it inside the original raster
+   border removes the old double-border effect while keeping the approved shell. */
+html.nx-approved-drive-active .nx-approved-action.security {
+  margin: 4px !important;
+  border: 0 !important;
+  border-radius: 16px !important;
+  background: linear-gradient(180deg, #111b35, #071321 58%, #030910) !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+/* When paired, cover only the inside of the source Pair Tracker card. The
+   original outer card border remains the single visible border. */
+html.nx-approved-drive-active .nx-approved-paired-mask.is-visible {
+  left: calc(var(--nx-approved-crop-x, 0px) + 3vw + 4px) !important;
+  top: calc(67.2% + 4px) !important;
+  width: calc(30.3vw - 8px) !important;
+  height: calc(10.3% - 8px) !important;
+  border: 0 !important;
+  border-radius: 16px !important;
+  background: linear-gradient(180deg, rgba(8,31,45,.995), rgba(3,14,24,.998)) !important;
+  box-shadow: none !important;
+  place-items: center !important;
+  padding: 0 6px !important;
+  color: #70ffae !important;
+}
+
+html.nx-approved-drive-active .nx-approved-paired-mask.is-visible::before {
+  display: none !important;
+}
+
+/* Keep the functional back control fully inside the visible safe edge. */
+html.nx-approved-drive-active .nx-approved-back {
+  left: var(--nx-approved-crop-x, 0px) !important;
+  min-width: 44px !important;
 }
 
 html.nx-approved-drive-active .nx-dock,
