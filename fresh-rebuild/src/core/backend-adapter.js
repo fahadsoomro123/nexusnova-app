@@ -1,3 +1,5 @@
+import { toggleMiningCloudflare } from './nova-mining-rewards-store.js';
+
 const EMPTY_MINING = Object.freeze({
   availability: 'unbound',
   active: false,
@@ -47,11 +49,35 @@ class BackendAdapter {
   }
 
   async toggleMining() {
-    if (!this.bridge || typeof this.bridge.toggleMining !== 'function') {
-      throw new Error('Mining backend adapter is not connected yet.');
+    // Mining mutations are permanently routed through Cloudflare v2. Firebase
+    // remains the identity/account store and live snapshot source, but App Check
+    // or callable Functions are not required for START / CLAIM & RENEW writes.
+    const result = await toggleMiningCloudflare({ source:'fresh-rebuild-cloudflare-v2' });
+
+    // After the Worker commits Firestore, read the canonical normalized snapshot
+    // through the existing bridge so the Mine UI receives its usual shape.
+    if (this.bridge && typeof this.bridge.getMiningSnapshot === 'function') {
+      try {
+        const fresh = await this.bridge.getMiningSnapshot();
+        const normalized = this.normalizeMining(fresh);
+        this.emit(normalized);
+        return normalized;
+      } catch (error) {
+        console.warn('[NexusNova Fresh] post-Cloudflare mining snapshot:', error);
+      }
     }
-    const result = await this.bridge.toggleMining();
-    const normalized = this.normalizeMining(result);
+
+    // Safe fallback if the read channel is temporarily unavailable.
+    const normalized = this.normalizeMining({
+      availability:'ready',
+      active:result?.miningActive === true,
+      startedAt:Number(result?.miningStartedAt) || 0,
+      balance:result?.balance,
+      totalMined:result?.totalMined,
+      rate:1,
+      novaVaultPending:result?.novaVaultPending,
+      statusText:result?.renewed ? 'Mining renewed through Cloudflare' : 'Mining active through Cloudflare'
+    });
     this.emit(normalized);
     return normalized;
   }
