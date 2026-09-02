@@ -3,22 +3,15 @@ const {getFirestore}=require("firebase-admin/firestore");
 const {randomInt}=require("node:crypto");
 
 /*
-  Nova Vault 10x secure opener.
-  Rewarded purpose contract: nova-vault-10x
+  Nova Vault 10X secure opener.
 
-  Security model:
-  - The rewarded ad itself never writes NVX or inventory from the WebView.
-  - A Google-signed AdMob SSV callback grants novaVaultBoostCredits.
-  - This callable requires Auth + verified email + App Check.
+  Release model:
+  - 10X credits are earned from normal Vault milestones, never from ads.
   - One boosted opening consumes exactly one pending Vault and one server credit.
+  - The boosted pool contains premium utility items only: Booster, Nova Rain,
+    and 24H Time Warp. It never grants NVX directly.
   - The random draw happens once before the Firestore transaction so transaction
     retries cannot be used as a reroll oracle.
-
-  "10x" is implemented as a transparent weighted-pool boost: the three premium
-  item weights (Booster/Rain/Time Warp) are each multiplied by 10 relative to the
-  normal NVX weight. The resulting normalized display odds are approximately:
-  NVX 13.04%, Booster 39.13%, Rain 36.96%, Time Warp 10.87%.
-  Boosted NVX drops are 5-25 NVX instead of the normal 1-10 NVX range.
 */
 
 const db=getFirestore();
@@ -32,14 +25,6 @@ function verifiedUidOf(req){
     throw new HttpsError("failed-precondition","Verify your email before using Nova Vault rewards.");
   }
   return req.auth.uid;
-}
-
-function profileNumber(data,field){
-  const value=data?.[field];
-  if(typeof value!=="number"||!Number.isFinite(value)||value<0||value>Number.MAX_SAFE_INTEGER){
-    throw new HttpsError("failed-precondition",`Account data for ${field} needs repair. No value was changed.`);
-  }
-  return value;
 }
 
 function optionalInt(data,field,defaultValue=0){
@@ -59,14 +44,11 @@ function requireCooldown(data,now){
 }
 
 function drawBoostedReward(){
-  // Normal weights are NVX 6000 / Booster 1800 / Rain 1700 / Warp 500.
-  // Premium weights are x10 while the NVX weight remains unchanged.
-  const roll=randomInt(46000);
-  const type=roll<6000?"nvx":roll<24000?"booster":roll<41000?"rain":"time-warp";
-  return {
-    type,
-    amount:type==="nvx"?randomInt(5,26):1
-  };
+  // Premium-only 10X pool, normalized from the previous premium weights:
+  // Booster 18,000 / Rain 17,000 / Time Warp 5,000 = 40,000 total.
+  const roll=randomInt(40000);
+  const type=roll<18000?"booster":roll<35000?"rain":"time-warp";
+  return {type,amount:1};
 }
 
 exports.openNovaVaultBoosted=protectedCallable(async req=>{
@@ -88,7 +70,7 @@ exports.openNovaVaultBoosted=protectedCallable(async req=>{
       throw new HttpsError("failed-precondition","No Nova Vault is ready. Complete a natural 24-hour mining session first.");
     }
     if(credits<1){
-      throw new HttpsError("failed-precondition","10x chance is not unlocked yet. Complete the rewarded ad first.");
+      throw new HttpsError("failed-precondition","10X credit is not ready yet. Open normal Nova Vaults to earn a milestone credit.");
     }
 
     const cooldownUntil=now+NOVA_COOLDOWN;
@@ -98,22 +80,15 @@ exports.openNovaVaultBoosted=protectedCallable(async req=>{
       novaFeatureCooldownUntil:cooldownUntil,
       novaLastVaultReward:reward.type,
       novaLastVaultAmount:reward.amount,
-      novaLastVaultMode:"10x",
+      novaLastVaultMode:"10x-milestone",
       novaLastVaultOpenedAt:now
     };
 
-    let balance=profileNumber(data,"balance");
     let booster=optionalInt(data,"novaBoosterInventory",0);
     let rain=optionalInt(data,"novaRainInventory",0);
     let timeWarp=optionalInt(data,"novaTimeWarpInventory",0);
 
-    if(reward.type==="nvx"){
-      if(balance>Number.MAX_SAFE_INTEGER-reward.amount){
-        throw new HttpsError("failed-precondition","Balance limit reached. No value was changed.");
-      }
-      balance+=reward.amount;
-      updates.balance=balance;
-    }else if(reward.type==="booster"){
+    if(reward.type==="booster"){
       booster+=1;
       updates.novaBoosterInventory=booster;
     }else if(reward.type==="rain"){
@@ -128,9 +103,8 @@ exports.openNovaVaultBoosted=protectedCallable(async req=>{
     return {
       opened:true,
       boosted:true,
-      boostMode:"10x-weighted-pool",
+      boostMode:"10x-milestone-premium-items",
       reward,
-      balance,
       cooldownUntil,
       novaVaultPending:pending-1,
       novaVaultBoostCredits:credits-1,
@@ -140,14 +114,12 @@ exports.openNovaVaultBoosted=protectedCallable(async req=>{
 });
 
 exports.__novaVault10xTest=Object.freeze({
-  premiumWeightMultiplier:10,
-  totalWeight:46000,
-  boostedNvxMin:5,
-  boostedNvxMax:25,
+  totalWeight:40000,
+  directNvx:false,
   displayOdds:Object.freeze({
-    nvx:6000/46000,
-    booster:18000/46000,
-    rain:17000/46000,
-    timeWarp:5000/46000
+    nvx:0,
+    booster:18000/40000,
+    rain:17000/40000,
+    timeWarp:5000/40000
   })
 });
