@@ -8,8 +8,8 @@ import {
 const attached = new WeakSet();
 const POLL_MS = 10_000;
 const DOMAIN = 'https://nexusnovatools.com/';
-const DRIVE_ASSET = './assets/visuals/nova-drive-approved-v7.webp';
-const TRACKER_ASSET = './assets/visuals/nova-vehicle-tracking-approved-v2.webp';
+const DRIVE_ASSET = './assets/visuals/nova-drive-approved-v7.png';
+const TRACKER_ASSET = './assets/visuals/nova-vehicle-tracking-approved-v2.png';
 
 function ago(ms) {
   const at = Number(ms) || 0;
@@ -47,17 +47,17 @@ function openMap(vehicle) {
 
 function styles() {
   return `<style data-nx-approved-drive-style>
-  html.nx-approved-drive-active,html.nx-approved-drive-active body{height:100dvh!important;max-height:100dvh!important;overflow:hidden!important}
-  html.nx-approved-drive-active .nx-stage{height:100dvh!important;min-height:100dvh!important;max-height:100dvh!important;padding:0!important;overflow:hidden!important}
-  html.nx-approved-drive-active .nx-stage>.nx-drive-v3-screen{height:100dvh!important;min-height:100dvh!important;max-height:100dvh!important;overflow:hidden!important}
+  html.nx-approved-drive-active,html.nx-approved-drive-active body{width:100%!important;height:100%!important;min-height:0!important;overflow:hidden!important}
+  html.nx-approved-drive-active .nx-stage{position:absolute!important;inset:0!important;width:auto!important;height:auto!important;min-height:0!important;max-height:none!important;padding:0!important;overflow:hidden!important}
+  html.nx-approved-drive-active .nx-stage>.nx-drive-v3-screen{position:absolute!important;inset:0!important;width:auto!important;height:auto!important;min-height:0!important;max-height:none!important;overflow:hidden!important}
   html.nx-approved-drive-active .nx-dock,html.nx-approved-drive-active #nxEmergencySosButton,html.nx-approved-drive-active #nxEmergencySosEdit{display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important}
-  .nxdr3{position:relative!important;height:100%!important;max-height:100%!important;padding:0!important;overflow:hidden!important;background:#01050a!important}
+  .nxdr3{position:absolute!important;inset:0!important;width:auto!important;height:auto!important;min-height:0!important;max-height:none!important;padding:0!important;overflow:hidden!important;background:#01050a!important}
   .nxdr3>.nx-approved-drive{visibility:visible!important}
   .nxdr3>:not(style):not(.nx-approved-drive){visibility:hidden!important}
   .nx-approved-drive,.nx-approved-drive *{box-sizing:border-box}
   .nx-approved-drive{position:absolute;inset:0;z-index:120;overflow:hidden;background:#01050a;color:#f5fbff;font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;isolation:isolate}
-  .nx-approved-view{position:absolute;inset:0;display:none;overflow:hidden}.nx-approved-view.is-active{display:block}
-  .nx-approved-art{position:absolute;inset:0;width:100%;height:100%;object-fit:fill;display:block;user-select:none;pointer-events:none}
+  .nx-approved-view{position:absolute;display:none;overflow:hidden}.nx-approved-view.is-active{display:block}
+  .nx-approved-art{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;object-position:center;display:block;user-select:none;pointer-events:none}
   .nx-approved-hit{position:absolute;z-index:15;border:0!important;background:transparent!important;color:transparent!important;padding:0!important;margin:0!important;cursor:pointer;-webkit-tap-highlight-color:transparent}
   .nx-approved-value{position:absolute;z-index:18;display:grid;place-items:center;text-align:center;background:#061522;color:#f7fbff;font-weight:900;line-height:1;pointer-events:none}
   .nx-approved-value small{display:block;margin-top:3px;color:#8cb2cc;font-size:.54em;font-weight:800}
