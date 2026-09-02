@@ -68,8 +68,9 @@ html.nx-approved-drive-active .nx-approved-final-frame {
   --nx-approved-crop-y:0px !important;
 }
 
-/* Erase the raster-owned old lower rows on both screens, then redraw only the
-   approved live website strip + one shared navigation dock above this mask. */
+/* Screen-specific raster masks. Drive starts immediately below Recover so only
+   SOS + Mine/Nova Hub disappear. Tracker starts immediately below its action row
+   so its raster website + raster dock disappear before one shared live set is drawn. */
 html.nx-approved-drive-active .nx-approved-view[data-approved-drive-view]::after,
 html.nx-approved-drive-active .nx-approved-view[data-approved-tracker-view]::after {
   content:'' !important;
@@ -78,9 +79,14 @@ html.nx-approved-drive-active .nx-approved-view[data-approved-tracker-view]::aft
   left:0 !important;
   right:0 !important;
   bottom:0 !important;
-  height:18% !important;
   background:linear-gradient(180deg,#061522 0%,#020b13 32%,#02070d 100%) !important;
   pointer-events:none !important;
+}
+html.nx-approved-drive-active .nx-approved-view[data-approved-drive-view]::after {
+  height:15.75% !important;
+}
+html.nx-approved-drive-active .nx-approved-view[data-approved-tracker-view]::after {
+  height:22.15% !important;
 }
 
 /* Final-approved website strip: same coordinates on Drive and Tracker. */
