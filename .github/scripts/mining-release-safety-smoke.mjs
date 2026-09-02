@@ -1,10 +1,10 @@
 import fs from 'node:fs';
 
 const ssv = fs.readFileSync('functions/admobRewardedSsvV2.js', 'utf8');
-const vault10x = fs.readFileSync('functions/novaVault10x.js', 'utf8');
-const mining = fs.readFileSync('functions/index.js', 'utf8');
 const client = fs.readFileSync('fresh-rebuild/src/core/release-mining-safety.js', 'utf8');
 const store = fs.readFileSync('fresh-rebuild/src/core/nova-mining-rewards-store.js', 'utf8');
+const adapter = fs.readFileSync('fresh-rebuild/src/core/backend-adapter.js', 'utf8');
+const workerV2 = fs.readFileSync('cloudflare/nova-mining-rewards-worker/src/index-v2.js', 'utf8');
 const android = fs.readFileSync('NexusNovaAndroid/app/build.gradle.kts', 'utf8');
 
 function requireTokens(name, source, tokens) {
@@ -19,6 +19,8 @@ function forbid(name, source, patterns) {
   }
 }
 
+// Canonical Firebase AdMob SSV remains no-value even though mining mutations are
+// now routed through Cloudflare v2.
 requireTokens('AdMob SSV', ssv, [
   "fulfillment:'no-value-release-safe'",
   "credited:false",
@@ -33,53 +35,68 @@ forbid('AdMob SSV', ssv, [
   /rewardedAdTotalNvx\s*:/
 ]);
 
-requireTokens('Nova Vault 10X', vault10x, [
-  'directNvx:false',
-  'totalWeight:40000',
-  'booster:18000/40000',
-  'rain:17000/40000',
-  'timeWarp:5000/40000',
-  '10X credits are earned from normal Vault milestones, never from ads.'
-]);
-forbid('Nova Vault 10X', vault10x, [
-  /type===?['"]nvx['"]/,
-  /boostedNvx/i,
-  /randomInt\(5\s*,\s*26\)/
-]);
-
-requireTokens('Mining backend', mining, [
-  'NOVA_MAX_BOOSTER_USES=2',
-  'NOVA_MAX_RAIN_USES=4',
-  'NOVA_VAULTS_PER_BOOST_CREDIT=7',
-  'novaVaultMilestoneProgress',
+// Active Cloudflare v2 reward/mining backend invariants.
+requireTokens('Cloudflare v2 backend', workerV2, [
+  'NOVA_MAX_BOOSTER_USES = 2',
+  'NOVA_MAX_RAIN_USES = 4',
   'novaBoosterUsesThisSession',
   'novaRainUsesThisSession',
-  'miningActive:true,miningStartedAt:now',
-  'novaBoostUsesThisSession:0'
+  'novaVaultPending:inv.pendingVaults',
+  'miningActive:true',
+  "reason:'ads_do_not_grant_mining_or_token_value'",
+  "url.pathname === '/v1/mining/toggle'",
+  "url.pathname === '/v1/vault/open'",
+  "url.pathname === '/v1/vault/boosted/open'",
+  "url.pathname === '/v1/boost/use'",
+  "url.pathname === '/v1/boost/time-warp'"
 ]);
-forbid('Mining backend', mining, [
-  /novaVaultPending:inv\.pendingVaults\+1/
+forbid('Cloudflare v2 backend', workerV2, [
+  /WATCH_REWARD_NVX\s*=/,
+  /rewardNvx\s*:/,
+  /rewardedAdTotalNvx\s*:/,
+  /novaVaultBoostCredits\s*:/,
+  /novaVaultPending\s*:\s*inv\.pendingVaults\s*\+\s*1/
 ]);
 
+// Active web client must route mining value actions through Cloudflare, while
+// TEST rewarded ads remain no-value and can run without Firebase being healthy.
 requireTokens('Mining client safety', client, [
-  "claimDailyRewardCloudflare({ source:'fresh-rebuild-release-direct' })",
+  "claimDailyRewardCloudflare({ source:'fresh-rebuild-cloudflare-v2' })",
   "purpose:'task-watch-ad'",
   'No NVX or mining reward was credited.',
-  "httpsCallable(functions, 'openNovaVaultBoosted')",
-  "source:'normal-vault-milestone'"
+  'openNovaVaultCloudflare',
+  'openNovaVaultBoostedCloudflare',
+  'useNovaBoostCloudflare',
+  'useNovaTimeWarpCloudflare',
+  'TEST rewarded ads are diagnostics only'
 ]);
 forbid('Mining client safety', client, [
-  /purpose:['"]nova-vault-10x['"]/
+  /purpose:['"]nova-vault-10x['"]/,
+  /httpsCallable\(/,
+  /WATCH_REWARD_NVX/
 ]);
 
 requireTokens('Cloudflare client scope', store, [
-  "claimDailyReward: '/v1/tasks/daily/claim'",
-  'This mining reward action is handled by the Firebase secure backend.'
+  "toggleMining: '/v1/mining/toggle'",
+  "openNovaVault: '/v1/vault/open'",
+  "openNovaVaultBoosted: '/v1/vault/boosted/open'",
+  "useNovaBoost: '/v1/boost/use'",
+  "useNovaTimeWarp: '/v1/boost/time-warp'",
+  "const user = await requireFirebaseUser({ verified:true });"
 ]);
 forbid('Cloudflare client scope', store, [
-  /openNovaVaultBoosted\s*:/,
-  /useNovaBoost\s*:/,
-  /useNovaTimeWarp\s*:/
+  /httpsCallable\(/,
+  /requireFirebaseUser\(\{\s*write\s*:\s*true\s*\}\)/
+]);
+
+requireTokens('Mining adapter', adapter, [
+  "import { toggleMiningCloudflare } from './nova-mining-rewards-store.js';",
+  "toggleMiningCloudflare({ source:'fresh-rebuild-cloudflare-v2' })",
+  'post-Cloudflare mining snapshot'
+]);
+forbid('Mining adapter', adapter, [
+  /this\.bridge\.toggleMining\(/,
+  /httpsCallable\(/
 ]);
 
 const releaseBlock = android.match(/release\s*\{([\s\S]*?)\n\s*\}/)?.[1] || '';
