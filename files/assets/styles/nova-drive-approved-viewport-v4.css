@@ -1,0 +1,103 @@
+/* Nova Drive / Vehicle Tracking approved visual viewport lock.
+   One fixed viewport owner removes the old 100dvh / dock-subtraction /
+   nested-height conflict. The approved raster is never resized out of aspect. */
+
+html.nx-approved-drive-active,
+html.nx-approved-drive-active body {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+}
+
+/* The approved Drive artwork already contains its own bottom app dock, so the
+   generic HTML dock must not reserve a second strip below it. */
+html.nx-approved-drive-active body .nx-app {
+  position: fixed !important;
+  inset: 0 !important;
+  width: auto !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+}
+
+html.nx-approved-drive-active body .nx-app .nx-stage,
+html.nx-approved-drive-active .nx-stage > .nx-screen.nx-drive-v3-screen,
+html.nx-approved-drive-active .nx-drive-v3-screen > [data-app-mount],
+html.nx-approved-drive-active .nx-drive-v3-screen > [data-app-mount] > .nxdr3,
+html.nx-approved-drive-active .nxdr3 > .nx-approved-drive {
+  position: absolute !important;
+  inset: 0 !important;
+  width: auto !important;
+  height: auto !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-width: none !important;
+  max-height: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  scroll-padding: 0 !important;
+  overflow: hidden !important;
+}
+
+html.nx-approved-drive-active .nx-drive-v3-screen > .nx-app-head {
+  display: none !important;
+}
+
+html.nx-approved-drive-active .nx-drive-v3-screen > [data-app-mount] > .nxdr3 {
+  display: block !important;
+}
+
+/* Match the approved HTML's 864x1472 composition, but size that composition as
+   a cover canvas. Narrow phones crop only the canvas sides; short viewports crop
+   its top/bottom. The raster and every functional hit target share the same
+   coordinate system, so controls stay aligned without stretching the artwork. */
+html.nx-approved-drive-active .nx-approved-view {
+  position: absolute !important;
+  top: 50% !important;
+  left: 50% !important;
+  right: auto !important;
+  bottom: auto !important;
+  width: auto !important;
+  height: max(100%, 170.370371vw) !important;
+  min-width: 0 !important;
+  min-height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  aspect-ratio: 864 / 1472 !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+  transform: translate(-50%, -50%) !important;
+  transform-origin: center !important;
+}
+
+/* `contain` is distortion-free. It exactly fills the Drive canvas because that
+   source is 864x1472; Tracker keeps the small side inset from the approved HTML. */
+html.nx-approved-drive-active .nx-approved-art {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  margin: 0 !important;
+  display: block !important;
+  object-fit: contain !important;
+  object-position: center !important;
+  filter: none !important;
+  transform: none !important;
+  image-rendering: auto !important;
+}
+
+html.nx-approved-drive-active .nx-dock,
+html.nx-approved-drive-active #nxEmergencySosButton,
+html.nx-approved-drive-active #nxEmergencySosEdit {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
