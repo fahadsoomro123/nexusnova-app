@@ -4,8 +4,10 @@ let status = {
   sdkReady: false,
   rewardedReady: false,
   interstitialReady: false,
-  // Conservative startup default: never assume TEST mode before native status arrives.
-  testMode: false,
+  // This branch/native release is explicitly locked to Google TEST ads. Start
+  // in TEST mode immediately so early taps do not fall into production/Firebase
+  // paths before the Android adStatus callback arrives.
+  testMode: true,
   ssvIdentityReady: false
 };
 
