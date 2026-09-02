@@ -1,0 +1,241 @@
+/* NexusNova Drive + Vehicle Tracking v7 fit-to-screen correction.
+   Source of truth: final-approved 864x1472 prototype.
+   Rules: no raster stretching, no side crop, one shared dock, no image edits. */
+
+html.nx-approved-drive-active body,
+html.nx-approved-drive-active body .nx-app,
+html.nx-approved-drive-active body .nx-app .nx-stage,
+html.nx-approved-drive-active .nx-drive-v3-screen,
+html.nx-approved-drive-active .nxdr3,
+html.nx-approved-drive-active .nx-approved-drive {
+  background:#02070d !important;
+}
+
+html.nx-approved-drive-active .nx-approved-drive {
+  background:
+    radial-gradient(circle at 50% 8%,rgba(0,151,216,.065),transparent 28%),
+    linear-gradient(180deg,#061522 0%,#02070d 18%,#02070d 82%,#061522 100%) !important;
+}
+
+/* v7 uses CONTAIN geometry for the shared 864/1472 master frame.
+   The JS writes --nx-final-frame-w/--nx-final-frame-h after every viewport or
+   orientation change. The frame is centred exactly like the approved HTML. */
+html.nx-approved-drive-active .nx-approved-view[data-approved-drive-view],
+html.nx-approved-drive-active .nx-approved-view[data-approved-tracker-view],
+html.nx-approved-drive-active .nx-approved-final-frame {
+  position:absolute !important;
+  top:50% !important;
+  left:50% !important;
+  right:auto !important;
+  bottom:auto !important;
+  width:var(--nx-final-frame-w,100vw) !important;
+  height:var(--nx-final-frame-h,100dvh) !important;
+  min-width:0 !important;
+  min-height:0 !important;
+  max-width:none !important;
+  max-height:none !important;
+  margin:0 !important;
+  transform:translate(-50%,-50%) !important;
+  transform-origin:center !important;
+  overflow:hidden !important;
+  container-type:inline-size;
+}
+
+html.nx-approved-drive-active .nx-approved-view[data-approved-drive-view] .nx-approved-art {
+  width:100% !important;
+  height:100% !important;
+  object-fit:contain !important;
+  object-position:center !important;
+  transform:none !important;
+  filter:none !important;
+}
+
+/* Tracker keeps the final prototype's explicit contain rule inside the common frame. */
+html.nx-approved-drive-active .nx-approved-view[data-approved-tracker-view] .nx-approved-art {
+  width:100% !important;
+  height:100% !important;
+  object-fit:contain !important;
+  object-position:center !important;
+  transform:none !important;
+  filter:none !important;
+}
+
+/* No crop exists in v7. Legacy crop variables are forced to zero so every live
+   control aligns to the full approved frame rather than to a hidden overscan area. */
+html.nx-approved-drive-active .nx-approved-view,
+html.nx-approved-drive-active .nx-approved-final-frame {
+  --nx-approved-crop-x:0px !important;
+  --nx-approved-crop-y:0px !important;
+}
+
+/* Screen-specific raster masks. Drive starts immediately below Recover so only
+   SOS + Mine/Nova Hub disappear. Tracker starts immediately below its action row
+   so its raster website + raster dock disappear before one shared live set is drawn. */
+html.nx-approved-drive-active .nx-approved-view[data-approved-drive-view]::after,
+html.nx-approved-drive-active .nx-approved-view[data-approved-tracker-view]::after {
+  content:'' !important;
+  position:absolute !important;
+  z-index:58 !important;
+  left:0 !important;
+  right:0 !important;
+  bottom:0 !important;
+  background:linear-gradient(180deg,#061522 0%,#020b13 32%,#02070d 100%) !important;
+  pointer-events:none !important;
+}
+html.nx-approved-drive-active .nx-approved-view[data-approved-drive-view]::after {
+  height:15.75% !important;
+}
+html.nx-approved-drive-active .nx-approved-view[data-approved-tracker-view]::after {
+  height:22.15% !important;
+}
+
+/* Final-approved website strip: same coordinates on Drive and Tracker. */
+html.nx-approved-drive-active .nx-approved-domain-strip.drive,
+html.nx-approved-drive-active .nx-approved-domain-strip.tracker {
+  z-index:70 !important;
+  left:3.75% !important;
+  top:84.45% !important;
+  width:92.5% !important;
+  height:6.55% !important;
+  right:auto !important;
+  bottom:auto !important;
+}
+
+html.nx-approved-drive-active .nx-approved-domain-strip span {
+  font-size:clamp(12px,4.1cqw,30px) !important;
+}
+
+/* One dock only. Percentages are relative to the fitted master frame, never to
+   raw device vw, so landscape and portrait keep identical approved geometry. */
+html.nx-approved-drive-active .nx-approved-final-frame {
+  z-index:72 !important;
+  pointer-events:none !important;
+  background:transparent !important;
+}
+
+html.nx-approved-drive-active .nx-approved-shared-mode-tab {
+  z-index:74 !important;
+  bottom:1.10% !important;
+  width:37.5% !important;
+  height:6.15% !important;
+  grid-template-columns:clamp(24px,4.2cqw,38px) minmax(0,1fr) !important;
+  gap:clamp(4px,.95cqw,8px) !important;
+  padding:0 clamp(5px,1.27cqw,11px) !important;
+}
+
+html.nx-approved-drive-active .nx-approved-shared-mode-tab.drive {
+  left:4.2% !important;
+  right:auto !important;
+}
+
+html.nx-approved-drive-active .nx-approved-shared-mode-tab.vehicle {
+  right:4.2% !important;
+  left:auto !important;
+}
+
+html.nx-approved-drive-active .nx-approved-shared-mode-tab .nx-approved-tab-icon {
+  width:clamp(24px,4.2cqw,36px) !important;
+  height:clamp(24px,4.2cqw,36px) !important;
+  border-radius:clamp(7px,1.27cqw,11px) !important;
+}
+
+html.nx-approved-drive-active .nx-approved-shared-mode-tab .nx-approved-tab-icon svg {
+  width:70% !important;
+  height:70% !important;
+}
+
+html.nx-approved-drive-active .nx-approved-shared-mode-tab .nx-approved-tab-copy b {
+  font-size:clamp(8px,2.45cqw,19px) !important;
+}
+
+html.nx-approved-drive-active .nx-approved-shared-mode-tab .nx-approved-tab-copy small {
+  margin-top:clamp(2px,.58cqw,5px) !important;
+  font-size:clamp(5px,1.45cqw,11px) !important;
+}
+
+html.nx-approved-drive-active .nx-approved-shared-mode-tab.vehicle .nx-approved-tab-copy b {
+  font-size:clamp(7px,2.05cqw,16px) !important;
+}
+
+html.nx-approved-drive-active .nx-approved-shared-mode-tab.vehicle .nx-approved-tab-copy small {
+  font-size:clamp(5px,1.35cqw,10px) !important;
+}
+
+html.nx-approved-drive-active .nx-approved-shared-center {
+  z-index:76 !important;
+  left:50% !important;
+  bottom:.35% !important;
+  width:clamp(44px,13.4cqw,108px) !important;
+  transform:translateX(-50%) !important;
+}
+
+/* Restore the final-approved back geometry. It stays inside the fitted frame,
+   so there is no need for crop compensation. */
+html.nx-approved-drive-active .nx-approved-back {
+  left:1.7% !important;
+  top:3.15% !important;
+  width:max(6%,34px) !important;
+  min-width:0 !important;
+  max-width:none !important;
+  height:max(4.6%,34px) !important;
+  min-height:0 !important;
+}
+
+/* Frame-relative typography prevents landscape viewport width from ballooning
+   live overlay text while the portrait master frame is fitted by height. */
+html.nx-approved-drive-active .nx-approved-drive-speed {
+  font-size:clamp(26px,11cqw,72px) !important;
+}
+html.nx-approved-drive-active .nx-approved-drive-speed small {
+  font-size:clamp(8px,2.6cqw,17px) !important;
+}
+html.nx-approved-drive-active .nx-approved-metric {
+  font-size:clamp(9px,3.8cqw,27px) !important;
+}
+html.nx-approved-drive-active .nx-approved-heading,
+html.nx-approved-drive-active .nx-approved-cloud {
+  font-size:clamp(8px,2.9cqw,20px) !important;
+}
+html.nx-approved-drive-active .nx-approved-activity {
+  font-size:clamp(7px,2.55cqw,17px) !important;
+}
+html.nx-approved-drive-active .nx-approved-analytics {
+  font-size:clamp(8px,2.75cqw,20px) !important;
+}
+html.nx-approved-drive-active .nx-approved-track-toggle {
+  font-size:clamp(10px,3.45cqw,26px) !important;
+}
+html.nx-approved-drive-active .nx-approved-tracker-status,
+html.nx-approved-drive-active .nx-approved-tracker-stat {
+  font-size:clamp(8px,2.8cqw,20px) !important;
+}
+
+/* Keep the approved Dynamic LED Speed Arc; explicitly no needle. */
+html.nx-approved-drive-active .nx-approved-speed-needle {
+  display:none !important;
+}
+
+/* Final tracker online/offline layer fully covers the raster-owned status lamp. */
+html.nx-approved-drive-active .nx-approved-tracker-status {
+  z-index:24 !important;
+  left:66.0% !important;
+  top:11.85% !important;
+  width:27.0% !important;
+  height:4.2% !important;
+  background:#061522 !important;
+  box-shadow:-9px 0 7px 5px #061522,0 0 6px 4px #061522 !important;
+}
+
+/* In landscape the same portrait-approved frame is fitted by height. All content
+   remains visible and upright; unused side area is decorative app background. */
+@media (orientation:landscape) {
+  html.nx-approved-drive-active .nx-approved-drive {
+    background:
+      radial-gradient(circle at 50% 50%,rgba(0,153,220,.055),transparent 26%),
+      linear-gradient(90deg,#061522 0%,#02070d 22%,#02070d 78%,#061522 100%) !important;
+  }
+}
+
+@media (prefers-reduced-motion:reduce) {
+  html.nx-approved-drive-active .nx-approved-speed-arc-mask { transition:none !important; }
+}
