@@ -1,8 +1,8 @@
-name: NexusNova Tools Batch 13-16 Review OTA
+name: NexusNova Qibla Fullscreen Safe V3 Review OTA
 
 on:
   push:
-    branches: [nova-sol57-pro-v128-batch3-tools-13-16]
+    branches: [nova-sol57-pro-v128-qibla-fullscreen-safe-v3]
     paths:
       - 'fresh-rebuild/index.html'
       - 'fresh-rebuild/assets/styles/batch3-tools-13-16-fullscreen.css'
@@ -54,12 +54,23 @@ jobs:
           grep -Fq "selectors:['[data-pk-list]'" "$JS"
           grep -Fq "selectors:['[data-news-list]'" "$JS"
           grep -Fq 'window.NexusNovaFresh?.openHub?.()' "$JS"
-          grep -Fq 'buildNeedleOverlay' "$QIBLA"
-          grep -Fq 'MAX_SENSOR_SPEED = 430' "$QIBLA"
-          grep -Fq 'JITTER_DEADBAND = 0.22' "$QIBLA"
-          grep -Fq 'requestAnimationFrame(animateNeedle)' "$QIBLA"
+          grep -Fq 'buildLiteNeedle' "$QIBLA"
+          grep -Fq "overlay.setAttribute('viewBox', '430 0 140 500')" "$QIBLA"
+          grep -Fq 'flattenStaticFace' "$QIBLA"
+          grep -Fq 'rotor.replaceWith(staticRotor)' "$QIBLA"
+          grep -Fq 'pointer.remove()' "$QIBLA"
+          grep -Fq 'sourceSvg.replaceWith(canvas)' "$QIBLA"
+          grep -Fq 'MAX_SENSOR_SPEED = 540' "$QIBLA"
+          grep -Fq 'JITTER_DEADBAND = 0.18' "$QIBLA"
+          ! grep -Fq 'requestAnimationFrame' "$QIBLA"
           grep -Fq 'deviceorientationabsolute' "$QIBLA"
+          grep -Fq '.nx2-qb-needle-lite' "$QIBLA"
           grep -Fq '.nx-b3-qibla-root' "$CSS"
+          grep -Fq 'grid-template-columns:repeat(2,minmax(0,1fr))' "$CSS"
+          grep -Fq 'transform:none!important;filter:none!important' "$CSS"
+          qibla_css="$(sed -n '/\/\* QIBLA/,/\/\* PRAYER TIMES/p' "$CSS")"
+          test -n "$qibla_css"
+          ! grep -Eq 'overflow[[:space:]]*:[[:space:]]*(auto|scroll)' <<<"$qibla_css"
           grep -Fq '.nx-b3-prayer-root' "$CSS"
           grep -Fq '.nx-b3-pakistan-root' "$CSS"
           grep -Fq '.nx-b3-news-root' "$CSS"

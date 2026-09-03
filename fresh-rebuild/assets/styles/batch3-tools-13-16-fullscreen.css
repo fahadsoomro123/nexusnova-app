@@ -34,42 +34,73 @@ html.nx-batch3-tools-active .nx-batch3-tools-screen .nx-app-body{
 }
 .nx-batch3-hub-back:active{transform:scale(.95)}
 
-/* QIBLA — one static compass face + one moving needle layer; no page scroll. */
+/* QIBLA — fullscreen focus view: static face, compact needle, zero scroll. */
 html.nx-batch3-tools-active .nx-b3-qibla-root{
   height:100dvh!important;min-height:0!important;padding:0!important;background:#020a12!important;overflow:hidden!important;
 }
 html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-page{
   box-sizing:border-box!important;width:100%!important;height:100dvh!important;min-height:0!important;
   padding:calc(env(safe-area-inset-top,0px) + 7px) 8px calc(env(safe-area-inset-bottom,0px) + 7px)!important;
-  display:grid!important;grid-template-rows:auto minmax(0,1fr) auto!important;gap:7px!important;overflow:hidden!important;
+  display:grid!important;grid-template-rows:auto minmax(0,1fr) auto!important;gap:6px!important;overflow:hidden!important;
 }
-html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-head{min-height:0!important;gap:6px!important}
+html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-head{
+  min-height:0!important;gap:6px!important;position:relative!important;z-index:10!important;
+}
 html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-grid{
-  min-height:0!important;height:100%!important;margin:0!important;gap:5px!important;overflow:hidden!important;align-items:stretch!important;
+  position:relative!important;min-height:0!important;height:100%!important;margin:0!important;
+  display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  grid-template-rows:minmax(0,1fr) clamp(62px,9.5dvh,76px)!important;
+  gap:6px!important;overflow:hidden!important;align-items:stretch!important;
 }
-html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-side{min-height:0!important;height:100%!important;gap:6px!important}
-html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-side--left{
-  display:grid!important;grid-template-rows:1.15fr .95fr 1fr .72fr!important;align-content:stretch!important;
-}
-html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-side--right{
-  display:grid!important;grid-template-rows:.88fr 1.12fr!important;align-content:stretch!important;justify-content:stretch!important;
-}
+html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-side{display:contents!important}
 html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-side .nx2-qb-card{
-  min-height:0!important;height:auto!important;margin:0!important;overflow:hidden!important;
+  display:none!important;min-height:0!important;height:auto!important;margin:0!important;overflow:hidden!important;
 }
+html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-side--left .nx2-qb-card:first-child,
+html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-side--right .nx2-qb-card:first-child{
+  display:block!important;grid-row:2!important;padding:8px 11px!important;border-radius:15px!important;
+}
+html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-side--left .nx2-qb-card:first-child{grid-column:1!important}
+html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-side--right .nx2-qb-card:first-child{grid-column:2!important}
+html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-card span{font-size:8px!important}
+html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-card strong{
+  margin-top:5px!important;font-size:clamp(18px,5.3vw,25px)!important;
+}
+html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-card small{margin-top:3px!important;font-size:8px!important}
+html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-card .nx2-qb-art{display:none!important}
 html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-visual{
-  min-height:0!important;height:100%!important;padding:0!important;display:grid!important;place-items:center!important;overflow:visible!important;
+  grid-column:1 / -1!important;grid-row:1!important;min-width:0!important;min-height:0!important;height:100%!important;
+  padding:0!important;display:grid!important;place-items:center!important;overflow:hidden!important;
 }
 html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-compass{
-  width:min(148%,54dvh)!important;max-width:none!important;min-width:0!important;margin:auto!important;filter:none!important;
+  box-sizing:border-box!important;width:var(--nx-qb-fit-size,min(calc(100vw - 16px),100%))!important;
+  height:var(--nx-qb-fit-size,auto)!important;max-width:100%!important;max-height:100%!important;
+  min-width:0!important;margin:auto!important;transform:none!important;filter:none!important;
 }
-html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-svg{filter:none!important}
+html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-svg{
+  display:block!important;width:100%!important;height:100%!important;overflow:hidden!important;transform:none!important;filter:none!important;
+}
 html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-ready{
-  min-height:0!important;margin:0!important;padding:9px 11px!important;gap:9px!important;
+  min-height:0!important;height:54px!important;margin:0!important;padding:6px 9px!important;gap:8px!important;
+  grid-template-columns:40px minmax(0,1fr)!important;overflow:hidden!important;
 }
-html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-ready-icon{width:50px!important;height:50px!important}
-html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-ready-icon svg{width:37px!important;height:37px!important}
-html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-ready-art{height:48px!important}
+html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-ready-icon{width:38px!important;height:38px!important}
+html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-ready-icon svg{width:27px!important;height:27px!important}
+html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-ready>div:nth-child(2)>strong{display:none!important}
+html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-ready-art{display:none!important}
+html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-ready-meta{
+  min-width:0;display:flex!important;align-items:center;gap:7px;color:#e9f4ff;font-size:9px;line-height:1.15;
+}
+html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-ready-meta [data-qb-location]{
+  min-width:0!important;margin:0!important;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  color:#dff7ff!important;font-size:9px!important;line-height:1.15!important;
+}
+html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-ready-distance{
+  flex:0 0 auto;color:#58dcff;font-weight:800;white-space:nowrap;
+}
+html.nx-batch3-tools-active .nx-b3-qibla-root [data-qb-status]{
+  margin:3px 0 0!important;max-height:21px;overflow:hidden;color:#94aabd!important;font-size:8px!important;line-height:1.25!important;
+}
 
 /* PRAYER TIMES — fixed controls + six cards own the free viewport height. */
 html.nx-batch3-tools-active .nx-b3-prayer-root{
@@ -152,8 +183,10 @@ html.nx-batch3-tools-active .nx-b3-news-root .nxn4-list{
   html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-btn,
   html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-icon{height:42px!important}
   html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-title strong{font-size:17px!important}
-  html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-ready{padding:6px 9px!important}
-  html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-ready-icon{width:42px!important;height:42px!important}
+  html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-grid{grid-template-rows:minmax(0,1fr) 58px!important}
+  html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-ready{height:46px!important;padding:4px 8px!important;grid-template-columns:34px minmax(0,1fr)!important}
+  html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-ready-icon{width:32px!important;height:32px!important}
+  html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-ready-icon svg{width:23px!important;height:23px!important}
   html.nx-batch3-tools-active .nx-b3-prayer-root .nxprayer-topbar{min-height:46px!important}
   html.nx-batch3-tools-active .nx-b3-prayer-root .nxprayer-citybox{padding:6px!important}
   html.nx-batch3-tools-active .nx-b3-prayer-root .nxprayer-locationinput,
