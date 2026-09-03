@@ -1,0 +1,199 @@
+name: NexusNova Notes Full-Screen Review OTA
+
+on:
+  push:
+    branches: [nova-sol57-pro-v128-notes-fullscreen-v1]
+    paths:
+      - 'fresh-rebuild/index.html'
+      - 'fresh-rebuild/assets/styles/notes-fullscreen-v1.css'
+      - 'fresh-rebuild/src/features/apps/notes-fullscreen-v1.js'
+      - '.github/workflows/notes-fullscreen-review-ota.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  NOTES_PARENT: 233292dedb08e60ca999c1e209d3a61470c38931
+  OTA_BUNDLED_BASE: 8d1aaaee6f28b974a8c8b3ff213beb1318ec7405
+  PUBLIC_OTA_REPO: fahadsoomro123/nexusnova-website
+  PUBLIC_OTA_BRANCH: nexusnova-ota-public
+
+jobs:
+  notes_review_ota:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout Notes review branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify Notes-only implementation and protected logic
+        shell: bash
+        run: |
+          set -euo pipefail
+          NOTES_JS=fresh-rebuild/src/features/apps/notes-fullscreen-v1.js
+          NOTES_CSS=fresh-rebuild/assets/styles/notes-fullscreen-v1.css
+          INDEX=fresh-rebuild/index.html
+
+          node --check "$NOTES_JS"
+          test -s "$NOTES_CSS"
+          test -s "$INDEX"
+          grep -Fq 'notes-fullscreen-v1.css?ota=notes-v1' "$INDEX"
+          grep -Fq 'notes-fullscreen-v1.js?ota=notes-v1' "$INDEX"
+          grep -Fq 'nx-notes-hub-back' "$NOTES_CSS"
+          grep -Fq 'right:max(10px,env(safe-area-inset-right,0px))' "$NOTES_CSS"
+          grep -Fq '@media (prefers-color-scheme: light)' "$NOTES_CSS"
+          grep -Fq 'height:100dvh!important' "$NOTES_CSS"
+          grep -Fq 'overflow-y:auto!important' "$NOTES_CSS"
+          grep -Fq "window.NexusNovaFresh?.openHub?.()" "$NOTES_JS"
+
+          # Notes functionality and all approved/protected app logic must remain
+          # byte-identical to the approved Profile parent.
+          git diff --quiet "$NOTES_PARENT" "$GITHUB_SHA" -- fresh-rebuild/src/features/apps/everyday-tools.js
+          git diff --quiet "$NOTES_PARENT" "$GITHUB_SHA" -- fresh-rebuild/src/features/apps/core-apps.js
+          git diff --quiet "$NOTES_PARENT" "$GITHUB_SHA" -- fresh-rebuild/src/features/apps/app-screen.js
+          git diff --quiet "$NOTES_PARENT" "$GITHUB_SHA" -- fresh-rebuild/src/main.js
+          git diff --quiet "$NOTES_PARENT" "$GITHUB_SHA" -- fresh-rebuild/src/features/apps/profile-fullscreen-v1.js
+          git diff --quiet "$NOTES_PARENT" "$GITHUB_SHA" -- fresh-rebuild/assets/styles/profile-fullscreen-v1.css
+          git diff --quiet "$NOTES_PARENT" "$GITHUB_SHA" -- fresh-rebuild/src/features/mine/mine-screen.js
+          git diff --quiet "$NOTES_PARENT" "$GITHUB_SHA" -- fresh-rebuild/src/features/apps/premium-drive-native-v2.js
+          git diff --quiet "$NOTES_PARENT" "$GITHUB_SHA" -- fresh-rebuild/src/features/apps/ai-photo-studio-flagship.js
+
+          allowed='^(.github/workflows/notes-fullscreen-review-ota.yml|fresh-rebuild/index.html|fresh-rebuild/assets/styles/notes-fullscreen-v1.css|fresh-rebuild/src/features/apps/notes-fullscreen-v1.js)$'
+          unexpected="$(git diff --name-only "$NOTES_PARENT" "$GITHUB_SHA" | grep -Ev "$allowed" || true)"
+          test -z "$unexpected" || { echo 'Unexpected Notes review changes:' >&2; printf '%s\n' "$unexpected" >&2; exit 1; }
+          echo 'Notes isolated presentation + protected logic: PASS'
+
+      - name: Build Notes differential OTA preserving approved work
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="$OTA_BUNDLED_BASE"
+          git cat-file -e "$BASE^{commit}"
+
+          deleted="$(git diff --name-only --diff-filter=D "$BASE" "$GITHUB_SHA" -- fresh-rebuild/ || true)"
+          unexpected_deleted="$(printf '%s\n' "$deleted" | sed '/^$/d' | grep -Ev '^fresh-rebuild/src/emergency-sos\.js$' || true)"
+          test -z "$unexpected_deleted" || { echo 'Unexpected deleted runtime files:' >&2; printf '%s\n' "$unexpected_deleted" >&2; exit 1; }
+
+          rm -rf /tmp/nx-notes-ota
+          mkdir -p /tmp/nx-notes-ota/files
+          while IFS= read -r full; do
+            [ -n "$full" ] || continue
+            rel="${full#fresh-rebuild/}"
+            mkdir -p "/tmp/nx-notes-ota/files/$(dirname "$rel")"
+            cp "$full" "/tmp/nx-notes-ota/files/$rel"
+          done < <(git diff --name-only --diff-filter=ACMRT "$BASE" "$GITHUB_SHA" -- fresh-rebuild/)
+
+          for required in \
+            index.html \
+            assets/styles/profile-fullscreen-v1.css \
+            assets/styles/notes-fullscreen-v1.css \
+            src/features/apps/profile-fullscreen-v1.js \
+            src/features/apps/notes-fullscreen-v1.js \
+            src/features/apps/ai-photo-studio.js \
+            src/features/apps/ai-photo-studio-flagship.js \
+            src/features/apps/ai-photo-studio-review.js \
+            src/features/apps/premium-studio-suite.js; do
+            test -s "/tmp/nx-notes-ota/files/$required"
+          done
+
+          export OTA_DIFF_BASE="$BASE"
+          python3 - <<'PY'
+          import hashlib,json,os
+          from pathlib import Path
+          root=Path('/tmp/nx-notes-ota/files')
+          files=[]
+          for p in sorted(x for x in root.rglob('*') if x.is_file()):
+              data=p.read_bytes()
+              files.append({'path':p.relative_to(root).as_posix(),'sha256':hashlib.sha256(data).hexdigest(),'size':len(data)})
+          paths={x['path'] for x in files}
+          required={
+              'index.html',
+              'assets/styles/profile-fullscreen-v1.css',
+              'assets/styles/notes-fullscreen-v1.css',
+              'src/features/apps/profile-fullscreen-v1.js',
+              'src/features/apps/notes-fullscreen-v1.js',
+              'src/features/apps/ai-photo-studio.js',
+              'src/features/apps/ai-photo-studio-flagship.js',
+              'src/features/apps/ai-photo-studio-review.js',
+              'src/features/apps/premium-studio-suite.js'
+          }
+          assert required <= paths,(required-paths)
+          assert 'src/emergency-sos.js' not in paths
+          assert len(files) <= 2000
+          assert sum(x['size'] for x in files) <= 60*1024*1024
+          manifest={'schema':2,'base':os.environ['OTA_DIFF_BASE'],'version':os.environ['GITHUB_SHA'],'files':files}
+          Path('/tmp/nx-notes-ota/manifest.json').write_text(json.dumps(manifest,separators=(',',':'),sort_keys=True),encoding='utf-8')
+          print('Notes + approved phone-review OTA files:',len(files))
+          PY
+
+      - name: Require public OTA credential
+        shell: bash
+        env:
+          PUBLIC_OTA_TOKEN: ${{ secrets.GH_PUBLIC_OTA_TOKEN || secrets.OTA_PUBLIC_TOKEN }}
+        run: test -n "$PUBLIC_OTA_TOKEN"
+
+      - name: Publish public Notes review OTA
+        id: publish
+        shell: bash
+        env:
+          PUBLIC_OTA_TOKEN: ${{ secrets.GH_PUBLIC_OTA_TOKEN || secrets.OTA_PUBLIC_TOKEN }}
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/nx-notes-public
+          git clone --depth 1 --branch "$PUBLIC_OTA_BRANCH" "https://github.com/$PUBLIC_OTA_REPO.git" /tmp/nx-notes-public
+          cd /tmp/nx-notes-public
+          git config user.name 'NexusNova OTA Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          rm -rf ota && mkdir -p ota
+          cp -a /tmp/nx-notes-ota/. ota/
+          git add -A ota
+          git commit -m "Publish Notes full-screen review OTA $GITHUB_SHA"
+          PUBLIC_SHA="$(git rev-parse HEAD)"
+          AUTH="$(printf 'x-access-token:%s' "$PUBLIC_OTA_TOKEN" | base64 -w0)"
+          git -c http.extraheader="AUTHORIZATION: basic $AUTH" push origin HEAD:"$PUBLIC_OTA_BRANCH"
+          echo "public_sha=$PUBLIC_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Verify exact public Notes OTA end-to-end
+        shell: bash
+        env:
+          PUBLIC_SHA: ${{ steps.publish.outputs.public_sha }}
+        run: |
+          set -euo pipefail
+          test -n "$PUBLIC_SHA"
+          BASE_URL="https://raw.githubusercontent.com/$PUBLIC_OTA_REPO/$PUBLIC_SHA/ota"
+          curl -fsSL "$BASE_URL/manifest.json" -o /tmp/public-notes.json
+          python3 - "$GITHUB_SHA" "$OTA_BUNDLED_BASE" <<'PY'
+          import json,sys
+          m=json.load(open('/tmp/public-notes.json',encoding='utf-8'))
+          expected,base=sys.argv[1],sys.argv[2]
+          assert m.get('schema')==2 and m.get('base')==base and m.get('version')==expected
+          paths={x.get('path') for x in m.get('files',[])}
+          required={
+              'index.html',
+              'assets/styles/profile-fullscreen-v1.css',
+              'assets/styles/notes-fullscreen-v1.css',
+              'src/features/apps/profile-fullscreen-v1.js',
+              'src/features/apps/notes-fullscreen-v1.js',
+              'src/features/apps/ai-photo-studio.js',
+              'src/features/apps/ai-photo-studio-flagship.js',
+              'src/features/apps/ai-photo-studio-review.js',
+              'src/features/apps/premium-studio-suite.js'
+          }
+          assert required <= paths
+          assert 'src/emergency-sos.js' not in paths
+          PY
+          python3 - <<'PY'
+          import hashlib,json,os,urllib.parse,urllib.request
+          m=json.load(open('/tmp/public-notes.json',encoding='utf-8'))
+          public_sha=os.environ['PUBLIC_SHA']
+          base=f'https://raw.githubusercontent.com/fahadsoomro123/nexusnova-website/{public_sha}/ota/files/'
+          for item in m['files']:
+              url=base+'/'.join(urllib.parse.quote(p,safe='') for p in item['path'].split('/'))
+              data=urllib.request.urlopen(url,timeout=20).read()
+              assert len(data)==item['size'],item['path']
+              assert hashlib.sha256(data).hexdigest()==item['sha256'],item['path']
+          print('Exact public Notes review OTA verified:',len(m['files']),'files')
+          PY
