@@ -1,0 +1,100 @@
+name: Publish Premium Studio Signed APK Public
+
+on:
+  push:
+    branches: [nova-sol57-pro-v128]
+    paths:
+      - '.github/workflows/publish-premium-studio-apk-public.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PUBLIC_REPO: fahadsoomro123/nexusnova-website
+  PUBLIC_BRANCH: main
+  SOURCE_APK: premium-studio-signed/NexusNova-1.0.7-premium-studio-vc20260903-SIGNED.apk
+  PUBLIC_APK: NexusNova-PREMIUM-STUDIO-v1.0.7-SIGNED.apk
+  EXPECTED_SIZE: '23429534'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract already verified signed APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin apk-builds
+          OUT="$RUNNER_TEMP/nexusnova-public-apk"
+          rm -rf "$OUT"
+          mkdir -p "$OUT"
+          git show "origin/apk-builds:$SOURCE_APK" > "$OUT/$PUBLIC_APK"
+          test -s "$OUT/$PUBLIC_APK"
+          test "$(stat -c%s "$OUT/$PUBLIC_APK")" = "$EXPECTED_SIZE"
+          git show origin/apk-builds:premium-studio-signed/SHA256.txt > "$OUT/source-SHA256.txt"
+          sha256sum "$OUT/$PUBLIC_APK" | tee "$OUT/$PUBLIC_APK.sha256"
+          EXPECTED_HASH="$(awk '{print $1}' "$OUT/source-SHA256.txt")"
+          ACTUAL_HASH="$(awk '{print $1}' "$OUT/$PUBLIC_APK.sha256")"
+          test -n "$EXPECTED_HASH"
+          test "$ACTUAL_HASH" = "$EXPECTED_HASH"
+          git show origin/apk-builds:premium-studio-signed/signature.txt > "$OUT/$PUBLIC_APK.signature.txt"
+          grep -Eq 'Verified using v(2|3) scheme .*: true' "$OUT/$PUBLIC_APK.signature.txt"
+          printf 'Version: 1.0.7-premium-studio\nVersion code: 20260903\nPermanent signature: PASS\nPremium Studio 6 tools bundled: PASS\nOTA baseline: 8d1aaaee6f28b974a8c8b3ff213beb1318ec7405\n' > "$OUT/NexusNova-PREMIUM-STUDIO-v1.0.7-BUILD-STATUS.txt"
+
+      - name: Require public repository credential
+        shell: bash
+        env:
+          PUBLIC_TOKEN: ${{ secrets.GH_PUBLIC_OTA_TOKEN || secrets.OTA_PUBLIC_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$PUBLIC_TOKEN"
+
+      - name: Publish phone-download files
+        shell: bash
+        env:
+          PUBLIC_TOKEN: ${{ secrets.GH_PUBLIC_OTA_TOKEN || secrets.OTA_PUBLIC_TOKEN }}
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/nexusnova-public-apk"
+          PUB="$RUNNER_TEMP/nexusnova-public-site"
+          rm -rf "$PUB"
+          git clone --depth 1 --branch "$PUBLIC_BRANCH" "https://github.com/$PUBLIC_REPO.git" "$PUB"
+          cd "$PUB"
+          git config user.name 'NexusNova APK Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          mkdir -p downloads
+          cp "$OUT/$PUBLIC_APK" "downloads/$PUBLIC_APK"
+          cp "$OUT/$PUBLIC_APK.sha256" "downloads/$PUBLIC_APK.sha256"
+          cp "$OUT/$PUBLIC_APK.signature.txt" "downloads/$PUBLIC_APK.signature.txt"
+          cp "$OUT/NexusNova-PREMIUM-STUDIO-v1.0.7-BUILD-STATUS.txt" downloads/
+          git add -f "downloads/$PUBLIC_APK" "downloads/$PUBLIC_APK.sha256" "downloads/$PUBLIC_APK.signature.txt" downloads/NexusNova-PREMIUM-STUDIO-v1.0.7-BUILD-STATUS.txt
+          if ! git diff --cached --quiet; then
+            git commit -m 'Publish NexusNova Premium Studio v1.0.7 signed APK'
+            AUTH="$(printf 'x-access-token:%s' "$PUBLIC_TOKEN" | base64 -w0)"
+            git -c http.extraheader="AUTHORIZATION: basic $AUTH" push origin HEAD:"$PUBLIC_BRANCH"
+          fi
+
+      - name: Verify public anonymous APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="https://raw.githubusercontent.com/$PUBLIC_REPO/$PUBLIC_BRANCH/downloads/$PUBLIC_APK"
+          for attempt in 1 2 3 4 5 6; do
+            if curl -fL -H 'Cache-Control: no-cache' "$URL?n=$GITHUB_SHA-$attempt" -o /tmp/public.apk; then
+              if [ "$(stat -c%s /tmp/public.apk)" = "$EXPECTED_SIZE" ]; then
+                break
+              fi
+            fi
+            if [ "$attempt" -eq 6 ]; then echo 'Public APK did not converge' >&2; exit 1; fi
+            sleep 5
+          done
+          EXPECTED_HASH="$(git show origin/apk-builds:premium-studio-signed/SHA256.txt | awk '{print $1}')"
+          ACTUAL_HASH="$(sha256sum /tmp/public.apk | awk '{print $1}')"
+          test "$ACTUAL_HASH" = "$EXPECTED_HASH"
+          echo "Public signed APK verified: $ACTUAL_HASH"
