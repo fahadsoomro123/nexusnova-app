@@ -12,7 +12,7 @@ let activeCleanup = null;
 
 const APP_DETECTORS = [
   { id:'tip', className:'nx-b2-tip', selectors:['[data-tip-chip]','[data-tip-result]'], theme:'system' },
-  { id:'world-clock', className:'nx-b2-clock', selectors:['[data-clock-list]'], theme:'system' },
+  { id:'world-clock', className:'nx-b2-clock', selectors:['[data-clock-list]','[data-world-list]'], theme:'system' },
   { id:'qr', className:'nx-b2-qr', selectors:['[data-qr-chip]','[data-qr-output]'], theme:'system' },
   { id:'weather', className:'nx-b2-weather', selectors:['[data-wx-shell]','[data-weather-temp]'], theme:'native' }
 ];
@@ -164,6 +164,12 @@ function enhanceWorldClockEditing(root) {
   };
 }
 
+function removeWeatherPrayerTimes(root) {
+  const prayers = root.querySelector('[data-wx-prayers]');
+  const strip = root.querySelector('.nxwx-prayer-strip') || prayers?.closest('section');
+  strip?.remove();
+}
+
 function enhance(found) {
   const { id, className, screen, root, theme } = found;
   if (screen.dataset.batch2Fullscreen === id) return () => {};
@@ -183,6 +189,8 @@ function enhance(found) {
     ? root.querySelector(':scope > .nx-tool-card')
     : null;
   tipCard?.style.setProperty('grid-template-rows', 'auto auto auto auto auto minmax(132px,1fr) auto', 'important');
+
+  if (id === 'weather') removeWeatherPrayerTimes(root);
 
   const back = document.createElement('button');
   back.type = 'button';
