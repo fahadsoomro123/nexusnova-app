@@ -6,6 +6,7 @@ on:
     paths:
       - 'fresh-rebuild/index.html'
       - 'fresh-rebuild/assets/styles/todo-fullscreen-v1.css'
+      - 'fresh-rebuild/assets/styles/todo-edit-v1.css'
       - 'fresh-rebuild/src/features/apps/todo-fullscreen-v1.js'
       - '.github/workflows/todo-fullscreen-review-ota.yml'
   workflow_dispatch:
@@ -35,10 +36,12 @@ jobs:
           set -euo pipefail
           TODO_JS=fresh-rebuild/src/features/apps/todo-fullscreen-v1.js
           TODO_CSS=fresh-rebuild/assets/styles/todo-fullscreen-v1.css
+          TODO_EDIT_CSS=fresh-rebuild/assets/styles/todo-edit-v1.css
           INDEX=fresh-rebuild/index.html
 
           node --check "$TODO_JS"
           test -s "$TODO_CSS"
+          test -s "$TODO_EDIT_CSS"
           test -s "$INDEX"
           grep -Fq 'todo-fullscreen-v1.css?ota=todo-v1' "$INDEX"
           grep -Fq 'todo-fullscreen-v1.js?ota=todo-v1' "$INDEX"
@@ -48,10 +51,16 @@ jobs:
           grep -Fq 'height:100dvh!important' "$TODO_CSS"
           grep -Fq 'grid-template-rows:auto minmax(0,1fr) auto!important' "$TODO_CSS"
           grep -Fq 'overflow-y:auto!important' "$TODO_CSS"
+          grep -Fq 'nx-todo-edit' "$TODO_EDIT_CSS"
+          grep -Fq 'data-todo-edit-v1' "$TODO_JS"
+          grep -Fq 'UPDATE TASK' "$TODO_JS"
+          grep -Fq 'saveJson(TODO_KEY, todos)' "$TODO_JS"
+          grep -Fq 'todo-edit-v1.css?ota=todo-edit-v1' "$TODO_JS"
           grep -Fq "window.NexusNovaFresh?.openHub?.()" "$TODO_JS"
 
-          # Existing To-Do behavior is owned by everyday-tools.js. This review
-          # may alter only the isolated To-Do presentation shell and index wiring.
+          # Core To-Do behavior remains owned by everyday-tools.js. The edit
+          # capability is isolated in todo-fullscreen-v1.js and must not mutate
+          # unrelated app implementations.
           git diff --quiet "$TODO_PARENT" "$GITHUB_SHA" -- fresh-rebuild/src/features/apps/everyday-tools.js
           git diff --quiet "$TODO_PARENT" "$GITHUB_SHA" -- fresh-rebuild/src/features/apps/core-apps.js
           git diff --quiet "$TODO_PARENT" "$GITHUB_SHA" -- fresh-rebuild/src/features/apps/app-screen.js
@@ -64,10 +73,10 @@ jobs:
           git diff --quiet "$TODO_PARENT" "$GITHUB_SHA" -- fresh-rebuild/src/features/apps/premium-drive-native-v2.js
           git diff --quiet "$TODO_PARENT" "$GITHUB_SHA" -- fresh-rebuild/src/features/apps/ai-photo-studio-flagship.js
 
-          allowed='^(.github/workflows/todo-fullscreen-review-ota.yml|fresh-rebuild/index.html|fresh-rebuild/assets/styles/todo-fullscreen-v1.css|fresh-rebuild/src/features/apps/todo-fullscreen-v1.js)$'
+          allowed='^(.github/workflows/todo-fullscreen-review-ota.yml|fresh-rebuild/index.html|fresh-rebuild/assets/styles/todo-fullscreen-v1.css|fresh-rebuild/assets/styles/todo-edit-v1.css|fresh-rebuild/src/features/apps/todo-fullscreen-v1.js)$'
           unexpected="$(git diff --name-only "$TODO_PARENT" "$GITHUB_SHA" | grep -Ev "$allowed" || true)"
           test -z "$unexpected" || { echo 'Unexpected To-Do review changes:' >&2; printf '%s\n' "$unexpected" >&2; exit 1; }
-          echo 'To-Do isolated presentation + protected logic: PASS'
+          echo 'To-Do full-screen + edit enhancement + protected logic: PASS'
 
       - name: Build To-Do differential OTA preserving approved work
         shell: bash
@@ -94,6 +103,7 @@ jobs:
             assets/styles/profile-fullscreen-v1.css \
             assets/styles/notes-fullscreen-v1.css \
             assets/styles/todo-fullscreen-v1.css \
+            assets/styles/todo-edit-v1.css \
             src/features/apps/profile-fullscreen-v1.js \
             src/features/apps/notes-fullscreen-v1.js \
             src/features/apps/todo-fullscreen-v1.js \
@@ -119,6 +129,7 @@ jobs:
               'assets/styles/profile-fullscreen-v1.css',
               'assets/styles/notes-fullscreen-v1.css',
               'assets/styles/todo-fullscreen-v1.css',
+              'assets/styles/todo-edit-v1.css',
               'src/features/apps/profile-fullscreen-v1.js',
               'src/features/apps/notes-fullscreen-v1.js',
               'src/features/apps/todo-fullscreen-v1.js',
@@ -183,6 +194,7 @@ jobs:
               'assets/styles/profile-fullscreen-v1.css',
               'assets/styles/notes-fullscreen-v1.css',
               'assets/styles/todo-fullscreen-v1.css',
+              'assets/styles/todo-edit-v1.css',
               'src/features/apps/profile-fullscreen-v1.js',
               'src/features/apps/notes-fullscreen-v1.js',
               'src/features/apps/todo-fullscreen-v1.js',
