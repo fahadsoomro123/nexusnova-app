@@ -48,15 +48,29 @@ jobs:
 
           grep -Fq "right:max(12px,env(safe-area-inset-right,0px))" "$PROFILE_CSS"
           grep -Fq '@media (prefers-color-scheme: light)' "$PROFILE_CSS"
-          grep -Fq 'data-profile-photo-choose' "$PROFILE_JS"
-          grep -Fq 'data-profile-photo-remove' "$PROFILE_JS"
+
+          # Profile photo must use the existing Firestore security-rule contract:
+          # JPEG data URL in photoDataUrl + profileUpdatedAt. No rules are widened.
+          grep -Fq "canvas.toDataURL('image/jpeg'" "$PROFILE_JS"
+          grep -Fq 'MAX_PROFILE_DATA_URL = 174_000' "$PROFILE_JS"
+          grep -Fq 'photoDataUrl: dataUrl' "$PROFILE_JS"
+          grep -Fq 'profileUpdatedAt: serverTimestamp()' "$PROFILE_JS"
+          grep -Fq "latestProfile?.photoDataUrl" "$PROFILE_JS"
+          grep -Fq "avatar.addEventListener('click', openPhotoPicker)" "$PROFILE_JS"
+          grep -Fq "avatar.setAttribute('aria-label', 'Choose or change profile picture')" "$PROFILE_JS"
+          ! grep -Fq 'profilePhotoData' "$PROFILE_JS"
+          ! grep -Fq 'profilePhotoUpdatedAt' "$PROFILE_JS"
+          ! grep -Fq 'data-profile-photo-choose' "$PROFILE_JS"
+          ! grep -Fq 'data-profile-photo-remove' "$PROFILE_JS"
+
           grep -Fq 'reauthenticateWithCredential' "$PROFILE_JS"
           grep -Fq 'deleteUser(active)' "$PROFILE_JS"
           grep -Fq 'deleteDoc(ref)' "$PROFILE_JS"
           grep -Fq "window.NexusNovaFresh?.openHub?.()" "$PROFILE_JS"
 
-          # Existing app logic and protected modules must be byte-identical to the
-          # phone-review parent. Profile v1 is an isolated enhancement layer.
+          # Existing app logic, security rules and protected modules must be
+          # byte-identical to the phone-review parent. Profile v1 stays isolated.
+          git diff --quiet "$PHONE_REVIEW_PARENT" "$GITHUB_SHA" -- firestore.rules
           git diff --quiet "$PHONE_REVIEW_PARENT" "$GITHUB_SHA" -- fresh-rebuild/src/features/apps/core-apps.js
           git diff --quiet "$PHONE_REVIEW_PARENT" "$GITHUB_SHA" -- fresh-rebuild/src/features/apps/app-screen.js
           git diff --quiet "$PHONE_REVIEW_PARENT" "$GITHUB_SHA" -- fresh-rebuild/src/main.js
