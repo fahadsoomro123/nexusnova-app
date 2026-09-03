@@ -123,13 +123,13 @@ const styles = `
     overflow:visible;transform:translate(-50%,-50%) translateZ(0);filter:drop-shadow(0 18px 26px rgba(0,0,0,.38));
     contain:layout style;
   }
-  .nxq5-face,.nxq5-pointer{position:absolute;display:block;object-fit:contain;pointer-events:none;user-select:none;-webkit-user-drag:none}
+  .nxq5-face,.nxq4-pointer,.nxq5-pointer{position:absolute;display:block;object-fit:contain;pointer-events:none;user-select:none;-webkit-user-drag:none}
   .nxq5-face{z-index:1;inset:0;width:100%;height:100%;border-radius:50%}
-  .nxq5-pointer{
+  .nxq4-pointer,.nxq5-pointer{
     z-index:2;inset:13%;width:74%;height:74%;opacity:0;transform-origin:50% 50%;transform:rotate(0deg);backface-visibility:hidden;
     transition:transform 105ms cubic-bezier(.2,.74,.22,1),opacity 150ms ease-out;
   }
-  .nxq5-pointer.is-ready{opacity:1}
+  .nxq4-pointer.is-ready,.nxq5-pointer.is-ready{opacity:1}
   .nxq5-metrics{
     position:absolute;z-index:8;left:max(8px,env(safe-area-inset-left,0px));right:max(8px,env(safe-area-inset-right,0px));
     bottom:calc(env(safe-area-inset-bottom,0px) + 8px);display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;
@@ -157,7 +157,7 @@ const styles = `
   @media(max-width:390px){
     .nxq5-metrics{left:5px;right:5px;gap:5px}.nxq5-metric{padding-left:9px;padding-right:9px;border-radius:15px}
   }
-  @media(prefers-reduced-motion:reduce){.nxq5-pointer{transition-duration:0ms}}
+  @media(prefers-reduced-motion:reduce){.nxq4-pointer,.nxq5-pointer{transition-duration:0ms}}
 `;
 
 export function renderQiblaSafeV2() {
@@ -169,8 +169,8 @@ export function renderQiblaSafeV2() {
       <button class="nxq5-back" type="button" data-qb-back aria-label="Back to Nova Hub">‹</button>
       <div class="nxq5-stage">
         <div class="nxq5-compass" role="img" aria-label="Live purple and gold Qibla compass">
+          <img class="nxq4-pointer nxq5-pointer" data-qb-pointer src="${POINTER_ASSET}" alt="" draggable="false" decoding="async" fetchpriority="high">
           <img class="nxq5-face" src="${FACE_ASSET}" alt="" draggable="false" decoding="async" fetchpriority="high">
-          <img class="nxq5-pointer" data-qb-pointer src="${POINTER_ASSET}" alt="" draggable="false" decoding="async" fetchpriority="high">
         </div>
       </div>
       <section class="nxq5-metrics" aria-label="Qibla results">
@@ -370,7 +370,8 @@ export function renderQiblaSafeV2() {
     screen = root.closest('.nx-screen');
     document.documentElement.classList.add('nxq5-fullscreen-active');
     screen?.classList.add('nx2-qibla-screen');
-    requestAnimationFrame(() => {
+    fitCompass();
+    queueMicrotask(() => {
       if (!disposed) fitCompass();
     });
     startOrientationAutomatically();
