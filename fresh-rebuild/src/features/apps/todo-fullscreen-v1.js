@@ -3,6 +3,7 @@ import { loadJson, saveJson } from '../../core/local-store.js';
 const ACTIVE_HTML_CLASS = 'nx-todo-v1-active';
 const SCREEN_CLASS = 'nx-todo-v1-screen';
 const TODO_KEY = 'nexus_todos_v1';
+const EDIT_STYLE_ID = 'nx-todo-edit-v1-css';
 
 const stage = document.getElementById('nx-stage');
 const themeMeta = document.querySelector('meta[name="theme-color"]');
@@ -13,6 +14,15 @@ const lightQuery = window.matchMedia?.('(prefers-color-scheme: light)') || null;
 
 let activeScreen = null;
 let activeCleanup = null;
+
+function ensureTodoEditStyles() {
+  if (document.getElementById(EDIT_STYLE_ID)) return;
+  const link = document.createElement('link');
+  link.id = EDIT_STYLE_ID;
+  link.rel = 'stylesheet';
+  link.href = './assets/styles/todo-edit-v1.css?ota=todo-edit-v1';
+  document.head.appendChild(link);
+}
 
 function applyTodoTheme() {
   if (!activeScreen) return;
@@ -37,6 +47,7 @@ function todoScreenFromStage() {
 }
 
 function installTodoEditing(todoRoot) {
+  ensureTodoEditStyles();
   const input = todoRoot.querySelector('[data-todo-input]');
   const priority = todoRoot.querySelector('[data-todo-priority]');
   const due = todoRoot.querySelector('[data-todo-due]');
