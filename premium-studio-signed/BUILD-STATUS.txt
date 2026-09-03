@@ -1,0 +1,8 @@
+Source commit: 903452bb2956af9479b4e6882d34781762eeb03d
+Branch: nova-sol57-pro-v128
+Version name: 1.0.7-premium-studio
+Version code: 20260903
+Permanent signature: PASS
+Premium Studio 6 tools bundled: PASS
+Premium Studio 6 WebP icons bundled: PASS
+OTA baseline: 8d1aaaee6f28b974a8c8b3ff213beb1318ec7405
