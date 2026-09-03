@@ -36,7 +36,7 @@ jobs:
           grep -Fq 'data-photo-panel-open="adjust"' "$SRC"
           grep -Fq 'data-photo-panel-open="ai"' "$SRC"
           grep -Fq 'MIX_COLORS' "$SRC"
-          grep -Fq 'data-photo-range="exposure"' "$SRC"
+          grep -Fq "slider('Exposure','exposure'" "$SRC"
           grep -Fq 'data-photo-ai="auto"' "$SRC"
           grep -Fq 'NexusNova AI ready. No external website redirect.' "$SRC"
           if grep -Eq 'runwayml\.com|firefly\.adobe\.com|canva\.com/ai-image-generator|data-photo-provider' "$SRC"; then
