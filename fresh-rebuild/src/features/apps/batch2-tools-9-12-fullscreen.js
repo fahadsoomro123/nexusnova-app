@@ -164,6 +164,68 @@ function enhanceWorldClockEditing(root) {
   };
 }
 
+function enhanceActiveWorldClock(root) {
+  const list = root.querySelector('[data-world-list]');
+  if (!list) return enhanceWorldClockEditing(root);
+
+  const deck = list.closest('.nx-world-deck');
+  const input = root.querySelector('[data-zone-input]');
+  const add = root.querySelector('[data-zone-add]');
+  const storageKey = 'nexus_world_clock_pro_v1';
+  const defaultSix = ['Asia/Karachi','Asia/Dubai','Europe/London','America/New_York','Asia/Tokyo','Australia/Sydney'];
+  const extraZones = ['Asia/Riyadh','Asia/Kolkata'];
+
+  list.style.setProperty('height', '100%', 'important');
+  list.style.setProperty('min-height', '0', 'important');
+  list.style.setProperty('align-content', 'stretch', 'important');
+  list.style.setProperty('grid-auto-rows', 'minmax(0,1fr)', 'important');
+  deck?.style.setProperty('height', '100%', 'important');
+  deck?.style.setProperty('min-height', '0', 'important');
+
+  const stretchCards = () => {
+    list.querySelectorAll('.nx-zone-card').forEach(card => {
+      card.style.setProperty('height', '100%', 'important');
+      card.style.setProperty('min-height', '0', 'important');
+      card.style.setProperty('align-content', 'center', 'important');
+    });
+  };
+
+  const observer = new MutationObserver(stretchCards);
+  observer.observe(list, { childList:true, subtree:true });
+  stretchCards();
+
+  let savedZones = null;
+  try {
+    const saved = JSON.parse(localStorage.getItem(storageKey) || 'null');
+    if (Array.isArray(saved?.zones)) savedZones = saved.zones.filter(Boolean).slice(0,8);
+  } catch {}
+  const current = savedZones || defaultSix;
+  const isUntouchedDefaultSix = current.length === defaultSix.length && current.every((zone,index) => zone === defaultSix[index]);
+
+  if (isUntouchedDefaultSix && input && add) {
+    requestAnimationFrame(() => {
+      extraZones.forEach(zone => {
+        input.value = zone;
+        input.dispatchEvent(new Event('input', { bubbles:true }));
+        input.dispatchEvent(new Event('change', { bubbles:true }));
+        add.click();
+      });
+      input.value = '';
+      stretchCards();
+    });
+  }
+
+  return () => {
+    observer.disconnect();
+    list.style.removeProperty('height');
+    list.style.removeProperty('min-height');
+    list.style.removeProperty('align-content');
+    list.style.removeProperty('grid-auto-rows');
+    deck?.style.removeProperty('height');
+    deck?.style.removeProperty('min-height');
+  };
+}
+
 function removeWeatherPrayerTimes(root) {
   const prayers = root.querySelector('[data-wx-prayers]');
   const strip = root.querySelector('.nxwx-prayer-strip') || prayers?.closest('section');
@@ -201,7 +263,7 @@ function enhance(found) {
   const openHub = () => window.NexusNovaFresh?.openHub?.();
   back.addEventListener('click', openHub);
 
-  const appCleanup = id === 'world-clock' ? enhanceWorldClockEditing(root) : () => {};
+  const appCleanup = id === 'world-clock' ? enhanceActiveWorldClock(root) : () => {};
   const onTheme = () => applyTheme(theme);
   if (theme === 'system') lightQuery?.addEventListener?.('change', onTheme);
 
