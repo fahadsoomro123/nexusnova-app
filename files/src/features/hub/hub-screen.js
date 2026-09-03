@@ -12,6 +12,10 @@ function currentScrollY() {
   return Math.max(0, Number(document.scrollingElement?.scrollTop ?? window.scrollY) || 0);
 }
 
+function hubIconPath(id) {
+  return `./assets/icons/nova-hub/${id}.webp`;
+}
+
 export function hubScreen({ openApp } = {}) {
   const restoreScroll = restoreOnNextRender;
   restoreOnNextRender = false;
@@ -49,7 +53,7 @@ export function hubScreen({ openApp } = {}) {
           return `
             <button class="nx-app-card${isLastOpened ? ' is-last-opened' : ''}" type="button" data-app-id="${app.id}"${isLastOpened ? ' data-last-opened="true"' : ''} aria-label="Open ${app.name}">
               <span class="nx-app-card__icon" aria-hidden="true">
-                <img src="./assets/icons/nova-hub/${app.id}.webp" alt="" width="192" height="192" loading="lazy" decoding="async" draggable="false">
+                <img src="${hubIconPath(app.id)}" alt="" width="192" height="192" loading="lazy" decoding="async" draggable="false">
               </span>
               <strong>${app.name}</strong>
             </button>
