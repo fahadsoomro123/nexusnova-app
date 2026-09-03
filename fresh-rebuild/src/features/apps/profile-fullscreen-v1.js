@@ -5,7 +5,6 @@ import {
 } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js';
 import {
   deleteDoc,
-  deleteField,
   doc,
   onSnapshot,
   serverTimestamp,
@@ -21,7 +20,9 @@ import {
 const ACTIVE_HTML_CLASS = 'nx-profile-v1-active';
 const SCREEN_CLASS = 'nx-profile-v1';
 const MAX_SOURCE_BYTES = 12 * 1024 * 1024;
-const MAX_PROFILE_DATA_URL = 360_000;
+// Firestore rules allow photoDataUrl as JPEG up to 180000 characters.
+// Keep a safety margin for the data URL prefix and future rule checks.
+const MAX_PROFILE_DATA_URL = 174_000;
 
 const stage = document.getElementById('nx-stage');
 const themeMeta = document.querySelector('meta[name="theme-color"]');
@@ -65,10 +66,7 @@ function renderSquareDataUrl(image, size, quality) {
   context.fillStyle = '#ffffff';
   context.fillRect(0, 0, size, size);
   context.drawImage(image, sourceX, sourceY, side, side, 0, 0, size, size);
-
-  let value = canvas.toDataURL('image/webp', quality);
-  if (!/^data:image\/webp/i.test(value)) value = canvas.toDataURL('image/jpeg', quality);
-  return value;
+  return canvas.toDataURL('image/jpeg', quality);
 }
 
 async function prepareProfilePhoto(file) {
@@ -79,19 +77,21 @@ async function prepareProfilePhoto(file) {
   const image = await imageFromFile(file);
   const passes = [
     [320, 0.82],
-    [256, 0.76],
-    [224, 0.70]
+    [288, 0.78],
+    [256, 0.74],
+    [224, 0.68],
+    [192, 0.62]
   ];
 
   for (const [size, quality] of passes) {
     const dataUrl = renderSquareDataUrl(image, size, quality);
-    if (dataUrl.length <= MAX_PROFILE_DATA_URL) return dataUrl;
+    if (/^data:image\/jpeg;base64,/i.test(dataUrl) && dataUrl.length <= MAX_PROFILE_DATA_URL) return dataUrl;
   }
   throw new Error('This photo is still too large after safe compression. Try another image.');
 }
 
 function setAvatarPhoto(avatar, dataUrl) {
-  const safe = /^data:image\/(?:webp|jpeg|jpg|png);base64,/i.test(String(dataUrl || ''))
+  const safe = /^data:image\/jpeg;base64,/i.test(String(dataUrl || ''))
     ? String(dataUrl)
     : '';
   if (safe) {
@@ -101,6 +101,36 @@ function setAvatarPhoto(avatar, dataUrl) {
     avatar.style.removeProperty('background-image');
     avatar.classList.remove('has-profile-photo');
   }
+}
+
+function createPhotoInput() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.hidden = true;
+  input.setAttribute('data-profile-photo-file', '');
+  return input;
+}
+
+function createPhotoToast() {
+  const toast = document.createElement('div');
+  toast.className = 'nx-profile-photo-toast';
+  toast.hidden = true;
+  toast.setAttribute('role', 'status');
+  toast.setAttribute('aria-live', 'polite');
+  document.body.appendChild(toast);
+  return toast;
+}
+
+function showPhotoToast(toast, message, tone = 'info', holdMs = 2400) {
+  if (!toast) return;
+  clearTimeout(toast._hideTimer);
+  toast.dataset.tone = tone;
+  toast.textContent = String(message || '');
+  toast.hidden = false;
+  toast._hideTimer = setTimeout(() => {
+    toast.hidden = true;
+  }, Math.max(900, Number(holdMs) || 2400));
 }
 
 function clearAccountScopedLocalData(uid) {
@@ -137,23 +167,6 @@ function profileScreenFromStage() {
   const screen = avatar.closest('.nx-screen');
   if (!screen) return null;
   return { screen, avatar };
-}
-
-function createPhotoTools() {
-  const section = document.createElement('section');
-  section.className = 'nx-profile-photo-tools';
-  section.innerHTML = `
-    <input type="file" accept="image/*" data-profile-photo-file hidden>
-    <div class="nx-profile-photo-tools__copy">
-      <strong>Profile picture</strong>
-      <span>Choose a photo from your phone. NexusNova stores a compressed account-scoped avatar.</span>
-    </div>
-    <div class="nx-profile-photo-tools__actions">
-      <button type="button" data-profile-photo-choose>CHOOSE PHOTO</button>
-      <button type="button" data-profile-photo-remove>REMOVE</button>
-    </div>
-    <p data-profile-photo-status>Photo changes are saved to your NexusNova account.</p>`;
-  return section;
 }
 
 function createDangerZone() {
@@ -210,17 +223,20 @@ async function enhanceProfile(screen, avatar) {
   const body = avatar.closest('.nx-app-body');
   if (!hero || !body) throw new Error('Profile layout could not be prepared.');
 
-  const photoTools = createPhotoTools();
-  hero.insertAdjacentElement('afterend', photoTools);
+  const fileInput = createPhotoInput();
+  hero.appendChild(fileInput);
+  const photoToast = createPhotoToast();
+
+  avatar.classList.add('is-photo-trigger');
+  avatar.setAttribute('role', 'button');
+  avatar.setAttribute('tabindex', '0');
+  avatar.setAttribute('aria-label', 'Choose or change profile picture');
+  avatar.setAttribute('title', 'Tap to change profile picture');
 
   const danger = createDangerZone();
   body.appendChild(danger);
 
   const deleteModal = createDeleteModal();
-  const fileInput = photoTools.querySelector('[data-profile-photo-file]');
-  const chooseButton = photoTools.querySelector('[data-profile-photo-choose]');
-  const removeButton = photoTools.querySelector('[data-profile-photo-remove]');
-  const photoStatus = photoTools.querySelector('[data-profile-photo-status]');
   const deleteOpen = danger.querySelector('[data-profile-delete-open]');
   const deletePassword = deleteModal.querySelector('[data-profile-delete-password]');
   const deleteWord = deleteModal.querySelector('[data-profile-delete-word]');
@@ -229,6 +245,7 @@ async function enhanceProfile(screen, avatar) {
   const deleteCancel = deleteModal.querySelector('[data-profile-delete-cancel]');
 
   let disposed = false;
+  let photoBusy = false;
   let user = null;
   let profileRef = null;
   let latestProfile = null;
@@ -237,54 +254,50 @@ async function enhanceProfile(screen, avatar) {
   const openHub = () => window.NexusNovaFresh?.openHub?.();
   back.addEventListener('click', openHub);
 
-  chooseButton.addEventListener('click', () => fileInput.click());
+  const openPhotoPicker = () => {
+    if (disposed || photoBusy) return;
+    fileInput.click();
+  };
+  const handleAvatarKeydown = event => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    openPhotoPicker();
+  };
+  avatar.addEventListener('click', openPhotoPicker);
+  avatar.addEventListener('keydown', handleAvatarKeydown);
+
   fileInput.addEventListener('change', async () => {
     const file = fileInput.files?.[0];
     fileInput.value = '';
-    if (!file || disposed) return;
-    chooseButton.disabled = true;
-    removeButton.disabled = true;
-    photoStatus.textContent = 'Preparing photo…';
+    if (!file || disposed || photoBusy) return;
+
+    photoBusy = true;
+    avatar.classList.add('is-photo-saving');
+    showPhotoToast(photoToast, 'Preparing profile photo…', 'info', 6000);
+    const previousPhoto = String(latestProfile?.photoDataUrl || '');
+
     try {
       const active = user || await requireFirebaseUser();
       const dataUrl = await prepareProfilePhoto(file);
       const ref = profileRef || doc(firestoreDb, 'users', active.uid);
-      await updateDoc(ref, {
-        profilePhotoData: dataUrl,
-        profilePhotoUpdatedAt: serverTimestamp()
-      });
-      if (!disposed) photoStatus.textContent = '✓ Profile picture saved.';
-    } catch (error) {
-      if (!disposed) photoStatus.textContent = error?.message || 'Profile picture could not be saved.';
-    } finally {
-      if (!disposed) {
-        chooseButton.disabled = false;
-        removeButton.disabled = false;
-      }
-    }
-  });
 
-  removeButton.addEventListener('click', async () => {
-    if (disposed) return;
-    chooseButton.disabled = true;
-    removeButton.disabled = true;
-    photoStatus.textContent = 'Removing photo…';
-    try {
-      const active = user || await requireFirebaseUser();
-      const ref = profileRef || doc(firestoreDb, 'users', active.uid);
+      // Optimistic preview, but restore the old server-backed photo if the write fails.
+      setAvatarPhoto(avatar, dataUrl);
+      showPhotoToast(photoToast, 'Saving profile photo…', 'info', 6000);
       await updateDoc(ref, {
-        profilePhotoData: deleteField(),
-        profilePhotoUpdatedAt: serverTimestamp()
+        photoDataUrl: dataUrl,
+        profileUpdatedAt: serverTimestamp()
       });
-      setAvatarPhoto(avatar, '');
-      if (!disposed) photoStatus.textContent = '✓ Profile picture removed.';
+      if (!disposed) showPhotoToast(photoToast, '✓ Profile picture saved.', 'success');
     } catch (error) {
-      if (!disposed) photoStatus.textContent = error?.message || 'Profile picture could not be removed.';
-    } finally {
+      setAvatarPhoto(avatar, previousPhoto);
       if (!disposed) {
-        chooseButton.disabled = false;
-        removeButton.disabled = false;
+        const message = String(error?.message || 'Profile picture could not be saved.');
+        showPhotoToast(photoToast, message, 'error', 4200);
       }
+    } finally {
+      photoBusy = false;
+      avatar.classList.remove('is-photo-saving');
     }
   });
 
@@ -374,13 +387,13 @@ async function enhanceProfile(screen, avatar) {
       offProfile = onSnapshot(profileRef, snapshot => {
         if (disposed) return;
         latestProfile = snapshot.data() || null;
-        setAvatarPhoto(avatar, latestProfile?.profilePhotoData || '');
+        if (!photoBusy) setAvatarPhoto(avatar, latestProfile?.photoDataUrl || '');
       }, error => {
-        if (!disposed) photoStatus.textContent = error?.message || 'Profile photo sync is unavailable.';
+        if (!disposed) showPhotoToast(photoToast, error?.message || 'Profile photo sync is unavailable.', 'error', 4200);
       });
     }
   } catch (error) {
-    if (!disposed) photoStatus.textContent = error?.message || 'Sign in to manage your profile picture.';
+    if (!disposed) showPhotoToast(photoToast, error?.message || 'Sign in to manage your profile picture.', 'error', 4200);
   }
 
   const themeListener = () => applyProfileTheme();
@@ -390,6 +403,15 @@ async function enhanceProfile(screen, avatar) {
     disposed = true;
     offProfile?.();
     lightQuery?.removeEventListener?.('change', themeListener);
+    clearTimeout(photoToast._hideTimer);
+    photoToast.remove();
+    avatar.removeEventListener('click', openPhotoPicker);
+    avatar.removeEventListener('keydown', handleAvatarKeydown);
+    avatar.classList.remove('is-photo-trigger', 'is-photo-saving');
+    avatar.removeAttribute('role');
+    avatar.removeAttribute('tabindex');
+    avatar.removeAttribute('aria-label');
+    avatar.removeAttribute('title');
     deleteModal.remove();
     back.remove();
     screen.classList.remove(SCREEN_CLASS);
