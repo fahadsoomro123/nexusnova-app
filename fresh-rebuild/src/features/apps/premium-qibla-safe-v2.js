@@ -72,7 +72,7 @@ const styles = `
     width:100%;height:100%;min-height:100%;overflow:hidden!important;overscroll-behavior:none;
   }
   html.nxq5-fullscreen-active body{
-    background:#0b0710!important;color:#fff!important;
+    background:linear-gradient(180deg,#24102f 0%,#16091f 53%,#0b0710 100%)!important;color:#fff!important;
   }
   html.nxq5-fullscreen-active body .nx-app{
     width:100%!important;max-width:760px!important;height:100dvh!important;min-height:0!important;overflow:hidden!important;
@@ -86,20 +86,23 @@ const styles = `
     display:none!important;
   }
   html.nxq5-fullscreen-active .nx2-qibla-screen{
-    width:100%!important;height:100dvh!important;min-height:0!important;max-height:100dvh!important;
+    position:fixed!important;inset:0!important;z-index:50!important;
+    width:auto!important;height:auto!important;min-height:0!important;max-height:none!important;
     margin:0!important;padding:0!important;overflow:hidden!important;background:#0b0710!important;
   }
   html.nxq5-fullscreen-active .nx2-qibla-screen>.nx-app-head{display:none!important}
   html.nxq5-fullscreen-active .nx2-qibla-screen>[data-app-mount]{
-    width:100%!important;height:100dvh!important;min-height:0!important;margin:0!important;padding:0!important;overflow:hidden!important;
+    position:absolute!important;inset:0!important;width:auto!important;height:auto!important;min-height:0!important;
+    margin:0!important;padding:0!important;overflow:hidden!important;
   }
   .nxq5-qibla{
-    box-sizing:border-box!important;width:100%!important;max-width:none!important;height:100%!important;min-height:0!important;
-    margin:0!important;padding:0!important;overflow:hidden!important;color:#fff;font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;
+    position:absolute!important;inset:0!important;box-sizing:border-box!important;width:auto!important;max-width:none!important;
+    height:auto!important;min-height:0!important;margin:0!important;padding:0!important;overflow:hidden!important;
+    color:#fff;font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;
   }
   .nxq5-qibla *{box-sizing:border-box}
   .nxq5-page{
-    position:relative;width:100%;height:100%;min-height:0;overflow:hidden;isolation:isolate;
+    position:absolute;inset:0;width:auto;height:auto;min-height:0;overflow:hidden;isolation:isolate;
     background:
       radial-gradient(circle at 50% 47%,rgba(111,34,150,.42),transparent 42%),
       radial-gradient(circle at 50% 34%,rgba(66,19,91,.34),transparent 59%),
@@ -136,13 +139,13 @@ const styles = `
     width:auto;max-width:520px;margin:auto;
   }
   .nxq5-metric{
-    min-width:0;height:66px;padding:9px 12px 8px;border:1px solid rgba(213,139,255,.36);border-radius:17px;
+    min-width:0;height:72px;padding:8px 12px;border:1px solid rgba(213,139,255,.36);border-radius:17px;
     display:flex;flex-direction:column;justify-content:center;align-items:center;
     background:linear-gradient(145deg,rgba(55,12,76,.93),rgba(17,4,27,.97));
     box-shadow:inset 0 1px rgba(255,255,255,.12),0 10px 25px rgba(0,0,0,.28);overflow:hidden;text-align:center;
   }
-  .nxq5-metric>span{display:block;color:#e2a5ff;font-size:9px;font-weight:850;letter-spacing:.1em;white-space:nowrap}
-  .nxq5-metric>strong{display:block;margin-top:5px;color:#fff5cf;font-size:clamp(21px,6vw,27px);line-height:1;font-weight:850;white-space:nowrap;text-shadow:0 0 13px rgba(255,190,73,.19)}
+  .nxq5-metric>span{display:block;color:#e2a5ff;font-size:9px;font-weight:850;letter-spacing:.1em;line-height:1.05;white-space:nowrap}
+  .nxq5-metric>strong{display:block;margin-top:7px;color:#fff5cf;font-size:clamp(21px,6vw,27px);line-height:1;font-weight:850;white-space:nowrap;text-shadow:0 0 13px rgba(255,190,73,.19)}
   .nxq5-metric>strong small{font-size:.42em;color:#e4bd67;font-weight:800}
   .nxq5-error{
     position:absolute;z-index:12;top:calc(env(safe-area-inset-top,0px) + 58px);left:50%;width:max-content;max-width:calc(100% - 24px);
@@ -152,7 +155,7 @@ const styles = `
   .nxq5-error[hidden]{display:none!important}
   @media(max-height:620px){
     .nxq5-back{width:38px;height:38px;top:calc(env(safe-area-inset-top,0px) + 6px);left:6px}
-    .nxq5-metric{height:58px;padding:7px 9px}.nxq5-metric>strong{margin-top:3px}
+    .nxq5-metric{height:62px;padding:7px 9px}.nxq5-metric>strong{margin-top:4px}
   }
   @media(max-width:390px){
     .nxq5-metrics{left:5px;right:5px;gap:5px}.nxq5-metric{padding-left:9px;padding-right:9px;border-radius:15px}
