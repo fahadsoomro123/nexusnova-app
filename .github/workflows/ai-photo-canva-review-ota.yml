@@ -4,6 +4,7 @@ on:
   push:
     branches: [nova-sol57-pro-v128-ai-photo-canva-review]
     paths:
+      - 'fresh-rebuild/src/features/apps/ai-photo-studio.js'
       - '.github/workflows/ai-photo-canva-review-ota.yml'
   workflow_dispatch:
 
@@ -25,7 +26,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verify AI Photo review source and JavaScript
+      - name: Verify AI Photo flagship review source and JavaScript
         shell: bash
         run: |
           set -euo pipefail
@@ -36,8 +37,16 @@ jobs:
           grep -Fq 'data-photo-panel-open="looks"' fresh-rebuild/src/features/apps/ai-photo-studio.js
           grep -Fq 'data-photo-panel-open="ai"' fresh-rebuild/src/features/apps/ai-photo-studio.js
           grep -Fq 'data-photo-panel-open="export"' fresh-rebuild/src/features/apps/ai-photo-studio.js
+          grep -Fq 'data-photo-range="exposure"' fresh-rebuild/src/features/apps/ai-photo-studio.js
+          grep -Fq 'data-photo-mix-color="red"' fresh-rebuild/src/features/apps/ai-photo-studio.js
+          grep -Fq 'data-photo-ai="auto"' fresh-rebuild/src/features/apps/ai-photo-studio.js
+          grep -Fq 'NexusNova AI ready. No external website redirect.' fresh-rebuild/src/features/apps/ai-photo-studio.js
+          if grep -Eq 'runwayml\.com|firefly\.adobe\.com|canva\.com/ai-image-generator|data-photo-provider' fresh-rebuild/src/features/apps/ai-photo-studio.js; then
+            echo 'External AI provider redirect found in AI Photo Studio' >&2
+            exit 1
+          fi
           grep -Fq "'ai-photo-studio': renderAiPhotoStudio" fresh-rebuild/src/features/apps/premium-studio-suite.js
-          echo 'AI Photo review source: PASS'
+          echo 'AI Photo flagship review source: PASS'
 
       - name: Build differential OTA from current signed baseline
         shell: bash
