@@ -17,7 +17,7 @@ function ensureProLabSizing() {
   const style = document.createElement('style');
   style.id = PRO_SIZE_STYLE_ID;
   style.textContent = `
-    /* Pro Lab has more functions, but it must still use real phone space instead of tiny keys. */
+    /* Pro Lab has more functions, but its keypad must still use the phone's real available space. */
     html.${ACTIVE_CLASS} .${SCREEN_CLASS} .nx-everyday-calculator[data-calc-profile="pro"] .nx-calculator-pro {
       padding-left:5px!important;
       padding-right:5px!important;
@@ -25,21 +25,37 @@ function ensureProLabSizing() {
       gap:5px!important;
     }
     html.${ACTIVE_CLASS} .${SCREEN_CLASS} .nx-everyday-calculator[data-calc-profile="pro"] .nx-calc-bank:not([hidden]) {
+      width:100%!important;
+      height:100%!important;
+      min-height:0!important;
+      display:grid!important;
       grid-template-columns:repeat(5,minmax(0,1fr))!important;
-      grid-auto-rows:minmax(0,1fr)!important;
+      grid-template-rows:repeat(10,minmax(0,1fr))!important;
+      grid-auto-rows:0!important;
+      align-content:stretch!important;
       gap:4px!important;
     }
     html.${ACTIVE_CLASS} .${SCREEN_CLASS} .nx-everyday-calculator[data-calc-profile="pro"] .nx-calc-bank [data-calc-key] {
       width:100%!important;
       height:100%!important;
-      min-height:0!important;
+      min-height:36px!important;
       padding:0 3px!important;
       border-radius:12px!important;
-      font-size:clamp(10px,3vw,15px)!important;
+      font-size:clamp(11px,3.15vw,16px)!important;
       line-height:1!important;
+      align-self:stretch!important;
     }
     html.${ACTIVE_CLASS} .${SCREEN_CLASS} .nx-everyday-calculator[data-calc-profile="pro"] .nx-calc-bank [data-calc-key].equals {
-      font-size:clamp(15px,4.2vw,21px)!important;
+      font-size:clamp(17px,4.5vw,23px)!important;
+    }
+    html.${ACTIVE_CLASS} .${SCREEN_CLASS} .nx-everyday-calculator[data-calc-profile="pro"] .nx-calc-pro-note {
+      margin-top:0!important;
+      min-height:18px!important;
+    }
+    @media (min-height:780px) {
+      html.${ACTIVE_CLASS} .${SCREEN_CLASS} .nx-everyday-calculator[data-calc-profile="pro"] .nx-calc-bank [data-calc-key] {
+        min-height:44px!important;
+      }
     }
     @media (max-height:720px) {
       html.${ACTIVE_CLASS} .${SCREEN_CLASS} .nx-everyday-calculator[data-calc-profile="pro"] .nx-calculator-pro {
@@ -50,12 +66,16 @@ function ensureProLabSizing() {
         gap:3px!important;
       }
       html.${ACTIVE_CLASS} .${SCREEN_CLASS} .nx-everyday-calculator[data-calc-profile="pro"] .nx-calc-bank [data-calc-key] {
-        font-size:clamp(9px,2.7vw,13px)!important;
+        min-height:30px!important;
+        font-size:clamp(10px,2.9vw,14px)!important;
       }
     }
     @media (max-height:620px) {
       html.${ACTIVE_CLASS} .${SCREEN_CLASS} .nx-everyday-calculator[data-calc-profile="pro"] .nx-calculator-pro {
         grid-template-rows:auto auto 84px auto auto minmax(0,1fr)!important;
+      }
+      html.${ACTIVE_CLASS} .${SCREEN_CLASS} .nx-everyday-calculator[data-calc-profile="pro"] .nx-calc-bank [data-calc-key] {
+        min-height:26px!important;
       }
     }
   `;
