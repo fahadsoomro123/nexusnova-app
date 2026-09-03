@@ -177,6 +177,13 @@ function enhance(found) {
   activeScreen = screen;
   applyTheme(theme);
 
+  // Tip premium has seven direct rows. Keep the live receipt as the flexing row
+  // so released app-shell height becomes useful result space, not a stretched input row.
+  const tipCard = id === 'tip' && root.classList.contains('nx-tip-pro')
+    ? root.querySelector(':scope > .nx-tool-card')
+    : null;
+  tipCard?.style.setProperty('grid-template-rows', 'auto auto auto auto auto minmax(132px,1fr) auto', 'important');
+
   const back = document.createElement('button');
   back.type = 'button';
   back.className = 'nx-batch2-hub-back';
@@ -193,6 +200,7 @@ function enhance(found) {
   return () => {
     appCleanup();
     if (theme === 'system') lightQuery?.removeEventListener?.('change', onTheme);
+    tipCard?.style.removeProperty('grid-template-rows');
     back.remove();
     root.classList.remove(`${className}-root`);
     screen.classList.remove(SCREEN_CLASS, className);
