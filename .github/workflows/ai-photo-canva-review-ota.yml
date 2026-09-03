@@ -32,10 +32,10 @@ jobs:
           test "$GITHUB_REF_NAME" = "nova-sol57-pro-v128-ai-photo-canva-review"
           node --check fresh-rebuild/src/features/apps/ai-photo-studio.js
           grep -Fq 'data-photo-canvas' fresh-rebuild/src/features/apps/ai-photo-studio.js
-          grep -Fq 'data-photo-tool="adjust"' fresh-rebuild/src/features/apps/ai-photo-studio.js
-          grep -Fq 'data-photo-tool="filters"' fresh-rebuild/src/features/apps/ai-photo-studio.js
-          grep -Fq 'data-photo-tool="ai"' fresh-rebuild/src/features/apps/ai-photo-studio.js
-          grep -Fq 'data-photo-tool="export"' fresh-rebuild/src/features/apps/ai-photo-studio.js
+          grep -Fq 'data-photo-panel-open="adjust"' fresh-rebuild/src/features/apps/ai-photo-studio.js
+          grep -Fq 'data-photo-panel-open="looks"' fresh-rebuild/src/features/apps/ai-photo-studio.js
+          grep -Fq 'data-photo-panel-open="ai"' fresh-rebuild/src/features/apps/ai-photo-studio.js
+          grep -Fq 'data-photo-panel-open="export"' fresh-rebuild/src/features/apps/ai-photo-studio.js
           grep -Fq "'ai-photo-studio': renderAiPhotoStudio" fresh-rebuild/src/features/apps/premium-studio-suite.js
           echo 'AI Photo review source: PASS'
 
