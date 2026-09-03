@@ -1,10 +1,13 @@
-name: AI Photo Studio Canva UI Review OTA
+name: AI Photo Studio Flagship Review OTA
 
 on:
   push:
     branches: [nova-sol57-pro-v128-ai-photo-canva-review]
     paths:
       - 'fresh-rebuild/src/features/apps/ai-photo-studio.js'
+      - 'fresh-rebuild/src/features/apps/ai-photo-studio-flagship.js'
+      - 'fresh-rebuild/src/features/apps/ai-photo-studio-review.js'
+      - 'fresh-rebuild/src/features/apps/premium-studio-suite.js'
       - '.github/workflows/ai-photo-canva-review-ota.yml'
   workflow_dispatch:
 
@@ -26,25 +29,37 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verify AI Photo flagship source
+      - name: Verify full AI Photo flagship source
         shell: bash
         run: |
           set -euo pipefail
-          SRC=fresh-rebuild/src/features/apps/ai-photo-studio.js
-          node --check "$SRC"
-          grep -Fq 'data-photo-canvas' "$SRC"
-          grep -Fq 'data-photo-panel-open="adjust"' "$SRC"
-          grep -Fq 'data-photo-panel-open="ai"' "$SRC"
-          grep -Fq 'MIX_COLORS' "$SRC"
-          grep -Fq "slider('Exposure','exposure'" "$SRC"
-          grep -Fq 'data-photo-ai="auto"' "$SRC"
-          grep -Fq 'NexusNova AI ready. No external website redirect.' "$SRC"
-          if grep -Eq 'runwayml\.com|firefly\.adobe\.com|canva\.com/ai-image-generator|data-photo-provider' "$SRC"; then
-            echo 'External AI redirect found' >&2
+          FLAG=fresh-rebuild/src/features/apps/ai-photo-studio-flagship.js
+          WRAP=fresh-rebuild/src/features/apps/ai-photo-studio-review.js
+          SUITE=fresh-rebuild/src/features/apps/premium-studio-suite.js
+          node --check "$FLAG"
+          node --check "$WRAP"
+          node --check "$SUITE"
+          grep -Fq 'data-photo-canvas' "$FLAG"
+          grep -Fq 'data-photo-crop' "$FLAG"
+          grep -Fq 'data-mask-base="linear"' "$FLAG"
+          grep -Fq 'data-mask-brush="add"' "$FLAG"
+          grep -Fq 'data-local-tool="heal"' "$FLAG"
+          grep -Fq 'data-local-tool="clone"' "$FLAG"
+          grep -Fq 'data-local-tool="smooth"' "$FLAG"
+          grep -Fq 'data-curve-canvas' "$FLAG"
+          grep -Fq 'data-photo-histogram' "$FLAG"
+          grep -Fq 'data-copy-edits' "$FLAG"
+          grep -Fq 'data-save-preset' "$FLAG"
+          grep -Fq 'data-photo-ai="auto"' "$FLAG"
+          grep -Fq 'data-photo-ai="denoise"' "$FLAG"
+          grep -Fq 'No external website redirect' "$FLAG"
+          if grep -Eq 'runwayml\.com|firefly\.adobe\.com|canva\.com/ai-image-generator|data-photo-provider' "$FLAG" "$WRAP"; then
+            echo 'External AI redirect found in active AI Photo renderer' >&2
             exit 1
           fi
-          grep -Fq "'ai-photo-studio': renderAiPhotoStudio" fresh-rebuild/src/features/apps/premium-studio-suite.js
-          echo 'AI Photo flagship source: PASS'
+          grep -Fq "from './ai-photo-studio-review.js'" "$SUITE"
+          grep -Fq "'ai-photo-studio': renderAiPhotoStudio" "$SUITE"
+          echo 'AI Photo full flagship source: PASS'
 
       - name: Build differential OTA
         shell: bash
@@ -62,7 +77,12 @@ jobs:
             mkdir -p "/tmp/nx-photo-ota/files/$(dirname "$rel")"
             cp "$full" "/tmp/nx-photo-ota/files/$rel"
           done < <(git diff --name-only --diff-filter=ACMRT "$BASE" "$GITHUB_SHA" -- fresh-rebuild/)
-          test -s /tmp/nx-photo-ota/files/src/features/apps/ai-photo-studio.js
+          for required in \
+            src/features/apps/ai-photo-studio-flagship.js \
+            src/features/apps/ai-photo-studio-review.js \
+            src/features/apps/premium-studio-suite.js; do
+            test -s "/tmp/nx-photo-ota/files/$required"
+          done
           test -f /tmp/nx-photo-ota/files/index.html || cp fresh-rebuild/index.html /tmp/nx-photo-ota/files/index.html
           export OTA_DIFF_BASE="$BASE"
           python3 - <<'PY'
@@ -74,11 +94,13 @@ jobs:
               data=p.read_bytes()
               files.append({'path':p.relative_to(root).as_posix(),'sha256':hashlib.sha256(data).hexdigest(),'size':len(data)})
           paths={x['path'] for x in files}
-          assert {'index.html','src/features/apps/ai-photo-studio.js'} <= paths
+          required={'index.html','src/features/apps/ai-photo-studio-flagship.js','src/features/apps/ai-photo-studio-review.js','src/features/apps/premium-studio-suite.js'}
+          assert required <= paths,(required-paths)
+          assert len(files) <= 2000
           assert sum(x['size'] for x in files) <= 60*1024*1024
           manifest={'schema':2,'base':os.environ['OTA_DIFF_BASE'],'version':os.environ['GITHUB_SHA'],'files':files}
           Path('/tmp/nx-photo-ota/manifest.json').write_text(json.dumps(manifest,separators=(',',':'),sort_keys=True),encoding='utf-8')
-          print('OTA files:',len(files))
+          print('AI Photo flagship OTA files:',len(files))
           PY
 
       - name: Require public OTA credential
@@ -87,7 +109,7 @@ jobs:
           PUBLIC_OTA_TOKEN: ${{ secrets.GH_PUBLIC_OTA_TOKEN || secrets.OTA_PUBLIC_TOKEN }}
         run: test -n "$PUBLIC_OTA_TOKEN"
 
-      - name: Publish public review OTA
+      - name: Publish public flagship review OTA
         shell: bash
         env:
           PUBLIC_OTA_TOKEN: ${{ secrets.GH_PUBLIC_OTA_TOKEN || secrets.OTA_PUBLIC_TOKEN }}
@@ -101,7 +123,7 @@ jobs:
           rm -rf ota && mkdir -p ota
           cp -a /tmp/nx-photo-ota/. ota/
           git add -A ota
-          git commit -m "Publish AI Photo flagship review OTA $GITHUB_SHA"
+          git commit -m "Publish AI Photo full flagship review OTA $GITHUB_SHA"
           AUTH="$(printf 'x-access-token:%s' "$PUBLIC_OTA_TOKEN" | base64 -w0)"
           git -c http.extraheader="AUTHORIZATION: basic $AUTH" push origin HEAD:"$PUBLIC_OTA_BRANCH"
 
@@ -118,7 +140,9 @@ jobs:
           except:raise SystemExit(1)
           expected,base=sys.argv[1],sys.argv[2]
           assert m.get('schema')==2 and m.get('base')==base and m.get('version')==expected
-          assert 'src/features/apps/ai-photo-studio.js' in {x.get('path') for x in m.get('files',[])}
+          paths={x.get('path') for x in m.get('files',[])}
+          required={'src/features/apps/ai-photo-studio-flagship.js','src/features/apps/ai-photo-studio-review.js','src/features/apps/premium-studio-suite.js'}
+          assert required <= paths
           PY
             then break; fi
             test "$attempt" -lt 6 || exit 1
@@ -131,7 +155,7 @@ jobs:
           for item in m['files']:
               url=base+'/'.join(urllib.parse.quote(p,safe='') for p in item['path'].split('/'))
               data=urllib.request.urlopen(url,timeout=20).read()
-              assert len(data)==item['size']
-              assert hashlib.sha256(data).hexdigest()==item['sha256']
-          print('Anonymous public OTA verified:',len(m['files']),'files')
+              assert len(data)==item['size'],item['path']
+              assert hashlib.sha256(data).hexdigest()==item['sha256'],item['path']
+          print('Anonymous public AI Photo flagship OTA verified:',len(m['files']),'files')
           PY
