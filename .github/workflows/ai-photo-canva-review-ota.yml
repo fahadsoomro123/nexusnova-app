@@ -1,0 +1,147 @@
+name: AI Photo Studio Canva UI Review OTA
+
+on:
+  push:
+    branches: [nova-sol57-pro-v128-ai-photo-canva-review]
+    paths:
+      - '.github/workflows/ai-photo-canva-review-ota.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  OTA_BUNDLED_BASE: 8d1aaaee6f28b974a8c8b3ff213beb1318ec7405
+  PUBLIC_OTA_REPO: fahadsoomro123/nexusnova-website
+  PUBLIC_OTA_BRANCH: nexusnova-ota-public
+
+jobs:
+  publish_review_ota:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout review branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify AI Photo review source and JavaScript
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "nova-sol57-pro-v128-ai-photo-canva-review"
+          node --check fresh-rebuild/src/features/apps/ai-photo-studio.js
+          grep -Fq 'data-photo-canvas' fresh-rebuild/src/features/apps/ai-photo-studio.js
+          grep -Fq 'data-photo-tool="adjust"' fresh-rebuild/src/features/apps/ai-photo-studio.js
+          grep -Fq 'data-photo-tool="filters"' fresh-rebuild/src/features/apps/ai-photo-studio.js
+          grep -Fq 'data-photo-tool="ai"' fresh-rebuild/src/features/apps/ai-photo-studio.js
+          grep -Fq 'data-photo-tool="export"' fresh-rebuild/src/features/apps/ai-photo-studio.js
+          grep -Fq "'ai-photo-studio': renderAiPhotoStudio" fresh-rebuild/src/features/apps/premium-studio-suite.js
+          echo 'AI Photo review source: PASS'
+
+      - name: Build differential OTA from current signed baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="$OTA_BUNDLED_BASE"
+          git cat-file -e "$BASE^{commit}"
+          deleted="$(git diff --name-only --diff-filter=D "$BASE" "$GITHUB_SHA" -- fresh-rebuild/ || true)"
+          if [ -n "$deleted" ]; then
+            echo 'Atomic OTA cannot represent deleted bundled web files:' >&2
+            printf '%s\n' "$deleted" >&2
+            exit 1
+          fi
+          rm -rf /tmp/nexusnova-photo-review-ota
+          mkdir -p /tmp/nexusnova-photo-review-ota/files
+          while IFS= read -r full; do
+            [ -n "$full" ] || continue
+            rel="${full#fresh-rebuild/}"
+            test -f "$full"
+            mkdir -p "/tmp/nexusnova-photo-review-ota/files/$(dirname "$rel")"
+            cp "$full" "/tmp/nexusnova-photo-review-ota/files/$rel"
+          done < <(git diff --name-only --diff-filter=ACMRT "$BASE" "$GITHUB_SHA" -- fresh-rebuild/)
+          test -s /tmp/nexusnova-photo-review-ota/files/src/features/apps/ai-photo-studio.js
+          if [ ! -f /tmp/nexusnova-photo-review-ota/files/index.html ]; then
+            cp fresh-rebuild/index.html /tmp/nexusnova-photo-review-ota/files/index.html
+          fi
+          export OTA_DIFF_BASE="$BASE"
+          python3 - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          root=Path('/tmp/nexusnova-photo-review-ota/files')
+          files=[]
+          for path in sorted(p for p in root.rglob('*') if p.is_file()):
+              data=path.read_bytes()
+              files.append({'path':path.relative_to(root).as_posix(),'sha256':hashlib.sha256(data).hexdigest(),'size':len(data)})
+          required={'index.html','src/features/apps/ai-photo-studio.js'}
+          paths={x['path'] for x in files}
+          assert required <= paths, required-paths
+          total=sum(x['size'] for x in files)
+          assert len(files) <= 2000
+          assert total <= 60*1024*1024
+          manifest={'schema':2,'base':os.environ['OTA_DIFF_BASE'],'version':os.environ['GITHUB_SHA'],'files':files}
+          Path('/tmp/nexusnova-photo-review-ota/manifest.json').write_text(json.dumps(manifest,separators=(',',':'),sort_keys=True),encoding='utf-8')
+          print(f'AI Photo review OTA files: {len(files)}; bytes: {total}')
+          PY
+
+      - name: Require public OTA credential
+        env:
+          PUBLIC_OTA_TOKEN: ${{ secrets.GH_PUBLIC_OTA_TOKEN || secrets.OTA_PUBLIC_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$PUBLIC_OTA_TOKEN"
+
+      - name: Publish public AI Photo review OTA
+        env:
+          PUBLIC_OTA_TOKEN: ${{ secrets.GH_PUBLIC_OTA_TOKEN || secrets.OTA_PUBLIC_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/nexusnova-photo-review-public
+          git clone --depth 1 --branch "$PUBLIC_OTA_BRANCH" "https://github.com/$PUBLIC_OTA_REPO.git" /tmp/nexusnova-photo-review-public
+          cd /tmp/nexusnova-photo-review-public
+          git config user.name 'NexusNova OTA Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          rm -rf ota
+          mkdir -p ota
+          cp -a /tmp/nexusnova-photo-review-ota/. ota/
+          git add -A ota
+          git commit -m "Publish AI Photo Studio review OTA $GITHUB_SHA"
+          AUTH="$(printf 'x-access-token:%s' "$PUBLIC_OTA_TOKEN" | base64 -w0)"
+          git -c http.extraheader="AUTHORIZATION: basic $AUTH" push origin HEAD:"$PUBLIC_OTA_BRANCH"
+
+      - name: Verify anonymous public review OTA end-to-end
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_URL="https://raw.githubusercontent.com/$PUBLIC_OTA_REPO/$PUBLIC_OTA_BRANCH/ota"
+          for attempt in 1 2 3 4 5 6; do
+            if curl -fsSL -H 'Cache-Control: no-cache' "$BASE_URL/manifest.json?sha=$GITHUB_SHA&n=$attempt" -o /tmp/public-photo-review-manifest.json; then
+              if python3 - "$GITHUB_SHA" "$OTA_BUNDLED_BASE" <<'PY'
+          import json,sys
+          m=json.load(open('/tmp/public-photo-review-manifest.json',encoding='utf-8'))
+          expected,base=sys.argv[1],sys.argv[2]
+          assert m.get('schema') == 2
+          assert m.get('base') == base,(m.get('base'),base)
+          assert m.get('version') == expected,(m.get('version'),expected)
+          paths={x.get('path') for x in m.get('files',[])}
+          assert 'index.html' in paths
+          assert 'src/features/apps/ai-photo-studio.js' in paths
+          PY
+              then break; fi
+            fi
+            if [ "$attempt" -eq 6 ]; then echo 'Public review OTA manifest did not converge' >&2; exit 1; fi
+            sleep 5
+          done
+          python3 - <<'PY'
+          import hashlib,json,urllib.parse,urllib.request
+          m=json.load(open('/tmp/public-photo-review-manifest.json',encoding='utf-8'))
+          base='https://raw.githubusercontent.com/fahadsoomro123/nexusnova-website/nexusnova-ota-public/ota/files/'
+          for item in m['files']:
+              url=base+'/'.join(urllib.parse.quote(p,safe='') for p in item['path'].split('/'))
+              data=urllib.request.urlopen(url,timeout=20).read()
+              assert len(data)==item['size'],item['path']
+              assert hashlib.sha256(data).hexdigest()==item['sha256'],item['path']
+          print(f"Anonymous AI Photo review OTA verified: {len(m['files'])} files")
+          PY
