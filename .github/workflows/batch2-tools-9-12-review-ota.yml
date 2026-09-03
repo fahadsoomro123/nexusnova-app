@@ -1,0 +1,239 @@
+name: NexusNova Tools Batch 9-12 Review OTA
+
+on:
+  push:
+    branches: [nova-sol57-pro-v128-batch2-tools-9-12]
+    paths:
+      - 'fresh-rebuild/index.html'
+      - 'fresh-rebuild/assets/styles/batch2-tools-9-12-fullscreen.css'
+      - 'fresh-rebuild/src/features/apps/batch2-tools-9-12-fullscreen.js'
+      - '.github/workflows/batch2-tools-9-12-review-ota.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  BATCH_PARENT: 52de1e85e694105ff8447179403835fa1788a658
+  OTA_BUNDLED_BASE: 8d1aaaee6f28b974a8c8b3ff213beb1318ec7405
+  PUBLIC_OTA_REPO: fahadsoomro123/nexusnova-website
+  PUBLIC_OTA_BRANCH: nexusnova-ota-public
+
+jobs:
+  batch_review_ota:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout batch review branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify batch-only implementation and protected logic
+        shell: bash
+        run: |
+          set -euo pipefail
+          JS=fresh-rebuild/src/features/apps/batch2-tools-9-12-fullscreen.js
+          CSS=fresh-rebuild/assets/styles/batch2-tools-9-12-fullscreen.css
+          INDEX=fresh-rebuild/index.html
+
+          node --check "$JS"
+          test -s "$CSS"
+          test -s "$INDEX"
+          grep -Fq 'batch2-tools-9-12-fullscreen.css?ota=batch2-9-12-v1' "$INDEX"
+          grep -Fq 'batch2-tools-9-12-fullscreen.js?ota=batch2-9-12-v1' "$INDEX"
+          grep -Fq "id:'tip'" "$JS"
+          grep -Fq "id:'world-clock'" "$JS"
+          grep -Fq "id:'qr'" "$JS"
+          grep -Fq "id:'weather'" "$JS"
+          grep -Fq "selectors:['[data-tip-chip]'" "$JS"
+          grep -Fq "selectors:['[data-clock-list]'" "$JS"
+          grep -Fq "selectors:['[data-qr-chip]'" "$JS"
+          grep -Fq "selectors:['[data-wx-shell]'" "$JS"
+          grep -Fq "theme:'native'" "$JS"
+          grep -Fq 'data-clock-edit' "$JS"
+          grep -Fq 'UPDATE CLOCK' "$JS"
+          grep -Fq 'auto auto auto auto auto minmax(132px,1fr) auto' "$JS"
+          grep -Fq 'window.NexusNovaFresh?.openHub?.()' "$JS"
+          grep -Fq 'height:100dvh!important' "$CSS"
+          grep -Fq '.nx-b2-tip-root' "$CSS"
+          grep -Fq '.nx-b2-clock-root' "$CSS"
+          grep -Fq '.nx-b2-qr-root' "$CSS"
+          grep -Fq '.nx-b2-weather-root' "$CSS"
+          grep -Fq 'overflow-y:auto!important' "$CSS"
+          grep -Fq '@media(prefers-color-scheme:light)' "$CSS"
+
+          # Shared router/rendering and app logic remain byte-identical to the approved 1-8 phone state.
+          for file in \
+            fresh-rebuild/src/features/apps/everyday-tools.js \
+            fresh-rebuild/src/features/apps/app-screen.js \
+            fresh-rebuild/src/main.js \
+            fresh-rebuild/src/features/apps/core-apps.js \
+            fresh-rebuild/src/features/apps/everyday-premium-focus-health.js \
+            fresh-rebuild/src/features/apps/everyday-premium-time-qr.js \
+            fresh-rebuild/src/features/apps/premium-world-clock.js \
+            fresh-rebuild/src/features/apps/premium-weather.js; do
+            git diff --quiet "$BATCH_PARENT" "$GITHUB_SHA" -- "$file"
+          done
+
+          # All previously approved/review-preserved work stays byte-identical.
+          for file in \
+            fresh-rebuild/src/features/apps/profile-fullscreen-v1.js \
+            fresh-rebuild/assets/styles/profile-fullscreen-v1.css \
+            fresh-rebuild/src/features/apps/notes-fullscreen-v1.js \
+            fresh-rebuild/assets/styles/notes-fullscreen-v1.css \
+            fresh-rebuild/src/features/apps/todo-fullscreen-v1.js \
+            fresh-rebuild/assets/styles/todo-fullscreen-v1.css \
+            fresh-rebuild/assets/styles/todo-edit-v1.css \
+            fresh-rebuild/src/features/apps/calculator-fullscreen-v1.js \
+            fresh-rebuild/assets/styles/calculator-fullscreen-v1.css \
+            fresh-rebuild/src/features/apps/batch1-tools-5-8-fullscreen.js \
+            fresh-rebuild/assets/styles/batch1-tools-5-8-fullscreen.css \
+            fresh-rebuild/src/features/mine/mine-screen.js \
+            fresh-rebuild/src/features/apps/premium-drive-native-v2.js \
+            fresh-rebuild/src/features/apps/ai-photo-studio.js \
+            fresh-rebuild/src/features/apps/ai-photo-studio-flagship.js \
+            fresh-rebuild/src/features/apps/ai-photo-studio-review.js \
+            fresh-rebuild/src/features/apps/premium-studio-suite.js; do
+            git diff --quiet "$BATCH_PARENT" "$GITHUB_SHA" -- "$file"
+          done
+
+          allowed='^(.github/workflows/batch2-tools-9-12-review-ota.yml|fresh-rebuild/index.html|fresh-rebuild/assets/styles/batch2-tools-9-12-fullscreen.css|fresh-rebuild/src/features/apps/batch2-tools-9-12-fullscreen.js)$'
+          unexpected="$(git diff --name-only "$BATCH_PARENT" "$GITHUB_SHA" | grep -Ev "$allowed" || true)"
+          test -z "$unexpected" || { echo 'Unexpected batch changes:' >&2; printf '%s\n' "$unexpected" >&2; exit 1; }
+          echo 'Tools batch 9-12 isolated presentation/edit enhancement + protected logic: PASS'
+
+      - name: Build differential OTA preserving approved work
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="$OTA_BUNDLED_BASE"
+          git cat-file -e "$BASE^{commit}"
+
+          deleted="$(git diff --name-only --diff-filter=D "$BASE" "$GITHUB_SHA" -- fresh-rebuild/ || true)"
+          unexpected_deleted="$(printf '%s\n' "$deleted" | sed '/^$/d' | grep -Ev '^fresh-rebuild/src/emergency-sos\.js$' || true)"
+          test -z "$unexpected_deleted" || { echo 'Unexpected deleted runtime files:' >&2; printf '%s\n' "$unexpected_deleted" >&2; exit 1; }
+
+          rm -rf /tmp/nx-batch2-ota
+          mkdir -p /tmp/nx-batch2-ota/files
+          while IFS= read -r full; do
+            [ -n "$full" ] || continue
+            rel="${full#fresh-rebuild/}"
+            mkdir -p "/tmp/nx-batch2-ota/files/$(dirname "$rel")"
+            cp "$full" "/tmp/nx-batch2-ota/files/$rel"
+          done < <(git diff --name-only --diff-filter=ACMRT "$BASE" "$GITHUB_SHA" -- fresh-rebuild/)
+
+          for required in \
+            index.html \
+            assets/styles/profile-fullscreen-v1.css \
+            assets/styles/notes-fullscreen-v1.css \
+            assets/styles/todo-fullscreen-v1.css \
+            assets/styles/todo-edit-v1.css \
+            assets/styles/calculator-fullscreen-v1.css \
+            assets/styles/batch1-tools-5-8-fullscreen.css \
+            assets/styles/batch2-tools-9-12-fullscreen.css \
+            src/features/apps/profile-fullscreen-v1.js \
+            src/features/apps/notes-fullscreen-v1.js \
+            src/features/apps/todo-fullscreen-v1.js \
+            src/features/apps/calculator-fullscreen-v1.js \
+            src/features/apps/batch1-tools-5-8-fullscreen.js \
+            src/features/apps/batch2-tools-9-12-fullscreen.js \
+            src/features/apps/ai-photo-studio.js \
+            src/features/apps/ai-photo-studio-flagship.js \
+            src/features/apps/ai-photo-studio-review.js \
+            src/features/apps/premium-studio-suite.js; do
+            test -s "/tmp/nx-batch2-ota/files/$required"
+          done
+
+          export OTA_DIFF_BASE="$BASE"
+          python3 - <<'PY'
+          import hashlib,json,os
+          from pathlib import Path
+          root=Path('/tmp/nx-batch2-ota/files')
+          files=[]
+          for p in sorted(x for x in root.rglob('*') if x.is_file()):
+              data=p.read_bytes()
+              files.append({'path':p.relative_to(root).as_posix(),'sha256':hashlib.sha256(data).hexdigest(),'size':len(data)})
+          paths={x['path'] for x in files}
+          required={
+              'index.html','assets/styles/profile-fullscreen-v1.css','assets/styles/notes-fullscreen-v1.css',
+              'assets/styles/todo-fullscreen-v1.css','assets/styles/todo-edit-v1.css','assets/styles/calculator-fullscreen-v1.css',
+              'assets/styles/batch1-tools-5-8-fullscreen.css','assets/styles/batch2-tools-9-12-fullscreen.css',
+              'src/features/apps/profile-fullscreen-v1.js','src/features/apps/notes-fullscreen-v1.js',
+              'src/features/apps/todo-fullscreen-v1.js','src/features/apps/calculator-fullscreen-v1.js',
+              'src/features/apps/batch1-tools-5-8-fullscreen.js','src/features/apps/batch2-tools-9-12-fullscreen.js',
+              'src/features/apps/ai-photo-studio.js','src/features/apps/ai-photo-studio-flagship.js',
+              'src/features/apps/ai-photo-studio-review.js','src/features/apps/premium-studio-suite.js'
+          }
+          assert required <= paths,(required-paths)
+          assert 'src/emergency-sos.js' not in paths
+          assert len(files) <= 2000
+          assert sum(x['size'] for x in files) <= 60*1024*1024
+          manifest={'schema':2,'base':os.environ['OTA_DIFF_BASE'],'version':os.environ['GITHUB_SHA'],'files':files}
+          Path('/tmp/nx-batch2-ota/manifest.json').write_text(json.dumps(manifest,separators=(',',':'),sort_keys=True),encoding='utf-8')
+          print('Batch 9-12 + approved phone-review OTA files:',len(files))
+          PY
+
+      - name: Require public OTA credential
+        shell: bash
+        env:
+          PUBLIC_OTA_TOKEN: ${{ secrets.GH_PUBLIC_OTA_TOKEN || secrets.OTA_PUBLIC_TOKEN }}
+        run: test -n "$PUBLIC_OTA_TOKEN"
+
+      - name: Publish public batch 9-12 review OTA
+        id: publish
+        shell: bash
+        env:
+          PUBLIC_OTA_TOKEN: ${{ secrets.GH_PUBLIC_OTA_TOKEN || secrets.OTA_PUBLIC_TOKEN }}
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/nx-batch2-public
+          git clone --depth 1 --branch "$PUBLIC_OTA_BRANCH" "https://github.com/$PUBLIC_OTA_REPO.git" /tmp/nx-batch2-public
+          cd /tmp/nx-batch2-public
+          git config user.name 'NexusNova OTA Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          rm -rf ota && mkdir -p ota
+          cp -a /tmp/nx-batch2-ota/. ota/
+          git add -A ota
+          git commit -m "Publish tools batch 9-12 review OTA $GITHUB_SHA"
+          PUBLIC_SHA="$(git rev-parse HEAD)"
+          AUTH="$(printf 'x-access-token:%s' "$PUBLIC_OTA_TOKEN" | base64 -w0)"
+          git -c http.extraheader="AUTHORIZATION: basic $AUTH" push origin HEAD:"$PUBLIC_OTA_BRANCH"
+          echo "public_sha=$PUBLIC_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Verify exact public batch 9-12 OTA end-to-end
+        shell: bash
+        env:
+          PUBLIC_SHA: ${{ steps.publish.outputs.public_sha }}
+        run: |
+          set -euo pipefail
+          test -n "$PUBLIC_SHA"
+          BASE_URL="https://raw.githubusercontent.com/$PUBLIC_OTA_REPO/$PUBLIC_SHA/ota"
+          curl -fsSL "$BASE_URL/manifest.json" -o /tmp/public-batch2.json
+          python3 - "$GITHUB_SHA" "$OTA_BUNDLED_BASE" <<'PY'
+          import json,sys
+          m=json.load(open('/tmp/public-batch2.json',encoding='utf-8'))
+          expected,base=sys.argv[1],sys.argv[2]
+          assert m.get('schema')==2 and m.get('base')==base and m.get('version')==expected
+          paths={x.get('path') for x in m.get('files',[])}
+          required={
+              'index.html','assets/styles/batch1-tools-5-8-fullscreen.css','src/features/apps/batch1-tools-5-8-fullscreen.js',
+              'assets/styles/batch2-tools-9-12-fullscreen.css','src/features/apps/batch2-tools-9-12-fullscreen.js',
+              'assets/styles/calculator-fullscreen-v1.css','src/features/apps/calculator-fullscreen-v1.js',
+              'src/features/apps/ai-photo-studio-flagship.js'
+          }
+          assert required <= paths
+          assert 'src/emergency-sos.js' not in paths
+          PY
+          python3 - <<'PY'
+          import hashlib,json,os,urllib.parse,urllib.request
+          m=json.load(open('/tmp/public-batch2.json',encoding='utf-8'))
+          public_sha=os.environ['PUBLIC_SHA']
+          base=f'https://raw.githubusercontent.com/fahadsoomro123/nexusnova-website/{public_sha}/ota/files/'
+          for item in m['files']:
+              url=base+'/'.join(urllib.parse.quote(p,safe='') for p in item['path'].split('/'))
+              data=urllib.request.urlopen(url,timeout=20).read()
+              assert len(data)==item['size'],item['path']
+              assert hashlib.sha256(data).hexdigest()==item['sha256'],item['path']
+          print('Exact public tools batch 9-12 review OTA verified:',len(m['files']),'files')
+          PY
