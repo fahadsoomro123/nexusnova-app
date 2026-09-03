@@ -115,6 +115,7 @@ jobs:
         run: test -n "$PUBLIC_OTA_TOKEN"
 
       - name: Publish public flagship review OTA
+        id: publish
         shell: bash
         env:
           PUBLIC_OTA_TOKEN: ${{ secrets.GH_PUBLIC_OTA_TOKEN || secrets.OTA_PUBLIC_TOKEN }}
@@ -129,38 +130,38 @@ jobs:
           cp -a /tmp/nx-photo-ota/. ota/
           git add -A ota
           git commit -m "Publish AI Photo compatibility flagship OTA $GITHUB_SHA"
+          PUBLIC_SHA="$(git rev-parse HEAD)"
           AUTH="$(printf 'x-access-token:%s' "$PUBLIC_OTA_TOKEN" | base64 -w0)"
           git -c http.extraheader="AUTHORIZATION: basic $AUTH" push origin HEAD:"$PUBLIC_OTA_BRANCH"
+          echo "public_sha=$PUBLIC_SHA" >> "$GITHUB_OUTPUT"
 
-      - name: Verify anonymous public OTA end-to-end
+      - name: Verify exact public OTA commit end-to-end
         shell: bash
+        env:
+          PUBLIC_SHA: ${{ steps.publish.outputs.public_sha }}
         run: |
           set -euo pipefail
-          BASE_URL="https://raw.githubusercontent.com/$PUBLIC_OTA_REPO/$PUBLIC_OTA_BRANCH/ota"
-          for attempt in 1 2 3 4 5 6; do
-            curl -fsSL -H 'Cache-Control: no-cache' "$BASE_URL/manifest.json?sha=$GITHUB_SHA&n=$attempt" -o /tmp/public.json || true
-            if python3 - "$GITHUB_SHA" "$OTA_BUNDLED_BASE" <<'PY'
+          test -n "$PUBLIC_SHA"
+          BASE_URL="https://raw.githubusercontent.com/$PUBLIC_OTA_REPO/$PUBLIC_SHA/ota"
+          curl -fsSL "$BASE_URL/manifest.json" -o /tmp/public.json
+          python3 - "$GITHUB_SHA" "$OTA_BUNDLED_BASE" <<'PY'
           import json,sys
-          try:m=json.load(open('/tmp/public.json',encoding='utf-8'))
-          except:raise SystemExit(1)
+          m=json.load(open('/tmp/public.json',encoding='utf-8'))
           expected,base=sys.argv[1],sys.argv[2]
           assert m.get('schema')==2 and m.get('base')==base and m.get('version')==expected
           paths={x.get('path') for x in m.get('files',[])}
           required={'src/features/apps/ai-photo-studio.js','src/features/apps/ai-photo-studio-flagship.js','src/features/apps/ai-photo-studio-review.js','src/features/apps/premium-studio-suite.js'}
           assert required <= paths
           PY
-            then break; fi
-            test "$attempt" -lt 6 || exit 1
-            sleep 5
-          done
           python3 - <<'PY'
-          import hashlib,json,urllib.parse,urllib.request
+          import hashlib,json,os,urllib.parse,urllib.request
           m=json.load(open('/tmp/public.json',encoding='utf-8'))
-          base='https://raw.githubusercontent.com/fahadsoomro123/nexusnova-website/nexusnova-ota-public/ota/files/'
+          public_sha=os.environ['PUBLIC_SHA']
+          base=f'https://raw.githubusercontent.com/fahadsoomro123/nexusnova-website/{public_sha}/ota/files/'
           for item in m['files']:
               url=base+'/'.join(urllib.parse.quote(p,safe='') for p in item['path'].split('/'))
               data=urllib.request.urlopen(url,timeout=20).read()
               assert len(data)==item['size'],item['path']
               assert hashlib.sha256(data).hexdigest()==item['sha256'],item['path']
-          print('Anonymous public AI Photo compatibility OTA verified:',len(m['files']),'files')
+          print('Exact public AI Photo compatibility OTA verified:',len(m['files']),'files')
           PY
