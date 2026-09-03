@@ -1,0 +1,55 @@
+html.nx-todo-v1-active .nx-todo-v1-screen .nx-todo-card {
+  grid-template-columns:31px minmax(0,1fr) 31px 31px!important;
+}
+
+html.nx-todo-v1-active .nx-todo-v1-screen .nx-todo-edit {
+  width:31px!important;
+  min-width:31px!important;
+  height:29px!important;
+  min-height:29px!important;
+  padding:0!important;
+  display:grid!important;
+  place-items:center!important;
+  border:1px solid rgba(111,213,244,.16)!important;
+  border-radius:9px!important;
+  background:linear-gradient(180deg,#173849,#0c202a)!important;
+  color:#9eeeff!important;
+  box-shadow:inset 0 1px rgba(255,255,255,.08),0 2px 0 #06151c!important;
+  font-size:13px!important;
+  font-weight:900!important;
+  line-height:1!important;
+}
+
+html.nx-todo-v1-active .nx-todo-v1-screen [data-add-todo].is-editing {
+  border-color:rgba(255,204,112,.28)!important;
+  background:linear-gradient(180deg,#6f5322,#49330f)!important;
+  color:#fff1c8!important;
+  box-shadow:inset 0 1px 1px rgba(255,255,255,.14),inset 0 -4px 6px rgba(0,0,0,.2),0 3px 0 #231605,0 6px 9px rgba(0,0,0,.16)!important;
+}
+
+@media (max-width:390px) {
+  html.nx-todo-v1-active .nx-todo-v1-screen .nx-todo-card {
+    grid-template-columns:28px minmax(0,1fr) 28px 28px!important;
+  }
+  html.nx-todo-v1-active .nx-todo-v1-screen .nx-todo-edit {
+    width:28px!important;
+    min-width:28px!important;
+    height:28px!important;
+    min-height:28px!important;
+  }
+}
+
+@media (prefers-color-scheme: light) {
+  html.nx-todo-v1-active .nx-todo-v1-screen .nx-todo-edit {
+    border-color:#c9dce8!important;
+    background:#edf5fa!important;
+    color:#18516a!important;
+    box-shadow:0 2px 5px rgba(29,43,62,.06)!important;
+  }
+  html.nx-todo-v1-active .nx-todo-v1-screen [data-add-todo].is-editing {
+    border-color:#e4c98f!important;
+    background:#fff5dc!important;
+    color:#6d4c12!important;
+    box-shadow:0 2px 5px rgba(29,43,62,.06)!important;
+  }
+}
