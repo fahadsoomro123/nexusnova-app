@@ -4,12 +4,25 @@ on:
   push:
     branches:
       - nova-sol57-pro-v128-premium-studio-v1
+      - nova-sol57-pro-v128-premium-studio-icons-v2
+      - nova-sol57-pro-v128
     paths:
       - 'fresh-rebuild/src/features/apps/*studio*.js'
       - 'fresh-rebuild/src/features/apps/app-screen.js'
       - 'fresh-rebuild/src/features/hub/app-registry.js'
       - 'fresh-rebuild/src/features/hub/hub-screen.js'
+      - 'fresh-rebuild/assets/icons/nova-hub/*.webp'
       - 'fresh-rebuild/assets/icons/nova-hub/*.svg'
+      - '.github/workflows/nexusnova-premium-studio-v1.yml'
+  pull_request:
+    branches:
+      - nova-sol57-pro-v128
+    paths:
+      - 'fresh-rebuild/src/features/apps/*studio*.js'
+      - 'fresh-rebuild/src/features/apps/app-screen.js'
+      - 'fresh-rebuild/src/features/hub/app-registry.js'
+      - 'fresh-rebuild/src/features/hub/hub-screen.js'
+      - 'fresh-rebuild/assets/icons/nova-hub/*.webp'
       - '.github/workflows/nexusnova-premium-studio-v1.yml'
   workflow_dispatch:
 
@@ -44,11 +57,12 @@ jobs:
             echo "Checking $file"
             node --input-type=module --check < "$file"
           done
-      - name: Six-tool contract and assets
+      - name: Six-tool contract and exact icon assets
         shell: python
         run: |
           from pathlib import Path
-          import re, sys
+          import sys
+
           root = Path('fresh-rebuild')
           ids = ['ai-photo-studio','ai-video-studio','pdf-pro','ai-transcribe','ai-writing-pro','digital-sign']
           registry = (root/'src/features/hub/app-registry.js').read_text()
@@ -57,18 +71,37 @@ jobs:
           core = (root/'src/features/apps/premium-studio-core.js').read_text()
           hub = (root/'src/features/hub/hub-screen.js').read_text()
           failures=[]
+
           for app_id in ids:
-              if f"id: '{app_id}'" not in registry: failures.append(f'missing registry id {app_id}')
-              if f"'{app_id}':" not in suite: failures.append(f'missing renderer map {app_id}')
-              icon=root/f'assets/icons/nova-hub/{app_id}.svg'
-              if not icon.is_file() or icon.stat().st_size < 500: failures.append(f'missing/weak icon {app_id}')
-              if app_id not in hub: failures.append(f'hub custom icon route missing {app_id}')
-          if "premiumStudioRenderers[id]" not in router: failures.append('premium studio renderer chain missing')
-          required=['overflow:hidden!important','data-studio-tab','nx-studio__panel','grid-template-rows:auto auto minmax(0,1fr)']
+              if f"id: '{app_id}'" not in registry:
+                  failures.append(f'missing registry id {app_id}')
+              if f"'{app_id}':" not in suite:
+                  failures.append(f'missing renderer map {app_id}')
+              icon = root/f'assets/icons/nova-hub/{app_id}.webp'
+              if not icon.is_file() or icon.stat().st_size < 4000:
+                  failures.append(f'missing/weak exact WebP icon {app_id}')
+
+          if "premiumStudioRenderers[id]" not in router:
+              failures.append('premium studio renderer chain missing')
+          if "`./assets/icons/nova-hub/${id}.webp`" not in hub:
+              failures.append('Nova Hub is not wired to WebP icon assets')
+          if '.svg`' in hub or '.svg"' in hub or ".svg'" in hub:
+              failures.append('Nova Hub still references SVG Premium Studio icons')
+
+          required = [
+              'overflow:hidden!important',
+              'data-studio-tab',
+              'nx-studio__panel',
+              'grid-template-rows:auto auto minmax(0,1fr)',
+              'body:has(.nx-studio)',
+              'textarea{height:72px;padding:8px;resize:none;overflow:hidden}'
+          ]
           for marker in required:
-              if marker not in core: failures.append(f'no-scroll/tab contract missing: {marker}')
+              if marker not in core:
+                  failures.append(f'no-scroll/tab contract missing: {marker}')
+
           if failures:
               print('Premium Studio readiness: FAIL')
               print('\n'.join('- '+x for x in failures))
               sys.exit(1)
-          print('Premium Studio readiness: PASS — 6 tools, 6 icons, tabbed no-scroll shell wired.')
+          print('Premium Studio readiness: PASS — 6 tools, exact WebP icons, tabbed no-scroll shell wired.')

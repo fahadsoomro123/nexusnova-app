@@ -3,7 +3,6 @@ import { hubApps } from './app-registry.js';
 const hubState = { scrollY: 0, lastAppId: '', query: '' };
 let restoreOnNextRender = false;
 const HIDDEN_HUB_APP_IDS = new Set(['nova-track']);
-const PREMIUM_STUDIO_APP_IDS = new Set(['ai-photo-studio','ai-video-studio','pdf-pro','ai-transcribe','ai-writing-pro','digital-sign']);
 
 export function requestHubReturnRestore() {
   restoreOnNextRender = true;
@@ -14,9 +13,7 @@ function currentScrollY() {
 }
 
 function hubIconPath(id) {
-  return PREMIUM_STUDIO_APP_IDS.has(String(id || ''))
-    ? `./assets/icons/nova-hub/${id}.svg`
-    : `./assets/icons/nova-hub/${id}.webp`;
+  return `./assets/icons/nova-hub/${id}.webp`;
 }
 
 export function hubScreen({ openApp } = {}) {
