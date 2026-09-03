@@ -118,6 +118,21 @@ function createPhotoToast() {
   toast.hidden = true;
   toast.setAttribute('role', 'status');
   toast.setAttribute('aria-live', 'polite');
+  Object.assign(toast.style, {
+    position:'fixed',
+    left:'50%',
+    bottom:'calc(env(safe-area-inset-bottom, 0px) + 18px)',
+    transform:'translateX(-50%)',
+    zIndex:'2147482500',
+    maxWidth:'min(88vw, 420px)',
+    padding:'10px 14px',
+    borderRadius:'14px',
+    color:'#ffffff',
+    font:'700 11px/1.35 system-ui, -apple-system, Segoe UI, sans-serif',
+    textAlign:'center',
+    boxShadow:'0 12px 34px rgba(0,0,0,.32)',
+    pointerEvents:'none'
+  });
   document.body.appendChild(toast);
   return toast;
 }
@@ -126,11 +141,39 @@ function showPhotoToast(toast, message, tone = 'info', holdMs = 2400) {
   if (!toast) return;
   clearTimeout(toast._hideTimer);
   toast.dataset.tone = tone;
+  toast.style.background = tone === 'error'
+    ? 'rgba(127,29,29,.97)'
+    : tone === 'success'
+      ? 'rgba(6,78,59,.97)'
+      : 'rgba(17,24,39,.96)';
   toast.textContent = String(message || '');
   toast.hidden = false;
   toast._hideTimer = setTimeout(() => {
     toast.hidden = true;
   }, Math.max(900, Number(holdMs) || 2400));
+}
+
+function createAvatarEditBadge() {
+  const badge = document.createElement('span');
+  badge.setAttribute('aria-hidden', 'true');
+  badge.textContent = '✎';
+  Object.assign(badge.style, {
+    position:'absolute',
+    right:'-2px',
+    bottom:'-2px',
+    width:'20px',
+    height:'20px',
+    display:'grid',
+    placeItems:'center',
+    border:'2px solid #07111f',
+    borderRadius:'50%',
+    background:'linear-gradient(145deg,#5b7cff,#6950d8)',
+    color:'#ffffff',
+    font:'900 10px/1 system-ui, -apple-system, Segoe UI, sans-serif',
+    boxShadow:'0 4px 10px rgba(0,0,0,.28)',
+    pointerEvents:'none'
+  });
+  return badge;
 }
 
 function clearAccountScopedLocalData(uid) {
@@ -223,9 +266,25 @@ async function enhanceProfile(screen, avatar) {
   const body = avatar.closest('.nx-app-body');
   if (!hero || !body) throw new Error('Profile layout could not be prepared.');
 
+  const previousGridTemplate = body.style.getPropertyValue('grid-template-rows');
+  const previousGridPriority = body.style.getPropertyPriority('grid-template-rows');
+  body.style.setProperty('grid-template-rows', 'auto auto minmax(0,1fr) auto', 'important');
+
+  const avatarInline = ['position','overflow','cursor','touch-action'].map(name => ({
+    name,
+    value:avatar.style.getPropertyValue(name),
+    priority:avatar.style.getPropertyPriority(name)
+  }));
+  avatar.style.setProperty('position', 'relative', 'important');
+  avatar.style.setProperty('overflow', 'visible', 'important');
+  avatar.style.setProperty('cursor', 'pointer', 'important');
+  avatar.style.setProperty('touch-action', 'manipulation', 'important');
+
   const fileInput = createPhotoInput();
   hero.appendChild(fileInput);
   const photoToast = createPhotoToast();
+  const photoBadge = createAvatarEditBadge();
+  avatar.appendChild(photoBadge);
 
   avatar.classList.add('is-photo-trigger');
   avatar.setAttribute('role', 'button');
@@ -273,6 +332,7 @@ async function enhanceProfile(screen, avatar) {
 
     photoBusy = true;
     avatar.classList.add('is-photo-saving');
+    photoBadge.textContent = '…';
     showPhotoToast(photoToast, 'Preparing profile photo…', 'info', 6000);
     const previousPhoto = String(latestProfile?.photoDataUrl || '');
 
@@ -298,6 +358,7 @@ async function enhanceProfile(screen, avatar) {
     } finally {
       photoBusy = false;
       avatar.classList.remove('is-photo-saving');
+      photoBadge.textContent = '✎';
     }
   });
 
@@ -405,6 +466,7 @@ async function enhanceProfile(screen, avatar) {
     lightQuery?.removeEventListener?.('change', themeListener);
     clearTimeout(photoToast._hideTimer);
     photoToast.remove();
+    photoBadge.remove();
     avatar.removeEventListener('click', openPhotoPicker);
     avatar.removeEventListener('keydown', handleAvatarKeydown);
     avatar.classList.remove('is-photo-trigger', 'is-photo-saving');
@@ -412,6 +474,12 @@ async function enhanceProfile(screen, avatar) {
     avatar.removeAttribute('tabindex');
     avatar.removeAttribute('aria-label');
     avatar.removeAttribute('title');
+    avatarInline.forEach(item => {
+      if (item.value) avatar.style.setProperty(item.name, item.value, item.priority);
+      else avatar.style.removeProperty(item.name);
+    });
+    if (previousGridTemplate) body.style.setProperty('grid-template-rows', previousGridTemplate, previousGridPriority);
+    else body.style.removeProperty('grid-template-rows');
     deleteModal.remove();
     back.remove();
     screen.classList.remove(SCREEN_CLASS);
