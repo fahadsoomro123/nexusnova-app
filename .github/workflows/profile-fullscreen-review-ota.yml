@@ -1,0 +1,196 @@
+name: NexusNova Profile Full-Screen Review OTA
+
+on:
+  push:
+    branches: [nova-sol57-pro-v128-profile-fullscreen-v2]
+    paths:
+      - 'fresh-rebuild/index.html'
+      - 'fresh-rebuild/assets/styles/profile-fullscreen-v1.css'
+      - 'fresh-rebuild/src/features/apps/profile-fullscreen-v1.js'
+      - 'fresh-rebuild/src/emergency-sos.js'
+      - '.github/workflows/profile-fullscreen-review-ota.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  PHONE_REVIEW_PARENT: 7f70ec07fbac48e9fd384b0b5dfd336e72432760
+  OTA_BUNDLED_BASE: 8d1aaaee6f28b974a8c8b3ff213beb1318ec7405
+  PUBLIC_OTA_REPO: fahadsoomro123/nexusnova-website
+  PUBLIC_OTA_BRANCH: nexusnova-ota-public
+
+jobs:
+  profile_review_ota:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout Profile review branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify Profile-only implementation and protected code
+        shell: bash
+        run: |
+          set -euo pipefail
+          PROFILE_JS=fresh-rebuild/src/features/apps/profile-fullscreen-v1.js
+          PROFILE_CSS=fresh-rebuild/assets/styles/profile-fullscreen-v1.css
+          INDEX=fresh-rebuild/index.html
+
+          node --check "$PROFILE_JS"
+          test -s "$PROFILE_CSS"
+          test -s "$INDEX"
+          grep -Fq 'profile-fullscreen-v1.css?ota=profile-v1' "$INDEX"
+          grep -Fq 'profile-fullscreen-v1.js?ota=profile-v1' "$INDEX"
+          ! grep -Fq './src/emergency-sos.js' "$INDEX"
+          test ! -e fresh-rebuild/src/emergency-sos.js
+
+          grep -Fq "right:max(12px,env(safe-area-inset-right,0px))" "$PROFILE_CSS"
+          grep -Fq '@media (prefers-color-scheme: light)' "$PROFILE_CSS"
+          grep -Fq 'data-profile-photo-choose' "$PROFILE_JS"
+          grep -Fq 'data-profile-photo-remove' "$PROFILE_JS"
+          grep -Fq 'reauthenticateWithCredential' "$PROFILE_JS"
+          grep -Fq 'deleteUser(active)' "$PROFILE_JS"
+          grep -Fq 'deleteDoc(ref)' "$PROFILE_JS"
+          grep -Fq "window.NexusNovaFresh?.openHub?.()" "$PROFILE_JS"
+
+          # Existing app logic and protected modules must be byte-identical to the
+          # phone-review parent. Profile v1 is an isolated enhancement layer.
+          git diff --quiet "$PHONE_REVIEW_PARENT" "$GITHUB_SHA" -- fresh-rebuild/src/features/apps/core-apps.js
+          git diff --quiet "$PHONE_REVIEW_PARENT" "$GITHUB_SHA" -- fresh-rebuild/src/features/apps/app-screen.js
+          git diff --quiet "$PHONE_REVIEW_PARENT" "$GITHUB_SHA" -- fresh-rebuild/src/main.js
+          git diff --quiet "$PHONE_REVIEW_PARENT" "$GITHUB_SHA" -- fresh-rebuild/src/features/mine/mine-screen.js
+          git diff --quiet "$PHONE_REVIEW_PARENT" "$GITHUB_SHA" -- fresh-rebuild/src/features/apps/premium-drive-native-v2.js
+          git diff --quiet "$PHONE_REVIEW_PARENT" "$GITHUB_SHA" -- fresh-rebuild/src/features/apps/ai-photo-studio-flagship.js
+
+          allowed='^(.github/workflows/profile-fullscreen-review-ota.yml|fresh-rebuild/index.html|fresh-rebuild/assets/styles/profile-fullscreen-v1.css|fresh-rebuild/src/features/apps/profile-fullscreen-v1.js|fresh-rebuild/src/emergency-sos.js)$'
+          unexpected="$(git diff --name-only "$PHONE_REVIEW_PARENT" "$GITHUB_SHA" | grep -Ev "$allowed" || true)"
+          test -z "$unexpected" || { echo 'Unexpected Profile review changes:' >&2; printf '%s\n' "$unexpected" >&2; exit 1; }
+          echo 'Profile isolated implementation + protected code: PASS'
+
+      - name: Build Profile differential OTA preserving AI Photo review
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="$OTA_BUNDLED_BASE"
+          git cat-file -e "$BASE^{commit}"
+
+          deleted="$(git diff --name-only --diff-filter=D "$BASE" "$GITHUB_SHA" -- fresh-rebuild/ || true)"
+          unexpected_deleted="$(printf '%s\n' "$deleted" | sed '/^$/d' | grep -Ev '^fresh-rebuild/src/emergency-sos\.js$' || true)"
+          test -z "$unexpected_deleted" || { echo 'Unexpected deleted runtime files:' >&2; printf '%s\n' "$unexpected_deleted" >&2; exit 1; }
+
+          rm -rf /tmp/nx-profile-ota
+          mkdir -p /tmp/nx-profile-ota/files
+          while IFS= read -r full; do
+            [ -n "$full" ] || continue
+            rel="${full#fresh-rebuild/}"
+            mkdir -p "/tmp/nx-profile-ota/files/$(dirname "$rel")"
+            cp "$full" "/tmp/nx-profile-ota/files/$rel"
+          done < <(git diff --name-only --diff-filter=ACMRT "$BASE" "$GITHUB_SHA" -- fresh-rebuild/)
+
+          for required in \
+            index.html \
+            assets/styles/profile-fullscreen-v1.css \
+            src/features/apps/profile-fullscreen-v1.js \
+            src/features/apps/ai-photo-studio.js \
+            src/features/apps/ai-photo-studio-flagship.js \
+            src/features/apps/ai-photo-studio-review.js \
+            src/features/apps/premium-studio-suite.js; do
+            test -s "/tmp/nx-profile-ota/files/$required"
+          done
+
+          export OTA_DIFF_BASE="$BASE"
+          python3 - <<'PY'
+          import hashlib,json,os
+          from pathlib import Path
+          root=Path('/tmp/nx-profile-ota/files')
+          files=[]
+          for p in sorted(x for x in root.rglob('*') if x.is_file()):
+              data=p.read_bytes()
+              files.append({'path':p.relative_to(root).as_posix(),'sha256':hashlib.sha256(data).hexdigest(),'size':len(data)})
+          paths={x['path'] for x in files}
+          required={
+              'index.html',
+              'assets/styles/profile-fullscreen-v1.css',
+              'src/features/apps/profile-fullscreen-v1.js',
+              'src/features/apps/ai-photo-studio.js',
+              'src/features/apps/ai-photo-studio-flagship.js',
+              'src/features/apps/ai-photo-studio-review.js',
+              'src/features/apps/premium-studio-suite.js'
+          }
+          assert required <= paths,(required-paths)
+          assert 'src/emergency-sos.js' not in paths
+          assert len(files) <= 2000
+          assert sum(x['size'] for x in files) <= 60*1024*1024
+          manifest={'schema':2,'base':os.environ['OTA_DIFF_BASE'],'version':os.environ['GITHUB_SHA'],'files':files}
+          Path('/tmp/nx-profile-ota/manifest.json').write_text(json.dumps(manifest,separators=(',',':'),sort_keys=True),encoding='utf-8')
+          print('Profile + preserved phone-review OTA files:',len(files))
+          PY
+
+      - name: Require public OTA credential
+        shell: bash
+        env:
+          PUBLIC_OTA_TOKEN: ${{ secrets.GH_PUBLIC_OTA_TOKEN || secrets.OTA_PUBLIC_TOKEN }}
+        run: test -n "$PUBLIC_OTA_TOKEN"
+
+      - name: Publish public Profile review OTA
+        id: publish
+        shell: bash
+        env:
+          PUBLIC_OTA_TOKEN: ${{ secrets.GH_PUBLIC_OTA_TOKEN || secrets.OTA_PUBLIC_TOKEN }}
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/nx-profile-public
+          git clone --depth 1 --branch "$PUBLIC_OTA_BRANCH" "https://github.com/$PUBLIC_OTA_REPO.git" /tmp/nx-profile-public
+          cd /tmp/nx-profile-public
+          git config user.name 'NexusNova OTA Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          rm -rf ota && mkdir -p ota
+          cp -a /tmp/nx-profile-ota/. ota/
+          git add -A ota
+          git commit -m "Publish Profile full-screen review OTA $GITHUB_SHA"
+          PUBLIC_SHA="$(git rev-parse HEAD)"
+          AUTH="$(printf 'x-access-token:%s' "$PUBLIC_OTA_TOKEN" | base64 -w0)"
+          git -c http.extraheader="AUTHORIZATION: basic $AUTH" push origin HEAD:"$PUBLIC_OTA_BRANCH"
+          echo "public_sha=$PUBLIC_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Verify exact public Profile OTA end-to-end
+        shell: bash
+        env:
+          PUBLIC_SHA: ${{ steps.publish.outputs.public_sha }}
+        run: |
+          set -euo pipefail
+          test -n "$PUBLIC_SHA"
+          BASE_URL="https://raw.githubusercontent.com/$PUBLIC_OTA_REPO/$PUBLIC_SHA/ota"
+          curl -fsSL "$BASE_URL/manifest.json" -o /tmp/public-profile.json
+          python3 - "$GITHUB_SHA" "$OTA_BUNDLED_BASE" <<'PY'
+          import json,sys
+          m=json.load(open('/tmp/public-profile.json',encoding='utf-8'))
+          expected,base=sys.argv[1],sys.argv[2]
+          assert m.get('schema')==2 and m.get('base')==base and m.get('version')==expected
+          paths={x.get('path') for x in m.get('files',[])}
+          required={
+              'index.html',
+              'assets/styles/profile-fullscreen-v1.css',
+              'src/features/apps/profile-fullscreen-v1.js',
+              'src/features/apps/ai-photo-studio.js',
+              'src/features/apps/ai-photo-studio-flagship.js',
+              'src/features/apps/ai-photo-studio-review.js',
+              'src/features/apps/premium-studio-suite.js'
+          }
+          assert required <= paths
+          assert 'src/emergency-sos.js' not in paths
+          PY
+          python3 - <<'PY'
+          import hashlib,json,os,urllib.parse,urllib.request
+          m=json.load(open('/tmp/public-profile.json',encoding='utf-8'))
+          public_sha=os.environ['PUBLIC_SHA']
+          base=f'https://raw.githubusercontent.com/fahadsoomro123/nexusnova-website/{public_sha}/ota/files/'
+          for item in m['files']:
+              url=base+'/'.join(urllib.parse.quote(p,safe='') for p in item['path'].split('/'))
+              data=urllib.request.urlopen(url,timeout=20).read()
+              assert len(data)==item['size'],item['path']
+              assert hashlib.sha256(data).hexdigest()==item['sha256'],item['path']
+          print('Exact public Profile review OTA verified:',len(m['files']),'files')
+          PY
