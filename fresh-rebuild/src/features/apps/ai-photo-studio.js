@@ -1,116 +1,91 @@
-import { aiModel, downloadBlob, fileToInline, openSecure, safeName, studioShell } from './premium-studio-core.js';
+import { aiModel, downloadBlob, ensureStudioStyles, fileToInline, openSecure, safeName } from './premium-studio-core.js';
 
-function renderCanvas(canvas, image, state) {
-  if (!image) return;
-  const max = 1800;
-  const scale = Math.min(1, max / Math.max(image.naturalWidth || 1, image.naturalHeight || 1));
-  const rotated = Math.abs(state.rotation % 180) === 90;
-  const w = Math.max(1, Math.round(image.naturalWidth * scale));
-  const h = Math.max(1, Math.round(image.naturalHeight * scale));
-  canvas.width = rotated ? h : w;
-  canvas.height = rotated ? w : h;
-  const ctx = canvas.getContext('2d');
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  ctx.save();
-  ctx.translate(canvas.width/2, canvas.height/2);
-  ctx.rotate(state.rotation * Math.PI / 180);
-  ctx.scale(state.flipX ? -1 : 1, state.flipY ? -1 : 1);
-  ctx.filter = `brightness(${state.brightness}%) contrast(${state.contrast}%) saturate(${state.saturation}%) blur(${state.blur}px)`;
-  ctx.drawImage(image, -w/2, -h/2, w, h);
-  ctx.restore();
+const DEFAULTS = Object.freeze({ brightness:100, contrast:100, saturation:100, blur:0, rotation:0, flipX:false, flipY:false });
+const PRESETS = Object.freeze({
+  clean:{brightness:104,contrast:108,saturation:103,blur:0},
+  vivid:{brightness:106,contrast:122,saturation:142,blur:0},
+  cinema:{brightness:92,contrast:132,saturation:88,blur:0},
+  portrait:{brightness:108,contrast:104,saturation:108,blur:.15},
+  mono:{brightness:102,contrast:128,saturation:0,blur:0},
+  soft:{brightness:110,contrast:92,saturation:95,blur:.45}
+});
+
+function ensurePhotoStyles(){
+  ensureStudioStyles();
+  if(document.getElementById('nx-photo-editor-v2')) return;
+  const style=document.createElement('style');
+  style.id='nx-photo-editor-v2';
+  style.textContent=`
+  .nx-photo-editor{--p-bg:#f3f3f5;--p-s:#fff;--p-s2:#f8f8fa;--p-t:#17171a;--p-m:#6f6f76;--p-l:#e2e2e7;--p-purple:#7d2ae8;position:relative!important;width:100%!important;height:100%!important;min-height:0!important;overflow:hidden!important;padding:0!important;border:0!important;border-radius:20px!important;background:var(--p-bg)!important;color:var(--p-t)!important;box-shadow:0 8px 26px rgba(20,20,25,.12)!important;color-scheme:light dark}
+  .nx-photo-editor::before{display:none!important}.nx-photo-editor *{box-sizing:border-box}.nx-photo-editor button,.nx-photo-editor input,.nx-photo-editor textarea,.nx-photo-editor select{font:inherit}.nx-photo-editor button{border:0!important;background:transparent!important;box-shadow:none!important;color:var(--p-t)!important;font-size:13px!important;font-weight:650!important;letter-spacing:0!important;transform:none!important}.nx-photo-editor button:active{transform:scale(.97)!important}.nx-photo-editor button:disabled{opacity:.35!important}
+  .nx-photo-frame{height:100%;display:grid;grid-template-rows:48px minmax(0,1fr) 60px;overflow:hidden}.nx-photo-top{z-index:5;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:7px;padding:6px 8px;border-bottom:1px solid var(--p-l);background:color-mix(in srgb,var(--p-s) 94%,transparent);backdrop-filter:blur(16px)}.nx-photo-project{min-width:0;text-align:center;line-height:1.05}.nx-photo-project strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px}.nx-photo-project span{display:block;margin-top:3px;color:var(--p-m);font-size:10px}.nx-photo-top-actions{display:flex;gap:2px;align-items:center}.nx-photo-mini{width:34px!important;height:34px!important;padding:0!important;border-radius:9px!important}.nx-photo-add{height:36px!important;padding:0 11px!important;border:1px solid var(--p-l)!important;border-radius:9px!important;background:var(--p-s2)!important}.nx-photo-export-top{height:36px!important;padding:0 12px!important;border-radius:9px!important;background:linear-gradient(135deg,#8b3dff,#6d25df)!important;color:#fff!important;font-weight:750!important}
+  .nx-photo-work{position:relative;min-height:0;overflow:hidden;display:grid;place-items:center;touch-action:none;background:linear-gradient(45deg,rgba(120,120,130,.055) 25%,transparent 25%,transparent 75%,rgba(120,120,130,.055) 75%),linear-gradient(45deg,rgba(120,120,130,.055) 25%,transparent 25%,transparent 75%,rgba(120,120,130,.055) 75%),#e9e9ec;background-size:24px 24px;background-position:0 0,12px 12px}.nx-photo-work canvas{display:block;max-width:92%;max-height:92%;object-fit:contain;border-radius:2px;box-shadow:0 14px 42px rgba(20,20,25,.22);transform-origin:center;will-change:transform}.nx-photo-empty{width:min(86%,390px);padding:28px 24px;border:1px dashed #bdbdc5;border-radius:16px;background:rgba(255,255,255,.82);text-align:center;box-shadow:0 8px 22px rgba(0,0,0,.06)}.nx-photo-empty i{display:grid;place-items:center;width:54px;height:54px;margin:0 auto 12px;border-radius:14px;background:linear-gradient(135deg,#8b3dff,#6d25df);color:#fff;font-style:normal;font-size:25px}.nx-photo-empty strong{display:block;font-size:18px}.nx-photo-empty p{margin:7px 0 15px;color:var(--p-m);font-size:13px;line-height:1.4}.nx-photo-primary{height:44px!important;padding:0 18px!important;border-radius:10px!important;background:linear-gradient(135deg,#8b3dff,#6d25df)!important;color:#fff!important;font-size:14px!important;font-weight:750!important}.nx-photo-before{position:absolute;top:10px;right:10px;z-index:4;height:34px!important;padding:0 11px!important;border:1px solid rgba(0,0,0,.08)!important;border-radius:9px!important;background:rgba(255,255,255,.93)!important;color:#28282d!important}.nx-photo-zoomlabel{position:absolute;right:10px;bottom:10px;z-index:3;height:29px;padding:7px 9px;border:1px solid rgba(0,0,0,.08);border-radius:8px;background:rgba(255,255,255,.92);color:#444;font-size:11px;font-weight:700;pointer-events:none}.nx-photo-toast{position:absolute;z-index:9;top:10px;left:50%;max-width:78%;transform:translate(-50%,-6px);padding:8px 12px;border-radius:10px;background:rgba(24,24,28,.9);color:#fff;font-size:12px;opacity:0;pointer-events:none;transition:.18s}.nx-photo-toast.is-on{opacity:1;transform:translate(-50%,0)}
+  .nx-photo-tools{z-index:6;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));border-top:1px solid var(--p-l);background:var(--p-s)}.nx-photo-tool{display:grid!important;place-items:center!important;align-content:center!important;gap:3px!important;height:60px!important;padding:3px!important;border-radius:0!important;color:var(--p-m)!important}.nx-photo-tool b{font-size:18px;font-weight:500;line-height:1}.nx-photo-tool span{font-size:10px}.nx-photo-tool.is-active{color:var(--p-purple)!important}
+  .nx-photo-sheet{position:absolute;z-index:7;left:6px;right:6px;bottom:64px;max-height:min(46%,300px);overflow:hidden;border:1px solid var(--p-l);border-radius:16px;background:color-mix(in srgb,var(--p-s) 97%,transparent);box-shadow:0 -10px 35px rgba(20,20,25,.16);backdrop-filter:blur(18px);transform:translateY(12px);opacity:0;pointer-events:none;transition:.18s}.nx-photo-sheet.is-open{transform:none;opacity:1;pointer-events:auto}.nx-photo-sheet-head{height:42px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;border-bottom:1px solid var(--p-l)}.nx-photo-sheet-head strong{font-size:14px}.nx-photo-close{width:32px!important;height:32px!important;padding:0!important;font-size:19px!important;color:var(--p-m)!important}.nx-photo-panel{display:none;height:calc(100% - 42px);padding:10px 12px;overflow:hidden}.nx-photo-panel.is-active{display:block}.nx-photo-row{display:flex;gap:8px;align-items:center}.nx-photo-row+.nx-photo-row{margin-top:8px}.nx-photo-action{flex:1;min-width:0;height:40px!important;padding:0 9px!important;border:1px solid var(--p-l)!important;border-radius:10px!important;background:var(--p-s2)!important;font-size:12px!important}.nx-photo-field{display:grid;grid-template-columns:82px minmax(0,1fr) 42px;align-items:center;gap:8px;min-height:35px}.nx-photo-field+.nx-photo-field{margin-top:5px}.nx-photo-field span{font-size:12px}.nx-photo-field output{font-size:11px;text-align:right;color:var(--p-m)}.nx-photo-editor input[type=range]{width:100%!important;height:26px!important;padding:0!important;border:0!important;background:transparent!important;box-shadow:none!important;accent-color:var(--p-purple)}.nx-photo-presets{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.nx-photo-preset{height:50px!important;border:1px solid var(--p-l)!important;border-radius:10px!important;background:var(--p-s2)!important;font-size:12px!important}.nx-photo-ai{display:grid;grid-template-columns:minmax(0,1fr) 100px;gap:9px;height:100%}.nx-photo-ai label{display:block;margin-bottom:5px;color:var(--p-m);font-size:11px}.nx-photo-editor textarea{width:100%!important;height:80px!important;padding:10px!important;resize:none!important;overflow:hidden!important;border:1px solid var(--p-l)!important;border-radius:10px!important;background:var(--p-s2)!important;box-shadow:none!important;color:var(--p-t)!important;font-size:14px!important;line-height:1.35!important;outline:none!important}.nx-photo-provider{width:100%;height:36px!important;margin-bottom:5px;border:1px solid var(--p-l)!important;border-radius:9px!important;background:var(--p-s2)!important;font-size:11px!important}.nx-photo-status{margin-top:6px;color:var(--p-m);font-size:11px;line-height:1.25;min-height:14px}.nx-photo-export-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:end}.nx-photo-select label{display:block;margin-bottom:5px;color:var(--p-m);font-size:11px}.nx-photo-editor select{width:100%!important;height:39px!important;padding:0 10px!important;border:1px solid var(--p-l)!important;border-radius:9px!important;background:var(--p-s2)!important;box-shadow:none!important;color:var(--p-t)!important;font-size:13px!important}.nx-photo-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}.nx-photo-metrics div{padding:7px 4px;border:1px solid var(--p-l);border-radius:9px;background:var(--p-s2);text-align:center}.nx-photo-metrics b{display:block;font-size:13px}.nx-photo-metrics span{display:block;color:var(--p-m);font-size:9px}
+  @media(prefers-color-scheme:dark){.nx-photo-editor{--p-bg:#17171a;--p-s:#232326;--p-s2:#2c2c30;--p-t:#f6f6f7;--p-m:#aaaab2;--p-l:#3a3a40}.nx-photo-work{background:linear-gradient(45deg,rgba(255,255,255,.035) 25%,transparent 25%,transparent 75%,rgba(255,255,255,.035) 75%),linear-gradient(45deg,rgba(255,255,255,.035) 25%,transparent 25%,transparent 75%,rgba(255,255,255,.035) 75%),#111114;background-size:24px 24px;background-position:0 0,12px 12px}.nx-photo-empty{border-color:#4a4a50;background:rgba(35,35,38,.9)}.nx-photo-before,.nx-photo-zoomlabel{border-color:#3b3b40!important;background:rgba(35,35,38,.94)!important;color:#f5f5f6!important}}
+  @media(max-width:520px){.nx-photo-frame{grid-template-rows:46px minmax(0,1fr) 58px}.nx-photo-top{padding:5px 6px;gap:4px}.nx-photo-add{padding:0 8px!important;font-size:12px!important}.nx-photo-mini{width:31px!important;height:34px!important}.nx-photo-export-top{height:34px!important;padding:0 9px!important;font-size:12px!important}.nx-photo-project strong{font-size:13px}.nx-photo-project span{font-size:9px}.nx-photo-tool{height:58px!important}.nx-photo-sheet{bottom:62px;left:5px;right:5px}.nx-photo-panel{padding:9px 10px}.nx-photo-editor textarea{height:74px!important}}
+  @media(max-height:720px){.nx-photo-frame{grid-template-rows:42px minmax(0,1fr) 54px}.nx-photo-tool{height:54px!important}.nx-photo-sheet{bottom:58px;max-height:48%}.nx-photo-sheet-head{height:36px}.nx-photo-panel{height:calc(100% - 36px);padding:7px 9px}.nx-photo-action{height:35px!important}.nx-photo-preset{height:41px!important}.nx-photo-editor textarea{height:60px!important}.nx-photo-provider{height:30px!important;margin-bottom:4px}}
+  @media(prefers-reduced-motion:reduce){.nx-photo-sheet,.nx-photo-toast{transition:none}}
+  `;
+  document.head.appendChild(style);
 }
 
-export function renderAiPhotoStudio() {
-  const root = studioShell({
-    eyebrow:'NEXUSNOVA CREATOR ENGINE', title:'AI Photo Studio', subtitle:'Local pro editor + AI analysis + secure premium provider handoff', badge:'PHOTO PRO', accent:'#33c8ff', accent2:'#2677ff',
-    tabs:[
-      { id:'edit', label:'EDIT', html:`<div class="nx-studio-grid two"><div class="nx-studio-preview"><canvas data-photo-canvas hidden></canvas><div class="nx-studio-empty" data-photo-empty>IMPORT A PHOTO<br><small>JPG • PNG • WEBP</small></div></div><div class="nx-studio-grid"><label class="nx-studio-field"><span>PHOTO</span><input type="file" accept="image/jpeg,image/png,image/webp" data-photo-file></label><div class="nx-studio-range"><span>Brightness</span><input type="range" min="40" max="180" value="100" data-photo-range="brightness"><output>100%</output></div><div class="nx-studio-range"><span>Contrast</span><input type="range" min="40" max="180" value="100" data-photo-range="contrast"><output>100%</output></div><div class="nx-studio-range"><span>Saturation</span><input type="range" min="0" max="220" value="100" data-photo-range="saturation"><output>100%</output></div><div class="nx-studio-actions"><button type="button" data-photo-rotate>ROTATE</button><button type="button" data-photo-flip>FLIP</button><button type="button" data-photo-reset>RESET</button></div></div></div>` },
-      { id:'enhance', label:'ENHANCE', html:`<div class="nx-studio-grid rows"><div class="nx-studio-card"><strong>Hyper-real enhancement deck</strong><p>Non-destructive presets run locally on the imported image. Original bytes stay untouched.</p><div class="nx-studio-actions" style="margin-top:9px"><button type="button" data-photo-preset="clean">CLEAN</button><button type="button" data-photo-preset="vivid">VIVID</button><button type="button" data-photo-preset="cinema">CINEMA</button></div><div class="nx-studio-actions" style="margin-top:7px"><button type="button" data-photo-preset="portrait">PORTRAIT</button><button type="button" data-photo-preset="mono">MONO</button><button type="button" data-photo-preset="soft">SOFT</button></div></div><div class="nx-studio-status" data-photo-enhance-status>Select a preset after importing a photo.</div></div>` },
-      { id:'ai', label:'AI LAB', html:`<div class="nx-studio-grid two"><div class="nx-studio-card"><strong>AI Visual Director</strong><p>Analyze the imported photo and build a premium edit/generation prompt without inventing hidden details.</p><label class="nx-studio-field" style="margin-top:8px"><span>CREATIVE INTENT</span><textarea data-photo-prompt placeholder="Example: luxury product campaign, dramatic studio lighting"></textarea></label><div class="nx-studio-actions" style="margin-top:7px"><button class="nx-studio-primary" type="button" data-photo-analyze>AI DIRECTOR</button><button type="button" data-photo-copy>COPY PROMPT</button></div></div><div class="nx-studio-grid"><div class="nx-studio-card"><strong>Premium generation providers</strong><p>NexusNova opens the provider securely. Provider usage is billed on that connected provider account.</p><div class="nx-studio-actions" style="margin-top:8px"><button type="button" data-photo-provider="https://app.runwayml.com/">RUNWAY</button><button type="button" data-photo-provider="https://firefly.adobe.com/">FIREFLY</button></div><button style="height:34px;margin-top:7px" type="button" data-photo-provider="https://www.canva.com/ai-image-generator/">CANVA AI</button></div><div class="nx-studio-status" data-photo-ai-status>AI Director ready.</div></div></div>` },
-      { id:'export', label:'EXPORT', html:`<div class="nx-studio-grid two"><div class="nx-studio-card"><strong>Master export</strong><p>Exports the currently rendered local edit. Choose modern WebP for smaller files or PNG for lossless output.</p><label class="nx-studio-field" style="margin-top:8px"><span>FORMAT</span><select data-photo-format><option value="image/webp">WEBP</option><option value="image/png">PNG</option><option value="image/jpeg">JPEG</option></select></label><label class="nx-studio-field" style="margin-top:7px"><span>QUALITY</span><input type="range" min="60" max="100" value="94" data-photo-quality></label></div><div class="nx-studio-grid rows"><div class="nx-studio-metric"><div><b data-photo-width>—</b><span>WIDTH</span></div><div><b data-photo-height>—</b><span>HEIGHT</span></div><div><b data-photo-mp>—</b><span>MP</span></div></div><div><button class="nx-studio-primary" style="width:100%;height:38px" type="button" data-photo-export disabled>EXPORT MASTER</button><div class="nx-studio-status" style="margin-top:7px" data-photo-export-status>No photo loaded.</div></div></div></div>` }
-    ]
-  });
+function renderCanvas(canvas,image,state){
+  if(!image) return;
+  const max=2400, scale=Math.min(1,max/Math.max(image.naturalWidth||1,image.naturalHeight||1));
+  const rotated=Math.abs(state.rotation%180)===90;
+  const w=Math.max(1,Math.round(image.naturalWidth*scale)), h=Math.max(1,Math.round(image.naturalHeight*scale));
+  canvas.width=rotated?h:w; canvas.height=rotated?w:h;
+  const ctx=canvas.getContext('2d'); ctx.clearRect(0,0,canvas.width,canvas.height); ctx.save();
+  ctx.translate(canvas.width/2,canvas.height/2); ctx.rotate(state.rotation*Math.PI/180); ctx.scale(state.flipX?-1:1,state.flipY?-1:1);
+  ctx.filter=`brightness(${state.brightness}%) contrast(${state.contrast}%) saturate(${state.saturation}%) blur(${state.blur}px)`;
+  ctx.drawImage(image,-w/2,-h/2,w,h); ctx.restore();
+}
 
-  const file = root.querySelector('[data-photo-file]');
-  const canvas = root.querySelector('[data-photo-canvas]');
-  const empty = root.querySelector('[data-photo-empty]');
-  const exportButton = root.querySelector('[data-photo-export]');
-  const state = { brightness:100, contrast:100, saturation:100, blur:0, rotation:0, flipX:false, flipY:false };
-  let image = null;
-  let sourceFile = null;
+export function renderAiPhotoStudio(){
+  ensurePhotoStyles();
+  const root=document.createElement('div'); root.className='nx-app-body nx-studio nx-photo-editor';
+  root.innerHTML=`<div class="nx-photo-frame">
+    <header class="nx-photo-top"><button class="nx-photo-add" type="button" data-photo-import-top>＋ Add</button><div class="nx-photo-project"><strong data-photo-name>AI Photo Studio</strong><span data-photo-meta>Canva-style mobile workspace</span></div><div class="nx-photo-top-actions"><button class="nx-photo-mini" type="button" data-photo-undo disabled aria-label="Undo">↶</button><button class="nx-photo-mini" type="button" data-photo-redo disabled aria-label="Redo">↷</button><button class="nx-photo-export-top" type="button" data-photo-export-open>Export</button></div></header>
+    <main class="nx-photo-work" data-photo-work><canvas data-photo-canvas hidden></canvas><div class="nx-photo-empty" data-photo-empty><i>＋</i><strong>Start with a photo</strong><p>JPG, PNG or WebP. Local edits stay on this device until you choose an AI provider.</p><button class="nx-photo-primary" type="button" data-photo-import-empty>Add photo</button></div><button class="nx-photo-before" type="button" data-photo-before hidden>Hold for original</button><div class="nx-photo-zoomlabel" data-photo-zoomlabel hidden>100%</div><div class="nx-photo-toast" data-photo-toast></div></main>
+    <nav class="nx-photo-tools"><button class="nx-photo-tool" type="button" data-photo-panel-open="edit"><b>✦</b><span>Edit</span></button><button class="nx-photo-tool" type="button" data-photo-panel-open="adjust"><b>☷</b><span>Adjust</span></button><button class="nx-photo-tool" type="button" data-photo-panel-open="looks"><b>◐</b><span>Filters</span></button><button class="nx-photo-tool" type="button" data-photo-panel-open="ai"><b>✧</b><span>AI</span></button><button class="nx-photo-tool" type="button" data-photo-panel-open="export"><b>⇩</b><span>Export</span></button></nav>
+  </div><input type="file" accept="image/jpeg,image/png,image/webp" data-photo-file hidden>
+  <aside class="nx-photo-sheet" data-photo-sheet><div class="nx-photo-sheet-head"><strong data-photo-sheet-title>Edit</strong><button class="nx-photo-close" type="button" data-photo-sheet-close>×</button></div>
+    <section class="nx-photo-panel" data-photo-sheet-panel="edit"><div class="nx-photo-row"><button class="nx-photo-action" type="button" data-photo-replace>Replace</button><button class="nx-photo-action" type="button" data-photo-rotate>Rotate</button><button class="nx-photo-action" type="button" data-photo-flip>Flip</button><button class="nx-photo-action" type="button" data-photo-reset>Reset</button></div><div class="nx-photo-field" style="margin-top:9px"><span>Zoom</span><input type="range" min="60" max="300" value="100" data-photo-zoom><output data-photo-zoom-output>100%</output></div><div class="nx-photo-status">Pinch to zoom. Drag to pan when zoomed in.</div></section>
+    <section class="nx-photo-panel" data-photo-sheet-panel="adjust"><div class="nx-photo-field"><span>Brightness</span><input type="range" min="40" max="180" value="100" data-photo-range="brightness"><output>100%</output></div><div class="nx-photo-field"><span>Contrast</span><input type="range" min="40" max="180" value="100" data-photo-range="contrast"><output>100%</output></div><div class="nx-photo-field"><span>Saturation</span><input type="range" min="0" max="220" value="100" data-photo-range="saturation"><output>100%</output></div><div class="nx-photo-field"><span>Soft blur</span><input type="range" min="0" max="20" step="0.1" value="0" data-photo-range="blur"><output>0px</output></div></section>
+    <section class="nx-photo-panel" data-photo-sheet-panel="looks"><div class="nx-photo-presets">${Object.keys(PRESETS).map(k=>`<button class="nx-photo-preset" type="button" data-photo-preset="${k}">${k[0].toUpperCase()+k.slice(1)}</button>`).join('')}</div></section>
+    <section class="nx-photo-panel" data-photo-sheet-panel="ai"><div class="nx-photo-ai"><div><label>Creative direction / AI brief</label><textarea data-photo-prompt placeholder="Example: luxury product campaign, natural studio light"></textarea><div class="nx-photo-row" style="margin-top:7px"><button class="nx-photo-primary" type="button" data-photo-analyze>AI Director</button><button class="nx-photo-action" type="button" data-photo-copy>Copy</button></div><div class="nx-photo-status" data-photo-ai-status>AI Director ready.</div></div><div><button class="nx-photo-provider" data-photo-provider="https://app.runwayml.com/">Runway</button><button class="nx-photo-provider" data-photo-provider="https://firefly.adobe.com/">Firefly</button><button class="nx-photo-provider" data-photo-provider="https://www.canva.com/ai-image-generator/">Canva AI</button></div></div></section>
+    <section class="nx-photo-panel" data-photo-sheet-panel="export"><div class="nx-photo-export-grid"><div><div class="nx-photo-select"><label>Format</label><select data-photo-format><option value="image/webp">WebP</option><option value="image/png">PNG</option><option value="image/jpeg">JPEG</option></select></div><div class="nx-photo-field" style="grid-template-columns:52px 1fr 38px;margin-top:7px"><span>Quality</span><input type="range" min="60" max="100" value="94" data-photo-quality><output data-photo-quality-output>94%</output></div></div><button class="nx-photo-primary" type="button" data-photo-export disabled>Export photo</button></div><div class="nx-photo-metrics"><div><b data-photo-width>—</b><span>WIDTH</span></div><div><b data-photo-height>—</b><span>HEIGHT</span></div><div><b data-photo-mp>—</b><span>MP</span></div></div><div class="nx-photo-status" data-photo-export-status>No photo loaded.</div></section>
+  </aside>`;
 
-  const paint = () => {
-    renderCanvas(canvas,image,state);
-    if (image) {
-      root.querySelector('[data-photo-width]').textContent = canvas.width;
-      root.querySelector('[data-photo-height]').textContent = canvas.height;
-      root.querySelector('[data-photo-mp]').textContent = `${((canvas.width*canvas.height)/1e6).toFixed(1)}`;
-    }
-  };
+  const file=root.querySelector('[data-photo-file]'), canvas=root.querySelector('[data-photo-canvas]'), empty=root.querySelector('[data-photo-empty]'), work=root.querySelector('[data-photo-work]'), sheet=root.querySelector('[data-photo-sheet]'), exportBtn=root.querySelector('[data-photo-export]'), undoBtn=root.querySelector('[data-photo-undo]'), redoBtn=root.querySelector('[data-photo-redo]'), beforeBtn=root.querySelector('[data-photo-before]'), zoomInput=root.querySelector('[data-photo-zoom]'), zoomOut=root.querySelector('[data-photo-zoom-output]'), zoomLabel=root.querySelector('[data-photo-zoomlabel]');
+  const state={...DEFAULTS}, view={zoom:1,x:0,y:0}, history=[], redo=[]; let image=null, sourceFile=null, toastTimer=0, pinchStart=0, pinchZoom=1, panId=null, panLast=null; const pointers=new Map();
+  const snap=()=>({...state}); const historyButtons=()=>{undoBtn.disabled=!history.length;redoBtn.disabled=!redo.length};
+  const push=(previous)=>{history.push(previous||snap());if(history.length>24)history.shift();redo.length=0;historyButtons()};
+  const toast=(text)=>{const n=root.querySelector('[data-photo-toast]');n.textContent=String(text).slice(0,160);n.classList.add('is-on');clearTimeout(toastTimer);toastTimer=setTimeout(()=>n.classList.remove('is-on'),2100)};
+  const applyView=()=>{canvas.style.transform=`translate(${view.x}px,${view.y}px) scale(${view.zoom})`;const p=`${Math.round(view.zoom*100)}%`;zoomInput.value=Math.round(view.zoom*100);zoomOut.textContent=p;zoomLabel.textContent=p};
+  const resetView=()=>{view.zoom=1;view.x=0;view.y=0;applyView()};
+  const sync=()=>root.querySelectorAll('[data-photo-range]').forEach(i=>{const k=i.dataset.photoRange;i.value=state[k];i.nextElementSibling.textContent=k==='blur'?`${state[k]}px`:`${Math.round(state[k])}%`});
+  const paint=()=>{renderCanvas(canvas,image,state);if(image){root.querySelector('[data-photo-width]').textContent=canvas.width;root.querySelector('[data-photo-height]').textContent=canvas.height;root.querySelector('[data-photo-mp]').textContent=((canvas.width*canvas.height)/1e6).toFixed(1);applyView()}};
+  const closeSheet=()=>{sheet.classList.remove('is-open');root.querySelectorAll('[data-photo-panel-open]').forEach(b=>b.classList.remove('is-active'))};
+  const openSheet=(id)=>{const titles={edit:'Edit',adjust:'Adjust',looks:'Filters',ai:'AI tools',export:'Export'};root.querySelector('[data-photo-sheet-title]').textContent=titles[id]||'Edit';root.querySelectorAll('[data-photo-sheet-panel]').forEach(p=>p.classList.toggle('is-active',p.dataset.photoSheetPanel===id));root.querySelectorAll('[data-photo-panel-open]').forEach(b=>b.classList.toggle('is-active',b.dataset.photoPanelOpen===id));sheet.classList.add('is-open')};
+  const importPhoto=()=>file.click(); root.querySelector('[data-photo-import-top]').onclick=importPhoto;root.querySelector('[data-photo-import-empty]').onclick=importPhoto;root.querySelector('[data-photo-replace]').onclick=importPhoto;
+  root.querySelector('[data-photo-sheet-close]').onclick=closeSheet;root.querySelector('[data-photo-export-open]').onclick=()=>openSheet('export');root.querySelectorAll('[data-photo-panel-open]').forEach(b=>b.onclick=()=>sheet.classList.contains('is-open')&&b.classList.contains('is-active')?closeSheet():openSheet(b.dataset.photoPanelOpen));
 
-  file.addEventListener('change', () => {
-    const selected = file.files?.[0];
-    if (!selected) return;
-    if (!/^image\/(jpeg|png|webp)$/i.test(selected.type)) return;
-    const url = URL.createObjectURL(selected);
-    const next = new Image();
-    next.onload = () => {
-      if (sourceFile && sourceFile.__url) URL.revokeObjectURL(sourceFile.__url);
-      sourceFile = selected; sourceFile.__url = url; image = next;
-      canvas.hidden = false; empty.hidden = true; exportButton.disabled = false;
-      paint();
-      root.querySelector('[data-photo-export-status]').textContent = `${selected.name} ready for master export.`;
-    };
-    next.onerror = () => URL.revokeObjectURL(url);
-    next.src = url;
-  });
+  file.addEventListener('change',()=>{const selected=file.files?.[0];if(!selected)return;if(!/^image\/(jpeg|png|webp)$/i.test(selected.type)){toast('Use JPG, PNG or WebP.');return}const url=URL.createObjectURL(selected),next=new Image();next.onload=()=>{if(sourceFile?.__url)URL.revokeObjectURL(sourceFile.__url);sourceFile=selected;sourceFile.__url=url;image=next;Object.assign(state,DEFAULTS);history.length=0;redo.length=0;historyButtons();sync();resetView();canvas.hidden=false;empty.hidden=true;beforeBtn.hidden=false;zoomLabel.hidden=false;exportBtn.disabled=false;root.querySelector('[data-photo-name]').textContent=selected.name;root.querySelector('[data-photo-meta]').textContent=`${next.naturalWidth} × ${next.naturalHeight}`;root.querySelector('[data-photo-export-status]').textContent='Ready to export.';paint();closeSheet();toast('Photo ready')};next.onerror=()=>{URL.revokeObjectURL(url);toast('Could not open image.')};next.src=url});
 
-  root.querySelectorAll('[data-photo-range]').forEach(input => input.addEventListener('input', () => {
-    state[input.dataset.photoRange] = Number(input.value);
-    input.nextElementSibling.textContent = `${input.value}${input.dataset.photoRange === 'blur' ? 'px' : '%'}`;
-    paint();
-  }));
-  root.querySelector('[data-photo-rotate]').addEventListener('click',()=>{state.rotation=(state.rotation+90)%360;paint();});
-  root.querySelector('[data-photo-flip]').addEventListener('click',()=>{state.flipX=!state.flipX;paint();});
-  root.querySelector('[data-photo-reset]').addEventListener('click',()=>{Object.assign(state,{brightness:100,contrast:100,saturation:100,blur:0,rotation:0,flipX:false,flipY:false});root.querySelectorAll('[data-photo-range]').forEach(i=>{i.value=100;i.nextElementSibling.textContent='100%';});paint();});
+  root.querySelectorAll('[data-photo-range]').forEach(input=>{let before=null;const remember=()=>{before=snap()};input.onpointerdown=remember;input.onfocus=()=>{if(!before)remember()};input.oninput=()=>{const k=input.dataset.photoRange;state[k]=Number(input.value);input.nextElementSibling.textContent=k==='blur'?`${input.value}px`:`${input.value}%`;paint()};input.onchange=()=>{if(before)push(before);before=null}});
+  root.querySelector('[data-photo-rotate]').onclick=()=>{if(!image)return;push(snap());state.rotation=(state.rotation+90)%360;paint()};root.querySelector('[data-photo-flip]').onclick=()=>{if(!image)return;push(snap());state.flipX=!state.flipX;paint()};root.querySelector('[data-photo-reset]').onclick=()=>{if(!image)return;push(snap());Object.assign(state,DEFAULTS);sync();resetView();paint();toast('Edits reset')};
+  root.querySelectorAll('[data-photo-preset]').forEach(b=>b.onclick=()=>{if(!image){toast('Add a photo first.');return}push(snap());Object.assign(state,PRESETS[b.dataset.photoPreset]||PRESETS.clean);sync();paint();toast(`${b.textContent} filter applied`)});
+  undoBtn.onclick=()=>{if(!history.length)return;redo.push(snap());Object.assign(state,history.pop());sync();paint();historyButtons()};redoBtn.onclick=()=>{if(!redo.length)return;history.push(snap());Object.assign(state,redo.pop());sync();paint();historyButtons()};
+  beforeBtn.onpointerdown=()=>{if(image){renderCanvas(canvas,image,DEFAULTS);applyView()}};['pointerup','pointercancel','pointerleave'].forEach(e=>beforeBtn.addEventListener(e,()=>image&&paint()));
+  zoomInput.oninput=()=>{view.zoom=Math.max(.6,Math.min(3,Number(zoomInput.value)/100));if(view.zoom<=1){view.x=0;view.y=0}applyView()};work.ondblclick=resetView;
+  work.addEventListener('pointerdown',e=>{if(!image||e.target.closest('button'))return;pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});work.setPointerCapture?.(e.pointerId);if(pointers.size===2){const [a,b]=[...pointers.values()];pinchStart=Math.hypot(a.x-b.x,a.y-b.y)||1;pinchZoom=view.zoom;panId=null;panLast=null}else if(view.zoom>1){panId=e.pointerId;panLast={x:e.clientX,y:e.clientY}}});
+  work.addEventListener('pointermove',e=>{if(!pointers.has(e.pointerId))return;pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});if(pointers.size===2){const[a,b]=[...pointers.values()],d=Math.hypot(a.x-b.x,a.y-b.y)||1;view.zoom=Math.max(.6,Math.min(3,pinchZoom*d/pinchStart));if(view.zoom<=1){view.x=0;view.y=0}applyView()}else if(panId===e.pointerId&&panLast&&view.zoom>1){view.x+=e.clientX-panLast.x;view.y+=e.clientY-panLast.y;panLast={x:e.clientX,y:e.clientY};applyView()}});
+  const release=e=>{pointers.delete(e.pointerId);if(panId===e.pointerId){panId=null;panLast=null}};work.onpointerup=release;work.onpointercancel=release;
 
-  const presets = {
-    clean:{brightness:104,contrast:108,saturation:103,blur:0}, vivid:{brightness:106,contrast:122,saturation:142,blur:0}, cinema:{brightness:92,contrast:132,saturation:88,blur:0}, portrait:{brightness:108,contrast:104,saturation:108,blur:.15}, mono:{brightness:102,contrast:128,saturation:0,blur:0}, soft:{brightness:110,contrast:92,saturation:95,blur:.45}
-  };
-  root.querySelectorAll('[data-photo-preset]').forEach(button=>button.addEventListener('click',()=>{
-    if(!image){root.querySelector('[data-photo-enhance-status]').textContent='Import a photo in EDIT first.';return;}
-    Object.assign(state,presets[button.dataset.photoPreset]||presets.clean);paint();
-    root.querySelector('[data-photo-enhance-status]').textContent=`${button.textContent.trim()} preset applied non-destructively.`;
-  }));
-
-  const aiStatus = root.querySelector('[data-photo-ai-status]');
-  const prompt = root.querySelector('[data-photo-prompt]');
-  root.querySelector('[data-photo-analyze]').addEventListener('click',async()=>{
-    if(!sourceFile){aiStatus.textContent='Import a photo in EDIT first.';return;}
-    aiStatus.textContent='AI Director analyzing visible image content…';
-    try{
-      const [model,data]=await Promise.all([aiModel('You are a professional photo art director. Analyze only visible content. Return a concise premium editing/generation prompt and practical lighting/color recommendations.'),fileToInline(sourceFile,12)]);
-      const result=await model.generateContent([{inlineData:data},{text:`Creative intent: ${prompt.value.trim()||'premium photorealistic enhancement'}. Build a concise production-ready prompt and 4 edit recommendations.`}]);
-      const text=String(result?.response?.text?.()||'').trim();
-      if(!text)throw new Error('AI returned no direction.');
-      prompt.value=text.slice(0,1800);aiStatus.textContent='AI Director completed the visual brief.';
-    }catch(error){aiStatus.textContent=String(error?.message||'AI Director unavailable.').slice(0,220);}
-  });
-  root.querySelector('[data-photo-copy]').addEventListener('click',async()=>{if(!prompt.value.trim())return;try{await navigator.clipboard.writeText(prompt.value);aiStatus.textContent='Prompt copied.';}catch{aiStatus.textContent='Clipboard permission unavailable.';}});
-  root.querySelectorAll('[data-photo-provider]').forEach(button=>button.addEventListener('click',()=>{aiStatus.textContent=openSecure(button.dataset.photoProvider)?'Opening premium provider securely…':'Could not open provider.';}));
-
-  exportButton.addEventListener('click',()=>{
-    if(!image)return;
-    const type=root.querySelector('[data-photo-format]').value;
-    const quality=Math.max(.6,Math.min(1,Number(root.querySelector('[data-photo-quality]').value)/100));
-    canvas.toBlob(blob=>{
-      if(!blob){root.querySelector('[data-photo-export-status]').textContent='Export failed.';return;}
-      const ext=type==='image/png'?'png':type==='image/jpeg'?'jpg':'webp';
-      downloadBlob(blob,`${safeName(sourceFile?.name,'nexusnova-photo')}-edited.${ext}`);
-      root.querySelector('[data-photo-export-status]').textContent=`Master ${ext.toUpperCase()} exported locally.`;
-    },type,quality);
-  });
-
-  root.__cleanup=()=>{if(sourceFile?.__url)URL.revokeObjectURL(sourceFile.__url);};
-  return root;
+  const aiStatus=root.querySelector('[data-photo-ai-status]'),prompt=root.querySelector('[data-photo-prompt]');root.querySelector('[data-photo-analyze]').onclick=async()=>{if(!sourceFile){aiStatus.textContent='Add a photo first.';toast('Add a photo first.');return}aiStatus.textContent='Analyzing visible image content…';try{const[model,data]=await Promise.all([aiModel('You are a professional photo art director. Analyze only visible content. Return a concise premium editing/generation prompt and practical lighting/color recommendations.'),fileToInline(sourceFile,12)]);const result=await model.generateContent([{inlineData:data},{text:`Creative intent: ${prompt.value.trim()||'premium photorealistic enhancement'}. Build a concise production-ready prompt and 4 edit recommendations.`}]);const text=String(result?.response?.text?.()||'').trim();if(!text)throw new Error('AI returned no direction.');prompt.value=text.slice(0,1800);aiStatus.textContent='AI Director completed the visual brief.';toast('AI brief ready')}catch(error){aiStatus.textContent=String(error?.message||'AI Director unavailable.').slice(0,220)}};
+  root.querySelector('[data-photo-copy]').onclick=async()=>{if(!prompt.value.trim())return;try{await navigator.clipboard.writeText(prompt.value);aiStatus.textContent='Prompt copied.';toast('Copied')}catch{aiStatus.textContent='Clipboard permission unavailable.'}};root.querySelectorAll('[data-photo-provider]').forEach(b=>b.onclick=()=>{aiStatus.textContent=openSecure(b.dataset.photoProvider)?'Opening provider securely…':'Could not open provider.'});
+  const quality=root.querySelector('[data-photo-quality]');quality.oninput=()=>root.querySelector('[data-photo-quality-output]').textContent=`${quality.value}%`;exportBtn.onclick=()=>{if(!image){toast('Add a photo first.');return}const type=root.querySelector('[data-photo-format]').value,q=Math.max(.6,Math.min(1,Number(quality.value)/100)),status=root.querySelector('[data-photo-export-status]');status.textContent='Preparing export…';canvas.toBlob(blob=>{if(!blob){status.textContent='Export failed.';return}const ext=type==='image/png'?'png':type==='image/jpeg'?'jpg':'webp';downloadBlob(blob,`${safeName(sourceFile?.name,'nexusnova-photo')}-edited.${ext}`);status.textContent=`${ext.toUpperCase()} exported locally.`;toast('Export complete')},type,q)};
+  root.__cleanup=()=>{clearTimeout(toastTimer);if(sourceFile?.__url)URL.revokeObjectURL(sourceFile.__url)};return root;
 }
