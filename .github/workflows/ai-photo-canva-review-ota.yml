@@ -29,16 +29,20 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verify full AI Photo flagship source
+      - name: Verify full AI Photo flagship source and compatibility entrypoint
         shell: bash
         run: |
           set -euo pipefail
+          ENTRY=fresh-rebuild/src/features/apps/ai-photo-studio.js
           FLAG=fresh-rebuild/src/features/apps/ai-photo-studio-flagship.js
           WRAP=fresh-rebuild/src/features/apps/ai-photo-studio-review.js
           SUITE=fresh-rebuild/src/features/apps/premium-studio-suite.js
+          node --check "$ENTRY"
           node --check "$FLAG"
           node --check "$WRAP"
           node --check "$SUITE"
+          grep -Fq "renderAiPhotoStudioFlagship as renderAiPhotoStudio" "$ENTRY"
+          grep -Fq "./ai-photo-studio-flagship.js" "$ENTRY"
           grep -Fq 'data-photo-canvas' "$FLAG"
           grep -Fq 'data-photo-crop' "$FLAG"
           grep -Fq 'data-mask-base="linear"' "$FLAG"
@@ -53,13 +57,13 @@ jobs:
           grep -Fq 'data-photo-ai="auto"' "$FLAG"
           grep -Fq 'data-photo-ai="denoise"' "$FLAG"
           grep -Fq 'No external website redirect' "$FLAG"
-          if grep -Eq 'runwayml\.com|firefly\.adobe\.com|canva\.com/ai-image-generator|data-photo-provider' "$FLAG" "$WRAP"; then
+          if grep -Eq 'runwayml\.com|firefly\.adobe\.com|canva\.com/ai-image-generator|data-photo-provider' "$ENTRY" "$FLAG" "$WRAP"; then
             echo 'External AI redirect found in active AI Photo renderer' >&2
             exit 1
           fi
           grep -Fq "from './ai-photo-studio-review.js'" "$SUITE"
           grep -Fq "'ai-photo-studio': renderAiPhotoStudio" "$SUITE"
-          echo 'AI Photo full flagship source: PASS'
+          echo 'AI Photo full flagship + legacy entrypoint: PASS'
 
       - name: Build differential OTA
         shell: bash
@@ -78,6 +82,7 @@ jobs:
             cp "$full" "/tmp/nx-photo-ota/files/$rel"
           done < <(git diff --name-only --diff-filter=ACMRT "$BASE" "$GITHUB_SHA" -- fresh-rebuild/)
           for required in \
+            src/features/apps/ai-photo-studio.js \
             src/features/apps/ai-photo-studio-flagship.js \
             src/features/apps/ai-photo-studio-review.js \
             src/features/apps/premium-studio-suite.js; do
@@ -94,13 +99,13 @@ jobs:
               data=p.read_bytes()
               files.append({'path':p.relative_to(root).as_posix(),'sha256':hashlib.sha256(data).hexdigest(),'size':len(data)})
           paths={x['path'] for x in files}
-          required={'index.html','src/features/apps/ai-photo-studio-flagship.js','src/features/apps/ai-photo-studio-review.js','src/features/apps/premium-studio-suite.js'}
+          required={'index.html','src/features/apps/ai-photo-studio.js','src/features/apps/ai-photo-studio-flagship.js','src/features/apps/ai-photo-studio-review.js','src/features/apps/premium-studio-suite.js'}
           assert required <= paths,(required-paths)
           assert len(files) <= 2000
           assert sum(x['size'] for x in files) <= 60*1024*1024
           manifest={'schema':2,'base':os.environ['OTA_DIFF_BASE'],'version':os.environ['GITHUB_SHA'],'files':files}
           Path('/tmp/nx-photo-ota/manifest.json').write_text(json.dumps(manifest,separators=(',',':'),sort_keys=True),encoding='utf-8')
-          print('AI Photo flagship OTA files:',len(files))
+          print('AI Photo compatibility OTA files:',len(files))
           PY
 
       - name: Require public OTA credential
@@ -123,7 +128,7 @@ jobs:
           rm -rf ota && mkdir -p ota
           cp -a /tmp/nx-photo-ota/. ota/
           git add -A ota
-          git commit -m "Publish AI Photo full flagship review OTA $GITHUB_SHA"
+          git commit -m "Publish AI Photo compatibility flagship OTA $GITHUB_SHA"
           AUTH="$(printf 'x-access-token:%s' "$PUBLIC_OTA_TOKEN" | base64 -w0)"
           git -c http.extraheader="AUTHORIZATION: basic $AUTH" push origin HEAD:"$PUBLIC_OTA_BRANCH"
 
@@ -141,7 +146,7 @@ jobs:
           expected,base=sys.argv[1],sys.argv[2]
           assert m.get('schema')==2 and m.get('base')==base and m.get('version')==expected
           paths={x.get('path') for x in m.get('files',[])}
-          required={'src/features/apps/ai-photo-studio-flagship.js','src/features/apps/ai-photo-studio-review.js','src/features/apps/premium-studio-suite.js'}
+          required={'src/features/apps/ai-photo-studio.js','src/features/apps/ai-photo-studio-flagship.js','src/features/apps/ai-photo-studio-review.js','src/features/apps/premium-studio-suite.js'}
           assert required <= paths
           PY
             then break; fi
@@ -157,5 +162,5 @@ jobs:
               data=urllib.request.urlopen(url,timeout=20).read()
               assert len(data)==item['size'],item['path']
               assert hashlib.sha256(data).hexdigest()==item['sha256'],item['path']
-          print('Anonymous public AI Photo flagship OTA verified:',len(m['files']),'files')
+          print('Anonymous public AI Photo compatibility OTA verified:',len(m['files']),'files')
           PY
