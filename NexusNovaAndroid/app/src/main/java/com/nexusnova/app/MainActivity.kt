@@ -162,6 +162,11 @@ class MainActivity : AppCompatActivity() {
         settings.javaScriptEnabled = true
         settings.domStorageEnabled = true
         settings.databaseEnabled = true
+        // Puter website authentication opens a user-initiated popup. Multiple
+        // windows are enabled only so the guarded onCreateWindow handler below
+        // can place that popup in an isolated WebView with no NexusNova bridge.
+        settings.setSupportMultipleWindows(true)
+        settings.javaScriptCanOpenWindowsAutomatically = true
         settings.allowFileAccess = false
         settings.allowContentAccess = false
         settings.allowFileAccessFromFileURLs = false
@@ -283,6 +288,20 @@ class MainActivity : AppCompatActivity() {
         }
 
         webView.webChromeClient = object : WebChromeClient() {
+            override fun onCreateWindow(
+                view: WebView?,
+                isDialog: Boolean,
+                isUserGesture: Boolean,
+                resultMsg: android.os.Message?
+            ): Boolean {
+                if (view !== webView || !isTrustedAppPage(view)) return false
+                return NexusPuterPopupManager.open(
+                    this@MainActivity,
+                    resultMsg,
+                    isUserGesture
+                )
+            }
+
             override fun onPermissionRequest(request: PermissionRequest?) {
                 val permissionRequest = request ?: return
                 if (!isTrustedOrigin(permissionRequest.origin)) {
