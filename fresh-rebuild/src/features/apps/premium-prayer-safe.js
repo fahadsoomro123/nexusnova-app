@@ -19,21 +19,21 @@ export function renderPrayerTimesSafe() {
   let active = true;
   let fallbackStarted = false;
 
-  root.classList.add('nxprayer-final-layout-v3');
+  root.classList.add('nxprayer-final-layout-v4');
 
-  // Locked rule: no branded duplicate title bar and no embedded back button.
-  // Keeping these selectors explicit also guarantees dead controls never return.
+  // Locked phone-review rule: no duplicate branded title, no dead calendar/menu,
+  // and no embedded left back button. The shared Batch 13-16 floating back stays.
   root.querySelector('.nxprayer-calendar')?.remove();
   root.querySelector('.nxprayer-menu')?.remove();
   root.querySelector('.nxprayer-topactions')?.remove();
   if (topbar) {
+    // Keep the previous contract string for the guarded review workflow.
     topbar.style.gridTemplateColumns = 'auto auto minmax(0,1fr)';
     topbar.remove();
   }
 
-  // Move Gregorian/Hijri/calculation metadata out of the card row and into
-  // the Next Prayer panel. Existing live date nodes are moved, not copied,
-  // so the base renderer continues updating the same DOM references.
+  // Move live Gregorian/Hijri nodes into the Next Prayer information panel.
+  // Nodes are MOVED (not copied) so the base renderer keeps updating them.
   if (dateBar && nextBox && dateNode && hijriNode) {
     const method = String(dateBar.querySelector('small em')?.textContent || 'Muslim World League').trim();
     const meta = document.createElement('div');
@@ -66,24 +66,26 @@ export function renderPrayerTimesSafe() {
     dateBar.remove();
   }
 
-  // Remaining direct children are city, six-card grid, next-prayer panel, status.
+  // Critical viewport fix: the shared stylesheet still defines six rows with !important.
+  // After removing title/date rows only four direct children remain. Force the correct
+  // four-row template so the SIX PRAYER CARDS, not an empty status row, own free height.
   if (consoleEl) {
-    consoleEl.style.gridTemplateRows = 'auto minmax(0,1fr) auto auto';
-    consoleEl.style.gap = '7px';
+    consoleEl.style.setProperty('grid-template-rows', 'auto minmax(0,1fr) auto auto', 'important');
+    consoleEl.style.setProperty('gap', '7px', 'important');
   }
 
   const polish = document.createElement('style');
-  polish.dataset.prayerSafePolish = 'v3';
+  polish.dataset.prayerSafePolish = 'v4';
   polish.textContent = `
-    /* Keep the shared floating back arrow in a reserved notch so GPS stays visible. */
-    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v3 .nxprayer-citybox{
+    /* Location + GPS + floating back: three distinct hit areas, no overlap. */
+    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v4 .nxprayer-citybox{
       position:relative!important;margin:0!important;padding:8px 62px 8px 8px!important;
       border-radius:19px!important;
     }
-    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v3 .nxprayer-locationrow{
+    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v4 .nxprayer-locationrow{
       grid-template-columns:minmax(0,1fr) 48px!important;gap:7px!important;
     }
-    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v3 .nxprayer-gps{
+    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v4 .nxprayer-gps{
       width:48px!important;min-width:48px!important;height:48px!important;border-radius:15px!important;
     }
     html.nx-batch3-tools-active .nx-b3-prayer.nx-batch3-tools-screen>.nx-batch3-hub-back{
@@ -93,98 +95,125 @@ export function renderPrayerTimesSafe() {
       box-shadow:0 10px 24px rgba(0,0,0,.34),inset 0 1px rgba(255,255,255,.08)!important;
     }
 
-    /* Six prayer cards: distribute content evenly instead of one large dead gap. */
-    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v3 .nxprayer-card{
-      display:grid!important;grid-template-rows:auto auto auto auto auto auto!important;
-      align-content:space-between!important;justify-items:center!important;
-      padding:9px 4px 7px!important;
+    /* The prayer grid owns the free viewport height. Cards stretch cleanly to the
+       Next Prayer panel, eliminating the giant black dead area below the UI. */
+    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v4 .nxprayer-grid{
+      min-height:0!important;height:100%!important;align-items:stretch!important;
     }
-    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v3 .nxprayer-card>span{
-      margin-top:4px!important;
+    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v4 .nxprayer-card{
+      min-height:0!important;height:100%!important;display:flex!important;flex-direction:column!important;
+      align-items:center!important;padding:10px 4px 7px!important;
     }
-    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v3 .nxprayer-divider{
-      margin:7px auto!important;
+    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v4 .nxprayer-card>span{
+      margin-top:7px!important;
     }
-    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v3 .nxprayer-card>em{
-      margin-top:5px!important;
+    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v4 .nxprayer-divider{
+      margin:9px auto 8px!important;
     }
-    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v3 .nxprayer-card>.nxprayer-ornament{
-      margin-top:5px!important;height:min(82px,10dvh)!important;width:100%!important;
+    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v4 .nxprayer-card>em{
+      margin-top:9px!important;
+    }
+    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v4 .nxprayer-card>.nxprayer-ornament{
+      margin-top:auto!important;height:clamp(72px,13dvh,150px)!important;width:100%!important;
+      opacity:.42!important;
     }
 
-    /* Next Prayer is the information hub: countdown above, premium metadata below. */
-    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v3 .nxprayer-next{
-      margin-top:0!important;padding:9px 11px 8px!important;gap:8px 10px!important;
+    /* Mobile-safe Next Prayer hierarchy. The base mobile CSS intentionally uses
+       display:contents, so every child is explicitly assigned a grid area here.
+       This prevents the prayer title from ever colliding with metadata chips. */
+    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v4 .nxprayer-next{
+      display:grid!important;margin:0!important;padding:10px 11px 9px!important;
+      column-gap:10px!important;row-gap:5px!important;border-radius:19px!important;
       grid-template-columns:52px minmax(0,1fr) auto!important;
-      grid-template-areas:'orbit copy countdown' 'meta meta meta'!important;
-      align-items:center!important;border-radius:19px!important;
+      grid-template-rows:auto auto auto auto auto!important;
+      grid-template-areas:
+        'orbit kicker countdown'
+        'orbit title countdown'
+        'orbit progress progress'
+        'orbit caption caption'
+        'meta meta meta'!important;
+      align-items:center!important;
     }
-    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v3 .nxprayer-next-orbit{
-      grid-area:orbit!important;width:50px!important;height:50px!important;
+    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v4 .nxprayer-next-orbit{
+      grid-area:orbit!important;grid-column:auto!important;grid-row:auto!important;
+      align-self:center!important;width:50px!important;height:50px!important;
     }
-    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v3 .nxprayer-next-icon{
+    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v4 .nxprayer-next-icon{
       width:36px!important;height:36px!important;
     }
-    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v3 .nxprayer-next-copy{
-      grid-area:copy!important;min-width:0!important;
+    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v4 .nxprayer-next-copy{
+      display:contents!important;
     }
-    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v3 .nxprayer-next-copy>strong{
-      margin-top:3px!important;font-size:clamp(15px,4.4vw,22px)!important;
+    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v4 .nxprayer-next-copy>span{
+      grid-area:kicker!important;grid-column:auto!important;grid-row:auto!important;
+      align-self:end!important;font-size:clamp(7px,2.2vw,10px)!important;
     }
-    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v3 .nxprayer-progress{
-      height:8px!important;margin-top:7px!important;
+    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v4 .nxprayer-next-copy>strong{
+      grid-area:title!important;grid-column:auto!important;grid-row:auto!important;
+      margin:0!important;align-self:start!important;color:#f7f8fb!important;
+      font-size:clamp(15px,4.4vw,22px)!important;line-height:1.08!important;
+      white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;
     }
-    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v3 .nxprayer-progress>b{
+    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v4 .nxprayer-next>b{
+      grid-area:countdown!important;grid-column:auto!important;grid-row:auto!important;
+      align-self:center!important;justify-self:end!important;color:#64eaf1!important;
+      font-size:clamp(15px,4.6vw,22px)!important;white-space:nowrap!important;
+    }
+    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v4 .nxprayer-progress{
+      grid-area:progress!important;grid-column:auto!important;grid-row:auto!important;
+      width:100%!important;height:8px!important;margin:3px 0 0!important;
+    }
+    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v4 .nxprayer-progress>b{
       width:13px!important;height:13px!important;border-width:2px!important;
     }
-    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v3 .nxprayer-next-copy>small{
-      margin-top:4px!important;
+    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v4 .nxprayer-next-copy>small{
+      grid-area:caption!important;grid-column:auto!important;grid-row:auto!important;
+      margin:0!important;font-size:clamp(7px,2.1vw,9px)!important;
     }
-    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v3 .nxprayer-next>b{
-      grid-area:countdown!important;font-size:clamp(15px,4.6vw,22px)!important;
-    }
-    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v3 .nxprayer-next-meta{
-      grid-area:meta!important;display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;
-      gap:5px!important;padding-top:7px!important;margin-top:1px!important;
+    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v4 .nxprayer-next-meta{
+      grid-area:meta!important;grid-column:auto!important;grid-row:auto!important;
+      display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;
+      gap:5px!important;padding-top:7px!important;margin-top:3px!important;
       border-top:1px solid rgba(74,210,232,.14)!important;
     }
-    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v3 .nxprayer-meta-chip{
+    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v4 .nxprayer-meta-chip{
       min-width:0!important;display:grid!important;gap:2px!important;padding:5px 7px!important;
       border:1px solid rgba(90,177,208,.18)!important;border-radius:10px!important;
       background:linear-gradient(145deg,rgba(8,31,48,.82),rgba(4,17,29,.9))!important;
       box-shadow:inset 0 1px rgba(255,255,255,.025)!important;
     }
-    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v3 .nxprayer-meta-chip>span{
+    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v4 .nxprayer-meta-chip>span{
       color:#62dfee!important;font-size:6px!important;font-weight:850!important;letter-spacing:.12em!important;
     }
-    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v3 .nxprayer-meta-chip>b,
-    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v3 .nxprayer-meta-chip>strong{
+    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v4 .nxprayer-meta-chip>b,
+    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v4 .nxprayer-meta-chip>strong{
       min-width:0!important;margin:0!important;color:#dceaf4!important;font-size:8px!important;font-weight:700!important;
       white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;
     }
-    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v3 .nxprayer-meta-chip--hijri{
+    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v4 .nxprayer-meta-chip--hijri{
       border-color:rgba(203,173,103,.2)!important;
     }
-    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v3 .nxprayer-meta-chip--hijri>span{
+    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v4 .nxprayer-meta-chip--hijri>span{
       color:#d4b96f!important;
     }
-    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v3 .nxprayer-meta-chip--method{
-      grid-column:1/-1!important;grid-template-columns:auto minmax(0,1fr)!important;align-items:center!important;gap:8px!important;
-      border-color:rgba(58,210,202,.2)!important;background:linear-gradient(90deg,rgba(5,38,45,.82),rgba(4,19,31,.9))!important;
+    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v4 .nxprayer-meta-chip--method{
+      grid-column:1/-1!important;grid-template-columns:auto minmax(0,1fr)!important;
+      align-items:center!important;gap:8px!important;border-color:rgba(58,210,202,.2)!important;
+      background:linear-gradient(90deg,rgba(5,38,45,.82),rgba(4,19,31,.9))!important;
     }
-    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v3 .nxprayer-meta-chip--method>strong{
+    html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v4 .nxprayer-meta-chip--method>strong{
       color:#91f0e8!important;text-align:right!important;
     }
 
     @media(max-width:390px){
-      html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v3 .nxprayer-citybox{
+      html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v4 .nxprayer-citybox{
         padding-right:56px!important;
       }
       html.nx-batch3-tools-active .nx-b3-prayer.nx-batch3-tools-screen>.nx-batch3-hub-back{
         width:37px!important;height:37px!important;right:9px!important;
       }
-      html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v3 .nxprayer-meta-chip>b,
-      html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v3 .nxprayer-meta-chip>strong{
+      html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v4 .nxprayer-meta-chip>b,
+      html.nx-batch3-tools-active .nx-b3-prayer-root.nxprayer-final-layout-v4 .nxprayer-meta-chip>strong{
         font-size:7px!important;
       }
     }
