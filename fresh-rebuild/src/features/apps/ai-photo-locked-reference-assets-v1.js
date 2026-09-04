@@ -13,12 +13,15 @@ function ensureReferenceStyles(){
     .nxps-locked-visual .nxlock-recent-thumb{height:auto!important;aspect-ratio:170/124;background-image:url('./assets/visuals/ai-photo-locked-recent.webp')!important;background-repeat:no-repeat!important;background-size:400% 100%!important;background-color:#101521!important}
     .nxps-locked-visual .nxlock-prompt textarea::placeholder{color:#aeb5c9!important;opacity:1!important}
 
-    @media (max-width:520px) and (min-height:761px){
-      .nxps-locked-visual .nxlock-top{grid-template-columns:76px minmax(0,1fr) 68px!important;gap:8px!important}
-      .nxps-locked-visual .nxlock-home-btn,.nxps-locked-visual .nxlock-pro{height:42px!important;padding:0 7px!important}
-      .nxps-locked-visual .nxlock-top-title strong{font-size:15px!important;white-space:nowrap!important;overflow:visible!important;text-overflow:clip!important}
+    @media (max-width:520px){
+      .nxps-locked-visual .nxlock-top{grid-template-columns:70px minmax(0,1fr) 64px!important;gap:7px!important}
+      .nxps-locked-visual .nxlock-home-btn,.nxps-locked-visual .nxlock-pro{padding-left:6px!important;padding-right:6px!important}
+      .nxps-locked-visual .nxlock-top-title strong{font-size:14px!important;white-space:nowrap!important;overflow:visible!important;text-overflow:clip!important}
       .nxps-locked-visual .nxlock-top-title span{font-size:9px!important}
+    }
 
+    @media (max-width:520px) and (min-height:761px){
+      .nxps-locked-visual .nxlock-home-btn,.nxps-locked-visual .nxlock-pro{height:42px!important}
       .nxps-locked-visual .nxlock-hero{position:relative!important;grid-template-columns:68px minmax(0,1fr)!important;min-height:138px!important;padding:12px 14px!important;gap:12px!important;overflow:hidden!important}
       .nxps-locked-visual .nxlock-hero-logo,.nxps-locked-visual .nxlock-hero-copy{position:relative!important;z-index:2!important}
       .nxps-locked-visual .nxlock-hero-logo{width:64px!important;height:64px!important}
@@ -72,13 +75,30 @@ function applyPromptContract(root){
   if(prompt.getAttribute('placeholder')!==placeholder)prompt.setAttribute('placeholder',placeholder);
 }
 
+function applyVisualCustomRatio(root){
+  const ratioBox=root.querySelector('.nxlock-ratios');
+  if(!ratioBox||ratioBox.querySelector('[data-r="custom"]'))return;
+  const button=document.createElement('button');
+  button.type='button';
+  button.className='nxlock-ratio nxlock-reference-custom-ratio';
+  button.dataset.r='custom';
+  button.setAttribute('aria-label','Custom aspect ratio');
+  button.title='Custom ratio is not supported by the current Puter provider.';
+  button.innerHTML='<b>▱</b>Custom<small>Custom</small>';
+  button.addEventListener('click',()=>{
+    globalThis.alert?.('Custom ratio is not supported by the current Puter provider. Use Square, Portrait, Story or Landscape.');
+  });
+  ratioBox.appendChild(button);
+  ratioBox.classList.add('has-custom');
+}
+
 export function installAiPhotoLockedReferenceAssetsV1(root){
   if(!root||root.__nxLockedReferenceAssetsV1)return()=>{};
   root.__nxLockedReferenceAssetsV1=true;
   ensureReferenceStyles();
-  const apply=()=>{applyStyleSprites(root);applyFeaturedSprites(root);applyRecentSprites(root);applyPromptContract(root)};
+  const apply=()=>{applyStyleSprites(root);applyFeaturedSprites(root);applyRecentSprites(root);applyPromptContract(root);applyVisualCustomRatio(root)};
   apply();
   const observer=new MutationObserver(apply);
   observer.observe(root,{childList:true,subtree:true});
-  return()=>{observer.disconnect();root.querySelectorAll('[data-locked-reference]').forEach(node=>node.removeAttribute('data-locked-reference'));root.querySelectorAll('.has-locked-reference').forEach(node=>node.classList.remove('has-locked-reference'));delete root.__nxLockedReferenceAssetsV1};
+  return()=>{observer.disconnect();root.querySelectorAll('[data-locked-reference]').forEach(node=>node.removeAttribute('data-locked-reference'));root.querySelectorAll('.has-locked-reference').forEach(node=>node.classList.remove('has-locked-reference'));root.querySelectorAll('.nxlock-reference-custom-ratio').forEach(node=>node.remove());delete root.__nxLockedReferenceAssetsV1};
 }
