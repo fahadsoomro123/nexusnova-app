@@ -18,6 +18,7 @@ on:
       - 'NexusNovaAndroid/app/src/main/assets/www/assets/visuals/ai-photo-locked-featured.webp'
       - 'NexusNovaAndroid/app/src/main/assets/www/assets/visuals/ai-photo-locked-recent.webp'
       - 'tools/ai-photo-locked-visual/harness.html'
+      - 'tools/ai-photo-locked-visual/render-qa.mjs'
       - 'tools/ai-photo-locked-visual/render-qa.sh'
       - 'AI-PHOTO-WORK-HANDOFF.md'
       - '.github/workflows/ai-photo-locked-visual-preota-ci.yml'
@@ -41,7 +42,7 @@ jobs:
         run: |
           set -euo pipefail
           BASE=8ac25ef4c600d3e599858d4c207bf2ec131c18a9
-          allowed='^(fresh-rebuild/src/features/apps/ai-photo-locked-visual-v1\.js|fresh-rebuild/src/features/apps/ai-photo-locked-reference-assets-v1\.js|fresh-rebuild/src/features/apps/ai-photo-studio-review\.js|fresh-rebuild/assets/visuals/ai-photo-locked-(styles|featured|recent)\.webp|fresh-rebuild/assets/visuals/ai-photo-locked-reference-manifest\.json|NexusNovaAndroid/app/src/main/assets/www/src/features/apps/ai-photo-locked-(visual-v1|reference-assets-v1)\.js|NexusNovaAndroid/app/src/main/assets/www/src/features/apps/ai-photo-studio-review\.js|NexusNovaAndroid/app/src/main/assets/www/assets/visuals/ai-photo-locked-(styles|featured|recent)\.webp|tools/ai-photo-locked-visual/(harness\.html|render-qa\.sh)|AI-PHOTO-WORK-HANDOFF\.md|\.github/workflows/ai-photo-locked-visual-preota-ci\.yml)$'
+          allowed='^(fresh-rebuild/src/features/apps/ai-photo-locked-visual-v1\.js|fresh-rebuild/src/features/apps/ai-photo-locked-reference-assets-v1\.js|fresh-rebuild/src/features/apps/ai-photo-studio-review\.js|fresh-rebuild/assets/visuals/ai-photo-locked-(styles|featured|recent)\.webp|fresh-rebuild/assets/visuals/ai-photo-locked-reference-manifest\.json|NexusNovaAndroid/app/src/main/assets/www/src/features/apps/ai-photo-locked-(visual-v1|reference-assets-v1)\.js|NexusNovaAndroid/app/src/main/assets/www/src/features/apps/ai-photo-studio-review\.js|NexusNovaAndroid/app/src/main/assets/www/assets/visuals/ai-photo-locked-(styles|featured|recent)\.webp|tools/ai-photo-locked-visual/(harness\.html|render-qa\.(mjs|sh))|AI-PHOTO-WORK-HANDOFF\.md|\.github/workflows/ai-photo-locked-visual-preota-ci\.yml)$'
           unexpected="$(git diff --name-only "$BASE" "$GITHUB_SHA" -- | grep -Ev "$allowed" || true)"
           if [ -n "$unexpected" ]; then
             echo '::error::Unexpected file changed:' >&2
@@ -80,6 +81,7 @@ jobs:
           node --check "$V"
           node --check "$A"
           node --check "$R"
+          node --check tools/ai-photo-locked-visual/render-qa.mjs
           bash -n tools/ai-photo-locked-visual/render-qa.sh
           grep -Fq "installAiPhotoLockedVisualV1(root)" tools/ai-photo-locked-visual/harness.html
           grep -Fq "installAiPhotoLockedReferenceAssetsV1(root)" tools/ai-photo-locked-visual/harness.html
