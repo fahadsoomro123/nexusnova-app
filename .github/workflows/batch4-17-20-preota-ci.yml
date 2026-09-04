@@ -1,0 +1,99 @@
+name: Batch 4 Tools 17-20 Pre-OTA Gate
+
+on:
+  push:
+    branches:
+      - batch17-20-preota-review
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preota:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify implementation scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE=1ac2203239130937df09c6be6d4bbb0f87725c5f
+          git diff --name-only "$BASE" HEAD | tee /tmp/changed.txt
+          while IFS= read -r path; do
+            case "$path" in
+              fresh-rebuild/index.html|fresh-rebuild/assets/styles/batch4-tools-17-20-fullscreen.css|fresh-rebuild/src/features/apps/batch4-tools-17-20-fullscreen.js|.github/workflows/batch4-17-20-preota-ci.yml) ;;
+              *) echo "Unexpected file changed: $path" >&2; exit 1 ;;
+            esac
+          done < /tmp/changed.txt
+
+      - name: Lock completed apps
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE=1ac2203239130937df09c6be6d4bbb0f87725c5f
+          for path in \
+            fresh-rebuild/src/features/apps/premium-qibla-safe-v2.js \
+            fresh-rebuild/src/features/apps/premium-prayer-safe.js \
+            fresh-rebuild/src/features/apps/pakistan-suite.js \
+            fresh-rebuild/src/features/apps/news-suite.js \
+            fresh-rebuild/assets/styles/batch3-tools-13-16-fullscreen.css \
+            fresh-rebuild/src/features/apps/batch3-tools-13-16-fullscreen.js; do
+            test "$(git rev-parse "$BASE:$path")" = "$(git rev-parse "HEAD:$path")" || { echo "Protected app changed: $path" >&2; exit 1; }
+          done
+
+      - name: JavaScript syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp fresh-rebuild/src/features/apps/batch4-tools-17-20-fullscreen.js /tmp/batch4.mjs
+          node --check /tmp/batch4.mjs
+
+      - name: Verify index wiring
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq './assets/styles/batch4-tools-17-20-fullscreen.css?review=batch4-17-20-v1' fresh-rebuild/index.html
+          grep -Fq './src/features/apps/batch4-tools-17-20-fullscreen.js?review=batch4-17-20-v1' fresh-rebuild/index.html
+
+      - name: Verify locked layout contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          CSS=fresh-rebuild/assets/styles/batch4-tools-17-20-fullscreen.css
+          JS=fresh-rebuild/src/features/apps/batch4-tools-17-20-fullscreen.js
+          grep -Fq 'height:100dvh!important' "$CSS"
+          grep -Fq 'overflow:hidden!important' "$CSS"
+          grep -Fq 'html.nx-b4-active .nx-dock' "$CSS"
+          grep -Fq 'right:max(10px,env(safe-area-inset-right,0px))!important' "$CSS"
+          grep -Fq "if (screen.querySelector('.nx-articles-v3')) return 'articles';" "$JS"
+          grep -Fq "if (screen.querySelector('.nx-location-suite')) return 'location';" "$JS"
+          grep -Fq "if (name === 'Nova Track') return 'track';" "$JS"
+          grep -Fq 'loadDriveTrackState' "$JS"
+          ! grep -Fq 'watchPosition(' "$JS"
+          ! grep -Fq 'getCurrentPosition(' "$JS"
+          ! grep -Fq '>PREV<' "$JS"
+          ! grep -Fq '>NEXT<' "$JS"
+
+      - name: Verify core data engines remain unchanged
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE=1ac2203239130937df09c6be6d4bbb0f87725c5f
+          for path in \
+            fresh-rebuild/src/features/apps/articles-suite.js \
+            fresh-rebuild/src/features/apps/location-suite.js \
+            fresh-rebuild/src/features/apps/premium-drive-native-v2.js \
+            fresh-rebuild/src/core/drive-track-persistence.js; do
+            test "$(git rev-parse "$BASE:$path")" = "$(git rev-parse "HEAD:$path")" || { echo "Core engine changed unexpectedly: $path" >&2; exit 1; }
+          done
+
+      - name: No OTA publication in pre-OTA gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -R -nE 'git push|ota-updates|publish OTA|firebase deploy|wrangler deploy' .github/workflows/batch4-17-20-preota-ci.yml
