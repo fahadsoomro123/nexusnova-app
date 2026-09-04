@@ -11,7 +11,7 @@ function ensureStyles(){
   const style=document.createElement('style');
   style.id='nx-ai-photo-phone-feedback-v1';
   style.textContent=`
-  /* Phone-feedback correction only. Do not rewrite the locked fullscreen shell. */
+  /* Phone-feedback correction only. Keep the locked fullscreen route semantics. */
   body.nx-ai-photo-route-active .nx-stage>.nx-screen.nx-ai-photo-route-screen>[data-app-mount]{position:absolute!important;inset:0!important;width:100%!important;height:auto!important;max-height:none!important;padding:0!important;margin:0!important;overflow:hidden!important}
   body.nx-ai-photo-route-active .nx-stage>.nx-screen.nx-ai-photo-route-screen>[data-app-mount]>.nx-photo-editor{position:absolute!important;inset:0!important;width:100%!important;height:auto!important;max-height:none!important;margin:0!important}
   body.nx-ai-photo-route-active .nx-stage>.nx-screen.nx-ai-photo-route-screen:has(.nx-studio){padding-bottom:0!important}
@@ -40,8 +40,26 @@ function ensureStyles(){
   .nx-photo-panel[data-photo-sheet-panel="ai"].nxps-ai-quick-only{padding-top:10px!important}
   .nx-photo-panel[data-photo-sheet-panel="ai"].nxps-ai-quick-only .nx-photo-ai-actions{margin-bottom:7px}
 
+  /* AI generator: clean, full-height creative workspace with no large account card. */
+  .nx-canva-v3 .nxv3-pane[data-v3-pane="ai-image"].is-active{display:block!important;height:100%!important;min-height:0!important;overflow:hidden!important;padding:8px!important}
+  .nx-photo-editor.nxps-premium-studio .nxv3-pane[data-v3-pane="ai-image"] .nxputer-wrap{display:grid!important;height:100%!important;min-height:0!important;max-width:780px!important;margin:0 auto!important;grid-template-rows:auto minmax(148px,1fr) auto auto auto!important;gap:8px!important;align-content:stretch!important}
+  .nx-photo-editor.nxps-premium-studio .nxv3-pane[data-v3-pane="ai-image"] .nxputer-hero{padding:10px 12px!important}.nx-photo-editor.nxps-premium-studio .nxv3-pane[data-v3-pane="ai-image"] .nxputer-hero p{display:none!important}
+  .nx-photo-editor.nxps-premium-studio .nxv3-pane[data-v3-pane="ai-image"] .nxputer-label:has([data-puter-prompt]){display:grid!important;grid-template-rows:auto minmax(0,1fr)!important;min-height:0!important}
+  .nx-photo-editor.nxps-premium-studio .nxv3-pane[data-v3-pane="ai-image"] [data-puter-prompt]{height:100%!important;min-height:148px!important;max-height:none!important;resize:none!important}
+  .nx-photo-editor.nxps-premium-studio .nxv3-pane[data-v3-pane="ai-image"] .nxputer-note{display:none!important}
+  .nx-photo-editor.nxps-premium-studio .nxv3-pane[data-v3-pane="ai-image"] .nxputer-error{margin:0!important}
+  .nx-photo-editor.nxps-premium-studio .nxv3-pane[data-v3-pane="ai-image"] .nxputer-result{min-height:0!important;overflow:auto!important}
+  .nx-photo-editor.nxps-premium-studio .nxv3-pane[data-v3-pane="ai-image"] .nxputer-wrap.nxps-has-result{grid-template-rows:auto minmax(94px,22vh) auto auto minmax(0,1fr)!important}
+  .nx-photo-editor.nxps-premium-studio .nxv3-pane[data-v3-pane="ai-image"] .nxputer-wrap.nxps-has-result [data-puter-prompt]{min-height:88px!important}
+  .nx-photo-editor.nxps-premium-studio .nxv3-pane[data-v3-pane="ai-image"] .nxputer-wrap.nxps-has-result .nxputer-result{display:block!important;height:100%!important}.nx-photo-editor.nxps-premium-studio .nxv3-pane[data-v3-pane="ai-image"] .nxputer-wrap.nxps-has-result .nxputer-result img{max-height:100%!important}
   .nx-photo-editor.nxps-premium-studio .nxputer-actions.nxps-has-download{grid-template-columns:repeat(3,minmax(0,1fr))!important}
   .nx-photo-editor.nxps-premium-studio [data-puter-download]{font-weight:800!important;color:#f0e8ff!important;border-color:rgba(173,137,255,.34)!important;background:rgba(125,42,232,.16)!important}
+
+  /* Puter account is available from a compact header chip, not the generator body. */
+  .nxps-account-chip{min-height:34px!important;padding:0 8px!important;margin-right:5px!important;border:1px solid rgba(171,132,255,.25)!important;border-radius:9px!important;background:#211a30!important;color:#e6d9ff!important;font-size:8px!important;font-weight:850!important;white-space:nowrap!important}
+  .nxps-account-chip.is-connected{border-color:rgba(95,211,155,.28)!important;background:#16271f!important;color:#c9f6df!important}
+  .nxps-account-popover{position:absolute;z-index:90;top:46px;right:7px;width:min(330px,calc(100% - 14px));padding:7px;border:1px solid rgba(255,255,255,.13);border-radius:13px;background:#12151d;box-shadow:0 18px 50px rgba(0,0,0,.48)}.nxps-account-popover[hidden]{display:none!important}
+  .nxps-account-popover .nxputer-status{display:grid!important;margin:0!important;border:0!important;background:transparent!important;padding:6px!important}.nxps-account-popover .nxputer-status b{font-size:10px!important}.nxps-account-popover .nxputer-status span{font-size:8px!important}.nxps-account-popover .nxputer-status .nxv3-btn{min-height:32px!important}
 
   /* Make the already-wired return route obvious on every Photo Studio subview. */
   .nx-photo-editor.nxps-premium-studio .nxps-home-return{width:52px!important;min-width:52px!important;padding:0 5px!important;border:1px solid rgba(125,42,232,.24)!important;border-radius:9px!important;background:rgba(125,42,232,.08)!important;color:#6f2cdd!important;font-size:8px!important;font-weight:850!important;white-space:nowrap!important}
@@ -55,11 +73,15 @@ function ensureStyles(){
     .nx-photo-editor.nxps-premium-studio .nxputer-actions.nxps-has-download .nxv3-btn{width:auto!important;min-width:0!important;padding:0 5px!important;font-size:8px!important}
     .nx-photo-editor.nxps-premium-studio .nxps-home-return{width:48px!important;min-width:48px!important;font-size:7.3px!important}
     .nx-photo-editor.nxps-premium-studio .nxps-workspace-home{min-width:56px!important;padding-inline:6px!important;font-size:7.3px!important}
+    .nxps-account-chip{padding-inline:6px!important;font-size:7px!important}
+    .nx-photo-editor.nxps-premium-studio .nxv3-pane[data-v3-pane="ai-image"] .nxputer-wrap{gap:6px!important;grid-template-rows:auto minmax(132px,1fr) auto auto auto!important}
   }
   @media(max-height:700px){
     .nxps-phone-feedback .nxps-hero-copy p,.nxps-phone-feedback .nxps-badges{display:none!important}
     .nxps-phone-feedback .nxps-actions{grid-template-rows:82px 69px!important}
     .nxps-featured{padding-top:5px}.nxps-featured-strip{grid-auto-columns:84px}.nxps-phone-feedback .nxps-recent{min-height:40px!important}
+    .nx-photo-editor.nxps-premium-studio .nxv3-pane[data-v3-pane="ai-image"] .nxputer-wrap{grid-template-rows:auto minmax(108px,1fr) auto auto auto!important}
+    .nx-photo-editor.nxps-premium-studio .nxv3-pane[data-v3-pane="ai-image"] [data-puter-prompt]{min-height:108px!important}
   }
   `;
   document.head.appendChild(style);
@@ -157,6 +179,29 @@ function addGeneratorDownload(root){
   actions.appendChild(button);return button;
 }
 
+function compactPuterAccount(root){
+  const workspace=root.querySelector('.nx-canva-v3'),status=root.querySelector('.nxputer-status'),headRight=workspace?.querySelector('.nxv3-head>div:last-child');
+  if(!workspace||!status||!headRight)return()=>{};
+  const originalParent=status.parentNode,originalNext=status.nextSibling;
+  const chip=document.createElement('button');chip.type='button';chip.className='nxv3-btn nxps-account-chip';chip.textContent='AI Account';chip.setAttribute('aria-label','Puter AI account');
+  const popover=document.createElement('div');popover.className='nxps-account-popover';popover.hidden=true;popover.setAttribute('aria-label','Puter account status');
+  popover.appendChild(status);headRight.insertBefore(chip,headRight.firstChild);workspace.appendChild(popover);
+  const statusTitle=status.querySelector('[data-puter-status-title]');
+  const sync=()=>{const connected=/^Connected/i.test(String(statusTitle?.textContent||''));chip.classList.toggle('is-connected',connected);chip.textContent=connected?'AI ✓':'AI Account'};
+  const observer=new MutationObserver(sync);if(statusTitle)observer.observe(statusTitle,{childList:true,subtree:true,characterData:true});sync();
+  const toggle=e=>{e.stopPropagation();popover.hidden=!popover.hidden};chip.addEventListener('click',toggle);
+  const outside=e=>{if(popover.hidden)return;if(popover.contains(e.target)||chip.contains(e.target))return;popover.hidden=true};workspace.addEventListener('pointerdown',outside);
+  return()=>{observer.disconnect();chip.removeEventListener('click',toggle);workspace.removeEventListener('pointerdown',outside);chip.remove();popover.remove();if(originalParent){if(originalNext&&originalNext.parentNode===originalParent)originalParent.insertBefore(status,originalNext);else originalParent.appendChild(status)}};
+}
+
+function fitGeneratorResult(root){
+  const wrap=root.querySelector('.nxputer-wrap'),result=root.querySelector('[data-puter-result]');
+  if(!wrap||!result)return()=>{};
+  const sync=()=>wrap.classList.toggle('nxps-has-result',result.classList.contains('is-on'));
+  const observer=new MutationObserver(sync);observer.observe(result,{attributes:true,attributeFilter:['class']});sync();
+  return()=>{observer.disconnect();wrap.classList.remove('nxps-has-result')};
+}
+
 function makeStudioHomeExplicit(root){
   const editorHome=root.querySelector('.nxps-home-return');
   if(editorHome){editorHome.textContent='⌂ Home';editorHome.setAttribute('aria-label','Studio Home');editorHome.title='Studio Home'}
@@ -167,6 +212,6 @@ function makeStudioHomeExplicit(root){
 export function installAiPhotoPhoneFeedbackV1(root){
   if(!root||root.__nxAiPhotoPhoneFeedbackV1)return()=>{};
   root.__nxAiPhotoPhoneFeedbackV1=true;ensureStyles();
-  const featured=polishHome(root);removeConfusingAiPrompt(root);const download=addGeneratorDownload(root);makeStudioHomeExplicit(root);
-  return()=>{featured?.remove();download?.remove();root.querySelector('.nxps-home')?.classList.remove('nxps-phone-feedback');delete root.__nxAiPhotoPhoneFeedbackV1};
+  const featured=polishHome(root);removeConfusingAiPrompt(root);const download=addGeneratorDownload(root);const accountCleanup=compactPuterAccount(root),fitCleanup=fitGeneratorResult(root);makeStudioHomeExplicit(root);
+  return()=>{fitCleanup?.();accountCleanup?.();featured?.remove();download?.remove();root.querySelector('.nxps-home')?.classList.remove('nxps-phone-feedback');delete root.__nxAiPhotoPhoneFeedbackV1};
 }
