@@ -1,6 +1,7 @@
 import { renderAiPhotoStudio as renderFlagshipAiPhotoStudio } from './ai-photo-studio-flagship.js';
 import { installSliderOnlyFocus } from './ai-photo-focus-interaction.js';
 import { installAiPhotoCanvaWorkspaceV3 } from './ai-photo-canva-workspace-v3.js';
+import { installPuterImageGenerator } from './ai-photo-puter-generator.js';
 
 export function renderAiPhotoStudio(){
   const root=renderFlagshipAiPhotoStudio();
@@ -20,11 +21,13 @@ export function renderAiPhotoStudio(){
   const previousCleanup=root.__cleanup;
   const focusCleanup=installSliderOnlyFocus(root);
   const workspaceCleanup=installAiPhotoCanvaWorkspaceV3(root);
+  const puterCleanup=installPuterImageGenerator(root);
   root.__cleanup=()=>{
+    puterCleanup?.();
     workspaceCleanup?.();
     focusCleanup?.();
     previousCleanup?.();
   };
-  root.dataset.aiPhotoFlagship='review-v3-real-canva';
+  root.dataset.aiPhotoFlagship='review-v4-puter-image';
   return root;
 }
