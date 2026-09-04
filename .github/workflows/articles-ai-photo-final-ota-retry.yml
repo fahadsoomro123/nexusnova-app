@@ -1,0 +1,163 @@
+name: Articles + AI Photo Final OTA Retry
+
+on:
+  push:
+    branches: [batch17-20-preota-review]
+    paths:
+      - '.github/workflows/articles-ai-photo-final-ota-retry.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  STABLE_AI_PHOTO: 7f70ec07fbac48e9fd384b0b5dfd336e72432760
+  OTA_BUNDLED_BASE: 8d1aaaee6f28b974a8c8b3ff213beb1318ec7405
+  PUBLIC_OTA_REPO: fahadsoomro123/nexusnova-website
+  PUBLIC_OTA_BRANCH: nexusnova-ota-public
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout patched branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: batch17-20-preota-review
+
+      - name: Verify patched source and stable AI Photo
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUNTIME_SHA="$(git rev-parse HEAD)"
+          echo "RUNTIME_SHA=$RUNTIME_SHA" >> "$GITHUB_ENV"
+          grep -Fq "articles: () => articleRenderers.articles()" fresh-rebuild/src/features/apps/live-feed-premium-skin.js
+          grep -Fq '.nxa3-card[hidden]{display:none!important}' fresh-rebuild/assets/styles/batch4-tools-17-20-fullscreen.css
+          node --check fresh-rebuild/src/features/apps/live-feed-premium-skin.js
+          node --check fresh-rebuild/src/features/apps/batch4-tools-17-20-fullscreen.js
+          for path in \
+            fresh-rebuild/src/features/apps/ai-photo-studio.js \
+            fresh-rebuild/src/features/apps/ai-photo-studio-flagship.js \
+            fresh-rebuild/src/features/apps/ai-photo-studio-review.js \
+            fresh-rebuild/src/features/apps/premium-studio-core.js \
+            fresh-rebuild/src/features/apps/premium-studio-suite.js; do
+            test "$(git rev-parse "$STABLE_AI_PHOTO:$path")" = "$(git rev-parse "HEAD:$path")"
+          done
+          for path in \
+            fresh-rebuild/src/features/apps/premium-qibla-safe-v2.js \
+            fresh-rebuild/src/features/apps/premium-prayer-safe.js \
+            fresh-rebuild/src/features/apps/pakistan-suite.js \
+            fresh-rebuild/src/features/apps/news-suite.js; do
+            test "$(git rev-parse 1ac2203239130937df09c6be6d4bbb0f87725c5f:$path)" = "$(git rev-parse "HEAD:$path")"
+          done
+
+      - name: Build cumulative OTA
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="$OTA_BUNDLED_BASE"
+          rm -rf /tmp/nx-retry-ota
+          mkdir -p /tmp/nx-retry-ota/files
+          while IFS= read -r full; do
+            [ -n "$full" ] || continue
+            rel="${full#fresh-rebuild/}"
+            mkdir -p "/tmp/nx-retry-ota/files/$(dirname "$rel")"
+            cp "$full" "/tmp/nx-retry-ota/files/$rel"
+          done < <(git diff --name-only --diff-filter=ACMRT "$BASE" "$RUNTIME_SHA" -- fresh-rebuild/)
+
+          for rel in \
+            src/features/apps/ai-photo-studio.js \
+            src/features/apps/ai-photo-studio-flagship.js \
+            src/features/apps/ai-photo-studio-review.js \
+            src/features/apps/premium-studio-core.js \
+            src/features/apps/premium-studio-suite.js; do
+            mkdir -p "/tmp/nx-retry-ota/files/$(dirname "$rel")"
+            cp "fresh-rebuild/$rel" "/tmp/nx-retry-ota/files/$rel"
+          done
+
+          for required in \
+            index.html \
+            assets/styles/batch4-tools-17-20-fullscreen.css \
+            src/features/apps/batch4-tools-17-20-fullscreen.js \
+            src/features/apps/live-feed-premium-skin.js \
+            src/features/apps/ai-photo-studio.js \
+            src/features/apps/ai-photo-studio-flagship.js \
+            src/features/apps/ai-photo-studio-review.js \
+            src/features/apps/premium-studio-core.js \
+            src/features/apps/premium-studio-suite.js; do
+            test -s "/tmp/nx-retry-ota/files/$required" || { echo "Missing required OTA file: $required" >&2; exit 1; }
+          done
+
+          python3 - <<'PY'
+          import hashlib,json,os
+          from pathlib import Path
+          root=Path('/tmp/nx-retry-ota/files')
+          files=[]
+          for p in sorted(x for x in root.rglob('*') if x.is_file()):
+              data=p.read_bytes()
+              files.append({'path':p.relative_to(root).as_posix(),'sha256':hashlib.sha256(data).hexdigest(),'size':len(data)})
+          assert len(files)<=2000
+          assert sum(x['size'] for x in files)<=60*1024*1024
+          manifest={'schema':2,'base':os.environ['OTA_BUNDLED_BASE'],'version':os.environ['RUNTIME_SHA'],'files':files}
+          Path('/tmp/nx-retry-ota/manifest.json').write_text(json.dumps(manifest,separators=(',',':'),sort_keys=True),encoding='utf-8')
+          print('OTA files:',len(files),'bytes:',sum(x['size'] for x in files))
+          PY
+
+      - name: Require OTA credential
+        env:
+          PUBLIC_OTA_TOKEN: ${{ secrets.GH_PUBLIC_OTA_TOKEN || secrets.OTA_PUBLIC_TOKEN }}
+        run: test -n "$PUBLIC_OTA_TOKEN"
+
+      - name: Publish OTA
+        id: publish
+        shell: bash
+        env:
+          PUBLIC_OTA_TOKEN: ${{ secrets.GH_PUBLIC_OTA_TOKEN || secrets.OTA_PUBLIC_TOKEN }}
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/nx-retry-public
+          git clone --depth 1 --branch "$PUBLIC_OTA_BRANCH" "https://github.com/$PUBLIC_OTA_REPO.git" /tmp/nx-retry-public
+          cd /tmp/nx-retry-public
+          git config user.name 'NexusNova OTA Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          rm -rf ota && mkdir -p ota
+          cp -a /tmp/nx-retry-ota/. ota/
+          git add -A ota
+          git commit -m "Publish Articles final fix + AI Photo stable OTA $RUNTIME_SHA"
+          PUBLIC_SHA="$(git rev-parse HEAD)"
+          AUTH="$(printf 'x-access-token:%s' "$PUBLIC_OTA_TOKEN" | base64 -w0)"
+          git -c http.extraheader="AUTHORIZATION: basic $AUTH" push origin HEAD:"$PUBLIC_OTA_BRANCH"
+          echo "public_sha=$PUBLIC_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Verify public OTA
+        shell: bash
+        env:
+          PUBLIC_SHA: ${{ steps.publish.outputs.public_sha }}
+        run: |
+          set -euo pipefail
+          BASE_URL="https://raw.githubusercontent.com/$PUBLIC_OTA_REPO/$PUBLIC_SHA/ota"
+          curl --fail --silent --show-error --location "$BASE_URL/manifest.json" -o /tmp/public.json
+          python3 - <<'PY'
+          import hashlib,json,os,urllib.request
+          from pathlib import Path
+          local=json.loads(Path('/tmp/nx-retry-ota/manifest.json').read_text())
+          public=json.loads(Path('/tmp/public.json').read_text())
+          assert public==local
+          assert public['version']==os.environ['RUNTIME_SHA']
+          entries={x['path']:x for x in public['files']}
+          required={
+            'assets/styles/batch4-tools-17-20-fullscreen.css',
+            'src/features/apps/live-feed-premium-skin.js',
+            'src/features/apps/ai-photo-studio.js',
+            'src/features/apps/ai-photo-studio-flagship.js',
+            'src/features/apps/ai-photo-studio-review.js'
+          }
+          assert required<=set(entries)
+          base=f"https://raw.githubusercontent.com/{os.environ['PUBLIC_OTA_REPO']}/{os.environ['PUBLIC_SHA']}/ota/files/"
+          for path in sorted(required):
+              data=urllib.request.urlopen(base+path,timeout=20).read()
+              assert hashlib.sha256(data).hexdigest()==entries[path]['sha256']
+          print('Public OTA verified:',os.environ['PUBLIC_SHA'])
+          PY
