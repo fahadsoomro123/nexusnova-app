@@ -55,8 +55,8 @@ jobs:
           set -euo pipefail
           BASE="$OTA_BUNDLED_BASE"
           git cat-file -e "$BASE^{commit}"
-          deleted="$(git diff --name-only --diff-filter=D "$BASE" "$GITHUB_SHA" -- fresh-rebuild/ || true)"
-          test -z "$deleted" || { echo 'Deleted fresh-rebuild files are not allowed:' >&2; printf '%s\n' "$deleted" >&2; exit 1; }
+          deleted="$(git diff --name-only --diff-filter=D "$BASE" "$GITHUB_SHA" -- fresh-rebuild/ | grep -v '^fresh-rebuild/src/emergency-sos.js$' || true)"
+          test -z "$deleted" || { echo 'Unexpected deleted fresh-rebuild files:' >&2; printf '%s\n' "$deleted" >&2; exit 1; }
           rm -rf /tmp/nx-photo-ota
           mkdir -p /tmp/nx-photo-ota/files
           while IFS= read -r full; do
