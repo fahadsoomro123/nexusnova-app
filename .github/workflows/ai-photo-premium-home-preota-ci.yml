@@ -1,0 +1,164 @@
+name: AI Photo Premium Home Pre-OTA CI
+
+on:
+  push:
+    branches: [ai-photo-real-canva-ai-generator-correction]
+    paths:
+      - 'fresh-rebuild/src/features/apps/ai-photo-studio-home.js'
+      - 'fresh-rebuild/src/features/apps/ai-photo-studio-review.js'
+      - 'fresh-rebuild/assets/styles/nova-hub-compact-icons-v2.css'
+      - '.github/workflows/ai-photo-premium-home-preota-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout approved premium-home branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify exact approved scope and protected fullscreen
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE=0c7d9514b30add3d4929172cc1427472382b2dd8
+          allowed='^(fresh-rebuild/src/features/apps/ai-photo-studio-home\.js|fresh-rebuild/src/features/apps/ai-photo-studio-review\.js|fresh-rebuild/assets/styles/nova-hub-compact-icons-v2\.css|\.github/workflows/ai-photo-premium-home-preota-ci\.yml)$'
+          unexpected="$(git diff --name-only "$BASE" "$GITHUB_SHA" -- | grep -Ev "$allowed" || true)"
+          if [ -n "$unexpected" ]; then
+            echo '::error::Unexpected file changed:' >&2
+            echo "$unexpected" >&2
+            exit 1
+          fi
+          for path in \
+            fresh-rebuild/assets/styles/ai-photo-route-fullscreen.css \
+            fresh-rebuild/src/features/apps/app-screen.js \
+            fresh-rebuild/src/features/apps/ai-photo-studio-flagship.js \
+            fresh-rebuild/src/features/apps/ai-photo-focus-interaction.js \
+            fresh-rebuild/src/features/apps/ai-photo-canva-workspace-v3.js \
+            fresh-rebuild/src/features/apps/ai-photo-puter-generator.js \
+            fresh-rebuild/src/features/apps/ai-photo-studio-ai.js \
+            NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt \
+            NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusPuterPopupManager.kt \
+            fresh-rebuild/src/features/apps/premium-qibla-safe-v2.js \
+            fresh-rebuild/src/features/apps/premium-prayer-safe.js \
+            fresh-rebuild/src/features/apps/pakistan-suite.js \
+            fresh-rebuild/src/features/apps/news-suite.js \
+            fresh-rebuild/src/features/apps/articles-suite.js \
+            fresh-rebuild/src/features/apps/live-feed-premium-skin.js \
+            fresh-rebuild/src/features/apps/batch4-tools-17-20-fullscreen.js \
+            fresh-rebuild/assets/styles/batch4-tools-17-20-fullscreen.css; do
+            test "$(git rev-parse "$BASE:$path")" = "$(git hash-object "$path")" || { echo "::error::Protected file changed: $path" >&2; exit 1; }
+          done
+          echo 'Protected fullscreen, editor core, Puter logic and protected apps unchanged: PASS'
+
+      - name: JavaScript syntax and premium-home contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check fresh-rebuild/src/features/apps/ai-photo-studio-home.js
+          node --check fresh-rebuild/src/features/apps/ai-photo-studio-review.js
+          grep -Fq "installAiPhotoStudioHome" fresh-rebuild/src/features/apps/ai-photo-studio-review.js
+          grep -Fq "review-v5-premium-home" fresh-rebuild/src/features/apps/ai-photo-studio-review.js
+          grep -Fq 'data-nxps-action="ai-image"' fresh-rebuild/src/features/apps/ai-photo-studio-home.js
+          grep -Fq 'data-nxps-action="edit"' fresh-rebuild/src/features/apps/ai-photo-studio-home.js
+          grep -Fq 'data-nxps-action="templates"' fresh-rebuild/src/features/apps/ai-photo-studio-home.js
+          grep -Fq 'data-nxps-action="projects"' fresh-rebuild/src/features/apps/ai-photo-studio-home.js
+          grep -Fq "Generate with AI" fresh-rebuild/src/features/apps/ai-photo-studio-home.js
+          grep -Fq "1000+ TEMPLATES" fresh-rebuild/src/features/apps/ai-photo-studio-home.js
+          grep -Fq ".nxps-home{position:absolute;inset:0" fresh-rebuild/src/features/apps/ai-photo-studio-home.js
+          grep -Fq "overflow:hidden" fresh-rebuild/src/features/apps/ai-photo-studio-home.js
+          if grep -Fq 'ai-photo-route-fullscreen.css' fresh-rebuild/src/features/apps/ai-photo-studio-home.js; then
+            echo '::error::Premium home must not rewrite fullscreen stylesheet.'
+            exit 1
+          fi
+          echo 'Premium home static contract: PASS'
+
+      - name: Verify AI Photo-only Nova Hub polish preserves geometry
+        shell: bash
+        run: |
+          set -euo pipefail
+          CSS=fresh-rebuild/assets/styles/nova-hub-compact-icons-v2.css
+          grep -Fq '.nx-app-card[data-app-id="ai-photo-studio"] .nx-app-card__icon' "$CSS"
+          grep -Fq 'flex: 0 0 74px;' "$CSS"
+          grep -Fq 'width: 68px;' "$CSS"
+          grep -Fq 'height: 68px;' "$CSS"
+          test "$(grep -c 'data-app-id="ai-photo-studio"' "$CSS")" -ge 3
+          echo 'Nova Hub AI Photo-only premium polish + locked icon geometry: PASS'
+
+      - name: Verify existing 1000-template and Puter generator foundations still present
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp fresh-rebuild/src/features/apps/data/ai-photo-templates.js /tmp/ai-photo-templates.mjs
+          node --input-type=module - <<'NODE'
+          const m=await import('file:///tmp/ai-photo-templates.mjs');
+          if(m.NEXUSNOVA_TEMPLATES.length!==1000)throw new Error(`Expected exactly 1000 templates, got ${m.NEXUSNOVA_TEMPLATES.length}`);
+          if(m.NEXUSNOVA_TEMPLATE_CATEGORIES.length!==20)throw new Error(`Expected 20 categories, got ${m.NEXUSNOVA_TEMPLATE_CATEGORIES.length}`);
+          if(!m.searchTemplates({query:'coffee logo',limit:20}).items.length)throw new Error('Template search smoke failed.');
+          console.log('Template foundation PASS:',m.NEXUSNOVA_TEMPLATES.length);
+          NODE
+          node --check fresh-rebuild/src/features/apps/ai-photo-puter-generator.js
+          node --check fresh-rebuild/src/features/apps/ai-photo-studio-ai.js
+          grep -Fq 'puter.ai.txt2img' fresh-rebuild/src/features/apps/ai-photo-studio-ai.js
+          grep -Fq 'installPuterImageGenerator' fresh-rebuild/src/features/apps/ai-photo-studio-review.js
+          grep -Fq 'Use in Design' fresh-rebuild/src/features/apps/ai-photo-puter-generator.js
+          grep -Fq 'Edit Photo' fresh-rebuild/src/features/apps/ai-photo-puter-generator.js
+          echo 'Puter image-generation foundation: PASS'
+
+      - name: Verify fullscreen route contract still exact
+        shell: bash
+        run: |
+          set -euo pipefail
+          CSS=fresh-rebuild/assets/styles/ai-photo-route-fullscreen.css
+          APP=fresh-rebuild/src/features/apps/app-screen.js
+          grep -Fq 'height: 100dvh' "$CSS"
+          grep -Fq '.nx-ai-photo-route-back' "$CSS"
+          grep -Fq 'right: max(' "$CSS"
+          grep -Fq 'body.nx-ai-photo-route-active .nx-dock' "$CSS"
+          grep -Fq '#nxEmergencySosButton' "$CSS"
+          grep -Fq "root.classList.add('nx-ai-photo-route-screen')" "$APP"
+          grep -Fq 'nx-ai-photo-route-back' "$APP"
+          echo 'Fullscreen/right-back/no-dock/no-SOS contract: PASS'
+
+      - name: Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Gradle 8.13
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Android debug build
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd NexusNovaAndroid
+          gradle --no-daemon clean assembleDebug
+          test -s app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Verify generated Android web assets include exact premium upgrade
+        shell: bash
+        run: |
+          set -euo pipefail
+          for rel in \
+            src/features/apps/ai-photo-studio-home.js \
+            src/features/apps/ai-photo-studio-review.js \
+            assets/styles/nova-hub-compact-icons-v2.css \
+            src/features/apps/ai-photo-puter-generator.js \
+            src/features/apps/ai-photo-canva-workspace-v3.js \
+            assets/styles/ai-photo-route-fullscreen.css; do
+            cmp "fresh-rebuild/$rel" "NexusNovaAndroid/app/src/main/assets/www/$rel"
+          done
+          echo 'Android generated web assets exact: PASS'
+
+      - name: Confirm no OTA or signed release publication
+        run: echo 'Verification only. This workflow contains no OTA publication and no signed release upload.'
