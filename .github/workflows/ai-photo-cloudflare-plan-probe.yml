@@ -25,15 +25,16 @@ jobs:
           test -n "${CLOUDFLARE_API_TOKEN:-}" || { echo '::error::CLOUDFLARE_API_TOKEN missing'; exit 2; }
           test -n "${CLOUDFLARE_ACCOUNT_ID:-}" || { echo '::error::CLOUDFLARE_ACCOUNT_ID missing'; exit 2; }
 
-      - name: Probe account subscription without changing billing
+      - name: Probe account plan without changing billing
         shell: bash
         run: |
           set -euo pipefail
-          code="$(curl -sS -o /tmp/cf-subscriptions.json -w '%{http_code}' \
-            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+          auth=(-H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")
+          bill_code="$(curl -sS -o /tmp/cf-subscriptions.json -w '%{http_code}' "${auth[@]}" \
             "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/subscriptions")"
-          test "$code" = 200 || { echo "::error::Cloudflare Billing Read probe returned HTTP $code; no AI backend will be deployed."; exit 3; }
-          python3 - <<'PY'
+
+          if [ "$bill_code" = 200 ]; then
+            python3 - <<'PY'
           import json
           data=json.load(open('/tmp/cf-subscriptions.json',encoding='utf-8'))
           if not data.get('success'):
@@ -46,14 +47,40 @@ jobs:
               rp=row.get('rate_plan') or {}
               text=' '.join(str(x or '') for x in [rp.get('id'),rp.get('public_name'),rp.get('scope')]).lower()
               if 'worker' in text:
-                  active.append({'state':row.get('state'),'price':row.get('price'), 'id':rp.get('id'),'name':rp.get('public_name')})
+                  active.append({'state':row.get('state'),'price':row.get('price'),'id':rp.get('id'),'name':rp.get('public_name')})
           paid=[x for x in active if float(x.get('price') or 0)>0 or any(k in str(x.get('id') or '').lower() for k in ['paid','standard'])]
+          print('Billing Read available.')
           print('Workers subscription entries:',len(active))
           print('Workers paid entries:',len(paid))
           if paid:
-              raise SystemExit('PAID_WORKERS_PLAN_DETECTED: automatic AI image deployment blocked by NexusNova no-paid-without-approval rule.')
+              raise SystemExit('PAID_WORKERS_PLAN_DETECTED: AI image deployment blocked by NexusNova no-paid-without-approval rule.')
           print('ZERO_CHARGE_WORKERS_PLAN_PROBE=PASS')
+          PY
+            exit 0
+          fi
+
+          echo "Billing Read returned HTTP $bill_code; trying read-only Workers account settings fallback."
+          settings_code="$(curl -sS -o /tmp/cf-worker-settings.json -w '%{http_code}' "${auth[@]}" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/account-settings")"
+          test "$settings_code" = 200 || { echo "::error::Workers account settings probe returned HTTP $settings_code; plan remains unknown and AI backend stays disabled."; exit 3; }
+
+          python3 - <<'PY'
+          import json
+          data=json.load(open('/tmp/cf-worker-settings.json',encoding='utf-8'))
+          if not data.get('success'):
+              raise SystemExit('Workers account settings API did not return success; no deploy allowed.')
+          result=data.get('result') or {}
+          model=str(result.get('default_usage_model') or '').strip().lower()
+          print('Workers default_usage_model:',model or '(empty)')
+          if model == 'standard':
+              raise SystemExit('PAID_STANDARD_USAGE_MODEL_DETECTED: AI image deployment blocked by NexusNova no-paid-without-approval rule.')
+          # Cloudflare documents Standard as Workers Paid. Legacy bundled/unbound can also be paid,
+          # so they cannot prove zero-charge status without Billing Read. Fail closed.
+          if model in {'bundled','unbound'}:
+              raise SystemExit('LEGACY_USAGE_MODEL_AMBIGUOUS: Billing Read permission is required before AI backend deployment.')
+          raise SystemExit('WORKERS_PLAN_NOT_PROVABLY_FREE: Billing Read permission is required before AI backend deployment.')
           PY
 
       - name: Confirm probe is read-only
+        if: always()
         run: echo 'No Cloudflare subscription, binding, Worker, billing, or AI service was changed by this workflow.'
