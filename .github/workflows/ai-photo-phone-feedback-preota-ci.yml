@@ -6,6 +6,8 @@ on:
     paths:
       - 'fresh-rebuild/src/features/apps/ai-photo-phone-feedback-v1.js'
       - 'fresh-rebuild/src/features/apps/ai-photo-studio-review.js'
+      - 'fresh-rebuild/src/features/apps/ai-photo-canva-workspace-v3.js'
+      - 'NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusPuterPopupManager.kt'
       - '.github/workflows/ai-photo-phone-feedback-preota-ci.yml'
   workflow_dispatch:
 
@@ -29,14 +31,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          allowed='^(fresh-rebuild/src/features/apps/ai-photo-phone-feedback-v1\.js|fresh-rebuild/src/features/apps/ai-photo-studio-review\.js|\.github/workflows/ai-photo-phone-feedback-preota-ci\.yml)$'
+          allowed='^(fresh-rebuild/src/features/apps/ai-photo-phone-feedback-v1\.js|fresh-rebuild/src/features/apps/ai-photo-studio-review\.js|fresh-rebuild/src/features/apps/ai-photo-canva-workspace-v3\.js|NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusPuterPopupManager\.kt|\.github/workflows/ai-photo-phone-feedback-preota-ci\.yml)$'
           unexpected="$(git diff --name-only "$PHONE_FEEDBACK_BASE" "$GITHUB_SHA" -- | grep -Ev "$allowed" || true)"
           if [ -n "$unexpected" ]; then
-            echo '::error::Unexpected file changed in phone-feedback scope:' >&2
+            echo '::error::Unexpected file changed in approved AI Photo correction scope:' >&2
             printf '%s\n' "$unexpected" >&2
             exit 1
           fi
-          echo 'Exact phone-feedback scope: PASS'
+          echo 'Exact approved correction scope: PASS'
 
       - name: Verify protected Photo Studio and completed-app files unchanged
         shell: bash
@@ -48,11 +50,10 @@ jobs:
             fresh-rebuild/src/features/apps/ai-photo-studio-flagship.js \
             fresh-rebuild/src/features/apps/ai-photo-studio-home.js \
             fresh-rebuild/src/features/apps/ai-photo-puter-generator.js \
-            fresh-rebuild/src/features/apps/ai-photo-canva-workspace-v3.js \
             fresh-rebuild/src/features/apps/ai-photo-studio-ai.js \
             fresh-rebuild/src/features/apps/ai-photo-focus-interaction.js \
             NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt \
-            NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusPuterPopupManager.kt \
+            NexusNovaAndroid/app/src/main/java/com/nexusnova/app/BrowserActivity.kt \
             fresh-rebuild/src/features/apps/premium-qibla-safe-v2.js \
             fresh-rebuild/src/features/apps/premium-prayer-safe.js \
             fresh-rebuild/src/features/apps/pakistan-suite.js \
@@ -71,8 +72,10 @@ jobs:
           set -euo pipefail
           CORR=fresh-rebuild/src/features/apps/ai-photo-phone-feedback-v1.js
           REVIEW=fresh-rebuild/src/features/apps/ai-photo-studio-review.js
+          WORKSPACE=fresh-rebuild/src/features/apps/ai-photo-canva-workspace-v3.js
           node --check "$CORR"
           node --check "$REVIEW"
+          node --check "$WORKSPACE"
           grep -Fq 'AI IMAGE GENERATOR' "$CORR"
           grep -Fq 'Featured templates' "$CORR"
           grep -Fq "FEATURED_CATEGORIES=['logos','instagram-posts','youtube-thumbnails','flyers','business-cards','posters','product-promos','resumes']" "$CORR"
@@ -80,11 +83,42 @@ jobs:
           grep -Fq "actionRow?.remove()" "$CORR"
           grep -Fq 'data-puter-download' "$CORR"
           grep -Fq 'downloadBlob' "$CORR"
+          grep -Fq 'compactPuterAccount' "$CORR"
+          grep -Fq 'nxps-account-chip' "$CORR"
+          grep -Fq 'nxps-has-result' "$CORR"
           grep -Fq 'padding-bottom:0!important' "$CORR"
           grep -Fq 'position:absolute!important;inset:0!important' "$CORR"
           grep -Fq 'installAiPhotoPhoneFeedbackV1' "$REVIEW"
           grep -Fq 'review-v6-phone-feedback' "$REVIEW"
-          echo 'Requested phone-feedback contract: PASS'
+          grep -Fq 'Text selected' "$WORKSPACE"
+          grep -Fq 'Photo selected' "$WORKSPACE"
+          grep -Fq 'data-v3-text-select' "$WORKSPACE"
+          grep -Fq 'data-v3-text-clear' "$WORKSPACE"
+          grep -Fq 'renderDesign({inspector:false})' "$WORKSPACE"
+          grep -Fq 'textEditBefore' "$WORKSPACE"
+          echo 'Requested AI Photo correction contract: PASS'
+
+      - name: Verify Nova Browser Puter auth security contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          AUTH=NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusPuterPopupManager.kt
+          grep -Fq 'Nova Browser · Secure Login' "$AUTH"
+          grep -Fq 'Puter account authentication' "$AUTH"
+          grep -Fq 'allowFileAccess = false' "$AUTH"
+          grep -Fq 'allowContentAccess = false' "$AUTH"
+          grep -Fq 'MIXED_CONTENT_NEVER_ALLOW' "$AUTH"
+          grep -Fq 'setAcceptThirdPartyCookies' "$AUTH"
+          grep -Fq 'return host == "puter.com" || host.endsWith(".puter.com")' "$AUTH"
+          if grep -Fq 'Intent(Intent.ACTION_VIEW' "$AUTH"; then
+            echo '::error::Puter auth must not escape to an external browser.' >&2
+            exit 1
+          fi
+          if grep -Eq 'addJavascriptInterface|NexusAndroid|NexusBrowserAndroid' "$AUTH"; then
+            echo '::error::Puter auth WebView must not receive NexusNova native bridges.' >&2
+            exit 1
+          fi
+          echo 'Nova Browser secure Puter auth contract: PASS'
 
       - name: Verify original template and Puter foundations remain intact
         shell: bash
@@ -131,6 +165,7 @@ jobs:
           for rel in \
             src/features/apps/ai-photo-phone-feedback-v1.js \
             src/features/apps/ai-photo-studio-review.js \
+            src/features/apps/ai-photo-canva-workspace-v3.js \
             src/features/apps/ai-photo-studio-home.js \
             src/features/apps/ai-photo-puter-generator.js \
             src/features/apps/ai-photo-studio-flagship.js \
