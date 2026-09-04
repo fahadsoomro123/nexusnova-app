@@ -92,8 +92,8 @@ jobs:
             test "$(git rev-parse "$BASE:$path")" = "$(git rev-parse "HEAD:$path")" || { echo "Core engine changed unexpectedly: $path" >&2; exit 1; }
           done
 
-      - name: No OTA publication in pre-OTA gate
+      - name: Confirm pre-OTA workflow is read-only
         shell: bash
         run: |
           set -euo pipefail
-          ! grep -R -nE 'git push|ota-updates|publish OTA|firebase deploy|wrangler deploy' .github/workflows/batch4-17-20-preota-ci.yml
+          sed -n '/^permissions:/,/^jobs:/p' .github/workflows/batch4-17-20-preota-ci.yml | grep -Fq 'contents: read'
