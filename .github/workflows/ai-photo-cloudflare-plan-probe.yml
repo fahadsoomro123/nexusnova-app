@@ -1,4 +1,4 @@
-name: AI Photo Cloudflare Zero-Charge Plan Probe
+name: AI Photo Puter Native Apply Bridge
 
 on:
   push:
@@ -8,79 +8,54 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  probe:
+  apply:
     runs-on: ubuntu-latest
     timeout-minutes: 8
-    env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
-      - name: Require existing Cloudflare credentials
+      - name: Checkout correction branch
+        uses: actions/checkout@v4
+        with:
+          ref: ai-photo-real-canva-ai-generator-correction
+          fetch-depth: 0
+
+      - name: Guard and patch MainActivity only
         shell: bash
         run: |
           set -euo pipefail
-          test -n "${CLOUDFLARE_API_TOKEN:-}" || { echo '::error::CLOUDFLARE_API_TOKEN missing'; exit 2; }
-          test -n "${CLOUDFLARE_ACCOUNT_ID:-}" || { echo '::error::CLOUDFLARE_ACCOUNT_ID missing'; exit 2; }
-
-      - name: Probe account plan without changing billing
-        shell: bash
-        run: |
-          set -euo pipefail
-          auth=(-H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")
-          bill_code="$(curl -sS -o /tmp/cf-subscriptions.json -w '%{http_code}' "${auth[@]}" \
-            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/subscriptions")"
-
-          if [ "$bill_code" = 200 ]; then
-            python3 - <<'PY'
-          import json
-          data=json.load(open('/tmp/cf-subscriptions.json',encoding='utf-8'))
-          if not data.get('success'):
-              raise SystemExit('Cloudflare subscription API did not return success; no deploy allowed.')
-          rows=data.get('result') or []
-          active=[]
-          for row in rows:
-              state=str(row.get('state') or '').lower()
-              if state in {'cancelled','failed','expired'}: continue
-              rp=row.get('rate_plan') or {}
-              text=' '.join(str(x or '') for x in [rp.get('id'),rp.get('public_name'),rp.get('scope')]).lower()
-              if 'worker' in text:
-                  active.append({'state':row.get('state'),'price':row.get('price'),'id':rp.get('id'),'name':rp.get('public_name')})
-          paid=[x for x in active if float(x.get('price') or 0)>0 or any(k in str(x.get('id') or '').lower() for k in ['paid','standard'])]
-          print('Billing Read available.')
-          print('Workers subscription entries:',len(active))
-          print('Workers paid entries:',len(paid))
-          if paid:
-              raise SystemExit('PAID_WORKERS_PLAN_DETECTED: AI image deployment blocked by NexusNova no-paid-without-approval rule.')
-          print('ZERO_CHARGE_WORKERS_PLAN_PROBE=PASS')
-          PY
-            exit 0
-          fi
-
-          echo "Billing Read returned HTTP $bill_code; trying read-only Workers account settings fallback."
-          settings_code="$(curl -sS -o /tmp/cf-worker-settings.json -w '%{http_code}' "${auth[@]}" \
-            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/account-settings")"
-          test "$settings_code" = 200 || { echo "::error::Workers account settings probe returned HTTP $settings_code; plan remains unknown and AI backend stays disabled."; exit 3; }
-
+          FILE='NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt'
+          EXPECTED='a4b3c6691e5e3b63d3851429a19a4d1797b8fd9d'
+          ACTUAL="$(git hash-object "$FILE")"
+          test "$ACTUAL" = "$EXPECTED" || { echo "::error::MainActivity baseline changed: $ACTUAL"; exit 2; }
           python3 - <<'PY'
-          import json
-          data=json.load(open('/tmp/cf-worker-settings.json',encoding='utf-8'))
-          if not data.get('success'):
-              raise SystemExit('Workers account settings API did not return success; no deploy allowed.')
-          result=data.get('result') or {}
-          model=str(result.get('default_usage_model') or '').strip().lower()
-          print('Workers default_usage_model:',model or '(empty)')
-          if model == 'standard':
-              raise SystemExit('PAID_STANDARD_USAGE_MODEL_DETECTED: AI image deployment blocked by NexusNova no-paid-without-approval rule.')
-          # Cloudflare documents Standard as Workers Paid. Legacy bundled/unbound can also be paid,
-          # so they cannot prove zero-charge status without Billing Read. Fail closed.
-          if model in {'bundled','unbound'}:
-              raise SystemExit('LEGACY_USAGE_MODEL_AMBIGUOUS: Billing Read permission is required before AI backend deployment.')
-          raise SystemExit('WORKERS_PLAN_NOT_PROVABLY_FREE: Billing Read permission is required before AI backend deployment.')
+          from pathlib import Path
+          p=Path('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt')
+          s=p.read_text(encoding='utf-8')
+          settings_old='''        settings.domStorageEnabled = true\n        settings.databaseEnabled = true\n'''
+          settings_new='''        settings.domStorageEnabled = true\n        settings.databaseEnabled = true\n        // Puter authentication opens a user-initiated popup. Multiple windows\n        // are enabled only for the guarded isolated child WebView below.\n        settings.setSupportMultipleWindows(true)\n        settings.javaScriptCanOpenWindowsAutomatically = true\n'''
+          chrome_old='''        webView.webChromeClient = object : WebChromeClient() {\n'''
+          chrome_new='''        webView.webChromeClient = object : WebChromeClient() {\n            override fun onCreateWindow(\n                view: WebView?,\n                isDialog: Boolean,\n                isUserGesture: Boolean,\n                resultMsg: android.os.Message?\n            ): Boolean {\n                if (view !== webView || !isTrustedAppPage(view)) return false\n                return NexusPuterPopupManager.open(\n                    this@MainActivity,\n                    resultMsg,\n                    isUserGesture\n                )\n            }\n\n'''
+          if s.count(settings_old)!=1: raise SystemExit('settings anchor missing/ambiguous')
+          if s.count(chrome_old)!=1: raise SystemExit('WebChromeClient anchor missing/ambiguous')
+          if 'NexusPuterPopupManager.open(' in s: raise SystemExit('Puter popup patch already present')
+          s=s.replace(settings_old,settings_new,1).replace(chrome_old,chrome_new,1)
+          p.write_text(s,encoding='utf-8')
           PY
+          git diff --check
+          changed="$(git diff --name-only)"
+          test "$changed" = "$FILE" || { echo "::error::Unexpected files changed: $changed"; exit 3; }
+          grep -F 'settings.setSupportMultipleWindows(true)' "$FILE"
+          grep -F 'settings.javaScriptCanOpenWindowsAutomatically = true' "$FILE"
+          grep -F 'NexusPuterPopupManager.open(' "$FILE"
 
-      - name: Confirm probe is read-only
-        if: always()
-        run: echo 'No Cloudflare subscription, binding, Worker, billing, or AI service was changed by this workflow.'
+      - name: Commit approved native Puter support
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'NexusNova CI'
+          git config user.email 'actions@users.noreply.github.com'
+          git add NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          git commit -m 'Enable isolated Puter auth popup in Android WebView'
+          git push origin HEAD:ai-photo-real-canva-ai-generator-correction
