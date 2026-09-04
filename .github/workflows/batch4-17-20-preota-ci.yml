@@ -26,7 +26,7 @@ jobs:
           git diff --name-only "$BASE" HEAD | tee /tmp/changed.txt
           while IFS= read -r path; do
             case "$path" in
-              fresh-rebuild/index.html|fresh-rebuild/assets/styles/batch4-tools-17-20-fullscreen.css|fresh-rebuild/src/features/apps/batch4-tools-17-20-fullscreen.js|.github/workflows/batch4-17-20-preota-ci.yml) ;;
+              fresh-rebuild/index.html|fresh-rebuild/assets/styles/batch4-tools-17-20-fullscreen.css|fresh-rebuild/src/features/apps/batch4-tools-17-20-fullscreen.js|.github/workflows/batch4-17-20-preota-ci.yml|.github/workflows/batch4-tools-17-20-review-ota.yml) ;;
               *) echo "Unexpected file changed: $path" >&2; exit 1 ;;
             esac
           done < /tmp/changed.txt
@@ -96,4 +96,5 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sed -n '/^permissions:/,/^jobs:/p' .github/workflows/batch4-17-20-preota-ci.yml | grep -Fq 'contents: read'
+          test "$(grep -c '^  contents: read$' .github/workflows/batch4-17-20-preota-ci.yml)" -eq 1
+          ! grep -Fq 'contents: write' .github/workflows/batch4-17-20-preota-ci.yml
