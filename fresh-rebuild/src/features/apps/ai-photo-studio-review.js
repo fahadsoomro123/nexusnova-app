@@ -3,6 +3,7 @@ import { installSliderOnlyFocus } from './ai-photo-focus-interaction.js';
 import { installAiPhotoCanvaWorkspaceV3 } from './ai-photo-canva-workspace-v3.js';
 import { installPuterImageGenerator } from './ai-photo-puter-generator.js';
 import { installAiPhotoStudioHome } from './ai-photo-studio-home.js';
+import { installAiPhotoPhoneFeedbackV1 } from './ai-photo-phone-feedback-v1.js';
 
 export function renderAiPhotoStudio(){
   const root=renderFlagshipAiPhotoStudio();
@@ -24,13 +25,15 @@ export function renderAiPhotoStudio(){
   const workspaceCleanup=installAiPhotoCanvaWorkspaceV3(root);
   const puterCleanup=installPuterImageGenerator(root);
   const homeCleanup=installAiPhotoStudioHome(root);
+  const phoneFeedbackCleanup=installAiPhotoPhoneFeedbackV1(root);
   root.__cleanup=()=>{
+    phoneFeedbackCleanup?.();
     homeCleanup?.();
     puterCleanup?.();
     workspaceCleanup?.();
     focusCleanup?.();
     previousCleanup?.();
   };
-  root.dataset.aiPhotoFlagship='review-v5-premium-home';
+  root.dataset.aiPhotoFlagship='review-v6-phone-feedback';
   return root;
 }
