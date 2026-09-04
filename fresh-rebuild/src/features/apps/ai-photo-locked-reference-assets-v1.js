@@ -12,6 +12,9 @@ function ensureReferenceStyles(){
     .nxps-locked-visual .nxlock-feature.has-locked-reference>canvas{display:none!important}
     .nxps-locked-visual .nxlock-recent-thumb{height:auto!important;aspect-ratio:170/124;background-image:url('./assets/visuals/ai-photo-locked-recent.webp')!important;background-repeat:no-repeat!important;background-size:400% 100%!important;background-color:#101521!important}
     .nxps-locked-visual .nxlock-prompt textarea::placeholder{color:#aeb5c9!important;opacity:1!important}
+    .nxps-locked-visual .nxlock-home-btn,.nxps-locked-visual .nxlock-gen-home,.nxps-locked-visual .nxlock-pro{display:flex!important;align-items:center!important;justify-content:center!important;gap:5px!important}
+    .nxps-locked-visual .nxlock-home-glyph{font-size:16px!important;line-height:1!important}
+    .nxps-locked-visual .nxlock-pro-glyph{font-size:14px!important;line-height:1!important}
 
     @media (max-width:520px){
       .nxps-locked-visual .nxlock-top{grid-template-columns:70px minmax(0,1fr) 64px!important;gap:7px!important}
@@ -75,6 +78,15 @@ function applyPromptContract(root){
   if(prompt.getAttribute('placeholder')!==placeholder)prompt.setAttribute('placeholder',placeholder);
 }
 
+function applyHeaderContract(root){
+  const home=root.querySelector('.nxlock-home-btn');
+  if(home&&!home.querySelector('.nxlock-home-glyph'))home.innerHTML='<span class="nxlock-home-glyph">⌂</span><span>Home</span>';
+  const genHome=root.querySelector('.nxlock-gen-home');
+  if(genHome&&!genHome.querySelector('.nxlock-home-glyph'))genHome.innerHTML='<span class="nxlock-home-glyph">⌂</span><span>Home</span>';
+  const pro=root.querySelector('.nxlock-pro');
+  if(pro&&!pro.querySelector('.nxlock-pro-glyph'))pro.innerHTML='<span class="nxlock-pro-glyph">♛</span><span>PRO</span>';
+}
+
 function applyVisualCustomRatio(root){
   const ratioBox=root.querySelector('.nxlock-ratios');
   if(!ratioBox||ratioBox.querySelector('[data-r="custom"]'))return;
@@ -84,7 +96,7 @@ function applyVisualCustomRatio(root){
   button.dataset.r='custom';
   button.setAttribute('aria-label','Custom aspect ratio');
   button.title='Custom ratio is not supported by the current Puter provider.';
-  button.innerHTML='<b>▱</b>Custom<small>Custom</small>';
+  button.innerHTML='<b>▱</b>0::9<small>Custom</small>';
   button.addEventListener('click',()=>{
     globalThis.alert?.('Custom ratio is not supported by the current Puter provider. Use Square, Portrait, Story or Landscape.');
   });
@@ -96,7 +108,7 @@ export function installAiPhotoLockedReferenceAssetsV1(root){
   if(!root||root.__nxLockedReferenceAssetsV1)return()=>{};
   root.__nxLockedReferenceAssetsV1=true;
   ensureReferenceStyles();
-  const apply=()=>{applyStyleSprites(root);applyFeaturedSprites(root);applyRecentSprites(root);applyPromptContract(root);applyVisualCustomRatio(root)};
+  const apply=()=>{applyStyleSprites(root);applyFeaturedSprites(root);applyRecentSprites(root);applyPromptContract(root);applyHeaderContract(root);applyVisualCustomRatio(root)};
   apply();
   const observer=new MutationObserver(apply);
   observer.observe(root,{childList:true,subtree:true});
