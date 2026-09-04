@@ -54,7 +54,10 @@ jobs:
           grep -Fq '.nx-ai-photo-fullscreen-screen > .nx-app-head' "$CSS"
           grep -Fq 'right:max(10px,env(safe-area-inset-right,0px))!important' "$CSS"
           grep -Fq '.nx-ai-photo-fullscreen-screen .nx-photo-project' "$CSS"
-          grep -Fq 'display:none!important' "$CSS"
+          grep -Fq 'position:absolute!important' "$CSS"
+          grep -Fq 'bottom:0!important' "$CSS"
+          grep -Fq 'grid-template-columns:repeat(5,minmax(0,1fr))!important' "$CSS"
+          grep -Fq 'visibility:visible!important' "$CSS"
           grep -Fq './assets/styles/ai-photo-fullscreen-v1.css?ota=ai-photo-fullscreen-v1' "$INDEX"
           grep -Fq './src/features/apps/ai-photo-fullscreen-v1.js?ota=ai-photo-fullscreen-v1' "$INDEX"
 
@@ -154,7 +157,7 @@ jobs:
           rm -rf ota && mkdir -p ota
           cp -a /tmp/nx-ai-photo-ota/. ota/
           git add -A ota
-          git commit -m "Publish AI Photo fullscreen visual OTA $RUNTIME_SHA"
+          git commit -m "Publish AI Photo bottom-controls fullscreen fix $RUNTIME_SHA"
           PUBLIC_SHA="$(git rev-parse HEAD)"
           AUTH="$(printf 'x-access-token:%s' "$PUBLIC_OTA_TOKEN" | base64 -w0)"
           git -c http.extraheader="AUTHORIZATION: basic $AUTH" push origin HEAD:"$PUBLIC_OTA_BRANCH"
