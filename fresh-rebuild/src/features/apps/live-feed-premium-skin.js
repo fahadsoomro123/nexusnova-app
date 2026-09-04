@@ -45,5 +45,5 @@ function wrap(renderer, className, title, subtitle, badge) {
 export const liveFeedDeskRenderers = Object.freeze({
   pakistan: () => wrap(pakistanSuiteRenderers.pakistan, 'nx-feed-desk--pk', 'PAKISTAN NEWS DESK', 'GDELT LIVE COVERAGE • URDU/SINDHI/REGIONAL', 'LIVE FEED'),
   news: () => wrap(newsSuiteRenderers.news, 'nx-feed-desk--news', 'GLOBAL NEWS TERMINAL', 'NATIVE BRIDGE + LIVE PUBLISHER FALLBACK', 'CURRENT'),
-  articles: () => wrap(articleRenderers.articles, 'nx-feed-desk--articles', 'NEXUSNOVA EDITORIAL DESK', 'DIRECT WEBSITE FEED • SAFE SITE LINKS', 'SITE SYNC')
+  articles: () => articleRenderers.articles()
 });
