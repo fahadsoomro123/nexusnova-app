@@ -9,20 +9,46 @@ export function renderPrayerTimesSafe() {
   const search = root.querySelector('[data-prayer-search]');
   const searchButton = root.querySelector('[data-prayer-search-go]');
   const list = root.querySelector('[data-prayer-list]');
+  const consoleEl = root.querySelector('.nxprayer-console');
   const topbar = root.querySelector('.nxprayer-topbar');
   const baseCleanup = root.__cleanup;
   let active = true;
   let fallbackStarted = false;
 
-  // The premium renderer previously exposed Calendar/Menu controls without
-  // actions. Do not show dead or misleading controls in the phone review UI.
+  // Locked phone-review rule: no duplicate/branded title header inside the tool.
+  // Remove the whole topbar, including its embedded left-side back control.
+  // The Batch 13-16 fullscreen enhancer then supplies the shared floating back arrow.
   root.querySelector('.nxprayer-calendar')?.remove();
   root.querySelector('.nxprayer-menu')?.remove();
   root.querySelector('.nxprayer-topactions')?.remove();
   if (topbar) {
+    // Keep the prior dead-control contract explicit before removing the obsolete bar.
     topbar.style.gridTemplateColumns = 'auto auto minmax(0,1fr)';
-    topbar.style.paddingRight = '0';
+    topbar.remove();
   }
+
+  // Reflow the remaining controls/cards after removing the title row.
+  if (consoleEl) {
+    consoleEl.style.gridTemplateRows = 'auto auto minmax(0,1fr) auto auto';
+    consoleEl.style.gap = '7px';
+  }
+
+  // Reduce the visually empty middle of the six tall prayer cards without
+  // introducing page scrolling or changing any prayer calculation/data path.
+  const polish = document.createElement('style');
+  polish.dataset.prayerSafePolish = 'v2';
+  polish.textContent = `
+    html.nx-batch3-tools-active .nx-b3-prayer-root .nxprayer-card{
+      display:flex!important;flex-direction:column!important;align-items:center!important;
+    }
+    html.nx-batch3-tools-active .nx-b3-prayer-root .nxprayer-card>.nxprayer-ornament{
+      margin-top:auto!important;height:min(118px,15dvh)!important;width:100%!important;
+    }
+    html.nx-batch3-tools-active .nx-b3-prayer-root .nxprayer-next{
+      margin-top:0!important;
+    }
+  `;
+  root.appendChild(polish);
 
   const maybeFallback = () => {
     if (!active || fallbackStarted) return;
