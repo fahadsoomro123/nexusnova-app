@@ -1,0 +1,171 @@
+name: NexusNova Prayer Times Review OTA
+
+on:
+  push:
+    branches: [nova-sol57-pro-v128-prayer-times-fix-v1]
+    paths:
+      - 'fresh-rebuild/src/features/apps/premium-prayer-safe.js'
+      - '.github/workflows/prayer-times-review-ota.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  LOCKED_BASE: a60427655b2f56f77ca04f91d274d8458ddcbd52
+  OTA_BUNDLED_BASE: 8d1aaaee6f28b974a8c8b3ff213beb1318ec7405
+  PUBLIC_OTA_REPO: fahadsoomro123/nexusnova-website
+  PUBLIC_OTA_BRANCH: nexusnova-ota-public
+
+jobs:
+  validate_publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate Prayer Times fix and locked completed apps
+        shell: bash
+        run: |
+          set -euo pipefail
+          SAFE=fresh-rebuild/src/features/apps/premium-prayer-safe.js
+          PRAYER=fresh-rebuild/src/features/apps/premium-prayer-times.js
+
+          node --check "$SAFE"
+          node --check "$PRAYER"
+          grep -Fq "Karachi, Pakistan" "$SAFE"
+          grep -Fq "nxprayer-calendar" "$SAFE"
+          grep -Fq "nxprayer-menu" "$SAFE"
+          grep -Fq "gridTemplateColumns = 'auto auto minmax(0,1fr)'" "$SAFE"
+          grep -Fq "gps permission is unavailable" "$SAFE"
+          grep -Fq "data-prayer-search" "$PRAYER"
+          grep -Fq "data-prayer-gps" "$PRAYER"
+          grep -Fq "https://api.aladhan.com/v1/timings/" "$PRAYER"
+
+          # User-approved Qibla, Pakistan Hub and News remain byte-identical.
+          git diff --quiet "$LOCKED_BASE" "$GITHUB_SHA" -- fresh-rebuild/src/features/apps/premium-qibla-safe-v2.js
+          git diff --quiet "$LOCKED_BASE" "$GITHUB_SHA" -- fresh-rebuild/assets/qibla/
+          git diff --quiet "$LOCKED_BASE" "$GITHUB_SHA" -- fresh-rebuild/src/features/apps/pakistan-suite.js
+          git diff --quiet "$LOCKED_BASE" "$GITHUB_SHA" -- fresh-rebuild/src/features/apps/news-resilient.js
+
+          allowed='^(fresh-rebuild/src/features/apps/premium-prayer-safe\.js|\.github/workflows/prayer-times-review-ota\.yml)$'
+          unexpected="$(git diff --name-only "$LOCKED_BASE" "$GITHUB_SHA" | grep -Ev "$allowed" || true)"
+          test -z "$unexpected" || { echo 'Unexpected files changed:' >&2; printf '%s\n' "$unexpected" >&2; exit 1; }
+          echo 'Prayer Times scoped fix + completed-app lock: PASS'
+
+      - name: Build cumulative review OTA
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="$OTA_BUNDLED_BASE"
+          git cat-file -e "$BASE^{commit}"
+          rm -rf /tmp/nx-prayer-ota
+          mkdir -p /tmp/nx-prayer-ota/files
+
+          deleted="$(git diff --name-only --diff-filter=D "$BASE" "$GITHUB_SHA" -- fresh-rebuild/ || true)"
+          unexpected_deleted="$(printf '%s\n' "$deleted" | sed '/^$/d' | grep -Ev '^fresh-rebuild/src/emergency-sos\.js$' || true)"
+          test -z "$unexpected_deleted" || { echo 'Unexpected deleted runtime files:' >&2; printf '%s\n' "$unexpected_deleted" >&2; exit 1; }
+
+          while IFS= read -r full; do
+            [ -n "$full" ] || continue
+            rel="${full#fresh-rebuild/}"
+            mkdir -p "/tmp/nx-prayer-ota/files/$(dirname "$rel")"
+            cp "$full" "/tmp/nx-prayer-ota/files/$rel"
+          done < <(git diff --name-only --diff-filter=ACMRT "$BASE" "$GITHUB_SHA" -- fresh-rebuild/)
+
+          for required in \
+            src/features/apps/premium-prayer-safe.js \
+            src/features/apps/premium-prayer-times.js \
+            src/features/apps/premium-qibla-safe-v2.js \
+            src/features/apps/pakistan-suite.js \
+            src/features/apps/news-resilient.js \
+            assets/qibla/qibla-purple-gold-face.webp \
+            assets/qibla/qibla-purple-gold-pointer.png; do
+            test -s "/tmp/nx-prayer-ota/files/$required"
+          done
+
+          export OTA_DIFF_BASE="$BASE"
+          python3 - <<'PY'
+          import hashlib,json,os
+          from pathlib import Path
+          root=Path('/tmp/nx-prayer-ota/files')
+          files=[]
+          for p in sorted(x for x in root.rglob('*') if x.is_file()):
+              data=p.read_bytes()
+              files.append({'path':p.relative_to(root).as_posix(),'sha256':hashlib.sha256(data).hexdigest(),'size':len(data)})
+          paths={x['path'] for x in files}
+          required={
+            'src/features/apps/premium-prayer-safe.js',
+            'src/features/apps/premium-prayer-times.js',
+            'src/features/apps/premium-qibla-safe-v2.js',
+            'src/features/apps/pakistan-suite.js',
+            'src/features/apps/news-resilient.js',
+            'assets/qibla/qibla-purple-gold-face.webp',
+            'assets/qibla/qibla-purple-gold-pointer.png'
+          }
+          assert required <= paths, required-paths
+          assert len(files) <= 2000
+          assert sum(x['size'] for x in files) <= 60*1024*1024
+          manifest={'schema':2,'base':os.environ['OTA_DIFF_BASE'],'version':os.environ['GITHUB_SHA'],'files':files}
+          Path('/tmp/nx-prayer-ota/manifest.json').write_text(json.dumps(manifest,separators=(',',':'),sort_keys=True),encoding='utf-8')
+          print('Prayer review OTA files:',len(files))
+          PY
+
+      - name: Require public OTA credential
+        shell: bash
+        env:
+          PUBLIC_OTA_TOKEN: ${{ secrets.GH_PUBLIC_OTA_TOKEN || secrets.OTA_PUBLIC_TOKEN }}
+        run: test -n "$PUBLIC_OTA_TOKEN"
+
+      - name: Publish Prayer Times review OTA
+        id: publish
+        shell: bash
+        env:
+          PUBLIC_OTA_TOKEN: ${{ secrets.GH_PUBLIC_OTA_TOKEN || secrets.OTA_PUBLIC_TOKEN }}
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/nx-prayer-public
+          git clone --depth 1 --branch "$PUBLIC_OTA_BRANCH" "https://github.com/$PUBLIC_OTA_REPO.git" /tmp/nx-prayer-public
+          cd /tmp/nx-prayer-public
+          git config user.name 'NexusNova OTA Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          rm -rf ota && mkdir -p ota
+          cp -a /tmp/nx-prayer-ota/. ota/
+          git add -A ota
+          git commit -m "Publish Prayer Times review OTA $GITHUB_SHA"
+          PUBLIC_SHA="$(git rev-parse HEAD)"
+          AUTH="$(printf 'x-access-token:%s' "$PUBLIC_OTA_TOKEN" | base64 -w0)"
+          git -c http.extraheader="AUTHORIZATION: basic $AUTH" push origin HEAD:"$PUBLIC_OTA_BRANCH"
+          echo "public_sha=$PUBLIC_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Verify public Prayer Times OTA end-to-end
+        shell: bash
+        env:
+          PUBLIC_SHA: ${{ steps.publish.outputs.public_sha }}
+        run: |
+          set -euo pipefail
+          test -n "$PUBLIC_SHA"
+          BASE_URL="https://raw.githubusercontent.com/$PUBLIC_OTA_REPO/$PUBLIC_OTA_BRANCH/ota"
+          curl -fsSL --retry 5 --retry-delay 2 "$BASE_URL/manifest.json?sha=$PUBLIC_SHA" -o /tmp/public-manifest.json
+          python3 - <<'PY'
+          import json,os
+          m=json.load(open('/tmp/public-manifest.json'))
+          assert m['schema']==2
+          assert m['version']==os.environ['GITHUB_SHA']
+          paths={x['path'] for x in m['files']}
+          for required in (
+            'src/features/apps/premium-prayer-safe.js',
+            'src/features/apps/premium-prayer-times.js',
+            'src/features/apps/premium-qibla-safe-v2.js',
+            'src/features/apps/pakistan-suite.js',
+            'src/features/apps/news-resilient.js'):
+              assert required in paths
+          PY
+          for rel in src/features/apps/premium-prayer-safe.js src/features/apps/premium-prayer-times.js src/features/apps/premium-qibla-safe-v2.js src/features/apps/pakistan-suite.js src/features/apps/news-resilient.js; do
+            curl -fsSL --retry 5 --retry-delay 2 "$BASE_URL/files/$rel?sha=$PUBLIC_SHA" -o "/tmp/$(basename "$rel")"
+            cmp -s "fresh-rebuild/$rel" "/tmp/$(basename "$rel")"
+          done
+          echo "PUBLIC_OTA_SHA=$PUBLIC_SHA"
+          echo 'Prayer Times review OTA verified end-to-end: PASS'
