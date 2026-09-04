@@ -129,5 +129,14 @@ export const NEXUSNOVA_TEMPLATE_CATEGORIES=Object.freeze(SPECS.map(([id,width,he
 export const NEXUSNOVA_TEMPLATES=Object.freeze(SPECS.flatMap(spec=>spec[4].flatMap((_,caseIndex)=>STYLES.map((__,styleIndex)=>buildTemplate(spec,caseIndex,styleIndex)))));
 
 export function getTemplateById(id){const t=NEXUSNOVA_TEMPLATES.find(x=>x.id===id);return t?clone(t):null}
-export function searchTemplates({query='',category='all',limit=80,offset=0}={}){const needle=String(query||'').trim().toLowerCase();const rows=NEXUSNOVA_TEMPLATES.filter(t=>{if(category!=='all'&&t.category!==category)return false;if(!needle)return true;return `${t.name} ${t.purpose} ${t.description} ${t.tags.join(' ')}`.toLowerCase().includes(needle)});return{total:rows.length,items:rows.slice(offset,offset+limit).map(clone)}}
+export function searchTemplates({query='',category='all',limit=80,offset=0}={}){
+  const terms=String(query||'').trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const rows=NEXUSNOVA_TEMPLATES.filter(t=>{
+    if(category!=='all'&&t.category!==category)return false;
+    if(!terms.length)return true;
+    const haystack=[t.name,t.category,t.label,t.useCase,t.style,t.purpose,t.description,...t.editableFields,...t.tags].join(' ').toLowerCase();
+    return terms.every(term=>haystack.includes(term));
+  });
+  return{total:rows.length,items:rows.slice(offset,offset+limit).map(clone)}
+}
 export function templateLibraryStats(){return{templates:NEXUSNOVA_TEMPLATES.length,categories:NEXUSNOVA_TEMPLATE_CATEGORIES.length,semantic:true}}
