@@ -2,96 +2,70 @@
 
 - Repo name: fahadsoomro123/nexusnova-app
 - Branch name: ai-photo-real-canva-ai-generator-correction
-- Latest branch checkpoint SHA before this handoff update: 73744ec0e75a36caf3fd745ffa7ee2873341e8cc
-- Handoff document state: committed with each checkpoint; use branch HEAD as the exact latest SHA.
+- Latest completed Work checkpoint before ChatGPT takeover: `384a0bb3a8e55f54319c27df111b8ca90e51e8e6`
+- Handoff document state: committed with each checkpoint; use branch `HEAD` as the exact latest SHA.
 - OTA/APK published: **NO**
 - Release status: **NOT RELEASED — explicit user approval required**
 
-## Exact files changed in the current visual-refinement checkpoint
+## Locked visual contract
 
-- fresh-rebuild/src/features/apps/ai-photo-locked-visual-v1.js
-- fresh-rebuild/src/features/apps/ai-photo-locked-reference-assets-v1.js
-- NexusNovaAndroid/app/src/main/assets/www/src/features/apps/ai-photo-locked-visual-v1.js
-- NexusNovaAndroid/app/src/main/assets/www/src/features/apps/ai-photo-locked-reference-assets-v1.js
-- tools/ai-photo-locked-visual/harness.html
-- tools/ai-photo-locked-visual/render-qa.mjs
-- tools/ai-photo-locked-visual/render-qa.sh
-- .github/workflows/ai-photo-locked-visual-preota-ci.yml
-- AI-PHOTO-WORK-HANDOFF.md
+1. `NexusNova AI Photo Studio Dashboard.png` is the exact Home target.
+2. Only the RIGHT-HAND `FIXED LAYOUT (Final Setup)` screen in `NexusNova AI Layout Fix Preview.png` is the exact Generator target.
+3. **1% visual drift = REJECT.**
+4. **No new image generation.**
+5. Phone is final acceptance only; do not use it for iterative debugging.
 
-The earlier reference-repair checkpoint also changed the three locked WebP crops, their provenance manifest, and exact Android mirrors.
+## Current implementation / completed work
 
-## Work completed
-
-- Retrieved and inspected the same two user-approved locked references; no replacement image was generated.
-- Diagnosed run 33923011009: all three committed locked .webp files were invalid/corrupted bytes.
-- Rebuilt Featured, Recent, and Creative Styles sprites as deterministic lossless crops from the approved references and recorded exact provenance, dimensions, and checksums.
-- Made WebP validation runner-independent without weakening checksum or provenance checks.
-- Run 33925905469 at SHA 74f5338e289e63b2a449cb15c000cf21ca0b7c01 passed QA 1–6 and the Android debug build.
-- Refined Home to use five proportional Featured cards, four exact locked crops plus the visible fifth continuation card, exact Recent preview proportions, and compact short-height behavior without hiding required sections.
-- Refined Generator to keep one header, a compact 1000-character prompt, four supported ratios, Custom only when the provider select supports it, all eight fixed-aspect Creative Styles, visible Quality and Style Strength controls, and the Generate button inside the usable viewport.
-- Preserved provider values and Puter flow; the first visible quality label is Economy (Recommended).
-- Added a real browser render harness covering Home and Generator at 360x640, 360x740, 393x852, 415x858, and 430x865.
-- Added screenshot artifacts and runtime geometry/overflow/visibility/interaction assertions to the existing locked six-round workflow.
-- Replaced Chrome command-line window sizing, which silently imposed a 500px desktop layout viewport, with matching ChromeDriver mobile emulation so the asserted CSS viewport is exactly the requested Android size.
-- Removed the empty legacy Puter wrapper from Generator layout flow after its real controls are moved into the locked screen, made Generate full-width, and changed Home to distribute spare height between sections instead of creating one giant Featured dead region.
-- Directly inspected the exact-mobile screenshot artifact from run 33928092357. Generator now has one top header, a proportional prompt, all eight styles, both option controls, and a full-width Generate button with no blank top region.
-- Added Home-only compact rules through 520px width and 760px height so the same required sections remain visible on short/narrow Android screens without shrinking the correctly aligned Generator.
-- Corrected the render harness stub sheet to stay out of document flow, matching the real protected editor CSS, and added explicit root scroll dimensions to evidence.
-
-## Current implementation state
-
-- Locked Home and Generator implementation is active and synchronized byte-for-byte into Android assets.
-- Reference imagery is valid and traceable to the two approved images.
-- Exact mobile rendering and the Puter-wrapper/Home dead-space fixes are committed through 73744ec. A final Home compactness and harness-flow correction is pending; the implementation is not yet reported as a visual pass.
-- Puter provider/auth code, result actions, professional Photo Editor, template engine, and protected fullscreen architecture are untouched.
-- This is not yet a final visual-pass claim; the new workflow screenshots still require direct inspection against both locked references.
-
-## QA rounds passed
-
-- Run 33925905469:
-  - QA 1: exact changed-file scope and protected modules — **PASS**
-  - QA 2: JavaScript syntax, wiring, navigation/event contracts — **PASS**
-  - QA 3: Home hierarchy and exact approved Featured/Recent crop bytes — **PASS**
-  - QA 4: Generator contract and exact approved Creative Styles crop bytes — **PASS**
-  - QA 5: Home/workspace routing, Puter generation/result contract, fullscreen foundations — **PASS**
-  - QA 6: Android debug build and exact web/Android asset sync — **PASS**
-- Local checks for the current refinement: JavaScript syntax, shell syntax, and web/Android JS byte mirroring — **PASS**
-
-## QA rounds failed / latest exact failure
-
-- Historical failure: run 33923011009 failed QA 3 because ai-photo-locked-featured.webp did not match the locked checksum; inspection proved all three locked WebPs were corrupt.
-- Historical infrastructure failure: run 33925743148 reached valid image checks but lacked ImageMagick identify; it was replaced with deterministic Node lossless-WebP header parsing.
-- Current visual-refinement run 33927344875: QA 1–3 passed; QA 4 failed because the workflow still searched for old literal ratio-button HTML after the implementation moved those four supported ratios into a provider-driven array. Browser rendering, QA 5, and QA 6 were consequently skipped. This is a QA-wiring failure, not evidence of a visual pass or visual mismatch.
-- Corrected run 33927482838: QA 1–5 passed. Rendered QA failed and QA 6 was skipped. Inspection showed the Chrome CLI reported a 500px desktop layout viewport for every sub-500 screenshot and reduced its CSS height, so those ten images were not valid measurements of the requested phone sizes. They also exposed an empty legacy Puter wrapper occupying layout space and a flexible Home Featured row concentrating spare height. Both root causes are corrected in the pending checkpoint; no check was bypassed.
-- Exact-mobile run 33928092357: QA 1–5 passed. All five Generator screenshots showed every required control and no legacy top region; geometry failures were limited to an artificial harness sheet adding root scroll height. Home fit except its Featured previews were compressed at 360x740 and were too compressed on medium-width screens. QA 6 was skipped after rendered QA failed. The harness-flow cause and Home compact breakpoints are corrected in the pending checkpoint.
-
-## Remaining work
-
-1. Commit the Home compact breakpoint and harness-flow corrections.
-2. Monitor the new workflow through all six rounds and the Android debug build.
-3. Download and directly inspect all Home and Generator screenshots against the two locked references.
-4. Fix any visible hierarchy, spacing, card proportion, clipping, overlap, dead-space, or control-visibility drift and rerun the failed checks.
-5. Report **Internal visual QA ready for release approval** only after all six rounds and direct rendered inspection pass.
-
-## Current blocker
-
-- None. Local browser binaries were unavailable, so repeatable browser rendering is performed by the branch QA workflow and retained as screenshot artifacts; visual inspection is not waived.
-
-## Next exact action
-
-- Commit the Home compact breakpoint and harness-flow corrections, wait for the triggered locked-visual workflow, then download and inspect its ten rendered screenshots before making any release-readiness claim.
+- The same two approved Library references were retrieved and inspected.
+- Featured, Recent, and Creative Styles imagery uses deterministic lossless crops from the approved references with checksum/provenance validation.
+- Puter provider/auth, result actions, professional Photo Editor, template engine, and protected fullscreen architecture remain untouched.
+- Exact mobile render harness covers Home and Generator at `360x640`, `360x740`, `393x852`, `415x858`, and `430x865`.
+- Run `33928571894` at Work checkpoint `384a0bb3a8e55f54319c27df111b8ca90e51e8e6` passed QA 1–6, including rendered geometry checks and Android debug build.
+- Direct manual comparison of the actual `393x852` artifact against the locked images was still stricter than the automated geometry gate:
+  - Generator structure is close to the locked right-side target and all eight Creative Styles are visible.
+  - Home still showed visible fidelity drift in the top header/hero proportions: center title truncation risk, hero copy made too narrow by a dedicated glow column, and the hero therefore became too tall and pushed later sections downward.
+  - Generator test artifact did not show the approved prompt placeholder text after the harness cleared the prompt.
+- Current takeover patch keeps the existing proper DOM and functionality, but overrides the locked-reference presentation only where needed:
+  - Home header mobile columns are resized to the approved proportions.
+  - Home hero becomes icon + wide copy with the nebula glow positioned behind the right side instead of consuming a layout column.
+  - Hero description and all three badges stay visible on normal-height Android screens.
+  - Approved Generator prompt placeholder is explicitly restored.
+  - Existing short-height compact rules remain intact for `<=760px` high screens.
 
 ## Protected files/modules status
 
-- Protected fullscreen architecture and unrelated modules are unchanged.
-- fresh-rebuild/assets/styles/ai-photo-route-fullscreen.css, app-screen.js, ai-photo-studio-flagship.js, ai-photo-focus-interaction.js, Puter provider/native authentication, Qibla, Prayer Times, Pakistan Hub, News, Articles, My Location/live-feed, Nova Drive, Nova Track, Mine/mining, auth, and all unrelated completed modules remain untouched.
+Unchanged:
+- `fresh-rebuild/assets/styles/ai-photo-route-fullscreen.css`
+- `fresh-rebuild/src/features/apps/app-screen.js`
+- `fresh-rebuild/src/features/apps/ai-photo-studio-flagship.js`
+- `fresh-rebuild/src/features/apps/ai-photo-focus-interaction.js`
+- `fresh-rebuild/src/features/apps/ai-photo-phone-feedback-v1.js`
+- `fresh-rebuild/src/features/apps/ai-photo-canva-workspace-v3.js`
+- `fresh-rebuild/src/features/apps/ai-photo-puter-generator.js`
+- `fresh-rebuild/src/features/apps/ai-photo-studio-ai.js`
+- native Puter auth
+- Qibla
+- Prayer Times
+- Pakistan Hub
+- News
+- Articles
+- My Location/live-feed
+- Nova Drive
+- Nova Track
+- Mine/mining
+- auth
+- unrelated completed modules
 
-## Locked contract reminders
+## Remaining work / next exact action
 
-- The final visual contract remains exactly:
-  1. NexusNova AI Photo Studio Dashboard.png for Home.
-  2. Only the RIGHT-HAND FIXED LAYOUT (Final Setup) screen in NexusNova AI Layout Fix Preview.png for AI Generator.
-- **1% visual drift = REJECT.**
-- **No new image generation.**
-- **No OTA or APK release without explicit user approval.**
+1. Run the locked six-round workflow on the new takeover checkpoint.
+2. Download all ten Home/Generator screenshots from that run.
+3. Directly compare the actual renders against both locked references, not just geometry assertions.
+4. Fix any remaining visible spacing, hierarchy, proportions, clipping, overlap, dead space, or control-visibility drift and rerun.
+5. Do not claim final visual PASS while any visible mismatch remains.
+6. Do not publish OTA or signed APK until explicit user approval after internal visual QA.
+
+## Release status
+
+**NOT RELEASED.**

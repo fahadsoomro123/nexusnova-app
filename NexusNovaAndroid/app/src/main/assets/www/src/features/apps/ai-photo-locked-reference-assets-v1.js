@@ -11,6 +11,25 @@ function ensureReferenceStyles(){
     .nxps-locked-visual .nxlock-reference-feature{display:block;width:100%;height:auto;aspect-ratio:173/183;min-height:0;border:0;border-radius:13px;background-image:url('./assets/visuals/ai-photo-locked-featured.webp');background-repeat:no-repeat;background-size:400% 100%;background-color:#101521}
     .nxps-locked-visual .nxlock-feature.has-locked-reference>canvas{display:none!important}
     .nxps-locked-visual .nxlock-recent-thumb{height:auto!important;aspect-ratio:170/124;background-image:url('./assets/visuals/ai-photo-locked-recent.webp')!important;background-repeat:no-repeat!important;background-size:400% 100%!important;background-color:#101521!important}
+    .nxps-locked-visual .nxlock-prompt textarea::placeholder{color:#aeb5c9!important;opacity:1!important}
+
+    @media (max-width:520px) and (min-height:761px){
+      .nxps-locked-visual .nxlock-top{grid-template-columns:76px minmax(0,1fr) 68px!important;gap:8px!important}
+      .nxps-locked-visual .nxlock-home-btn,.nxps-locked-visual .nxlock-pro{height:42px!important;padding:0 7px!important}
+      .nxps-locked-visual .nxlock-top-title strong{font-size:15px!important;white-space:nowrap!important;overflow:visible!important;text-overflow:clip!important}
+      .nxps-locked-visual .nxlock-top-title span{font-size:9px!important}
+
+      .nxps-locked-visual .nxlock-hero{position:relative!important;grid-template-columns:68px minmax(0,1fr)!important;min-height:138px!important;padding:12px 14px!important;gap:12px!important;overflow:hidden!important}
+      .nxps-locked-visual .nxlock-hero-logo,.nxps-locked-visual .nxlock-hero-copy{position:relative!important;z-index:2!important}
+      .nxps-locked-visual .nxlock-hero-logo{width:64px!important;height:64px!important}
+      .nxps-locked-visual .nxlock-hero-logo img{width:56px!important;height:56px!important}
+      .nxps-locked-visual .nxlock-hero-glow{position:absolute!important;z-index:1!important;right:-8px!important;top:0!important;bottom:0!important;width:47%!important;height:auto!important;pointer-events:none!important}
+      .nxps-locked-visual .nxlock-kicker{font-size:8px!important}
+      .nxps-locked-visual .nxlock-hero-copy h1{margin-top:4px!important;font-size:20px!important;line-height:1.02!important}
+      .nxps-locked-visual .nxlock-hero-copy p{display:block!important;max-width:232px!important;margin-top:6px!important;font-size:9px!important;line-height:1.35!important}
+      .nxps-locked-visual .nxlock-badges{flex-wrap:nowrap!important;gap:5px!important;margin-top:7px!important}
+      .nxps-locked-visual .nxlock-badges span{padding:4px 6px!important;font-size:6.4px!important;white-space:nowrap!important}
+    }
   `;
   document.head.appendChild(style);
 }
@@ -46,11 +65,18 @@ function applyRecentSprites(root){
   });
 }
 
+function applyPromptContract(root){
+  const prompt=root.querySelector('[data-puter-prompt]');
+  if(!prompt)return;
+  const placeholder='Example: A premium cinematic portrait in soft window light, realistic skin texture, clean background';
+  if(prompt.getAttribute('placeholder')!==placeholder)prompt.setAttribute('placeholder',placeholder);
+}
+
 export function installAiPhotoLockedReferenceAssetsV1(root){
   if(!root||root.__nxLockedReferenceAssetsV1)return()=>{};
   root.__nxLockedReferenceAssetsV1=true;
   ensureReferenceStyles();
-  const apply=()=>{applyStyleSprites(root);applyFeaturedSprites(root);applyRecentSprites(root)};
+  const apply=()=>{applyStyleSprites(root);applyFeaturedSprites(root);applyRecentSprites(root);applyPromptContract(root)};
   apply();
   const observer=new MutationObserver(apply);
   observer.observe(root,{childList:true,subtree:true});
