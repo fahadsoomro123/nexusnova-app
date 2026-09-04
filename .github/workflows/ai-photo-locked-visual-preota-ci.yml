@@ -120,8 +120,18 @@ jobs:
           test -s fresh-rebuild/assets/visuals/ai-photo-locked-recent.webp
           file fresh-rebuild/assets/visuals/ai-photo-locked-featured.webp | grep -Fq 'Web/P image'
           file fresh-rebuild/assets/visuals/ai-photo-locked-recent.webp | grep -Fq 'Web/P image'
-          test "$(identify -format '%wx%h' fresh-rebuild/assets/visuals/ai-photo-locked-featured.webp)" = '692x183'
-          test "$(identify -format '%wx%h' fresh-rebuild/assets/visuals/ai-photo-locked-recent.webp)" = '680x124'
+          node - fresh-rebuild/assets/visuals/ai-photo-locked-featured.webp 692x183 fresh-rebuild/assets/visuals/ai-photo-locked-recent.webp 680x124 <<'NODE'
+          const fs=require('fs');
+          const args=process.argv.slice(2);
+          for(let i=0;i<args.length;i+=2){
+            const [path,expected]=[args[i],args[i+1]];
+            const b=fs.readFileSync(path);
+            if(b.toString('ascii',0,4)!=='RIFF'||b.toString('ascii',8,12)!=='WEBP'||b.toString('ascii',12,16)!=='VP8L'||b[20]!==0x2f)throw new Error(`${path}: invalid lossless WebP`);
+            const width=1+b[21]+((b[22]&0x3f)<<8);
+            const height=1+(b[22]>>6)+(b[23]<<2)+((b[24]&0x0f)<<10);
+            if(`${width}x${height}`!==expected)throw new Error(`${path}: expected ${expected}, got ${width}x${height}`);
+          }
+          NODE
           echo '642e17a71f1224d341f48a4a08de5ce96a05c5b5015518e726a67b397d36cfe6  fresh-rebuild/assets/visuals/ai-photo-locked-featured.webp' | sha256sum -c -
           echo '4b059de3f4d5a61eb67804c4e680953aade1f696b80b215f75ced1f514fad323  fresh-rebuild/assets/visuals/ai-photo-locked-recent.webp' | sha256sum -c -
           grep -Fq 'bc54e5535786bf5a0a2977cb6788db7725bec444afa18c72ae624c24a304f30a' fresh-rebuild/assets/visuals/ai-photo-locked-reference-manifest.json
@@ -152,7 +162,15 @@ jobs:
           grep -Fq '.nxlock-generator{position:relative!important}' "$A"
           test -s fresh-rebuild/assets/visuals/ai-photo-locked-styles.webp
           file fresh-rebuild/assets/visuals/ai-photo-locked-styles.webp | grep -Fq 'Web/P image'
-          test "$(identify -format '%wx%h' fresh-rebuild/assets/visuals/ai-photo-locked-styles.webp)" = '744x88'
+          node - fresh-rebuild/assets/visuals/ai-photo-locked-styles.webp 744x88 <<'NODE'
+          const fs=require('fs');
+          const [path,expected]=process.argv.slice(2);
+          const b=fs.readFileSync(path);
+          if(b.toString('ascii',0,4)!=='RIFF'||b.toString('ascii',8,12)!=='WEBP'||b.toString('ascii',12,16)!=='VP8L'||b[20]!==0x2f)throw new Error(`${path}: invalid lossless WebP`);
+          const width=1+b[21]+((b[22]&0x3f)<<8);
+          const height=1+(b[22]>>6)+(b[23]<<2)+((b[24]&0x0f)<<10);
+          if(`${width}x${height}`!==expected)throw new Error(`${path}: expected ${expected}, got ${width}x${height}`);
+          NODE
           echo '4c66c16a95ab61d27e619900e7a4096cd790fbf0313476341fe7a34f9e47b845  fresh-rebuild/assets/visuals/ai-photo-locked-styles.webp' | sha256sum -c -
           grep -Fq '1bc28bd18dfb94b640c288648bc45ea70d4b3c38d4149abc082a507da6bf394f' fresh-rebuild/assets/visuals/ai-photo-locked-reference-manifest.json
           grep -Fq 'RIGHT-HAND screen marked FIXED LAYOUT (Final Setup) only' fresh-rebuild/assets/visuals/ai-photo-locked-reference-manifest.json

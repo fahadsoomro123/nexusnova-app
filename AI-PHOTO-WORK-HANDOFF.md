@@ -2,7 +2,7 @@
 
 - Repo name: `fahadsoomro123/nexusnova-app`
 - Branch name: `ai-photo-real-canva-ai-generator-correction`
-- Latest implementation SHA before this checkpoint: `c7b7c5bcd78cc25f330389b64567a0fe419f2727`
+- Latest completed reference-repair SHA before this handoff update: `8a9b87213c4425bdb2e83780ee7772c448880ad4`
 - Handoff document state: committed with the current checkpoint; use branch `HEAD` as the exact latest SHA.
 - OTA/APK published: **NO**
 - Release status: **NOT RELEASED — explicit user approval required**
@@ -38,11 +38,13 @@
 - Passed previously in run `33923011009`: QA 1, QA 2.
 - Failed previously: QA 3.
 - Exact failure: `fresh-rebuild/assets/visuals/ai-photo-locked-featured.webp` did not match the locked checksum; inspection confirmed all three reference WebP files were invalid/corrupted.
+- Reference-repair run `33925743148`: QA 1 and QA 2 passed. QA 3 reached the new valid image checks, then failed only because the Ubuntu runner does not provide the optional `identify` command.
+- The workflow now parses and validates lossless WebP headers/dimensions directly with Node while retaining format, source-provenance, and SHA-256 checks.
 - Pending after this checkpoint: rerun QA 1–6, inspect actual rendered Home and Generator at multiple Android viewport sizes, correct any visible drift, repeat failed rounds, then obtain explicit release approval.
 
 ## Remaining work / next exact action
 
-1. Push this reference-repair checkpoint.
+1. Push the runner-compatible WebP validator checkpoint.
 2. Inspect the resulting six-round CI run and Android debug build.
 3. Capture and inspect actual rendered Home and Generator against the two locked references at several Android viewport sizes.
 4. Fix visible hierarchy, spacing, card proportions, clipping, overlap, or dead-space drift and rerun the affected QA rounds.
@@ -50,7 +52,7 @@
 
 ## Current blocker
 
-- None. A local browser-runtime download timed out, so rendered capture is routed through the branch QA workflow; visual verification is not waived.
+- None. The missing optional runner command is replaced by a deterministic built-in Node validator. A local browser-runtime download timed out, so rendered capture is routed through the branch QA workflow; visual verification is not waived.
 
 ## Protected files/modules status
 
