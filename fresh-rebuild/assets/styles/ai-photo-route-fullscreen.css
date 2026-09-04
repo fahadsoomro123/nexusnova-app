@@ -1,0 +1,115 @@
+/* AI Photo Studio structural fullscreen route.
+   The enhanced editor remains untouched; this file controls only the outer app shell. */
+
+body.nx-ai-photo-route-active {
+  overflow: hidden !important;
+  overscroll-behavior: none;
+  background: #07080c;
+}
+
+body.nx-ai-photo-route-active .nx-app {
+  width: 100% !important;
+  max-width: none !important;
+  height: 100dvh !important;
+  min-height: 100dvh !important;
+  margin: 0 !important;
+}
+
+body.nx-ai-photo-route-active .nx-stage {
+  width: 100% !important;
+  height: 100dvh !important;
+  min-height: 0 !important;
+  max-height: 100dvh !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  scroll-padding: 0 !important;
+}
+
+body.nx-ai-photo-route-active .nx-dock,
+body.nx-ai-photo-route-active #nx-mine-brand-portal,
+body.nx-ai-photo-route-active #nxEmergencySosButton,
+body.nx-ai-photo-route-active #nxEmergencySosEdit {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+.nx-screen.nx-ai-photo-route-screen {
+  position: relative;
+  width: 100%;
+  height: 100dvh;
+  min-height: 0;
+  max-height: 100dvh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  animation: none;
+  background: #07080c;
+}
+
+.nx-ai-photo-route-screen > [data-app-mount] {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* The original enhanced editor keeps its own top/work/bottom grid. */
+.nx-ai-photo-route-screen > [data-app-mount] > .nx-photo-editor {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+/* Current visual rule: no title/description inside the top bar. */
+.nx-ai-photo-route-screen .nx-photo-project {
+  display: none !important;
+}
+
+/* Reserve real toolbar space for the floating back control without moving editor rows. */
+.nx-ai-photo-route-screen .nx-photo-top {
+  padding-right: 58px !important;
+}
+
+.nx-ai-photo-route-back {
+  position: absolute;
+  z-index: 2147481200;
+  top: calc(env(safe-area-inset-top, 0px) + 7px);
+  right: max(9px, env(safe-area-inset-right, 0px));
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding: 0 0 3px;
+  border: 1px solid rgba(148, 163, 184, .22);
+  border-radius: 13px;
+  background: linear-gradient(155deg, rgba(30, 33, 41, .98), rgba(14, 16, 22, .98));
+  color: #fff;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, .32), inset 0 1px rgba(255, 255, 255, .08);
+  font: 800 28px/1 system-ui, -apple-system, "Segoe UI", sans-serif;
+  cursor: pointer;
+}
+
+.nx-ai-photo-route-back:active {
+  transform: scale(.96);
+}
+
+@media (max-width: 390px) {
+  .nx-ai-photo-route-screen .nx-photo-top {
+    padding-right: 54px !important;
+  }
+  .nx-ai-photo-route-back {
+    right: max(7px, env(safe-area-inset-right, 0px));
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+  }
+}
