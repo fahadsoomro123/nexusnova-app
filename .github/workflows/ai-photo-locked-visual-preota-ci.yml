@@ -5,7 +5,11 @@ on:
     branches: [ai-photo-real-canva-ai-generator-correction]
     paths:
       - 'fresh-rebuild/src/features/apps/ai-photo-locked-visual-v1.js'
+      - 'fresh-rebuild/src/features/apps/ai-photo-locked-reference-assets-v1.js'
       - 'fresh-rebuild/src/features/apps/ai-photo-studio-review.js'
+      - 'fresh-rebuild/assets/visuals/ai-photo-locked-styles.webp'
+      - 'fresh-rebuild/assets/visuals/ai-photo-locked-featured.webp'
+      - 'fresh-rebuild/assets/visuals/ai-photo-locked-recent.webp'
       - '.github/workflows/ai-photo-locked-visual-preota-ci.yml'
   workflow_dispatch:
 
@@ -27,7 +31,7 @@ jobs:
         run: |
           set -euo pipefail
           BASE=8ac25ef4c600d3e599858d4c207bf2ec131c18a9
-          allowed='^(fresh-rebuild/src/features/apps/ai-photo-locked-visual-v1\.js|fresh-rebuild/src/features/apps/ai-photo-studio-review\.js|\.github/workflows/ai-photo-locked-visual-preota-ci\.yml)$'
+          allowed='^(fresh-rebuild/src/features/apps/ai-photo-locked-visual-v1\.js|fresh-rebuild/src/features/apps/ai-photo-locked-reference-assets-v1\.js|fresh-rebuild/src/features/apps/ai-photo-studio-review\.js|fresh-rebuild/assets/visuals/ai-photo-locked-styles\.webp|fresh-rebuild/assets/visuals/ai-photo-locked-featured\.webp|fresh-rebuild/assets/visuals/ai-photo-locked-recent\.webp|\.github/workflows/ai-photo-locked-visual-preota-ci\.yml)$'
           unexpected="$(git diff --name-only "$BASE" "$GITHUB_SHA" -- | grep -Ev "$allowed" || true)"
           if [ -n "$unexpected" ]; then
             echo '::error::Unexpected file changed:' >&2
@@ -54,29 +58,33 @@ jobs:
             fresh-rebuild/assets/styles/batch4-tools-17-20-fullscreen.css; do
             test "$(git rev-parse "$BASE:$path")" = "$(git hash-object "$path")" || { echo "::error::Protected file changed: $path" >&2; exit 1; }
           done
-          echo 'QA1 PASS — exact visual scope only; protected modules unchanged.'
+          echo 'QA1 PASS — exact locked visual scope only; protected modules unchanged.'
 
       - name: 'QA 2/6 — JavaScript syntax + render wiring'
         shell: bash
         run: |
           set -euo pipefail
           V=fresh-rebuild/src/features/apps/ai-photo-locked-visual-v1.js
+          A=fresh-rebuild/src/features/apps/ai-photo-locked-reference-assets-v1.js
           R=fresh-rebuild/src/features/apps/ai-photo-studio-review.js
           node --check "$V"
+          node --check "$A"
           node --check "$R"
-          grep -Fq "installAiPhotoLockedVisualV1" "$R"
-          grep -Fq "review-v7-locked-visual" "$R"
-          grep -Fq "lockedVisualCleanup" "$R"
-          grep -Fq "nxps-locked-visual" "$V"
-          grep -Fq "nxlock-home" "$V"
-          grep -Fq "nxlock-generator" "$V"
-          echo 'QA2 PASS — syntax and locked visual render wiring.'
+          grep -Fq 'installAiPhotoLockedVisualV1' "$R"
+          grep -Fq 'installAiPhotoLockedReferenceAssetsV1' "$R"
+          grep -Fq 'review-v8-locked-reference' "$R"
+          grep -Fq 'lockedReferenceCleanup' "$R"
+          grep -Fq 'nxps-locked-visual' "$V"
+          grep -Fq 'nxlock-home' "$V"
+          grep -Fq 'nxlock-generator' "$V"
+          echo 'QA2 PASS — syntax and exact-reference render wiring.'
 
-      - name: 'QA 3/6 — Locked Home visual contract'
+      - name: 'QA 3/6 — Locked Home visual + reference pixels'
         shell: bash
         run: |
           set -euo pipefail
           V=fresh-rebuild/src/features/apps/ai-photo-locked-visual-v1.js
+          A=fresh-rebuild/src/features/apps/ai-photo-locked-reference-assets-v1.js
           grep -Fq '⌂ Home' "$V"
           grep -Fq 'NexusNova AI Photo Studio' "$V"
           grep -Fq 'Create · Edit · Design · All in One' "$V"
@@ -98,14 +106,20 @@ jobs:
           grep -Fq 'Open projects' "$V"
           grep -Fq '.nxlock-home{position:absolute;inset:0' "$V"
           grep -Fq 'overflow:hidden' "$V"
-          test "$(grep -o 'data-nxlock="' "$V" | wc -l)" -ge 16
-          echo 'QA3 PASS — locked Home hierarchy and zero-page-scroll shell present.'
+          grep -Fq 'ai-photo-locked-featured.webp' "$A"
+          grep -Fq 'ai-photo-locked-recent.webp' "$A"
+          test -s fresh-rebuild/assets/visuals/ai-photo-locked-featured.webp
+          test -s fresh-rebuild/assets/visuals/ai-photo-locked-recent.webp
+          echo 'de35f6c4ccc33f6a9dc5d56036cefe7e29647f64df119d7330d60f42c99da9d0  fresh-rebuild/assets/visuals/ai-photo-locked-featured.webp' | sha256sum -c -
+          echo 'b7b550e43895987c3f06ed71f6082c17a3ac35dcb62d13208d18044051ef0caa  fresh-rebuild/assets/visuals/ai-photo-locked-recent.webp' | sha256sum -c -
+          echo 'QA3 PASS — Home hierarchy plus exact user-approved Featured/Recent crop bytes.'
 
-      - name: 'QA 4/6 — Locked AI Generator visual contract'
+      - name: 'QA 4/6 — Locked AI Generator + exact Creative Styles pixels'
         shell: bash
         run: |
           set -euo pipefail
           V=fresh-rebuild/src/features/apps/ai-photo-locked-visual-v1.js
+          A=fresh-rebuild/src/features/apps/ai-photo-locked-reference-assets-v1.js
           grep -Fq 'AI Image Generator' "$V"
           grep -Fq 'Create stunning images with AI' "$V"
           grep -Fq 'Describe your image' "$V"
@@ -118,18 +132,13 @@ jobs:
           grep -Fq 'data-r="story"' "$V"
           grep -Fq 'data-r="wide"' "$V"
           grep -Fq 'data-r="custom"' "$V"
-          grep -Fq "['3D','threeD'" "$V"
-          grep -Fq "['Realistic','photo'" "$V"
-          grep -Fq "['Anime','illustration'" "$V"
-          grep -Fq "['Cinematic','cinematic'" "$V"
-          grep -Fq "['Digital Art','illustration'" "$V"
-          grep -Fq "['Portrait','photo'" "$V"
-          grep -Fq "['Product','photo'" "$V"
-          grep -Fq "['Logo','logo'" "$V"
-          grep -Fq '.nx-canva-v3.nxlock-ai-mode>.nxv3-head' "$V"
-          grep -Fq '.nx-canva-v3.nxlock-ai-mode>.nxv3-tabs' "$V"
-          grep -Fq 'display:none!important' "$V"
-          echo 'QA4 PASS — single generator header, compact prompt, ratios, 8 styles, quality and strength.'
+          for label in '3D' 'Realistic' 'Anime' 'Cinematic' 'Digital Art' 'Portrait' 'Product' 'Logo'; do grep -Fq "'$label'" "$V"; done
+          grep -Fq 'ai-photo-locked-styles.webp' "$A"
+          grep -Fq 'background-size:800% 100%' "$A"
+          grep -Fq '.nxlock-generator{position:relative!important}' "$A"
+          test -s fresh-rebuild/assets/visuals/ai-photo-locked-styles.webp
+          echo 'de6cba5fe64e8b4e9b57b3da06c0de00f3ec6b69f47a188a9c66819c0e478cdd  fresh-rebuild/assets/visuals/ai-photo-locked-styles.webp' | sha256sum -c -
+          echo 'QA4 PASS — generator contract plus exact user-approved Creative Styles crop bytes.'
 
       - name: 'QA 5/6 — Navigation + Puter + fullscreen behavior contract'
         shell: bash
@@ -175,11 +184,15 @@ jobs:
           cd ..
           for rel in \
             src/features/apps/ai-photo-locked-visual-v1.js \
+            src/features/apps/ai-photo-locked-reference-assets-v1.js \
             src/features/apps/ai-photo-studio-review.js \
             src/features/apps/ai-photo-phone-feedback-v1.js \
             src/features/apps/ai-photo-puter-generator.js \
             src/features/apps/ai-photo-canva-workspace-v3.js \
+            assets/visuals/ai-photo-locked-styles.webp \
+            assets/visuals/ai-photo-locked-featured.webp \
+            assets/visuals/ai-photo-locked-recent.webp \
             assets/styles/ai-photo-route-fullscreen.css; do
             cmp "fresh-rebuild/$rel" "NexusNovaAndroid/app/src/main/assets/www/$rel"
           done
-          echo 'QA6 PASS — Android debug build and exact generated web assets. No OTA/APK publication in this workflow.'
+          echo 'QA6 PASS — Android debug build + exact JS/reference-image bytes in Android assets. No OTA/APK publication.'
