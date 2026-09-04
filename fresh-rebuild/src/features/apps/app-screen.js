@@ -53,6 +53,7 @@ import { novaSol57Renderers } from './nova-sol57-fresh.js';
 import { premiumStudioRenderers } from './premium-studio-suite.js';
 
 let cleanup = null;
+const AI_PHOTO_ID = 'ai-photo-studio';
 
 function ensureNovaPremiumSidebarStyle() {
   if (document.getElementById('nx57-premium-sidebar-style')) return;
@@ -199,7 +200,15 @@ export function appScreen({ id, backToHub, backToMine } = {}) {
   const miningOwned = app.placement === 'mine';
   const parentName = miningOwned ? 'Mine' : 'Nova Hub';
   const goBack = miningOwned ? backToMine : backToHub;
-  root.innerHTML = `<header class="nx-app-head"><button class="nx-back" type="button" data-app-back aria-label="Back to ${parentName}">‹</button><span class="nx-app-head__icon">${icon(app.icon)}</span><div><p class="nx-eyebrow">${app.category}</p><h1>${app.name}</h1><p>${app.description}</p></div></header><div data-app-mount></div>`;
+  const aiPhotoRoute = id === AI_PHOTO_ID;
+
+  if (aiPhotoRoute) {
+    root.classList.add('nx-ai-photo-route-screen');
+    root.innerHTML = `<button class="nx-ai-photo-route-back" type="button" data-app-back aria-label="Back to ${parentName}">‹</button><div data-app-mount></div>`;
+  } else {
+    root.innerHTML = `<header class="nx-app-head"><button class="nx-back" type="button" data-app-back aria-label="Back to ${parentName}">‹</button><span class="nx-app-head__icon">${icon(app.icon)}</span><div><p class="nx-eyebrow">${app.category}</p><h1>${app.name}</h1><p>${app.description}</p></div></header><div data-app-mount></div>`;
+  }
+
   root.querySelector('[data-app-back]').addEventListener('click', () => goBack?.());
   const mount = root.querySelector('[data-app-mount]');
   const renderer = premiumStudioRenderers[id] || novaSol57Renderers[id] || novaVaultSafeRenderers[id] || hadithSafeRenderers[id] || browserSafeRenderers[id] || premiumWeatherRenderers[id] || qiblaSafeV2Renderers[id] || premiumQiblaRenderers[id] || premiumPrayerSafeRenderers[id] || premiumPrayerRenderers[id] || premiumWorldClockRenderers[id] || driveNativeV2Renderers[id] || premiumDriveSafeRenderers[id] || premiumDriveRenderers[id] || premiumQuranRenderers[id] || documentsLiveRenderers[id] || teacherAIRenderers[id] || pakistanSuiteRenderers[id] || articleRenderers[id] || novaVpnRenderers[id] || newsSuiteRenderers[id] || entertainmentResilientRenderers[id] || entertainmentLiveRenderers[id] || entertainmentSuiteRenderers[id] || urduLibraryRenderers[id] || locationSuiteRenderers[id] || notificationsSuiteRenderers[id] || securityLockSuiteRenderers[id] || fileVaultSuiteRenderers[id] || marketplaceSuiteRenderers[id] || coreEnhancementRenderers[id] || coreRenderers[id] || healthSuiteRenderers[id] || familySuiteRenderers[id] || personalRenderers[id] || teacherSuiteRenderers[id] || islamicSuiteRenderers[id] || documentsSuiteRenderers[id] || communityChatRenderers[id] || learningSuiteRenderers[id] || budgetSuiteRenderers[id] || billRenderers[id] || travelSuiteRenderers[id] || discoverRenderers[id] || faithSecurityRenderers[id] || deviceRenderers[id] || smartRenderers[id] || everydayRenderers[id] || liveRenderers[id];
@@ -210,11 +219,13 @@ export function appScreen({ id, backToHub, backToMine } = {}) {
       enhanceMiningApp(id, body);
       enhanceTravelApp(id, body);
       mount.appendChild(body);
+      if (aiPhotoRoute) document.body.classList.add('nx-ai-photo-route-active');
       const novaSidebarCleanup = id === 'ai' ? installNovaPremiumSidebar(root, body) : () => {};
       let cleaned = false;
       const bodyCleanup = () => {
         if (cleaned) return;
         cleaned = true;
+        if (aiPhotoRoute) document.body.classList.remove('nx-ai-photo-route-active');
         novaSidebarCleanup();
         try { window.speechSynthesis?.cancel?.(); } catch {}
         body.__cleanup?.();
@@ -223,6 +234,7 @@ export function appScreen({ id, backToHub, backToMine } = {}) {
       cleanup = bodyCleanup;
       root.__cleanup = bodyCleanup;
     } catch (error) {
+      if (aiPhotoRoute) document.body.classList.remove('nx-ai-photo-route-active');
       console.error(`[NexusNova Fresh] ${id} renderer:`, error);
       mount.innerHTML = `<article class="nx-tool-card"><h2>${app.name} could not initialize</h2><p>This tool hit a local runtime error. You can safely leave this screen and continue using other NexusNova areas.</p><button class="nx-secondary" type="button" data-app-error-back>BACK TO ${miningOwned ? 'MINE' : 'NOVA HUB'}</button></article>`;
       mount.querySelector('[data-app-error-back]')?.addEventListener('click', () => goBack?.());
