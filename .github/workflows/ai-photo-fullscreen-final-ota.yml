@@ -1,4 +1,4 @@
-name: AI Photo Fullscreen Final OTA
+name: AI Photo Structural Fullscreen OTA
 
 on:
   push:
@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 env:
-  SCOPE_BASE: 98b39caf7108de4987adaa902b540f0c8703ff4c
+  SCOPE_BASE: 098180cde37642eedc0c3631740259fb53c08d92
   STABLE_AI_PHOTO: 7f70ec07fbac48e9fd384b0b5dfd336e72432760
   OTA_BUNDLED_BASE: 8d1aaaee6f28b974a8c8b3ff213beb1318ec7405
   PUBLIC_OTA_REPO: fahadsoomro123/nexusnova-website
@@ -28,52 +28,64 @@ jobs:
           fetch-depth: 0
           ref: batch17-20-preota-review
 
-      - name: Verify isolated visual-only scope
+      - name: Verify structural fullscreen and stable enhanced editor
         shell: bash
         run: |
           set -euo pipefail
           RUNTIME_SHA="$(git rev-parse HEAD)"
           echo "RUNTIME_SHA=$RUNTIME_SHA" >> "$GITHUB_ENV"
 
-          allowed='^(fresh-rebuild/index.html|fresh-rebuild/assets/styles/ai-photo-fullscreen-v1.css|fresh-rebuild/src/features/apps/ai-photo-fullscreen-v1.js|.github/workflows/ai-photo-fullscreen-final-ota.yml)$'
+          allowed='^(fresh-rebuild/index.html|fresh-rebuild/src/features/apps/app-screen.js|fresh-rebuild/assets/styles/ai-photo-route-fullscreen.css|fresh-rebuild/assets/styles/ai-photo-fullscreen-v1.css|fresh-rebuild/src/features/apps/ai-photo-fullscreen-v1.js|.github/workflows/ai-photo-fullscreen-final-ota.yml)$'
           unexpected="$(git diff --name-only "$SCOPE_BASE" "$RUNTIME_SHA" | grep -Ev "$allowed" || true)"
           if [ -n "$unexpected" ]; then
-            echo 'Unexpected file changed after AI Photo approval:' >&2
+            echo 'Unexpected file changed in structural AI Photo recovery:' >&2
             printf '%s\n' "$unexpected" >&2
             exit 1
           fi
 
-          JS=fresh-rebuild/src/features/apps/ai-photo-fullscreen-v1.js
-          CSS=fresh-rebuild/assets/styles/ai-photo-fullscreen-v1.css
+          APP=fresh-rebuild/src/features/apps/app-screen.js
+          CSS=fresh-rebuild/assets/styles/ai-photo-route-fullscreen.css
           INDEX=fresh-rebuild/index.html
-          node --check "$JS"
-          grep -Fq "screen.querySelector('[data-app-mount] .nx-photo-editor')" "$JS"
-          grep -Fq "nx-ai-photo-fullscreen-active" "$JS"
-          grep -Fq 'height:100dvh!important' "$CSS"
-          grep -Fq 'html.nx-ai-photo-fullscreen-active .nx-dock' "$CSS"
-          grep -Fq '.nx-ai-photo-fullscreen-screen > .nx-app-head' "$CSS"
-          grep -Fq 'right:max(10px,env(safe-area-inset-right,0px))!important' "$CSS"
-          grep -Fq '.nx-ai-photo-fullscreen-screen .nx-photo-project' "$CSS"
-          grep -Fq 'position:absolute!important' "$CSS"
-          grep -Fq 'bottom:0!important' "$CSS"
-          grep -Fq 'grid-template-columns:repeat(5,minmax(0,1fr))!important' "$CSS"
-          grep -Fq 'visibility:visible!important' "$CSS"
-          grep -Fq './assets/styles/ai-photo-fullscreen-v1.css?ota=ai-photo-fullscreen-v1' "$INDEX"
-          grep -Fq './src/features/apps/ai-photo-fullscreen-v1.js?ota=ai-photo-fullscreen-v1' "$INDEX"
 
-          # The actual photo editor, AI, filters, export, masks and local processing stay byte-identical.
+          node --check "$APP"
+          grep -Fq "const AI_PHOTO_ID = 'ai-photo-studio';" "$APP"
+          grep -Fq "root.classList.add('nx-ai-photo-route-screen')" "$APP"
+          grep -Fq 'nx-ai-photo-route-back' "$APP"
+          grep -Fq "document.body.classList.add('nx-ai-photo-route-active')" "$APP"
+          grep -Fq "document.body.classList.remove('nx-ai-photo-route-active')" "$APP"
+
+          test -s "$CSS"
+          grep -Fq 'body.nx-ai-photo-route-active .nx-stage' "$CSS"
+          grep -Fq 'body.nx-ai-photo-route-active .nx-dock' "$CSS"
+          grep -Fq '.nx-screen.nx-ai-photo-route-screen' "$CSS"
+          grep -Fq '.nx-ai-photo-route-screen .nx-photo-project' "$CSS"
+          grep -Fq '.nx-ai-photo-route-back' "$CSS"
+          grep -Fq 'height: 100dvh' "$CSS"
+
+          # Structural rule: never replace/reposition the enhanced editor's native frame or bottom tool row.
+          ! grep -Fq '.nx-photo-frame' "$CSS"
+          ! grep -Fq '.nx-photo-tools' "$CSS"
+          ! grep -Fq 'grid-template-rows' "$CSS"
+          ! grep -Fq 'bottom: 0' "$CSS"
+
+          grep -Fq './assets/styles/ai-photo-route-fullscreen.css?ota=ai-photo-structural-v1' "$INDEX"
+          ! grep -Fq 'ai-photo-fullscreen-v1.css' "$INDEX"
+          ! grep -Fq 'ai-photo-fullscreen-v1.js' "$INDEX"
+          test ! -e fresh-rebuild/assets/styles/ai-photo-fullscreen-v1.css
+          test ! -e fresh-rebuild/src/features/apps/ai-photo-fullscreen-v1.js
+
+          # Kal ka complete enhanced AI Photo editor stays byte-identical.
           for path in \
             fresh-rebuild/src/features/apps/ai-photo-studio.js \
             fresh-rebuild/src/features/apps/ai-photo-studio-flagship.js \
             fresh-rebuild/src/features/apps/ai-photo-studio-review.js \
             fresh-rebuild/src/features/apps/premium-studio-core.js \
             fresh-rebuild/src/features/apps/premium-studio-suite.js; do
-            test "$(git rev-parse "$STABLE_AI_PHOTO:$path")" = "$(git rev-parse "$RUNTIME_SHA:$path")" || { echo "AI Photo core changed: $path" >&2; exit 1; }
+            test "$(git rev-parse "$STABLE_AI_PHOTO:$path")" = "$(git rev-parse "$RUNTIME_SHA:$path")" || { echo "Enhanced AI Photo source drifted: $path" >&2; exit 1; }
           done
 
-          # Everything outside the approved visual shell remains locked to the current reviewed state.
+          # Previously reviewed/protected apps remain untouched.
           for path in \
-            fresh-rebuild/src/features/apps/app-screen.js \
             fresh-rebuild/src/features/apps/articles-suite.js \
             fresh-rebuild/src/features/apps/live-feed-premium-skin.js \
             fresh-rebuild/assets/styles/batch4-tools-17-20-fullscreen.css \
@@ -90,42 +102,43 @@ jobs:
         run: |
           set -euo pipefail
           BASE="$OTA_BUNDLED_BASE"
-          rm -rf /tmp/nx-ai-photo-ota
-          mkdir -p /tmp/nx-ai-photo-ota/files
+          rm -rf /tmp/nx-ai-photo-structural-ota
+          mkdir -p /tmp/nx-ai-photo-structural-ota/files
           while IFS= read -r full; do
             [ -n "$full" ] || continue
+            [ -f "$full" ] || continue
             rel="${full#fresh-rebuild/}"
-            mkdir -p "/tmp/nx-ai-photo-ota/files/$(dirname "$rel")"
-            cp "$full" "/tmp/nx-ai-photo-ota/files/$rel"
+            mkdir -p "/tmp/nx-ai-photo-structural-ota/files/$(dirname "$rel")"
+            cp "$full" "/tmp/nx-ai-photo-structural-ota/files/$rel"
           done < <(git diff --name-only --diff-filter=ACMRT "$BASE" "$RUNTIME_SHA" -- fresh-rebuild/)
 
-          # Re-ship exact stable AI Photo engine bytes so the visual OTA cannot drift editor logic.
+          # Re-ship exact enhanced editor bytes from the verified current tree.
           for rel in \
             src/features/apps/ai-photo-studio.js \
             src/features/apps/ai-photo-studio-flagship.js \
             src/features/apps/ai-photo-studio-review.js \
             src/features/apps/premium-studio-core.js \
             src/features/apps/premium-studio-suite.js; do
-            mkdir -p "/tmp/nx-ai-photo-ota/files/$(dirname "$rel")"
-            cp "fresh-rebuild/$rel" "/tmp/nx-ai-photo-ota/files/$rel"
+            mkdir -p "/tmp/nx-ai-photo-structural-ota/files/$(dirname "$rel")"
+            cp "fresh-rebuild/$rel" "/tmp/nx-ai-photo-structural-ota/files/$rel"
           done
 
           for required in \
             index.html \
-            assets/styles/ai-photo-fullscreen-v1.css \
-            src/features/apps/ai-photo-fullscreen-v1.js \
+            assets/styles/ai-photo-route-fullscreen.css \
+            src/features/apps/app-screen.js \
             src/features/apps/ai-photo-studio.js \
             src/features/apps/ai-photo-studio-flagship.js \
             src/features/apps/ai-photo-studio-review.js \
             src/features/apps/premium-studio-core.js \
             src/features/apps/premium-studio-suite.js; do
-            test -s "/tmp/nx-ai-photo-ota/files/$required" || { echo "Missing required OTA file: $required" >&2; exit 1; }
+            test -s "/tmp/nx-ai-photo-structural-ota/files/$required" || { echo "Missing required OTA file: $required" >&2; exit 1; }
           done
 
           python3 - <<'PY'
           import hashlib,json,os
           from pathlib import Path
-          root=Path('/tmp/nx-ai-photo-ota/files')
+          root=Path('/tmp/nx-ai-photo-structural-ota/files')
           files=[]
           for p in sorted(x for x in root.rglob('*') if x.is_file()):
               data=p.read_bytes()
@@ -133,8 +146,8 @@ jobs:
           assert len(files)<=2000
           assert sum(x['size'] for x in files)<=60*1024*1024
           manifest={'schema':2,'base':os.environ['OTA_BUNDLED_BASE'],'version':os.environ['RUNTIME_SHA'],'files':files}
-          Path('/tmp/nx-ai-photo-ota/manifest.json').write_text(json.dumps(manifest,separators=(',',':'),sort_keys=True),encoding='utf-8')
-          print('AI Photo OTA files:',len(files),'bytes:',sum(x['size'] for x in files))
+          Path('/tmp/nx-ai-photo-structural-ota/manifest.json').write_text(json.dumps(manifest,separators=(',',':'),sort_keys=True),encoding='utf-8')
+          print('Structural AI Photo OTA files:',len(files),'bytes:',sum(x['size'] for x in files))
           PY
 
       - name: Require OTA credential
@@ -149,15 +162,15 @@ jobs:
           PUBLIC_OTA_TOKEN: ${{ secrets.GH_PUBLIC_OTA_TOKEN || secrets.OTA_PUBLIC_TOKEN }}
         run: |
           set -euo pipefail
-          rm -rf /tmp/nx-ai-photo-public
-          git clone --depth 1 --branch "$PUBLIC_OTA_BRANCH" "https://github.com/$PUBLIC_OTA_REPO.git" /tmp/nx-ai-photo-public
-          cd /tmp/nx-ai-photo-public
+          rm -rf /tmp/nx-ai-photo-structural-public
+          git clone --depth 1 --branch "$PUBLIC_OTA_BRANCH" "https://github.com/$PUBLIC_OTA_REPO.git" /tmp/nx-ai-photo-structural-public
+          cd /tmp/nx-ai-photo-structural-public
           git config user.name 'NexusNova OTA Bot'
           git config user.email 'actions@users.noreply.github.com'
           rm -rf ota && mkdir -p ota
-          cp -a /tmp/nx-ai-photo-ota/. ota/
+          cp -a /tmp/nx-ai-photo-structural-ota/. ota/
           git add -A ota
-          git commit -m "Publish AI Photo bottom-controls fullscreen fix $RUNTIME_SHA"
+          git commit -m "Publish structural AI Photo fullscreen restore $RUNTIME_SHA"
           PUBLIC_SHA="$(git rev-parse HEAD)"
           AUTH="$(printf 'x-access-token:%s' "$PUBLIC_OTA_TOKEN" | base64 -w0)"
           git -c http.extraheader="AUTHORIZATION: basic $AUTH" push origin HEAD:"$PUBLIC_OTA_BRANCH"
@@ -170,19 +183,19 @@ jobs:
         run: |
           set -euo pipefail
           BASE_URL="https://raw.githubusercontent.com/$PUBLIC_OTA_REPO/$PUBLIC_SHA/ota"
-          curl --fail --silent --show-error --location "$BASE_URL/manifest.json" -o /tmp/public-ai-photo.json
+          curl --fail --silent --show-error --location "$BASE_URL/manifest.json" -o /tmp/public-ai-photo-structural.json
           python3 - <<'PY'
           import hashlib,json,os,urllib.request
           from pathlib import Path
-          local=json.loads(Path('/tmp/nx-ai-photo-ota/manifest.json').read_text())
-          public=json.loads(Path('/tmp/public-ai-photo.json').read_text())
+          local=json.loads(Path('/tmp/nx-ai-photo-structural-ota/manifest.json').read_text())
+          public=json.loads(Path('/tmp/public-ai-photo-structural.json').read_text())
           assert public==local
           assert public['version']==os.environ['RUNTIME_SHA']
           entries={x['path']:x for x in public['files']}
           required={
             'index.html',
-            'assets/styles/ai-photo-fullscreen-v1.css',
-            'src/features/apps/ai-photo-fullscreen-v1.js',
+            'assets/styles/ai-photo-route-fullscreen.css',
+            'src/features/apps/app-screen.js',
             'src/features/apps/ai-photo-studio.js',
             'src/features/apps/ai-photo-studio-flagship.js',
             'src/features/apps/ai-photo-studio-review.js'
@@ -192,5 +205,5 @@ jobs:
           for path in sorted(required):
               data=urllib.request.urlopen(base+path,timeout=20).read()
               assert hashlib.sha256(data).hexdigest()==entries[path]['sha256']
-          print('Public AI Photo fullscreen OTA verified:',os.environ['PUBLIC_SHA'])
+          print('Public structural AI Photo OTA verified:',os.environ['PUBLIC_SHA'])
           PY
