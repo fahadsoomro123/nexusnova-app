@@ -1,4 +1,4 @@
-/* AI Photo Studio fullscreen visual shell v1.
+/* AI Photo Studio fullscreen visual shell v2.
    Visual-only scope: core editor logic remains in ai-photo-studio-flagship.js. */
 
 html.nx-ai-photo-fullscreen-active,
@@ -98,6 +98,7 @@ html.nx-ai-photo-fullscreen-active #nxEmergencySosEdit {
 
 /* Editor itself fills every usable pixel. */
 .nx-ai-photo-fullscreen-screen .nx-photo-editor {
+  position:relative!important;
   width:100%!important;
   height:100dvh!important;
   min-height:0!important;
@@ -109,12 +110,20 @@ html.nx-ai-photo-fullscreen-active #nxEmergencySosEdit {
   overflow:hidden!important;
 }
 
+/*
+ * Do not rely on the editor's third grid row for the bottom controls.
+ * Android WebView can clip that last row in fullscreen. Reserve the exact
+ * toolbar height and anchor the controls inside the editor instead.
+ */
 .nx-ai-photo-fullscreen-screen .nx-photo-frame {
+  position:relative!important;
   width:100%!important;
   height:100dvh!important;
   min-height:0!important;
   max-height:100dvh!important;
-  grid-template-rows:48px minmax(0,1fr) 60px!important;
+  display:grid!important;
+  grid-template-rows:48px minmax(0,1fr)!important;
+  padding:0 0 calc(60px + env(safe-area-inset-bottom,0px))!important;
   overflow:hidden!important;
 }
 
@@ -155,13 +164,45 @@ html.nx-ai-photo-fullscreen-active #nxEmergencySosEdit {
   overflow:hidden!important;
 }
 
+/* Locked bottom controls: always visible inside the fullscreen editor. */
 .nx-ai-photo-fullscreen-screen .nx-photo-tools {
+  position:absolute!important;
+  left:0!important;
+  right:0!important;
+  bottom:0!important;
+  z-index:2147481100!important;
+  width:100%!important;
+  min-height:calc(60px + env(safe-area-inset-bottom,0px))!important;
+  height:calc(60px + env(safe-area-inset-bottom,0px))!important;
+  display:grid!important;
+  grid-template-columns:repeat(5,minmax(0,1fr))!important;
+  align-items:start!important;
+  padding:0 0 env(safe-area-inset-bottom,0px)!important;
+  margin:0!important;
+  visibility:visible!important;
+  opacity:1!important;
+  pointer-events:auto!important;
+  overflow:hidden!important;
+  background:var(--p-s)!important;
+  border-top:1px solid var(--p-l)!important;
+}
+
+.nx-ai-photo-fullscreen-screen .nx-photo-tools .nx-photo-tool {
+  width:100%!important;
+  min-width:0!important;
   min-height:60px!important;
   height:60px!important;
+  display:grid!important;
+  place-items:center!important;
+  align-content:center!important;
+  visibility:visible!important;
+  opacity:1!important;
+  pointer-events:auto!important;
 }
 
 /* Tool sheets may scroll internally; the page itself never scrolls. */
 .nx-ai-photo-fullscreen-screen .nx-photo-sheet {
+  bottom:calc(64px + env(safe-area-inset-bottom,0px))!important;
   max-height:min(58%,430px)!important;
 }
 .nx-ai-photo-fullscreen-screen .nx-photo-panel {
