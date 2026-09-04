@@ -2,7 +2,7 @@
 
 - Repo name: fahadsoomro123/nexusnova-app
 - Branch name: ai-photo-real-canva-ai-generator-correction
-- Latest branch checkpoint SHA before this handoff update: b9aacc4c745811afd3a1b3c90bf8b09ba1af1ed1
+- Latest branch checkpoint SHA before this handoff update: 73744ec0e75a36caf3fd745ffa7ee2873341e8cc
 - Handoff document state: committed with each checkpoint; use branch HEAD as the exact latest SHA.
 - OTA/APK published: **NO**
 - Release status: **NOT RELEASED — explicit user approval required**
@@ -35,12 +35,15 @@ The earlier reference-repair checkpoint also changed the three locked WebP crops
 - Added screenshot artifacts and runtime geometry/overflow/visibility/interaction assertions to the existing locked six-round workflow.
 - Replaced Chrome command-line window sizing, which silently imposed a 500px desktop layout viewport, with matching ChromeDriver mobile emulation so the asserted CSS viewport is exactly the requested Android size.
 - Removed the empty legacy Puter wrapper from Generator layout flow after its real controls are moved into the locked screen, made Generate full-width, and changed Home to distribute spare height between sections instead of creating one giant Featured dead region.
+- Directly inspected the exact-mobile screenshot artifact from run 33928092357. Generator now has one top header, a proportional prompt, all eight styles, both option controls, and a full-width Generate button with no blank top region.
+- Added Home-only compact rules through 520px width and 760px height so the same required sections remain visible on short/narrow Android screens without shrinking the correctly aligned Generator.
+- Corrected the render harness stub sheet to stay out of document flow, matching the real protected editor CSS, and added explicit root scroll dimensions to evidence.
 
 ## Current implementation state
 
 - Locked Home and Generator implementation is active and synchronized byte-for-byte into Android assets.
 - Reference imagery is valid and traceable to the two approved images.
-- The latest layout refinements and rendered viewport QA harness are committed through b9aacc4. The next checkpoint corrects exact mobile emulation and the layout problems exposed by the first screenshot artifact; the implementation is not yet reported as a visual pass.
+- Exact mobile rendering and the Puter-wrapper/Home dead-space fixes are committed through 73744ec. A final Home compactness and harness-flow correction is pending; the implementation is not yet reported as a visual pass.
 - Puter provider/auth code, result actions, professional Photo Editor, template engine, and protected fullscreen architecture are untouched.
 - This is not yet a final visual-pass claim; the new workflow screenshots still require direct inspection against both locked references.
 
@@ -61,10 +64,11 @@ The earlier reference-repair checkpoint also changed the three locked WebP crops
 - Historical infrastructure failure: run 33925743148 reached valid image checks but lacked ImageMagick identify; it was replaced with deterministic Node lossless-WebP header parsing.
 - Current visual-refinement run 33927344875: QA 1–3 passed; QA 4 failed because the workflow still searched for old literal ratio-button HTML after the implementation moved those four supported ratios into a provider-driven array. Browser rendering, QA 5, and QA 6 were consequently skipped. This is a QA-wiring failure, not evidence of a visual pass or visual mismatch.
 - Corrected run 33927482838: QA 1–5 passed. Rendered QA failed and QA 6 was skipped. Inspection showed the Chrome CLI reported a 500px desktop layout viewport for every sub-500 screenshot and reduced its CSS height, so those ten images were not valid measurements of the requested phone sizes. They also exposed an empty legacy Puter wrapper occupying layout space and a flexible Home Featured row concentrating spare height. Both root causes are corrected in the pending checkpoint; no check was bypassed.
+- Exact-mobile run 33928092357: QA 1–5 passed. All five Generator screenshots showed every required control and no legacy top region; geometry failures were limited to an artificial harness sheet adding root scroll height. Home fit except its Featured previews were compressed at 360x740 and were too compressed on medium-width screens. QA 6 was skipped after rendered QA failed. The harness-flow cause and Home compact breakpoints are corrected in the pending checkpoint.
 
 ## Remaining work
 
-1. Commit the ChromeDriver exact-mobile renderer and the Home/Generator flow fixes.
+1. Commit the Home compact breakpoint and harness-flow corrections.
 2. Monitor the new workflow through all six rounds and the Android debug build.
 3. Download and directly inspect all Home and Generator screenshots against the two locked references.
 4. Fix any visible hierarchy, spacing, card proportion, clipping, overlap, dead-space, or control-visibility drift and rerun the failed checks.
@@ -76,7 +80,7 @@ The earlier reference-repair checkpoint also changed the three locked WebP crops
 
 ## Next exact action
 
-- Commit the exact-mobile renderer and layout fixes, wait for the triggered locked-visual workflow, then download and inspect its ten rendered screenshots before making any release-readiness claim.
+- Commit the Home compact breakpoint and harness-flow corrections, wait for the triggered locked-visual workflow, then download and inspect its ten rendered screenshots before making any release-readiness claim.
 
 ## Protected files/modules status
 

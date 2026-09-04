@@ -20,6 +20,7 @@
     .nx-photo-frame{height:100%;display:grid;grid-template-rows:48px minmax(0,1fr) 60px}
     .nx-photo-top,.nx-photo-tools{display:flex}
     .nx-photo-work{min-height:0}
+    .nx-photo-sheet{position:absolute;display:none}
     .nx-canva-v3{position:absolute;z-index:40;inset:0;display:none;grid-template-rows:48px 42px minmax(0,1fr);overflow:hidden;background:#10131a}
     .nx-canva-v3.is-open{display:grid}
     .nxv3-head,.nxv3-tabs{display:flex;align-items:center}
@@ -167,6 +168,7 @@
       viewport:{width:innerWidth,height:innerHeight,devicePixelRatio},
       document:{scrollWidth:document.documentElement.scrollWidth,scrollHeight:document.documentElement.scrollHeight},
       root:rect(root),
+      rootScroll:{clientWidth:root.clientWidth,clientHeight:root.clientHeight,scrollWidth:root.scrollWidth,scrollHeight:root.scrollHeight},
       errors
     };
 
