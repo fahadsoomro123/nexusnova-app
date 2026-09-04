@@ -109,6 +109,28 @@
   outline-offset: 1px;
 }
 
+/* AI Photo Studio receives premium emphasis without changing the locked Hub geometry. */
+.nx-hub-screen .nx-app-card[data-app-id="ai-photo-studio"] .nx-app-card__icon {
+  outline: 1px solid rgba(169, 121, 255, .30);
+  outline-offset: 1px;
+  background:
+    radial-gradient(circle at 30% 18%, rgba(190, 157, 255, .28), transparent 42%),
+    linear-gradient(150deg, rgba(29, 23, 48, .88), rgba(7, 15, 27, .80));
+  box-shadow:
+    0 9px 21px rgba(52, 23, 112, .26),
+    0 0 18px rgba(125, 42, 232, .10),
+    inset 0 1px 0 rgba(255,255,255,.06);
+}
+
+.nx-hub-screen .nx-app-card[data-app-id="ai-photo-studio"] .nx-app-card__icon img {
+  filter: drop-shadow(0 6px 10px rgba(0,0,0,.30)) saturate(1.10) brightness(1.03);
+}
+
+.nx-hub-screen .nx-app-card[data-app-id="ai-photo-studio"] strong {
+  color: color-mix(in srgb, var(--nx-text) 88%, #cdb8ff 12%);
+  text-shadow: 0 0 12px rgba(125,42,232,.12);
+}
+
 /* Backward-compatible cleanup for older bundled Hub markup.
    CSS-only so search/navigation/tool logic remains untouched. */
 .nx-hub-screen .nx-hub-head,
