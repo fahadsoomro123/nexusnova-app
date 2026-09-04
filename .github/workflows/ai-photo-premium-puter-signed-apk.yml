@@ -1,4 +1,4 @@
-name: AI Photo Premium Puter Signed APK
+name: AI Photo 1-22 Signed APK Release
 
 on:
   push:
@@ -11,55 +11,77 @@ permissions:
   contents: read
 
 env:
-  VERIFIED_APP_SOURCE: 0f7099c26c068efbbbe93af037f77f026d430b36
-  VERSION_CODE: '2026090402'
-  VERSION_NAME: '1.0.9-ai-photo-puter'
-  REVIEW_APK: 'NexusNova-AI-PHOTO-PUTER-v1.0.9-SIGNED.apk'
+  VERIFIED_APP_SOURCE: 569f6cbff707d028b1acbaedf14a2dd2dea718ed
+  VERSION_CODE: '2026090501'
+  VERSION_NAME: '1.0.10-ai-photo-1-22'
+  RELEASE_APK: 'NexusNova-AI-PHOTO-1-22-v1.0.10-SIGNED.apk'
+  PREVIOUS_APK: 'NexusNova-AI-PHOTO-PUTER-v1.0.9-SIGNED.apk'
   PUBLIC_REPO: 'fahadsoomro123/nexusnova-website'
   PUBLIC_BRANCH: 'main'
 
 jobs:
   signed_apk:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 45
     steps:
-      - name: Checkout approved source
+      - name: Checkout exact approved GREEN source
         uses: actions/checkout@v4
         with:
+          ref: ${{ env.VERIFIED_APP_SOURCE }}
           fetch-depth: 0
 
-      - name: Freeze verified app source
+      - name: Freeze exact approved source
         shell: bash
         run: |
           set -euo pipefail
-          allowed='^\.github/workflows/(ai-photo-premium-home-final-ota\.yml|ai-photo-premium-puter-signed-apk\.yml)$'
-          unexpected="$(git diff --name-only "$VERIFIED_APP_SOURCE" "$GITHUB_SHA" | grep -Ev "$allowed" || true)"
-          if [ -n "$unexpected" ]; then
-            echo 'Unexpected app/source changes after verified source:' >&2
-            printf '%s\n' "$unexpected" >&2
+          test "$(git rev-parse HEAD)" = "$VERIFIED_APP_SOURCE"
+          echo 'Exact approved source frozen: PASS'
+
+      - name: Verify AI Photo 1-22 correction contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          CORR=fresh-rebuild/src/features/apps/ai-photo-phone-feedback-v1.js
+          REVIEW=fresh-rebuild/src/features/apps/ai-photo-studio-review.js
+          WORKSPACE=fresh-rebuild/src/features/apps/ai-photo-canva-workspace-v3.js
+          HOME=fresh-rebuild/src/features/apps/ai-photo-studio-home.js
+          AI=fresh-rebuild/src/features/apps/ai-photo-studio-ai.js
+          PUTER=fresh-rebuild/src/features/apps/ai-photo-puter-generator.js
+          AUTH=NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusPuterPopupManager.kt
+          for f in "$CORR" "$REVIEW" "$WORKSPACE" "$HOME" "$AI" "$PUTER"; do test -s "$f"; node --check "$f"; done
+          grep -Fq 'AI IMAGE GENERATOR' "$CORR"
+          grep -Fq 'Featured templates' "$CORR"
+          grep -Fq "FEATURED_CATEGORIES=['logos','instagram-posts','youtube-thumbnails','flyers','business-cards','posters','product-promos','resumes']" "$CORR"
+          grep -Fq 'data-puter-download' "$CORR"
+          grep -Fq 'downloadBlob' "$CORR"
+          grep -Fq 'compactPuterAccount' "$CORR"
+          grep -Fq 'nxps-account-chip' "$CORR"
+          grep -Fq 'nxps-has-result' "$CORR"
+          grep -Fq 'prompt?.remove()' "$CORR"
+          grep -Fq 'actionRow?.remove()' "$CORR"
+          grep -Fq 'Text selected' "$WORKSPACE"
+          grep -Fq 'Photo selected' "$WORKSPACE"
+          grep -Fq 'data-v3-text-select' "$WORKSPACE"
+          grep -Fq 'data-v3-text-clear' "$WORKSPACE"
+          grep -Fq 'renderDesign({inspector:false})' "$WORKSPACE"
+          grep -Fq 'textEditBefore' "$WORKSPACE"
+          grep -Fq 'puter.ai.txt2img' "$AI"
+          grep -Fq 'Use in Design' "$PUTER"
+          grep -Fq 'Edit Photo' "$PUTER"
+          grep -Fq 'Nova Browser · Secure Login' "$AUTH"
+          grep -Fq 'allowFileAccess = false' "$AUTH"
+          grep -Fq 'allowContentAccess = false' "$AUTH"
+          grep -Fq 'MIXED_CONTENT_NEVER_ALLOW' "$AUTH"
+          grep -Fq 'setAcceptThirdPartyCookies' "$AUTH"
+          grep -Fq 'return host == "puter.com" || host.endsWith(".puter.com")' "$AUTH"
+          if grep -Fq 'Intent(Intent.ACTION_VIEW' "$AUTH"; then
+            echo '::error::Puter auth must not escape to an external browser.' >&2
             exit 1
           fi
-          echo 'Verified app source frozen: PASS'
-
-      - name: Verify Photo Studio + Puter + fullscreen contracts
-        shell: bash
-        run: |
-          set -euo pipefail
-          for file in \
-            fresh-rebuild/src/features/apps/ai-photo-studio-home.js \
-            fresh-rebuild/src/features/apps/ai-photo-studio-review.js \
-            fresh-rebuild/src/features/apps/ai-photo-studio-ai.js \
-            fresh-rebuild/src/features/apps/ai-photo-puter-generator.js \
-            fresh-rebuild/src/features/apps/ai-photo-canva-workspace-v3.js \
-            fresh-rebuild/src/features/apps/data/ai-photo-templates.js; do
-            test -s "$file"
-            node --check "$file"
-          done
-          grep -Fq 'installAiPhotoStudioHome' fresh-rebuild/src/features/apps/ai-photo-studio-review.js
-          grep -Fq 'Generate with AI' fresh-rebuild/src/features/apps/ai-photo-studio-home.js
-          grep -Fq 'puter.ai.txt2img' fresh-rebuild/src/features/apps/ai-photo-studio-ai.js
-          grep -Fq 'Use in Design' fresh-rebuild/src/features/apps/ai-photo-puter-generator.js
-          grep -Fq 'Edit Photo' fresh-rebuild/src/features/apps/ai-photo-puter-generator.js
+          if grep -Eq 'addJavascriptInterface|NexusAndroid|NexusBrowserAndroid' "$AUTH"; then
+            echo '::error::Puter auth WebView must not receive NexusNova native bridges.' >&2
+            exit 1
+          fi
           cp fresh-rebuild/src/features/apps/data/ai-photo-templates.js /tmp/templates.mjs
           node --input-type=module - <<'NODE'
           const m=await import('file:///tmp/templates.mjs');
@@ -71,14 +93,7 @@ jobs:
           grep -Fq '.nx-ai-photo-route-back' "$CSS"
           grep -Fq 'body.nx-ai-photo-route-active .nx-dock' "$CSS"
           grep -Fq '#nxEmergencySosButton' "$CSS"
-          MAIN='NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt'
-          POP='NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusPuterPopupManager.kt'
-          grep -Fq 'settings.setSupportMultipleWindows(true)' "$MAIN"
-          grep -Fq 'settings.javaScriptCanOpenWindowsAutomatically = true' "$MAIN"
-          grep -Fq 'NexusPuterPopupManager.open(' "$MAIN"
-          grep -Fq 'host == "puter.com" || host.endsWith(".puter.com")' "$POP"
-          grep -Fq 'WebSettings.MIXED_CONTENT_NEVER_ALLOW' "$POP"
-          echo 'Photo Studio + Puter native auth + fullscreen contracts: PASS'
+          echo 'AI Photo 1-22 + Puter + fullscreen contracts: PASS'
 
       - name: Setup Java 17
         uses: actions/setup-java@v5
@@ -113,7 +128,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          KEYSTORE="$RUNNER_TEMP/nexusnova-premium-photo-release.jks"
+          KEYSTORE="$RUNNER_TEMP/nexusnova-ai-photo-1-22-release.jks"
           printf '%s' "$KEYSTORE_B64" | base64 --decode > "$KEYSTORE"
           test -s "$KEYSTORE"
           chmod 600 "$KEYSTORE"
@@ -158,35 +173,44 @@ jobs:
           APK=app/build/outputs/apk/release/app-release.apk
           test -s "$APK"
 
-      - name: Verify exact generated web assets and native Puter classes
+      - name: Verify exact generated Android web assets
         shell: bash
         run: |
           set -euo pipefail
           for rel in \
-            src/features/apps/ai-photo-studio-home.js \
+            src/features/apps/ai-photo-phone-feedback-v1.js \
             src/features/apps/ai-photo-studio-review.js \
+            src/features/apps/ai-photo-canva-workspace-v3.js \
+            src/features/apps/ai-photo-studio-home.js \
             src/features/apps/ai-photo-studio-ai.js \
             src/features/apps/ai-photo-puter-generator.js \
-            src/features/apps/ai-photo-canva-workspace-v3.js \
             src/features/apps/data/ai-photo-templates.js \
-            assets/styles/ai-photo-route-fullscreen.css \
-            assets/styles/nova-hub-compact-icons-v2.css; do
+            assets/styles/ai-photo-route-fullscreen.css; do
             cmp "fresh-rebuild/$rel" "NexusNovaAndroid/app/src/main/assets/www/$rel"
           done
           test -s NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusPuterPopupManager.kt
-          echo 'Exact Photo Studio assets + native Puter source: PASS'
+          echo 'Exact AI Photo 1-22 assets + native auth source: PASS'
 
-      - name: Verify permanent APK signature
+      - name: Verify permanent APK signature and signing identity
         shell: bash
         run: |
           set -euo pipefail
           APK="$GITHUB_WORKSPACE/NexusNovaAndroid/app/build/outputs/apk/release/app-release.apk"
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
           test -n "$APKSIGNER"
-          "$APKSIGNER" verify --verbose --print-certs "$APK" | tee /tmp/photo-puter-signature.txt
-          grep -Eq 'Verified using v(2|3) scheme .*: true' /tmp/photo-puter-signature.txt
-          sha256sum "$APK" | tee /tmp/photo-puter.sha256
-          stat -c '%s' "$APK" > /tmp/photo-puter.size
+          "$APKSIGNER" verify --verbose --print-certs "$APK" | tee /tmp/new-signature.txt
+          grep -Eq 'Verified using v(2|3) scheme .*: true' /tmp/new-signature.txt
+          NEW_CERT="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' /tmp/new-signature.txt | head -1)"
+          test -n "$NEW_CERT"
+          curl -fsSL "https://raw.githubusercontent.com/$PUBLIC_REPO/$PUBLIC_BRANCH/downloads/$PREVIOUS_APK" -o /tmp/previous.apk
+          "$APKSIGNER" verify --print-certs /tmp/previous.apk | tee /tmp/previous-signature.txt
+          OLD_CERT="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' /tmp/previous-signature.txt | head -1)"
+          test -n "$OLD_CERT"
+          test "$NEW_CERT" = "$OLD_CERT"
+          echo "SIGNER_CERT_SHA256=$NEW_CERT" >> "$GITHUB_ENV"
+          sha256sum "$APK" | tee /tmp/ai-photo-1-22.sha256
+          stat -c '%s' "$APK" > /tmp/ai-photo-1-22.size
+          echo 'Permanent signing identity matches v1.0.9: PASS'
 
       - name: Require public download credential
         env:
@@ -203,17 +227,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          PUB="$RUNNER_TEMP/nexusnova-photo-puter-public"
+          PUB="$RUNNER_TEMP/nexusnova-ai-photo-1-22-public"
           git clone --depth 1 --branch "$PUBLIC_BRANCH" "https://github.com/$PUBLIC_REPO.git" "$PUB"
           cd "$PUB"
           git config user.name 'NexusNova Signed APK Bot'
           git config user.email 'actions@users.noreply.github.com'
           mkdir -p downloads
-          cp "$GITHUB_WORKSPACE/NexusNovaAndroid/app/build/outputs/apk/release/app-release.apk" "downloads/$REVIEW_APK"
-          sha256sum "downloads/$REVIEW_APK" > "downloads/$REVIEW_APK.sha256"
-          printf 'NexusNova AI Photo Studio Premium + Puter signed phone-test APK\nSource: %s\nVerified app source: %s\nVersion: %s (%s)\nPermanent signature: PASS\nPuter native popup auth: bundled\nStatus: READY FOR FAHAD PHONE TEST — NOT YET PHONE-APPROVED\n' "$GITHUB_SHA" "$VERIFIED_APP_SOURCE" "$VERSION_NAME" "$VERSION_CODE" > downloads/NexusNova-AI-PHOTO-PUTER-STATUS.txt
-          git add -f "downloads/$REVIEW_APK" "downloads/$REVIEW_APK.sha256" downloads/NexusNova-AI-PHOTO-PUTER-STATUS.txt
-          git commit -m "Publish premium AI Photo Puter signed APK $GITHUB_SHA"
+          cp "$GITHUB_WORKSPACE/NexusNovaAndroid/app/build/outputs/apk/release/app-release.apk" "downloads/$RELEASE_APK"
+          sha256sum "downloads/$RELEASE_APK" > "downloads/$RELEASE_APK.sha256"
+          printf 'NexusNova AI Photo Studio 1-22 signed phone-test APK\nSource: %s\nVersion: %s (%s)\nPermanent signature: PASS\nSigner SHA-256: %s\nNova Browser Puter auth: bundled\nStatus: READY FOR FAHAD PHONE TEST — NOT YET PHONE-APPROVED\n' "$VERIFIED_APP_SOURCE" "$VERSION_NAME" "$VERSION_CODE" "$SIGNER_CERT_SHA256" > downloads/NexusNova-AI-PHOTO-1-22-STATUS.txt
+          git add -f "downloads/$RELEASE_APK" "downloads/$RELEASE_APK.sha256" downloads/NexusNova-AI-PHOTO-1-22-STATUS.txt
+          git commit -m "Publish AI Photo 1-22 signed APK $VERIFIED_APP_SOURCE"
           PUBLIC_SHA="$(git rev-parse HEAD)"
           AUTH="$(printf 'x-access-token:%s' "$PUBLIC_TOKEN" | base64 -w0)"
           git -c http.extraheader="AUTHORIZATION: basic $AUTH" push origin HEAD:"$PUBLIC_BRANCH"
@@ -225,14 +249,25 @@ jobs:
           PUBLIC_SHA: ${{ steps.publish.outputs.public_sha }}
         run: |
           set -euo pipefail
-          URL="https://raw.githubusercontent.com/$PUBLIC_REPO/$PUBLIC_SHA/downloads/$REVIEW_APK"
-          curl -fsSL "$URL" -o /tmp/public-photo-puter.apk
-          test "$(stat -c '%s' /tmp/public-photo-puter.apk)" = "$(cat /tmp/photo-puter.size)"
-          LOCAL_SHA="$(awk '{print $1}' /tmp/photo-puter.sha256)"
-          PUBLIC_SHA256="$(sha256sum /tmp/public-photo-puter.apk | awk '{print $1}')"
+          test -n "$PUBLIC_SHA"
+          URL="https://raw.githubusercontent.com/$PUBLIC_REPO/$PUBLIC_SHA/downloads/$RELEASE_APK"
+          curl -fsSL "$URL" -o /tmp/public-ai-photo-1-22.apk
+          test "$(stat -c '%s' /tmp/public-ai-photo-1-22.apk)" = "$(cat /tmp/ai-photo-1-22.size)"
+          LOCAL_SHA="$(awk '{print $1}' /tmp/ai-photo-1-22.sha256)"
+          PUBLIC_SHA256="$(sha256sum /tmp/public-ai-photo-1-22.apk | awk '{print $1}')"
           test "$LOCAL_SHA" = "$PUBLIC_SHA256"
           echo "PUBLIC_APK_SHA256=$PUBLIC_SHA256" >> "$GITHUB_ENV"
           echo 'Anonymous public signed APK byte-for-byte: PASS'
+
+      - name: Release summary
+        shell: bash
+        run: |
+          echo "Source=$VERIFIED_APP_SOURCE"
+          echo "Version=$VERSION_NAME"
+          echo "VersionCode=$VERSION_CODE"
+          echo "APK=$RELEASE_APK"
+          echo "SHA256=$PUBLIC_APK_SHA256"
+          echo "Signer=$SIGNER_CERT_SHA256"
 
       - name: Remove signing material
         if: always()
