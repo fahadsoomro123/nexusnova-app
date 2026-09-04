@@ -23,6 +23,12 @@ function ensureReferenceStyles(){
       .nxps-locked-visual .nxlock-top-title span{font-size:9px!important}
     }
 
+    @media (max-width:390px){
+      .nxps-locked-visual .nxlock-top{grid-template-columns:66px minmax(0,1fr) 60px!important;gap:6px!important}
+      .nxps-locked-visual .nxlock-top-title strong{font-size:13px!important}
+      .nxps-locked-visual .nxlock-option select{padding-left:6px!important;padding-right:6px!important;font-size:9px!important}
+    }
+
     @media (max-width:520px) and (min-height:761px){
       .nxps-locked-visual .nxlock-home-btn,.nxps-locked-visual .nxlock-pro{height:42px!important}
       .nxps-locked-visual .nxlock-hero{position:relative!important;grid-template-columns:68px minmax(0,1fr)!important;min-height:138px!important;padding:12px 14px!important;gap:12px!important;overflow:hidden!important}
