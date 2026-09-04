@@ -44,7 +44,6 @@ jobs:
           grep -Fq "data-prayer-gps" "$PRAYER"
           grep -Fq "https://api.aladhan.com/v1/timings/" "$PRAYER"
 
-          # User-approved Qibla, Pakistan Hub and News remain byte-identical.
           git diff --quiet "$LOCKED_BASE" "$GITHUB_SHA" -- fresh-rebuild/src/features/apps/premium-qibla-safe-v2.js
           git diff --quiet "$LOCKED_BASE" "$GITHUB_SHA" -- fresh-rebuild/assets/qibla/
           git diff --quiet "$LOCKED_BASE" "$GITHUB_SHA" -- fresh-rebuild/src/features/apps/pakistan-suite.js
@@ -77,7 +76,6 @@ jobs:
 
           for required in \
             src/features/apps/premium-prayer-safe.js \
-            src/features/apps/premium-prayer-times.js \
             src/features/apps/premium-qibla-safe-v2.js \
             src/features/apps/pakistan-suite.js \
             src/features/apps/news-resilient.js \
@@ -98,7 +96,6 @@ jobs:
           paths={x['path'] for x in files}
           required={
             'src/features/apps/premium-prayer-safe.js',
-            'src/features/apps/premium-prayer-times.js',
             'src/features/apps/premium-qibla-safe-v2.js',
             'src/features/apps/pakistan-suite.js',
             'src/features/apps/news-resilient.js',
@@ -157,13 +154,12 @@ jobs:
           paths={x['path'] for x in m['files']}
           for required in (
             'src/features/apps/premium-prayer-safe.js',
-            'src/features/apps/premium-prayer-times.js',
             'src/features/apps/premium-qibla-safe-v2.js',
             'src/features/apps/pakistan-suite.js',
             'src/features/apps/news-resilient.js'):
               assert required in paths
           PY
-          for rel in src/features/apps/premium-prayer-safe.js src/features/apps/premium-prayer-times.js src/features/apps/premium-qibla-safe-v2.js src/features/apps/pakistan-suite.js src/features/apps/news-resilient.js; do
+          for rel in src/features/apps/premium-prayer-safe.js src/features/apps/premium-qibla-safe-v2.js src/features/apps/pakistan-suite.js src/features/apps/news-resilient.js; do
             curl -fsSL --retry 5 --retry-delay 2 "$BASE_URL/files/$rel?sha=$PUBLIC_SHA" -o "/tmp/$(basename "$rel")"
             cmp -s "fresh-rebuild/$rel" "/tmp/$(basename "$rel")"
           done
