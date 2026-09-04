@@ -9,15 +9,29 @@ export function renderPrayerTimesSafe() {
   const search = root.querySelector('[data-prayer-search]');
   const searchButton = root.querySelector('[data-prayer-search-go]');
   const list = root.querySelector('[data-prayer-list]');
+  const topbar = root.querySelector('.nxprayer-topbar');
   const baseCleanup = root.__cleanup;
   let active = true;
   let fallbackStarted = false;
+
+  // The premium renderer previously exposed Calendar/Menu controls without
+  // actions. Do not show dead or misleading controls in the phone review UI.
+  root.querySelector('.nxprayer-calendar')?.remove();
+  root.querySelector('.nxprayer-menu')?.remove();
+  root.querySelector('.nxprayer-topactions')?.remove();
+  if (topbar) {
+    topbar.style.gridTemplateColumns = 'auto auto minmax(0,1fr)';
+    topbar.style.paddingRight = '0';
+  }
 
   const maybeFallback = () => {
     if (!active || fallbackStarted) return;
     const text = String(status?.textContent || '').toLowerCase();
     const empty = !list?.querySelector('[data-prayer-key]');
-    if (!empty || !text.includes('gps permission is unavailable')) return;
+    const gpsUnavailable = text.includes('gps permission is unavailable') ||
+      text.includes('location is not supported') ||
+      text.includes('location unavailable');
+    if (!empty || !gpsUnavailable) return;
     fallbackStarted = true;
     if (search) search.value = 'Karachi, Pakistan';
     searchButton?.click();
