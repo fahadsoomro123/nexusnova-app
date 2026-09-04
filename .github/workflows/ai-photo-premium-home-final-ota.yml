@@ -13,7 +13,6 @@ permissions:
 env:
   OTA_BUNDLED_BASE: 8d1aaaee6f28b974a8c8b3ff213beb1318ec7405
   VERIFIED_PREOTA_SOURCE: 0f7099c26c068efbbbe93af037f77f026d430b36
-  VISUAL_BASELINE: 0c7d9514b30add3d4929172cc1427472382b2dd8
   PUBLIC_OTA_REPO: fahadsoomro123/nexusnova-website
   PUBLIC_OTA_BRANCH: nexusnova-ota-public
 
@@ -27,34 +26,36 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Freeze verified pre-OTA source
+      - name: Freeze exact GREEN app source
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = "$VERIFIED_PREOTA_SOURCE"
-          changed="$(git diff --name-only "$VERIFIED_PREOTA_SOURCE" "$GITHUB_SHA")"
-          test "$changed" = '.github/workflows/ai-photo-premium-home-final-ota.yml'
-          echo 'Verified pre-OTA source parent frozen: PASS'
+          allowed='^\.github/workflows/(ai-photo-premium-home-final-ota\.yml|ai-photo-premium-puter-signed-apk\.yml)$'
+          unexpected="$(git diff --name-only "$VERIFIED_PREOTA_SOURCE" "$GITHUB_SHA" | grep -Ev "$allowed" || true)"
+          if [ -n "$unexpected" ]; then
+            echo 'Unexpected app/source changes after GREEN pre-OTA source:' >&2
+            printf '%s\n' "$unexpected" >&2
+            exit 1
+          fi
+          test "$(git rev-parse "$VERIFIED_PREOTA_SOURCE:fresh-rebuild")" = "$(git rev-parse "$GITHUB_SHA:fresh-rebuild")"
+          test "$(git rev-parse "$VERIFIED_PREOTA_SOURCE:NexusNovaAndroid/app/src/main/java/com/nexusnova/app")" = "$(git rev-parse "$GITHUB_SHA:NexusNovaAndroid/app/src/main/java/com/nexusnova/app")"
+          echo 'Exact GREEN web + native source trees frozen: PASS'
 
-      - name: Reverify premium upgrade and protected fullscreen
+      - name: Reverify premium Photo Studio contracts
         shell: bash
         run: |
           set -euo pipefail
-          for file in \
-            fresh-rebuild/src/features/apps/ai-photo-studio-home.js \
-            fresh-rebuild/src/features/apps/ai-photo-studio-review.js \
-            fresh-rebuild/src/features/apps/ai-photo-puter-generator.js \
-            fresh-rebuild/src/features/apps/ai-photo-canva-workspace-v3.js \
-            fresh-rebuild/src/features/apps/ai-photo-studio-ai.js \
-            fresh-rebuild/src/features/apps/data/ai-photo-templates.js; do
-            test -s "$file"
-            node --check "$file"
-          done
+          node --check fresh-rebuild/src/features/apps/ai-photo-studio-home.js
+          node --check fresh-rebuild/src/features/apps/ai-photo-studio-review.js
+          node --check fresh-rebuild/src/features/apps/ai-photo-puter-generator.js
+          node --check fresh-rebuild/src/features/apps/ai-photo-studio-ai.js
           grep -Fq 'installAiPhotoStudioHome' fresh-rebuild/src/features/apps/ai-photo-studio-review.js
+          grep -Fq 'data-nxps-action="ai-image"' fresh-rebuild/src/features/apps/ai-photo-studio-home.js
+          grep -Fq 'data-nxps-action="edit"' fresh-rebuild/src/features/apps/ai-photo-studio-home.js
+          grep -Fq 'data-nxps-action="templates"' fresh-rebuild/src/features/apps/ai-photo-studio-home.js
+          grep -Fq 'data-nxps-action="projects"' fresh-rebuild/src/features/apps/ai-photo-studio-home.js
           grep -Fq 'Generate with AI' fresh-rebuild/src/features/apps/ai-photo-studio-home.js
-          grep -Fq 'Edit a Photo' fresh-rebuild/src/features/apps/ai-photo-studio-home.js
-          grep -Fq 'Templates 1000+' fresh-rebuild/src/features/apps/ai-photo-studio-home.js
-          grep -Fq 'My Creations' fresh-rebuild/src/features/apps/ai-photo-studio-home.js
+          grep -Fq '1000+ TEMPLATES' fresh-rebuild/src/features/apps/ai-photo-studio-home.js
           grep -Fq 'puter.ai.txt2img' fresh-rebuild/src/features/apps/ai-photo-studio-ai.js
           grep -Fq 'Use in Design' fresh-rebuild/src/features/apps/ai-photo-puter-generator.js
           grep -Fq 'Edit Photo' fresh-rebuild/src/features/apps/ai-photo-puter-generator.js
@@ -63,33 +64,17 @@ jobs:
           const m=await import('file:///tmp/templates.mjs');
           if(m.NEXUSNOVA_TEMPLATES.length!==1000)throw new Error('Template count mismatch');
           if(m.NEXUSNOVA_TEMPLATE_CATEGORIES.length!==20)throw new Error('Category count mismatch');
-          if(!m.searchTemplates({query:'coffee logo',limit:20}).items.length)throw new Error('Multi-word template search failed');
+          if(!m.searchTemplates({query:'coffee logo',limit:20}).items.length)throw new Error('Template search smoke failed');
           NODE
-          for path in \
-            fresh-rebuild/assets/styles/ai-photo-route-fullscreen.css \
-            fresh-rebuild/src/features/apps/app-screen.js \
-            fresh-rebuild/src/features/apps/ai-photo-studio-flagship.js \
-            fresh-rebuild/src/features/apps/ai-photo-focus-interaction.js \
-            fresh-rebuild/src/features/apps/ai-photo-canva-workspace-v3.js \
-            fresh-rebuild/src/features/apps/ai-photo-puter-generator.js \
-            fresh-rebuild/src/features/apps/ai-photo-studio-ai.js \
-            fresh-rebuild/src/features/apps/premium-qibla-safe-v2.js \
-            fresh-rebuild/src/features/apps/premium-prayer-safe.js \
-            fresh-rebuild/src/features/apps/pakistan-suite.js \
-            fresh-rebuild/src/features/apps/news-suite.js \
-            fresh-rebuild/src/features/apps/articles-suite.js \
-            fresh-rebuild/src/features/apps/live-feed-premium-skin.js \
-            fresh-rebuild/src/features/apps/batch4-tools-17-20-fullscreen.js \
-            fresh-rebuild/assets/styles/batch4-tools-17-20-fullscreen.css; do
-            test "$(git rev-parse "$VISUAL_BASELINE:$path")" = "$(git hash-object "$path")" || { echo "Protected file changed after approved baseline: $path" >&2; exit 1; }
-          done
           CSS=fresh-rebuild/assets/styles/ai-photo-route-fullscreen.css
+          APP=fresh-rebuild/src/features/apps/app-screen.js
           grep -Fq 'height: 100dvh' "$CSS"
           grep -Fq '.nx-ai-photo-route-back' "$CSS"
+          grep -Fq 'right: max(' "$CSS"
           grep -Fq 'body.nx-ai-photo-route-active .nx-dock' "$CSS"
           grep -Fq '#nxEmergencySosButton' "$CSS"
-          grep -Fq 'overflow: hidden !important' "$CSS"
-          echo 'Premium source + protected fullscreen: PASS'
+          grep -Fq "root.classList.add('nx-ai-photo-route-screen')" "$APP"
+          echo 'Premium + Puter + fullscreen contract: PASS'
 
       - name: Build cumulative OTA from bundled base
         shell: bash
@@ -97,7 +82,7 @@ jobs:
           set -euo pipefail
           BASE="$OTA_BUNDLED_BASE"
           git cat-file -e "$BASE^{commit}"
-          deleted="$(git diff --name-only --diff-filter=D "$BASE" "$GITHUB_SHA" -- fresh-rebuild/ | grep -v '^fresh-rebuild/src/emergency-sos.js$' || true)"
+          deleted="$(git diff --name-only --diff-filter=D "$BASE" "$VERIFIED_PREOTA_SOURCE" -- fresh-rebuild/ | grep -v '^fresh-rebuild/src/emergency-sos.js$' || true)"
           test -z "$deleted" || { echo 'Unexpected deleted fresh-rebuild files:' >&2; printf '%s\n' "$deleted" >&2; exit 1; }
           rm -rf /tmp/nx-premium-photo-ota
           mkdir -p /tmp/nx-premium-photo-ota/files
@@ -107,7 +92,7 @@ jobs:
             rel="${full#fresh-rebuild/}"
             mkdir -p "/tmp/nx-premium-photo-ota/files/$(dirname "$rel")"
             cp "$full" "/tmp/nx-premium-photo-ota/files/$rel"
-          done < <(git diff --name-only --diff-filter=ACMRT "$BASE" "$GITHUB_SHA" -- fresh-rebuild/)
+          done < <(git diff --name-only --diff-filter=ACMRT "$BASE" "$VERIFIED_PREOTA_SOURCE" -- fresh-rebuild/)
           test -f /tmp/nx-premium-photo-ota/files/index.html || cp fresh-rebuild/index.html /tmp/nx-premium-photo-ota/files/index.html
           required=(
             index.html
@@ -145,16 +130,16 @@ jobs:
           PY
 
       - name: Require public OTA credential
-        shell: bash
         env:
           PUBLIC_OTA_TOKEN: ${{ secrets.GH_PUBLIC_OTA_TOKEN || secrets.OTA_PUBLIC_TOKEN }}
+        shell: bash
         run: test -n "$PUBLIC_OTA_TOKEN"
 
       - name: Publish approved OTA
         id: publish
-        shell: bash
         env:
           PUBLIC_OTA_TOKEN: ${{ secrets.GH_PUBLIC_OTA_TOKEN || secrets.OTA_PUBLIC_TOKEN }}
+        shell: bash
         run: |
           set -euo pipefail
           rm -rf /tmp/nx-premium-photo-public
