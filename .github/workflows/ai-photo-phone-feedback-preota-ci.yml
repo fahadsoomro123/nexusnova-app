@@ -1,0 +1,143 @@
+name: AI Photo Phone Feedback Pre-OTA CI
+
+on:
+  push:
+    branches: [ai-photo-real-canva-ai-generator-correction]
+    paths:
+      - 'fresh-rebuild/src/features/apps/ai-photo-phone-feedback-v1.js'
+      - 'fresh-rebuild/src/features/apps/ai-photo-studio-review.js'
+      - '.github/workflows/ai-photo-phone-feedback-preota-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PHONE_FEEDBACK_BASE: a815f056b16d2a6f86c83ac9872769440f009276
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout approved correction branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify exact approved phone-feedback scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          allowed='^(fresh-rebuild/src/features/apps/ai-photo-phone-feedback-v1\.js|fresh-rebuild/src/features/apps/ai-photo-studio-review\.js|\.github/workflows/ai-photo-phone-feedback-preota-ci\.yml)$'
+          unexpected="$(git diff --name-only "$PHONE_FEEDBACK_BASE" "$GITHUB_SHA" -- | grep -Ev "$allowed" || true)"
+          if [ -n "$unexpected" ]; then
+            echo '::error::Unexpected file changed in phone-feedback scope:' >&2
+            printf '%s\n' "$unexpected" >&2
+            exit 1
+          fi
+          echo 'Exact phone-feedback scope: PASS'
+
+      - name: Verify protected Photo Studio and completed-app files unchanged
+        shell: bash
+        run: |
+          set -euo pipefail
+          for path in \
+            fresh-rebuild/assets/styles/ai-photo-route-fullscreen.css \
+            fresh-rebuild/src/features/apps/app-screen.js \
+            fresh-rebuild/src/features/apps/ai-photo-studio-flagship.js \
+            fresh-rebuild/src/features/apps/ai-photo-studio-home.js \
+            fresh-rebuild/src/features/apps/ai-photo-puter-generator.js \
+            fresh-rebuild/src/features/apps/ai-photo-canva-workspace-v3.js \
+            fresh-rebuild/src/features/apps/ai-photo-studio-ai.js \
+            fresh-rebuild/src/features/apps/ai-photo-focus-interaction.js \
+            NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt \
+            NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusPuterPopupManager.kt \
+            fresh-rebuild/src/features/apps/premium-qibla-safe-v2.js \
+            fresh-rebuild/src/features/apps/premium-prayer-safe.js \
+            fresh-rebuild/src/features/apps/pakistan-suite.js \
+            fresh-rebuild/src/features/apps/news-suite.js \
+            fresh-rebuild/src/features/apps/articles-suite.js \
+            fresh-rebuild/src/features/apps/live-feed-premium-skin.js \
+            fresh-rebuild/src/features/apps/batch4-tools-17-20-fullscreen.js \
+            fresh-rebuild/assets/styles/batch4-tools-17-20-fullscreen.css; do
+            test "$(git rev-parse "$PHONE_FEEDBACK_BASE:$path")" = "$(git hash-object "$path")" || { echo "::error::Protected file changed: $path" >&2; exit 1; }
+          done
+          echo 'Protected core/fullscreen/apps unchanged: PASS'
+
+      - name: JavaScript syntax and requested correction contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          CORR=fresh-rebuild/src/features/apps/ai-photo-phone-feedback-v1.js
+          REVIEW=fresh-rebuild/src/features/apps/ai-photo-studio-review.js
+          node --check "$CORR"
+          node --check "$REVIEW"
+          grep -Fq 'AI IMAGE GENERATOR' "$CORR"
+          grep -Fq 'Featured templates' "$CORR"
+          grep -Fq "FEATURED_CATEGORIES=['logos','instagram-posts','youtube-thumbnails','flyers','business-cards','posters','product-promos','resumes']" "$CORR"
+          grep -Fq "prompt?.remove()" "$CORR"
+          grep -Fq "actionRow?.remove()" "$CORR"
+          grep -Fq 'data-puter-download' "$CORR"
+          grep -Fq 'downloadBlob' "$CORR"
+          grep -Fq 'padding-bottom:0!important' "$CORR"
+          grep -Fq 'position:absolute!important;inset:0!important' "$CORR"
+          grep -Fq 'installAiPhotoPhoneFeedbackV1' "$REVIEW"
+          grep -Fq 'review-v6-phone-feedback' "$REVIEW"
+          echo 'Requested phone-feedback contract: PASS'
+
+      - name: Verify original template and Puter foundations remain intact
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp fresh-rebuild/src/features/apps/data/ai-photo-templates.js /tmp/templates.mjs
+          node --input-type=module - <<'NODE'
+          const m=await import('file:///tmp/templates.mjs');
+          if(m.NEXUSNOVA_TEMPLATES.length!==1000)throw new Error('Template count mismatch');
+          if(m.NEXUSNOVA_TEMPLATE_CATEGORIES.length!==20)throw new Error('Template category mismatch');
+          for(const category of ['logos','instagram-posts','youtube-thumbnails','flyers','business-cards','posters','product-promos','resumes']){
+            if(!m.NEXUSNOVA_TEMPLATES.some(t=>t.category===category))throw new Error('Missing featured category '+category);
+          }
+          console.log('1000-template foundation + featured categories: PASS');
+          NODE
+          grep -Fq 'puter.ai.txt2img' fresh-rebuild/src/features/apps/ai-photo-studio-ai.js
+          grep -Fq 'Use in Design' fresh-rebuild/src/features/apps/ai-photo-puter-generator.js
+          grep -Fq 'Edit Photo' fresh-rebuild/src/features/apps/ai-photo-puter-generator.js
+          echo 'Puter generation foundation unchanged: PASS'
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle 8.13
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Android debug build
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd NexusNovaAndroid
+          gradle --no-daemon clean assembleDebug
+          test -s app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Verify generated Android assets exact
+        shell: bash
+        run: |
+          set -euo pipefail
+          for rel in \
+            src/features/apps/ai-photo-phone-feedback-v1.js \
+            src/features/apps/ai-photo-studio-review.js \
+            src/features/apps/ai-photo-studio-home.js \
+            src/features/apps/ai-photo-puter-generator.js \
+            src/features/apps/ai-photo-studio-flagship.js \
+            assets/styles/ai-photo-route-fullscreen.css; do
+            cmp "fresh-rebuild/$rel" "NexusNovaAndroid/app/src/main/assets/www/$rel"
+          done
+          echo 'Android generated assets exact: PASS'
+
+      - name: Confirm no OTA or signed APK publication
+        run: echo 'Verification only. No OTA publication and no signed APK upload in this workflow.'
