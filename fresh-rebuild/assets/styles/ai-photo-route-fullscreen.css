@@ -102,6 +102,44 @@ body.nx-ai-photo-route-active #nxEmergencySosEdit {
   transform: scale(.96);
 }
 
+/* Specificity firewall against the generic premium-studio viewport contract.
+   AI Photo is a dedicated fullscreen route, so it must not inherit the
+   generic studio shell's reserved app-header/dock deductions. */
+body.nx-ai-photo-route-active .nx-stage > .nx-screen.nx-ai-photo-route-screen:has(.nx-studio) {
+  width: 100% !important;
+  height: 100dvh !important;
+  min-height: 0 !important;
+  max-height: 100dvh !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+body.nx-ai-photo-route-active .nx-stage > .nx-screen.nx-ai-photo-route-screen:has(.nx-studio) > [data-app-mount] {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+body.nx-ai-photo-route-active .nx-stage > .nx-screen.nx-ai-photo-route-screen > [data-app-mount] > .nx-studio.nx-photo-editor {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+}
+
+@media (max-width: 520px), (max-height: 720px) {
+  body.nx-ai-photo-route-active .nx-stage > .nx-screen.nx-ai-photo-route-screen:has(.nx-studio) > [data-app-mount] {
+    height: 100% !important;
+    max-height: 100% !important;
+  }
+}
+
 @media (max-width: 390px) {
   .nx-ai-photo-route-screen .nx-photo-top {
     padding-right: 54px !important;
