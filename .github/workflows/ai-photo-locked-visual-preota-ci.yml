@@ -1,0 +1,185 @@
+name: AI Photo Locked Visual 6-Round Pre-OTA QA
+
+on:
+  push:
+    branches: [ai-photo-real-canva-ai-generator-correction]
+    paths:
+      - 'fresh-rebuild/src/features/apps/ai-photo-locked-visual-v1.js'
+      - 'fresh-rebuild/src/features/apps/ai-photo-studio-review.js'
+      - '.github/workflows/ai-photo-locked-visual-preota-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  locked_visual_qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout locked visual branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 'QA 1/6 — Exact scope + protected modules'
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE=8ac25ef4c600d3e599858d4c207bf2ec131c18a9
+          allowed='^(fresh-rebuild/src/features/apps/ai-photo-locked-visual-v1\.js|fresh-rebuild/src/features/apps/ai-photo-studio-review\.js|\.github/workflows/ai-photo-locked-visual-preota-ci\.yml)$'
+          unexpected="$(git diff --name-only "$BASE" "$GITHUB_SHA" -- | grep -Ev "$allowed" || true)"
+          if [ -n "$unexpected" ]; then
+            echo '::error::Unexpected file changed:' >&2
+            echo "$unexpected" >&2
+            exit 1
+          fi
+          for path in \
+            fresh-rebuild/assets/styles/ai-photo-route-fullscreen.css \
+            fresh-rebuild/src/features/apps/app-screen.js \
+            fresh-rebuild/src/features/apps/ai-photo-studio-flagship.js \
+            fresh-rebuild/src/features/apps/ai-photo-focus-interaction.js \
+            fresh-rebuild/src/features/apps/ai-photo-phone-feedback-v1.js \
+            fresh-rebuild/src/features/apps/ai-photo-canva-workspace-v3.js \
+            fresh-rebuild/src/features/apps/ai-photo-puter-generator.js \
+            fresh-rebuild/src/features/apps/ai-photo-studio-ai.js \
+            NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusPuterPopupManager.kt \
+            fresh-rebuild/src/features/apps/premium-qibla-safe-v2.js \
+            fresh-rebuild/src/features/apps/premium-prayer-safe.js \
+            fresh-rebuild/src/features/apps/pakistan-suite.js \
+            fresh-rebuild/src/features/apps/news-suite.js \
+            fresh-rebuild/src/features/apps/articles-suite.js \
+            fresh-rebuild/src/features/apps/live-feed-premium-skin.js \
+            fresh-rebuild/src/features/apps/batch4-tools-17-20-fullscreen.js \
+            fresh-rebuild/assets/styles/batch4-tools-17-20-fullscreen.css; do
+            test "$(git rev-parse "$BASE:$path")" = "$(git hash-object "$path")" || { echo "::error::Protected file changed: $path" >&2; exit 1; }
+          done
+          echo 'QA1 PASS — exact visual scope only; protected modules unchanged.'
+
+      - name: 'QA 2/6 — JavaScript syntax + render wiring'
+        shell: bash
+        run: |
+          set -euo pipefail
+          V=fresh-rebuild/src/features/apps/ai-photo-locked-visual-v1.js
+          R=fresh-rebuild/src/features/apps/ai-photo-studio-review.js
+          node --check "$V"
+          node --check "$R"
+          grep -Fq "installAiPhotoLockedVisualV1" "$R"
+          grep -Fq "review-v7-locked-visual" "$R"
+          grep -Fq "lockedVisualCleanup" "$R"
+          grep -Fq "nxps-locked-visual" "$V"
+          grep -Fq "nxlock-home" "$V"
+          grep -Fq "nxlock-generator" "$V"
+          echo 'QA2 PASS — syntax and locked visual render wiring.'
+
+      - name: 'QA 3/6 — Locked Home visual contract'
+        shell: bash
+        run: |
+          set -euo pipefail
+          V=fresh-rebuild/src/features/apps/ai-photo-locked-visual-v1.js
+          grep -Fq '⌂ Home' "$V"
+          grep -Fq 'NexusNova AI Photo Studio' "$V"
+          grep -Fq 'Create · Edit · Design · All in One' "$V"
+          grep -Fq 'NEXUSNOVA CREATIVE AI' "$V"
+          grep -Fq 'AI GENERATION' "$V"
+          grep -Fq '1000+ TEMPLATES' "$V"
+          grep -Fq 'PRO EDITOR' "$V"
+          grep -Fq 'What do you want to create?' "$V"
+          grep -Fq 'Create with AI' "$V"
+          grep -Fq 'Edit a Photo' "$V"
+          grep -Fq '>Templates<' "$V"
+          grep -Fq 'My Creations' "$V"
+          grep -Fq 'AI Tools' "$V"
+          grep -Fq 'Favorites' "$V"
+          grep -Fq '>Saved<' "$V"
+          grep -Fq 'Featured templates' "$V"
+          grep -Fq 'Quick tools' "$V"
+          grep -Fq 'Recent creations' "$V"
+          grep -Fq 'Open projects' "$V"
+          grep -Fq '.nxlock-home{position:absolute;inset:0' "$V"
+          grep -Fq 'overflow:hidden' "$V"
+          test "$(grep -o 'data-nxlock="' "$V" | wc -l)" -ge 16
+          echo 'QA3 PASS — locked Home hierarchy and zero-page-scroll shell present.'
+
+      - name: 'QA 4/6 — Locked AI Generator visual contract'
+        shell: bash
+        run: |
+          set -euo pipefail
+          V=fresh-rebuild/src/features/apps/ai-photo-locked-visual-v1.js
+          grep -Fq 'AI Image Generator' "$V"
+          grep -Fq 'Create stunning images with AI' "$V"
+          grep -Fq 'Describe your image' "$V"
+          grep -Fq 'Creative Styles' "$V"
+          grep -Fq 'Quality' "$V"
+          grep -Fq 'Style Strength' "$V"
+          grep -Fq '✦ Generate with AI' "$V"
+          grep -Fq 'data-r="square"' "$V"
+          grep -Fq 'data-r="portrait"' "$V"
+          grep -Fq 'data-r="story"' "$V"
+          grep -Fq 'data-r="wide"' "$V"
+          grep -Fq 'data-r="custom"' "$V"
+          grep -Fq "['3D','threeD'" "$V"
+          grep -Fq "['Realistic','photo'" "$V"
+          grep -Fq "['Anime','illustration'" "$V"
+          grep -Fq "['Cinematic','cinematic'" "$V"
+          grep -Fq "['Digital Art','illustration'" "$V"
+          grep -Fq "['Portrait','photo'" "$V"
+          grep -Fq "['Product','photo'" "$V"
+          grep -Fq "['Logo','logo'" "$V"
+          grep -Fq '.nx-canva-v3.nxlock-ai-mode>.nxv3-head' "$V"
+          grep -Fq '.nx-canva-v3.nxlock-ai-mode>.nxv3-tabs' "$V"
+          grep -Fq 'display:none!important' "$V"
+          echo 'QA4 PASS — single generator header, compact prompt, ratios, 8 styles, quality and strength.'
+
+      - name: 'QA 5/6 — Navigation + Puter + fullscreen behavior contract'
+        shell: bash
+        run: |
+          set -euo pipefail
+          V=fresh-rebuild/src/features/apps/ai-photo-locked-visual-v1.js
+          P=fresh-rebuild/src/features/apps/ai-photo-studio-ai.js
+          G=fresh-rebuild/src/features/apps/ai-photo-puter-generator.js
+          grep -Fq "openWorkspace('ai-image')" "$V"
+          grep -Fq "openWorkspace('templates')" "$V"
+          grep -Fq "openWorkspace('projects')" "$V"
+          grep -Fq 'stopImmediatePropagation' "$V"
+          grep -Fq 'prompt.value.length' "$V"
+          grep -Fq 'queueMicrotask' "$V"
+          grep -Fq 'puter.ai.txt2img' "$P"
+          grep -Fq 'Use in Design' "$G"
+          grep -Fq 'Edit Photo' "$G"
+          grep -Fq 'Download' fresh-rebuild/src/features/apps/ai-photo-phone-feedback-v1.js
+          CSS=fresh-rebuild/assets/styles/ai-photo-route-fullscreen.css
+          grep -Fq 'height: 100dvh' "$CSS"
+          grep -Fq 'body.nx-ai-photo-route-active .nx-dock' "$CSS"
+          grep -Fq '#nxEmergencySosButton' "$CSS"
+          echo 'QA5 PASS — Home/back routing, Puter generation and fullscreen foundations preserved.'
+
+      - name: Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Gradle 8.13
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: 'QA 6/6 — Android debug build + exact asset sync + no release'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd NexusNovaAndroid
+          gradle --no-daemon clean assembleDebug
+          test -s app/build/outputs/apk/debug/app-debug.apk
+          cd ..
+          for rel in \
+            src/features/apps/ai-photo-locked-visual-v1.js \
+            src/features/apps/ai-photo-studio-review.js \
+            src/features/apps/ai-photo-phone-feedback-v1.js \
+            src/features/apps/ai-photo-puter-generator.js \
+            src/features/apps/ai-photo-canva-workspace-v3.js \
+            assets/styles/ai-photo-route-fullscreen.css; do
+            cmp "fresh-rebuild/$rel" "NexusNovaAndroid/app/src/main/assets/www/$rel"
+          done
+          echo 'QA6 PASS — Android debug build and exact generated web assets. No OTA/APK publication in this workflow.'
