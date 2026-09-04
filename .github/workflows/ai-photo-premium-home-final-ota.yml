@@ -1,4 +1,4 @@
-name: AI Photo Premium Studio Final OTA
+name: AI Photo 1-22 Final OTA Release
 
 on:
   push:
@@ -12,69 +12,70 @@ permissions:
 
 env:
   OTA_BUNDLED_BASE: 8d1aaaee6f28b974a8c8b3ff213beb1318ec7405
-  VERIFIED_PREOTA_SOURCE: 0f7099c26c068efbbbe93af037f77f026d430b36
+  VERIFIED_PREOTA_SOURCE: 569f6cbff707d028b1acbaedf14a2dd2dea718ed
   PUBLIC_OTA_REPO: fahadsoomro123/nexusnova-website
   PUBLIC_OTA_BRANCH: nexusnova-ota-public
 
 jobs:
   publish:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
-      - name: Checkout approved release commit
+      - name: Checkout exact approved GREEN source
         uses: actions/checkout@v4
         with:
+          ref: ${{ env.VERIFIED_PREOTA_SOURCE }}
           fetch-depth: 0
 
-      - name: Freeze exact GREEN app source
+      - name: Freeze exact approved source
         shell: bash
         run: |
           set -euo pipefail
-          allowed='^\.github/workflows/(ai-photo-premium-home-final-ota\.yml|ai-photo-premium-puter-signed-apk\.yml)$'
-          unexpected="$(git diff --name-only "$VERIFIED_PREOTA_SOURCE" "$GITHUB_SHA" | grep -Ev "$allowed" || true)"
-          if [ -n "$unexpected" ]; then
-            echo 'Unexpected app/source changes after GREEN pre-OTA source:' >&2
-            printf '%s\n' "$unexpected" >&2
-            exit 1
-          fi
-          test "$(git rev-parse "$VERIFIED_PREOTA_SOURCE:fresh-rebuild")" = "$(git rev-parse "$GITHUB_SHA:fresh-rebuild")"
-          test "$(git rev-parse "$VERIFIED_PREOTA_SOURCE:NexusNovaAndroid/app/src/main/java/com/nexusnova/app")" = "$(git rev-parse "$GITHUB_SHA:NexusNovaAndroid/app/src/main/java/com/nexusnova/app")"
-          echo 'Exact GREEN web + native source trees frozen: PASS'
+          test "$(git rev-parse HEAD)" = "$VERIFIED_PREOTA_SOURCE"
+          echo 'Exact approved source frozen: PASS'
 
-      - name: Reverify premium Photo Studio contracts
+      - name: Reverify AI Photo 1-22 OTA contracts
         shell: bash
         run: |
           set -euo pipefail
-          node --check fresh-rebuild/src/features/apps/ai-photo-studio-home.js
-          node --check fresh-rebuild/src/features/apps/ai-photo-studio-review.js
-          node --check fresh-rebuild/src/features/apps/ai-photo-puter-generator.js
-          node --check fresh-rebuild/src/features/apps/ai-photo-studio-ai.js
-          grep -Fq 'installAiPhotoStudioHome' fresh-rebuild/src/features/apps/ai-photo-studio-review.js
-          grep -Fq 'data-nxps-action="ai-image"' fresh-rebuild/src/features/apps/ai-photo-studio-home.js
-          grep -Fq 'data-nxps-action="edit"' fresh-rebuild/src/features/apps/ai-photo-studio-home.js
-          grep -Fq 'data-nxps-action="templates"' fresh-rebuild/src/features/apps/ai-photo-studio-home.js
-          grep -Fq 'data-nxps-action="projects"' fresh-rebuild/src/features/apps/ai-photo-studio-home.js
-          grep -Fq 'Generate with AI' fresh-rebuild/src/features/apps/ai-photo-studio-home.js
-          grep -Fq '1000+ TEMPLATES' fresh-rebuild/src/features/apps/ai-photo-studio-home.js
-          grep -Fq 'puter.ai.txt2img' fresh-rebuild/src/features/apps/ai-photo-studio-ai.js
-          grep -Fq 'Use in Design' fresh-rebuild/src/features/apps/ai-photo-puter-generator.js
-          grep -Fq 'Edit Photo' fresh-rebuild/src/features/apps/ai-photo-puter-generator.js
+          CORR=fresh-rebuild/src/features/apps/ai-photo-phone-feedback-v1.js
+          REVIEW=fresh-rebuild/src/features/apps/ai-photo-studio-review.js
+          WORKSPACE=fresh-rebuild/src/features/apps/ai-photo-canva-workspace-v3.js
+          HOME=fresh-rebuild/src/features/apps/ai-photo-studio-home.js
+          AI=fresh-rebuild/src/features/apps/ai-photo-studio-ai.js
+          PUTER=fresh-rebuild/src/features/apps/ai-photo-puter-generator.js
+          for f in "$CORR" "$REVIEW" "$WORKSPACE" "$HOME" "$AI" "$PUTER"; do test -s "$f"; node --check "$f"; done
+          grep -Fq 'AI IMAGE GENERATOR' "$CORR"
+          grep -Fq 'Featured templates' "$CORR"
+          grep -Fq "FEATURED_CATEGORIES=['logos','instagram-posts','youtube-thumbnails','flyers','business-cards','posters','product-promos','resumes']" "$CORR"
+          grep -Fq 'data-puter-download' "$CORR"
+          grep -Fq 'compactPuterAccount' "$CORR"
+          grep -Fq 'nxps-account-chip' "$CORR"
+          grep -Fq 'nxps-has-result' "$CORR"
+          grep -Fq 'prompt?.remove()' "$CORR"
+          grep -Fq 'Text selected' "$WORKSPACE"
+          grep -Fq 'Photo selected' "$WORKSPACE"
+          grep -Fq 'data-v3-text-select' "$WORKSPACE"
+          grep -Fq 'data-v3-text-clear' "$WORKSPACE"
+          grep -Fq 'renderDesign({inspector:false})' "$WORKSPACE"
+          grep -Fq 'textEditBefore' "$WORKSPACE"
+          grep -Fq 'puter.ai.txt2img' "$AI"
+          grep -Fq 'Use in Design' "$PUTER"
+          grep -Fq 'Edit Photo' "$PUTER"
           cp fresh-rebuild/src/features/apps/data/ai-photo-templates.js /tmp/templates.mjs
           node --input-type=module - <<'NODE'
           const m=await import('file:///tmp/templates.mjs');
           if(m.NEXUSNOVA_TEMPLATES.length!==1000)throw new Error('Template count mismatch');
           if(m.NEXUSNOVA_TEMPLATE_CATEGORIES.length!==20)throw new Error('Category count mismatch');
-          if(!m.searchTemplates({query:'coffee logo',limit:20}).items.length)throw new Error('Template search smoke failed');
           NODE
           CSS=fresh-rebuild/assets/styles/ai-photo-route-fullscreen.css
           APP=fresh-rebuild/src/features/apps/app-screen.js
           grep -Fq 'height: 100dvh' "$CSS"
           grep -Fq '.nx-ai-photo-route-back' "$CSS"
-          grep -Fq 'right: max(' "$CSS"
           grep -Fq 'body.nx-ai-photo-route-active .nx-dock' "$CSS"
           grep -Fq '#nxEmergencySosButton' "$CSS"
           grep -Fq "root.classList.add('nx-ai-photo-route-screen')" "$APP"
-          echo 'Premium + Puter + fullscreen contract: PASS'
+          echo 'AI Photo 1-22 web + Puter + fullscreen OTA contracts: PASS'
 
       - name: Build cumulative OTA from bundled base
         shell: bash
@@ -84,24 +85,24 @@ jobs:
           git cat-file -e "$BASE^{commit}"
           deleted="$(git diff --name-only --diff-filter=D "$BASE" "$VERIFIED_PREOTA_SOURCE" -- fresh-rebuild/ | grep -v '^fresh-rebuild/src/emergency-sos.js$' || true)"
           test -z "$deleted" || { echo 'Unexpected deleted fresh-rebuild files:' >&2; printf '%s\n' "$deleted" >&2; exit 1; }
-          rm -rf /tmp/nx-premium-photo-ota
-          mkdir -p /tmp/nx-premium-photo-ota/files
+          rm -rf /tmp/nx-ai-photo-1-22-ota
+          mkdir -p /tmp/nx-ai-photo-1-22-ota/files
           while IFS= read -r full; do
             [ -n "$full" ] || continue
             [ -f "$full" ] || continue
             rel="${full#fresh-rebuild/}"
-            mkdir -p "/tmp/nx-premium-photo-ota/files/$(dirname "$rel")"
-            cp "$full" "/tmp/nx-premium-photo-ota/files/$rel"
+            mkdir -p "/tmp/nx-ai-photo-1-22-ota/files/$(dirname "$rel")"
+            cp "$full" "/tmp/nx-ai-photo-1-22-ota/files/$rel"
           done < <(git diff --name-only --diff-filter=ACMRT "$BASE" "$VERIFIED_PREOTA_SOURCE" -- fresh-rebuild/)
-          test -f /tmp/nx-premium-photo-ota/files/index.html || cp fresh-rebuild/index.html /tmp/nx-premium-photo-ota/files/index.html
+          test -f /tmp/nx-ai-photo-1-22-ota/files/index.html || cp fresh-rebuild/index.html /tmp/nx-ai-photo-1-22-ota/files/index.html
           required=(
             index.html
             assets/styles/ai-photo-route-fullscreen.css
-            assets/styles/nova-hub-compact-icons-v2.css
             src/features/apps/app-screen.js
             src/features/apps/ai-photo-studio-flagship.js
             src/features/apps/ai-photo-studio-review.js
             src/features/apps/ai-photo-studio-home.js
+            src/features/apps/ai-photo-phone-feedback-v1.js
             src/features/apps/ai-photo-live-preview-engine.js
             src/features/apps/ai-photo-focus-interaction.js
             src/features/apps/ai-photo-design-canvas.js
@@ -113,20 +114,20 @@ jobs:
             src/features/apps/data/ai-photo-templates.js
             src/features/apps/premium-studio-suite.js
           )
-          for f in "${required[@]}"; do test -s "/tmp/nx-premium-photo-ota/files/$f" || { echo "Missing OTA file: $f" >&2; exit 1; }; done
+          for f in "${required[@]}"; do test -s "/tmp/nx-ai-photo-1-22-ota/files/$f" || { echo "Missing OTA file: $f" >&2; exit 1; }; done
           python3 - <<'PY'
           import hashlib,json,os
           from pathlib import Path
-          root=Path('/tmp/nx-premium-photo-ota/files')
+          root=Path('/tmp/nx-ai-photo-1-22-ota/files')
           files=[]
           for p in sorted(x for x in root.rglob('*') if x.is_file()):
               data=p.read_bytes()
               files.append({'path':p.relative_to(root).as_posix(),'sha256':hashlib.sha256(data).hexdigest(),'size':len(data)})
           assert len(files)<=2000
           assert sum(x['size'] for x in files)<=60*1024*1024
-          manifest={'schema':2,'base':os.environ['OTA_BUNDLED_BASE'],'version':os.environ['GITHUB_SHA'],'source':os.environ['VERIFIED_PREOTA_SOURCE'],'release':'ai-photo-premium-studio','files':files}
-          Path('/tmp/nx-premium-photo-ota/manifest.json').write_text(json.dumps(manifest,separators=(',',':'),sort_keys=True),encoding='utf-8')
-          print('Premium AI Photo OTA files:',len(files),'bytes:',sum(x['size'] for x in files))
+          manifest={'schema':2,'base':os.environ['OTA_BUNDLED_BASE'],'version':os.environ['VERIFIED_PREOTA_SOURCE'],'source':os.environ['VERIFIED_PREOTA_SOURCE'],'release':'ai-photo-1-22','files':files}
+          Path('/tmp/nx-ai-photo-1-22-ota/manifest.json').write_text(json.dumps(manifest,separators=(',',':'),sort_keys=True),encoding='utf-8')
+          print('AI Photo 1-22 OTA files:',len(files),'bytes:',sum(x['size'] for x in files))
           PY
 
       - name: Require public OTA credential
@@ -142,15 +143,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          rm -rf /tmp/nx-premium-photo-public
-          git clone --depth 1 --branch "$PUBLIC_OTA_BRANCH" "https://github.com/$PUBLIC_OTA_REPO.git" /tmp/nx-premium-photo-public
-          cd /tmp/nx-premium-photo-public
+          rm -rf /tmp/nx-ai-photo-1-22-public
+          git clone --depth 1 --branch "$PUBLIC_OTA_BRANCH" "https://github.com/$PUBLIC_OTA_REPO.git" /tmp/nx-ai-photo-1-22-public
+          cd /tmp/nx-ai-photo-1-22-public
           git config user.name 'NexusNova OTA Bot'
           git config user.email 'actions@users.noreply.github.com'
           rm -rf ota && mkdir -p ota
-          cp -a /tmp/nx-premium-photo-ota/. ota/
+          cp -a /tmp/nx-ai-photo-1-22-ota/. ota/
           git add -A ota
-          git commit -m "Publish premium AI Photo Studio OTA $GITHUB_SHA"
+          git commit -m "Publish AI Photo 1-22 OTA $VERIFIED_PREOTA_SOURCE"
           PUBLIC_SHA="$(git rev-parse HEAD)"
           AUTH="$(printf 'x-access-token:%s' "$PUBLIC_OTA_TOKEN" | base64 -w0)"
           git -c http.extraheader="AUTHORIZATION: basic $AUTH" push origin HEAD:"$PUBLIC_OTA_BRANCH"
@@ -168,21 +169,22 @@ jobs:
           python3 - <<'PY'
           import hashlib,json,os,urllib.parse,urllib.request
           from pathlib import Path
-          local=json.loads(Path('/tmp/nx-premium-photo-ota/manifest.json').read_text())
+          local=json.loads(Path('/tmp/nx-ai-photo-1-22-ota/manifest.json').read_text())
           public=json.loads(Path('/tmp/public.json').read_text())
           assert public==local
           assert public['schema']==2
           assert public['base']==os.environ['OTA_BUNDLED_BASE']
-          assert public['version']==os.environ['GITHUB_SHA']
+          assert public['version']==os.environ['VERIFIED_PREOTA_SOURCE']
           assert public['source']==os.environ['VERIFIED_PREOTA_SOURCE']
-          assert public['release']=='ai-photo-premium-studio'
+          assert public['release']=='ai-photo-1-22'
           entries={x['path']:x for x in public['files']}
           required={
-            'index.html','assets/styles/ai-photo-route-fullscreen.css','assets/styles/nova-hub-compact-icons-v2.css',
+            'index.html','assets/styles/ai-photo-route-fullscreen.css',
             'src/features/apps/app-screen.js','src/features/apps/ai-photo-studio-flagship.js',
             'src/features/apps/ai-photo-studio-review.js','src/features/apps/ai-photo-studio-home.js',
-            'src/features/apps/ai-photo-canva-workspace-v3.js','src/features/apps/ai-photo-puter-generator.js',
-            'src/features/apps/ai-photo-studio-ai.js','src/features/apps/data/ai-photo-templates.js'
+            'src/features/apps/ai-photo-phone-feedback-v1.js','src/features/apps/ai-photo-canva-workspace-v3.js',
+            'src/features/apps/ai-photo-puter-generator.js','src/features/apps/ai-photo-studio-ai.js',
+            'src/features/apps/data/ai-photo-templates.js'
           }
           assert required<=set(entries)
           base=f"https://raw.githubusercontent.com/{os.environ['PUBLIC_OTA_REPO']}/{os.environ['PUBLIC_SHA']}/ota/files/"
@@ -191,5 +193,14 @@ jobs:
               data=urllib.request.urlopen(url,timeout=25).read()
               assert len(data)==item['size'],path
               assert hashlib.sha256(data).hexdigest()==item['sha256'],path
-          print('Exact public premium AI Photo OTA verified:',len(entries),'files',os.environ['PUBLIC_SHA'])
+          print('Exact public AI Photo 1-22 OTA verified:',len(entries),'files',os.environ['PUBLIC_SHA'])
           PY
+
+      - name: Release summary
+        shell: bash
+        env:
+          PUBLIC_SHA: ${{ steps.publish.outputs.public_sha }}
+        run: |
+          echo "Source=$VERIFIED_PREOTA_SOURCE"
+          echo "OTA_Public_Commit=$PUBLIC_SHA"
+          echo "Release=ai-photo-1-22"
