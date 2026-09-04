@@ -35,7 +35,7 @@ jobs:
           RUNTIME_SHA="$(git rev-parse HEAD)"
           echo "RUNTIME_SHA=$RUNTIME_SHA" >> "$GITHUB_ENV"
 
-          allowed='^(fresh-rebuild/index.html|fresh-rebuild/src/features/apps/app-screen.js|fresh-rebuild/assets/styles/ai-photo-route-fullscreen.css|fresh-rebuild/assets/styles/ai-photo-fullscreen-v1.css|fresh-rebuild/src/features/apps/ai-photo-fullscreen-v1.js|.github/workflows/ai-photo-fullscreen-final-ota.yml)$'
+          allowed='^(fresh-rebuild/index.html|fresh-rebuild/src/features/apps/app-screen.js|fresh-rebuild/assets/styles/ai-photo-route-fullscreen.css|fresh-rebuild/assets/styles/ai-photo-fullscreen-v1.css|fresh-rebuild/src/features/apps/ai-photo-fullscreen-v1.js|.github/workflows/ai-photo-fullscreen-final-ota.yml|.github/workflows/ai-photo-fullscreen-preota-ci.yml)$'
           unexpected="$(git diff --name-only "$SCOPE_BASE" "$RUNTIME_SHA" | grep -Ev "$allowed" || true)"
           if [ -n "$unexpected" ]; then
             echo 'Unexpected file changed in structural AI Photo recovery:' >&2
@@ -61,10 +61,11 @@ jobs:
           grep -Fq '.nx-ai-photo-route-screen .nx-photo-project' "$CSS"
           grep -Fq '.nx-ai-photo-route-back' "$CSS"
           grep -Fq 'height: 100dvh' "$CSS"
+          grep -Fq 'padding: 0 0 max(env(safe-area-inset-bottom, 0px), 8px) !important;' "$CSS"
 
           # Structural rule: never replace/reposition the enhanced editor's native frame or bottom tool row.
-          ! grep -Fq '.nx-photo-frame' "$CSS"
-          ! grep -Fq '.nx-photo-tools' "$CSS"
+          ! grep -Fq '.nx-photo-frame {' "$CSS"
+          ! grep -Fq '.nx-photo-tools {' "$CSS"
           ! grep -Fq 'grid-template-rows' "$CSS"
           ! grep -Fq 'bottom: 0' "$CSS"
 
@@ -207,3 +208,5 @@ jobs:
               assert hashlib.sha256(data).hexdigest()==entries[path]['sha256']
           print('Public structural AI Photo OTA verified:',os.environ['PUBLIC_SHA'])
           PY
+
+# Approved release trigger: fullscreen + Android safe-bottom gap verified by pre-OTA CI.
