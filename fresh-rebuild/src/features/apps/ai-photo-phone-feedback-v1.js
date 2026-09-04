@@ -43,12 +43,18 @@ function ensureStyles(){
   .nx-photo-editor.nxps-premium-studio .nxputer-actions.nxps-has-download{grid-template-columns:repeat(3,minmax(0,1fr))!important}
   .nx-photo-editor.nxps-premium-studio [data-puter-download]{font-weight:800!important;color:#f0e8ff!important;border-color:rgba(173,137,255,.34)!important;background:rgba(125,42,232,.16)!important}
 
+  /* Make the already-wired return route obvious on every Photo Studio subview. */
+  .nx-photo-editor.nxps-premium-studio .nxps-home-return{width:52px!important;min-width:52px!important;padding:0 5px!important;border:1px solid rgba(125,42,232,.24)!important;border-radius:9px!important;background:rgba(125,42,232,.08)!important;color:#6f2cdd!important;font-size:8px!important;font-weight:850!important;white-space:nowrap!important}
+  .nx-photo-editor.nxps-premium-studio .nxps-workspace-home{min-width:62px!important;padding:0 8px!important;color:#e2d5ff!important;border-color:rgba(174,137,255,.28)!important;background:#2a2140!important;font-size:8px!important;font-weight:850!important}
+
   @media(max-width:390px){
     .nxps-home.nxps-phone-feedback{gap:7px!important}
     .nxps-phone-feedback .nxps-actions{grid-template-rows:90px 75px!important;gap:6px!important}
     .nxps-featured-strip{grid-auto-columns:91px;gap:6px}
     .nx-photo-editor.nxps-premium-studio .nxputer-actions.nxps-has-download{grid-template-columns:repeat(3,minmax(0,1fr))!important}
     .nx-photo-editor.nxps-premium-studio .nxputer-actions.nxps-has-download .nxv3-btn{width:auto!important;min-width:0!important;padding:0 5px!important;font-size:8px!important}
+    .nx-photo-editor.nxps-premium-studio .nxps-home-return{width:48px!important;min-width:48px!important;font-size:7.3px!important}
+    .nx-photo-editor.nxps-premium-studio .nxps-workspace-home{min-width:56px!important;padding-inline:6px!important;font-size:7.3px!important}
   }
   @media(max-height:700px){
     .nxps-phone-feedback .nxps-hero-copy p,.nxps-phone-feedback .nxps-badges{display:none!important}
@@ -151,9 +157,16 @@ function addGeneratorDownload(root){
   actions.appendChild(button);return button;
 }
 
+function makeStudioHomeExplicit(root){
+  const editorHome=root.querySelector('.nxps-home-return');
+  if(editorHome){editorHome.textContent='⌂ Home';editorHome.setAttribute('aria-label','Studio Home');editorHome.title='Studio Home'}
+  const workspaceHome=root.querySelector('.nxps-workspace-home');
+  if(workspaceHome){workspaceHome.textContent='⌂ Studio';workspaceHome.setAttribute('aria-label','Studio Home');workspaceHome.title='Studio Home'}
+}
+
 export function installAiPhotoPhoneFeedbackV1(root){
   if(!root||root.__nxAiPhotoPhoneFeedbackV1)return()=>{};
   root.__nxAiPhotoPhoneFeedbackV1=true;ensureStyles();
-  const featured=polishHome(root);removeConfusingAiPrompt(root);const download=addGeneratorDownload(root);
+  const featured=polishHome(root);removeConfusingAiPrompt(root);const download=addGeneratorDownload(root);makeStudioHomeExplicit(root);
   return()=>{featured?.remove();download?.remove();root.querySelector('.nxps-home')?.classList.remove('nxps-phone-feedback');delete root.__nxAiPhotoPhoneFeedbackV1};
 }
