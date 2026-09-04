@@ -1,0 +1,121 @@
+name: AI Photo Fullscreen Pre-OTA CI
+
+on:
+  push:
+    branches: [batch17-20-preota-review]
+    paths:
+      - 'fresh-rebuild/assets/styles/ai-photo-route-fullscreen.css'
+      - '.github/workflows/ai-photo-fullscreen-preota-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-ai-photo-fullscreen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify narrow repair scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE=f09b493b5d244b8e0875204e84b40dca95288a62
+          git cat-file -e "$BASE^{commit}"
+          mapfile -t changed < <(git diff --name-only "$BASE"..HEAD)
+          printf 'Changed since repair baseline:\n%s\n' "${changed[*]}"
+          for file in "${changed[@]}"; do
+            case "$file" in
+              fresh-rebuild/assets/styles/ai-photo-route-fullscreen.css|.github/workflows/ai-photo-fullscreen-preota-ci.yml) ;;
+              *) echo "Unexpected repair-scope change: $file" >&2; exit 1 ;;
+            esac
+          done
+          test "${#changed[@]}" -ge 1
+
+      - name: Verify exact stable enhanced AI Photo core
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin nova-sol57-pro-v128-ai-photo-canva-review --depth=1
+          STABLE=FETCH_HEAD
+          files=(
+            fresh-rebuild/src/features/apps/ai-photo-studio.js
+            fresh-rebuild/src/features/apps/ai-photo-studio-flagship.js
+            fresh-rebuild/src/features/apps/ai-photo-studio-review.js
+            fresh-rebuild/src/features/apps/premium-studio-core.js
+            fresh-rebuild/src/features/apps/premium-studio-suite.js
+          )
+          for file in "${files[@]}"; do
+            stable_hash=$(git show "$STABLE:$file" | git hash-object --stdin)
+            current_hash=$(git hash-object "$file")
+            echo "$file stable=$stable_hash current=$current_hash"
+            test "$stable_hash" = "$current_hash"
+          done
+          echo 'Stable enhanced AI Photo core: PASS'
+
+      - name: Verify fullscreen viewport contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          css=fresh-rebuild/assets/styles/ai-photo-route-fullscreen.css
+          grep -Fq 'body.nx-ai-photo-route-active .nx-stage > .nx-screen.nx-ai-photo-route-screen:has(.nx-studio)' "$css"
+          grep -Fq 'height: 100dvh !important;' "$css"
+          grep -Fq 'max-height: 100dvh !important;' "$css"
+          grep -Fq 'padding: 0 0 max(env(safe-area-inset-bottom, 0px), 8px) !important;' "$css"
+          grep -Fq 'box-sizing: border-box !important;' "$css"
+          grep -Fq 'height: 100% !important;' "$css"
+          grep -Fq '.nx-dock,' "$css"
+          grep -Fq '.nx-ai-photo-route-back' "$css"
+          ! grep -Fq '.nx-photo-tools {' "$css"
+          ! grep -Fq '.nx-photo-frame {' "$css"
+          ! grep -Fq '.nx-photo-work {' "$css"
+          echo 'Fullscreen + safe-bottom visual contract: PASS'
+
+      - name: Verify AI Photo JavaScript syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in \
+            fresh-rebuild/src/features/apps/ai-photo-studio.js \
+            fresh-rebuild/src/features/apps/ai-photo-studio-flagship.js \
+            fresh-rebuild/src/features/apps/ai-photo-studio-review.js \
+            fresh-rebuild/src/features/apps/premium-studio-core.js \
+            fresh-rebuild/src/features/apps/premium-studio-suite.js \
+            fresh-rebuild/src/features/apps/app-screen.js; do
+            node --input-type=module --check < "$file"
+          done
+          echo 'AI Photo JS syntax: PASS'
+
+      - name: Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Gradle 8.13
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Build Android debug APK and verify bundled CSS
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd NexusNovaAndroid
+          gradle --no-daemon clean assembleDebug
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          staged=app/src/main/assets/www/assets/styles/ai-photo-route-fullscreen.css
+          test -s "$staged"
+          cmp -s "$staged" ../fresh-rebuild/assets/styles/ai-photo-route-fullscreen.css
+          grep -Fq 'padding: 0 0 max(env(safe-area-inset-bottom, 0px), 8px) !important;' "$staged"
+          echo 'Android build + bundled AI Photo fullscreen CSS: PASS'
+
+      - name: Confirm no OTA publication in this workflow
+        run: |
+          echo 'Pre-OTA CI is read-only. No website/public OTA mutation step exists.'
