@@ -1,0 +1,49 @@
+{
+  "contract": "NexusNova AI Photo Studio locked visual references",
+  "generated": false,
+  "source_files": [
+    {
+      "name": "NexusNova AI Photo Studio Dashboard.png",
+      "sha256": "bc54e5535786bf5a0a2977cb6788db7725bec444afa18c72ae624c24a304f30a",
+      "dimensions": "831x1893"
+    },
+    {
+      "name": "NexusNova AI Layout Fix Preview.png",
+      "sha256": "1bc28bd18dfb94b640c288648bc45ea70d4b3c38d4149abc082a507da6bf394f",
+      "dimensions": "1024x1536",
+      "selection": "RIGHT-HAND screen marked FIXED LAYOUT (Final Setup) only"
+    }
+  ],
+  "derived_assets": [
+    {
+      "path": "assets/visuals/ai-photo-locked-featured.webp",
+      "sha256": "642e17a71f1224d341f48a4a08de5ce96a05c5b5015518e726a67b397d36cfe6",
+      "dimensions": "692x183",
+      "tile_dimensions": "173x183",
+      "source": "NexusNova AI Photo Studio Dashboard.png",
+      "crops": ["173x183+26+994", "173x183+218+994", "173x183+410+994", "173x183+601+994"]
+    },
+    {
+      "path": "assets/visuals/ai-photo-locked-recent.webp",
+      "sha256": "4b059de3f4d5a61eb67804c4e680953aade1f696b80b215f75ced1f514fad323",
+      "dimensions": "680x124",
+      "tile_dimensions": "170x124",
+      "source": "NexusNova AI Photo Studio Dashboard.png",
+      "crops": ["170x124+48+1545", "170x124+237+1545", "170x124+426+1545", "170x124+616+1545"]
+    },
+    {
+      "path": "assets/visuals/ai-photo-locked-styles.webp",
+      "sha256": "4c66c16a95ab61d27e619900e7a4096cd790fbf0313476341fe7a34f9e47b845",
+      "dimensions": "744x88",
+      "tile_dimensions": "93x88",
+      "source": "NexusNova AI Layout Fix Preview.png",
+      "crops": [
+        "93x88+581+692", "93x88+686+692", "93x88+791+692", "93x88+896+692",
+        "93x88+581+816", "93x88+686+816", "93x88+791+816", "93x88+896+816"
+      ]
+    }
+  ],
+  "encoding": "lossless WebP, metadata stripped",
+  "acceptance_rule": "1% visual drift = REJECT",
+  "image_generation": "FORBIDDEN"
+}

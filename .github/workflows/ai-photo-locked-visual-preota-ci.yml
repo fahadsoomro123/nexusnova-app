@@ -10,6 +10,14 @@ on:
       - 'fresh-rebuild/assets/visuals/ai-photo-locked-styles.webp'
       - 'fresh-rebuild/assets/visuals/ai-photo-locked-featured.webp'
       - 'fresh-rebuild/assets/visuals/ai-photo-locked-recent.webp'
+      - 'fresh-rebuild/assets/visuals/ai-photo-locked-reference-manifest.json'
+      - 'NexusNovaAndroid/app/src/main/assets/www/src/features/apps/ai-photo-locked-visual-v1.js'
+      - 'NexusNovaAndroid/app/src/main/assets/www/src/features/apps/ai-photo-locked-reference-assets-v1.js'
+      - 'NexusNovaAndroid/app/src/main/assets/www/src/features/apps/ai-photo-studio-review.js'
+      - 'NexusNovaAndroid/app/src/main/assets/www/assets/visuals/ai-photo-locked-styles.webp'
+      - 'NexusNovaAndroid/app/src/main/assets/www/assets/visuals/ai-photo-locked-featured.webp'
+      - 'NexusNovaAndroid/app/src/main/assets/www/assets/visuals/ai-photo-locked-recent.webp'
+      - 'AI-PHOTO-WORK-HANDOFF.md'
       - '.github/workflows/ai-photo-locked-visual-preota-ci.yml'
   workflow_dispatch:
 
@@ -31,7 +39,7 @@ jobs:
         run: |
           set -euo pipefail
           BASE=8ac25ef4c600d3e599858d4c207bf2ec131c18a9
-          allowed='^(fresh-rebuild/src/features/apps/ai-photo-locked-visual-v1\.js|fresh-rebuild/src/features/apps/ai-photo-locked-reference-assets-v1\.js|fresh-rebuild/src/features/apps/ai-photo-studio-review\.js|fresh-rebuild/assets/visuals/ai-photo-locked-styles\.webp|fresh-rebuild/assets/visuals/ai-photo-locked-featured\.webp|fresh-rebuild/assets/visuals/ai-photo-locked-recent\.webp|\.github/workflows/ai-photo-locked-visual-preota-ci\.yml)$'
+          allowed='^(fresh-rebuild/src/features/apps/ai-photo-locked-visual-v1\.js|fresh-rebuild/src/features/apps/ai-photo-locked-reference-assets-v1\.js|fresh-rebuild/src/features/apps/ai-photo-studio-review\.js|fresh-rebuild/assets/visuals/ai-photo-locked-(styles|featured|recent)\.webp|fresh-rebuild/assets/visuals/ai-photo-locked-reference-manifest\.json|NexusNovaAndroid/app/src/main/assets/www/src/features/apps/ai-photo-locked-(visual-v1|reference-assets-v1)\.js|NexusNovaAndroid/app/src/main/assets/www/src/features/apps/ai-photo-studio-review\.js|NexusNovaAndroid/app/src/main/assets/www/assets/visuals/ai-photo-locked-(styles|featured|recent)\.webp|AI-PHOTO-WORK-HANDOFF\.md|\.github/workflows/ai-photo-locked-visual-preota-ci\.yml)$'
           unexpected="$(git diff --name-only "$BASE" "$GITHUB_SHA" -- | grep -Ev "$allowed" || true)"
           if [ -n "$unexpected" ]; then
             echo '::error::Unexpected file changed:' >&2
@@ -110,8 +118,14 @@ jobs:
           grep -Fq 'ai-photo-locked-recent.webp' "$A"
           test -s fresh-rebuild/assets/visuals/ai-photo-locked-featured.webp
           test -s fresh-rebuild/assets/visuals/ai-photo-locked-recent.webp
-          echo 'de35f6c4ccc33f6a9dc5d56036cefe7e29647f64df119d7330d60f42c99da9d0  fresh-rebuild/assets/visuals/ai-photo-locked-featured.webp' | sha256sum -c -
-          echo 'b7b550e43895987c3f06ed71f6082c17a3ac35dcb62d13208d18044051ef0caa  fresh-rebuild/assets/visuals/ai-photo-locked-recent.webp' | sha256sum -c -
+          file fresh-rebuild/assets/visuals/ai-photo-locked-featured.webp | grep -Fq 'Web/P image'
+          file fresh-rebuild/assets/visuals/ai-photo-locked-recent.webp | grep -Fq 'Web/P image'
+          test "$(identify -format '%wx%h' fresh-rebuild/assets/visuals/ai-photo-locked-featured.webp)" = '692x183'
+          test "$(identify -format '%wx%h' fresh-rebuild/assets/visuals/ai-photo-locked-recent.webp)" = '680x124'
+          echo '642e17a71f1224d341f48a4a08de5ce96a05c5b5015518e726a67b397d36cfe6  fresh-rebuild/assets/visuals/ai-photo-locked-featured.webp' | sha256sum -c -
+          echo '4b059de3f4d5a61eb67804c4e680953aade1f696b80b215f75ced1f514fad323  fresh-rebuild/assets/visuals/ai-photo-locked-recent.webp' | sha256sum -c -
+          grep -Fq 'bc54e5535786bf5a0a2977cb6788db7725bec444afa18c72ae624c24a304f30a' fresh-rebuild/assets/visuals/ai-photo-locked-reference-manifest.json
+          grep -Fq '"generated": false' fresh-rebuild/assets/visuals/ai-photo-locked-reference-manifest.json
           echo 'QA3 PASS — Home hierarchy plus exact user-approved Featured/Recent crop bytes.'
 
       - name: 'QA 4/6 — Locked AI Generator + exact Creative Styles pixels'
@@ -137,7 +151,11 @@ jobs:
           grep -Fq 'background-size:800% 100%' "$A"
           grep -Fq '.nxlock-generator{position:relative!important}' "$A"
           test -s fresh-rebuild/assets/visuals/ai-photo-locked-styles.webp
-          echo 'de6cba5fe64e8b4e9b57b3da06c0de00f3ec6b69f47a188a9c66819c0e478cdd  fresh-rebuild/assets/visuals/ai-photo-locked-styles.webp' | sha256sum -c -
+          file fresh-rebuild/assets/visuals/ai-photo-locked-styles.webp | grep -Fq 'Web/P image'
+          test "$(identify -format '%wx%h' fresh-rebuild/assets/visuals/ai-photo-locked-styles.webp)" = '744x88'
+          echo '4c66c16a95ab61d27e619900e7a4096cd790fbf0313476341fe7a34f9e47b845  fresh-rebuild/assets/visuals/ai-photo-locked-styles.webp' | sha256sum -c -
+          grep -Fq '1bc28bd18dfb94b640c288648bc45ea70d4b3c38d4149abc082a507da6bf394f' fresh-rebuild/assets/visuals/ai-photo-locked-reference-manifest.json
+          grep -Fq 'RIGHT-HAND screen marked FIXED LAYOUT (Final Setup) only' fresh-rebuild/assets/visuals/ai-photo-locked-reference-manifest.json
           echo 'QA4 PASS — generator contract plus exact user-approved Creative Styles crop bytes.'
 
       - name: 'QA 5/6 — Navigation + Puter + fullscreen behavior contract'
