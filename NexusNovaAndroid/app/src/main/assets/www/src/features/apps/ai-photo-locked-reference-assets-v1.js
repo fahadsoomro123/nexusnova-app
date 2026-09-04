@@ -7,10 +7,10 @@ function ensureReferenceStyles(){
   style.id='nx-ai-photo-locked-reference-assets-v1';
   style.textContent=`
     .nxps-locked-visual .nxlock-generator{position:relative!important}
-    .nxps-locked-visual .nxlock-style-art{background-image:url('./assets/visuals/ai-photo-locked-styles.webp')!important;background-repeat:no-repeat!important;background-size:800% 100%!important;background-color:#111827!important;font-size:0!important;color:transparent!important}
-    .nxps-locked-visual .nxlock-reference-feature{display:block;width:100%;height:100%;min-height:0;border:1px solid rgba(255,255,255,.14);border-radius:13px;background-image:url('./assets/visuals/ai-photo-locked-featured.webp');background-repeat:no-repeat;background-size:400% 100%;background-color:#101521}
-    .nxps-locked-visual .nxlock-feature canvas{display:none!important}
-    .nxps-locked-visual .nxlock-recent-thumb{background-image:url('./assets/visuals/ai-photo-locked-recent.webp')!important;background-repeat:no-repeat!important;background-size:400% 100%!important;background-color:#101521!important}
+    .nxps-locked-visual .nxlock-style-art{background-image:url('./assets/visuals/ai-photo-locked-styles.webp')!important;background-repeat:no-repeat!important;background-size:800% 100%!important;background-color:#111827!important;border-color:transparent!important;font-size:0!important;color:transparent!important}
+    .nxps-locked-visual .nxlock-reference-feature{display:block;width:100%;height:auto;aspect-ratio:173/183;min-height:0;border:0;border-radius:13px;background-image:url('./assets/visuals/ai-photo-locked-featured.webp');background-repeat:no-repeat;background-size:400% 100%;background-color:#101521}
+    .nxps-locked-visual .nxlock-feature.has-locked-reference>canvas{display:none!important}
+    .nxps-locked-visual .nxlock-recent-thumb{height:auto!important;aspect-ratio:170/124;background-image:url('./assets/visuals/ai-photo-locked-recent.webp')!important;background-repeat:no-repeat!important;background-size:400% 100%!important;background-color:#101521!important}
   `;
   document.head.appendChild(style);
 }
@@ -34,6 +34,7 @@ function applyFeaturedSprites(root){
     }
     thumb.style.backgroundPosition=`${FOUR_POS[index]} 50%`;
     thumb.dataset.lockedReference='featured';
+    card.classList.add('has-locked-reference');
   });
 }
 
@@ -53,6 +54,5 @@ export function installAiPhotoLockedReferenceAssetsV1(root){
   apply();
   const observer=new MutationObserver(apply);
   observer.observe(root,{childList:true,subtree:true});
-  return()=>{observer.disconnect();root.querySelectorAll('[data-locked-reference]').forEach(node=>node.removeAttribute('data-locked-reference'));delete root.__nxLockedReferenceAssetsV1};
+  return()=>{observer.disconnect();root.querySelectorAll('[data-locked-reference]').forEach(node=>node.removeAttribute('data-locked-reference'));root.querySelectorAll('.has-locked-reference').forEach(node=>node.classList.remove('has-locked-reference'));delete root.__nxLockedReferenceAssetsV1};
 }
-

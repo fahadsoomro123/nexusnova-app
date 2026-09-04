@@ -1,69 +1,89 @@
 # NexusNova AI Photo Studio — interruption-safe handoff
 
-- Repo name: `fahadsoomro123/nexusnova-app`
-- Branch name: `ai-photo-real-canva-ai-generator-correction`
-- Latest completed reference-repair SHA before this handoff update: `8a9b87213c4425bdb2e83780ee7772c448880ad4`
-- Handoff document state: committed with the current checkpoint; use branch `HEAD` as the exact latest SHA.
+- Repo name: fahadsoomro123/nexusnova-app
+- Branch name: ai-photo-real-canva-ai-generator-correction
+- Latest completed safe checkpoint SHA before this handoff update: 74f5338e289e63b2a449cb15c000cf21ca0b7c01
+- Handoff document state: committed with each checkpoint; use branch HEAD as the exact latest SHA.
 - OTA/APK published: **NO**
 - Release status: **NOT RELEASED — explicit user approval required**
 
-## Exact files changed in the reference-repair checkpoint
+## Exact files changed in the current visual-refinement checkpoint
 
-- `fresh-rebuild/assets/visuals/ai-photo-locked-featured.webp`
-- `fresh-rebuild/assets/visuals/ai-photo-locked-recent.webp`
-- `fresh-rebuild/assets/visuals/ai-photo-locked-styles.webp`
-- `fresh-rebuild/assets/visuals/ai-photo-locked-reference-manifest.json`
-- Android asset mirrors of the three WebP files
-- Android asset mirrors of `ai-photo-locked-visual-v1.js`, `ai-photo-locked-reference-assets-v1.js`, and `ai-photo-studio-review.js`
-- `.github/workflows/ai-photo-locked-visual-preota-ci.yml`
-- `AI-PHOTO-WORK-HANDOFF.md`
+- fresh-rebuild/src/features/apps/ai-photo-locked-visual-v1.js
+- fresh-rebuild/src/features/apps/ai-photo-locked-reference-assets-v1.js
+- NexusNovaAndroid/app/src/main/assets/www/src/features/apps/ai-photo-locked-visual-v1.js
+- NexusNovaAndroid/app/src/main/assets/www/src/features/apps/ai-photo-locked-reference-assets-v1.js
+- tools/ai-photo-locked-visual/harness.html
+- tools/ai-photo-locked-visual/render-qa.sh
+- .github/workflows/ai-photo-locked-visual-preota-ci.yml
+- AI-PHOTO-WORK-HANDOFF.md
+
+The earlier reference-repair checkpoint also changed the three locked WebP crops, their provenance manifest, and exact Android mirrors.
 
 ## Work completed
 
-- Retrieved the same two user-approved Library references; no replacement image was generated.
-- Verified source SHA-256 values and dimensions in the reference manifest.
-- Diagnosed run `33923011009`: the three committed `.webp` reference assets were invalid/corrupted bytes, not decodable WebP images.
-- Rebuilt Featured, Recent, and Creative Styles sprites as deterministic, lossless crops from the locked references.
-- Added exact crop provenance, dimensions, and checksums.
-- Hardened QA to validate image format, dimensions, checksums, provenance, and exact Android asset mirroring.
+- Retrieved and inspected the same two user-approved locked references; no replacement image was generated.
+- Diagnosed run 33923011009: all three committed locked .webp files were invalid/corrupted bytes.
+- Rebuilt Featured, Recent, and Creative Styles sprites as deterministic lossless crops from the approved references and recorded exact provenance, dimensions, and checksums.
+- Made WebP validation runner-independent without weakening checksum or provenance checks.
+- Run 33925905469 at SHA 74f5338e289e63b2a449cb15c000cf21ca0b7c01 passed QA 1–6 and the Android debug build.
+- Refined Home to use five proportional Featured cards, four exact locked crops plus the visible fifth continuation card, exact Recent preview proportions, and compact short-height behavior without hiding required sections.
+- Refined Generator to keep one header, a compact 1000-character prompt, four supported ratios, Custom only when the provider select supports it, all eight fixed-aspect Creative Styles, visible Quality and Style Strength controls, and the Generate button inside the usable viewport.
+- Preserved provider values and Puter flow; the first visible quality label is Economy (Recommended).
+- Added a real browser render harness covering Home and Generator at 360x640, 360x740, 393x852, 415x858, and 430x865.
+- Added screenshot artifacts and runtime geometry/overflow/visibility/interaction assertions to the existing locked six-round workflow.
 
 ## Current implementation state
 
-- Existing locked Home and Generator implementation remains active.
-- Reference imagery is repaired; layout still requires actual rendered comparison against both locked references before any release claim.
-- Puter provider/auth code and protected fullscreen architecture are untouched.
+- Locked Home and Generator implementation is active and synchronized byte-for-byte into Android assets.
+- Reference imagery is valid and traceable to the two approved images.
+- The latest layout refinements and rendered viewport QA harness are ready for the next branch checkpoint and workflow run.
+- Puter provider/auth code, result actions, professional Photo Editor, template engine, and protected fullscreen architecture are untouched.
+- This is not yet a final visual-pass claim; the new workflow screenshots still require direct inspection against both locked references.
 
-## QA status
+## QA rounds passed
 
-- Passed previously in run `33923011009`: QA 1, QA 2.
-- Failed previously: QA 3.
-- Exact failure: `fresh-rebuild/assets/visuals/ai-photo-locked-featured.webp` did not match the locked checksum; inspection confirmed all three reference WebP files were invalid/corrupted.
-- Reference-repair run `33925743148`: QA 1 and QA 2 passed. QA 3 reached the new valid image checks, then failed only because the Ubuntu runner does not provide the optional `identify` command.
-- The workflow now parses and validates lossless WebP headers/dimensions directly with Node while retaining format, source-provenance, and SHA-256 checks.
-- Pending after this checkpoint: rerun QA 1–6, inspect actual rendered Home and Generator at multiple Android viewport sizes, correct any visible drift, repeat failed rounds, then obtain explicit release approval.
+- Run 33925905469:
+  - QA 1: exact changed-file scope and protected modules — **PASS**
+  - QA 2: JavaScript syntax, wiring, navigation/event contracts — **PASS**
+  - QA 3: Home hierarchy and exact approved Featured/Recent crop bytes — **PASS**
+  - QA 4: Generator contract and exact approved Creative Styles crop bytes — **PASS**
+  - QA 5: Home/workspace routing, Puter generation/result contract, fullscreen foundations — **PASS**
+  - QA 6: Android debug build and exact web/Android asset sync — **PASS**
+- Local checks for the current refinement: JavaScript syntax, shell syntax, and web/Android JS byte mirroring — **PASS**
 
-## Remaining work / next exact action
+## QA rounds failed / latest exact failure
 
-1. Push the runner-compatible WebP validator checkpoint.
-2. Inspect the resulting six-round CI run and Android debug build.
-3. Capture and inspect actual rendered Home and Generator against the two locked references at several Android viewport sizes.
-4. Fix visible hierarchy, spacing, card proportions, clipping, overlap, or dead-space drift and rerun the affected QA rounds.
-5. Report only **Internal visual QA ready for release approval** when all six rounds and rendered inspection pass.
+- Historical failure: run 33923011009 failed QA 3 because ai-photo-locked-featured.webp did not match the locked checksum; inspection proved all three locked WebPs were corrupt.
+- Historical infrastructure failure: run 33925743148 reached valid image checks but lacked ImageMagick identify; it was replaced with deterministic Node lossless-WebP header parsing.
+- Current visual-refinement checkpoint: no failed round yet; branch workflow and rendered screenshot inspection are pending.
+
+## Remaining work
+
+1. Commit the current visual refinement and rendered-QA checkpoint.
+2. Monitor the triggered workflow through all six rounds and the Android debug build.
+3. Download and directly inspect all Home and Generator screenshots against the two locked references.
+4. Fix any visible hierarchy, spacing, card proportion, clipping, overlap, dead-space, or control-visibility drift and rerun the failed checks.
+5. Report **Internal visual QA ready for release approval** only after all six rounds and direct rendered inspection pass.
 
 ## Current blocker
 
-- None. The missing optional runner command is replaced by a deterministic built-in Node validator. A local browser-runtime download timed out, so rendered capture is routed through the branch QA workflow; visual verification is not waived.
+- None. Local browser binaries were unavailable, so repeatable browser rendering is performed by the branch QA workflow and retained as screenshot artifacts; visual inspection is not waived.
+
+## Next exact action
+
+- Commit these eight files, wait for the triggered locked-visual workflow, then download and inspect its ten rendered screenshots before making any release-readiness claim.
 
 ## Protected files/modules status
 
 - Protected fullscreen architecture and unrelated modules are unchanged.
-- Qibla, Prayer Times, Pakistan Hub, News, Articles, My Location/live-feed, Nova Drive, Nova Track, Mine/mining, auth, Puter secure native auth, and all unrelated completed modules remain untouched.
+- fresh-rebuild/assets/styles/ai-photo-route-fullscreen.css, app-screen.js, ai-photo-studio-flagship.js, ai-photo-focus-interaction.js, Puter provider/native authentication, Qibla, Prayer Times, Pakistan Hub, News, Articles, My Location/live-feed, Nova Drive, Nova Track, Mine/mining, auth, and all unrelated completed modules remain untouched.
 
 ## Locked contract reminders
 
 - The final visual contract remains exactly:
-  1. `NexusNova AI Photo Studio Dashboard.png` for Home.
-  2. Only the RIGHT-HAND `FIXED LAYOUT (Final Setup)` screen in `NexusNova AI Layout Fix Preview.png` for AI Generator.
+  1. NexusNova AI Photo Studio Dashboard.png for Home.
+  2. Only the RIGHT-HAND FIXED LAYOUT (Final Setup) screen in NexusNova AI Layout Fix Preview.png for AI Generator.
 - **1% visual drift = REJECT.**
 - **No new image generation.**
 - **No OTA or APK release without explicit user approval.**

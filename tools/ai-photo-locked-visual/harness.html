@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <base href="/fresh-rebuild/">
+  <title>NexusNova locked visual render QA</title>
+  <link rel="stylesheet" href="/fresh-rebuild/assets/styles/tokens.css">
+  <link rel="stylesheet" href="/fresh-rebuild/assets/styles/app.css">
+  <link rel="stylesheet" href="/fresh-rebuild/assets/styles/features.css">
+  <link rel="stylesheet" href="/fresh-rebuild/assets/styles/core-apps.css">
+  <link rel="stylesheet" href="/fresh-rebuild/assets/styles/ai-photo-route-fullscreen.css">
+  <style>
+    html,body{width:100%;height:100%;margin:0;overflow:hidden;background:#07080c}
+    body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+    .nx-app,.nx-stage{width:100%;height:100%;margin:0;padding:0;overflow:hidden}
+    .nx-ai-photo-route-screen,.nx-ai-photo-route-screen>[data-app-mount]{display:block;width:100%;height:100%;margin:0;padding:0;overflow:hidden}
+    .nx-photo-editor{position:relative;width:100%;height:100%;overflow:hidden}
+    .nx-photo-frame{height:100%;display:grid;grid-template-rows:48px minmax(0,1fr) 60px}
+    .nx-photo-top,.nx-photo-tools{display:flex}
+    .nx-photo-work{min-height:0}
+    .nx-canva-v3{position:absolute;z-index:40;inset:0;display:none;grid-template-rows:48px 42px minmax(0,1fr);overflow:hidden;background:#10131a}
+    .nx-canva-v3.is-open{display:grid}
+    .nxv3-head,.nxv3-tabs{display:flex;align-items:center}
+    .nxv3-body{min-height:0;overflow:hidden}
+    .nxv3-pane{display:none;height:100%;overflow:auto}
+    .nxv3-pane.is-active{display:block}
+    .nxputer-wrap{height:100%}
+    #qa-metrics{display:none}
+  </style>
+</head>
+<body class="nx-ai-photo-route-active">
+  <div id="nx-app" class="nx-app">
+    <main class="nx-stage">
+      <section class="nx-screen nx-ai-photo-route-screen">
+        <button class="nx-ai-photo-route-back" type="button" aria-label="Back">‹</button>
+        <div data-app-mount id="qa-mount"></div>
+      </section>
+    </main>
+  </div>
+
+  <template id="qa-editor-template">
+    <div class="nx-photo-frame">
+      <header class="nx-photo-top">
+        <button class="nxps-home-return" type="button">Home</button>
+        <div class="nx-photo-project"><strong>Photo</strong><span>Studio</span></div>
+        <button data-photo-import-top type="button">Add</button>
+      </header>
+      <main class="nx-photo-work">
+        <section class="nxps-home"></section>
+        <canvas data-photo-canvas hidden></canvas>
+      </main>
+      <nav class="nx-photo-tools">
+        <button class="nx-photo-tool" type="button"><b>✎</b><span>Edit</span></button>
+        <button class="nx-photo-tool" type="button"><b>◫</b><span>Adjust</span></button>
+        <button class="nx-photo-tool" type="button"><b>✦</b><span>AI</span></button>
+        <button class="nx-photo-tool" type="button"><b>▦</b><span>Design</span></button>
+        <button class="nx-photo-tool" type="button"><b>⇩</b><span>Export</span></button>
+      </nav>
+    </div>
+    <section class="nx-photo-sheet" data-photo-sheet>
+      <button data-photo-sheet-close type="button">Close</button>
+    </section>
+    <input data-photo-file type="file" hidden>
+    <section class="nx-canva-v3" aria-label="Legacy design workspace">
+      <header class="nxv3-head">
+        <button class="nxps-workspace-home" type="button">Home</button>
+        <strong>NexusNova Design Studio</strong>
+        <button data-v3-close type="button">Close</button>
+      </header>
+      <nav class="nxv3-tabs">
+        <button data-v3-tab="templates" type="button">Templates</button>
+        <button data-v3-tab="ai-image" type="button">AI</button>
+        <button data-v3-tab="projects" type="button">Projects</button>
+      </nav>
+      <div class="nxv3-body">
+        <section class="nxv3-pane" data-v3-pane="templates"></section>
+        <section class="nxv3-pane" data-v3-pane="ai-image">
+          <div class="nxputer-wrap">
+            <div class="nxputer-hero">Legacy generator header</div>
+            <label>Prompt<textarea data-puter-prompt maxlength="900"></textarea></label>
+            <div class="nxputer-options">
+              <select data-puter-aspect>
+                <option value="square">1:1 Square</option>
+                <option value="portrait">4:5 Portrait</option>
+                <option value="story">9:16 Story</option>
+                <option value="wide">16:9 Landscape</option>
+              </select>
+              <select data-puter-style>
+                <option value="threeD">3D</option>
+                <option value="photo">Realistic</option>
+                <option value="illustration">Anime</option>
+                <option value="cinematic">Cinematic</option>
+                <option value="logo">Logo</option>
+              </select>
+              <select data-puter-mode>
+                <option value="economy">Economy</option>
+                <option value="quality">Quality</option>
+              </select>
+            </div>
+            <button data-puter-generate type="button">Generate</button>
+            <section class="nxputer-result">
+              <button type="button">Download</button>
+              <button type="button">Use in Design</button>
+              <button type="button">Edit Photo</button>
+            </section>
+          </div>
+        </section>
+        <section class="nxv3-pane" data-v3-pane="projects"></section>
+      </div>
+    </section>
+  </template>
+
+  <script id="qa-metrics" type="application/json">{}</script>
+  <script type="module">
+    import { installAiPhotoLockedVisualV1 } from '/fresh-rebuild/src/features/apps/ai-photo-locked-visual-v1.js';
+    import { installAiPhotoLockedReferenceAssetsV1 } from '/fresh-rebuild/src/features/apps/ai-photo-locked-reference-assets-v1.js';
+
+    const mount=document.getElementById('qa-mount');
+    const root=document.createElement('div');
+    root.className='nx-photo-editor nx-studio';
+    root.appendChild(document.getElementById('qa-editor-template').content.cloneNode(true));
+    mount.appendChild(root);
+
+    const workspace=root.querySelector('.nx-canva-v3');
+    const close=workspace.querySelector('[data-v3-close]');
+    const design=[...root.querySelectorAll('.nx-photo-tool')].find((button)=>button.querySelector('span')?.textContent.trim()==='Design');
+    design.addEventListener('click',()=>workspace.classList.add('is-open'));
+    close.addEventListener('click',()=>{
+      workspace.classList.remove('is-open','nxlock-ai-mode');
+      workspace.querySelectorAll('[data-v3-tab]').forEach((node)=>node.classList.remove('is-active'));
+      workspace.querySelectorAll('[data-v3-pane]').forEach((node)=>node.classList.remove('is-active'));
+    });
+    workspace.querySelectorAll('[data-v3-tab]').forEach((button)=>button.addEventListener('click',()=>{
+      workspace.querySelectorAll('[data-v3-tab]').forEach((node)=>node.classList.toggle('is-active',node===button));
+      workspace.querySelectorAll('[data-v3-pane]').forEach((node)=>node.classList.toggle('is-active',node.dataset.v3Pane===button.dataset.v3Tab));
+    }));
+
+    installAiPhotoLockedVisualV1(root);
+    installAiPhotoLockedReferenceAssetsV1(root);
+
+    const requested=new URLSearchParams(location.search).get('screen')||'home';
+    if(requested==='generator')root.querySelector('[data-nxlock="ai"]').click();
+
+    const nextFrame=()=>new Promise((resolve)=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+    await nextFrame();
+    await new Promise((resolve)=>setTimeout(resolve,250));
+
+    const round=(value)=>Math.round(value*100)/100;
+    const rect=(node)=>{
+      const value=node?.getBoundingClientRect();
+      return value?{left:round(value.left),top:round(value.top),right:round(value.right),bottom:round(value.bottom),width:round(value.width),height:round(value.height)}:null;
+    };
+    const visible=(node,allowPartial=false)=>{
+      if(!node)return false;
+      const style=getComputedStyle(node),value=node.getBoundingClientRect();
+      if(style.display==='none'||style.visibility==='hidden'||Number(style.opacity)===0||value.width<=0||value.height<=0)return false;
+      if(allowPartial)return value.right>0&&value.bottom>0&&value.left<innerWidth&&value.top<innerHeight;
+      return value.left>=-1&&value.top>=-1&&value.right<=innerWidth+1&&value.bottom<=innerHeight+1;
+    };
+    const ordered=(nodes)=>nodes.every((node,index)=>index===0||node.getBoundingClientRect().top>=nodes[index-1].getBoundingClientRect().top-1);
+    const errors=[];
+    const expect=(condition,message)=>{if(!condition)errors.push(message)};
+    const report={
+      screen:requested,
+      viewport:{width:innerWidth,height:innerHeight,devicePixelRatio},
+      document:{scrollWidth:document.documentElement.scrollWidth,scrollHeight:document.documentElement.scrollHeight},
+      root:rect(root),
+      errors
+    };
+
+    expect(document.documentElement.scrollWidth<=innerWidth+1,'page-level horizontal overflow');
+    expect(document.documentElement.scrollHeight<=innerHeight+1,'page-level vertical overflow');
+    expect(root.scrollHeight<=root.clientHeight+1,'AI Photo root vertically scrolls');
+
+    if(requested==='home'){
+      const rows=[
+        root.querySelector('.nxlock-top'),
+        root.querySelector('.nxlock-hero'),
+        root.querySelector('.nxlock-heading'),
+        root.querySelector('.nxlock-primary'),
+        root.querySelector('.nxlock-secondary'),
+        root.querySelector('.nxlock-featured-wrap'),
+        root.querySelector('.nxlock-quick'),
+        root.querySelector('.nxlock-recent')
+      ];
+      const features=[...root.querySelectorAll('.nxlock-feature')];
+      const lockedThumbs=[...root.querySelectorAll('.nxlock-reference-feature')];
+      const recent=[...root.querySelectorAll('.nxlock-recent-thumb')];
+      rows.forEach((node,index)=>expect(visible(node),'home row '+index+' clipped or hidden'));
+      expect(ordered(rows),'home sections are not vertically ordered');
+      expect(features.length===5,'expected five proportional featured cards');
+      expect(features.slice(0,4).every((node)=>visible(node)),'first four featured cards are not fully visible');
+      expect(features.length<5||visible(features[4],true),'fifth featured preview is not visible');
+      expect(lockedThumbs.length===4,'four approved featured reference crops not applied');
+      expect(lockedThumbs.every((node)=>Math.abs(node.getBoundingClientRect().width/node.getBoundingClientRect().height-173/183)<0.03),'featured crop aspect ratio drift');
+      expect(recent.length===4&&recent.every((node)=>visible(node)),'recent creation previews clipped');
+      expect(recent.every((node)=>Math.abs(node.getBoundingClientRect().width/node.getBoundingClientRect().height-170/124)<0.03),'recent preview aspect ratio drift');
+      const home=root.querySelector('.nxlock-home');
+      const recentRect=root.querySelector('.nxlock-recent').getBoundingClientRect();
+      expect(home.scrollHeight<=home.clientHeight+1,'locked Home has vertical overflow');
+      expect(innerHeight-recentRect.bottom<30,'giant bottom filler below Recent creations');
+      report.home={
+        rows:rows.map(rect),
+        featured:features.map(rect),
+        featuredLocked:lockedThumbs.length,
+        recent:recent.map(rect),
+        bottomGap:round(innerHeight-recentRect.bottom)
+      };
+    }else{
+      const generator=root.querySelector('.nxlock-generator');
+      const styles=[...root.querySelectorAll('.nxlock-style')];
+      const ratios=[...root.querySelectorAll('.nxlock-ratio')];
+      const prompt=root.querySelector('[data-puter-prompt]');
+      const quality=root.querySelector('[data-puter-mode]');
+      const strength=root.querySelector('[data-strength]');
+      const generate=root.querySelector('[data-puter-generate]');
+      const oldHead=root.querySelector('.nxv3-head'),oldTabs=root.querySelector('.nxv3-tabs');
+      ratios.find((node)=>node.dataset.r==='story')?.click();
+      styles.find((node)=>node.dataset.style==='cinematic')?.click();
+      prompt.value='focus-check';
+      prompt.dispatchEvent(new Event('input',{bubbles:true}));
+      prompt.focus();
+      expect(root.querySelector('[data-puter-aspect]').value==='story','ratio selection did not reach provider select');
+      expect(root.querySelector('[data-puter-style]').value==='cinematic','style selection did not reach provider select');
+      expect(root.querySelector('.nxlock-count').textContent==='11/1000','prompt character counter did not update');
+      expect(document.activeElement===prompt,'prompt focus was not retained');
+      ratios.find((node)=>node.dataset.r==='square')?.click();
+      styles[0]?.click();
+      prompt.value='';
+      prompt.dispatchEvent(new Event('input',{bubbles:true}));
+      expect(visible(generator),'generator root clipped or hidden');
+      expect(getComputedStyle(oldHead).display==='none'&&getComputedStyle(oldTabs).display==='none','legacy workspace header or tabs visible');
+      expect(styles.length===8&&styles.every((node)=>visible(node)),'all eight Creative Styles are not fully visible');
+      expect(ratios.length>=4&&ratios.every((node)=>visible(node)),'aspect-ratio controls clipped');
+      expect(visible(prompt)&&visible(quality)&&visible(strength)&&visible(generate),'required generator control clipped');
+      const promptRect=prompt.getBoundingClientRect(),generateRect=generate.getBoundingClientRect();
+      expect(promptRect.height>=90&&promptRect.height<=innerHeight*.30,'prompt consumes an incorrect share of viewport');
+      expect(innerHeight-generateRect.bottom<30,'giant bottom filler below Generate button');
+      expect(generator.scrollHeight<=generator.clientHeight+1,'generator has vertical overflow');
+      report.generator={
+        header:rect(root.querySelector('.nxlock-gen-head')),
+        prompt:rect(prompt),
+        ratios:ratios.map(rect),
+        styles:styles.map(rect),
+        quality:rect(quality),
+        strength:rect(strength),
+        generate:rect(generate),
+        legacyHeaderDisplay:getComputedStyle(oldHead).display,
+        legacyTabsDisplay:getComputedStyle(oldTabs).display,
+        bottomGap:round(innerHeight-generateRect.bottom)
+      };
+    }
+
+    report.pass=errors.length===0;
+    document.getElementById('qa-metrics').textContent=JSON.stringify(report);
+    document.documentElement.dataset.qaReady=report.pass?'pass':'fail';
+  </script>
+</body>
+</html>
