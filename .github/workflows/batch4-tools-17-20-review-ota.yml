@@ -37,8 +37,7 @@ jobs:
           CSS=fresh-rebuild/assets/styles/batch4-tools-17-20-fullscreen.css
           INDEX=fresh-rebuild/index.html
           node --check "$JS"
-          test -s "$CSS"
-          test -s "$INDEX"
+          test -s "$CSS" && test -s "$INDEX"
           grep -Fq './assets/styles/batch4-tools-17-20-fullscreen.css?review=batch4-17-20-v1' "$INDEX"
           grep -Fq './src/features/apps/batch4-tools-17-20-fullscreen.js?review=batch4-17-20-v1' "$INDEX"
           grep -Fq 'height:100dvh!important' "$CSS"
@@ -72,7 +71,6 @@ jobs:
           set -euo pipefail
           BASE="$OTA_BUNDLED_BASE"
           git cat-file -e "$BASE^{commit}"
-
           deleted="$(git diff --name-only --diff-filter=D "$BASE" "$GITHUB_SHA" -- fresh-rebuild/ || true)"
           unexpected_deleted="$(printf '%s\n' "$deleted" | sed '/^$/d' | grep -Ev '^fresh-rebuild/src/emergency-sos\.js$' || true)"
           test -z "$unexpected_deleted" || { echo 'Unexpected deleted runtime files:' >&2; printf '%s\n' "$unexpected_deleted" >&2; exit 1; }
@@ -86,11 +84,32 @@ jobs:
             cp "$full" "/tmp/nx-b4-ota/files/$rel"
           done < <(git diff --name-only --diff-filter=ACMRT "$BASE" "$GITHUB_SHA" -- fresh-rebuild/)
 
+          # Force-copy the current approved versions of critical runtime files.
+          # This explicitly replaces the previously published broken Articles file,
+          # even when a file is byte-identical to the bundled base and would not
+          # naturally appear in the differential list.
+          for full in \
+            fresh-rebuild/src/features/apps/articles-suite.js \
+            fresh-rebuild/src/features/apps/location-suite.js \
+            fresh-rebuild/src/features/apps/premium-drive-native-v2.js \
+            fresh-rebuild/src/core/drive-track-persistence.js \
+            fresh-rebuild/src/features/apps/premium-prayer-safe.js \
+            fresh-rebuild/src/features/apps/premium-qibla-safe-v2.js \
+            fresh-rebuild/src/features/apps/pakistan-suite.js \
+            fresh-rebuild/src/features/apps/news-suite.js; do
+            rel="${full#fresh-rebuild/}"
+            mkdir -p "/tmp/nx-b4-ota/files/$(dirname "$rel")"
+            cp "$full" "/tmp/nx-b4-ota/files/$rel"
+          done
+
           for required in \
             index.html \
             assets/styles/batch4-tools-17-20-fullscreen.css \
             src/features/apps/batch4-tools-17-20-fullscreen.js \
             src/features/apps/articles-suite.js \
+            src/features/apps/location-suite.js \
+            src/features/apps/premium-drive-native-v2.js \
+            src/core/drive-track-persistence.js \
             src/features/apps/premium-prayer-safe.js \
             src/features/apps/premium-qibla-safe-v2.js \
             src/features/apps/pakistan-suite.js \
@@ -109,14 +128,12 @@ jobs:
               files.append({'path':p.relative_to(root).as_posix(),'sha256':hashlib.sha256(data).hexdigest(),'size':len(data)})
           paths={x['path'] for x in files}
           required={
-              'index.html',
-              'assets/styles/batch4-tools-17-20-fullscreen.css',
+              'index.html','assets/styles/batch4-tools-17-20-fullscreen.css',
               'src/features/apps/batch4-tools-17-20-fullscreen.js',
-              'src/features/apps/articles-suite.js',
-              'src/features/apps/premium-prayer-safe.js',
-              'src/features/apps/premium-qibla-safe-v2.js',
-              'src/features/apps/pakistan-suite.js',
-              'src/features/apps/news-suite.js'
+              'src/features/apps/articles-suite.js','src/features/apps/location-suite.js',
+              'src/features/apps/premium-drive-native-v2.js','src/core/drive-track-persistence.js',
+              'src/features/apps/premium-prayer-safe.js','src/features/apps/premium-qibla-safe-v2.js',
+              'src/features/apps/pakistan-suite.js','src/features/apps/news-suite.js'
           }
           assert required <= paths,(required-paths)
           assert 'src/emergency-sos.js' not in paths
@@ -171,8 +188,7 @@ jobs:
           assert public == local
           assert public['version'] == os.environ['GITHUB_SHA']
           required={
-              'index.html',
-              'assets/styles/batch4-tools-17-20-fullscreen.css',
+              'index.html','assets/styles/batch4-tools-17-20-fullscreen.css',
               'src/features/apps/batch4-tools-17-20-fullscreen.js',
               'src/features/apps/articles-suite.js'
           }
