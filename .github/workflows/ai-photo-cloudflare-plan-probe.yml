@@ -1,0 +1,59 @@
+name: AI Photo Cloudflare Zero-Charge Plan Probe
+
+on:
+  push:
+    branches: [ai-photo-real-canva-ai-generator-correction]
+    paths:
+      - '.github/workflows/ai-photo-cloudflare-plan-probe.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Require existing Cloudflare credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDFLARE_API_TOKEN:-}" || { echo '::error::CLOUDFLARE_API_TOKEN missing'; exit 2; }
+          test -n "${CLOUDFLARE_ACCOUNT_ID:-}" || { echo '::error::CLOUDFLARE_ACCOUNT_ID missing'; exit 2; }
+
+      - name: Probe account subscription without changing billing
+        shell: bash
+        run: |
+          set -euo pipefail
+          code="$(curl -sS -o /tmp/cf-subscriptions.json -w '%{http_code}' \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/subscriptions")"
+          test "$code" = 200 || { echo "::error::Cloudflare Billing Read probe returned HTTP $code; no AI backend will be deployed."; exit 3; }
+          python3 - <<'PY'
+          import json
+          data=json.load(open('/tmp/cf-subscriptions.json',encoding='utf-8'))
+          if not data.get('success'):
+              raise SystemExit('Cloudflare subscription API did not return success; no deploy allowed.')
+          rows=data.get('result') or []
+          active=[]
+          for row in rows:
+              state=str(row.get('state') or '').lower()
+              if state in {'cancelled','failed','expired'}: continue
+              rp=row.get('rate_plan') or {}
+              text=' '.join(str(x or '') for x in [rp.get('id'),rp.get('public_name'),rp.get('scope')]).lower()
+              if 'worker' in text:
+                  active.append({'state':row.get('state'),'price':row.get('price'), 'id':rp.get('id'),'name':rp.get('public_name')})
+          paid=[x for x in active if float(x.get('price') or 0)>0 or any(k in str(x.get('id') or '').lower() for k in ['paid','standard'])]
+          print('Workers subscription entries:',len(active))
+          print('Workers paid entries:',len(paid))
+          if paid:
+              raise SystemExit('PAID_WORKERS_PLAN_DETECTED: automatic AI image deployment blocked by NexusNova no-paid-without-approval rule.')
+          print('ZERO_CHARGE_WORKERS_PLAN_PROBE=PASS')
+          PY
+
+      - name: Confirm probe is read-only
+        run: echo 'No Cloudflare subscription, binding, Worker, billing, or AI service was changed by this workflow.'
