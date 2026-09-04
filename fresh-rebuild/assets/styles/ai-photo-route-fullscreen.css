@@ -106,12 +106,13 @@ body.nx-ai-photo-route-active #nxEmergencySosEdit {
    AI Photo is a dedicated fullscreen route, so it must not inherit the
    generic studio shell's reserved app-header/dock deductions. */
 body.nx-ai-photo-route-active .nx-stage > .nx-screen.nx-ai-photo-route-screen:has(.nx-studio) {
+  box-sizing: border-box !important;
   width: 100% !important;
   height: 100dvh !important;
   min-height: 0 !important;
   max-height: 100dvh !important;
   margin: 0 !important;
-  padding: 0 !important;
+  padding: 0 0 max(env(safe-area-inset-bottom, 0px), 8px) !important;
   overflow: hidden !important;
 }
 
