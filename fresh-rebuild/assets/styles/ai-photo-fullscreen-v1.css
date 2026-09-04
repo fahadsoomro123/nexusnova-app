@@ -1,0 +1,185 @@
+/* AI Photo Studio fullscreen visual shell v1.
+   Visual-only scope: core editor logic remains in ai-photo-studio-flagship.js. */
+
+html.nx-ai-photo-fullscreen-active,
+html.nx-ai-photo-fullscreen-active body,
+html.nx-ai-photo-fullscreen-active body .nx-app {
+  width:100%!important;
+  height:100dvh!important;
+  min-height:0!important;
+  max-height:100dvh!important;
+  margin:0!important;
+  overflow:hidden!important;
+  overscroll-behavior:none!important;
+  background:#07080c!important;
+}
+
+html.nx-ai-photo-fullscreen-active body .nx-stage {
+  width:100%!important;
+  height:100dvh!important;
+  min-height:0!important;
+  max-height:100dvh!important;
+  margin:0!important;
+  padding:0!important;
+  overflow:hidden!important;
+}
+
+html.nx-ai-photo-fullscreen-active .nx-dock,
+html.nx-ai-photo-fullscreen-active #nx-mine-brand-portal,
+html.nx-ai-photo-fullscreen-active #nxEmergencySosButton,
+html.nx-ai-photo-fullscreen-active #nxEmergencySosEdit {
+  display:none!important;
+  visibility:hidden!important;
+  opacity:0!important;
+  pointer-events:none!important;
+}
+
+.nx-stage > .nx-screen.nx-ai-photo-fullscreen-screen {
+  position:relative!important;
+  width:100%!important;
+  height:100dvh!important;
+  min-height:0!important;
+  max-height:100dvh!important;
+  margin:0!important;
+  padding:0!important;
+  overflow:hidden!important;
+  animation:none!important;
+  background:#07080c!important;
+}
+
+.nx-ai-photo-fullscreen-screen > [data-app-mount] {
+  width:100%!important;
+  height:100dvh!important;
+  min-height:0!important;
+  max-height:100dvh!important;
+  margin:0!important;
+  padding:0!important;
+  overflow:hidden!important;
+}
+
+/* Shared locked rule: no branded outer heading; only a floating back control. */
+.nx-ai-photo-fullscreen-screen > .nx-app-head {
+  position:fixed!important;
+  z-index:2147481200!important;
+  top:calc(env(safe-area-inset-top,0px) + 10px)!important;
+  right:max(10px,env(safe-area-inset-right,0px))!important;
+  left:auto!important;
+  width:46px!important;
+  height:46px!important;
+  min-height:46px!important;
+  display:block!important;
+  margin:0!important;
+  padding:0!important;
+  border:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+}
+
+.nx-ai-photo-fullscreen-screen > .nx-app-head > .nx-app-head__icon,
+.nx-ai-photo-fullscreen-screen > .nx-app-head > div {
+  display:none!important;
+}
+
+.nx-ai-photo-fullscreen-screen > .nx-app-head .nx-back {
+  position:static!important;
+  width:46px!important;
+  height:46px!important;
+  display:grid!important;
+  place-items:center!important;
+  margin:0!important;
+  padding:0 0 3px!important;
+  border:1px solid rgba(148,163,184,.22)!important;
+  border-radius:15px!important;
+  background:linear-gradient(155deg,rgba(30,33,41,.98),rgba(14,16,22,.98))!important;
+  color:#fff!important;
+  box-shadow:0 10px 24px rgba(0,0,0,.34),inset 0 1px rgba(255,255,255,.08)!important;
+  font:800 30px/1 system-ui,-apple-system,"Segoe UI",sans-serif!important;
+}
+
+/* Editor itself fills every usable pixel. */
+.nx-ai-photo-fullscreen-screen .nx-photo-editor {
+  width:100%!important;
+  height:100dvh!important;
+  min-height:0!important;
+  max-height:100dvh!important;
+  margin:0!important;
+  padding:0!important;
+  border-radius:0!important;
+  box-shadow:none!important;
+  overflow:hidden!important;
+}
+
+.nx-ai-photo-fullscreen-screen .nx-photo-frame {
+  width:100%!important;
+  height:100dvh!important;
+  min-height:0!important;
+  max-height:100dvh!important;
+  grid-template-rows:48px minmax(0,1fr) 60px!important;
+  overflow:hidden!important;
+}
+
+/* Remove the duplicate inner project heading while keeping every control. */
+.nx-ai-photo-fullscreen-screen .nx-photo-project {
+  display:none!important;
+}
+
+.nx-ai-photo-fullscreen-screen .nx-photo-top {
+  grid-template-columns:auto minmax(0,1fr) auto!important;
+  min-height:48px!important;
+  height:48px!important;
+  gap:6px!important;
+  padding:6px 64px 6px 8px!important;
+}
+
+.nx-ai-photo-fullscreen-screen .nx-photo-add {
+  grid-column:1!important;
+  justify-self:start!important;
+}
+
+.nx-ai-photo-fullscreen-screen .nx-photo-top-actions {
+  grid-column:3!important;
+  justify-self:end!important;
+  min-width:0!important;
+}
+
+.nx-ai-photo-fullscreen-screen .nx-photo-work {
+  min-height:0!important;
+  height:100%!important;
+  overflow:hidden!important;
+}
+
+.nx-ai-photo-fullscreen-screen .nx-photo-empty {
+  width:min(82%,360px)!important;
+  max-height:72%!important;
+  padding:22px 18px!important;
+  overflow:hidden!important;
+}
+
+.nx-ai-photo-fullscreen-screen .nx-photo-tools {
+  min-height:60px!important;
+  height:60px!important;
+}
+
+/* Tool sheets may scroll internally; the page itself never scrolls. */
+.nx-ai-photo-fullscreen-screen .nx-photo-sheet {
+  max-height:min(58%,430px)!important;
+}
+.nx-ai-photo-fullscreen-screen .nx-photo-panel {
+  overscroll-behavior:contain!important;
+}
+
+@media (max-width:390px) {
+  .nx-ai-photo-fullscreen-screen .nx-photo-top {
+    padding-right:60px!important;
+  }
+  .nx-ai-photo-fullscreen-screen .nx-photo-add {
+    padding:0 9px!important;
+  }
+  .nx-ai-photo-fullscreen-screen .nx-photo-export-top {
+    padding:0 9px!important;
+  }
+  .nx-ai-photo-fullscreen-screen .nx-photo-empty {
+    width:min(86%,330px)!important;
+    padding:18px 15px!important;
+  }
+}
