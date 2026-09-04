@@ -1,13 +1,9 @@
-name: AI Photo Studio Flagship Review OTA
+name: AI Photo Recovery Phase 1 OTA
 
 on:
   push:
-    branches: [nova-sol57-pro-v128-ai-photo-canva-review]
+    branches: [batch17-20-preota-review]
     paths:
-      - 'fresh-rebuild/src/features/apps/ai-photo-studio.js'
-      - 'fresh-rebuild/src/features/apps/ai-photo-studio-flagship.js'
-      - 'fresh-rebuild/src/features/apps/ai-photo-studio-review.js'
-      - 'fresh-rebuild/src/features/apps/premium-studio-suite.js'
       - '.github/workflows/ai-photo-canva-review-ota.yml'
   workflow_dispatch:
 
@@ -20,59 +16,47 @@ env:
   PUBLIC_OTA_BRANCH: nexusnova-ota-public
 
 jobs:
-  publish_review_ota:
+  publish_recovery_phase1_ota:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Checkout review branch
+      - name: Checkout approved source
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Verify full AI Photo flagship source and compatibility entrypoint
+      - name: Verify enhanced AI Photo + Phase 1 source
         shell: bash
         run: |
           set -euo pipefail
-          ENTRY=fresh-rebuild/src/features/apps/ai-photo-studio.js
-          FLAG=fresh-rebuild/src/features/apps/ai-photo-studio-flagship.js
-          WRAP=fresh-rebuild/src/features/apps/ai-photo-studio-review.js
-          SUITE=fresh-rebuild/src/features/apps/premium-studio-suite.js
-          node --check "$ENTRY"
-          node --check "$FLAG"
-          node --check "$WRAP"
-          node --check "$SUITE"
-          grep -Fq "renderAiPhotoStudioFlagship as renderAiPhotoStudio" "$ENTRY"
-          grep -Fq "./ai-photo-studio-flagship.js" "$ENTRY"
-          grep -Fq 'data-photo-canvas' "$FLAG"
-          grep -Fq 'data-photo-crop' "$FLAG"
-          grep -Fq 'data-mask-base="linear"' "$FLAG"
-          grep -Fq 'data-mask-brush="add"' "$FLAG"
-          grep -Fq 'data-local-tool="heal"' "$FLAG"
-          grep -Fq 'data-local-tool="clone"' "$FLAG"
-          grep -Fq 'data-local-tool="smooth"' "$FLAG"
-          grep -Fq 'data-curve-canvas' "$FLAG"
-          grep -Fq 'data-photo-histogram' "$FLAG"
-          grep -Fq 'data-copy-edits' "$FLAG"
-          grep -Fq 'data-save-preset' "$FLAG"
-          grep -Fq 'data-photo-ai="auto"' "$FLAG"
-          grep -Fq 'data-photo-ai="denoise"' "$FLAG"
-          grep -Fq 'No external website redirect' "$FLAG"
-          if grep -Eq 'runwayml\.com|firefly\.adobe\.com|canva\.com/ai-image-generator|data-photo-provider' "$ENTRY" "$FLAG" "$WRAP"; then
-            echo 'External AI redirect found in active AI Photo renderer' >&2
-            exit 1
-          fi
-          grep -Fq "from './ai-photo-studio-review.js'" "$SUITE"
-          grep -Fq "'ai-photo-studio': renderAiPhotoStudio" "$SUITE"
-          echo 'AI Photo full flagship + legacy entrypoint: PASS'
+          files=(
+            fresh-rebuild/src/features/apps/ai-photo-studio.js
+            fresh-rebuild/src/features/apps/ai-photo-studio-flagship.js
+            fresh-rebuild/src/features/apps/ai-photo-studio-review.js
+            fresh-rebuild/src/features/apps/premium-studio-suite.js
+            fresh-rebuild/src/features/apps/ai-photo-live-preview-engine.js
+            fresh-rebuild/src/features/apps/ai-photo-design-canvas.js
+            fresh-rebuild/src/features/apps/ai-photo-design-tools.js
+            fresh-rebuild/src/features/apps/ai-photo-project-store.js
+            fresh-rebuild/src/features/apps/ai-photo-studio-ai.js
+          )
+          for f in "${files[@]}"; do test -s "$f"; node --check "$f"; done
+          test -s fresh-rebuild/assets/styles/ai-photo-route-fullscreen.css
+          grep -Fq "renderAiPhotoStudioFlagship as renderAiPhotoStudio" fresh-rebuild/src/features/apps/ai-photo-studio.js
+          grep -Fq "from './ai-photo-studio-review.js'" fresh-rebuild/src/features/apps/premium-studio-suite.js
+          grep -Fq "'ai-photo-studio': renderAiPhotoStudio" fresh-rebuild/src/features/apps/premium-studio-suite.js
+          grep -Fq 'data-photo-canvas' fresh-rebuild/src/features/apps/ai-photo-studio-flagship.js
+          grep -Fq 'data-photo-ai="auto"' fresh-rebuild/src/features/apps/ai-photo-studio-flagship.js
+          echo 'Enhanced AI Photo + Phase 1 source: PASS'
 
-      - name: Build differential OTA
+      - name: Build cumulative differential OTA
         shell: bash
         run: |
           set -euo pipefail
           BASE="$OTA_BUNDLED_BASE"
           git cat-file -e "$BASE^{commit}"
           deleted="$(git diff --name-only --diff-filter=D "$BASE" "$GITHUB_SHA" -- fresh-rebuild/ || true)"
-          test -z "$deleted" || { printf '%s\n' "$deleted" >&2; exit 1; }
+          test -z "$deleted" || { echo 'Deleted fresh-rebuild files are not allowed:' >&2; printf '%s\n' "$deleted" >&2; exit 1; }
           rm -rf /tmp/nx-photo-ota
           mkdir -p /tmp/nx-photo-ota/files
           while IFS= read -r full; do
@@ -81,14 +65,21 @@ jobs:
             mkdir -p "/tmp/nx-photo-ota/files/$(dirname "$rel")"
             cp "$full" "/tmp/nx-photo-ota/files/$rel"
           done < <(git diff --name-only --diff-filter=ACMRT "$BASE" "$GITHUB_SHA" -- fresh-rebuild/)
-          for required in \
-            src/features/apps/ai-photo-studio.js \
-            src/features/apps/ai-photo-studio-flagship.js \
-            src/features/apps/ai-photo-studio-review.js \
-            src/features/apps/premium-studio-suite.js; do
-            test -s "/tmp/nx-photo-ota/files/$required"
-          done
           test -f /tmp/nx-photo-ota/files/index.html || cp fresh-rebuild/index.html /tmp/nx-photo-ota/files/index.html
+          required=(
+            index.html
+            assets/styles/ai-photo-route-fullscreen.css
+            src/features/apps/ai-photo-studio.js
+            src/features/apps/ai-photo-studio-flagship.js
+            src/features/apps/ai-photo-studio-review.js
+            src/features/apps/premium-studio-suite.js
+            src/features/apps/ai-photo-live-preview-engine.js
+            src/features/apps/ai-photo-design-canvas.js
+            src/features/apps/ai-photo-design-tools.js
+            src/features/apps/ai-photo-project-store.js
+            src/features/apps/ai-photo-studio-ai.js
+          )
+          for f in "${required[@]}"; do test -s "/tmp/nx-photo-ota/files/$f"; done
           export OTA_DIFF_BASE="$BASE"
           python3 - <<'PY'
           import hashlib,json,os
@@ -98,14 +89,11 @@ jobs:
           for p in sorted(x for x in root.rglob('*') if x.is_file()):
               data=p.read_bytes()
               files.append({'path':p.relative_to(root).as_posix(),'sha256':hashlib.sha256(data).hexdigest(),'size':len(data)})
-          paths={x['path'] for x in files}
-          required={'index.html','src/features/apps/ai-photo-studio.js','src/features/apps/ai-photo-studio-flagship.js','src/features/apps/ai-photo-studio-review.js','src/features/apps/premium-studio-suite.js'}
-          assert required <= paths,(required-paths)
           assert len(files) <= 2000
           assert sum(x['size'] for x in files) <= 60*1024*1024
           manifest={'schema':2,'base':os.environ['OTA_DIFF_BASE'],'version':os.environ['GITHUB_SHA'],'files':files}
           Path('/tmp/nx-photo-ota/manifest.json').write_text(json.dumps(manifest,separators=(',',':'),sort_keys=True),encoding='utf-8')
-          print('AI Photo compatibility OTA files:',len(files))
+          print('Recovery Phase 1 OTA files:',len(files))
           PY
 
       - name: Require public OTA credential
@@ -114,7 +102,7 @@ jobs:
           PUBLIC_OTA_TOKEN: ${{ secrets.GH_PUBLIC_OTA_TOKEN || secrets.OTA_PUBLIC_TOKEN }}
         run: test -n "$PUBLIC_OTA_TOKEN"
 
-      - name: Publish public flagship review OTA
+      - name: Publish new unique OTA version
         id: publish
         shell: bash
         env:
@@ -129,13 +117,13 @@ jobs:
           rm -rf ota && mkdir -p ota
           cp -a /tmp/nx-photo-ota/. ota/
           git add -A ota
-          git commit -m "Publish AI Photo compatibility flagship OTA $GITHUB_SHA"
+          git commit -m "Publish AI Photo recovery + Phase 1 OTA $GITHUB_SHA"
           PUBLIC_SHA="$(git rev-parse HEAD)"
           AUTH="$(printf 'x-access-token:%s' "$PUBLIC_OTA_TOKEN" | base64 -w0)"
           git -c http.extraheader="AUTHORIZATION: basic $AUTH" push origin HEAD:"$PUBLIC_OTA_BRANCH"
           echo "public_sha=$PUBLIC_SHA" >> "$GITHUB_OUTPUT"
 
-      - name: Verify exact public OTA commit end-to-end
+      - name: Verify exact public OTA end-to-end
         shell: bash
         env:
           PUBLIC_SHA: ${{ steps.publish.outputs.public_sha }}
@@ -148,9 +136,16 @@ jobs:
           import json,sys
           m=json.load(open('/tmp/public.json',encoding='utf-8'))
           expected,base=sys.argv[1],sys.argv[2]
-          assert m.get('schema')==2 and m.get('base')==base and m.get('version')==expected
+          assert m.get('schema')==2
+          assert m.get('base')==base
+          assert m.get('version')==expected
+          required={
+            'index.html','assets/styles/ai-photo-route-fullscreen.css',
+            'src/features/apps/ai-photo-studio.js',
+            'src/features/apps/ai-photo-studio-flagship.js',
+            'src/features/apps/ai-photo-live-preview-engine.js'
+          }
           paths={x.get('path') for x in m.get('files',[])}
-          required={'src/features/apps/ai-photo-studio.js','src/features/apps/ai-photo-studio-flagship.js','src/features/apps/ai-photo-studio-review.js','src/features/apps/premium-studio-suite.js'}
           assert required <= paths
           PY
           python3 - <<'PY'
@@ -163,5 +158,5 @@ jobs:
               data=urllib.request.urlopen(url,timeout=20).read()
               assert len(data)==item['size'],item['path']
               assert hashlib.sha256(data).hexdigest()==item['sha256'],item['path']
-          print('Exact public AI Photo compatibility OTA verified:',len(m['files']),'files')
+          print('Exact public recovery Phase 1 OTA verified:',len(m['files']),'files')
           PY
