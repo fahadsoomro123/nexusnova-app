@@ -1,0 +1,126 @@
+name: AI Photo Canva-Class Phase 2 Pre-OTA CI
+
+on:
+  push:
+    branches: [ai-photo-canva-class-phase2-review]
+    paths:
+      - 'fresh-rebuild/src/features/apps/ai-photo-studio-review.js'
+      - 'fresh-rebuild/src/features/apps/ai-photo-focus-interaction.js'
+      - 'fresh-rebuild/src/features/apps/ai-photo-canva-workspace.js'
+      - '.github/workflows/ai-photo-canva-phase2-preota-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout Phase 2 review branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify approved scope and protected fullscreen
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE=e0e5d61d6f97df635431475ea6b673d5e347a975
+          allowed='^(fresh-rebuild/src/features/apps/ai-photo-studio-review.js|fresh-rebuild/src/features/apps/ai-photo-focus-interaction.js|fresh-rebuild/src/features/apps/ai-photo-canva-workspace.js|.github/workflows/ai-photo-canva-phase2-preota-ci.yml)$'
+          unexpected="$(git diff --name-only "$BASE" "$GITHUB_SHA" -- | grep -Ev "$allowed" || true)"
+          if [ -n "$unexpected" ]; then
+            echo 'Unexpected file changed:' >&2
+            echo "$unexpected" >&2
+            exit 1
+          fi
+          for path in \
+            fresh-rebuild/assets/styles/ai-photo-route-fullscreen.css \
+            fresh-rebuild/src/features/apps/app-screen.js \
+            fresh-rebuild/src/features/apps/ai-photo-studio-flagship.js \
+            fresh-rebuild/src/features/apps/premium-qibla-safe-v2.js \
+            fresh-rebuild/src/features/apps/premium-prayer-safe.js \
+            fresh-rebuild/src/features/apps/pakistan-suite.js \
+            fresh-rebuild/src/features/apps/news-suite.js \
+            fresh-rebuild/src/features/apps/articles-suite.js \
+            fresh-rebuild/src/features/apps/live-feed-premium-skin.js \
+            fresh-rebuild/src/features/apps/batch4-tools-17-20-fullscreen.js \
+            fresh-rebuild/assets/styles/batch4-tools-17-20-fullscreen.css; do
+            test "$(git rev-parse "$BASE:$path")" = "$(git hash-object "$path")" || { echo "Protected file changed: $path" >&2; exit 1; }
+          done
+          echo 'Fullscreen + protected apps unchanged: PASS'
+
+      - name: Verify JS syntax and active wiring
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in \
+            fresh-rebuild/src/features/apps/ai-photo-studio-review.js \
+            fresh-rebuild/src/features/apps/ai-photo-focus-interaction.js \
+            fresh-rebuild/src/features/apps/ai-photo-canva-workspace.js \
+            fresh-rebuild/src/features/apps/ai-photo-design-canvas.js \
+            fresh-rebuild/src/features/apps/ai-photo-design-tools.js \
+            fresh-rebuild/src/features/apps/ai-photo-project-store.js \
+            fresh-rebuild/src/features/apps/data/ai-photo-templates.js; do
+            node --check "$file"
+          done
+          grep -Fq "installSliderOnlyFocus" fresh-rebuild/src/features/apps/ai-photo-studio-review.js
+          grep -Fq "installAiPhotoCanvaWorkspace" fresh-rebuild/src/features/apps/ai-photo-studio-review.js
+          grep -Fq "Search 1000+ templates" fresh-rebuild/src/features/apps/ai-photo-canva-workspace.js
+          grep -Fq "data-nx-design-tab=\"layers\"" fresh-rebuild/src/features/apps/ai-photo-canva-workspace.js
+          grep -Fq "data-nx-design-tab=\"projects\"" fresh-rebuild/src/features/apps/ai-photo-canva-workspace.js
+          grep -Fq "pointerdown" fresh-rebuild/src/features/apps/ai-photo-focus-interaction.js
+          grep -Fq "MutationObserver" fresh-rebuild/src/features/apps/ai-photo-focus-interaction.js
+          echo 'Phase 2 active wiring: PASS'
+
+      - name: Verify 1000 template catalog
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp fresh-rebuild/src/features/apps/data/ai-photo-templates.js /tmp/ai-photo-templates.mjs
+          node --input-type=module - <<'NODE'
+          const m=await import('file:///tmp/ai-photo-templates.mjs');
+          if(m.NEXUSNOVA_TEMPLATES.length!==1000)throw new Error(`Expected 1000 templates, got ${m.NEXUSNOVA_TEMPLATES.length}`);
+          if(m.NEXUSNOVA_TEMPLATE_CATEGORIES.length!==20)throw new Error(`Expected 20 categories, got ${m.NEXUSNOVA_TEMPLATE_CATEGORIES.length}`);
+          const required=['logos','instagram-posts','instagram-stories','facebook-posts','youtube-thumbnails','flyers','posters','business-cards','invitations','certificates','resumes','presentations','product-promos','menus','brochures','event-covers','quotes','ads','web-hero'];
+          const ids=new Set(m.NEXUSNOVA_TEMPLATE_CATEGORIES.map(x=>x.id));
+          for(const id of required)if(!ids.has(id))throw new Error(`Missing category ${id}`);
+          console.log('Template catalog:',m.NEXUSNOVA_TEMPLATES.length,'templates /',m.NEXUSNOVA_TEMPLATE_CATEGORIES.length,'categories');
+          NODE
+
+      - name: Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Gradle 8.13
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Android debug build
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd NexusNovaAndroid
+          gradle --no-daemon clean assembleDebug
+          test -s app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Verify Android bundle contains exact Phase 2 files
+        shell: bash
+        run: |
+          set -euo pipefail
+          for rel in \
+            src/features/apps/ai-photo-studio-review.js \
+            src/features/apps/ai-photo-focus-interaction.js \
+            src/features/apps/ai-photo-canva-workspace.js \
+            src/features/apps/data/ai-photo-templates.js; do
+            cmp "fresh-rebuild/$rel" "NexusNovaAndroid/app/src/main/assets/www/$rel"
+          done
+          echo 'Android bundled Phase 2 files exact: PASS'
+
+      - name: Confirm no OTA publication
+        run: |
+          echo 'Pre-OTA CI only. No OTA publication step exists in this workflow.'
