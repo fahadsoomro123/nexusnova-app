@@ -2,7 +2,7 @@
 
 - Repo name: fahadsoomro123/nexusnova-app
 - Branch name: ai-photo-real-canva-ai-generator-correction
-- Latest completed safe checkpoint SHA before this handoff update: 74f5338e289e63b2a449cb15c000cf21ca0b7c01
+- Latest branch checkpoint SHA before this handoff update: 5d6c5544129f26a634b487e4c5dff8f2b53b0803
 - Handoff document state: committed with each checkpoint; use branch HEAD as the exact latest SHA.
 - OTA/APK published: **NO**
 - Release status: **NOT RELEASED — explicit user approval required**
@@ -37,7 +37,7 @@ The earlier reference-repair checkpoint also changed the three locked WebP crops
 
 - Locked Home and Generator implementation is active and synchronized byte-for-byte into Android assets.
 - Reference imagery is valid and traceable to the two approved images.
-- The latest layout refinements and rendered viewport QA harness are ready for the next branch checkpoint and workflow run.
+- The latest layout refinements and rendered viewport QA harness are committed. Its first run exposed an obsolete static ratio-button grep before browser rendering could start; the implementation itself was not reported as a visual pass.
 - Puter provider/auth code, result actions, professional Photo Editor, template engine, and protected fullscreen architecture are untouched.
 - This is not yet a final visual-pass claim; the new workflow screenshots still require direct inspection against both locked references.
 
@@ -56,12 +56,12 @@ The earlier reference-repair checkpoint also changed the three locked WebP crops
 
 - Historical failure: run 33923011009 failed QA 3 because ai-photo-locked-featured.webp did not match the locked checksum; inspection proved all three locked WebPs were corrupt.
 - Historical infrastructure failure: run 33925743148 reached valid image checks but lacked ImageMagick identify; it was replaced with deterministic Node lossless-WebP header parsing.
-- Current visual-refinement checkpoint: no failed round yet; branch workflow and rendered screenshot inspection are pending.
+- Current visual-refinement run 33927344875: QA 1–3 passed; QA 4 failed because the workflow still searched for old literal ratio-button HTML after the implementation moved those four supported ratios into a provider-driven array. Browser rendering, QA 5, and QA 6 were consequently skipped. This is a QA-wiring failure, not evidence of a visual pass or visual mismatch.
 
 ## Remaining work
 
-1. Commit the current visual refinement and rendered-QA checkpoint.
-2. Monitor the triggered workflow through all six rounds and the Android debug build.
+1. Commit the corrected exact ratio-array validation and skipped-artifact handling.
+2. Monitor the new workflow through all six rounds and the Android debug build.
 3. Download and directly inspect all Home and Generator screenshots against the two locked references.
 4. Fix any visible hierarchy, spacing, card proportion, clipping, overlap, dead-space, or control-visibility drift and rerun the failed checks.
 5. Report **Internal visual QA ready for release approval** only after all six rounds and direct rendered inspection pass.
@@ -72,7 +72,7 @@ The earlier reference-repair checkpoint also changed the three locked WebP crops
 
 ## Next exact action
 
-- Commit these eight files, wait for the triggered locked-visual workflow, then download and inspect its ten rendered screenshots before making any release-readiness claim.
+- Commit the QA 4 wiring correction, wait for the triggered locked-visual workflow, then download and inspect its ten rendered screenshots before making any release-readiness claim.
 
 ## Protected files/modules status
 

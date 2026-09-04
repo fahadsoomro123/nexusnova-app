@@ -158,10 +158,10 @@ jobs:
           grep -Fq 'Quality' "$V"
           grep -Fq 'Style Strength' "$V"
           grep -Fq '✦ Generate with AI' "$V"
-          grep -Fq 'data-r="square"' "$V"
-          grep -Fq 'data-r="portrait"' "$V"
-          grep -Fq 'data-r="story"' "$V"
-          grep -Fq 'data-r="wide"' "$V"
+          grep -Fq "['square','□','1:1','Square']" "$V"
+          grep -Fq "['portrait','▯','4:5','Portrait']" "$V"
+          grep -Fq "['story','▯','9:16','Story']" "$V"
+          grep -Fq "['wide','▭','16:9','Landscape']" "$V"
           grep -Fq "option.value==='custom'" "$V"
           for label in '3D' 'Realistic' 'Anime' 'Cinematic' 'Digital Art' 'Portrait' 'Product' 'Logo'; do grep -Fq "'$label'" "$V"; done
           grep -Fq 'ai-photo-locked-styles.webp' "$A"
@@ -207,13 +207,14 @@ jobs:
           echo 'QA5 PASS — Home/back routing, Puter generation and fullscreen foundations preserved.'
 
       - name: 'QA 3–4 rendered — five Android viewport inspections'
+        id: rendered
         shell: bash
         run: |
           set -euo pipefail
           bash tools/ai-photo-locked-visual/render-qa.sh
 
       - name: Upload rendered visual QA evidence
-        if: always()
+        if: always() && steps.rendered.outcome != 'skipped'
         uses: actions/upload-artifact@v4
         with:
           name: ai-photo-locked-render
