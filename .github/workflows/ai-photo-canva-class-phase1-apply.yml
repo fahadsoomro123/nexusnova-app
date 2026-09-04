@@ -1,0 +1,169 @@
+name: AI Photo Canva-Class Phase 1 Apply
+
+on:
+  push:
+    branches: [batch17-20-preota-review]
+    paths:
+      - '.github/workflows/ai-photo-canva-class-phase1-apply.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout approved branch
+        uses: actions/checkout@v4
+        with:
+          ref: batch17-20-preota-review
+          fetch-depth: 0
+
+      - name: Patch enhanced editor with fast live preview and focus mode
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('fresh-rebuild/src/features/apps/ai-photo-studio-flagship.js')
+          s=p.read_text()
+          def rep(old,new,label):
+              global s
+              n=s.count(old)
+              if n!=1:
+                  raise SystemExit(f'{label}: expected 1 match, got {n}')
+              s=s.replace(old,new,1)
+
+          rep("import { aiModel, downloadBlob, ensureStudioStyles, fileToInline, safeName } from './premium-studio-core.js';",
+              "import { aiModel, downloadBlob, ensureStudioStyles, fileToInline, safeName } from './premium-studio-core.js';\nimport { bindFocusInteraction, createIntervalGate, createPreviewScheduler, previewMaxDimension } from './ai-photo-live-preview-engine.js';",
+              'preview import')
+
+          rep("function orientedDims(image,state){const max=2400,scale=Math.min(1,max/Math.max(image.naturalWidth||1,image.naturalHeight||1)),",
+              "function orientedDims(image,state,max=2400){max=clamp(Number(max)||2400,320,2400);const scale=Math.min(1,max/Math.max(image.naturalWidth||1,image.naturalHeight||1)),",
+              'oriented preview max')
+
+          rep("function baseCanvas(image,state,original=false){const d=orientedDims(image,state),",
+              "function baseCanvas(image,state,original=false,maxDim=2400){const d=orientedDims(image,state,maxDim),",
+              'base canvas max')
+
+          rep("function renderFinal(image,state,{original=false,maskPreview=false}={}){const b=baseCanvas(image,state,original);",
+              "function renderFinal(image,state,{original=false,maskPreview=false,maxDim=2400}={}){const b=baseCanvas(image,state,original,maxDim);",
+              'render max')
+
+          old_paint="""  const paint=(original=false)=>{if(!image)return;const out=renderFinal(image,state,{original,maskPreview:!original&&maskPreview});canvas.width=out.width;canvas.height=out.height;canvas.getContext('2d').drawImage(out,0,0);if(!original){q('[data-photo-width]').textContent=canvas.width;q('[data-photo-height]').textContent=canvas.height;q('[data-photo-mp]').textContent=((canvas.width*canvas.height)/1e6).toFixed(1);drawHistogram()}applyView()};"""
+          new_paint="""  const histogramGate=createIntervalGate(180);\n  const outputMetrics=()=>{const d=orientedDims(image,state,2400),c=state.crop,w=Math.max(1,Math.round(d.bw*c.w)),h=Math.max(1,Math.round(d.bh*c.h));return{w,h}};\n  const paintNow=({original=false}={})=>{if(!image)return;const out=renderFinal(image,state,{original,maskPreview:!original&&maskPreview,maxDim:previewMaxDimension(work)});canvas.width=out.width;canvas.height=out.height;canvas.getContext('2d').drawImage(out,0,0);if(!original){const m=outputMetrics();q('[data-photo-width]').textContent=m.w;q('[data-photo-height]').textContent=m.h;q('[data-photo-mp]').textContent=((m.w*m.h)/1e6).toFixed(1);histogramGate.run(drawHistogram)}applyView()};\n  const previewScheduler=createPreviewScheduler(paintNow);\n  const paint=(original=false)=>previewScheduler.schedule({original});\n  const paintImmediate=(original=false)=>previewScheduler.flush({original});"""
+          rep(old_paint,new_paint,'paint scheduler')
+
+          old_sheet="""  const openSheet=id=>{const titles={edit:'Edit',adjust:'Adjust',looks:'Filters',ai:'NexusNova AI',export:'Export'};q('[data-photo-sheet-title]').textContent=titles[id];qa('[data-photo-sheet-panel]').forEach(p=>p.classList.toggle('is-active',p.dataset.photoSheetPanel===id));qa('[data-photo-panel-open]').forEach(b=>b.classList.toggle('is-active',b.dataset.photoPanelOpen===id));sheet.classList.add('is-open')},closeSheet=()=>{sheet.classList.remove('is-open');qa('[data-photo-panel-open]').forEach(b=>b.classList.remove('is-active'));maskPreview=false;if(image)paint()};"""
+          new_sheet="""  const setFocusMode=id=>{const active=['edit','adjust','looks'].includes(id);root.classList.toggle('nx-photo-focus-editing',active);if(active)root.dataset.focusPanel=id;else delete root.dataset.focusPanel};\n  const openSheet=id=>{const titles={edit:'Edit',adjust:'Adjust',looks:'Filters',ai:'NexusNova AI',export:'Export'};q('[data-photo-sheet-title]').textContent=titles[id];qa('[data-photo-sheet-panel]').forEach(p=>p.classList.toggle('is-active',p.dataset.photoSheetPanel===id));qa('[data-photo-panel-open]').forEach(b=>b.classList.toggle('is-active',b.dataset.photoPanelOpen===id));sheet.classList.add('is-open');setFocusMode(id)},closeSheet=()=>{sheet.classList.remove('is-open');qa('[data-photo-panel-open]').forEach(b=>b.classList.remove('is-active'));root.classList.remove('nx-photo-focus-editing','nx-photo-control-live');root.querySelectorAll('.is-live-control').forEach(n=>n.classList.remove('is-live-control'));delete root.dataset.focusPanel;maskPreview=false;if(image)paint()};"""
+          rep(old_sheet,new_sheet,'focus sheet')
+
+          marker="""  qa('[data-photo-range]').forEach(i=>{let prev=null;i.onpointerdown=()=>prev=snap();i.onfocus=()=>{if(!prev)prev=snap()};"""
+          insert="""  const focusCleanups=[];qa('[data-photo-range],[data-photo-mix],[data-mask-adjust],.nx-photo-preset,.nx-photo-action,.nx-photo-pill,.nx-photo-ratio').forEach(el=>focusCleanups.push(bindFocusInteraction(root,el)));\n\n"""+marker
+          rep(marker,insert,'focus bindings')
+
+          rep("before.onpointerdown=()=>image&&paint(true);['pointerup','pointercancel','pointerleave'].forEach(e=>before.addEventListener(e,()=>image&&paint()));",
+              "before.onpointerdown=()=>image&&paintImmediate(true);['pointerup','pointercancel','pointerleave'].forEach(e=>before.addEventListener(e,()=>image&&paintImmediate()));",
+              'before immediate')
+
+          rep("const rendered=baseCanvas(image,state,false),px=clamp(Math.round(p.x*rendered.width),0,rendered.width-1),",
+              "const rendered=baseCanvas(image,state,false,previewMaxDimension(work)),px=clamp(Math.round(p.x*rendered.width),0,rendered.width-1),",
+              'mask sample preview')
+
+          focus_css="""  .nx-photo-editor.nx-photo-focus-editing .nx-photo-top{opacity:.12!important;filter:saturate(.55);transition:opacity .16s ease!important}.nx-photo-editor.nx-photo-focus-editing .nx-photo-work{background:#0b0c10!important}.nx-photo-editor.nx-photo-focus-editing .nx-photo-work>canvas[data-photo-canvas]{max-width:98%!important;max-height:98%!important;box-shadow:0 18px 54px rgba(0,0,0,.38)!important}.nx-photo-editor.nx-photo-focus-editing .nx-photo-tools{background:rgba(20,20,25,.16)!important;border-color:transparent!important;backdrop-filter:blur(8px) saturate(1.15)}.nx-photo-editor.nx-photo-focus-editing .nx-photo-tool{opacity:.15;transition:opacity .16s ease,background .16s ease!important}.nx-photo-editor.nx-photo-focus-editing .nx-photo-tool.is-active{opacity:1;background:rgba(125,42,232,.28)!important;color:#fff!important;border-radius:12px!important}.nx-photo-editor.nx-photo-focus-editing .nx-photo-sheet{left:8px!important;right:8px!important;bottom:64px!important;max-height:min(38%,300px)!important;background:rgba(24,24,30,.30)!important;border-color:rgba(255,255,255,.16)!important;box-shadow:0 -12px 36px rgba(0,0,0,.22)!important;backdrop-filter:blur(10px) saturate(1.2)!important}.nx-photo-editor.nx-photo-focus-editing .nx-photo-sheet-head{background:rgba(20,20,25,.12)!important}.nx-photo-editor.nx-photo-focus-editing .nx-photo-panel{background:transparent!important}.nx-photo-editor.nx-photo-focus-editing .nx-photo-field,.nx-photo-editor.nx-photo-focus-editing .nx-photo-action,.nx-photo-editor.nx-photo-focus-editing .nx-photo-pill,.nx-photo-editor.nx-photo-focus-editing .nx-photo-ratio,.nx-photo-editor.nx-photo-focus-editing .nx-photo-preset{backdrop-filter:blur(8px)}.nx-photo-editor.nx-photo-focus-editing.nx-photo-control-live .nx-photo-sheet-head,.nx-photo-editor.nx-photo-focus-editing.nx-photo-control-live .nx-photo-tabs,.nx-photo-editor.nx-photo-focus-editing.nx-photo-control-live .nx-photo-status{opacity:.08!important;pointer-events:none!important}.nx-photo-editor.nx-photo-focus-editing.nx-photo-control-live .nx-photo-field:not(.is-live-control),.nx-photo-editor.nx-photo-focus-editing.nx-photo-control-live .nx-photo-action:not(.is-live-control),.nx-photo-editor.nx-photo-focus-editing.nx-photo-control-live .nx-photo-pill:not(.is-live-control),.nx-photo-editor.nx-photo-focus-editing.nx-photo-control-live .nx-photo-ratio:not(.is-live-control),.nx-photo-editor.nx-photo-focus-editing.nx-photo-control-live .nx-photo-preset:not(.is-live-control){opacity:.07!important;pointer-events:none!important}.nx-photo-editor.nx-photo-focus-editing.nx-photo-control-live .is-live-control{opacity:1!important;pointer-events:auto!important;background:rgba(20,20,26,.78)!important;border:1px solid rgba(255,255,255,.22)!important;border-radius:12px!important;box-shadow:0 10px 28px rgba(0,0,0,.28)!important}.nx-photo-editor.nx-photo-focus-editing.nx-photo-control-live .nx-photo-field.is-live-control{padding:5px 8px!important}.nx-photo-editor.nx-photo-focus-editing.nx-photo-control-live .nx-photo-presets{background:transparent!important}.nx-photo-editor.nx-photo-focus-editing .nx-photo-before,.nx-photo-editor.nx-photo-focus-editing .nx-photo-zoomlabel{opacity:.18!important}.nx-photo-editor.nx-photo-focus-editing.nx-photo-control-live .nx-photo-before,.nx-photo-editor.nx-photo-focus-editing.nx-photo-control-live .nx-photo-zoomlabel{opacity:.06!important}\n"""
+          rep("  @media(prefers-color-scheme:dark){",focus_css+"  @media(prefers-color-scheme:dark){",'focus css')
+
+          rep("  sync();root.__cleanup=()=>{clearTimeout(toastTimer);if(sourceFile?.__url)URL.revokeObjectURL(sourceFile.__url)};return root;",
+              "  sync();root.__cleanup=()=>{clearTimeout(toastTimer);previewScheduler.cancel();histogramGate.cancel();focusCleanups.forEach(fn=>fn());if(sourceFile?.__url)URL.revokeObjectURL(sourceFile.__url)};return root;",
+              'cleanup')
+
+          p.write_text(s)
+          PY
+
+      - name: Verify implementation scope and syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE=a13ed91188688d5632e10fff2998b92ee8266844
+          allowed='^(fresh-rebuild/src/features/apps/ai-photo-studio-flagship.js|fresh-rebuild/src/features/apps/ai-photo-live-preview-engine.js|fresh-rebuild/src/features/apps/ai-photo-design-canvas.js|fresh-rebuild/src/features/apps/ai-photo-design-tools.js|fresh-rebuild/src/features/apps/ai-photo-project-store.js|fresh-rebuild/src/features/apps/ai-photo-studio-ai.js|fresh-rebuild/src/features/apps/data/ai-photo-templates.js|.github/workflows/ai-photo-canva-class-phase1-apply.yml)$'
+          unexpected="$(git diff --name-only "$BASE" -- | grep -Ev "$allowed" || true)"
+          if [ -n "$unexpected" ]; then echo "Unexpected file changed:" >&2; echo "$unexpected" >&2; exit 1; fi
+          for file in \
+            fresh-rebuild/src/features/apps/ai-photo-studio-flagship.js \
+            fresh-rebuild/src/features/apps/ai-photo-live-preview-engine.js \
+            fresh-rebuild/src/features/apps/ai-photo-design-canvas.js \
+            fresh-rebuild/src/features/apps/ai-photo-design-tools.js \
+            fresh-rebuild/src/features/apps/ai-photo-project-store.js \
+            fresh-rebuild/src/features/apps/ai-photo-studio-ai.js \
+            fresh-rebuild/src/features/apps/data/ai-photo-templates.js; do
+            node --input-type=module --check < "$file"
+          done
+          grep -Fq 'createPreviewScheduler' fresh-rebuild/src/features/apps/ai-photo-studio-flagship.js
+          grep -Fq 'previewMaxDimension(work)' fresh-rebuild/src/features/apps/ai-photo-studio-flagship.js
+          grep -Fq 'nx-photo-focus-editing' fresh-rebuild/src/features/apps/ai-photo-studio-flagship.js
+          grep -Fq 'nx-photo-control-live' fresh-rebuild/src/features/apps/ai-photo-studio-flagship.js
+          ! grep -Fq 'requestAnimationFrame' fresh-rebuild/src/features/apps/ai-photo-studio-flagship.js || true
+          cp fresh-rebuild/src/features/apps/data/ai-photo-templates.js /tmp/templates.mjs
+          node --input-type=module - <<'NODE'
+          const m=await import('file:///tmp/templates.mjs');
+          if(m.NEXUSNOVA_TEMPLATES.length!==1000)throw new Error(`Expected 1000 templates, got ${m.NEXUSNOVA_TEMPLATES.length}`);
+          if(m.NEXUSNOVA_TEMPLATE_CATEGORIES.length!==20)throw new Error('Expected 20 template categories');
+          console.log('Template library:',m.NEXUSNOVA_TEMPLATES.length,'templates /',m.NEXUSNOVA_TEMPLATE_CATEGORIES.length,'categories');
+          NODE
+
+      - name: Verify protected apps unchanged
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE=a13ed91188688d5632e10fff2998b92ee8266844
+          for path in \
+            fresh-rebuild/src/features/apps/premium-qibla-safe-v2.js \
+            fresh-rebuild/src/features/apps/premium-prayer-safe.js \
+            fresh-rebuild/src/features/apps/pakistan-suite.js \
+            fresh-rebuild/src/features/apps/news-suite.js \
+            fresh-rebuild/src/features/apps/articles-suite.js \
+            fresh-rebuild/src/features/apps/live-feed-premium-skin.js \
+            fresh-rebuild/src/features/apps/batch4-tools-17-20-fullscreen.js \
+            fresh-rebuild/assets/styles/batch4-tools-17-20-fullscreen.css \
+            fresh-rebuild/assets/styles/ai-photo-route-fullscreen.css; do
+            test "$(git rev-parse "$BASE:$path")" = "$(git hash-object "$path")" || { echo "Protected file changed: $path" >&2; exit 1; }
+          done
+
+      - name: Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Gradle 8.13
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Android debug build
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd NexusNovaAndroid
+          gradle --no-daemon clean assembleDebug
+          test -s app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Commit verified phase 1 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'NexusNova Build Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add fresh-rebuild/src/features/apps/ai-photo-studio-flagship.js
+          if git diff --cached --quiet; then
+            echo 'No flagship patch to commit.'
+            exit 0
+          fi
+          git commit -m 'Optimize AI Photo live preview and focus editing'
+          git push origin HEAD:batch17-20-preota-review
+          echo "SOURCE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Confirm no OTA publication
+        run: echo 'Phase 1 implementation/build only. No public OTA mutation exists in this workflow.'
