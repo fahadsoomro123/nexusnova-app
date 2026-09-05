@@ -153,7 +153,7 @@ function ensureRecentPopover(root){
   if(pop)return pop;
   pop=document.createElement('div');pop.className='nxfix-recent-popover';pop.hidden=true;pop.innerHTML='<button type="button" data-open>Open project</button><button type="button" data-delete>Delete</button>';home.appendChild(pop);
   pop.querySelector('[data-open]').addEventListener('click',()=>{const id=pop.dataset.projectId;pop.hidden=true;openSavedProject(root,id)});
-  pop.querySelector('[data-delete]').addEventListener('click',()=>{const id=pop.dataset.projectId;if(!id)return;try{deleteDesignProject(id)}catch{}pop.hidden=true;root.querySelector('.nxlock-home-btn')?.click()});
+  pop.querySelector('[data-delete]').addEventListener('click',()=>{const id=pop.dataset.projectId;if(!id)return;try{if(!root.__nxCanvaWorkspaceV3?.deleteProject?.(id))deleteDesignProject(id)}catch{}pop.hidden=true;root.querySelector('.nxlock-home-btn')?.click()});
   return pop;
 }
 

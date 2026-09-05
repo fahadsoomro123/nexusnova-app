@@ -36,6 +36,7 @@ jobs:
             fresh-rebuild/src/features/apps/ai-photo-canva-workspace-v3.js \
             fresh-rebuild/src/features/apps/ai-photo-locked-visual-v1.js \
             fresh-rebuild/src/features/apps/ai-photo-locked-reference-assets-v1.js \
+            fresh-rebuild/src/features/apps/ai-photo-project-store.js \
             fresh-rebuild/src/features/apps/ai-photo-puter-generator.js \
             fresh-rebuild/src/features/apps/ai-photo-studio-ai.js \
             fresh-rebuild/src/features/apps/ai-photo-studio-review.js \
@@ -59,7 +60,10 @@ jobs:
             .github/workflows/ai-photo-premium-home-final-ota.yml \
             .github/workflows/ai-photo-premium-puter-signed-apk.yml
           test "$(grep -o 'puter.ai.txt2img' fresh-rebuild/src/features/apps/ai-photo-studio-ai.js | wc -l)" -eq 1
-          ! rg -n 'api[_-]?key|bearer ' fresh-rebuild/src/features/apps/ai-photo-quick-tools.js fresh-rebuild/src/features/apps/ai-photo-navigation.js
+          if grep -Ein 'api[_-]?key|bearer ' fresh-rebuild/src/features/apps/ai-photo-quick-tools.js fresh-rebuild/src/features/apps/ai-photo-navigation.js; then
+            echo 'Unexpected credential-like text in repaired modules.' >&2
+            exit 1
+          fi
           echo 'PASS — protected/release workflows unchanged; Puter remains keyless with one generation call site.'
 
       - name: Template count contract
@@ -124,6 +128,9 @@ jobs:
             src/features/apps/ai-photo-navigation.js \
             src/features/apps/ai-photo-quick-tools.js \
             src/features/apps/ai-photo-canva-workspace-v3.js \
+            src/features/apps/ai-photo-locked-reference-assets-v1.js \
+            src/features/apps/ai-photo-locked-visual-v1.js \
+            src/features/apps/ai-photo-project-store.js \
             src/features/apps/ai-photo-puter-generator.js \
             src/features/apps/ai-photo-studio-ai.js; do
             cmp "fresh-rebuild/$rel" "NexusNovaAndroid/app/src/main/assets/www/$rel"

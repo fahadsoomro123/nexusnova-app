@@ -13,6 +13,7 @@ export function createProjectAutosave(getDesign,{delay=700,onSaved=()=>{}}={}){
   let timer=0,destroyed=false;
   return {
     schedule(){if(destroyed)return;clearTimeout(timer);timer=setTimeout(()=>{timer=0;const d=getDesign?.();if(!d)return;try{onSaved(saveDesignProject(d))}catch{}},delay)},
+    cancel(){clearTimeout(timer);timer=0},
     flush(){if(destroyed)return;clearTimeout(timer);timer=0;const d=getDesign?.();if(d)return saveDesignProject(d)},
     destroy(){destroyed=true;clearTimeout(timer);timer=0}
   };
