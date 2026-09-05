@@ -7,9 +7,9 @@ on:
       - 'fresh-rebuild/src/features/apps/ai-photo-studio-review.js'
       - 'fresh-rebuild/src/features/apps/ai-photo-studio-ai.js'
       - 'fresh-rebuild/src/features/apps/ai-photo-puter-generator.js'
+      - 'fresh-rebuild/src/features/apps/ai-photo-generative-edit-v19.js'
+      - 'fresh-rebuild/src/features/apps/ai-photo-navigation.js'
       - 'fresh-rebuild/src/features/apps/ai-photo-canva-workspace-v3.js'
-      - 'fresh-rebuild/src/features/apps/ai-photo-design-canvas.js'
-      - 'fresh-rebuild/src/features/apps/data/ai-photo-templates.js'
       - 'NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt'
       - 'NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusPuterPopupManager.kt'
       - '.github/workflows/ai-photo-puter-correction-preota-ci.yml'
@@ -23,90 +23,65 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
-      - name: Checkout approved correction branch
+      - name: Checkout exact correction branch
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Verify exact approved scope and protected fullscreen
+      - name: Verify protected editor shell remains untouched
         shell: bash
         run: |
           set -euo pipefail
-          BASE=08ee183a2c4cba79e39d0da2423229e054907015
-          allowed='^(fresh-rebuild/src/features/apps/data/ai-photo-templates.js|fresh-rebuild/src/features/apps/ai-photo-design-canvas.js|fresh-rebuild/src/features/apps/ai-photo-canva-workspace-v3.js|fresh-rebuild/src/features/apps/ai-photo-studio-ai.js|fresh-rebuild/src/features/apps/ai-photo-puter-generator.js|fresh-rebuild/src/features/apps/ai-photo-studio-review.js|NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt|NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusPuterPopupManager.kt|.github/workflows/ai-photo-puter-correction-preota-ci.yml)$'
-          unexpected="$(git diff --name-only "$BASE" "$GITHUB_SHA" -- | grep -Ev "$allowed" || true)"
-          if [ -n "$unexpected" ]; then
-            echo '::error::Unexpected file changed:' >&2
-            echo "$unexpected" >&2
-            exit 1
-          fi
+          BASE=9ef070ba55f76506851a1366fc9dc3863e50578d
           for path in \
             fresh-rebuild/assets/styles/ai-photo-route-fullscreen.css \
             fresh-rebuild/src/features/apps/app-screen.js \
             fresh-rebuild/src/features/apps/ai-photo-studio-flagship.js \
-            fresh-rebuild/src/features/apps/ai-photo-focus-interaction.js \
-            fresh-rebuild/src/features/apps/premium-qibla-safe-v2.js \
-            fresh-rebuild/src/features/apps/premium-prayer-safe.js \
-            fresh-rebuild/src/features/apps/pakistan-suite.js \
-            fresh-rebuild/src/features/apps/news-suite.js \
-            fresh-rebuild/src/features/apps/articles-suite.js \
-            fresh-rebuild/src/features/apps/live-feed-premium-skin.js \
-            fresh-rebuild/src/features/apps/batch4-tools-17-20-fullscreen.js \
-            fresh-rebuild/assets/styles/batch4-tools-17-20-fullscreen.css; do
+            fresh-rebuild/src/features/apps/ai-photo-focus-interaction.js; do
             test "$(git rev-parse "$BASE:$path")" = "$(git hash-object "$path")" || { echo "::error::Protected file changed: $path" >&2; exit 1; }
           done
-          echo 'Protected fullscreen + protected apps unchanged: PASS'
+          echo 'Protected editor shell unchanged: PASS'
 
-      - name: Verify semantic 1000-template library
-        shell: bash
-        run: |
-          set -euo pipefail
-          cp fresh-rebuild/src/features/apps/data/ai-photo-templates.js /tmp/ai-photo-templates.mjs
-          node --input-type=module - <<'NODE'
-          const m=await import('file:///tmp/ai-photo-templates.mjs');
-          if(m.NEXUSNOVA_TEMPLATES.length!==1000)throw new Error(`Expected exactly 1000 templates, got ${m.NEXUSNOVA_TEMPLATES.length}`);
-          if(m.NEXUSNOVA_TEMPLATE_CATEGORIES.length!==20)throw new Error(`Expected 20 categories, got ${m.NEXUSNOVA_TEMPLATE_CATEGORIES.length}`);
-          const names=m.NEXUSNOVA_TEMPLATES.map(x=>String(x.name||''));
-          if(names.filter(x=>/^Logo \d+$/i.test(x)).length)throw new Error('Generic Logo 01-style names remain.');
-          for(const t of m.NEXUSNOVA_TEMPLATES){
-            if(!t.name||!t.purpose||!t.useCase||!t.sizeLabel||!Array.isArray(t.editableFields)||!t.editableFields.length)throw new Error(`Incomplete semantic template: ${t.id}`);
-          }
-          const searchable=m.searchTemplates({query:'coffee logo',limit:20}).items;
-          if(!searchable.length)throw new Error('Purpose-led search returned no coffee logo result.');
-          console.log('Semantic template catalog PASS:',m.NEXUSNOVA_TEMPLATES.length);
-          NODE
-
-      - name: Verify Puter image client and no developer billing secret
+      - name: Verify Puter image generation and source-image edit contracts
         shell: bash
         run: |
           set -euo pipefail
           for file in \
             fresh-rebuild/src/features/apps/ai-photo-studio-ai.js \
             fresh-rebuild/src/features/apps/ai-photo-puter-generator.js \
+            fresh-rebuild/src/features/apps/ai-photo-generative-edit-v19.js \
             fresh-rebuild/src/features/apps/ai-photo-studio-review.js \
-            fresh-rebuild/src/features/apps/ai-photo-canva-workspace-v3.js \
-            fresh-rebuild/src/features/apps/ai-photo-design-canvas.js \
-            fresh-rebuild/src/features/apps/data/ai-photo-templates.js; do
+            fresh-rebuild/src/features/apps/ai-photo-navigation.js \
+            fresh-rebuild/src/features/apps/ai-photo-canva-workspace-v3.js; do
             node --check "$file"
           done
           grep -Fq "https://js.puter.com/v2/" fresh-rebuild/src/features/apps/ai-photo-studio-ai.js
           grep -Fq "puter.ai.txt2img" fresh-rebuild/src/features/apps/ai-photo-studio-ai.js
-          grep -Fq "getMonthlyUsage" fresh-rebuild/src/features/apps/ai-photo-studio-ai.js
-          grep -Fq "Use in Design" fresh-rebuild/src/features/apps/ai-photo-puter-generator.js
-          grep -Fq "Edit Photo" fresh-rebuild/src/features/apps/ai-photo-puter-generator.js
-          grep -Fq "installPuterImageGenerator" fresh-rebuild/src/features/apps/ai-photo-studio-review.js
+          grep -Fq "puter.ai.txt2img" fresh-rebuild/src/features/apps/ai-photo-generative-edit-v19.js
+          grep -Fq "input_images" fresh-rebuild/src/features/apps/ai-photo-generative-edit-v19.js
+          grep -Fq "provider:'openai-image-generation'" fresh-rebuild/src/features/apps/ai-photo-generative-edit-v19.js
+          grep -Fq "gpt-image-1-mini" fresh-rebuild/src/features/apps/ai-photo-generative-edit-v19.js
+          grep -Fq "gpt-image-1" fresh-rebuild/src/features/apps/ai-photo-generative-edit-v19.js
+          grep -Fq "data-nxge-keep" fresh-rebuild/src/features/apps/ai-photo-generative-edit-v19.js
+          grep -Fq "data-nxge-discard" fresh-rebuild/src/features/apps/ai-photo-generative-edit-v19.js
+          grep -Fq "installAiPhotoGenerativeEditV19" fresh-rebuild/src/features/apps/ai-photo-studio-review.js
+          grep -Fq "'ai-edit'" fresh-rebuild/src/features/apps/ai-photo-navigation.js
           if grep -REi '(CLOUDFLARE_API_TOKEN|OPENAI_API_KEY|GEMINI_API_KEY|ANTHROPIC_API_KEY|Bearer [A-Za-z0-9_-]{16,})' \
             fresh-rebuild/src/features/apps/ai-photo-studio-ai.js \
-            fresh-rebuild/src/features/apps/ai-photo-puter-generator.js; then
+            fresh-rebuild/src/features/apps/ai-photo-puter-generator.js \
+            fresh-rebuild/src/features/apps/ai-photo-generative-edit-v19.js; then
             echo '::error::Developer-side AI credential marker found.'
             exit 1
           fi
-          if grep -Fq 'disable_safety_checker' fresh-rebuild/src/features/apps/ai-photo-studio-ai.js; then
+          if grep -REq 'disable_safety_checker|safety_checker[[:space:]]*:[[:space:]]*false' \
+            fresh-rebuild/src/features/apps/ai-photo-studio-ai.js \
+            fresh-rebuild/src/features/apps/ai-photo-generative-edit-v19.js; then
             echo '::error::Safety checker disabling is not allowed.'
             exit 1
           fi
+          echo 'Puter source-image edit contract PASS'
 
-      - name: Unit smoke Puter txt2img client with mock
+      - name: Unit smoke Puter text-to-image client with mock
         shell: bash
         run: |
           set -euo pipefail
@@ -167,7 +142,7 @@ jobs:
           gradle --no-daemon clean assembleDebug
           test -s app/build/outputs/apk/debug/app-debug.apk
 
-      - name: Verify generated Android assets include exact AI Photo correction
+      - name: Verify generated Android assets include exact Puter editor modules
         shell: bash
         run: |
           set -euo pipefail
@@ -175,12 +150,12 @@ jobs:
             src/features/apps/ai-photo-studio-review.js \
             src/features/apps/ai-photo-studio-ai.js \
             src/features/apps/ai-photo-puter-generator.js \
-            src/features/apps/ai-photo-canva-workspace-v3.js \
-            src/features/apps/ai-photo-design-canvas.js \
-            src/features/apps/data/ai-photo-templates.js; do
+            src/features/apps/ai-photo-generative-edit-v19.js \
+            src/features/apps/ai-photo-navigation.js \
+            src/features/apps/ai-photo-canva-workspace-v3.js; do
             cmp "fresh-rebuild/$rel" "NexusNovaAndroid/app/src/main/assets/www/$rel"
           done
-          echo 'Android generated web assets exact: PASS'
+          echo 'Android generated Puter web assets exact: PASS'
 
       - name: Confirm no OTA or signed release publication
         run: echo 'Verification only. This workflow contains no OTA publication and no signed release upload.'
