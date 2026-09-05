@@ -1,0 +1,96 @@
+name: NexusNova Travel V14 Phone APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - travel-reference-v7-final-staging
+    paths:
+      - '.github/workflows/travel-v14-phone-apk.yml'
+      - 'fresh-rebuild/src/features/apps/travel-suite.js'
+      - 'fresh-rebuild/src/features/apps/travel-suite-v14.js'
+      - 'fresh-rebuild/src/features/apps/travel-edge-client.js'
+      - 'fresh-rebuild/src/features/apps/travel-edge-config.js'
+      - 'fresh-rebuild/assets/travel/reference-hero-right.webp.b64'
+      - 'NexusNovaAndroid/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: travel-v14-phone-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-travel-phone-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout Travel staging branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify locked Travel V14 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "travel-reference-v7-final-staging"
+          test -s fresh-rebuild/index.html
+          test -s fresh-rebuild/src/features/apps/travel-suite.js
+          test -s fresh-rebuild/src/features/apps/travel-suite-v14.js
+          test -s fresh-rebuild/src/features/apps/travel-edge-client.js
+          test -s fresh-rebuild/src/features/apps/travel-edge-config.js
+          test -s fresh-rebuild/assets/travel/reference-hero-right.webp.b64
+          grep -Fq "renderTravelSuiteV14" fresh-rebuild/src/features/apps/travel-suite.js
+          grep -Fq "nn-travel-reference-v14" fresh-rebuild/src/features/apps/travel-suite-v14.js
+          grep -Fq "searchWorldwideFlights" fresh-rebuild/src/features/apps/travel-suite-v5.js
+          grep -Fq "searchWorldwideHotels" fresh-rebuild/src/features/apps/travel-suite-v7.js
+          grep -Fq "searchWorldwideGroundTransport" fresh-rebuild/src/features/apps/travel-suite-v7.js
+          grep -Fq "nexusnova-travel-api.fahadsoomro123.workers.dev" fresh-rebuild/src/features/apps/travel-edge-config.js
+          echo 'Travel V14 locked source: PASS'
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Gradle 8.13
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Build installable debug APK with Travel V14
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd NexusNovaAndroid
+          gradle --no-daemon clean assembleDebug
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+
+          # Prove the exact Travel source was copied into Android assets before packaging.
+          grep -Fq "renderTravelSuiteV14" app/src/main/assets/www/src/features/apps/travel-suite.js
+          grep -Fq "nn-travel-reference-v14" app/src/main/assets/www/src/features/apps/travel-suite-v14.js
+          grep -Fq "nexusnova-travel-api.fahadsoomro123.workers.dev" app/src/main/assets/www/src/features/apps/travel-edge-config.js
+          test -s app/src/main/assets/www/assets/travel/reference-hero-right.webp.b64
+
+          # Prove the final APK archive contains the Travel V14 web bundle.
+          unzip -l "$APK" | grep -Fq 'assets/www/src/features/apps/travel-suite-v14.js'
+          unzip -l "$APK" | grep -Fq 'assets/www/src/features/apps/travel-edge-client.js'
+          unzip -l "$APK" | grep -Fq 'assets/www/assets/travel/reference-hero-right.webp.b64'
+
+          OUT="$GITHUB_WORKSPACE/travel-v14-apk"
+          mkdir -p "$OUT"
+          cp "$APK" "$OUT/NexusNova-Travel-V14-Phone-Test.apk"
+          sha256sum "$OUT/NexusNova-Travel-V14-Phone-Test.apk" > "$OUT/SHA256.txt"
+          printf 'Source commit: %s\nBranch: %s\nTravel V14 bundled: PASS\nCloudflare Travel edge bundled: PASS\nApproved hero asset bundled: PASS\nBuild type: installable debug APK\n' "$GITHUB_SHA" "$GITHUB_REF_NAME" > "$OUT/BUILD-STATUS.txt"
+
+      - name: Upload Travel APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: NexusNova-Travel-V14-Phone-Test
+          path: travel-v14-apk/
+          if-no-files-found: error
+          retention-days: 7
