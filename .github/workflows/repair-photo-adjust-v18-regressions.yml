@@ -1,0 +1,87 @@
+name: Repair Photo Adjust v18 regressions
+
+on:
+  push:
+    branches:
+      - ai-photo-real-canva-ai-generator-correction
+    paths:
+      - .github/workflows/repair-photo-adjust-v18-regressions.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ai-photo-real-canva-ai-generator-correction
+          fetch-depth: 0
+      - name: Patch Photo Adjust product and regression QA
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new, label):
+              p=Path(path); s=p.read_text()
+              if old not in s:
+                  raise SystemExit(f'{label}: expected text not found in {path}')
+              if s.count(old)!=1:
+                  raise SystemExit(f'{label}: expected exactly one match in {path}, got {s.count(old)}')
+              p.write_text(s.replace(old,new,1))
+              print('patched', label)
+
+          editor='fresh-rebuild/src/features/apps/ai-photo-adjust-editor.js'
+          replace_once(editor,
+              "qa('[data-mask-adjust]').forEach(i=>{const v=state.mask.adjust?.[i.dataset.maskAdjust]??0;i.value=String(v);if(i.nextElementSibling)i.nextElementSibling.textContent=String(Math.round(v))});",
+              "qa('[data-mask-adjust]').forEach(i=>{const v=state.mask.adjust?.[i.dataset.maskAdjust]??0;i.value=String(v);if(i.nextElementSibling)i.nextElementSibling.textContent=i.dataset.maskAdjust==='exposure'?Number(v).toFixed(2):String(Math.round(v))});",
+              'mask adjustment output formatting')
+          replace_once(editor,
+              "q('[data-photo-fliph]')?.classList.toggle('is-active',Boolean(state.flipX));q('[data-photo-flipv]')?.classList.toggle('is-active',Boolean(state.flipY));\n    syncHistory();renderCurve();",
+              "q('[data-photo-fliph]')?.classList.toggle('is-active',Boolean(state.flipX));q('[data-photo-flipv]')?.classList.toggle('is-active',Boolean(state.flipY));\n    const maskStatus=q('[data-mask-status]');if(maskStatus)maskStatus.textContent=state.mask.base==='none'&&!state.mask.strokes.length?'Mask: none':`Mask: ${state.mask.base}${state.mask.strokes.length?` + ${state.mask.strokes.length} brush stroke${state.mask.strokes.length===1?'':'s'}`:''}`;\n    syncHistory();renderCurve();",
+              'mask status sync')
+          replace_once(editor,
+              "sync();paint();aiStatus.textContent=`${mode} applied in-app.`;toast('NexusNova AI edit applied')",
+              "sync();const beforePaint=root.dataset.adjustPaint||'';paintImmediate();for(let n=0;n<120&&root.dataset.adjustPaint===beforePaint;n++)await new Promise(resolve=>setTimeout(resolve,16));aiStatus.textContent=`${mode} applied in-app.`;toast('NexusNova AI edit applied')",
+              'AI visible-render completion')
+          replace_once(editor,
+              "status.textContent=`${ext.toUpperCase()} exported at full resolution.`;toast('Export complete')",
+              "status.textContent=`${ext.toUpperCase()} exported locally at full resolution.`;toast('Export complete')",
+              'export status contract')
+
+          shell='tools/ai-photo-flagship-qa/flagship-shell-v16-qa.mjs'
+          p=Path(shell); s=p.read_text()
+          s2=s.replace("'Seven Light adjustment controls are physically displayed'","'Eight Light adjustment controls are physically displayed'")
+          s2=s2.replace('fields.length===7','fields.length===8')
+          s2=s2.replace("'Seven active Light labels have readable dark-surface contrast'","'Eight active Light labels have readable dark-surface contrast'")
+          s2=s2.replace('labels.length===7','labels.length===8')
+          if s2==s: raise SystemExit('shell v16 count patch made no change')
+          p.write_text(s2); print('patched shell v16 v18 count expectations')
+
+          tools='tools/ai-photo-flagship-qa/flagship-tools-v16-qa.mjs'
+          p=Path(tools); s=p.read_text(); old='labels.length===7&&labels.every'; new='labels.length===8&&labels.every'
+          if old not in s: raise SystemExit('tools v16 count expectation not found')
+          p.write_text(s.replace(old,new,1)); print('patched tools v16 v18 count expectation')
+
+          qa='tools/ai-photo-flagship-qa/adjust-v18-qa.mjs'
+          replace_once(qa,
+              "  await loadLarge();await click('[data-photo-panel-open=\"adjust\"]');",
+              "  await ex('return window.__qaRoot.__nxStudioNavigation.openEditor({pick:false});');await wait('return document.querySelector(\".nxlock-home\")?.hidden===true;','photo editor route');await loadLarge();await click('[data-photo-panel-open=\"adjust\"]');",
+              'adjust v18 visible editor route')
+          PY
+      - name: Syntax check patched files
+        run: |
+          node --check fresh-rebuild/src/features/apps/ai-photo-adjust-editor.js
+          node --check tools/ai-photo-flagship-qa/adjust-v18-qa.mjs
+          node --check tools/ai-photo-flagship-qa/flagship-shell-v16-qa.mjs
+          node --check tools/ai-photo-flagship-qa/flagship-tools-v16-qa.mjs
+      - name: Commit repair
+        shell: bash
+        run: |
+          git config user.name "NexusNova QA Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add fresh-rebuild/src/features/apps/ai-photo-adjust-editor.js tools/ai-photo-flagship-qa/adjust-v18-qa.mjs tools/ai-photo-flagship-qa/flagship-shell-v16-qa.mjs tools/ai-photo-flagship-qa/flagship-tools-v16-qa.mjs
+          git commit -m "fix: close Photo Adjust v18 integration regressions"
+          git push origin HEAD:ai-photo-real-canva-ai-generator-correction
