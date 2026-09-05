@@ -39,6 +39,7 @@ function clampTravelPhoneWidth(root) {
 
 function installTravelFullscreenShell(root) {
   let disposed = false;
+  let settleTimer = 0;
 
   const fit = () => {
     if (disposed || !root.isConnected) return;
@@ -76,15 +77,21 @@ function installTravelFullscreenShell(root) {
 
     const viewport = window.visualViewport?.height || window.innerHeight || 720;
     const top = Math.max(0, root.getBoundingClientRect().top);
-    let bottom = viewport;
+    const screenBottom = screen?.getBoundingClientRect().bottom;
+    let bottom = Number.isFinite(screenBottom) && screenBottom > top
+      ? Math.min(viewport, screenBottom)
+      : viewport;
     const globalDock = document.querySelector('.nx-dock.global:not([hidden])') || document.querySelector('.nx-dock:not([hidden])');
     if (globalDock) {
       const rect = globalDock.getBoundingClientRect();
-      if (Number.isFinite(rect.top) && rect.top > top && rect.top < viewport) bottom = rect.top - 6;
+      if (Number.isFinite(rect.top) && rect.top > top && rect.top < bottom + 12) {
+        bottom = Math.min(bottom, rect.top - 6);
+      }
     }
     const available = Math.max(0, Math.floor(bottom - top));
-    root.style.minHeight = '0';
-    root.style.height = `${available}px`;
+    root.style.setProperty('min-height', '0', 'important');
+    root.style.setProperty('height', `${available}px`, 'important');
+    root.style.setProperty('max-height', `${available}px`, 'important');
     root.style.setProperty('--nn-h', `${available}px`);
 
     const width = clampTravelPhoneWidth(root);
@@ -94,7 +101,8 @@ function installTravelFullscreenShell(root) {
         canvas.style.setProperty('left', '0', 'important');
         canvas.style.setProperty('transform', 'none', 'important');
         canvas.style.setProperty('width', `${width}px`, 'important');
-        canvas.style.setProperty('height', '100%', 'important');
+        canvas.style.setProperty('height', `${available}px`, 'important');
+        canvas.style.setProperty('max-height', `${available}px`, 'important');
       } else {
         const legacyWidth = Math.max(1, root.clientWidth);
         const legacyHeight = Math.max(1, root.clientHeight);
@@ -104,16 +112,23 @@ function installTravelFullscreenShell(root) {
     }
   };
 
+  const settle = () => {
+    requestAnimationFrame(() => requestAnimationFrame(fit));
+    clearTimeout(settleTimer);
+    settleTimer = window.setTimeout(fit, 180);
+  };
+
   clampTravelPhoneWidth(root);
-  requestAnimationFrame(fit);
-  window.addEventListener('resize', fit, { passive: true });
-  window.visualViewport?.addEventListener('resize', fit, { passive: true });
+  settle();
+  window.addEventListener('resize', settle, { passive: true });
+  window.visualViewport?.addEventListener('resize', settle, { passive: true });
 
   const previousCleanup = root.__cleanup;
   root.__cleanup = () => {
     disposed = true;
-    window.removeEventListener('resize', fit);
-    window.visualViewport?.removeEventListener('resize', fit);
+    clearTimeout(settleTimer);
+    window.removeEventListener('resize', settle);
+    window.visualViewport?.removeEventListener('resize', settle);
     previousCleanup?.();
   };
 }
