@@ -14,6 +14,7 @@ on:
       - 'fresh-rebuild/src/features/apps/travel-suite-v7.js'
       - 'fresh-rebuild/src/features/apps/travel-suite-v12.js'
       - 'fresh-rebuild/src/features/apps/travel-suite-v13.js'
+      - 'fresh-rebuild/src/features/apps/travel-suite-v14.js'
   workflow_dispatch:
 
 permissions:
@@ -35,6 +36,7 @@ jobs:
           node --check fresh-rebuild/src/features/apps/travel-suite-v7.js
           node --check fresh-rebuild/src/features/apps/travel-suite-v12.js
           node --check fresh-rebuild/src/features/apps/travel-suite-v13.js
+          node --check fresh-rebuild/src/features/apps/travel-suite-v14.js
           node --check fresh-rebuild/src/features/apps/travel-suite.js
 
       - name: Gate 2 - locked reference contract
@@ -45,7 +47,9 @@ jobs:
           grep -q "width:550px" fresh-rebuild/src/features/apps/travel-suite-v6.js
           grep -q "height:1032px" fresh-rebuild/src/features/apps/travel-suite-v6.js
           grep -q "v13-locked-asset-fetch" fresh-rebuild/src/features/apps/travel-suite-v13.js
-          grep -q "width:521px" fresh-rebuild/src/features/apps/travel-suite-v13.js
+          grep -q "v14-reference-material-pass" fresh-rebuild/src/features/apps/travel-suite-v14.js
+          grep -q "width:521px" fresh-rebuild/src/features/apps/travel-suite-v14.js
+          grep -q "installBottomDockReference" fresh-rebuild/src/features/apps/travel-suite-v14.js
           grep -q "reference-hero-right.webp.b64" fresh-rebuild/src/features/apps/travel-suite-v13.js
           test -s fresh-rebuild/assets/travel/reference-hero-right.webp.b64
 
@@ -95,14 +99,14 @@ jobs:
                 const from=rect('.nn-from'),to=rect('.nn-to'),depart=rect('.nn-depart'),ret=rect('.nn-return'),adults=rect('.nn-adults'),cabin=rect('.nn-cabin'),currency=rect('.nn-currency');
                 const rr=root.getBoundingClientRect();
                 const globalDock=document.querySelector('.nx-dock.global')?.getBoundingClientRect();
-                return{tabs,hero:rect('[data-reference-zone="hero"]'),form:rect('[data-reference-zone="flight-form"]'),results:rect('[data-reference-zone="flight-results"]'),root:{x:rr.x,y:rr.y,w:rr.width,h:rr.height,b:rr.bottom},globalDock:globalDock?{x:globalDock.x,y:globalDock.y,w:globalDock.width,h:globalDock.height}:null,geometry:{fourTabs:tabs.length===4,row1:Boolean(from&&to&&Math.abs(from.y-to.y)<2&&from.r<to.x),row2:Boolean(depart&&ret&&Math.abs(depart.y-ret.y)<2&&depart.r<=ret.x+2),row3:Boolean(adults&&cabin&&currency&&Math.abs(adults.y-cabin.y)<2&&Math.abs(cabin.y-currency.y)<2&&adults.r<=cabin.x+2&&cabin.r<=currency.x+2),rootContained:Boolean(globalDock&&rr.height>0&&rr.bottom<=globalDock.top),pageOverflow:document.documentElement.scrollHeight>1215||document.body.scrollHeight>1215,liveOnly:root.dataset.liveOnly==='true',visualV13:root.dataset.referenceVisual==='v13-locked-asset-fetch',heroReady:root.querySelector('.nn-locked-hero-right')?.dataset.ready==='true',controls:[...root.querySelectorAll('button')].filter(b=>!b.classList.contains('nn-tab')).map(b=>b.hasAttribute('data-flight-search')||b.hasAttribute('data-hotel-search')||b.hasAttribute('data-ground-search')||b.hasAttribute('data-trip-save')||b.hasAttribute('data-trip-clear')||b.hasAttribute('data-pakistan-tours')).filter(Boolean).length}};
+                return{tabs,hero:rect('[data-reference-zone="hero"]'),form:rect('[data-reference-zone="flight-form"]'),results:rect('[data-reference-zone="flight-results"]'),root:{x:rr.x,y:rr.y,w:rr.width,h:rr.height,b:rr.bottom},globalDock:globalDock?{x:globalDock.x,y:globalDock.y,w:globalDock.width,h:globalDock.height}:null,geometry:{fourTabs:tabs.length===4,row1:Boolean(from&&to&&Math.abs(from.y-to.y)<2&&from.r<to.x),row2:Boolean(depart&&ret&&Math.abs(depart.y-ret.y)<2&&depart.r<=ret.x+2),row3:Boolean(adults&&cabin&&currency&&Math.abs(adults.y-cabin.y)<2&&Math.abs(cabin.y-currency.y)<2&&adults.r<=cabin.x+2&&cabin.r<=currency.x+2),rootContained:Boolean(globalDock&&rr.height>0&&rr.bottom<=globalDock.top),pageOverflow:document.documentElement.scrollHeight>1215||document.body.scrollHeight>1215,liveOnly:root.dataset.liveOnly==='true',visualV14:root.dataset.referenceVisual==='v14-reference-material-pass',heroReady:root.querySelector('.nn-locked-hero-right')?.dataset.ready==='true',bottomIcons:document.querySelectorAll('.nx-dock.global .nn-bottom-ref-icon').length===2,controls:[...root.querySelectorAll('button')].filter(b=>!b.classList.contains('nn-tab')).map(b=>b.hasAttribute('data-flight-search')||b.hasAttribute('data-hotel-search')||b.hasAttribute('data-ground-search')||b.hasAttribute('data-trip-save')||b.hasAttribute('data-trip-clear')||b.hasAttribute('data-pakistan-tours')).filter(Boolean).length}};
               });
               console.log(`PASS ${pass}:`,JSON.stringify(report));
               await page.screenshot({path:'travel-reference-actual.png',fullPage:false});
               if(errors.length)throw new Error(`Pass ${pass} page error: ${errors.join(' | ')}`);
               if(!report.geometry.fourTabs||!report.geometry.row1||!report.geometry.row2||!report.geometry.row3)throw new Error(`Pass ${pass} failed: reference field geometry.`);
               if(report.geometry.pageOverflow||!report.geometry.rootContained)throw new Error(`Pass ${pass} failed: page scroll/containment.`);
-              if(!report.geometry.liveOnly||!report.geometry.visualV13||!report.geometry.heroReady||report.geometry.controls<6)throw new Error(`Pass ${pass} failed: live-only/v13/asset/control contract.`);
+              if(!report.geometry.liveOnly||!report.geometry.visualV14||!report.geometry.heroReady||!report.geometry.bottomIcons||report.geometry.controls<6)throw new Error(`Pass ${pass} failed: live-only/v14/asset/control contract.`);
               if(!report.hero||!near(report.hero.x,17,3)||!near(report.hero.y,158,3)||!near(report.hero.w,520,2)||!near(report.hero.h,135,2))throw new Error(`Pass ${pass} failed: hero reference box ${JSON.stringify(report.hero)}`);
               if(!report.form||!near(report.form.x,17,3)||!near(report.form.y,298,3)||!near(report.form.w,520,2)||!near(report.form.h,388,3))throw new Error(`Pass ${pass} failed: form reference box ${JSON.stringify(report.form)}`);
               if(!report.results||!near(report.results.x,17,3)||!near(report.results.y,696,3)||!near(report.results.w,520,2))throw new Error(`Pass ${pass} failed: results reference box ${JSON.stringify(report.results)}`);
