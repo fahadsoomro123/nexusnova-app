@@ -1,4 +1,4 @@
-import { renderTravelSuite as renderTravelSuiteV13 } from './travel-suite-v13.js';
+import { renderTravelSuite as renderTravelSuiteV14 } from './travel-suite-v14.js';
 
 function installTravelFullscreenShell(root) {
   let disposed = false;
@@ -80,7 +80,7 @@ function installTravelFullscreenShell(root) {
 }
 
 export function renderTravelSuite() {
-  const root = renderTravelSuiteV13();
+  const root = renderTravelSuiteV14();
   installTravelFullscreenShell(root);
   return root;
 }
