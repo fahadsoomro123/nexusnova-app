@@ -33,3 +33,4 @@ node tools/ai-photo-flagship-qa/behavior-qa.mjs "$CHROME" "$CHROMEDRIVER" "$PORT
 node tools/ai-photo-flagship-qa/design-editor-qa-v2.mjs "$CHROME" "$CHROMEDRIVER" "$PORT" "$OUT_DIR"
 node tools/ai-photo-flagship-qa/photo-editor-qa.mjs "$CHROME" "$CHROMEDRIVER" "$PORT" "$OUT_DIR"
 node tools/ai-photo-flagship-qa/photo-editor-strict-qa.mjs "$CHROME" "$CHROMEDRIVER" "$PORT" "$OUT_DIR"
+node tools/ai-photo-flagship-qa/photo-ai-qa.mjs "$CHROME" "$CHROMEDRIVER" "$PORT" "$OUT_DIR"
