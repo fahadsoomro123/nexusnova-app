@@ -1,0 +1,37 @@
+name: Stabilize Adjust v18 HSL QA
+
+on:
+  push:
+    branches: [ai-photo-real-canva-ai-generator-correction]
+    paths: [.github/workflows/stabilize-adjust-v18-hsl-qa.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ai-photo-real-canva-ai-generator-correction
+          fetch-depth: 0
+      - name: Remove HSL first-render race from dedicated QA
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('tools/ai-photo-flagship-qa/adjust-v18-qa.mjs')
+          s=p.read_text()
+          old="for(const[color,index]of ['red','orange','yellow','green','aqua','blue','purple','magenta'].map((c,i)=>[c,i])){await click('[data-photo-subtab=\"mix\"]');await click(`[data-photo-mix-color=\"${color}\"]`);const own=await pixel((index+.5)/8,.2),far=await pixel(((index+4)%8+.5)/8,.2);await range('[data-photo-mix=\"h\"]',30);const edited=await pixel((index+.5)/8,.2),other=await pixel(((index+4)%8+.5)/8,.2);rec(`${color} HSL targets selected range`,JSON.stringify(own)!==JSON.stringify(edited)&&JSON.stringify(far)===JSON.stringify(other));await reset()}"
+          new="for(const[color,index]of ['red','orange','yellow','green','aqua','blue','purple','magenta'].map((c,i)=>[c,i])){await click('[data-photo-subtab=\"mix\"]');await click(`[data-photo-mix-color=\"${color}\"]`);await delay(180);const own=await pixel((index+.5)/8,.2),far=await pixel(((index+4)%8+.5)/8,.2);await range('[data-photo-mix=\"h\"]',30);const edited=await pixel((index+.5)/8,.2),other=await pixel(((index+4)%8+.5)/8,.2);rec(`${color} HSL targets selected range`,JSON.stringify(own)!==JSON.stringify(edited)&&JSON.stringify(far)===JSON.stringify(other),JSON.stringify({own,edited,far,other}));await reset()}"
+          if old not in s: raise SystemExit('HSL loop not found')
+          p.write_text(s.replace(old,new,1))
+          PY
+          node --check tools/ai-photo-flagship-qa/adjust-v18-qa.mjs
+      - name: Commit QA stabilization
+        run: |
+          git config user.name "NexusNova QA Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add tools/ai-photo-flagship-qa/adjust-v18-qa.mjs
+          git commit -m "test: stabilize Photo Adjust v18 HSL render gate"
+          git push origin HEAD:ai-photo-real-canva-ai-generator-correction
