@@ -1,9 +1,8 @@
-import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-functions.js';
-import { firebaseApp, requireFirebaseUser } from '../../core/firebase-backend.js';
 import { TRAVEL_EDGE_URL } from './travel-edge-config.js';
 
-const functions = getFunctions(firebaseApp, 'us-central1');
-const REQUEST_TIMEOUT_MS = 26000;
+const REQUEST_TIMEOUT_MS = 32000;
+const RETRYABLE = new Set([429, 500, 502, 503]);
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 function cleanBase(value) {
   return String(value || '').trim().replace(/\/+$/, '');
@@ -26,52 +25,60 @@ async function fetchWithTimeout(url, options, timeoutMs = REQUEST_TIMEOUT_MS) {
 
 async function callEdge(name, payload) {
   const base = travelEdgeBase();
-  if (!base) return null;
-  const user = await requireFirebaseUser();
-  const idToken = await user.getIdToken(false);
-  const response = await fetchWithTimeout(`${base}/rpc/${encodeURIComponent(name)}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-      Authorization: `Bearer ${idToken}`
-    },
-    body: JSON.stringify(payload || {})
-  });
-  const text = await response.text();
-  let data = null;
-  try { data = text ? JSON.parse(text) : null; } catch {}
-  if (!response.ok) {
-    const message = data?.message || data?.error || `Travel edge API HTTP ${response.status}`;
-    const error = new Error(String(message).slice(0, 240));
-    error.code = `edge-${response.status}`;
-    throw error;
+  if (!base) throw new Error('NexusNova Travel Cloudflare endpoint is not configured.');
+
+  let lastError = null;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const response = await fetchWithTimeout(`${base}/rpc/${encodeURIComponent(name)}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          'X-NexusNova-Client': 'fresh-rebuild'
+        },
+        body: JSON.stringify(payload || {})
+      });
+      const raw = await response.text();
+      let data = null;
+      try { data = raw ? JSON.parse(raw) : null; } catch {}
+      if (!response.ok) {
+        const message = data?.message || data?.error || `Travel edge API HTTP ${response.status}`;
+        const error = new Error(String(message).slice(0, 240));
+        error.code = `edge-${response.status}`;
+        error.status = response.status;
+        if (attempt === 0 && RETRYABLE.has(response.status)) {
+          lastError = error;
+          await sleep(700);
+          continue;
+        }
+        throw error;
+      }
+      return data || {};
+    } catch (error) {
+      if (attempt === 0 && (error?.name === 'AbortError' || RETRYABLE.has(Number(error?.status)))) {
+        lastError = error;
+        await sleep(700);
+        continue;
+      }
+      throw error;
+    }
   }
-  return data || {};
+  throw lastError || new Error('Travel Cloudflare request failed.');
 }
 
 export async function travelCall(name, payload = {}) {
-  const edge = await callEdge(name, payload);
-  if (edge !== null) return edge;
-
-  // Safe fallback while Cloudflare is not configured or after Google billing is restored.
-  const user = await requireFirebaseUser();
-  if (!user) throw new Error('Please sign in first.');
-  const response = await httpsCallable(functions, name)(payload);
-  return response?.data || {};
+  return callEdge(name, payload);
 }
 
 export async function travelHealth() {
   const base = travelEdgeBase();
-  if (base) {
-    try {
-      const response = await fetchWithTimeout(`${base}/health`, { headers: { Accept: 'application/json' } }, 8000);
-      if (response.ok) return await response.json();
-    } catch {}
-  }
+  if (!base) return { ok: false, backend: 'cloudflare-only', architecture: 'cloudflare-only', providers: {} };
   try {
-    return await travelCall('getProviderHealth', {});
-  } catch {
-    return { ok: false, backend: base ? 'cloudflare-edge' : 'firebase', providers: {} };
-  }
+    const response = await fetchWithTimeout(`${base}/health`, {
+      headers: { Accept: 'application/json', 'X-NexusNova-Client': 'fresh-rebuild' }
+    }, 9000);
+    if (response.ok) return await response.json();
+  } catch {}
+  return { ok: false, backend: 'cloudflare-only', architecture: 'cloudflare-only', providers: {} };
 }
