@@ -21,10 +21,16 @@ concurrency:
   group: travel-v14-phone-apk-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  VERSION_CODE: '2026090510'
+  VERSION_NAME: '1.0.18-travel-v14-phone-test'
+  APK_NAME: 'NexusNova-Travel-V14-v1.0.18-SIGNED.apk'
+  EXPECTED_SIGNER_SHA256: '30052faf26f112d88d48061b88e6a698371ef0cdc4203122a9350529405a716c'
+
 jobs:
   build-travel-phone-apk:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 40
     steps:
       - name: Checkout Travel staging branch
         uses: actions/checkout@v4
@@ -51,7 +57,7 @@ jobs:
           echo 'Travel V14 locked source: PASS'
 
       - name: Java 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
@@ -61,7 +67,68 @@ jobs:
         with:
           gradle-version: '8.13'
 
-      - name: Build installable debug APK with Travel V14
+      - name: Require permanent NexusNova signing secrets
+        env:
+          KEYSTORE_B64: ${{ secrets.NEXUSNOVA_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.NEXUSNOVA_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.NEXUSNOVA_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.NEXUSNOVA_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$KEYSTORE_B64"
+          test -n "$STORE_PASSWORD"
+          test -n "$KEY_ALIAS"
+          test -n "$KEY_PASSWORD"
+
+      - name: Restore permanent NexusNova keystore
+        env:
+          KEYSTORE_B64: ${{ secrets.NEXUSNOVA_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.NEXUSNOVA_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.NEXUSNOVA_KEY_ALIAS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          KEYSTORE="$RUNNER_TEMP/nexusnova-permanent.jks"
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$KEYSTORE"
+          test -s "$KEYSTORE"
+          chmod 600 "$KEYSTORE"
+          keytool -list -keystore "$KEYSTORE" -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
+          echo "NEXUSNOVA_SIGNING_STORE_FILE=$KEYSTORE" >> "$GITHUB_ENV"
+
+      - name: Inject higher phone version and permanent signer
+        env:
+          STORE_PASSWORD: ${{ secrets.NEXUSNOVA_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.NEXUSNOVA_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.NEXUSNOVA_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "NEXUSNOVA_SIGNING_STORE_PASSWORD=$STORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "NEXUSNOVA_SIGNING_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
+          echo "NEXUSNOVA_SIGNING_KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
+          python3 - <<'PY'
+          import os,re
+          from pathlib import Path
+          p=Path('NexusNovaAndroid/app/build.gradle.kts')
+          t=p.read_text(encoding='utf-8')
+          t,n1=re.subn(r'versionCode\s*=\s*\d+','versionCode = '+os.environ['VERSION_CODE'],t,count=1)
+          t,n2=re.subn(r'versionName\s*=\s*"[^"]*"','versionName = "'+os.environ['VERSION_NAME']+'"',t,count=1)
+          if n1!=1 or n2!=1:
+              raise SystemExit('Android version fields not found')
+          signing='''    signingConfigs {\n        create("nexusRelease") {\n            storeFile = file(System.getenv("NEXUSNOVA_SIGNING_STORE_FILE"))\n            storePassword = System.getenv("NEXUSNOVA_SIGNING_STORE_PASSWORD")\n            keyAlias = System.getenv("NEXUSNOVA_SIGNING_KEY_ALIAS")\n            keyPassword = System.getenv("NEXUSNOVA_SIGNING_KEY_PASSWORD")\n        }\n    }\n\n'''
+          marker='    buildTypes {\n'
+          if marker not in t:
+              raise SystemExit('buildTypes block not found')
+          t=t.replace(marker,signing+marker,1)
+          debug='        debug {\n'
+          if debug not in t:
+              raise SystemExit('debug block not found')
+          t=t.replace(debug,debug+'            signingConfig = signingConfigs.getByName("nexusRelease")\n',1)
+          p.write_text(t,encoding='utf-8')
+          PY
+
+      - name: Build installable signed APK with Travel V14
         shell: bash
         run: |
           set -euo pipefail
@@ -81,16 +148,37 @@ jobs:
           unzip -l "$APK" | grep -Fq 'assets/www/src/features/apps/travel-edge-client.js'
           unzip -l "$APK" | grep -Fq 'assets/www/assets/travel/reference-hero-right.webp.b64'
 
+      - name: Verify permanent signer package and upgrade version
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$GITHUB_WORKSPACE/NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)"
+          test -x "$APKSIGNER"
+          test -x "$AAPT"
+          "$APKSIGNER" verify --verbose --print-certs "$APK" | tee /tmp/travel-apk-verify.txt
+          SIGNER="$(grep -m1 'certificate SHA-256 digest:' /tmp/travel-apk-verify.txt | sed -E 's/^.*certificate SHA-256 digest: //' | tr '[:upper:]' '[:lower:]' | tr -d ':')"
+          test "$SIGNER" = "$EXPECTED_SIGNER_SHA256"
+          "$AAPT" dump badging "$APK" | head -1 | tee /tmp/travel-apk-package.txt
+          grep -Fq "name='com.nexusnova.app'" /tmp/travel-apk-package.txt
+          grep -Fq "versionCode='$VERSION_CODE'" /tmp/travel-apk-package.txt
           OUT="$GITHUB_WORKSPACE/travel-v14-apk"
+          rm -rf "$OUT"
           mkdir -p "$OUT"
-          cp "$APK" "$OUT/NexusNova-Travel-V14-Phone-Test.apk"
-          sha256sum "$OUT/NexusNova-Travel-V14-Phone-Test.apk" > "$OUT/SHA256.txt"
-          printf 'Source commit: %s\nBranch: %s\nTravel V14 bundled: PASS\nCloudflare Travel edge bundled: PASS\nApproved hero asset bundled: PASS\nBuild type: installable debug APK\n' "$GITHUB_SHA" "$GITHUB_REF_NAME" > "$OUT/BUILD-STATUS.txt"
+          cp "$APK" "$OUT/$APK_NAME"
+          sha256sum "$OUT/$APK_NAME" > "$OUT/SHA256.txt"
+          printf 'Source commit: %s\nBranch: %s\nVersion: %s (%s)\nPackage: com.nexusnova.app\nPermanent signer: PASS\nSigner SHA-256: %s\nTravel V14 bundled: PASS\nCloudflare Travel edge bundled: PASS\nApproved hero asset bundled: PASS\nBuild type: installable signed debug APK\nUpgrade target: existing signed NexusNova install\n' "$GITHUB_SHA" "$GITHUB_REF_NAME" "$VERSION_NAME" "$VERSION_CODE" "$SIGNER" > "$OUT/BUILD-STATUS.txt"
 
-      - name: Upload Travel APK
+      - name: Upload signed Travel APK
         uses: actions/upload-artifact@v4
         with:
-          name: NexusNova-Travel-V14-Phone-Test
+          name: NexusNova-Travel-V14-v1.0.18-SIGNED
           path: travel-v14-apk/
           if-no-files-found: error
           retention-days: 7
+
+      - name: Remove signing material
+        if: always()
+        shell: bash
+        run: rm -f "${NEXUSNOVA_SIGNING_STORE_FILE:-}" || true
