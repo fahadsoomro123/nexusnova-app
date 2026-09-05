@@ -1,0 +1,39 @@
+name: Fix Adjust v18 export QA wording
+
+on:
+  push:
+    branches: [ai-photo-real-canva-ai-generator-correction]
+    paths: [.github/workflows/fix-adjust-v18-export-qa.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ai-photo-real-canva-ai-generator-correction
+          fetch-depth: 0
+      - name: Align dedicated QA with explicit local full-resolution export status
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('tools/ai-photo-flagship-qa/adjust-v18-qa.mjs')
+          s=p.read_text()
+          old='document.querySelector("[data-photo-export-status]").textContent.includes("exported at full resolution")'
+          new='document.querySelector("[data-photo-export-status]").textContent.includes("exported locally at full resolution")'
+          if old not in s: raise SystemExit('export wait assertion not found')
+          s=s.replace(old,new,1)
+          s=s.replace('// QA rerun trigger after sync repair.','// QA gate aligned after v18 sync and visible-route repair.',1)
+          p.write_text(s)
+          PY
+          node --check tools/ai-photo-flagship-qa/adjust-v18-qa.mjs
+      - name: Commit QA alignment
+        run: |
+          git config user.name "NexusNova QA Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add tools/ai-photo-flagship-qa/adjust-v18-qa.mjs
+          git commit -m "test: align Photo Adjust v18 export gate"
+          git push origin HEAD:ai-photo-real-canva-ai-generator-correction
