@@ -1,0 +1,47 @@
+name: NexusNova Travel CI IAM Readiness
+
+on:
+  push:
+    branches: [travel-reference-v7-final-staging]
+    paths:
+      - '.github/workflows/travel-ci-iam-readiness.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  readiness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      PROJECT_ID: nexusnova-6ade2
+      SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+    steps:
+      - name: Identify configured deploy service account and test project permissions
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${SA_JSON:-}" ]; then
+            echo '::error::FIREBASE_SERVICE_ACCOUNT_JSON is not configured.'
+            exit 1
+          fi
+          key="$RUNNER_TEMP/firebase-sa.json"
+          printf '%s' "$SA_JSON" > "$key"
+          chmod 600 "$key"
+          email=$(python3 -c "import json; print(json.load(open('$key'))['client_email'])")
+          echo "Travel CI service account: $email"
+          gcloud auth activate-service-account --key-file="$key" --quiet >/dev/null
+          token=$(gcloud auth print-access-token)
+          cat > /tmp/perms.json <<'JSON'
+          {"permissions":["firebase.projects.get","serviceusage.services.enable","cloudfunctions.functions.create","cloudfunctions.functions.update","cloudfunctions.functions.get","iam.serviceAccounts.actAs","secretmanager.secrets.get","secretmanager.versions.access"]}
+          JSON
+          response=$(curl -sS -H "Authorization: Bearer $token" -H 'Content-Type: application/json' -X POST --data @/tmp/perms.json "https://cloudresourcemanager.googleapis.com/v1/projects/$PROJECT_ID:testIamPermissions")
+          RESPONSE="$response" python3 - <<'PY'
+          import json, os
+          requested=['firebase.projects.get','serviceusage.services.enable','cloudfunctions.functions.create','cloudfunctions.functions.update','cloudfunctions.functions.get','iam.serviceAccounts.actAs','secretmanager.secrets.get','secretmanager.versions.access']
+          data=json.loads(os.environ['RESPONSE'])
+          granted=set(data.get('permissions',[]))
+          for p in requested: print(f'{p}: {"YES" if p in granted else "NO"}')
+          PY
+          rm -f "$key" /tmp/perms.json
