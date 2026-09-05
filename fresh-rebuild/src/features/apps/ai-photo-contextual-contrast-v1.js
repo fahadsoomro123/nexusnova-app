@@ -4,8 +4,7 @@ export function installAiPhotoContextualContrastV1(root){
   const style=document.createElement('style');
   style.id='nx-ai-photo-contextual-contrast-v1';
   style.textContent=`
-  /* Contextual contrast: the Photo Editor is a light surface by default.
-     Do not let the dark Studio readability firewall force white text onto it. */
+  /* Normal Photo Editor is intentionally light: dark text on light surfaces. */
   .nx-photo-editor .nx-photo-frame{
     color-scheme:light dark!important;
     color:var(--p-t)!important;
@@ -52,28 +51,54 @@ export function installAiPhotoContextualContrastV1(root){
     -webkit-text-fill-color:#222!important;
   }
 
-  /* Edit/Adjust/Looks intentionally switch the sheet to a dark focus surface.
-     Scope this to the actual focus class itself so it remains correct even if
-     premium/locked wrapper classes change during navigation. */
-  .nx-photo-editor.nx-photo-focus-editing .nx-photo-sheet{
+  /* Edit / Adjust / Filters are focused editing surfaces. Their dark sheet is
+     driven by the active panel itself, not by the transient slider-focus class. */
+  .nx-photo-editor .nx-photo-sheet.nx-context-dark-sheet{
+    color-scheme:dark!important;
     color:#f7f8ff!important;
+    background:rgba(24,24,30,.96)!important;
+    border-color:rgba(255,255,255,.16)!important;
+    box-shadow:0 -12px 36px rgba(0,0,0,.24)!important;
+    backdrop-filter:blur(14px) saturate(1.12)!important;
     --nx-photo-focus-text:#f7f8ff;
     --nx-photo-focus-muted:#c6ccda;
   }
-  .nx-photo-editor.nx-photo-focus-editing .nx-photo-sheet :is(button,[role="button"],input,textarea,select,label,.nx-photo-field span,.nx-photo-sheet-head strong){
-    color:var(--nx-photo-focus-text)!important;
-    -webkit-text-fill-color:currentColor!important;
+  .nx-photo-editor .nx-photo-sheet.nx-context-dark-sheet :is(button,[role="button"],input,textarea,select,label,.nx-photo-field span,.nx-photo-sheet-head strong){
+    color:#f7f8ff!important;
+    -webkit-text-fill-color:#f7f8ff!important;
     caret-color:#fff!important;
   }
-  .nx-photo-editor.nx-photo-focus-editing .nx-photo-sheet :is(.nx-photo-field output,.nx-photo-status,.nx-photo-ai-action small){
-    color:var(--nx-photo-focus-muted)!important;
-    -webkit-text-fill-color:currentColor!important;
+  .nx-photo-editor .nx-photo-sheet.nx-context-dark-sheet :is(.nx-photo-field output,.nx-photo-status,.nx-photo-ai-action small){
+    color:#c6ccda!important;
+    -webkit-text-fill-color:#c6ccda!important;
   }
-  .nx-photo-editor.nx-photo-focus-editing .nx-photo-sheet :is(.nx-photo-tab,.nx-photo-pill,.nx-photo-action,.nx-photo-ratio).is-active{
-    color:#d9b7ff!important;
-    -webkit-text-fill-color:currentColor!important;
+  .nx-photo-editor .nx-photo-sheet.nx-context-dark-sheet :is(.nx-photo-tab,.nx-photo-pill,.nx-photo-action,.nx-photo-ratio){
+    border-color:rgba(255,255,255,.14)!important;
+    background:rgba(38,39,48,.94)!important;
+  }
+  .nx-photo-editor .nx-photo-sheet.nx-context-dark-sheet :is(.nx-photo-tab,.nx-photo-pill,.nx-photo-action,.nx-photo-ratio).is-active{
+    color:#e1c5ff!important;
+    -webkit-text-fill-color:#e1c5ff!important;
+    border-color:#9d58ef!important;
+    background:rgba(98,50,145,.46)!important;
   }
   `;
   document.head.appendChild(style);
-  return()=>{style.remove();delete root.__nxAiPhotoContextualContrastV1};
+
+  const sheet=root.querySelector('.nx-photo-sheet');
+  const syncSheet=()=>{
+    if(!sheet)return;
+    const active=sheet.querySelector('[data-photo-sheet-panel].is-active')?.dataset.photoSheetPanel||'';
+    sheet.classList.toggle('nx-context-dark-sheet',active==='edit'||active==='adjust'||active==='looks');
+  };
+  const observer=new MutationObserver(syncSheet);
+  if(sheet)observer.observe(sheet,{subtree:true,attributes:true,attributeFilter:['class']});
+  syncSheet();
+
+  return()=>{
+    observer.disconnect();
+    sheet?.classList.remove('nx-context-dark-sheet');
+    style.remove();
+    delete root.__nxAiPhotoContextualContrastV1;
+  };
 }
