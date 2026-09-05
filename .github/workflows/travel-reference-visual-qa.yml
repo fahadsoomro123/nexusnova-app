@@ -11,6 +11,7 @@ on:
       - 'fresh-rebuild/src/features/apps/travel-suite-v5.js'
       - 'fresh-rebuild/src/features/apps/travel-suite-v6.js'
       - 'fresh-rebuild/src/features/apps/travel-suite-v7.js'
+      - 'fresh-rebuild/src/features/apps/travel-suite-v12.js'
   workflow_dispatch:
 
 permissions:
@@ -31,6 +32,7 @@ jobs:
         run: |
           node --check fresh-rebuild/src/features/apps/travel-suite-v6.js
           node --check fresh-rebuild/src/features/apps/travel-suite-v7.js
+          node --check fresh-rebuild/src/features/apps/travel-suite-v12.js
           node --check fresh-rebuild/src/features/apps/travel-suite.js
 
       - name: Gate 2 - locked reference contract
@@ -38,10 +40,10 @@ jobs:
           set -euo pipefail
           grep -q "referenceLocked = 'true'" fresh-rebuild/src/features/apps/travel-suite-v6.js
           grep -q "grid-template-columns:repeat(12" fresh-rebuild/src/features/apps/travel-suite-v6.js
-          grep -q "grid-template-rows:140px 398px" fresh-rebuild/src/features/apps/travel-suite-v6.js
           grep -q "width:550px" fresh-rebuild/src/features/apps/travel-suite-v6.js
           grep -q "height:1032px" fresh-rebuild/src/features/apps/travel-suite-v6.js
-          grep -q "nn-ref-earth" fresh-rebuild/src/features/apps/travel-suite-v6.js
+          grep -q "dataset.referenceVisual = 'v12'" fresh-rebuild/src/features/apps/travel-suite-v12.js
+          grep -q "grid-template-rows:140px 397px" fresh-rebuild/src/features/apps/travel-suite-v12.js
 
       - name: Gate 3 - live-only API contract
         run: |
@@ -103,20 +105,21 @@ jobs:
                     rootContained:Boolean(globalDock&&rootRect.height>0&&rootRect.bottom<=globalDock.top),
                     pageOverflow:document.documentElement.scrollHeight>1215||document.body.scrollHeight>1215,
                     liveOnly:root.dataset.liveOnly==='true',
+                    visualV12:root.dataset.referenceVisual==='v12',
                     controls:[...root.querySelectorAll('button')].filter(b=>!b.classList.contains('nn-tab')).map(b=>b.getAttribute('data-flight-search')!==null||b.getAttribute('data-hotel-search')!==null||b.getAttribute('data-ground-search')!==null||b.getAttribute('data-trip-save')!==null||b.getAttribute('data-trip-clear')!==null||b.getAttribute('data-pakistan-tours')!==null).filter(Boolean).length
                   }
                 };
               });
               report.errors=errors;
               console.log(`PASS ${pass}:`,JSON.stringify(report));
+              await page.screenshot({path:'travel-reference-actual.png',fullPage:false});
               if(errors.length) throw new Error(`Pass ${pass} page error: ${errors.join(' | ')}`);
               if(!report.geometry.fourTabs||!report.geometry.row1||!report.geometry.row2||!report.geometry.row3) throw new Error(`Pass ${pass} failed: reference field geometry.`);
               if(report.geometry.pageOverflow||!report.geometry.rootContained) throw new Error(`Pass ${pass} failed: page scroll/containment.`);
-              if(!report.geometry.liveOnly||report.geometry.controls<6) throw new Error(`Pass ${pass} failed: live-only/control contract.`);
-              if(!report.hero||!near(report.hero.x,17,4)||!near(report.hero.y,159,5)||!near(report.hero.w,520,5)||!near(report.hero.h,134,3)) throw new Error(`Pass ${pass} failed: hero reference box ${JSON.stringify(report.hero)}`);
-              if(!report.form||!near(report.form.x,17,4)||!near(report.form.y,299,6)||!near(report.form.w,520,5)||!near(report.form.h,388,4)) throw new Error(`Pass ${pass} failed: form reference box ${JSON.stringify(report.form)}`);
-              if(!report.results||!near(report.results.x,17,4)||!near(report.results.y,697,7)||!near(report.results.w,520,5)) throw new Error(`Pass ${pass} failed: results reference box ${JSON.stringify(report.results)}`);
-              if(pass===6) await page.screenshot({path:'travel-reference-actual.png',fullPage:false});
+              if(!report.geometry.liveOnly||!report.geometry.visualV12||report.geometry.controls<6) throw new Error(`Pass ${pass} failed: live-only/v12/control contract.`);
+              if(!report.hero||!near(report.hero.x,17,3)||!near(report.hero.y,159,3)||!near(report.hero.w,520,3)||!near(report.hero.h,140,2)) throw new Error(`Pass ${pass} failed: hero reference box ${JSON.stringify(report.hero)}`);
+              if(!report.form||!near(report.form.x,17,3)||!near(report.form.y,300,3)||!near(report.form.w,520,3)||!near(report.form.h,388,3)) throw new Error(`Pass ${pass} failed: form reference box ${JSON.stringify(report.form)}`);
+              if(!report.results||!near(report.results.x,17,3)||!near(report.results.y,697,3)||!near(report.results.w,520,3)) throw new Error(`Pass ${pass} failed: results reference box ${JSON.stringify(report.results)}`);
               if(pass<6) await page.close();
             }
             await lastPage?.close();
