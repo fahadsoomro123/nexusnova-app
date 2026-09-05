@@ -19,7 +19,7 @@ async function injectFixture(){return execAsync(`const done=arguments[arguments.
 
 try{
   await start();
-  await expect('Flagship v14 shell is actually installed','return window.__qaRoot?.dataset.aiPhotoFlagship==="flagship-repair-v14"&&window.__qaRoot?.classList.contains("nx-photo-v14")&&!!document.getElementById("nx-ai-photo-flagship-shell-v14");');
+  await expect('Flagship v15 shell and touch smooth layer are installed','return window.__qaRoot?.dataset.aiPhotoFlagship==="flagship-repair-v15"&&window.__qaRoot?.classList.contains("nx-photo-v14")&&!!document.getElementById("nx-ai-photo-flagship-shell-v14")&&!!document.getElementById("nx-ai-photo-touch-smooth-v15");');
 
   await click('[data-nxlock-quick="upscale"]');await wait('return window.__qaRoot.__nxQuickTools?.getState?.()?.screen==="picker";','upscale picker');await injectFixture();await wait('return window.__qaRoot.__nxQuickTools?.getState?.()?.screen==="result";','upscale result');await click('[data-nxqt-edit]');await wait('const c=document.querySelector("[data-photo-canvas]");return c&&!c.hidden;','photo editor loaded');
 
@@ -28,7 +28,11 @@ try{
   await click('[data-photo-panel-open="adjust"]');await wait('return document.querySelector(".nx-photo-sheet")?.classList.contains("is-open")&&document.querySelector("[data-photo-sheet-panel=adjust]")?.classList.contains("is-active");','adjust sheet');
   await expect('Adjust options are physically displayed','const p=document.querySelector("[data-photo-sheet-panel=adjust]");const fields=[...p.querySelectorAll("[data-photo-sub=light].is-active .nx-photo-field")];return fields.length===7&&fields.every(n=>{const r=n.getBoundingClientRect();return r.width>100&&r.height>20});');
   await expect('Adjust text is readable on the dark control sheet','const p=document.querySelector("[data-photo-sheet-panel=adjust]"),labels=[...p.querySelectorAll("[data-photo-sub=light].is-active .nx-photo-field span")],sheet=document.querySelector(".nx-photo-sheet");const rgb=s=>(s.match(/\\d+(?:\\.\\d+)?/g)||[]).slice(0,3).map(Number);if(labels.length!==7||!sheet||!getComputedStyle(sheet).backgroundImage.includes("linear-gradient"))return false;return labels.every(n=>{const c=rgb(getComputedStyle(n).color),r=n.getBoundingClientRect();return c.length===3&&c.reduce((a,v)=>a+v,0)>400&&r.width>20&&r.height>8});');
-  await shot('phone-photo-editor-v14-adjust-393x852');
+  await shot('phone-photo-editor-v15-adjust-393x852');
+
+  const touch=await exec(`const i=document.querySelector('[data-photo-range="exposure"]'),top=document.querySelector('.nx-photo-top'),tools=[...document.querySelectorAll('.nx-photo-tool')];if(!i)return null;i.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,pointerId:71,pointerType:'touch',button:0,buttons:1}));i.focus();const style=n=>getComputedStyle(n);return {rootLive:window.__qaRoot.classList.contains('nx-photo-focus-editing'),topOpacity:Number(style(top).opacity),toolOpacity:Math.min(...tools.map(n=>Number(style(n).opacity))),sheetOpacity:Number(style(document.querySelector('.nx-photo-sheet')).opacity)};`);
+  record('Slider touch keeps surrounding controls fully visible',touch&&touch.rootLive&&touch.topOpacity>.95&&touch.toolOpacity>.95&&touch.sheetOpacity>.95,JSON.stringify(touch));
+  await exec(`const i=document.querySelector('[data-photo-range="exposure"]');i.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,pointerId:71,pointerType:'touch',button:0,buttons:0}));i.blur();return true;`);
 
   const perf=await exec(`const i=document.querySelector('[data-photo-range="exposure"]');if(!i)return null;const start=performance.now();for(let n=0;n<60;n++){i.value=String(-1.5+(n%60)*.05);i.dispatchEvent(new Event('input',{bubbles:true}))}return {ms:performance.now()-start,value:i.value};`);
   record('Rapid slider input returns without main-thread lock',perf&&perf.ms<120,JSON.stringify(perf));
@@ -39,7 +43,7 @@ try{
   await exec('return window.__qaRoot.__nxStudioNavigation.showHome();');await wait('return !document.querySelector(".nxlock-home")?.hidden;','home');
   await click('[data-nxlock-quick="enhance"]');await wait('return window.__qaRoot.__nxQuickTools?.getState?.()?.screen==="picker";','enhance picker');await injectFixture();await wait('return window.__qaRoot.__nxQuickTools?.getState?.()?.screen==="result";','enhance result');
   await expect('Enhance Pro controls are visible and compact','const p=document.querySelector(".nxfs-enhance-v12"),c=document.querySelector(".nxqt-canvas-wrap");if(!p||!c)return false;const pr=p.getBoundingClientRect(),cr=c.getBoundingClientRect();return pr.width>300&&pr.height>120&&cr.height<=innerHeight*.52;');
-  await shot('phone-enhance-v14-393x852');
-}catch(e){record('Uncaught flagship shell v14 QA',false,e?.stack||e)}
+  await shot('phone-enhance-v15-393x852');
+}catch(e){record('Uncaught flagship shell v15 QA',false,e?.stack||e)}
 finally{if(sessionId)try{await cmd('DELETE',`/session/${sessionId}`)}catch{}driver.kill('SIGTERM');fs.closeSync(log)}
-const failed=checks.filter(x=>!x.pass);fs.writeFileSync(`${outDir}/flagship-shell-v14-report.json`,JSON.stringify({generatedAt:new Date().toISOString(),summary:{total:checks.length,passed:checks.length-failed.length,failed:failed.length},checks},null,2));if(failed.length){console.error(`Flagship shell v14 QA FAIL — ${failed.length}/${checks.length}`);process.exit(1)}console.log(`Flagship shell v14 QA PASS — ${checks.length} checks passed.`);
+const failed=checks.filter(x=>!x.pass);fs.writeFileSync(`${outDir}/flagship-shell-v14-report.json`,JSON.stringify({generatedAt:new Date().toISOString(),summary:{total:checks.length,passed:checks.length-failed.length,failed:failed.length},checks},null,2));if(failed.length){console.error(`Flagship shell v15 QA FAIL — ${failed.length}/${checks.length}`);process.exit(1)}console.log(`Flagship shell v15 QA PASS — ${checks.length} checks passed.`);
