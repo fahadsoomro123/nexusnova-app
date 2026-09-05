@@ -38,9 +38,10 @@ jobs:
           set -euo pipefail
           grep -q "referenceLocked = 'true'" fresh-rebuild/src/features/apps/travel-suite-v6.js
           grep -q "grid-template-columns:repeat(12" fresh-rebuild/src/features/apps/travel-suite-v6.js
-          grep -q "grid-template-rows:132px 386px" fresh-rebuild/src/features/apps/travel-suite-v6.js
+          grep -q "grid-template-rows:140px 398px" fresh-rebuild/src/features/apps/travel-suite-v6.js
           grep -q "width:550px" fresh-rebuild/src/features/apps/travel-suite-v6.js
           grep -q "height:1032px" fresh-rebuild/src/features/apps/travel-suite-v6.js
+          grep -q "nn-ref-earth" fresh-rebuild/src/features/apps/travel-suite-v6.js
 
       - name: Gate 3 - live-only API contract
         run: |
@@ -64,43 +65,63 @@ jobs:
           echo $! > /tmp/nexusnova-travel-http.pid
           sleep 2
 
-      - name: Gates 4-6 - runtime geometry, no-scroll and control wiring
+      - name: Gates 4-6 - six consecutive runtime reference checks
         run: |
           node - <<'NODE'
           const { chromium } = require('playwright');
+          const near = (value,target,tolerance=4) => Math.abs(Number(value)-target) <= tolerance;
           (async()=>{
             const browser=await chromium.launch({headless:true});
-            const page=await browser.newPage({viewport:{width:550,height:1215},deviceScaleFactor:1});
-            const errors=[];
-            page.on('pageerror',e=>errors.push(String(e)));
-            await page.goto('http://127.0.0.1:4173/travel-reference-harness.html',{waitUntil:'domcontentloaded',timeout:30000});
-            await page.waitForSelector('[data-reference-locked="true"]',{timeout:15000});
-            await page.waitForTimeout(1200);
-            const report=await page.evaluate(()=>{
-              const root=document.querySelector('[data-reference-locked="true"]');
-              const rect=sel=>{const e=root.querySelector(sel);if(!e)return null;const r=e.getBoundingClientRect();return {x:r.x,y:r.y,w:r.width,h:r.height,b:r.bottom,r:r.right};};
-              const tabs=[...root.querySelectorAll('[data-travel-tab]')].map(e=>({name:e.dataset.travelTab,...rect(`[data-travel-tab="${e.dataset.travelTab}"]`)}));
-              const from=rect('.nn-from'),to=rect('.nn-to'),depart=rect('.nn-depart'),ret=rect('.nn-return'),adults=rect('.nn-adults'),cabin=rect('.nn-cabin'),currency=rect('.nn-currency');
-              const rootRect=root.getBoundingClientRect();
-              const pageOverflow=document.documentElement.scrollHeight>1215||document.body.scrollHeight>1215;
-              const geometry={
-                fourTabs:tabs.length===4,
-                row1:Boolean(from&&to&&Math.abs(from.y-to.y)<2&&from.r<to.x),
-                row2:Boolean(depart&&ret&&Math.abs(depart.y-ret.y)<2&&depart.r<=ret.x+2),
-                row3:Boolean(adults&&cabin&&currency&&Math.abs(adults.y-cabin.y)<2&&Math.abs(cabin.y-currency.y)<2&&adults.r<=cabin.x+2&&cabin.r<=currency.x+2),
-                rootContained:rootRect.height>0&&rootRect.bottom<=document.querySelector('.nx-dock.global').getBoundingClientRect().top,
-                pageOverflow,
-                liveOnly:root.dataset.liveOnly==='true',
-                controls:[...root.querySelectorAll('button')].filter(b=>!b.classList.contains('nn-tab')).map(b=>b.getAttribute('data-flight-search')!==null||b.getAttribute('data-hotel-search')!==null||b.getAttribute('data-ground-search')!==null||b.getAttribute('data-trip-save')!==null||b.getAttribute('data-trip-clear')!==null||b.getAttribute('data-pakistan-tours')!==null).filter(Boolean).length
-              };
-              return {geometry,tabs,root:{x:rootRect.x,y:rootRect.y,w:rootRect.width,h:rootRect.height}};
-            });
-            console.log(JSON.stringify(report,null,2));
-            if(!report.geometry.fourTabs||!report.geometry.row1||!report.geometry.row2||!report.geometry.row3) throw new Error('Gate 4 failed: approved reference field geometry is not locked.');
-            if(report.geometry.pageOverflow||!report.geometry.rootContained) throw new Error('Gate 5 failed: Travel page is not scroll-free/contained.');
-            if(!report.geometry.liveOnly||report.geometry.controls<6) throw new Error('Gate 6 failed: live-only/control wiring contract incomplete.');
-            await page.screenshot({path:'travel-reference-actual.png',fullPage:false});
+            let lastPage=null;
+            for(let pass=1; pass<=6; pass++){
+              const page=await browser.newPage({viewport:{width:550,height:1215},deviceScaleFactor:1});
+              lastPage=page;
+              const errors=[];
+              page.on('pageerror',e=>errors.push(String(e)));
+              await page.goto(`http://127.0.0.1:4173/travel-reference-harness.html?pass=${pass}`,{waitUntil:'domcontentloaded',timeout:30000});
+              await page.waitForSelector('[data-reference-locked="true"]',{timeout:15000});
+              await page.waitForTimeout(500);
+              const report=await page.evaluate(()=>{
+                const root=document.querySelector('[data-reference-locked="true"]');
+                const rect=sel=>{const e=root.querySelector(sel);if(!e)return null;const r=e.getBoundingClientRect();return {x:r.x,y:r.y,w:r.width,h:r.height,b:r.bottom,r:r.right};};
+                const tabs=[...root.querySelectorAll('[data-travel-tab]')].map(e=>{const r=e.getBoundingClientRect();return {name:e.dataset.travelTab,x:r.x,y:r.y,w:r.width,h:r.height,b:r.bottom,r:r.right};});
+                const from=rect('.nn-from'),to=rect('.nn-to'),depart=rect('.nn-depart'),ret=rect('.nn-return'),adults=rect('.nn-adults'),cabin=rect('.nn-cabin'),currency=rect('.nn-currency');
+                const rootRect=root.getBoundingClientRect();
+                const hero=rect('[data-reference-zone="hero"]');
+                const form=rect('[data-reference-zone="flight-form"]');
+                const results=rect('[data-reference-zone="flight-results"]');
+                const globalDock=document.querySelector('.nx-dock.global')?.getBoundingClientRect();
+                return {
+                  errors:[], tabs, hero, form, results,
+                  root:{x:rootRect.x,y:rootRect.y,w:rootRect.width,h:rootRect.height,b:rootRect.bottom},
+                  globalDock:globalDock?{x:globalDock.x,y:globalDock.y,w:globalDock.width,h:globalDock.height}:null,
+                  geometry:{
+                    fourTabs:tabs.length===4,
+                    row1:Boolean(from&&to&&Math.abs(from.y-to.y)<2&&from.r<to.x),
+                    row2:Boolean(depart&&ret&&Math.abs(depart.y-ret.y)<2&&depart.r<=ret.x+2),
+                    row3:Boolean(adults&&cabin&&currency&&Math.abs(adults.y-cabin.y)<2&&Math.abs(cabin.y-currency.y)<2&&adults.r<=cabin.x+2&&cabin.r<=currency.x+2),
+                    rootContained:Boolean(globalDock&&rootRect.height>0&&rootRect.bottom<=globalDock.top),
+                    pageOverflow:document.documentElement.scrollHeight>1215||document.body.scrollHeight>1215,
+                    liveOnly:root.dataset.liveOnly==='true',
+                    controls:[...root.querySelectorAll('button')].filter(b=>!b.classList.contains('nn-tab')).map(b=>b.getAttribute('data-flight-search')!==null||b.getAttribute('data-hotel-search')!==null||b.getAttribute('data-ground-search')!==null||b.getAttribute('data-trip-save')!==null||b.getAttribute('data-trip-clear')!==null||b.getAttribute('data-pakistan-tours')!==null).filter(Boolean).length
+                  }
+                };
+              });
+              report.errors=errors;
+              console.log(`PASS ${pass}:`,JSON.stringify(report));
+              if(errors.length) throw new Error(`Pass ${pass} page error: ${errors.join(' | ')}`);
+              if(!report.geometry.fourTabs||!report.geometry.row1||!report.geometry.row2||!report.geometry.row3) throw new Error(`Pass ${pass} failed: reference field geometry.`);
+              if(report.geometry.pageOverflow||!report.geometry.rootContained) throw new Error(`Pass ${pass} failed: page scroll/containment.`);
+              if(!report.geometry.liveOnly||report.geometry.controls<6) throw new Error(`Pass ${pass} failed: live-only/control contract.`);
+              if(!report.hero||!near(report.hero.x,17,4)||!near(report.hero.y,159,5)||!near(report.hero.w,520,5)||!near(report.hero.h,134,3)) throw new Error(`Pass ${pass} failed: hero reference box ${JSON.stringify(report.hero)}`);
+              if(!report.form||!near(report.form.x,17,4)||!near(report.form.y,299,6)||!near(report.form.w,520,5)||!near(report.form.h,388,4)) throw new Error(`Pass ${pass} failed: form reference box ${JSON.stringify(report.form)}`);
+              if(!report.results||!near(report.results.x,17,4)||!near(report.results.y,697,7)||!near(report.results.w,520,5)) throw new Error(`Pass ${pass} failed: results reference box ${JSON.stringify(report.results)}`);
+              if(pass===6) await page.screenshot({path:'travel-reference-actual.png',fullPage:false});
+              if(pass<6) await page.close();
+            }
+            await lastPage?.close();
             await browser.close();
+            console.log('SIX CONSECUTIVE TRAVEL REFERENCE CHECKS PASS');
           })().catch(error=>{console.error(error);process.exit(1);});
           NODE
 
