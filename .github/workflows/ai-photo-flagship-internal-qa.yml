@@ -1,0 +1,131 @@
+name: AI Photo Flagship Internal QA (No Release)
+
+on:
+  push:
+    branches: [ai-photo-real-canva-ai-generator-correction]
+    paths:
+      - 'fresh-rebuild/src/features/apps/ai-photo-*.js'
+      - 'fresh-rebuild/src/main.js'
+      - 'fresh-rebuild/src/features/apps/data/ai-photo-templates.js'
+      - 'tools/ai-photo-flagship-qa/**'
+      - 'tools/ai-photo-locked-visual/**'
+      - 'AI-PHOTO-*.md'
+      - '.github/workflows/ai-photo-flagship-internal-qa.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - name: Check out exact branch state
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Syntax, scope, provider, and release safety
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in \
+            fresh-rebuild/src/features/apps/ai-photo-quick-tools.js \
+            fresh-rebuild/src/features/apps/ai-photo-navigation.js \
+            fresh-rebuild/src/features/apps/ai-photo-canva-workspace-v3.js \
+            fresh-rebuild/src/features/apps/ai-photo-locked-visual-v1.js \
+            fresh-rebuild/src/features/apps/ai-photo-locked-reference-assets-v1.js \
+            fresh-rebuild/src/features/apps/ai-photo-puter-generator.js \
+            fresh-rebuild/src/features/apps/ai-photo-studio-ai.js \
+            fresh-rebuild/src/features/apps/ai-photo-studio-review.js \
+            fresh-rebuild/src/main.js \
+            tools/ai-photo-flagship-qa/firebase-stub.mjs \
+            tools/ai-photo-flagship-qa/behavior-qa.mjs; do
+            node --check "$file"
+          done
+          git diff --check
+          BASE=9ef070ba55f76506851a1366fc9dc3863e50578d
+          for protected in \
+            fresh-rebuild/assets/styles/ai-photo-route-fullscreen.css \
+            fresh-rebuild/src/features/apps/app-screen.js \
+            fresh-rebuild/src/features/apps/ai-photo-studio-flagship.js \
+            fresh-rebuild/src/features/apps/ai-photo-focus-interaction.js; do
+            git diff --quiet "$BASE" HEAD -- "$protected"
+          done
+          git diff --quiet "$BASE" HEAD -- \
+            .github/workflows/ai-photo-locked-visual-approved-release.yml \
+            .github/workflows/ai-photo-locked-visual-signed-apk-retry.yml \
+            .github/workflows/ai-photo-premium-home-final-ota.yml \
+            .github/workflows/ai-photo-premium-puter-signed-apk.yml
+          test "$(grep -o 'puter.ai.txt2img' fresh-rebuild/src/features/apps/ai-photo-studio-ai.js | wc -l)" -eq 1
+          ! rg -n 'api[_-]?key|bearer ' fresh-rebuild/src/features/apps/ai-photo-quick-tools.js fresh-rebuild/src/features/apps/ai-photo-navigation.js
+          echo 'PASS — protected/release workflows unchanged; Puter remains keyless with one generation call site.'
+
+      - name: Template count contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp fresh-rebuild/src/features/apps/data/ai-photo-templates.js /tmp/ai-photo-templates.mjs
+          node --input-type=module <<'NODE'
+          const m=await import('file:///tmp/ai-photo-templates.mjs');
+          if(m.NEXUSNOVA_TEMPLATES.length!==1000)throw new Error('Template total is not 1000');
+          if(m.NEXUSNOVA_TEMPLATE_CATEGORIES.length!==20)throw new Error('Category total is not 20');
+          for(const category of m.NEXUSNOVA_TEMPLATE_CATEGORIES){
+            const count=m.NEXUSNOVA_TEMPLATES.filter(template=>template.category===category.id).length;
+            if(count!==50)throw new Error(`${category.id} has ${count} templates`);
+          }
+          console.log('PASS — exactly 1000 templates across 20 categories × 50.');
+          NODE
+
+      - name: Full browser interaction QA
+        id: behavior
+        shell: bash
+        run: bash tools/ai-photo-flagship-qa/run-qa.sh
+
+      - name: Five Android viewport Home and Generator render QA
+        id: render
+        shell: bash
+        run: bash tools/ai-photo-locked-visual/render-qa.sh
+
+      - name: Upload internal QA evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-photo-flagship-internal-qa-${{ github.sha }}
+          path: |
+            qa-artifacts/ai-photo-flagship
+            qa-artifacts/ai-photo-locked-render
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Gradle 8.13
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Android debug build and canonical asset sync
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd NexusNovaAndroid
+          gradle --no-daemon clean assembleDebug
+          test -s app/build/outputs/apk/debug/app-debug.apk
+          cd ..
+          for rel in \
+            src/main.js \
+            src/features/apps/ai-photo-studio-review.js \
+            src/features/apps/ai-photo-navigation.js \
+            src/features/apps/ai-photo-quick-tools.js \
+            src/features/apps/ai-photo-canva-workspace-v3.js \
+            src/features/apps/ai-photo-puter-generator.js \
+            src/features/apps/ai-photo-studio-ai.js; do
+            cmp "fresh-rebuild/$rel" "NexusNovaAndroid/app/src/main/assets/www/$rel"
+          done
+          echo 'PASS — debug APK compiled and canonical repaired sources were copied byte-for-byte. No APK was published.'

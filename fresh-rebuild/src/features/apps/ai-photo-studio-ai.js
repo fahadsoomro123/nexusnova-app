@@ -55,7 +55,7 @@ export async function signInPuterForImages(){
 }
 
 const STYLE_PREFIX={
-  auto:'',photo:'Photorealistic professional photograph. ',cinematic:'Cinematic lighting, premium composition. ',illustration:'High quality polished digital illustration. ',threeD:'Premium 3D render, detailed materials and lighting. ',logo:'Original clean brand-mark concept, simple vector-like composition, no copyrighted logos. '
+  auto:'',photo:'Photorealistic professional photograph. ',cinematic:'Cinematic lighting, premium composition. ',illustration:'Polished anime illustration, expressive linework and intentional color. ',threeD:'Premium 3D render, detailed materials and lighting. ',digitalArt:'High-end digital artwork, refined composition and rich authored detail. ',portrait:'Professional portrait photograph, natural skin texture, flattering light and clean composition. ',product:'Premium commercial product photograph, controlled studio light and accurate materials. ',logo:'Original clean brand-mark concept, simple vector-like composition, no copyrighted logos. '
 };
 const RATIOS={square:{w:1,h:1},portrait:{w:4,h:5},story:{w:9,h:16},wide:{w:16,h:9}};
 

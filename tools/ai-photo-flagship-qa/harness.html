@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <title>NexusNova AI Photo flagship behavioral QA</title>
+  <base href="/fresh-rebuild/">
+  <link rel="stylesheet" href="/fresh-rebuild/assets/styles/tokens.css">
+  <link rel="stylesheet" href="/fresh-rebuild/assets/styles/app.css">
+  <link rel="stylesheet" href="/fresh-rebuild/assets/styles/features.css">
+  <link rel="stylesheet" href="/fresh-rebuild/assets/styles/core-apps.css">
+  <link rel="stylesheet" href="/fresh-rebuild/assets/styles/ai-photo-route-fullscreen.css">
+  <script type="importmap">
+    {"imports":{
+      "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js":"/tools/ai-photo-flagship-qa/firebase-stub.mjs",
+      "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js":"/tools/ai-photo-flagship-qa/firebase-stub.mjs",
+      "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js":"/tools/ai-photo-flagship-qa/firebase-stub.mjs",
+      "https://www.gstatic.com/firebasejs/12.1.0/firebase-app-check.js":"/tools/ai-photo-flagship-qa/firebase-stub.mjs"
+    }}
+  </script>
+  <style>
+    html,body,#qa-mount{width:100%;height:100%;margin:0;overflow:hidden;background:#070b13}
+    body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+    #qa-mount>.nx-photo-editor{position:relative;width:100%!important;height:100%!important;border-radius:0!important}
+  </style>
+</head>
+<body class="nx-ai-photo-route-active">
+  <main id="qa-mount"></main>
+  <script>
+    localStorage.clear();
+    window.__qaPuterCalls=[];
+    window.__qaDownloads=[];
+    window.__qaTransitions=[];
+    const generated=document.createElement('canvas');generated.width=96;generated.height=96;
+    const generatedContext=generated.getContext('2d');
+    const gradient=generatedContext.createLinearGradient(0,0,96,96);gradient.addColorStop(0,'#5121b8');gradient.addColorStop(1,'#35bce4');
+    generatedContext.fillStyle=gradient;generatedContext.fillRect(0,0,96,96);generatedContext.fillStyle='#fff';generatedContext.fillRect(30,30,36,36);
+    window.__qaGeneratedDataUrl=generated.toDataURL('image/png');
+    window.puter={
+      auth:{
+        isSignedIn:()=>true,
+        getUser:async()=>({username:'qa-user'}),
+        signIn:async()=>({username:'qa-user'}),
+        getMonthlyUsage:async()=>({allowanceInfo:{monthUsageAllowance:1000,remaining:1000-window.__qaPuterCalls.length*7}})
+      },
+      ai:{txt2img:async(prompt,options)=>{window.__qaPuterCalls.push({prompt,options});await new Promise(resolve=>setTimeout(resolve,45));return{src:window.__qaGeneratedDataUrl,naturalWidth:96,naturalHeight:96,width:96,height:96}}}
+    };
+    HTMLAnchorElement.prototype.click=function(){window.__qaDownloads.push({download:this.download,href:this.href})};
+  </script>
+  <script type="module">
+    try{
+      const {renderAiPhotoStudio}=await import('/fresh-rebuild/src/features/apps/ai-photo-studio-review.js');
+      const root=renderAiPhotoStudio();document.getElementById('qa-mount').appendChild(root);window.__qaRoot=root;
+      const observer=new MutationObserver(()=>{
+        const quick=root.__nxQuickTools?.getState?.();
+        const token=quick?.open?`quick:${quick.tool}:${quick.screen}`:root.dataset.aiPhotoScreen||'unknown';
+        if(window.__qaTransitions.at(-1)!==token)window.__qaTransitions.push(token);
+      });
+      observer.observe(root,{subtree:true,childList:true,attributes:true,attributeFilter:['class','hidden']});
+      await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+      document.documentElement.dataset.qaReady='1';
+    }catch(error){document.documentElement.dataset.qaError=String(error?.stack||error)}
+  </script>
+</body>
+</html>

@@ -31,6 +31,7 @@ function ensureReferenceStyles(){
 
     /* Real, tappable Recent Creation cards and option controls. */
     .nxps-locked-visual .nxlock-recent-item{position:relative!important;cursor:pointer!important;outline:none!important;border-radius:11px!important}
+    .nxps-locked-visual .nxlock-recent-item.is-example{cursor:default!important;opacity:.72!important}.nxps-locked-visual .nxlock-recent-item.is-example span{color:#c1a9df!important;-webkit-text-fill-color:#c1a9df!important}
     .nxps-locked-visual .nxlock-recent-item:focus-visible{box-shadow:0 0 0 2px #a259ff!important}
     .nxps-locked-visual .nxfix-recent-menu{position:absolute!important;z-index:6!important;right:5px!important;top:5px!important;width:27px!important;height:27px!important;min-width:27px!important;padding:0!important;border:1px solid rgba(255,255,255,.18)!important;border-radius:50%!important;background:rgba(8,10,18,.78)!important;color:#fff!important;-webkit-text-fill-color:#fff!important;font-size:18px!important;line-height:1!important}
     .nxps-locked-visual .nxfix-recent-popover{position:absolute;z-index:120;display:grid;gap:5px;width:122px;padding:7px;border:1px solid rgba(172,112,255,.4);border-radius:12px;background:#151321;box-shadow:0 14px 34px rgba(0,0,0,.55)}
@@ -129,8 +130,8 @@ function applyVisualCustomRatio(root){
   const ratioBox=root.querySelector('.nxlock-ratios');
   if(!ratioBox||ratioBox.querySelector('[data-r="custom"]'))return;
   const button=document.createElement('button');
-  button.type='button';button.className='nxlock-ratio nxlock-reference-custom-ratio';button.dataset.r='custom';button.setAttribute('aria-label','Custom aspect ratio');button.title='Custom ratio is not supported by the current Puter provider.';button.innerHTML='<b>▱</b>0::9<small>Custom</small>';
-  button.addEventListener('click',()=>{globalThis.alert?.('Custom ratio is not supported by the current Puter provider. Use Square, Portrait, Story or Landscape.')});
+  button.type='button';button.className='nxlock-ratio nxlock-reference-custom-ratio';button.dataset.r='custom';button.setAttribute('aria-label','Custom aspect ratio is not supported');button.setAttribute('aria-disabled','true');button.setAttribute('aria-pressed','false');button.title='Custom ratio is not supported by the current Puter provider.';button.innerHTML='<b>↔</b>Custom<small>Provider limit</small>';
+  button.addEventListener('click',()=>{const error=root.querySelector('[data-puter-error]');if(!error)return;error.textContent='Custom ratio is not supported by the current Puter provider. Choose Square, Portrait, Story or Landscape.';error.classList.add('is-on')});
   ratioBox.appendChild(button);ratioBox.classList.add('has-custom');
 }
 
@@ -141,15 +142,8 @@ function projectSelector(id){
 
 function openSavedProject(root,id){
   if(!id)return;
-  root.querySelector('.nxlock-open-projects')?.click();
-  let tries=0;
-  const open=()=>{
-    const row=root.querySelector(projectSelector(id));
-    const button=row?.querySelector('button:not([data-del])');
-    if(button){button.click();return}
-    if(++tries<30)requestAnimationFrame(open);
-  };
-  requestAnimationFrame(open);
+  root.__nxStudioNavigation?.openWorkspace?.('projects');
+  requestAnimationFrame(()=>root.__nxCanvaWorkspaceV3?.openProject?.(id));
 }
 
 function ensureRecentPopover(root){

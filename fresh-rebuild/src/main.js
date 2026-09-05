@@ -279,6 +279,7 @@ window.NexusNovaUxSimplify = Object.freeze({
   systemBack() {
     if (!router?.current || router.current === 'auth' || router.current === 'mine') return false;
     if (router.current === 'app') {
+      if (window.NexusNovaAiPhotoNavigation?.handleBack?.()) return true;
       if (currentAppParent === 'hub') {
         requestHubReturnRestore();
         router.render('hub');
