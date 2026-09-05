@@ -16,7 +16,8 @@
       "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js":"/tools/ai-photo-flagship-qa/firebase-stub.mjs",
       "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js":"/tools/ai-photo-flagship-qa/firebase-stub.mjs",
       "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js":"/tools/ai-photo-flagship-qa/firebase-stub.mjs",
-      "https://www.gstatic.com/firebasejs/12.1.0/firebase-app-check.js":"/tools/ai-photo-flagship-qa/firebase-stub.mjs"
+      "https://www.gstatic.com/firebasejs/12.1.0/firebase-app-check.js":"/tools/ai-photo-flagship-qa/firebase-stub.mjs",
+      "https://www.gstatic.com/firebasejs/12.1.0/firebase-ai.js":"/tools/ai-photo-flagship-qa/firebase-stub.mjs"
     }}
   </script>
   <style>
@@ -30,6 +31,8 @@
   <script>
     localStorage.clear();
     window.__qaPuterCalls=[];
+    window.__qaFirebaseAiCalls=[];
+    window.__qaFirebaseAiFail=false;
     window.__qaDownloads=[];
     window.__qaTransitions=[];
     const generated=document.createElement('canvas');generated.width=96;generated.height=96;
