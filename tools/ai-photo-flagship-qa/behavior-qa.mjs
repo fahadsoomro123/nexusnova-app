@@ -26,6 +26,7 @@ const checks=[];
 function record(area,control,pass,evidence){checks.push({area,control,pass:Boolean(pass),evidence:String(evidence??'')});if(!pass)console.error(`::error::${area} — ${control}: ${evidence}`)}
 async function expect(area,control,script,evidence=''){let value=false;try{value=await execute(script)}catch(error){evidence=error.message}record(area,control,Boolean(value),evidence||JSON.stringify(value));return value}
 async function quickState(screen){return waitUntil(`const s=window.__qaRoot?.__nxQuickTools?.getState?.();return s?.open&&s.screen===${JSON.stringify(screen)}?s:null;`,{timeout:16000,label:`Quick Tools ${screen}`})}
+async function waitRemoveBgReady(){return waitUntil('const c=document.querySelector(".nxqt-result");return c?.dataset.nxMlRemoveBg&&c.dataset.nxMlRemoveBg!=="loading"?c.dataset.nxMlRemoveBg:"";',{timeout:36000,label:'Remove BG AI/fallback settle'})}
 async function injectFixture(count=1,{invalid=false}={}){
   return executeAsync(`
     const count=arguments[0],invalid=arguments[1],done=arguments[arguments.length-1],input=document.querySelector('[data-nxqt-file]');
@@ -66,7 +67,7 @@ try{
   await click('.nxv3-card');await click('[data-v3-use]');await waitUntil('return document.querySelector("[data-v3-tab=design]")?.classList.contains("is-active");',{label:'favorite template in Design'});
   await expect('Templates','Approved preview matches actual editable design','const d=window.__qaRoot.__nxCanvaWorkspaceV3.getDesign();return d?.templateId==="nx-approved-featured-photo-portrait"&&d.elements?.[0]?.sourceCrop?.x===0&&d.elements?.[0]?.sourceCrop?.w===0.25;');await goHome();
 
-  await click('[data-nxlock-quick="remove-bg"]');await quickState('picker');await injectFixture();await quickState('result');
+  await click('[data-nxlock-quick="remove-bg"]');await quickState('picker');await injectFixture();await quickState('result');await waitRemoveBgReady();
   await expect('Quick Tools','Remove BG busy state observed','return window.__qaTransitions.some(value=>value==="quick:remove-bg:busy");');
   await expect('Quick Tools','Remove BG produced real transparency','const c=document.querySelector(".nxqt-canvas-wrap canvas:not([hidden])");if(!c)return false;const d=c.getContext("2d").getImageData(0,0,c.width,c.height).data;let transparent=0;for(let i=3;i<d.length;i+=4)if(d[i]===0)transparent++;return transparent>d.length/16&&d[((60*c.width+80)*4)+3]===255;');
   await expect('Quick Tools','Remove BG refine controls exposed','return !!document.querySelector("[data-nxqt-refine=restore]")&&!!document.querySelector("[data-nxqt-refine=erase]")&&!!document.querySelector("[data-nxqt-refine-size]")&&!!document.querySelector("[data-nxqt-refine-soft]")&&!!document.querySelector("[data-nxqt-refine-feather]")&&!!document.querySelector("[data-nxqt-refine-undo]")&&!!document.querySelector("[data-nxqt-refine-reset]");');
@@ -74,7 +75,7 @@ try{
   await click('[data-nxqt-download]');await expect('Quick Tools','Result Download action','return window.__qaDownloads.some(row=>/remove-bg/.test(row.download));');
   await click('[data-nxqt-back]');await quickState('picker');await click('[data-nxqt-home]');await expect('Navigation','Quick result Back then Home','return !document.querySelector(".nxlock-home")?.hidden&&!window.__qaRoot.__nxQuickTools.getState().open;');
 
-  await click('[data-nxlock-quick="remove-bg"]');await quickState('picker');await injectEdgeTouchFixture();await quickState('result');
+  await click('[data-nxlock-quick="remove-bg"]');await quickState('picker');await injectEdgeTouchFixture();await quickState('result');await waitRemoveBgReady();
   await expect('Quick Tools','Remove BG preserves edge-touching subject','const c=document.querySelector(".nxqt-canvas-wrap canvas:not([hidden])");if(!c)return false;const d=c.getContext("2d").getImageData(0,0,c.width,c.height).data,subject=d[((50*c.width+30)*4)+3],background=d[((110*c.width+130)*4)+3];return subject>220&&background<32;');
   const refineBefore=await execute('const c=document.querySelector(".nxqt-canvas-wrap canvas:not([hidden])");return c.getContext("2d").getImageData(30,50,1,1).data[3];');
   await click('[data-nxqt-refine="erase"]');await execute('const c=document.querySelector(".nxqt-canvas-wrap canvas:not([hidden])"),r=c.getBoundingClientRect(),x=r.left+r.width*(30/c.width),y=r.top+r.height*(50/c.height);c.dispatchEvent(new PointerEvent("pointerdown",{bubbles:true,pointerId:41,button:0,buttons:1,clientX:x,clientY:y}));c.dispatchEvent(new PointerEvent("pointermove",{bubbles:true,pointerId:41,button:0,buttons:1,clientX:x,clientY:y}));c.dispatchEvent(new PointerEvent("pointerup",{bubbles:true,pointerId:41,button:0,buttons:0,clientX:x,clientY:y}));return true;');await delay(120);

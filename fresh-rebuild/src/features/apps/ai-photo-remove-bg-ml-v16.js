@@ -61,7 +61,12 @@ function dilateFloat(input,w,h){
 }
 function confidenceAlpha(mask){
   const raw=mask.getAsFloat32Array(),w=mask.width,h=mask.height,soft=new Float32Array(raw.length);let high=0,mean=0;
-  for(let i=0;i<raw.length;i++){const p=clamp(raw[i],0,1);mean+=p;if(p>.5)high++;soft[i]=smoothstep(.13,.72,p)}
+  for(let i=0;i<raw.length;i++){
+    const p=clamp(raw[i],0,1);mean+=p;if(p>.5)high++;
+    // Preserve low-confidence hair/fabric wisps while keeping a strong opaque core.
+    const edge=smoothstep(.07,.62,p)*.94,core=smoothstep(.38,.80,p);
+    soft[i]=Math.max(edge,core);
+  }
   const coverage=high/raw.length,avg=mean/raw.length;
   if(coverage<.012||coverage>.94||avg<.018)throw new Error('No confident portrait subject found');
   return{alpha:dilateFloat(soft,w,h),w,h,coverage,engine:'Portrait AI'};
@@ -134,17 +139,23 @@ async function upgrade(root,container){
   const state=root.__nxQuickTools?.getState?.();if(state?.tool!=='remove-bg'||state?.screen!=='result'){delete container.dataset.nxMlRemoveBg;return}
   const {wrap,compare,visible,source}=findCanvases(root);if(!wrap||!visible||!source){delete container.dataset.nxMlRemoveBg;return}
   const oldCanvas=visible,original=cloneCanvas(source),head=container.querySelector('.nxqt-result-head'),detail=head?.querySelector('[data-nxqt-result-detail]'),badge=head?.querySelector('.nxqt-success');
+  const fallbackInteractive=[...container.querySelectorAll('.nxqt-controls button,.nxqt-controls input')],resultInteractive=[...container.querySelectorAll('[data-nxqt-download],[data-nxqt-edit],[data-nxqt-design]')];
+  const disabledState=new Map([...fallbackInteractive,...resultInteractive].map(node=>[node,Boolean(node.disabled)]));
+  const lock=()=>{fallbackInteractive.forEach(node=>node.disabled=true);resultInteractive.forEach(node=>node.disabled=true);oldCanvas.style.pointerEvents='none';container.classList.add('nx-ml-loading')};
+  const unlock=fallback=>{resultInteractive.forEach(node=>node.disabled=disabledState.get(node)||false);if(fallback)fallbackInteractive.forEach(node=>node.disabled=disabledState.get(node)||false);oldCanvas.style.pointerEvents='';container.classList.remove('nx-ml-loading')};
+  lock();
   if(badge){badge.textContent='AI';badge.classList.add('nx-ml-busy')}
   if(detail)detail.textContent='Loading on-device AI matting…';
   try{
     const meta=await mlAlpha(original,text=>{if(detail)detail.textContent=text});
-    if(root.__nxQuickTools?.getState?.()?.tool!=='remove-bg'||!container.isConnected)return;
-    const matte=applyMatte(original,meta),pro=cloneCanvas(matte);oldCanvas.replaceWith(pro);oldCanvas.width=pro.width;oldCanvas.height=pro.height;oldCanvas.getContext('2d').drawImage(pro,0,0);source.hidden=true;installCompare(wrap,source,pro);installRefiner(container,original,pro,oldCanvas);
+    if(root.__nxQuickTools?.getState?.()?.tool!=='remove-bg'||!container.isConnected){unlock(true);return}
+    const matte=applyMatte(original,meta),pro=cloneCanvas(matte);oldCanvas.replaceWith(pro);oldCanvas.width=pro.width;oldCanvas.height=pro.height;oldCanvas.getContext('2d').drawImage(pro,0,0);source.hidden=true;installCompare(wrap,source,pro);installRefiner(container,original,pro,oldCanvas);unlock(false);
     if(detail)detail.textContent=`${pro.width} × ${pro.height} · ${meta.engine} matte · ${(meta.coverage*100).toFixed(1)}% subject confidence area`;
     if(badge){badge.textContent='AI READY';badge.classList.remove('nx-ml-busy')}
     container.dataset.nxMlRemoveBg='ready';
   }catch(error){
     console.warn('NexusNova AI Remove BG unavailable; keeping protected local fallback',error);
+    unlock(true);
     if(detail)detail.textContent=`${oldCanvas.width} × ${oldCanvas.height} · protected local fallback · AI matting unavailable`;
     if(badge){badge.textContent='FALLBACK';badge.classList.remove('nx-ml-busy')}
     container.dataset.nxMlRemoveBg='fallback';
@@ -152,7 +163,7 @@ async function upgrade(root,container){
 }
 export function installAiPhotoRemoveBgMlV16(root){
   if(!root||root.__nxAiPhotoRemoveBgMlV16)return()=>{};root.__nxAiPhotoRemoveBgMlV16=true;
-  const style=document.createElement('style');style.id='nx-ai-photo-remove-bg-ml-v16';style.textContent=`.nx-ml-busy{animation:nxMlPulse 1s ease-in-out infinite}.nx-ml-refine{border-color:rgba(90,215,164,.24)!important}.nx-ml-refine .nxqt-file-summary strong{color:#9af0ca!important}@keyframes nxMlPulse{50%{opacity:.55}}@media(prefers-reduced-motion:reduce){.nx-ml-busy{animation:none}}`;document.head.appendChild(style);
+  const style=document.createElement('style');style.id='nx-ai-photo-remove-bg-ml-v16';style.textContent=`.nx-ml-busy{animation:nxMlPulse 1s ease-in-out infinite}.nx-ml-loading .nxqt-canvas-wrap{cursor:progress}.nx-ml-loading .nxqt-controls{opacity:.72}.nx-ml-refine{border-color:rgba(90,215,164,.24)!important}.nx-ml-refine .nxqt-file-summary strong{color:#9af0ca!important}@keyframes nxMlPulse{50%{opacity:.55}}@media(prefers-reduced-motion:reduce){.nx-ml-busy{animation:none}}`;document.head.appendChild(style);
   let timer=0,destroyed=false;
   const scan=()=>{timer=0;if(destroyed)return;const state=root.__nxQuickTools?.getState?.();if(state?.tool==='remove-bg'&&state?.screen==='result'){const container=root.querySelector('.nxqt-result');if(container&&!container.dataset.nxMlRemoveBg)upgrade(root,container)} };
   const observer=new MutationObserver(()=>{if(!timer)timer=setTimeout(scan,0)});observer.observe(root,{subtree:true,childList:true});scan();
