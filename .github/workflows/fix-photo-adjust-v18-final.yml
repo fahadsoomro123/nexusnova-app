@@ -1,0 +1,55 @@
+name: Fix Photo Adjust v18 final regressions
+
+on:
+  push:
+    branches: [ai-photo-real-canva-ai-generator-correction]
+    paths: [.github/workflows/fix-photo-adjust-v18-final.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ai-photo-real-canva-ai-generator-correction
+          fetch-depth: 0
+      - name: Patch remaining Photo Adjust v18 regressions
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new, label):
+              p=Path(path); s=p.read_text()
+              if old not in s:
+                  raise SystemExit(f'{label}: expected text not found in {path}')
+              if s.count(old)!=1:
+                  raise SystemExit(f'{label}: expected one match, got {s.count(old)}')
+              p.write_text(s.replace(old,new,1))
+              print('patched',label)
+
+          replace_once(
+            'fresh-rebuild/src/features/apps/ai-photo-adjust-editor.js',
+            "qa('[data-mask-adjust]').forEach(i=>{let previous=null;i.onpointerdown=i.onfocus=()=>{previous=snap()};i.oninput=()=>{if(!previous)previous=snap();state.mask.adjust[i.dataset.maskAdjust]=Number(i.value);i.nextElementSibling.textContent=Number(i.value);maskPreview=false;paint()};i.onchange=()=>{if(previous)push(previous);previous=null}});",
+            "qa('[data-mask-adjust]').forEach(i=>{let previous=null;i.onpointerdown=i.onfocus=()=>{previous=snap()};i.oninput=()=>{if(!previous)previous=snap();state.mask.adjust[i.dataset.maskAdjust]=Number(i.value);i.nextElementSibling.textContent=i.dataset.maskAdjust==='exposure'?Number(i.value).toFixed(2):String(Math.round(Number(i.value)));maskPreview=false;paint()};i.onchange=()=>{if(previous)push(previous);previous=null}});",
+            'local mask exposure live output'
+          )
+
+          replace_once(
+            'fresh-rebuild/src/features/apps/ai-photo-adjust-renderer.js',
+            "  const value=k=>((a[k]||0)*(1-t)+(next[k]||0)*t)*weight;\n  h=(h+value('h')/360+1)%1;s=clamp(s*(1+value('s')/100),0,1);l=clamp(l+value('l')/200,0,1);\n  return hslToRgb(h,s,l);",
+            "  const value=k=>((a[k]||0)*(1-t)+(next[k]||0)*t)*weight;\n  const dh=value('h'),ds=value('s'),dl=value('l');\n  if(Math.abs(dh)+Math.abs(ds)+Math.abs(dl)<1e-9)return[r,g,b];\n  h=(h+dh/360+1)%1;s=clamp(s*(1+ds/100),0,1);l=clamp(l+dl/200,0,1);\n  return hslToRgb(h,s,l);",
+            'HSL non-target pixel preservation'
+          )
+          PY
+          node --check fresh-rebuild/src/features/apps/ai-photo-adjust-editor.js
+          node --check fresh-rebuild/src/features/apps/ai-photo-adjust-renderer.js
+      - name: Commit fixes
+        run: |
+          git config user.name "NexusNova QA Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add fresh-rebuild/src/features/apps/ai-photo-adjust-editor.js fresh-rebuild/src/features/apps/ai-photo-adjust-renderer.js
+          git commit -m "fix: finish Photo Adjust v18 pixel regressions"
+          git push origin HEAD:ai-photo-real-canva-ai-generator-correction
