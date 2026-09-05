@@ -3,9 +3,9 @@
 - Repo: `fahadsoomro123/nexusnova-app`
 - Branch: `ai-photo-real-canva-ai-generator-correction`
 - Verified inherited HEAD: `9ef070ba55f76506851a1366fc9dc3863e50578d`
-- Latest branch HEAD observed before this update: `144e7693839d1daf00031afb42ef81e07631c645` (unrelated Travel-suite work; direct child of the AI Photo checkpoint below).
-- Latest published AI Photo implementation checkpoint: `1ef0a05e8ff82d04da8850d39b029fd0538b4b54`
-- Active milestone: exact approved Home crops, preview-faithful Featured templates, real saved-project thumbnails, Favorites, and the richer 1000-template library are implemented locally and awaiting the no-release CI checkpoint.
+- Latest branch HEAD observed before this update: `a2108d133e912ae8b9b13b076362ef74d3d32532` (unrelated Travel-suite work; direct child of the AI Photo checkpoint below).
+- Latest published AI Photo implementation checkpoint: `9ff3ac49ae1b4cccbdaed7f4b729c6ccfd8f4cc0`
+- Active milestone: browser/viewport/Android CI for `9ff3ac49…` passed, then manual exact-reference review found real title/header/ratio drift. The corrective Home/Generator patch and two exact right-hand Generator crops are local and awaiting the next no-release checkpoint.
 - OTA status: **NOT RELEASED**
 - Signed APK status: **NOT RELEASED**
 
@@ -36,6 +36,8 @@
 - `fresh-rebuild/src/features/apps/data/ai-photo-templates.js`
 - `fresh-rebuild/assets/visuals/ai-photo-approved-home-button.webp`
 - `fresh-rebuild/assets/visuals/ai-photo-approved-pro-button.webp`
+- `fresh-rebuild/assets/visuals/ai-photo-approved-generator-home.webp`
+- `fresh-rebuild/assets/visuals/ai-photo-approved-generator-back.webp`
 - `fresh-rebuild/assets/visuals/ai-photo-approved-home-icon.webp`
 - `fresh-rebuild/assets/visuals/ai-photo-approved-home-nebula.webp`
 - `fresh-rebuild/assets/visuals/ai-photo-approved-primary-icons.webp`
@@ -67,26 +69,29 @@
 - Reworked the library to exactly 1000 unique template IDs, 20 categories × 50, category-specific style families, nine composition families, richer vector/logo treatment, descriptions, purposes, metadata, and editable fields.
 - Removed unrelated sprite overlays from general cards, so each card preview is the actual design that opens.
 - Strengthened internal QA to inspect every AI Photo JavaScript module, approved asset checksums, the exact reference manifest, behavior/render evidence, and the complete Android canonical asset sync.
+- Published exact-reference/template milestone `9ff3ac49…` without overwriting the concurrently published Travel commit.
+- No-release workflow run `33953146234` completed successfully: all 60 browser behavior assertions passed, all five Home/Generator viewport geometry runs passed, approved asset/template contracts passed, and the Android debug APK compiled with canonical assets byte-for-byte synchronized.
+- Manually inspected the actual `393 × 852` Home and Generator screenshots rather than treating geometry checks as visual approval; identified and locally repaired the Home title split, source capitalization drift, Remove BG wrapping, oversized hero, Generator title split, non-reference Generator navigation controls, and ratio-card structure drift.
 
 ## Current visual status
 
-- **NOT READY FOR FINAL CLAIM.** Exact approved Home pixels and revised proportions are implemented, but the five-viewport rendered comparison has not yet passed this checkpoint.
+- **NOT READY FOR FINAL CLAIM.** The prior five-viewport geometry suite passed, but manual screenshot comparison correctly rejected visible drift that geometry alone did not detect.
 - Home descriptions remain present at `360 × 640` instead of being hidden by a compression rule.
-- Generator selection behavior is repaired, but final geometry against the right-hand Fixed Layout reference remains pending.
-- All approved derived assets are lossless source crops and checksum-verified; no generated substitute artwork exists.
+- Local Home corrections keep `NexusNova AI Photo Studio` on one line, restore exact source section capitalization, prevent Quick Tool label wrapping, and scale the hero from screenshot width instead of over-expanding with viewport height.
+- Local Generator corrections use exact lossless Home/Back crops from the approved right-hand phone, keep the title on one line, and restore the target ratio tile + external label structure.
+- All twelve approved derived assets are lossless source crops and checksum-verified; no generated substitute artwork exists.
 
 ## Current functional status
 
-- Navigation and all six Quick Tools are implemented and exercised in the initial browser suite.
-- First CI behavior run `33950907982`: 53 checks, 52 passed, 1 failed. The failure exposed the real Recent deletion/autosave race (`2 → 2`).
-- The deletion repair is published at `1ef0a05…`; GitHub did not expose a follow-up run for that Git-data checkpoint, so confirmation remains pending.
-- Current local QA adds the AI Tools hub, approved Featured → detail → actual design fidelity, Favorite persistence/filtering, and source-crop assertions.
+- Navigation and all six Quick Tools are implemented and exercised end-to-end in the browser suite.
+- First CI behavior run `33950907982`: 53 checks, 52 passed, 1 failed; it exposed the real Recent deletion/autosave race (`2 → 2`).
+- Follow-up no-release run `33953146234`: **60/60 PASS**, including repaired deletion (`3 → 2`), AI Tools hub, approved Featured → detail → matching actual design, Favorite persistence/filtering, source-crop assertions, generator selection/provider mapping, result actions, Back/Home, and all Quick Tool success/error flows.
 - Full Design Editor and Photo Editor button-by-button execution matrices remain in progress.
 
 ## Button inventory status
 
 - Static selector/control discovery: complete for the current source.
-- Behavioral ledger: 53 initial interaction assertions, with 52 passing in the first CI run; expanded checks are implemented locally but not yet run.
+- Behavioral ledger: 60 expanded interaction assertions, **60 passing** in no-release CI run `33953146234`.
 - Required per-control inventory document (screen, label, implementation, intent, pre-fix action, defect, fix, automation, render, status): **in progress**.
 - Presence alone is never recorded as PASS.
 
@@ -97,24 +102,24 @@
 - Exactly 1000 templates, 20 categories × 50, 1000 unique IDs.
 - Every template has elements, purpose, description, and editable-field metadata.
 - Four deterministic approved Featured templates with matching source-crop metadata.
-- All ten locked visual assets match manifest SHA-256 values.
+- All twelve locked visual assets match manifest SHA-256 values (ten published; two new Generator navigation crops verified locally for the next checkpoint).
 - Protected-file and no-release scope remain unchanged locally.
 - Puter remains keyless with one `puter.ai.txt2img` call site.
 
 ## Tests still failing or not yet executed
 
-- Re-run Recent delete after autosave cancellation and run the expanded Favorites/Featured checks.
+- Re-render the new exact-reference Home/Generator corrective patch at all five viewports and manually inspect the new PNG evidence.
 - Full Design Editor toolbar, inspector, layers, project, autosave/reload/delete/export, drag, selection, and keyboard-focus matrix.
 - Full Photo Editor transform, detail, masks, repair, retouch, history, light/color/mix/effects, curves/histogram, presets, and export matrix.
 - All six Photo Editor AI actions with controlled success/error responses, visible busy/success state, undo, Back, and Home.
-- Exact Home and right-hand Generator rendered comparisons at `360×640`, `360×740`, `393×852`, `415×858`, and `430×865`.
+- Final exact Home and right-hand Generator visual approval at `360×640`, `360×740`, `393×852`, `415×858`, and `430×865` (prior geometry checks passed; manual comparison found and rejected drift now patched locally).
 - Text clipping, touch target, contrast, selected/loading/success/error, overflow, crop, and bottom-gap scans at every target viewport.
-- Final Android debug build after all repairs.
+- Final Android debug build after all remaining repairs (checkpoint `9ff3ac49…` debug build already passed).
 
 ## Known remaining defects / limitations
 
-- Five-viewport Home exact-reference render confirmation is pending.
-- Generator still needs final evidence-led spacing/crop comparison to the right-hand Fixed Layout reference.
+- Five-viewport rerender confirmation of the local title/hero/header/ratio corrections is pending.
+- Generator still needs final evidence-led comparison after the exact Home/Back crops and ratio structure are rendered in CI.
 - The richer template system needs rendered category sampling and full touch/preview QA before PASS.
 - Design Editor and Photo Editor exhaustive execution ledgers are incomplete.
 - Photo Editor AI buttons need explicit per-button busy/success/error polish and controlled provider QA.
@@ -139,7 +144,7 @@ The only host-level change is the narrow `fresh-rebuild/src/main.js` call that l
 
 ## Exact next action
 
-Commit and publish this exact-reference/template milestone, inspect the no-release behavior/render/debug-build artifacts, repair any evidenced drift or regression, then expand the Design Editor and Photo Editor execution ledger.
+Commit and publish the current exact-reference corrective patch on top of remote `a2108d13…`, inspect all five new Home/Generator render PNGs, repair any evidenced regression, then expand the Design Editor and Photo Editor execution ledger.
 
 ## Release status
 

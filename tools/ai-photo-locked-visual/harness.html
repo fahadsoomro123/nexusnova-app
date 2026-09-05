@@ -190,6 +190,8 @@
       const features=[...root.querySelectorAll('.nxlock-feature')];
       const lockedThumbs=[...root.querySelectorAll('.nxlock-reference-feature')];
       const recent=[...root.querySelectorAll('.nxlock-recent-thumb')];
+      const title=root.querySelector('.nxlock-top-title strong');
+      const tools=[...root.querySelectorAll('.nxlock-tool')];
       rows.forEach((node,index)=>expect(visible(node),'home row '+index+' clipped or hidden'));
       expect(ordered(rows),'home sections are not vertically ordered');
       expect(features.length===5,'expected five proportional featured cards');
@@ -199,6 +201,8 @@
       expect(lockedThumbs.every((node)=>Math.abs(node.getBoundingClientRect().width/node.getBoundingClientRect().height-206/194)<0.03),'featured crop aspect ratio drift');
       expect(recent.length===4&&recent.every((node)=>visible(node)),'recent creation previews clipped');
       expect(recent.every((node)=>Math.abs(node.getBoundingClientRect().width/node.getBoundingClientRect().height-206/134)<0.03),'recent preview aspect ratio drift');
+      expect(title.scrollWidth<=title.clientWidth+1&&title.getBoundingClientRect().height<Number.parseFloat(getComputedStyle(title).fontSize)*1.45,'Home title wrapped or clipped');
+      expect(tools.every((node)=>getComputedStyle(node).whiteSpace==='nowrap'&&node.scrollWidth<=node.clientWidth+1),'Quick Tool label wrapped or clipped');
       const home=root.querySelector('.nxlock-home');
       const recentRect=root.querySelector('.nxlock-recent').getBoundingClientRect();
       expect(home.scrollHeight<=home.clientHeight+1,'locked Home has vertical overflow');
@@ -219,6 +223,9 @@
       const strength=root.querySelector('[data-strength]');
       const generate=root.querySelector('[data-puter-generate]');
       const oldHead=root.querySelector('.nxv3-head'),oldTabs=root.querySelector('.nxv3-tabs');
+      const generatorTitle=root.querySelector('.nxlock-gen-title strong');
+      const generatorHome=root.querySelector('.nxlock-gen-home');
+      const generatorBack=root.querySelector('.nxlock-gen-back');
       ratios.find((node)=>node.dataset.r==='story')?.click();
       styles.find((node)=>node.dataset.style==='cinematic')?.click();
       prompt.value='focus-check';
@@ -236,6 +243,10 @@
       expect(getComputedStyle(oldHead).display==='none'&&getComputedStyle(oldTabs).display==='none','legacy workspace header or tabs visible');
       expect(styles.length===8&&styles.every((node)=>visible(node)),'all eight Creative Styles are not fully visible');
       expect(ratios.length>=4&&ratios.every((node)=>visible(node)),'aspect-ratio controls clipped');
+      expect(ratios.every((node)=>visible(node.querySelector('.nxlock-ratio-tile'))&&node.querySelector('small').getBoundingClientRect().top>=node.querySelector('.nxlock-ratio-tile').getBoundingClientRect().bottom-1),'ratio tile/label structure drift');
+      expect(generatorTitle.scrollWidth<=generatorTitle.clientWidth+1&&generatorTitle.getBoundingClientRect().height<Number.parseFloat(getComputedStyle(generatorTitle).fontSize)*1.45,'Generator title wrapped or clipped');
+      expect(getComputedStyle(generatorHome).backgroundImage.includes('ai-photo-approved-generator-home.webp'),'approved Generator Home crop not applied');
+      expect(getComputedStyle(generatorBack).backgroundImage.includes('ai-photo-approved-generator-back.webp'),'approved Generator Back crop not applied');
       expect(visible(prompt)&&visible(quality)&&visible(strength)&&visible(generate),'required generator control clipped');
       const promptRect=prompt.getBoundingClientRect(),generateRect=generate.getBoundingClientRect();
       expect(promptRect.height>=90&&promptRect.height<=innerHeight*.30,'prompt consumes an incorrect share of viewport');

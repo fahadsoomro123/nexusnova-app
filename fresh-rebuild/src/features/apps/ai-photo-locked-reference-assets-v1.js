@@ -95,11 +95,11 @@ function ensureReferenceStyles(){
     .nxps-locked-visual .nxlock-home-btn{background-image:url('./assets/visuals/ai-photo-approved-home-button.webp')!important}
     .nxps-locked-visual .nxlock-pro{aspect-ratio:160/64!important;background-image:url('./assets/visuals/ai-photo-approved-pro-button.webp')!important}
     .nxps-locked-visual .nxlock-top-title strong{overflow:visible!important;color:#f4efff!important;font-size:clamp(12px,3.65vw,16px)!important;font-weight:850!important;line-height:1.04!important;text-overflow:clip!important;white-space:nowrap!important}
-    .nxps-locked-visual .nxlock-top-title strong>span{color:#c9a5ff!important;-webkit-text-fill-color:#c9a5ff!important}
+    .nxps-locked-visual .nxlock-top-title strong>span{display:inline!important;margin:0!important;color:#c9a5ff!important;-webkit-text-fill-color:#c9a5ff!important;font:inherit!important;line-height:inherit!important}
     .nxps-locked-visual .nxlock-top-title strong>em{color:#cb6aff!important;-webkit-text-fill-color:#cb6aff!important;font-style:normal!important}
     .nxps-locked-visual .nxlock-top-title>span{margin-top:3px!important;color:#c6b9e9!important;-webkit-text-fill-color:#c6b9e9!important;font-size:clamp(7px,2.15vw,9px)!important;white-space:nowrap!important}
 
-    .nxps-locked-visual .nxlock-hero{position:relative!important;grid-template-columns:clamp(50px,15.2vw,66px) minmax(0,1fr)!important;min-height:0!important;height:clamp(79px,13.2dvh,116px)!important;padding:clamp(7px,1.2dvh,11px) clamp(9px,2.7vw,13px)!important;gap:clamp(8px,2.4vw,12px)!important;overflow:hidden!important;border-color:rgba(96,111,194,.58)!important;border-radius:clamp(12px,3.5vw,17px)!important;background:linear-gradient(110deg,#10182c 0%,#10162a 62%,#0c1530 100%)!important;box-shadow:inset 0 1px rgba(255,255,255,.035)!important}
+    .nxps-locked-visual .nxlock-hero{position:relative!important;grid-template-columns:clamp(50px,15.2vw,66px) minmax(0,1fr)!important;min-height:0!important;height:clamp(79px,20vw,91px)!important;padding:clamp(7px,1.2dvh,11px) clamp(9px,2.7vw,13px)!important;gap:clamp(8px,2.4vw,12px)!important;overflow:hidden!important;border-color:rgba(96,111,194,.58)!important;border-radius:clamp(12px,3.5vw,17px)!important;background:linear-gradient(110deg,#10182c 0%,#10162a 62%,#0c1530 100%)!important;box-shadow:inset 0 1px rgba(255,255,255,.035)!important}
     .nxps-locked-visual .nxlock-hero::after{content:"";position:absolute;z-index:0;inset:0 0 0 auto;width:31%;background:url('./assets/visuals/ai-photo-approved-home-nebula.webp') center/cover no-repeat;pointer-events:none}
     .nxps-locked-visual .nxlock-hero-logo{position:relative!important;z-index:2!important;width:100%!important;height:auto!important;aspect-ratio:132/126!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important}
     .nxps-locked-visual .nxlock-hero-logo img{display:block!important;width:100%!important;height:100%!important;object-fit:contain!important}
@@ -137,7 +137,7 @@ function ensureReferenceStyles(){
     .nxps-locked-visual .nxlock-feature span{padding:clamp(4px,.65dvh,6px) 4px!important;background:#0d1626!important;font-size:clamp(7px,2.15vw,9.5px)!important;line-height:1!important;text-align:center!important;text-overflow:ellipsis!important}
 
     .nxps-locked-visual .nxlock-quick{gap:clamp(5px,1.7vw,8px)!important}
-    .nxps-locked-visual .nxlock-tool{display:grid!important;height:clamp(48px,6.8dvh,59px)!important;place-content:center!important;padding:4px!important;border-radius:clamp(9px,2.8vw,13px)!important;font-size:clamp(6.8px,2vw,9px)!important;line-height:1!important;box-shadow:inset 0 1px rgba(255,255,255,.045),0 6px 16px rgba(0,0,0,.13)!important}
+    .nxps-locked-visual .nxlock-tool{display:grid!important;height:clamp(48px,6.8dvh,59px)!important;place-content:center!important;padding:4px 2px!important;border-radius:clamp(9px,2.8vw,13px)!important;font-size:clamp(6.4px,1.9vw,8.5px)!important;line-height:1!important;white-space:nowrap!important;box-shadow:inset 0 1px rgba(255,255,255,.045),0 6px 16px rgba(0,0,0,.13)!important}
     .nxps-locked-visual .nxlock-tool b{display:block!important;width:clamp(24px,6.8vw,30px)!important;height:auto!important;aspect-ratio:60/58!important;margin:0 auto clamp(4px,.55dvh,5px)!important;background-image:url('./assets/visuals/ai-photo-approved-quick-icons.webp')!important;background-repeat:no-repeat!important;background-size:600% 100%!important;font-size:0!important}
     .nxps-locked-visual .nxlock-tool:nth-child(1) b{background-position:0 50%!important}.nxps-locked-visual .nxlock-tool:nth-child(2) b{background-position:20% 50%!important}.nxps-locked-visual .nxlock-tool:nth-child(3) b{background-position:40% 50%!important}.nxps-locked-visual .nxlock-tool:nth-child(4) b{background-position:60% 50%!important}.nxps-locked-visual .nxlock-tool:nth-child(5) b{background-position:80% 50%!important}.nxps-locked-visual .nxlock-tool:nth-child(6) b{background-position:100% 50%!important}
 
@@ -149,6 +149,29 @@ function ensureReferenceStyles(){
     .nxps-locked-visual .nxlock-recent-item.is-example .nxlock-recent-thumb{position:relative!important;filter:saturate(.86) brightness(.82)!important}
     .nxps-locked-visual .nxlock-recent-item.is-example .nxlock-recent-thumb small{position:absolute;right:4px;top:4px;padding:2px 4px;border-radius:999px;background:rgba(8,10,18,.82);color:#fff;font-size:5px;font-weight:900;letter-spacing:.08em}
     .nxps-locked-visual .nxlock-recent-item strong{margin-top:clamp(3px,.55dvh,5px)!important;font-size:clamp(7.5px,2.35vw,10px)!important;line-height:1!important;text-overflow:ellipsis!important}.nxps-locked-visual .nxlock-recent-item span{margin-top:2px!important;font-size:clamp(6.5px,1.95vw,8.5px)!important;line-height:1!important}
+
+    /* Exact approved Generator header and ratio-card structure from the right-hand target. */
+    .nxps-locked-visual .nxlock-gen-head{grid-template-columns:auto minmax(0,1fr) auto!important;gap:clamp(7px,2.2vw,11px)!important}
+    .nxps-locked-visual .nxlock-gen-home,.nxps-locked-visual .nxlock-gen-back{width:auto!important;height:auto!important;min-width:0!important;min-height:0!important;padding:0!important;border:0!important;border-radius:0!important;background-color:transparent!important;background-repeat:no-repeat!important;background-position:center!important;background-size:contain!important;box-shadow:none!important;color:transparent!important;-webkit-text-fill-color:transparent!important;font-size:0!important}
+    .nxps-locked-visual .nxlock-gen-home{width:clamp(76px,21.7vw,96px)!important;aspect-ratio:96/44!important;background-image:url('./assets/visuals/ai-photo-approved-generator-home.webp')!important}
+    .nxps-locked-visual .nxlock-gen-back{width:clamp(38px,10vw,44px)!important;aspect-ratio:1!important;background-image:url('./assets/visuals/ai-photo-approved-generator-back.webp')!important}
+    .nxps-locked-visual .nxlock-gen-title{min-width:0!important}
+    .nxps-locked-visual .nxlock-gen-title strong{font-size:clamp(14px,4vw,17px)!important;line-height:1.05!important;white-space:nowrap!important}
+    .nxps-locked-visual .nxlock-gen-title span{font-size:clamp(7.5px,2.15vw,9px)!important;white-space:nowrap!important}
+    .nxps-locked-visual .nxlock-ratios{align-items:start!important}
+    .nxps-locked-visual .nxlock-ratio{display:grid!important;grid-template-rows:auto auto!important;gap:clamp(4px,.65dvh,6px)!important;height:auto!important;min-width:0!important;padding:0!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;color:#f2f4fa!important;overflow:visible!important}
+    .nxps-locked-visual .nxlock-ratio-tile{display:grid!important;grid-template-rows:auto auto!important;place-content:center!important;gap:3px!important;width:100%!important;height:clamp(48px,6.9dvh,58px)!important;border:1px solid rgba(128,143,179,.62)!important;border-radius:clamp(8px,2.6vw,11px)!important;background:linear-gradient(145deg,#18202e,#111722)!important;transition:transform .12s ease,border-color .12s ease,box-shadow .12s ease!important}
+    .nxps-locked-visual .nxlock-ratio:active .nxlock-ratio-tile{transform:scale(.97)!important}
+    .nxps-locked-visual .nxlock-ratio i{display:block!important;justify-self:center!important;border:1.5px solid #eef2ff!important;border-radius:1px!important;width:11px!important;height:11px!important}
+    .nxps-locked-visual .nxlock-ratio[data-r="portrait"] i{width:9px!important;height:13px!important}
+    .nxps-locked-visual .nxlock-ratio[data-r="story"] i{width:8px!important;height:15px!important}
+    .nxps-locked-visual .nxlock-ratio[data-r="wide"] i{width:16px!important;height:9px!important}
+    .nxps-locked-visual .nxlock-ratio[data-r="custom"] i{width:15px!important;height:10px!important;border-style:dashed!important}
+    .nxps-locked-visual .nxlock-ratio b{display:block!important;font-size:clamp(9px,2.65vw,11px)!important;line-height:1!important}
+    .nxps-locked-visual .nxlock-ratio small{display:block!important;margin:0!important;color:#eef0f7!important;-webkit-text-fill-color:#eef0f7!important;font-size:clamp(7px,2.2vw,9px)!important;line-height:1!important;white-space:nowrap!important}
+    .nxps-locked-visual .nxlock-ratio.is-active .nxlock-ratio-tile{border-color:#d099ff!important;background:linear-gradient(145deg,#6b35a4,#382158)!important;box-shadow:0 0 0 2px rgba(174,99,255,.36),0 8px 22px rgba(122,49,222,.32)!important}
+    .nxps-locked-visual .nxlock-ratio[aria-disabled="true"] .nxlock-ratio-tile{border-style:dashed!important}
+    .nxps-locked-visual .nxlock-ratio:focus-visible{outline:2px solid #d2a4ff!important;outline-offset:3px!important}
 
     @media(max-height:700px){
       .nxps-locked-visual .nxlock-home{gap:4px!important;padding-top:5px!important;padding-bottom:5px!important}
@@ -210,7 +233,7 @@ function applyVisualCustomRatio(root){
   const ratioBox=root.querySelector('.nxlock-ratios');
   if(!ratioBox||ratioBox.querySelector('[data-r="custom"]'))return;
   const button=document.createElement('button');
-  button.type='button';button.className='nxlock-ratio nxlock-reference-custom-ratio';button.dataset.r='custom';button.setAttribute('aria-label','Custom aspect ratio is not supported');button.setAttribute('aria-disabled','true');button.setAttribute('aria-pressed','false');button.title='Custom ratio is not supported by the current Puter provider.';button.innerHTML='<b>↔</b>Custom<small>Provider limit</small>';
+  button.type='button';button.className='nxlock-ratio nxlock-reference-custom-ratio';button.dataset.r='custom';button.setAttribute('aria-label','Custom aspect ratio is not supported by the current Puter provider');button.setAttribute('aria-disabled','true');button.setAttribute('aria-pressed','false');button.title='Custom ratio is not supported by the current Puter provider.';button.innerHTML='<span class="nxlock-ratio-tile"><i aria-hidden="true"></i><b>Custom</b></span><small>Custom</small>';
   button.addEventListener('click',()=>{const error=root.querySelector('[data-puter-error]');if(!error)return;error.textContent='Custom ratio is not supported by the current Puter provider. Choose Square, Portrait, Story or Landscape.';error.classList.add('is-on')});
   ratioBox.appendChild(button);ratioBox.classList.add('has-custom');
 }
