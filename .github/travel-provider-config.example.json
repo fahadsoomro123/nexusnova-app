@@ -1,0 +1,8 @@
+{
+  "amadeusClientId": "YOUR_AMADEUS_CLIENT_ID",
+  "amadeusClientSecret": "YOUR_AMADEUS_CLIENT_SECRET",
+  "duffelAccessToken": "OPTIONAL_DUFFEL_ACCESS_TOKEN",
+  "distribusionApiKey": "YOUR_DISTRIBUSION_API_KEY",
+  "travelLineApiKey": "YOUR_TRAVEL_LINE_API_KEY",
+  "flyNDealApiKey": "OPTIONAL_FLYNDEAL_API_KEY"
+}
