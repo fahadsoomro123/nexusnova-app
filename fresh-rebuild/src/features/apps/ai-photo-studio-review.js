@@ -15,6 +15,7 @@ import { installAiPhotoFlagshipToolUpgrades } from './ai-photo-flagship-tool-upg
 import { installAiPhotoGeneratorPromptAssistV1 } from './ai-photo-generator-prompt-assist-v1.js';
 import { installAiPhotoContextualContrastV1 } from './ai-photo-contextual-contrast-v1.js';
 import { installAiPhotoFlagshipShellV14 } from './ai-photo-flagship-shell-v14.js';
+import { installAiPhotoTouchSmoothV15 } from './ai-photo-touch-smooth-v15.js';
 import { installAiPhotoNavigation } from './ai-photo-navigation.js';
 
 export function renderAiPhotoStudio(){
@@ -48,11 +49,13 @@ export function renderAiPhotoStudio(){
   const generatorPromptAssistCleanup=installAiPhotoGeneratorPromptAssistV1(root);
   const contextualContrastCleanup=installAiPhotoContextualContrastV1(root);
   const flagshipShellCleanup=installAiPhotoFlagshipShellV14(root);
+  const touchSmoothCleanup=installAiPhotoTouchSmoothV15(root);
   const lockedReferenceCleanup=installAiPhotoLockedReferenceAssetsV1(root);
   const navigationCleanup=installAiPhotoNavigation(root);
   root.__cleanup=()=>{
     navigationCleanup?.();
     lockedReferenceCleanup?.();
+    touchSmoothCleanup?.();
     flagshipShellCleanup?.();
     contextualContrastCleanup?.();
     generatorPromptAssistCleanup?.();
@@ -70,6 +73,6 @@ export function renderAiPhotoStudio(){
     focusCleanup?.();
     previousCleanup?.();
   };
-  root.dataset.aiPhotoFlagship='flagship-repair-v14';
+  root.dataset.aiPhotoFlagship='flagship-repair-v15';
   return root;
 }
