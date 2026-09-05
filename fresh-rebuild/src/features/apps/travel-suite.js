@@ -135,6 +135,7 @@ function installTravelFullscreenShell(root) {
 
 export function renderTravelSuite() {
   const root = renderTravelSuiteV16();
+  root.dataset.runtimeRepair = 'viewport-dock-airline-v16';
   clampTravelPhoneWidth(root);
   installTravelFullscreenShell(root);
   return root;
