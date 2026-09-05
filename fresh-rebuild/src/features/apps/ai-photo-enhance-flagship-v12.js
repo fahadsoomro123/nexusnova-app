@@ -122,8 +122,10 @@ function decorateEnhance(root,result){
   const state={strength:82,shadows:45,highlights:52,vibrance:32,detail:48,denoise:18,wb:70},defaults={...state};let mode='natural',version=0,previewFrame=0,commitTimer=0,busy=false;
   const status=panel.querySelector('[data-nxfs-enhance-status]'),actions=[...result.querySelectorAll('[data-nxqt-download],[data-nxqt-design],[data-nxqt-edit]')];
   const setBusy=value=>{busy=value;actions.forEach(button=>button.disabled=value);panel.setAttribute('aria-busy',String(value))};
+  const lockPending=()=>{actions.forEach(button=>button.disabled=true);panel.setAttribute('aria-busy','true')};
   const draw=canvas=>{visible.width=base.width;visible.height=base.height;const x=visible.getContext('2d');x.imageSmoothingEnabled=true;x.imageSmoothingQuality='high';x.clearRect(0,0,visible.width,visible.height);x.drawImage(canvas,0,0,visible.width,visible.height)};
   const renderPreview=()=>{
+    lockPending();
     if(previewFrame)return;const localVersion=++version;previewFrame=requestAnimationFrame(async()=>{previewFrame=0;const out=await enhanceCanvas(previewBase,mode,state);if(!out||localVersion!==version||busy)return;draw(out);status.textContent='Live preview · release the slider for full-resolution processing.'});
   };
   const commit=async()=>{
