@@ -1,38 +1,60 @@
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
+const coarsePointer=()=>globalThis.matchMedia?.('(pointer: coarse)')?.matches===true;
+const constrainedDevice=()=>{
+  const memory=Number(globalThis.navigator?.deviceMemory)||8;
+  const cores=Number(globalThis.navigator?.hardwareConcurrency)||8;
+  return memory<=4||cores<=4;
+};
 
 export function previewMaxDimension(container,{min=640,max=1200}={}){
   const r=container?.getBoundingClientRect?.();
   const cssMax=Math.max(r?.width||0,r?.height||0,320);
-  const dpr=clamp(Number(globalThis.devicePixelRatio)||1,1,2);
-  return Math.round(clamp(cssMax*dpr*1.35,min,max));
+  const coarse=coarsePointer();
+  const constrained=constrainedDevice();
+  const phoneCap=constrained?680:coarse?840:max;
+  const effectiveMax=Math.min(max,phoneCap);
+  const dpr=clamp(Number(globalThis.devicePixelRatio)||1,1,coarse?1.45:2);
+  return Math.round(clamp(cssMax*dpr*1.2,min,effectiveMax));
 }
 
 export function createPreviewScheduler(render){
-  let raf=0,pending=null,destroyed=false;
+  let raf=0,timer=0,pending=null,destroyed=false,lastRun=0;
+  const minGap=coarsePointer()?(constrainedDevice()?42:30):16;
   const run=()=>{
-    raf=0;
+    raf=0;timer=0;
     if(destroyed||!pending)return;
     const payload=pending;
     pending=null;
+    lastRun=performance.now();
     render(payload);
+  };
+  const arm=()=>{
+    if(destroyed||raf||timer)return;
+    const wait=Math.max(0,minGap-(performance.now()-lastRun));
+    if(wait>3){
+      timer=setTimeout(()=>{timer=0;if(!destroyed&&!raf)raf=requestAnimationFrame(run)},wait);
+    }else raf=requestAnimationFrame(run);
   };
   return {
     schedule(payload={}){
       if(destroyed)return;
       pending=payload;
-      if(!raf)raf=requestAnimationFrame(run);
+      arm();
     },
     flush(payload={}){
       if(destroyed)return;
       if(raf){cancelAnimationFrame(raf);raf=0}
+      if(timer){clearTimeout(timer);timer=0}
       pending=null;
+      lastRun=performance.now();
       render(payload);
     },
     cancel(){
       destroyed=true;
       pending=null;
       if(raf)cancelAnimationFrame(raf);
-      raf=0;
+      if(timer)clearTimeout(timer);
+      raf=0;timer=0;
     }
   };
 }
