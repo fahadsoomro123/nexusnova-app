@@ -3,9 +3,10 @@
   "generated": false,
   "source_files": [
     {
-      "name": "NexusNova AI Photo Studio Dashboard.png",
-      "sha256": "bc54e5535786bf5a0a2977cb6788db7725bec444afa18c72ae624c24a304f30a",
-      "dimensions": "831x1893"
+      "name": "NexusNova AI Photo Studio Dashboard(1).png",
+      "sha256": "5cf59cc3476147efea06558547937739d7a4d44e946537ff4d9141fba62bffb8",
+      "dimensions": "941x1672",
+      "selection": "Exact attached Home reference"
     },
     {
       "name": "NexusNova AI Layout Fix Preview.png",
@@ -16,20 +17,72 @@
   ],
   "derived_assets": [
     {
+      "path": "assets/visuals/ai-photo-approved-home-button.webp",
+      "sha256": "82326b707c9cb2e9b5848b0a5c2c8adc6c7faeb8082ebde6387b46497741664d",
+      "dimensions": "166x64",
+      "source": "NexusNova AI Photo Studio Dashboard(1).png",
+      "crop": "166x64+29+64"
+    },
+    {
+      "path": "assets/visuals/ai-photo-approved-pro-button.webp",
+      "sha256": "0b1cc03d84a269c62347c4949567790f10fb622d48b0846f6774b759265aeb26",
+      "dimensions": "160x64",
+      "source": "NexusNova AI Photo Studio Dashboard(1).png",
+      "crop": "160x64+751+64"
+    },
+    {
+      "path": "assets/visuals/ai-photo-approved-home-icon.webp",
+      "sha256": "4c1c46821e2925685b5768af27cc3ba17c2c339743a8c214c3674ff822b60736",
+      "dimensions": "132x126",
+      "source": "NexusNova AI Photo Studio Dashboard(1).png",
+      "crop": "132x126+52+174"
+    },
+    {
+      "path": "assets/visuals/ai-photo-approved-home-nebula.webp",
+      "sha256": "5e1472e16d5809abe14afd9ee459c537265e548ee339eb33988bd4e79e6d0e19",
+      "dimensions": "258x112",
+      "source": "NexusNova AI Photo Studio Dashboard(1).png",
+      "crop": "258x112+650+158"
+    },
+    {
+      "path": "assets/visuals/ai-photo-approved-primary-icons.webp",
+      "sha256": "ebcea5fff531b35abbfcb5cdb35ef88312fa1cd539696069d7dc13f41489a233",
+      "dimensions": "228x76",
+      "tile_dimensions": "76x76",
+      "source": "NexusNova AI Photo Studio Dashboard(1).png",
+      "crops": ["76x76+54+423", "76x76+372+423", "76x76+658+423"]
+    },
+    {
+      "path": "assets/visuals/ai-photo-approved-secondary-icons.webp",
+      "sha256": "faa686b03765c69bca71b2e074b6985bf5ac08193620af070dd7a3e6c565565c",
+      "dimensions": "232x48",
+      "tile_dimensions": "58x48",
+      "source": "NexusNova AI Photo Studio Dashboard(1).png",
+      "crops": ["58x48+107+640", "58x48+337+640", "58x48+558+640", "58x48+778+640"]
+    },
+    {
+      "path": "assets/visuals/ai-photo-approved-quick-icons.webp",
+      "sha256": "95a2aed08f0ecb77d0c73714b0925eda3f191c2f69aa31e4d5555b2a91938e23",
+      "dimensions": "360x58",
+      "tile_dimensions": "60x58",
+      "source": "NexusNova AI Photo Studio Dashboard(1).png",
+      "crops": ["60x58+70+1128", "60x58+217+1128", "60x58+364+1128", "60x58+511+1128", "60x58+658+1128", "60x58+805+1128"]
+    },
+    {
       "path": "assets/visuals/ai-photo-locked-featured.webp",
-      "sha256": "642e17a71f1224d341f48a4a08de5ce96a05c5b5015518e726a67b397d36cfe6",
-      "dimensions": "692x183",
-      "tile_dimensions": "173x183",
-      "source": "NexusNova AI Photo Studio Dashboard.png",
-      "crops": ["173x183+26+994", "173x183+218+994", "173x183+410+994", "173x183+601+994"]
+      "sha256": "72364a8c7c7d42d027d8b881777d1e16b1da3d3fb4310a79ea51f42a1b38fb37",
+      "dimensions": "824x194",
+      "tile_dimensions": "206x194",
+      "source": "NexusNova AI Photo Studio Dashboard(1).png",
+      "crops": ["206x194+33+803", "206x194+255+803", "206x194+477+803", "206x194+699+803"]
     },
     {
       "path": "assets/visuals/ai-photo-locked-recent.webp",
-      "sha256": "4b059de3f4d5a61eb67804c4e680953aade1f696b80b215f75ced1f514fad323",
-      "dimensions": "680x124",
-      "tile_dimensions": "170x124",
-      "source": "NexusNova AI Photo Studio Dashboard.png",
-      "crops": ["170x124+48+1545", "170x124+237+1545", "170x124+426+1545", "170x124+616+1545"]
+      "sha256": "9c2c406a664d532a5bb99d98793fa61a473303ec194e6787af0d768ef52a16ce",
+      "dimensions": "824x134",
+      "tile_dimensions": "206x134",
+      "source": "NexusNova AI Photo Studio Dashboard(1).png",
+      "crops": ["206x134+34+1338", "206x134+256+1338", "206x134+478+1338", "206x134+700+1338"]
     },
     {
       "path": "assets/visuals/ai-photo-locked-styles.webp",
@@ -44,6 +97,6 @@
     }
   ],
   "encoding": "lossless WebP, metadata stripped",
-  "acceptance_rule": "1% visual drift = REJECT",
+  "acceptance_rule": "Approved screenshots are the final visual contract; visible drift is a defect",
   "image_generation": "FORBIDDEN"
 }

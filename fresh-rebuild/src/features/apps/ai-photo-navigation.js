@@ -23,7 +23,7 @@ export function installAiPhotoNavigation(root){
   function openWorkspace(tab='templates'){
     root.__nxQuickTools?.close?.({silent:true});hideHome();closeSheet();
     const api=root.__nxCanvaWorkspaceV3;
-    if(api){api.open();api.setTab(tab)}
+    if(api){if(tab==='templates'&&api.openTemplates)api.openTemplates();else{api.open();api.setTab(tab)}}
     else{const design=[...root.querySelectorAll('.nx-photo-tool')].find(button=>button.querySelector('span')?.textContent?.trim()==='Design');design?.click();root.querySelector(`[data-v3-tab="${tab}"]`)?.click()}
     dispatch(tab==='ai-image'?'generator':tab);
     return true;

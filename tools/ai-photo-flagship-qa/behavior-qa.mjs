@@ -41,7 +41,19 @@ try{
   await waitForDriver();await createSession();
   await expect('Home','Locked home visible','return !document.querySelector(".nxlock-home")?.hidden;');
   await expect('Home','Six dedicated Quick Tool launchers','return document.querySelectorAll("[data-nxlock-quick]").length===6;');
+  await expect('Home','Approved Featured templates map to opened designs','return JSON.stringify([...document.querySelectorAll(".nxlock-feature")].slice(0,4).map(node=>node.dataset.templateId))===JSON.stringify(["nx-approved-featured-photo-portrait","nx-approved-featured-social-media","nx-approved-featured-poster-design","nx-approved-featured-instagram-post"]);');
   await screenshot('home-before-functional-qa');
+
+  await click('[data-nxlock="ai-tools"]');await quickState('hub');
+  await expect('Quick Tools','AI Tools opens meaningful hub','return document.querySelectorAll("[data-nxqt-tool]").length===6&&/One tap/.test(document.querySelector(".nxqt-intro strong")?.textContent||"");');await execute('return window.__qaRoot.__nxStudioNavigation.handleBack();');await expect('Navigation','Quick Tools hub Back to Home','return !document.querySelector(".nxlock-home")?.hidden;');
+
+  await click('.nxlock-feature');await waitUntil('return document.querySelector("[data-v3-detail]")?.classList.contains("is-open");',{label:'approved Featured detail'});
+  await expect('Templates','Featured preview opens matching template','return document.querySelector("[data-v3-detail-name]")?.textContent==="Photo Portrait";');
+  await click('[data-v3-favorite]');await expect('Templates','Add favorite persists selected state','return document.querySelector("[data-v3-favorite]").getAttribute("aria-pressed")==="true"&&window.__qaRoot.__nxCanvaWorkspaceV3.getFavorites().includes("nx-approved-featured-photo-portrait");');
+  await execute('return window.__qaRoot.__nxStudioNavigation.handleBack();');await goHome();await click('[data-nxlock="favorites"]');await waitUntil('return window.__qaRoot.__nxCanvaWorkspaceV3.getState().favoritesOnly;',{label:'Favorites library'});
+  await expect('Templates','Favorites opens only saved templates','return document.querySelectorAll(".nxv3-card[data-template-id]").length===1&&document.querySelector(".nxv3-card")?.dataset.templateId==="nx-approved-featured-photo-portrait";');
+  await click('.nxv3-card');await click('[data-v3-use]');await waitUntil('return document.querySelector("[data-v3-tab=design]")?.classList.contains("is-active");',{label:'favorite template in Design'});
+  await expect('Templates','Approved preview matches actual editable design','const d=window.__qaRoot.__nxCanvaWorkspaceV3.getDesign();return d?.templateId==="nx-approved-featured-photo-portrait"&&d.elements?.[0]?.sourceCrop?.x===0&&d.elements?.[0]?.sourceCrop?.w===0.25;');await goHome();
 
   await click('[data-nxlock-quick="remove-bg"]');await quickState('picker');await injectFixture();await quickState('result');
   await expect('Quick Tools','Remove BG busy state observed','return window.__qaTransitions.some(value=>value==="quick:remove-bg:busy");');

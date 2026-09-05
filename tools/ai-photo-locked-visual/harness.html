@@ -196,9 +196,9 @@
       expect(features.slice(0,4).every((node)=>visible(node)),'first four featured cards are not fully visible');
       expect(features.length<5||visible(features[4],true),'fifth featured preview is not visible');
       expect(lockedThumbs.length===4,'four approved featured reference crops not applied');
-      expect(lockedThumbs.every((node)=>Math.abs(node.getBoundingClientRect().width/node.getBoundingClientRect().height-173/183)<0.03),'featured crop aspect ratio drift');
+      expect(lockedThumbs.every((node)=>Math.abs(node.getBoundingClientRect().width/node.getBoundingClientRect().height-206/194)<0.03),'featured crop aspect ratio drift');
       expect(recent.length===4&&recent.every((node)=>visible(node)),'recent creation previews clipped');
-      expect(recent.every((node)=>Math.abs(node.getBoundingClientRect().width/node.getBoundingClientRect().height-170/124)<0.03),'recent preview aspect ratio drift');
+      expect(recent.every((node)=>Math.abs(node.getBoundingClientRect().width/node.getBoundingClientRect().height-206/134)<0.03),'recent preview aspect ratio drift');
       const home=root.querySelector('.nxlock-home');
       const recentRect=root.querySelector('.nxlock-recent').getBoundingClientRect();
       expect(home.scrollHeight<=home.clientHeight+1,'locked Home has vertical overflow');

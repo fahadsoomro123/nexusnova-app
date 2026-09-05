@@ -5,6 +5,7 @@ on:
     branches: [ai-photo-real-canva-ai-generator-correction]
     paths:
       - 'fresh-rebuild/src/features/apps/ai-photo-*.js'
+      - 'fresh-rebuild/assets/visuals/ai-photo-*'
       - 'fresh-rebuild/src/main.js'
       - 'fresh-rebuild/src/features/apps/data/ai-photo-templates.js'
       - 'tools/ai-photo-flagship-qa/**'
@@ -30,23 +31,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for file in \
-            fresh-rebuild/src/features/apps/ai-photo-quick-tools.js \
-            fresh-rebuild/src/features/apps/ai-photo-navigation.js \
-            fresh-rebuild/src/features/apps/ai-photo-canva-workspace-v3.js \
-            fresh-rebuild/src/features/apps/ai-photo-locked-visual-v1.js \
-            fresh-rebuild/src/features/apps/ai-photo-locked-reference-assets-v1.js \
-            fresh-rebuild/src/features/apps/ai-photo-project-store.js \
-            fresh-rebuild/src/features/apps/ai-photo-puter-generator.js \
-            fresh-rebuild/src/features/apps/ai-photo-studio-ai.js \
-            fresh-rebuild/src/features/apps/ai-photo-studio-review.js \
-            fresh-rebuild/src/main.js \
-            tools/ai-photo-flagship-qa/firebase-stub.mjs \
-            tools/ai-photo-flagship-qa/behavior-qa.mjs; do
+          for file in fresh-rebuild/src/features/apps/ai-photo-*.js; do
             node --check "$file"
           done
-          git diff --check
+          node --check fresh-rebuild/src/features/apps/data/ai-photo-templates.js
+          node --check fresh-rebuild/src/main.js
+          node --check tools/ai-photo-flagship-qa/firebase-stub.mjs
+          node --check tools/ai-photo-flagship-qa/behavior-qa.mjs
           BASE=9ef070ba55f76506851a1366fc9dc3863e50578d
+          git diff --check "$BASE" HEAD
           for protected in \
             fresh-rebuild/assets/styles/ai-photo-route-fullscreen.css \
             fresh-rebuild/src/features/apps/app-screen.js \
@@ -65,6 +58,23 @@ jobs:
             exit 1
           fi
           echo 'PASS — protected/release workflows unchanged; Puter remains keyless with one generation call site.'
+
+      - name: Approved reference asset integrity
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import crypto from 'node:crypto';
+          const manifest=JSON.parse(fs.readFileSync('fresh-rebuild/assets/visuals/ai-photo-locked-reference-manifest.json','utf8'));
+          if(manifest.image_generation!=='FORBIDDEN'||manifest.generated!==false)throw new Error('No-image-generation contract changed');
+          for(const asset of manifest.derived_assets){
+            const path=`fresh-rebuild/${asset.path}`;
+            const hash=crypto.createHash('sha256').update(fs.readFileSync(path)).digest('hex');
+            if(hash!==asset.sha256)throw new Error(`${path} checksum mismatch`);
+          }
+          console.log(`PASS — ${manifest.derived_assets.length} source-derived visual assets match the locked manifest.`);
+          NODE
 
       - name: Template count contract
         shell: bash
@@ -89,6 +99,7 @@ jobs:
 
       - name: Five Android viewport Home and Generator render QA
         id: render
+        if: always()
         shell: bash
         run: bash tools/ai-photo-locked-visual/render-qa.sh
 
@@ -104,17 +115,20 @@ jobs:
           retention-days: 7
 
       - name: Java 17
+        if: always()
         uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
 
       - name: Gradle 8.13
+        if: always()
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.13'
 
       - name: Android debug build and canonical asset sync
+        if: always()
         shell: bash
         run: |
           set -euo pipefail
@@ -122,17 +136,5 @@ jobs:
           gradle --no-daemon clean assembleDebug
           test -s app/build/outputs/apk/debug/app-debug.apk
           cd ..
-          for rel in \
-            src/main.js \
-            src/features/apps/ai-photo-studio-review.js \
-            src/features/apps/ai-photo-navigation.js \
-            src/features/apps/ai-photo-quick-tools.js \
-            src/features/apps/ai-photo-canva-workspace-v3.js \
-            src/features/apps/ai-photo-locked-reference-assets-v1.js \
-            src/features/apps/ai-photo-locked-visual-v1.js \
-            src/features/apps/ai-photo-project-store.js \
-            src/features/apps/ai-photo-puter-generator.js \
-            src/features/apps/ai-photo-studio-ai.js; do
-            cmp "fresh-rebuild/$rel" "NexusNovaAndroid/app/src/main/assets/www/$rel"
-          done
+          diff -qr fresh-rebuild NexusNovaAndroid/app/src/main/assets/www
           echo 'PASS — debug APK compiled and canonical repaired sources were copied byte-for-byte. No APK was published.'
