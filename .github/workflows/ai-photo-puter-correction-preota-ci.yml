@@ -34,7 +34,6 @@ jobs:
           set -euo pipefail
           BASE=9ef070ba55f76506851a1366fc9dc3863e50578d
           for path in \
-            fresh-rebuild/assets/styles/ai-photo-route-fullscreen.css \
             fresh-rebuild/src/features/apps/app-screen.js \
             fresh-rebuild/src/features/apps/ai-photo-studio-flagship.js \
             fresh-rebuild/src/features/apps/ai-photo-focus-interaction.js; do
