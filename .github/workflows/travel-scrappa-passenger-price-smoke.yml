@@ -1,0 +1,42 @@
+name: NexusNova Travel Scrappa Passenger Price Smoke
+
+on:
+  push:
+    branches: [travel-reference-v7-final-staging]
+    paths:
+      - '.github/workflows/travel-scrappa-passenger-price-smoke.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      SCRAPPA_API_KEY: ${{ secrets.SCRAPPA_API_KEY }}
+    steps:
+      - name: Compare one and two adults
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${SCRAPPA_API_KEY:-}" || exit 1
+          for adults in 1 2; do
+            code=$(curl -sS --connect-timeout 10 --max-time 60 \
+              -H 'Accept: application/json' -H "X-API-KEY: ${SCRAPPA_API_KEY}" \
+              -o "/tmp/flight-${adults}.json" -w '%{http_code}' \
+              "https://scrappa.co/api/flights/one-way?origin=KHI&destination=DXB&departure_date=2026-09-12&adults=${adults}&cabin_class=economy&sort_by=cheapest&hl=en&gl=pk&currency=USD" || true)
+            echo "adults=${adults}: HTTP ${code}"
+            test "$code" = '200' || exit 1
+          done
+          python3 - <<'PY'
+          import json
+          for a in (1,2):
+              with open(f'/tmp/flight-{a}.json', encoding='utf-8') as fh: data=json.load(fh)
+              rows=data.get('flights') or []
+              first=rows[0] if rows else {}
+              print('adults=',a,'price=',first.get('price'),'currency=',first.get('currency'),'airline=',first.get('airline_name'))
+          PY
+      - name: Clean response
+        if: always()
+        run: rm -f /tmp/flight-1.json /tmp/flight-2.json
