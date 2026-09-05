@@ -1,0 +1,32 @@
+name: Codex AI Photo source bundle
+
+on:
+  push:
+    branches:
+      - ai-photo-real-canva-ai-generator-correction
+    paths:
+      - .github/workflows/codex-ai-photo-source-bundle.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact branch state
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Create Git bundle
+        run: git bundle create nexusnova-ai-photo.bundle HEAD
+      - name: Upload source bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: codex-ai-photo-source-${{ github.sha }}
+          path: nexusnova-ai-photo.bundle
+          compression-level: 0
+          retention-days: 1
+          if-no-files-found: error
