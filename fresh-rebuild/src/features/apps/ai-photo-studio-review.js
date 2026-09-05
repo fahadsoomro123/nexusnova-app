@@ -8,6 +8,7 @@ import { installAiPhotoPhoneFeedbackV1 } from './ai-photo-phone-feedback-v1.js';
 import { installAiPhotoLockedVisualV1 } from './ai-photo-locked-visual-v1.js';
 import { installAiPhotoLockedReferenceAssetsV1 } from './ai-photo-locked-reference-assets-v1.js';
 import { installAiPhotoQuickTools } from './ai-photo-quick-tools.js';
+import { installAiPhotoFlagshipToolUpgrades } from './ai-photo-flagship-tool-upgrades.js';
 import { installAiPhotoNavigation } from './ai-photo-navigation.js';
 
 export function renderAiPhotoStudio(){
@@ -34,11 +35,13 @@ export function renderAiPhotoStudio(){
   const phoneFeedbackCleanup=installAiPhotoPhoneFeedbackV1(root);
   const lockedVisualCleanup=installAiPhotoLockedVisualV1(root);
   const quickToolsCleanup=installAiPhotoQuickTools(root);
+  const flagshipToolUpgradesCleanup=installAiPhotoFlagshipToolUpgrades(root);
   const lockedReferenceCleanup=installAiPhotoLockedReferenceAssetsV1(root);
   const navigationCleanup=installAiPhotoNavigation(root);
   root.__cleanup=()=>{
     navigationCleanup?.();
     lockedReferenceCleanup?.();
+    flagshipToolUpgradesCleanup?.();
     quickToolsCleanup?.();
     lockedVisualCleanup?.();
     phoneFeedbackCleanup?.();
@@ -49,6 +52,6 @@ export function renderAiPhotoStudio(){
     focusCleanup?.();
     previousCleanup?.();
   };
-  root.dataset.aiPhotoFlagship='flagship-repair-v10';
+  root.dataset.aiPhotoFlagship='flagship-repair-v11';
   return root;
 }
