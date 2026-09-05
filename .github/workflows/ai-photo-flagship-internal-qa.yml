@@ -5,6 +5,7 @@ on:
     branches: [ai-photo-real-canva-ai-generator-correction]
     paths:
       - 'fresh-rebuild/src/features/apps/ai-photo-*.js'
+      - 'fresh-rebuild/assets/styles/ai-photo-route-fullscreen.css'
       - 'fresh-rebuild/assets/visuals/ai-photo-*'
       - 'fresh-rebuild/src/main.js'
       - 'fresh-rebuild/src/features/apps/data/ai-photo-templates.js'
@@ -41,7 +42,6 @@ jobs:
           BASE=9ef070ba55f76506851a1366fc9dc3863e50578d
           git diff --check "$BASE" HEAD
           for protected in \
-            fresh-rebuild/assets/styles/ai-photo-route-fullscreen.css \
             fresh-rebuild/src/features/apps/app-screen.js \
             fresh-rebuild/src/features/apps/ai-photo-studio-flagship.js \
             fresh-rebuild/src/features/apps/ai-photo-focus-interaction.js; do
@@ -57,7 +57,25 @@ jobs:
             echo 'Unexpected credential-like text in repaired modules.' >&2
             exit 1
           fi
-          echo 'PASS — protected/release workflows unchanged; Puter remains keyless with one generation call site.'
+          echo 'PASS — protected product/release files unchanged; Puter remains keyless with one generation call site.'
+
+      - name: Dark UI text visibility contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          CSS=fresh-rebuild/assets/styles/ai-photo-route-fullscreen.css
+          grep -Fq 'Readability firewall for the dark AI Photo Studio UI' "$CSS"
+          grep -Fq -- '--nx-ai-photo-readable: #f7f8ff' "$CSS"
+          grep -Fq -- '--nx-ai-photo-readable-soft: #d8deeb' "$CSS"
+          grep -Fq 'select option' "$CSS"
+          grep -Fq 'background-color: #121722 !important' "$CSS"
+          grep -Fq '::placeholder' "$CSS"
+          grep -Fq 'color: #aeb8ca !important' "$CSS"
+          grep -Fq '.nxps-home-return' "$CSS"
+          grep -Fq '.nx-photo-tool' "$CSS"
+          grep -Fq '.nxv3-btn' "$CSS"
+          grep -Fq '.nx-photo-ai-actions button' "$CSS"
+          echo 'PASS — AI Photo buttons, menus, selects/options, inputs, placeholders and editor controls have a bright-text firewall.'
 
       - name: Approved reference asset integrity
         shell: bash
