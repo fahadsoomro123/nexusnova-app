@@ -23,6 +23,11 @@ jobs:
       CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN || secrets.CF_API_TOKEN || secrets.CLOUDFLARE_WORKERS_API_TOKEN }}
       CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID || secrets.CF_ACCOUNT_ID }}
       TRAVEL_PROVIDER_CONFIG_JSON: ${{ secrets.NEXUSNOVA_TRAVEL_PROVIDERS_JSON || secrets.TRAVEL_PROVIDER_CONFIG_JSON || secrets.TRAVEL_PROVIDERS_JSON }}
+      AMADEUS_CLIENT_ID_VALUE: ${{ secrets.AMADEUS_CLIENT_ID || secrets.NEXUSNOVA_AMADEUS_CLIENT_ID }}
+      AMADEUS_CLIENT_SECRET_VALUE: ${{ secrets.AMADEUS_CLIENT_SECRET || secrets.NEXUSNOVA_AMADEUS_CLIENT_SECRET }}
+      DISTRIBUSION_API_KEY_VALUE: ${{ secrets.DISTRIBUSION_API_KEY || secrets.NEXUSNOVA_DISTRIBUSION_API_KEY }}
+      TRAVEL_LINE_API_KEY_VALUE: ${{ secrets.TRAVEL_LINE_API_KEY || secrets.TRAVELLINE_API_KEY || secrets.NEXUSNOVA_TRAVEL_LINE_API_KEY }}
+      FLYNDEAL_API_KEY_VALUE: ${{ secrets.FLYNDEAL_API_KEY || secrets.FLY_N_DEAL_API_KEY || secrets.NEXUSNOVA_FLYNDEAL_API_KEY }}
     steps:
       - uses: actions/checkout@v4
 
@@ -62,7 +67,7 @@ jobs:
           echo "worker_url=$url" >> "$GITHUB_OUTPUT"
           echo "Travel Worker URL: $url"
 
-      - name: Sync provider secret when repository JSON exists
+      - name: Sync packed provider secret when repository JSON exists
         if: env.TRAVEL_PROVIDER_CONFIG_JSON != ''
         working-directory: cloudflare-travel-worker
         env:
@@ -72,7 +77,35 @@ jobs:
         run: |
           set -euo pipefail
           printf '%s' "$TRAVEL_PROVIDER_CONFIG_JSON" | python3 -c 'import json,sys; v=json.load(sys.stdin); assert isinstance(v,dict); print("Travel provider JSON: VALID")'
-          printf '%s' "$TRAVEL_PROVIDER_CONFIG_JSON" | npx --yes wrangler@4 secret put NEXUSNOVA_TRAVEL_PROVIDERS
+          printf '%s' "$TRAVEL_PROVIDER_CONFIG_JSON" | npx --yes wrangler@4 secret put NEXUSNOVA_TRAVEL_PROVIDERS >/dev/null
+          echo 'Packed Travel provider secret synced to Cloudflare.'
+
+      - name: Auto-detect and sync individual provider secrets
+        working-directory: cloudflare-travel-worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ env.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ env.CF_ACCOUNT_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          synced=0
+          sync_one() {
+            local worker_name="$1"
+            local value="$2"
+            if [ -z "${value:-}" ]; then
+              echo "$worker_name: MISSING in repository secrets"
+              return 0
+            fi
+            printf '%s' "$value" | npx --yes wrangler@4 secret put "$worker_name" >/dev/null
+            echo "$worker_name: PRESENT and synced"
+            synced=$((synced+1))
+          }
+          sync_one AMADEUS_CLIENT_ID "${AMADEUS_CLIENT_ID_VALUE:-}"
+          sync_one AMADEUS_CLIENT_SECRET "${AMADEUS_CLIENT_SECRET_VALUE:-}"
+          sync_one DISTRIBUSION_API_KEY "${DISTRIBUSION_API_KEY_VALUE:-}"
+          sync_one TRAVEL_LINE_API_KEY "${TRAVEL_LINE_API_KEY_VALUE:-}"
+          sync_one FLYNDEAL_API_KEY "${FLYNDEAL_API_KEY_VALUE:-}"
+          echo "Individual provider secret bindings synced: $synced"
 
       - name: Probe Travel Worker health
         env:
@@ -80,13 +113,26 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          body=$(curl -fsS --connect-timeout 10 --max-time 20 "$WORKER_URL/health")
+          # A newly updated Worker/secret binding can take a few seconds to propagate.
+          body=''
+          for attempt in 1 2 3 4 5; do
+            body=$(curl -fsS --connect-timeout 10 --max-time 20 "$WORKER_URL/health" 2>/dev/null || true)
+            if [ -n "$body" ]; then break; fi
+            sleep 3
+          done
+          if [ -z "$body" ]; then
+            echo '::error::Travel Worker health endpoint did not become reachable.'
+            exit 1
+          fi
           BODY="$body" python3 - <<'PY'
           import json, os
           data=json.loads(os.environ['BODY'])
           if data.get('backend') != 'cloudflare-workers': raise SystemExit('Unexpected Travel Worker health response')
+          providers=data.get('providers', {})
           print('Travel Worker health PASS')
-          print('Provider readiness:', data.get('providers', {}))
+          print('Provider readiness:', providers)
+          if not any(bool(v) for v in providers.values()):
+              print('::warning::Cloudflare backend is healthy, but no live travel-provider credential is configured yet.')
           PY
           echo "### NexusNova Travel Edge" >> "$GITHUB_STEP_SUMMARY"
           echo "Worker: $WORKER_URL" >> "$GITHUB_STEP_SUMMARY"
