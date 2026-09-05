@@ -63,7 +63,8 @@ function ensureV16Styles(){
     .nn-travel-v16 .nn-v16-trip-modes{display:flex;gap:5px;height:30px;min-height:30px;align-items:center;padding:2px;border-radius:12px;background:rgba(1,10,18,.56);border:1px solid rgba(83,150,184,.2)}
     .nn-travel-v16 .nn-v16-trip-mode{flex:1;height:24px;border:0;border-radius:9px;background:transparent;color:#9bb9ca;font-size:11px;font-weight:850;letter-spacing:.01em}
     .nn-travel-v16 .nn-v16-trip-mode.is-active{background:linear-gradient(145deg,rgba(28,187,239,.28),rgba(15,104,213,.34));color:#f6fdff;box-shadow:inset 0 0 0 1px rgba(86,214,255,.42)}
-    .nn-travel-v16.nn-v16-oneway .nn-return{visibility:hidden!important;pointer-events:none!important}
+    .nn-travel-v16.nn-v16-oneway .nn-return{display:none!important}
+    .nn-travel-v16.nn-v16-oneway .nn-depart{grid-column:1/13!important;width:100%!important;justify-self:stretch!important}
     .nn-travel-v16 .nn-ref-flight-form{flex:1!important;min-height:0!important;grid-template-rows:69px 66px 65px 52px 18px!important;row-gap:7px!important;column-gap:7px!important}
     .nn-travel-v16 .nn-ref-field{gap:5px!important}
     .nn-travel-v16 .nn-ref-field>span{font-size:10px!important;letter-spacing:.055em!important;color:#a9c2d0!important}
@@ -150,7 +151,7 @@ function installTripModes(root){
 
 function installReliableSwap(root){
   const swap=root.querySelector('.nn-swap');
-  if(!swap||swap.dataset.v16Swap==='true') return;
+  if(!swap||swap.hasAttribute('data-flight-swap')||swap.dataset.v16Swap==='true') return;
   swap.dataset.v16Swap='true';
   swap.addEventListener('click',()=>{
     const from=root.querySelector('[data-flight-origin]');
