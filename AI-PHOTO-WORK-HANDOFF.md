@@ -1,41 +1,80 @@
 # NexusNova AI Photo Studio — interruption-safe handoff
 
-- Repo name: fahadsoomro123/nexusnova-app
-- Branch name: ai-photo-real-canva-ai-generator-correction
-- Latest completed Work checkpoint before ChatGPT takeover: `384a0bb3a8e55f54319c27df111b8ca90e51e8e6`
-- Handoff document state: committed with each checkpoint; use branch `HEAD` as the exact latest SHA.
-- OTA/APK published: **NO**
-- Release status: **NOT RELEASED — explicit user approval required**
+- Repo: `fahadsoomro123/nexusnova-app`
+- Branch: `ai-photo-real-canva-ai-generator-correction`
+- Verified inherited code HEAD: `9ef070ba55f76506851a1366fc9dc3863e50578d`
+- Current internal source-transfer checkpoint: `9d49399a5889410e5eb6ae21590408eb16859e0d`
+- Current milestone: exhaustive baseline audit in progress; branch `HEAD` is authoritative after each handoff update.
+- OTA status: **NOT RELEASED**
+- Signed APK status: **NOT RELEASED**
 
 ## Locked visual contract
 
-1. `NexusNova AI Photo Studio Dashboard.png` is the exact Home target.
+1. `NexusNova AI Photo Studio Dashboard(1).png` is the exact Home target.
 2. Only the RIGHT-HAND `FIXED LAYOUT (Final Setup)` screen in `NexusNova AI Layout Fix Preview.png` is the exact Generator target.
 3. **1% visual drift = REJECT.**
 4. **No new image generation.**
 5. Phone is final acceptance only; do not use it for iterative debugging.
 
-## Current implementation / completed work
+## Completed
 
-- The same two approved Library references were retrieved and inspected.
-- Featured, Recent, and Creative Styles imagery uses deterministic lossless crops from the approved references with checksum/provenance validation.
-- Puter provider/auth, result actions, professional Photo Editor, template engine, and protected fullscreen architecture remain untouched.
-- Exact mobile render harness covers Home and Generator at `360x640`, `360x740`, `393x852`, `415x858`, and `430x865`.
-- Run `33928571894` at Work checkpoint `384a0bb3a8e55f54319c27df111b8ca90e51e8e6` passed QA 1–6, including rendered geometry checks and Android debug build.
-- Direct manual comparison of the actual `393x852` artifact against the locked images was still stricter than the automated geometry gate:
-  - Generator structure is close to the locked right-side target and all eight Creative Styles are visible.
-  - Home still showed visible fidelity drift in the top header/hero proportions: center title truncation risk, hero copy made too narrow by a dedicated glow column, and the hero therefore became too tall and pushed later sections downward.
-  - Generator test artifact did not show the approved prompt placeholder text after the harness cleared the prompt.
-- Current takeover patch keeps the existing proper DOM and functionality, but overrides the locked-reference presentation only where needed:
-  - Home header mobile columns are resized to the approved proportions.
-  - Home hero becomes icon + wide copy with the nebula glow positioned behind the right side instead of consuming a layout column.
-  - Hero description and all three badges stay visible on normal-height Android screens.
-  - Approved Generator prompt placeholder is explicitly restored.
-  - Existing short-height compact rules remain intact for `<=760px` high screens.
+- Fetched and verified the actual latest branch before modifying it.
+- Inspected both exact attached reference PNGs. Generator target is the right-hand Fixed Layout only.
+- Recovered an exact private-repository Git bundle for local QA; artifact checksum matched GitHub.
+- Downloaded and manually inspected prior five-viewport Home/Generator renders.
+- Completed a code/DOM baseline audit and documented confirmed dead/misrouted controls in `AI-PHOTO-BASELINE-AUDIT.md`.
+- Confirmed exactly 1000 templates and 20 categories × 50 currently exist.
+- Confirmed the Puter generator has a one-request busy guard and truthful allowance-delta logic that must be preserved.
+
+## Current visual status
+
+- **FAIL / repair required.**
+- Home hero/icon/artwork/proportions drift visibly from the approved Home reference.
+- At 360 × 640 descriptions are hidden; at 393 × 852 the hero is proportionally too tall.
+- Generator geometry is close, but Custom text and selection emphasis are not acceptable.
+
+## Current functional status
+
+- **FAIL / repair required.**
+- Quick Tools are generic routes, not their named tools.
+- Internal Back/Home behavior and Android Back are incomplete.
+- Templates and core editors contain real implementations, but prior QA did not execute the full behaviors.
+
+## Button inventory status
+
+- Discovery: complete for current source selectors.
+- Behavioral verification: in progress.
+- Final per-control PASS/FAIL ledger: not yet complete; no presence-only PASS will be accepted.
+
+## Tests passed
+
+- GitHub branch HEAD and bundle-integrity verification.
+- Existing historical syntax/geometry/reference checksum/Android build workflow evidence reviewed.
+- Reference images visually verified.
+
+## Tests still failing or not yet executed
+
+- Quick Tool end-to-end actions.
+- Full navigation matrix including Android Back.
+- Generated-result action navigation.
+- Template search/filter/detail/use/edit/reload/delete behavioral matrix.
+- Design Editor control-by-control interaction matrix.
+- Photo Editor control-by-control interaction matrix.
+- Photo AI success/busy/undo matrix.
+- New five-viewport behavioral/render suite after repairs.
+- New Android debug build after repairs.
+
+## Known remaining defects
+
+- See `AI-PHOTO-BASELINE-AUDIT.md`; all listed items are open unless explicitly moved to PASS in this handoff.
+
+## Blockers
+
+- No product blocker. Local plain clone lacked private credentials; an internal non-release GitHub source bundle recovered the exact tree.
 
 ## Protected files/modules status
 
-Unchanged:
+Unchanged at baseline:
 - `fresh-rebuild/assets/styles/ai-photo-route-fullscreen.css`
 - `fresh-rebuild/src/features/apps/app-screen.js`
 - `fresh-rebuild/src/features/apps/ai-photo-studio-flagship.js`
@@ -57,15 +96,11 @@ Unchanged:
 - auth
 - unrelated completed modules
 
-## Remaining work / next exact action
+## Exact next action
 
-1. Run the locked six-round workflow on the new takeover checkpoint.
-2. Download all ten Home/Generator screenshots from that run.
-3. Directly compare the actual renders against both locked references, not just geometry assertions.
-4. Fix any remaining visible spacing, hierarchy, proportions, clipping, overlap, dead space, or control-visibility drift and rerun.
-5. Do not claim final visual PASS while any visible mismatch remains.
-6. Do not publish OTA or signed APK until explicit user approval after internal visual QA.
+Implement the Studio navigation controller and real Remove BG, Enhance, Upscale, AI Filters, Collage, and Text Art flows; add behavioral tests for each result/error/Home/Back path.
 
 ## Release status
 
-**NOT RELEASED.**
+- OTA: **NOT RELEASED**
+- Signed APK: **NOT RELEASED**
