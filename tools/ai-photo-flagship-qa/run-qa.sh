@@ -44,6 +44,7 @@ run_suite(){
 }
 
 run_suite "Flagship behavior QA" node tools/ai-photo-flagship-qa/behavior-qa.mjs "$CHROME" "$CHROMEDRIVER" "$PORT" "$OUT_DIR"
+run_suite "Flagship tool upgrades v11 QA" node tools/ai-photo-flagship-qa/flagship-tools-v11-qa.mjs "$CHROME" "$CHROMEDRIVER" "$PORT" "$OUT_DIR"
 run_suite "Design Editor execution QA" node tools/ai-photo-flagship-qa/design-editor-qa-v2.mjs "$CHROME" "$CHROMEDRIVER" "$PORT" "$OUT_DIR"
 run_suite "Photo Editor execution QA" node tools/ai-photo-flagship-qa/photo-editor-qa.mjs "$CHROME" "$CHROMEDRIVER" "$PORT" "$OUT_DIR"
 run_suite "Photo Editor strict pixel QA" node tools/ai-photo-flagship-qa/photo-editor-strict-qa.mjs "$CHROME" "$CHROMEDRIVER" "$PORT" "$OUT_DIR"
