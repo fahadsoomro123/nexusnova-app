@@ -79,6 +79,6 @@ export function renderAiPhotoStudio(){
     focusCleanup?.();
     previousCleanup?.();
   };
-  root.dataset.aiPhotoFlagship='flagship-repair-v19';
+  root.dataset.aiPhotoFlagship='flagship-repair-v16';
   return root;
 }
