@@ -43,6 +43,8 @@ run_suite(){
   echo "::endgroup::"
 }
 
+run_suite "Photo Adjust v18 executable pixel, workflow and viewport QA" node tools/ai-photo-flagship-qa/adjust-v18-qa.mjs "$CHROME" "$CHROMEDRIVER" "$PORT" "$OUT_DIR"
+run_suite "Core navigation v17 regression QA" node tools/ai-photo-flagship-qa/core-architecture-v17-qa.mjs "$CHROME" "$CHROMEDRIVER" "$PORT" "$OUT_DIR"
 run_suite "Flagship behavior v16 QA" node tools/ai-photo-flagship-qa/behavior-v16-qa.mjs "$CHROME" "$CHROMEDRIVER" "$PORT" "$OUT_DIR"
 run_suite "Flagship tool upgrades v16 QA" node tools/ai-photo-flagship-qa/flagship-tools-v16-qa.mjs "$CHROME" "$CHROMEDRIVER" "$PORT" "$OUT_DIR"
 run_suite "Enhance v12 large-photo responsiveness QA" node tools/ai-photo-flagship-qa/enhance-v12-performance-qa.mjs "$CHROME" "$CHROMEDRIVER" "$PORT" "$OUT_DIR"
