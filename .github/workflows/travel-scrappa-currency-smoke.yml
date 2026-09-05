@@ -1,0 +1,43 @@
+name: NexusNova Travel Scrappa Currency Smoke
+
+on:
+  push:
+    branches: [travel-reference-v7-final-staging]
+    paths:
+      - '.github/workflows/travel-scrappa-currency-smoke.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      SCRAPPA_API_KEY: ${{ secrets.SCRAPPA_API_KEY }}
+    steps:
+      - name: Compare USD and PKR responses
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${SCRAPPA_API_KEY:-}" || { echo '::error::SCRAPPA_API_KEY missing'; exit 1; }
+          for cur in USD PKR; do
+            code=$(curl -sS --connect-timeout 10 --max-time 60 \
+              -H 'Accept: application/json' -H "X-API-KEY: ${SCRAPPA_API_KEY}" \
+              -o "/tmp/flight-${cur}.json" -w '%{http_code}' \
+              "https://scrappa.co/api/flights/one-way?origin=KHI&destination=DXB&departure_date=2026-09-12&adults=1&cabin_class=economy&sort_by=cheapest&hl=en&gl=pk&currency=${cur}" || true)
+            echo "${cur}: HTTP ${code}"
+            test "$code" = '200' || exit 1
+          done
+          python3 - <<'PY'
+          import json
+          for cur in ('USD','PKR'):
+              with open(f'/tmp/flight-{cur}.json', encoding='utf-8') as fh: data=json.load(fh)
+              rows=data.get('flights') or []
+              first=rows[0] if rows else {}
+              print(cur, 'count=', len(rows), 'price=', first.get('price'), 'currency=', first.get('currency'))
+              print(cur, 'first keys=', sorted(first.keys()))
+          PY
+      - name: Clean response
+        if: always()
+        run: rm -f /tmp/flight-USD.json /tmp/flight-PKR.json
