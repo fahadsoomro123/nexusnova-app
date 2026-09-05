@@ -56,7 +56,14 @@ function installTravelFullscreenShell(root) {
     root.style.minHeight = '0';
     root.style.height = `${available}px`;
     root.style.setProperty('--nn-h', `${available}px`);
-    window.dispatchEvent(new Event('resize'));
+
+    const canvas = root.querySelector('.nn-ref-canvas');
+    if (canvas) {
+      const width = Math.max(1, root.clientWidth);
+      const height = Math.max(1, root.clientHeight);
+      const scale = Math.min(width / 550, height / 1032);
+      canvas.style.transform = `translateX(-50%) scale(${Math.max(.5, Math.min(1.06, scale))})`;
+    }
   };
 
   requestAnimationFrame(fit);
