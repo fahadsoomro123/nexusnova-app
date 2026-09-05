@@ -59,6 +59,8 @@ const STYLE_PREFIX={
 };
 const RATIOS={square:{w:1,h:1},portrait:{w:4,h:5},story:{w:9,h:16},wide:{w:16,h:9}};
 
+async function runPuterImage(puter,prompt,options){return puter.ai.txt2img(prompt,options)}
+
 export async function generateAiImage(prompt,{aspect='square',style='auto',mode='economy'}={}){
   const text=String(prompt||'').trim();
   if(text.length<3)throw new Error('Describe the image you want to create.');
@@ -71,7 +73,7 @@ export async function generateAiImage(prompt,{aspect='square',style='auto',mode=
   if(mode==='economy')options.model='gpt-image-1-mini';
   else if(mode==='balanced')options.model='gpt-image-1';
   else options.model='gpt-image-1.5';
-  const image=await puter.ai.txt2img(`${prefix}${text}`,options);
+  const image=await runPuterImage(puter,`${prefix}${text}`,options);
   const dataUrl=String(image?.src||'');
   if(!/^data:image\/(?:png|jpeg|webp);base64,/i.test(dataUrl))throw new Error('Puter returned an invalid image.');
   let usage=null;try{usage=await puter.auth.getMonthlyUsage?.()}catch{}
@@ -98,7 +100,7 @@ export async function generateAiEnhancement(sourceDataUrl,{quality='2K',mode='de
     input_images:[input],
     input_image_mime_type:'image/png'
   };
-  const image=await puter.ai.txt2img(prompt,options);
+  const image=await runPuterImage(puter,prompt,options);
   const dataUrl=String(image?.src||'');
   if(!/^data:image\/(?:png|jpeg|webp);base64,/i.test(dataUrl))throw new Error('Puter returned an invalid enhanced image.');
   let usage=null;try{usage=await puter.auth.getMonthlyUsage?.()}catch{}
