@@ -32,7 +32,7 @@ env:
 jobs:
   build-travel-phone-apk:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 50
     steps:
       - name: Checkout Travel staging branch
         uses: actions/checkout@v4
@@ -61,6 +61,92 @@ jobs:
           node --check fresh-rebuild/src/features/apps/travel-suite.js
           echo 'Travel V15 source repair contracts: PASS'
 
+      - name: Install browser for phone interaction gate
+        shell: bash
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.55.0 >/dev/null
+          npx playwright install --with-deps chromium >/dev/null
+          python3 -m http.server 4173 --directory fresh-rebuild >/tmp/travel-v15-http.log 2>&1 &
+          echo $! >/tmp/travel-v15-http.pid
+          sleep 2
+
+      - name: Phone tab search and layout interaction gate
+        shell: bash
+        run: |
+          node - <<'NODE'
+          const { chromium } = require('playwright');
+          const worker='https://nexusnova-travel-api.fahadsoomro123.workers.dev';
+          const json=(route,obj)=>route.fulfill({status:200,contentType:'application/json',headers:{'access-control-allow-origin':'*','access-control-allow-headers':'Content-Type, Accept, X-NexusNova-Client'},body:JSON.stringify(obj)});
+          (async()=>{
+            const browser=await chromium.launch({headless:true});
+            const page=await browser.newPage({viewport:{width:550,height:1215},deviceScaleFactor:1});
+            const errors=[]; page.on('pageerror',e=>errors.push(String(e)));
+            await page.route(`${worker}/**`, async route=>{
+              const url=route.request().url();
+              if(route.request().method()==='OPTIONS') return route.fulfill({status:204,headers:{'access-control-allow-origin':'*','access-control-allow-headers':'Content-Type, Accept, X-NexusNova-Client','access-control-allow-methods':'GET,POST,OPTIONS'}});
+              if(url.endsWith('/health')) return json(route,{architecture:'cloudflare-only',providers:{scrappa:true,scrappaFlights:true,scrappaHotels:true,distribusion:false,pakistanBusPartner:false},coverage:{globalFlights:true,globalHotels:true,globalRailBus:false,pakistanBusFares:false}});
+              if(url.includes('/rpc/searchWorldwideFlights')) return json(route,{ok:true,offers:[{live:true,provider:'QA Live',source:'qa-live',originCode:'KHI',destinationCode:'DXB',departingAt:'2026-09-12T10:00:00Z',arrivingAt:'2026-09-12T12:00:00Z',durationMinutes:120,stops:0,total:60000,currency:'PKR',compareTotal:60000,compareCurrency:'PKR',carriers:['QA Air']}]});
+              if(url.includes('/rpc/searchPakistanAgencyFlights')) return json(route,{ok:false,reason:'provider-not-configured',offers:[]});
+              if(url.includes('/rpc/searchWorldwideHotels')) return json(route,{ok:true,offers:[{live:true,name:'QA Hotel',cityCode:'KHI',countryCode:'PK',stayTotal:12000,pricePerNight:6000,currency:'PKR',compareTotal:12000,comparePerNight:6000,compareCurrency:'PKR',nights:2,roomDescription:'QA live room'}]});
+              if(url.includes('/rpc/searchWorldwideGroundTransport')) return json(route,{ok:false,reason:'provider-not-configured',message:'Worldwide rail/bus provider key pending.',offers:[]});
+              if(url.includes('/rpc/searchPakistanGroundTransport')) return json(route,{ok:false,reason:'pakistan-bus-partner-contract-required',message:'Pakistan bus partner approval pending.',offers:[]});
+              if(url.includes('/rpc/searchPakistanUmrahPackages')) return json(route,{ok:false,reason:'provider-not-configured',packages:[]});
+              return json(route,{ok:false,message:'QA route not mocked'});
+            });
+            await page.goto('http://127.0.0.1:4173/travel-reference-harness.html?v15-functional=1',{waitUntil:'domcontentloaded',timeout:30000});
+            await page.waitForSelector('.nn-travel-v15',{timeout:15000});
+            const root=page.locator('.nn-travel-v15');
+            const checkOnePanel=async name=>{
+              await page.locator(`[data-travel-tab="${name}"]`).click();
+              await page.waitForTimeout(50);
+              const state=await root.evaluate((el,n)=>({
+                visible:[...el.querySelectorAll('[data-panel]')].filter(p=>!p.hidden&&getComputedStyle(p).display!=='none').map(p=>p.dataset.panel),
+                active:el.querySelector('[data-travel-tab].is-active')?.dataset.travelTab,
+                alias:el.querySelector('[data-flight-departure]')?.hasAttribute('data-flight-depart'),
+                canvas:el.querySelector('.nn-ref-canvas')?.getBoundingClientRect().height||0
+              }),name);
+              if(state.visible.length!==1||state.visible[0]!==name||state.active!==name) throw new Error(`Tab isolation failed for ${name}: ${JSON.stringify(state)}`);
+              if(!state.alias) throw new Error('Flight departure selector alias missing');
+              if(state.canvas<900) throw new Error(`Phone canvas too short: ${state.canvas}`);
+            };
+            for(const name of ['flights','hotels','ground','plan']) await checkOnePanel(name);
+
+            await page.locator('[data-travel-tab="flights"]').click();
+            await page.locator('[data-flight-origin]').fill('KHI');
+            await page.locator('[data-flight-destination]').fill('DXB');
+            await page.locator('[data-flight-departure]').fill('2026-09-12');
+            await page.locator('[data-flight-search]').click();
+            await page.waitForFunction(()=>document.querySelector('[data-flight-status]')?.textContent.includes('genuine live fare'),null,{timeout:5000});
+            if(!(await page.locator('[data-flight-results]').innerText()).includes('QA Air')) throw new Error('Flight live result did not render');
+
+            await page.locator('[data-travel-tab="hotels"]').click();
+            await page.locator('[data-hotel-destination]').fill('Karachi, Pakistan');
+            await page.locator('[data-hotel-checkin]').fill('2026-09-15');
+            await page.locator('[data-hotel-checkout]').fill('2026-09-17');
+            await page.locator('[data-hotel-search]').click();
+            await page.waitForFunction(()=>document.querySelector('[data-hotel-status]')?.textContent.includes('genuine live hotel'),null,{timeout:5000});
+            if(!(await page.locator('[data-hotel-results]').innerText()).includes('QA Hotel')) throw new Error('Hotel live result did not render');
+
+            await page.locator('[data-travel-tab="ground"]').click();
+            await page.locator('[data-ground-origin]').fill('London');
+            await page.locator('[data-ground-destination]').fill('Paris');
+            await page.locator('[data-ground-date]').fill('2026-09-12');
+            await page.locator('[data-ground-search]').click();
+            await page.waitForFunction(()=>/pending|provider-not-configured|contract-required/i.test(document.querySelector('[data-ground-status]')?.textContent||''),null,{timeout:5000});
+
+            await page.locator('[data-travel-tab="plan"]').click();
+            await page.locator('[data-trip-destination]').fill('Dubai');
+            await page.locator('[data-trip-save]').click();
+            await page.waitForFunction(()=>document.querySelector('[data-trip-status]')?.textContent.includes('saved privately'),null,{timeout:3000});
+
+            if(errors.length) throw new Error(`Page errors: ${errors.join(' | ')}`);
+            await page.screenshot({path:'travel-v15-functional-phone.png',fullPage:false});
+            await browser.close();
+            console.log('PHONE FUNCTIONAL GATE PASS: tabs isolated, flight search wired, hotel search wired, ground pending state truthful, trip save works');
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE
+
       - name: Live Cloudflare flight and hotel gate
         shell: bash
         run: |
@@ -76,31 +162,19 @@ jobs:
           print('Cloudflare health: flights + hotels live')
           PY
 
-          curl -fsS --connect-timeout 10 --max-time 80 \
-            -H 'Content-Type: application/json' \
-            -H 'Accept: application/json' \
-            -H 'X-NexusNova-Client: fresh-rebuild' \
-            -X POST "$WORKER_URL/rpc/searchWorldwideFlights" \
-            --data '{"origin":"KHI","destination":"DXB","departureDate":"2026-09-12","returnDate":"","adults":1,"cabin":"economy","currency":"PKR"}' >/tmp/travel-flight.json
+          curl -fsS --connect-timeout 10 --max-time 80 -H 'Content-Type: application/json' -H 'Accept: application/json' -H 'X-NexusNova-Client: fresh-rebuild' -X POST "$WORKER_URL/rpc/searchWorldwideFlights" --data '{"origin":"KHI","destination":"DXB","departureDate":"2026-09-12","returnDate":"","adults":1,"cabin":"economy","currency":"PKR"}' >/tmp/travel-flight.json
           python3 - <<'PY'
           import json
-          d=json.load(open('/tmp/travel-flight.json'))
-          offers=d.get('offers') or []
+          d=json.load(open('/tmp/travel-flight.json')); offers=d.get('offers') or []
           assert d.get('ok') is True and offers, d
           assert all(x.get('live') is True for x in offers), offers[:2]
           print('Live flight RPC:',len(offers),'offers')
           PY
 
-          curl -fsS --connect-timeout 10 --max-time 80 \
-            -H 'Content-Type: application/json' \
-            -H 'Accept: application/json' \
-            -H 'X-NexusNova-Client: fresh-rebuild' \
-            -X POST "$WORKER_URL/rpc/searchWorldwideHotels" \
-            --data '{"destination":"Karachi, Pakistan","checkIn":"2026-09-15","checkOut":"2026-09-17","adults":1,"rooms":1,"currency":"PKR"}' >/tmp/travel-hotel.json
+          curl -fsS --connect-timeout 10 --max-time 80 -H 'Content-Type: application/json' -H 'Accept: application/json' -H 'X-NexusNova-Client: fresh-rebuild' -X POST "$WORKER_URL/rpc/searchWorldwideHotels" --data '{"destination":"Karachi, Pakistan","checkIn":"2026-09-15","checkOut":"2026-09-17","adults":1,"rooms":1,"currency":"PKR"}' >/tmp/travel-hotel.json
           python3 - <<'PY'
           import json
-          d=json.load(open('/tmp/travel-hotel.json'))
-          offers=d.get('offers') or []
+          d=json.load(open('/tmp/travel-hotel.json')); offers=d.get('offers') or []
           assert d.get('ok') is True and offers, d
           assert all(x.get('live') is True for x in offers), offers[:2]
           print('Live hotel RPC:',len(offers),'offers')
@@ -126,10 +200,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -n "$KEYSTORE_B64"
-          test -n "$STORE_PASSWORD"
-          test -n "$KEY_ALIAS"
-          test -n "$KEY_PASSWORD"
+          test -n "$KEYSTORE_B64"; test -n "$STORE_PASSWORD"; test -n "$KEY_ALIAS"; test -n "$KEY_PASSWORD"
 
       - name: Restore permanent NexusNova keystore
         env:
@@ -141,8 +212,7 @@ jobs:
           set -euo pipefail
           KEYSTORE="$RUNNER_TEMP/nexusnova-permanent.jks"
           printf '%s' "$KEYSTORE_B64" | base64 --decode > "$KEYSTORE"
-          test -s "$KEYSTORE"
-          chmod 600 "$KEYSTORE"
+          test -s "$KEYSTORE"; chmod 600 "$KEYSTORE"
           keytool -list -keystore "$KEYSTORE" -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
           echo "NEXUSNOVA_SIGNING_STORE_FILE=$KEYSTORE" >> "$GITHUB_ENV"
 
@@ -160,18 +230,14 @@ jobs:
           python3 - <<'PY'
           import os,re
           from pathlib import Path
-          p=Path('NexusNovaAndroid/app/build.gradle.kts')
-          t=p.read_text(encoding='utf-8')
+          p=Path('NexusNovaAndroid/app/build.gradle.kts'); t=p.read_text(encoding='utf-8')
           t,n1=re.subn(r'versionCode\s*=\s*\d+','versionCode = '+os.environ['VERSION_CODE'],t,count=1)
           t,n2=re.subn(r'versionName\s*=\s*"[^"]*"','versionName = "'+os.environ['VERSION_NAME']+'"',t,count=1)
           if n1!=1 or n2!=1: raise SystemExit('Android version fields not found')
           signing='''    signingConfigs {\n        create("nexusRelease") {\n            storeFile = file(System.getenv("NEXUSNOVA_SIGNING_STORE_FILE"))\n            storePassword = System.getenv("NEXUSNOVA_SIGNING_STORE_PASSWORD")\n            keyAlias = System.getenv("NEXUSNOVA_SIGNING_KEY_ALIAS")\n            keyPassword = System.getenv("NEXUSNOVA_SIGNING_KEY_PASSWORD")\n        }\n    }\n\n'''
-          marker='    buildTypes {\n'
-          if marker not in t: raise SystemExit('buildTypes block not found')
-          t=t.replace(marker,signing+marker,1)
-          debug='        debug {\n'
-          if debug not in t: raise SystemExit('debug block not found')
-          t=t.replace(debug,debug+'            signingConfig = signingConfigs.getByName("nexusRelease")\n',1)
+          marker='    buildTypes {\n'; debug='        debug {\n'
+          if marker not in t or debug not in t: raise SystemExit('Android signing insertion marker missing')
+          t=t.replace(marker,signing+marker,1).replace(debug,debug+'            signingConfig = signingConfigs.getByName("nexusRelease")\n',1)
           p.write_text(t,encoding='utf-8')
           PY
 
@@ -197,20 +263,17 @@ jobs:
           APK="$GITHUB_WORKSPACE/NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk"
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
           AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)"
-          test -x "$APKSIGNER"
-          test -x "$AAPT"
+          test -x "$APKSIGNER"; test -x "$AAPT"
           "$APKSIGNER" verify --verbose --print-certs "$APK" | tee /tmp/travel-apk-verify.txt
           SIGNER="$(grep -m1 'certificate SHA-256 digest:' /tmp/travel-apk-verify.txt | sed -E 's/^.*certificate SHA-256 digest: //' | tr '[:upper:]' '[:lower:]' | tr -d ':')"
           test "$SIGNER" = "$EXPECTED_SIGNER_SHA256"
           "$AAPT" dump badging "$APK" | head -1 | tee /tmp/travel-apk-package.txt
           grep -Fq "name='com.nexusnova.app'" /tmp/travel-apk-package.txt
           grep -Fq "versionCode='$VERSION_CODE'" /tmp/travel-apk-package.txt
-          OUT="$GITHUB_WORKSPACE/travel-v15-apk"
-          rm -rf "$OUT"
-          mkdir -p "$OUT"
+          OUT="$GITHUB_WORKSPACE/travel-v15-apk"; rm -rf "$OUT"; mkdir -p "$OUT"
           cp "$APK" "$OUT/$APK_NAME"
           sha256sum "$OUT/$APK_NAME" > "$OUT/SHA256.txt"
-          printf 'Source commit: %s\nBranch: %s\nVersion: %s (%s)\nPackage: com.nexusnova.app\nPermanent signer: PASS\nSigner SHA-256: %s\nTravel V15 tab isolation: bundled\nFlight selector repair: bundled\n550x1215 viewport repair: bundled\nCloudflare flight/hotel live gate: PASS\nBuild type: installable signed debug APK\n' "$GITHUB_SHA" "$GITHUB_REF_NAME" "$VERSION_NAME" "$VERSION_CODE" "$SIGNER" > "$OUT/BUILD-STATUS.txt"
+          printf 'Source commit: %s\nBranch: %s\nVersion: %s (%s)\nPackage: com.nexusnova.app\nPermanent signer: PASS\nSigner SHA-256: %s\nPhone interaction gate: PASS\nTab isolation: PASS\nFlight UI wiring: PASS\nHotel UI wiring: PASS\nGround pending-state handling: PASS\nTrip Plan save: PASS\nCloudflare flight/hotel live gate: PASS\nBuild type: installable signed debug APK\n' "$GITHUB_SHA" "$GITHUB_REF_NAME" "$VERSION_NAME" "$VERSION_CODE" "$SIGNER" > "$OUT/BUILD-STATUS.txt"
 
       - name: Upload signed Travel V15 APK
         uses: actions/upload-artifact@v4
@@ -220,8 +283,18 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      - name: Upload phone functional evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NexusNova-Travel-V15-Functional-Evidence
+          path: travel-v15-functional-phone.png
+          if-no-files-found: warn
+          retention-days: 7
+
       - name: Remove signing material
         if: always()
         shell: bash
         run: |
           rm -f "${NEXUSNOVA_SIGNING_STORE_FILE:-}" /tmp/travel-flight.json /tmp/travel-hotel.json || true
+          if [ -f /tmp/travel-v15-http.pid ]; then kill "$(cat /tmp/travel-v15-http.pid)" 2>/dev/null || true; fi
