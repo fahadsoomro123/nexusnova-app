@@ -42,8 +42,10 @@ jobs:
           grep -q "grid-template-columns:repeat(12" fresh-rebuild/src/features/apps/travel-suite-v6.js
           grep -q "width:550px" fresh-rebuild/src/features/apps/travel-suite-v6.js
           grep -q "height:1032px" fresh-rebuild/src/features/apps/travel-suite-v6.js
-          grep -q "dataset.referenceVisual = 'v12'" fresh-rebuild/src/features/apps/travel-suite-v12.js
-          grep -q "grid-template-rows:140px 397px" fresh-rebuild/src/features/apps/travel-suite-v12.js
+          grep -q "v12-locked-image-assets" fresh-rebuild/src/features/apps/travel-suite-v12.js
+          grep -q "grid-template-rows:140px 398px" fresh-rebuild/src/features/apps/travel-suite-v12.js
+          grep -q "nn-locked-hero-right" fresh-rebuild/src/features/apps/travel-suite-v12.js
+          grep -q "referenceLogo" fresh-rebuild/src/features/apps/travel-suite-v12.js
 
       - name: Gate 3 - live-only API contract
         run: |
@@ -82,7 +84,7 @@ jobs:
               page.on('pageerror',e=>errors.push(String(e)));
               await page.goto(`http://127.0.0.1:4173/travel-reference-harness.html?pass=${pass}`,{waitUntil:'domcontentloaded',timeout:30000});
               await page.waitForSelector('[data-reference-locked="true"]',{timeout:15000});
-              await page.waitForTimeout(500);
+              await page.waitForTimeout(650);
               const report=await page.evaluate(()=>{
                 const root=document.querySelector('[data-reference-locked="true"]');
                 const rect=sel=>{const e=root.querySelector(sel);if(!e)return null;const r=e.getBoundingClientRect();return {x:r.x,y:r.y,w:r.width,h:r.height,b:r.bottom,r:r.right};};
@@ -105,7 +107,7 @@ jobs:
                     rootContained:Boolean(globalDock&&rootRect.height>0&&rootRect.bottom<=globalDock.top),
                     pageOverflow:document.documentElement.scrollHeight>1215||document.body.scrollHeight>1215,
                     liveOnly:root.dataset.liveOnly==='true',
-                    visualV12:root.dataset.referenceVisual==='v12',
+                    visualV12:root.dataset.referenceVisual==='v12-locked-image-assets',
                     controls:[...root.querySelectorAll('button')].filter(b=>!b.classList.contains('nn-tab')).map(b=>b.getAttribute('data-flight-search')!==null||b.getAttribute('data-hotel-search')!==null||b.getAttribute('data-ground-search')!==null||b.getAttribute('data-trip-save')!==null||b.getAttribute('data-trip-clear')!==null||b.getAttribute('data-pakistan-tours')!==null).filter(Boolean).length
                   }
                 };
@@ -117,9 +119,9 @@ jobs:
               if(!report.geometry.fourTabs||!report.geometry.row1||!report.geometry.row2||!report.geometry.row3) throw new Error(`Pass ${pass} failed: reference field geometry.`);
               if(report.geometry.pageOverflow||!report.geometry.rootContained) throw new Error(`Pass ${pass} failed: page scroll/containment.`);
               if(!report.geometry.liveOnly||!report.geometry.visualV12||report.geometry.controls<6) throw new Error(`Pass ${pass} failed: live-only/v12/control contract.`);
-              if(!report.hero||!near(report.hero.x,17,3)||!near(report.hero.y,159,3)||!near(report.hero.w,520,3)||!near(report.hero.h,140,2)) throw new Error(`Pass ${pass} failed: hero reference box ${JSON.stringify(report.hero)}`);
-              if(!report.form||!near(report.form.x,17,3)||!near(report.form.y,300,3)||!near(report.form.w,520,3)||!near(report.form.h,388,3)) throw new Error(`Pass ${pass} failed: form reference box ${JSON.stringify(report.form)}`);
-              if(!report.results||!near(report.results.x,17,3)||!near(report.results.y,697,3)||!near(report.results.w,520,3)) throw new Error(`Pass ${pass} failed: results reference box ${JSON.stringify(report.results)}`);
+              if(!report.hero||!near(report.hero.x,17,3)||!near(report.hero.y,158,3)||!near(report.hero.w,520,3)||!near(report.hero.h,135,2)) throw new Error(`Pass ${pass} failed: hero reference box ${JSON.stringify(report.hero)}`);
+              if(!report.form||!near(report.form.x,17,3)||!near(report.form.y,298,3)||!near(report.form.w,520,3)||!near(report.form.h,388,3)) throw new Error(`Pass ${pass} failed: form reference box ${JSON.stringify(report.form)}`);
+              if(!report.results||!near(report.results.x,17,3)||!near(report.results.y,696,3)||!near(report.results.w,520,3)) throw new Error(`Pass ${pass} failed: results reference box ${JSON.stringify(report.results)}`);
               if(pass<6) await page.close();
             }
             await lastPage?.close();
