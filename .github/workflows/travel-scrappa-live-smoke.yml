@@ -23,15 +23,38 @@ jobs:
           test -n "${SCRAPPA_API_KEY:-}" || { echo '::error::SCRAPPA_API_KEY missing'; exit 1; }
           echo 'Scrappa credential: PRESENT'
 
-      - name: KHI to DXB live one-way smoke
+      - name: KHI to DXB live one-way smoke with transient retry
         shell: bash
         run: |
           set -euo pipefail
-          curl -fsS --connect-timeout 10 --max-time 60 \
-            -H "Accept: application/json" \
-            -H "X-API-KEY: ${SCRAPPA_API_KEY}" \
-            "https://scrappa.co/api/flights/one-way?origin=KHI&destination=DXB&departure_date=2026-09-12&adults=1&cabin_class=economy&sort_by=cheapest&hl=en&gl=pk&currency=PKR" \
-            -o /tmp/scrappa-flight.json
+          url="https://scrappa.co/api/flights/one-way?origin=KHI&destination=DXB&departure_date=2026-09-12&adults=1&cabin_class=economy&sort_by=cheapest&hl=en&gl=pk&currency=PKR"
+          code="000"
+          for attempt in 1 2 3; do
+            code=$(curl -sS --connect-timeout 10 --max-time 60 \
+              -H "Accept: application/json" \
+              -H "X-API-KEY: ${SCRAPPA_API_KEY}" \
+              -o /tmp/scrappa-flight.json \
+              -w '%{http_code}' \
+              "$url" || true)
+            echo "Scrappa attempt ${attempt}: HTTP ${code}"
+            if [ "$code" = "200" ]; then break; fi
+            if [ "$code" != "429" ] && [ "$code" != "500" ] && [ "$code" != "502" ] && [ "$code" != "503" ]; then break; fi
+            sleep $((attempt * 2))
+          done
+          if [ "$code" != "200" ]; then
+            echo "::error::Scrappa live smoke failed after retry with HTTP ${code}."
+            python3 - <<'PY'
+          import json
+          try:
+              with open('/tmp/scrappa-flight.json', encoding='utf-8') as fh:
+                  data=json.load(fh)
+              safe={k:data.get(k) for k in ('message','error','status','code') if k in data}
+              print('Provider response:', safe or {'shape': type(data).__name__})
+          except Exception:
+              print('Provider response was not parseable JSON.')
+          PY
+            exit 1
+          fi
           python3 - <<'PY'
           import json
           with open('/tmp/scrappa-flight.json', encoding='utf-8') as fh:
@@ -47,7 +70,7 @@ jobs:
               first = flights[0]
               print('Sample price:', first.get('price'))
               print('Sample currency:', first.get('currency'))
-              print('Sample legs:', len(first.get('legs') or []))
+              print('Sample legs:', len(first.get('legs') or first.get('outbound_legs') or []))
           PY
 
       - name: Clean response
