@@ -35,7 +35,9 @@ exports.getProviderHealth = onCall({
         String(travel.amadeusClientId || process.env.AMADEUS_CLIENT_ID || '').trim() &&
         String(travel.amadeusClientSecret || process.env.AMADEUS_CLIENT_SECRET || '').trim()
       ),
-      distribusion: Boolean(String(travel.distribusionApiKey || '').trim())
+      distribusion: Boolean(String(travel.distribusionApiKey || '').trim()),
+      travelLine: Boolean(String(travel.travelLineApiKey || process.env.TRAVEL_LINE_API_KEY || '').trim()),
+      flyNDeal: Boolean(String(travel.flyNDealApiKey || process.env.FLYNDEAL_API_KEY || '').trim())
     },
     entertainment: {
       youtube: Boolean(String(entertainment.youtubeApiKey || process.env.YOUTUBE_API_KEY || '').trim()),
@@ -54,10 +56,18 @@ exports.getProviderHealth = onCall({
     ok: true,
     checkedAt: Date.now(),
     health,
+    travelReady: Boolean(
+      (health.travel.duffel || health.travel.amadeus || health.travel.travelLine || health.travel.flyNDeal) &&
+      health.travel.amadeus &&
+      health.travel.distribusion
+    ),
+    pakistanAgencyCompareReady: Boolean(health.travel.travelLine || health.travel.flyNDeal),
     allConfigured:
       health.travel.duffel &&
       health.travel.amadeus &&
       health.travel.distribusion &&
+      health.travel.travelLine &&
+      health.travel.flyNDeal &&
       health.entertainment.youtube &&
       health.entertainment.tmdb &&
       health.learning.googleCse
