@@ -222,6 +222,79 @@ body.nx-ai-photo-route-active .nx-ai-photo-route-screen :is(
   opacity: .78 !important;
 }
 
+/*
+ * Some QA/result/editor surfaces mount the Photo Studio root directly without
+ * the outer route body class. Mirror the same readability contract at the
+ * editor root so generated-result actions, sheets and nested editor controls
+ * cannot fall back to black text.
+ */
+.nx-photo-editor:is(.nxps-premium-studio,.nxps-locked-visual) {
+  color-scheme: dark;
+  --nx-ai-photo-readable: #f7f8ff;
+  --nx-ai-photo-readable-soft: #d8deeb;
+  --nx-ai-photo-readable-muted: #b7c0d3;
+}
+
+.nx-photo-editor:is(.nxps-premium-studio,.nxps-locked-visual) :is(
+  button,
+  [role="button"],
+  select,
+  input,
+  textarea
+) {
+  color: var(--nx-ai-photo-readable) !important;
+  -webkit-text-fill-color: currentColor !important;
+  caret-color: #ffffff;
+}
+
+.nx-photo-editor:is(.nxps-premium-studio,.nxps-locked-visual) :is(button,[role="button"]) :is(
+  span,
+  strong,
+  b,
+  small,
+  em,
+  i
+) {
+  color: inherit !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+
+.nx-photo-editor:is(.nxps-premium-studio,.nxps-locked-visual) :is(select,select option,select optgroup) {
+  color: #f8fafc !important;
+  background-color: #121722 !important;
+  -webkit-text-fill-color: #f8fafc !important;
+}
+
+.nx-photo-editor:is(.nxps-premium-studio,.nxps-locked-visual) :is(input,textarea)::placeholder {
+  color: #aeb8ca !important;
+  -webkit-text-fill-color: #aeb8ca !important;
+  opacity: 1 !important;
+}
+
+.nx-photo-editor:is(.nxps-premium-studio,.nxps-locked-visual) :is(
+  .nx-photo-panel,
+  .nx-photo-sheet,
+  .nx-canva-v3,
+  .nxv3-pane,
+  .nxputer-wrap,
+  .nxps-account-popover
+) :is(label,.nx-photo-label,.nxv3-label,.nxputer-label) {
+  color: var(--nx-ai-photo-readable-soft) !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+
+.nx-photo-editor:is(.nxps-premium-studio,.nxps-locked-visual) :is(
+  button:disabled,
+  [role="button"][aria-disabled="true"],
+  select:disabled,
+  input:disabled,
+  textarea:disabled
+) {
+  color: var(--nx-ai-photo-readable-muted) !important;
+  -webkit-text-fill-color: currentColor !important;
+  opacity: .78 !important;
+}
+
 @media (max-width: 520px), (max-height: 720px) {
   body.nx-ai-photo-route-active .nx-stage > .nx-screen.nx-ai-photo-route-screen:has(.nx-studio) > [data-app-mount] {
     height: 100% !important;
