@@ -4,6 +4,7 @@ import { installAiPhotoCanvaWorkspaceV3 } from './ai-photo-canva-workspace-v3.js
 import { installAiPhotoDesignEditorControls } from './ai-photo-design-editor-controls.js';
 import { installAiPhotoDesignDelightV13 } from './ai-photo-design-delight-v13.js';
 import { installPuterImageGenerator } from './ai-photo-puter-generator.js';
+import { installAiPhotoGenerativeEditV19 } from './ai-photo-generative-edit-v19.js';
 import { installAiPhotoStudioHome } from './ai-photo-studio-home.js';
 import { installAiPhotoPhoneFeedbackV1 } from './ai-photo-phone-feedback-v1.js';
 import { installAiPhotoLockedVisualV1 } from './ai-photo-locked-visual-v1.js';
@@ -42,6 +43,7 @@ export function renderAiPhotoStudio(){
   const puterCleanup=installPuterImageGenerator(root);
   const homeCleanup=installAiPhotoStudioHome(root);
   const phoneFeedbackCleanup=installAiPhotoPhoneFeedbackV1(root);
+  const generativeEditCleanup=installAiPhotoGenerativeEditV19(root);
   const lockedVisualCleanup=installAiPhotoLockedVisualV1(root);
   const quickToolsCleanup=installAiPhotoQuickTools(root);
   const removeBgMlCleanup=installAiPhotoRemoveBgMlV16(root);
@@ -67,6 +69,7 @@ export function renderAiPhotoStudio(){
     removeBgMlCleanup?.();
     quickToolsCleanup?.();
     lockedVisualCleanup?.();
+    generativeEditCleanup?.();
     phoneFeedbackCleanup?.();
     homeCleanup?.();
     puterCleanup?.();
@@ -76,6 +79,6 @@ export function renderAiPhotoStudio(){
     focusCleanup?.();
     previousCleanup?.();
   };
-  root.dataset.aiPhotoFlagship='flagship-repair-v16';
+  root.dataset.aiPhotoFlagship='flagship-repair-v19';
   return root;
 }
