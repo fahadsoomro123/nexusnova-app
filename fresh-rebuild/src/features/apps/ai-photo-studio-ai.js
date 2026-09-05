@@ -77,3 +77,30 @@ export async function generateAiImage(prompt,{aspect='square',style='auto',mode=
   let usage=null;try{usage=await puter.auth.getMonthlyUsage?.()}catch{}
   return {dataUrl,width:Number(image?.naturalWidth||image?.width)||0,height:Number(image?.naturalHeight||image?.height)||0,model:options.model,provider:'puter',usage};
 }
+
+const ENHANCE_PROMPTS={
+  detail:'Enhance this photograph while preserving the exact subject identity, composition, crop, geometry, text, logos, colors and scene content. Recover believable fine texture and edge clarity, reduce compression artifacts and mild blur, and keep the result natural. Do not add, remove, reshape or invent objects or facial features.',
+  portrait:'Enhance this portrait while preserving the exact person, facial structure, skin tone, expression, hair, clothing, pose, crop and background. Improve natural micro-detail and clarity, reduce noise and mild blur, retain real skin texture, and avoid beauty-filter plasticity. Do not invent facial details.',
+  lowlight:'Enhance this low-light photograph while preserving the exact scene, subjects, geometry, crop, text and colors. Reduce low-light noise and compression artifacts, recover natural detail and local contrast, protect highlights, and avoid hallucinated objects or textures.'
+};
+
+export async function generateAiEnhancement(sourceDataUrl,{quality='2K',mode='detail'}={}){
+  const input=String(sourceDataUrl||'');
+  if(!/^data:image\/(?:png|jpeg|webp);base64,/i.test(input))throw new Error('AI Detail needs a valid source image.');
+  const puter=await ensurePuterImageSdk();
+  if(!puter.auth?.isSignedIn?.())throw new Error('Connect your Puter account first.');
+  const size=quality==='4K'?'4K':'2K';
+  const prompt=ENHANCE_PROMPTS[mode]||ENHANCE_PROMPTS.detail;
+  const options={
+    provider:'gemini',
+    model:'gemini-3.1-flash-image-preview',
+    quality:size,
+    input_images:[input],
+    input_image_mime_type:'image/png'
+  };
+  const image=await puter.ai.txt2img(prompt,options);
+  const dataUrl=String(image?.src||'');
+  if(!/^data:image\/(?:png|jpeg|webp);base64,/i.test(dataUrl))throw new Error('Puter returned an invalid enhanced image.');
+  let usage=null;try{usage=await puter.auth.getMonthlyUsage?.()}catch{}
+  return {dataUrl,width:Number(image?.naturalWidth||image?.width)||0,height:Number(image?.naturalHeight||image?.height)||0,model:options.model,provider:'puter-gemini',quality:size,usage};
+}
