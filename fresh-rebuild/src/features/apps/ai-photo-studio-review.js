@@ -8,6 +8,7 @@ import { installAiPhotoPhoneFeedbackV1 } from './ai-photo-phone-feedback-v1.js';
 import { installAiPhotoLockedVisualV1 } from './ai-photo-locked-visual-v1.js';
 import { installAiPhotoLockedReferenceAssetsV1 } from './ai-photo-locked-reference-assets-v1.js';
 import { installAiPhotoQuickTools } from './ai-photo-quick-tools.js';
+import { installAiPhotoEnhanceFlagshipV12 } from './ai-photo-enhance-flagship-v12.js';
 import { installAiPhotoFlagshipToolUpgrades } from './ai-photo-flagship-tool-upgrades.js';
 import { installAiPhotoGeneratorPromptAssistV1 } from './ai-photo-generator-prompt-assist-v1.js';
 import { installAiPhotoNavigation } from './ai-photo-navigation.js';
@@ -36,6 +37,7 @@ export function renderAiPhotoStudio(){
   const phoneFeedbackCleanup=installAiPhotoPhoneFeedbackV1(root);
   const lockedVisualCleanup=installAiPhotoLockedVisualV1(root);
   const quickToolsCleanup=installAiPhotoQuickTools(root);
+  const enhanceFlagshipCleanup=installAiPhotoEnhanceFlagshipV12(root);
   const flagshipToolUpgradesCleanup=installAiPhotoFlagshipToolUpgrades(root);
   const generatorPromptAssistCleanup=installAiPhotoGeneratorPromptAssistV1(root);
   const lockedReferenceCleanup=installAiPhotoLockedReferenceAssetsV1(root);
@@ -45,6 +47,7 @@ export function renderAiPhotoStudio(){
     lockedReferenceCleanup?.();
     generatorPromptAssistCleanup?.();
     flagshipToolUpgradesCleanup?.();
+    enhanceFlagshipCleanup?.();
     quickToolsCleanup?.();
     lockedVisualCleanup?.();
     phoneFeedbackCleanup?.();
@@ -55,6 +58,6 @@ export function renderAiPhotoStudio(){
     focusCleanup?.();
     previousCleanup?.();
   };
-  root.dataset.aiPhotoFlagship='flagship-repair-v11';
+  root.dataset.aiPhotoFlagship='flagship-repair-v12';
   return root;
 }
