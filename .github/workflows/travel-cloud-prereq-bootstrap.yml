@@ -1,0 +1,96 @@
+name: NexusNova Travel Cloud Prerequisite Bootstrap
+
+on:
+  push:
+    branches: [travel-reference-v7-final-staging]
+    paths:
+      - '.github/workflows/travel-cloud-prereq-bootstrap.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PROJECT_ID: nexusnova-6ade2
+      SA_1: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_NEXUSNOVA_6ADE2 }}
+      SA_2: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+      SA_3: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+      SA_4: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+      SA_5: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Find a service account allowed to enable required Google APIs
+        id: select
+        shell: bash
+        run: |
+          set -u
+          selected=''
+          configured=0
+          for name in SA_1 SA_2 SA_3 SA_4 SA_5; do
+            value="${!name:-}"
+            [ -n "$value" ] || continue
+            configured=$((configured+1))
+            file="$RUNNER_TEMP/${name}.json"
+            printf '%s' "$value" > "$file"
+            chmod 600 "$file"
+            if ! python3 -c "import json; json.load(open('$file'))" >/dev/null 2>&1; then
+              echo "::warning::$name is configured but is not valid service-account JSON."
+              rm -f "$file"
+              continue
+            fi
+            gcloud auth activate-service-account --key-file="$file" --quiet >/dev/null 2>&1 || { rm -f "$file"; continue; }
+            echo "Trying configured credential slot $configured for required API enablement..."
+            set +e
+            gcloud services enable \
+              iam.googleapis.com \
+              artifactregistry.googleapis.com \
+              cloudfunctions.googleapis.com \
+              cloudbuild.googleapis.com \
+              run.googleapis.com \
+              eventarc.googleapis.com \
+              secretmanager.googleapis.com \
+              --project "$PROJECT_ID" --quiet >/tmp/travel-api-enable.log 2>&1
+            rc=$?
+            set -e
+            if [ "$rc" -eq 0 ]; then
+              selected="$file"
+              echo "Credential slot $configured can enable required Travel cloud services."
+              break
+            fi
+            echo "Credential slot $configured cannot enable required services; trying next configured credential."
+            rm -f "$file"
+          done
+          if [ "$configured" -eq 0 ]; then
+            echo '::error::No known service-account repository secret is configured.'
+            exit 1
+          fi
+          if [ -z "$selected" ]; then
+            echo '::error::Configured service account(s) do not have serviceusage.services.enable permission. A Google Cloud project Owner/Service Usage Admin must enable IAM and Artifact Registry once.'
+            exit 1
+          fi
+          cp "$selected" "$RUNNER_TEMP/travel-selected-sa.json"
+          chmod 600 "$RUNNER_TEMP/travel-selected-sa.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/travel-selected-sa.json" >> "$GITHUB_ENV"
+
+      - name: Confirm required services are enabled
+        shell: bash
+        run: |
+          set -euo pipefail
+          for svc in iam.googleapis.com artifactregistry.googleapis.com cloudfunctions.googleapis.com cloudbuild.googleapis.com run.googleapis.com eventarc.googleapis.com secretmanager.googleapis.com; do
+            state=$(gcloud services list --enabled --project "$PROJECT_ID" --filter="config.name=$svc" --format='value(config.name)')
+            if [ "$state" != "$svc" ]; then
+              echo "::error::$svc is still not enabled."
+              exit 1
+            fi
+            echo "$svc: ENABLED"
+          done
+
+      - name: Cleanup
+        if: always()
+        shell: bash
+        run: rm -f "$RUNNER_TEMP"/SA_*.json "$RUNNER_TEMP/travel-selected-sa.json" /tmp/travel-api-enable.log
