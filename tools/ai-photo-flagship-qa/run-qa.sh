@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -uo pipefail
 
 OUT_DIR=qa-artifacts/ai-photo-flagship
 PORT=4174
@@ -29,8 +29,25 @@ for attempt in 1 2 3 4 5 6 7 8 9 10; do
   if curl -fsS "http://127.0.0.1:$PORT/tools/ai-photo-flagship-qa/harness.html" >/dev/null; then break; fi
   sleep 1
 done
-node tools/ai-photo-flagship-qa/behavior-qa.mjs "$CHROME" "$CHROMEDRIVER" "$PORT" "$OUT_DIR"
-node tools/ai-photo-flagship-qa/design-editor-qa-v2.mjs "$CHROME" "$CHROMEDRIVER" "$PORT" "$OUT_DIR"
-node tools/ai-photo-flagship-qa/photo-editor-qa.mjs "$CHROME" "$CHROMEDRIVER" "$PORT" "$OUT_DIR"
-node tools/ai-photo-flagship-qa/photo-editor-strict-qa.mjs "$CHROME" "$CHROMEDRIVER" "$PORT" "$OUT_DIR"
-node tools/ai-photo-flagship-qa/photo-ai-qa.mjs "$CHROME" "$CHROMEDRIVER" "$PORT" "$OUT_DIR"
+
+STATUS=0
+run_suite(){
+  local label="$1"; shift
+  echo "::group::$label"
+  if "$@"; then
+    echo "$label: PASS"
+  else
+    echo "::error::$label failed"
+    STATUS=1
+  fi
+  echo "::endgroup::"
+}
+
+run_suite "Flagship behavior QA" node tools/ai-photo-flagship-qa/behavior-qa.mjs "$CHROME" "$CHROMEDRIVER" "$PORT" "$OUT_DIR"
+run_suite "Design Editor execution QA" node tools/ai-photo-flagship-qa/design-editor-qa-v2.mjs "$CHROME" "$CHROMEDRIVER" "$PORT" "$OUT_DIR"
+run_suite "Photo Editor execution QA" node tools/ai-photo-flagship-qa/photo-editor-qa.mjs "$CHROME" "$CHROMEDRIVER" "$PORT" "$OUT_DIR"
+run_suite "Photo Editor strict pixel QA" node tools/ai-photo-flagship-qa/photo-editor-strict-qa.mjs "$CHROME" "$CHROMEDRIVER" "$PORT" "$OUT_DIR"
+run_suite "Photo AI zero-cost execution QA" node tools/ai-photo-flagship-qa/photo-ai-qa.mjs "$CHROME" "$CHROMEDRIVER" "$PORT" "$OUT_DIR"
+run_suite "Photo Editor diagnostics" node tools/ai-photo-flagship-qa/photo-editor-diagnostics.mjs "$CHROME" "$CHROMEDRIVER" "$PORT" "$OUT_DIR"
+
+exit "$STATUS"
