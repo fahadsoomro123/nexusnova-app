@@ -11,13 +11,13 @@ permissions:
   contents: read
 
 env:
-  APP_SOURCE: 911208f5a95dc2b4895723ce83f27b9d5e38481a
+  APP_SOURCE: 80233fbc1802b80949ee388d72a00cce1358edbf
   PUBLIC_REPO: fahadsoomro123/nexusnova-website
   PUBLIC_BRANCH: main
-  VERSION_CODE: '2026090502'
-  VERSION_NAME: '1.0.11-ai-photo-locked-visual'
-  RELEASE_APK: 'NexusNova-AI-PHOTO-LOCKED-v1.0.11-SIGNED.apk'
-  PREVIOUS_APK: 'NexusNova-AI-PHOTO-1-22-v1.0.10-SIGNED.apk'
+  VERSION_CODE: '2026090503'
+  VERSION_NAME: '1.0.12-ai-photo-phone-fixes'
+  RELEASE_APK: 'NexusNova-AI-PHOTO-PHONE-FIXES-v1.0.12-SIGNED.apk'
+  PREVIOUS_APK: 'NexusNova-AI-PHOTO-LOCKED-v1.0.11-SIGNED.apk'
 
 jobs:
   signed_apk:
@@ -84,7 +84,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          KEYSTORE="$RUNNER_TEMP/nexusnova-ai-photo-locked-v1.0.11.jks"
+          KEYSTORE="$RUNNER_TEMP/nexusnova-ai-photo-phone-fixes-v1.0.12.jks"
           printf '%s' "$KEYSTORE_B64" | base64 --decode > "$KEYSTORE"
           test -s "$KEYSTORE"
           chmod 600 "$KEYSTORE"
@@ -190,9 +190,9 @@ jobs:
           mkdir -p downloads
           cp "$GITHUB_WORKSPACE/NexusNovaAndroid/app/build/outputs/apk/release/app-release.apk" "downloads/$RELEASE_APK"
           sha256sum "downloads/$RELEASE_APK" > "downloads/$RELEASE_APK.sha256"
-          printf 'NexusNova AI Photo Studio locked visual signed APK\nSource: %s\nVersion: %s (%s)\nPermanent signature: PASS\nSigner SHA-256: %s\nStatus: READY FOR FAHAD PHONE FINAL ACCEPTANCE\n' "$APP_SOURCE" "$VERSION_NAME" "$VERSION_CODE" "$SIGNER_CERT_SHA256" > downloads/NexusNova-AI-PHOTO-LOCKED-STATUS.txt
+          printf 'NexusNova AI Photo Studio phone-fixes signed APK\nSource: %s\nVersion: %s (%s)\nPermanent signature: PASS\nSigner SHA-256: %s\nStatus: READY FOR FAHAD PHONE FINAL ACCEPTANCE\n' "$APP_SOURCE" "$VERSION_NAME" "$VERSION_CODE" "$SIGNER_CERT_SHA256" > downloads/NexusNova-AI-PHOTO-LOCKED-STATUS.txt
           git add -f "downloads/$RELEASE_APK" "downloads/$RELEASE_APK.sha256" downloads/NexusNova-AI-PHOTO-LOCKED-STATUS.txt
-          git commit -m "Publish AI Photo locked visual signed APK $APP_SOURCE"
+          git commit -m "Publish AI Photo phone fixes signed APK $APP_SOURCE"
           PUBLISH_SHA="$(git rev-parse HEAD)"
           AUTH="$(printf 'x-access-token:%s' "$PUBLIC_TOKEN" | base64 -w0)"
           git -c http.extraheader="AUTHORIZATION: basic $AUTH" push origin HEAD:"$PUBLIC_BRANCH"
