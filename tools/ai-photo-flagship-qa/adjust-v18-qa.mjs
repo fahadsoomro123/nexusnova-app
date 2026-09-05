@@ -19,7 +19,7 @@ try{
  for(const [width,height]of [[360,640],[360,740],[393,852],[415,858],[430,865]]){
   const made=await cmd('POST','/session',{capabilities:{alwaysMatch:{browserName:'chrome','goog:chromeOptions':{binary:chromeBinary,args:['--headless=new','--no-sandbox','--disable-dev-shm-usage'],mobileEmulation:{deviceMetrics:{width,height,pixelRatio:1,mobile:true,touch:true}}}}}});sid=made.sessionId;
   await cmd('POST',`/session/${sid}/url`,{url:`http://127.0.0.1:${serverPort}/tools/ai-photo-flagship-qa/harness.html`});await wait('return document.documentElement.dataset.qaReady||document.documentElement.dataset.qaError','harness');
-  await loadLarge();await click('[data-photo-panel-open="adjust"]');
+  await ex('return window.__qaRoot.__nxStudioNavigation.openEditor({pick:false});');await wait('return document.querySelector(".nxlock-home")?.hidden===true;','photo editor route');await loadLarge();await click('[data-photo-panel-open="adjust"]');
   rec(`${width}x${height} no page horizontal overflow`,await ex('return document.documentElement.scrollWidth<=innerWidth&&document.querySelector(".nx-photo-editor").scrollWidth<=innerWidth+1'));
   const visible=await ex(`const el=document.querySelector('[data-photo-range="exposure"]'),r=el.getBoundingClientRect(),label=el.closest('.nx-photo-field').querySelector('span'),c=getComputedStyle(label);return {onscreen:r.width>40&&r.top>=0&&r.bottom<=innerHeight,color:c.color,opacity:c.opacity}`);
   rec(`${width}x${height} slider and label visible`,visible.onscreen&&Number(visible.opacity)>.9,JSON.stringify(visible));
