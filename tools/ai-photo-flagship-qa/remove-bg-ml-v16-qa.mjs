@@ -21,7 +21,7 @@ try{
     const done=arguments[arguments.length-1];
     (async()=>{
       const text=await fetch('/fresh-rebuild/src/features/apps/ai-photo-remove-bg-ml-v16.js').then(r=>{if(!r.ok)throw new Error('source fetch '+r.status);return r.text()});
-      const exposed=text+'\nexport { confidenceAlpha, categoryAlpha, applyMatte };';
+      const exposed=text+'\\nexport { confidenceAlpha, categoryAlpha, applyMatte };';
       const url=URL.createObjectURL(new Blob([exposed],{type:'text/javascript'}));
       try{
         const mod=await import(url),w=24,h=24,n=w*h;
@@ -32,7 +32,7 @@ try{
           const armL=x>=5&&x<8&&y>=10&&y<=16;
           const armR=x>16&&x<=19&&y>=10&&y<=16;
           if(head||torso||armL||armR)portrait[y*w+x]=.97;
-          else if((x>=7&&x<=17&&y>=8&&y<=21))portrait[y*w+x]=.22;
+          else if(x>=7&&x<=17&&y>=8&&y<=21)portrait[y*w+x]=.22;
           else portrait[y*w+x]=.01;
         }
         const confidence=mod.confidenceAlpha({width:w,height:h,getAsFloat32Array:()=>portrait});
@@ -44,14 +44,7 @@ try{
         let semanticEmptyRejected=false;try{mod.categoryAlpha({width:w,height:h,getAsUint8Array:()=>new Uint8Array(n)})}catch{semanticEmptyRejected=true}
         const src=document.createElement('canvas');src.width=w;src.height=h;const sx=src.getContext('2d');sx.fillStyle='#ef4565';sx.fillRect(0,0,w,h);const matte=mod.applyMatte(src,confidence),px=matte.getContext('2d').getImageData(0,0,w,h).data;
         const alphaAt=(x,y)=>px[(y*w+x)*4+3];
-        done({
-          ok:true,
-          confidenceCenter:confidence.alpha[14*w+12],confidenceCorner:confidence.alpha[0],confidenceCoverage:confidence.coverage,
-          semanticCenter:semantic.alpha[14*w+12],semanticCorner:semantic.alpha[0],semanticCoverage:semantic.coverage,
-          emptyRejected,fullRejected,semanticEmptyRejected,
-          matteCenter:alphaAt(12,14),matteCorner:alphaAt(0,0),
-          engines:[confidence.engine,semantic.engine]
-        });
+        done({ok:true,confidenceCenter:confidence.alpha[14*w+12],confidenceCorner:confidence.alpha[0],confidenceCoverage:confidence.coverage,semanticCenter:semantic.alpha[14*w+12],semanticCorner:semantic.alpha[0],semanticCoverage:semantic.coverage,emptyRejected,fullRejected,semanticEmptyRejected,matteCenter:alphaAt(12,14),matteCorner:alphaAt(0,0),engines:[confidence.engine,semantic.engine]});
       }finally{URL.revokeObjectURL(url)}
     })().catch(e=>done({ok:false,error:e?.stack||String(e)}));
   `);
