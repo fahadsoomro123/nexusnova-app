@@ -35,6 +35,17 @@ async function injectFixture(count=1,{invalid=false}={}){
     Promise.all(Array.from({length:count},(_,index)=>new Promise(resolve=>{const canvas=document.createElement('canvas');canvas.width=160;canvas.height=120;const context=canvas.getContext('2d');context.fillStyle='#ececf2';context.fillRect(0,0,160,120);context.fillStyle=colors[index%colors.length];context.fillRect(43,24,74,72);context.fillStyle='#18203a';context.beginPath();context.arc(80,60,18,0,Math.PI*2);context.fill();canvas.toBlob(blob=>resolve(new File([blob],'fixture-'+index+'.png',{type:'image/png'})),'image/png')}))).then(files=>{const transfer=new DataTransfer();files.forEach(file=>transfer.items.add(file));input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}));done({ok:true,count:files.length})}).catch(error=>done({ok:false,error:String(error)}));
   `,[count,invalid]);
 }
+async function injectEdgeTouchFixture(){
+  return executeAsync(`
+    const done=arguments[arguments.length-1],input=document.querySelector('[data-nxqt-file]');
+    if(!input){done({ok:false,error:'input missing'});return}
+    const canvas=document.createElement('canvas');canvas.width=160;canvas.height=120;const context=canvas.getContext('2d');
+    context.fillStyle='#ececf2';context.fillRect(0,0,160,120);
+    context.fillStyle='#d94a65';context.fillRect(0,0,60,100);
+    context.fillStyle='#18203a';context.beginPath();context.arc(30,50,18,0,Math.PI*2);context.fill();
+    canvas.toBlob(blob=>{const transfer=new DataTransfer();transfer.items.add(new File([blob],'edge-touch-subject.png',{type:'image/png'}));input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}));done({ok:true})},'image/png');
+  `);
+}
 async function goHome(){await execute('return window.__qaRoot.__nxStudioNavigation.showHome();');await waitUntil('return !document.querySelector(".nxlock-home")?.hidden;',{label:'Studio Home'})}
 
 try{
@@ -61,6 +72,10 @@ try{
   await expect('Quick Tools','Remove BG success state','return /background removed/i.test(document.querySelector(".nxqt-result-head")?.textContent||"")&&!!document.querySelector(".nxqt-success");');
   await click('[data-nxqt-download]');await expect('Quick Tools','Result Download action','return window.__qaDownloads.some(row=>/remove-bg/.test(row.download));');
   await click('[data-nxqt-back]');await quickState('picker');await click('[data-nxqt-home]');await expect('Navigation','Quick result Back then Home','return !document.querySelector(".nxlock-home")?.hidden&&!window.__qaRoot.__nxQuickTools.getState().open;');
+
+  await click('[data-nxlock-quick="remove-bg"]');await quickState('picker');await injectEdgeTouchFixture();await quickState('result');
+  await expect('Quick Tools','Remove BG preserves edge-touching subject','const c=document.querySelector(".nxqt-canvas-wrap canvas:not([hidden])");if(!c)return false;const d=c.getContext("2d").getImageData(0,0,c.width,c.height).data,subject=d[((50*c.width+30)*4)+3],background=d[((110*c.width+130)*4)+3];return subject>220&&background<32;');
+  await click('[data-nxqt-home]');await expect('Navigation','Edge-touch Remove BG returns Home','return !document.querySelector(".nxlock-home")?.hidden&&!window.__qaRoot.__nxQuickTools.getState().open;');
 
   await click('[data-nxlock-quick="enhance"]');await injectFixture();await quickState('result');
   await expect('Quick Tools','Enhance changed pixels','const c=document.querySelector(".nxqt-canvas-wrap canvas:not([hidden])");const p=c?.getContext("2d").getImageData(5,5,1,1).data;return !!p&&(p[0]!==236||p[1]!==236||p[2]!==242);');
