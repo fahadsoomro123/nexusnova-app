@@ -11,6 +11,7 @@ import { installAiPhotoQuickTools } from './ai-photo-quick-tools.js';
 import { installAiPhotoEnhanceFlagshipV12 } from './ai-photo-enhance-flagship-v12.js';
 import { installAiPhotoFlagshipToolUpgrades } from './ai-photo-flagship-tool-upgrades.js';
 import { installAiPhotoGeneratorPromptAssistV1 } from './ai-photo-generator-prompt-assist-v1.js';
+import { installAiPhotoContextualContrastV1 } from './ai-photo-contextual-contrast-v1.js';
 import { installAiPhotoNavigation } from './ai-photo-navigation.js';
 
 export function renderAiPhotoStudio(){
@@ -40,11 +41,13 @@ export function renderAiPhotoStudio(){
   const enhanceFlagshipCleanup=installAiPhotoEnhanceFlagshipV12(root);
   const flagshipToolUpgradesCleanup=installAiPhotoFlagshipToolUpgrades(root);
   const generatorPromptAssistCleanup=installAiPhotoGeneratorPromptAssistV1(root);
+  const contextualContrastCleanup=installAiPhotoContextualContrastV1(root);
   const lockedReferenceCleanup=installAiPhotoLockedReferenceAssetsV1(root);
   const navigationCleanup=installAiPhotoNavigation(root);
   root.__cleanup=()=>{
     navigationCleanup?.();
     lockedReferenceCleanup?.();
+    contextualContrastCleanup?.();
     generatorPromptAssistCleanup?.();
     flagshipToolUpgradesCleanup?.();
     enhanceFlagshipCleanup?.();
