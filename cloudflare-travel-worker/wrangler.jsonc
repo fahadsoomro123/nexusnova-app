@@ -1,11 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "nexusnova-travel-api",
-  "main": "src/index-v3.js",
+  "main": "src/index-v4.js",
   "compatibility_date": "2026-09-05",
-  "workers_dev": true,
-  "vars": {
-    "FIREBASE_WEB_API_KEY": "AIzaSyBU75WYp5ioaMD1LrNcDyAvROFW2wrTil0",
-    "FIREBASE_PROJECT_ID": "nexusnova-6ade2"
-  }
+  "workers_dev": true
 }
