@@ -158,9 +158,9 @@ jobs:
           "$AAPT" dump badging "$APK" | head -1 | tee /tmp/apk-package.txt
           grep -Fq "name='com.nexusnova.app'" /tmp/apk-package.txt
           grep -Fq "versionCode='$VERSION_CODE'" /tmp/apk-package.txt
-          unzip -p "$APK" assets/www/src/features/apps/ai-photo-flagship-upgrades-v11.js >/tmp/flagship-upgrades.js
+          unzip -p "$APK" assets/www/src/features/apps/ai-photo-flagship-tool-upgrades.js >/tmp/flagship-upgrades.js
           test -s /tmp/flagship-upgrades.js
-          grep -Fq 'installAiPhotoFlagshipUpgradesV11' /tmp/flagship-upgrades.js
+          grep -Fq 'Flagship Enhance' /tmp/flagship-upgrades.js
           cp "$APK" "$RUNNER_TEMP/$APK_NAME"
           sha256sum "$RUNNER_TEMP/$APK_NAME" | tee "$RUNNER_TEMP/$APK_NAME.sha256"
           echo "PASS — permanent signer, higher version and latest flagship bundle embedded."
