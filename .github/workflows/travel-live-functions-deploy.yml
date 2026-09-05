@@ -28,8 +28,6 @@ jobs:
     timeout-minutes: 30
     env:
       FIREBASE_PROJECT_ID: nexusnova-6ade2
-      FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_NEXUSNOVA_6ADE2 }}
-      FIREBASE_TOKEN_VALUE: ${{ secrets.FIREBASE_TOKEN }}
     steps:
       - name: Checkout exact staging commit
         uses: actions/checkout@v4
@@ -39,21 +37,31 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Select Firebase credential without exposing it
+      - name: Resolve Firebase deploy credential
         id: auth
         shell: bash
+        env:
+          SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_NEXUSNOVA_6ADE2 || secrets.FIREBASE_SERVICE_ACCOUNT_JSON || secrets.FIREBASE_SERVICE_ACCOUNT || secrets.GCP_SERVICE_ACCOUNT_JSON || secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          FIREBASE_TOKEN_VALUE: ${{ secrets.FIREBASE_TOKEN || secrets.FIREBASE_CI_TOKEN || secrets.NEXUSNOVA_FIREBASE_TOKEN }}
         run: |
           set -euo pipefail
-          if [ -n "${FIREBASE_SERVICE_ACCOUNT_JSON:-}" ]; then
+          if [ -n "${SERVICE_ACCOUNT_JSON:-}" ]; then
             cred="$RUNNER_TEMP/nexusnova-firebase-service-account.json"
-            printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$cred"
+            printf '%s' "$SERVICE_ACCOUNT_JSON" > "$cred"
+            python3 - <<PY
+          import json
+          json.load(open('$RUNNER_TEMP/nexusnova-firebase-service-account.json', encoding='utf-8'))
+          print('Firebase service-account credential: PRESENT')
+          PY
             chmod 600 "$cred"
             echo "GOOGLE_APPLICATION_CREDENTIALS=$cred" >> "$GITHUB_ENV"
             echo "mode=service-account" >> "$GITHUB_OUTPUT"
           elif [ -n "${FIREBASE_TOKEN_VALUE:-}" ]; then
+            echo "FIREBASE_DEPLOY_TOKEN=$FIREBASE_TOKEN_VALUE" >> "$GITHUB_ENV"
             echo "mode=token" >> "$GITHUB_OUTPUT"
+            echo 'Firebase CI token credential: PRESENT'
           else
-            echo '::error::No Firebase deploy credential is configured.'
+            echo '::error::No Firebase deploy credential is configured under any known NexusNova secret name.'
             exit 1
           fi
 
@@ -90,15 +98,40 @@ jobs:
           console.log('Travel export contract PASS:', required.join(', '));
           NODE
 
+      - name: Sync Travel provider secret when repository JSON is configured
+        shell: bash
+        env:
+          TRAVEL_PROVIDER_CONFIG_JSON: ${{ secrets.NEXUSNOVA_TRAVEL_PROVIDERS_JSON || secrets.TRAVEL_PROVIDER_CONFIG_JSON || secrets.TRAVEL_PROVIDERS_JSON }}
+        run: |
+          set -euo pipefail
+          if [ -z "${TRAVEL_PROVIDER_CONFIG_JSON:-}" ]; then
+            echo 'No repository Travel provider JSON supplied; using existing Firebase Secret Manager value if present.'
+            exit 0
+          fi
+          config="$RUNNER_TEMP/nexusnova-travel-providers-upload.json"
+          printf '%s' "$TRAVEL_PROVIDER_CONFIG_JSON" > "$config"
+          python3 - <<PY
+          import json
+          cfg=json.load(open('$RUNNER_TEMP/nexusnova-travel-providers-upload.json', encoding='utf-8'))
+          if not isinstance(cfg, dict): raise SystemExit('Travel provider JSON must be an object')
+          print('Travel provider repository secret: valid JSON')
+          PY
+          chmod 600 "$config"
+          if [ "${{ steps.auth.outputs.mode }}" = 'service-account' ]; then
+            npx --yes firebase-tools@14.12.1 functions:secrets:set NEXUSNOVA_TRAVEL_PROVIDERS --project "$FIREBASE_PROJECT_ID" --data-file "$config" --non-interactive
+          else
+            npx --yes firebase-tools@14.12.1 functions:secrets:set NEXUSNOVA_TRAVEL_PROVIDERS --project "$FIREBASE_PROJECT_ID" --data-file "$config" --non-interactive --token "$FIREBASE_DEPLOY_TOKEN"
+          fi
+
       - name: Read Travel provider secret without exposing it
         shell: bash
         run: |
           set -euo pipefail
           secret_file="$RUNNER_TEMP/nexusnova-travel-providers.json"
           if [ "${{ steps.auth.outputs.mode }}" = 'service-account' ]; then
-            npx --yes firebase-tools@latest functions:secrets:access NEXUSNOVA_TRAVEL_PROVIDERS --project "$FIREBASE_PROJECT_ID" > "$secret_file"
+            npx --yes firebase-tools@14.12.1 functions:secrets:access NEXUSNOVA_TRAVEL_PROVIDERS --project "$FIREBASE_PROJECT_ID" > "$secret_file"
           else
-            npx --yes firebase-tools@latest functions:secrets:access NEXUSNOVA_TRAVEL_PROVIDERS --project "$FIREBASE_PROJECT_ID" --token "$FIREBASE_TOKEN_VALUE" > "$secret_file"
+            npx --yes firebase-tools@14.12.1 functions:secrets:access NEXUSNOVA_TRAVEL_PROVIDERS --project "$FIREBASE_PROJECT_ID" --token "$FIREBASE_DEPLOY_TOKEN" > "$secret_file"
           fi
           chmod 600 "$secret_file"
           echo "TRAVEL_PROVIDER_SECRET_FILE=$secret_file" >> "$GITHUB_ENV"
@@ -107,8 +140,7 @@ jobs:
         run: |
           node - <<'NODE'
           const fs = require('fs');
-          const path = process.env.TRAVEL_PROVIDER_SECRET_FILE;
-          const cfg = JSON.parse(fs.readFileSync(path, 'utf8'));
+          const cfg = JSON.parse(fs.readFileSync(process.env.TRAVEL_PROVIDER_SECRET_FILE, 'utf8'));
           const state = {
             amadeus: Boolean(String(cfg.amadeusClientId || '').trim() && String(cfg.amadeusClientSecret || '').trim()),
             distribusion: Boolean(String(cfg.distribusionApiKey || '').trim()),
@@ -118,8 +150,8 @@ jobs:
           };
           console.log('Travel provider configuration:', Object.entries(state).map(([k,v]) => `${k}=${v?'READY':'MISSING'}`).join(' '));
           const missing = [];
-          if (!state.amadeus) missing.push('Amadeus (required for Hotels and worldwide flight coverage)');
-          if (!state.distribusion) missing.push('Distribusion (required for Rail/Bus)');
+          if (!state.amadeus) missing.push('Amadeus (Hotels + worldwide flight coverage)');
+          if (!state.distribusion) missing.push('Distribusion (Rail/Bus fares)');
           if (!(state.travelLine || state.flyNDeal)) missing.push('Pakistan agency API (Travel Line or FlyNDeal)');
           if (missing.length) {
             console.error('Required Travel provider configuration is incomplete:', missing.join('; '));
@@ -162,13 +194,33 @@ jobs:
           set -euo pipefail
           targets='functions:searchWorldwideFlights,functions:searchWorldwideHotels,functions:searchWorldwideGroundTransport,functions:searchPakistanAgencyFlights,functions:searchPakistanUmrahPackages,functions:getProviderHealth'
           if [ "${{ steps.auth.outputs.mode }}" = 'service-account' ]; then
-            npx --yes firebase-tools@latest deploy --project "$FIREBASE_PROJECT_ID" --only "$targets" --non-interactive
+            npx --yes firebase-tools@14.12.1 deploy --project "$FIREBASE_PROJECT_ID" --only "$targets" --non-interactive
           else
-            npx --yes firebase-tools@latest deploy --project "$FIREBASE_PROJECT_ID" --only "$targets" --non-interactive --token "$FIREBASE_TOKEN_VALUE"
+            npx --yes firebase-tools@14.12.1 deploy --project "$FIREBASE_PROJECT_ID" --only "$targets" --non-interactive --token "$FIREBASE_DEPLOY_TOKEN"
           fi
+
+      - name: Verify deployed callable endpoints resolve
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='https://us-central1-nexusnova-6ade2.cloudfunctions.net'
+          for fn in searchWorldwideFlights searchWorldwideHotels searchWorldwideGroundTransport searchPakistanAgencyFlights searchPakistanUmrahPackages getProviderHealth; do
+            code=$(curl -sS --connect-timeout 10 --max-time 20 -o /tmp/travel-probe-body -w '%{http_code}' -H 'Content-Type: application/json' -X POST --data '{"data":{}}' "$base/$fn" || true)
+            echo "$fn => HTTP $code"
+            if [ "$code" = '000' ] || [ "$code" = '404' ]; then
+              echo "::error::$fn still missing after deploy (HTTP $code)."
+              exit 1
+            fi
+          done
+          echo 'Travel callable endpoint existence probe PASS.'
 
       - name: Deployment contract summary
         run: |
           echo 'Travel Firebase callable deployment completed.'
           echo 'Provider credentials remain server-side in Firebase Secret Manager secret NEXUSNOVA_TRAVEL_PROVIDERS.'
           echo 'No OTA or Android release was performed by this workflow.'
+
+      - name: Remove temporary credential material
+        if: always()
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/nexusnova-firebase-service-account.json" "$RUNNER_TEMP/nexusnova-travel-providers-upload.json" "$RUNNER_TEMP/nexusnova-travel-providers.json"
