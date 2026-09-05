@@ -1,0 +1,229 @@
+name: AI Photo Locked Visual Signed APK Retry
+
+on:
+  push:
+    branches: [ai-photo-real-canva-ai-generator-correction]
+    paths:
+      - '.github/workflows/ai-photo-locked-visual-signed-apk-retry.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  APP_SOURCE: 911208f5a95dc2b4895723ce83f27b9d5e38481a
+  PUBLIC_REPO: fahadsoomro123/nexusnova-website
+  PUBLIC_BRANCH: main
+  VERSION_CODE: '2026090502'
+  VERSION_NAME: '1.0.11-ai-photo-locked-visual'
+  RELEASE_APK: 'NexusNova-AI-PHOTO-LOCKED-v1.0.11-SIGNED.apk'
+  PREVIOUS_APK: 'NexusNova-AI-PHOTO-1-22-v1.0.10-SIGNED.apk'
+
+jobs:
+  signed_apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - name: Checkout exact approved source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.APP_SOURCE }}
+          fetch-depth: 0
+
+      - name: Freeze source and verify locked contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$APP_SOURCE"
+          for f in \
+            fresh-rebuild/src/features/apps/ai-photo-studio-review.js \
+            fresh-rebuild/src/features/apps/ai-photo-locked-visual-v1.js \
+            fresh-rebuild/src/features/apps/ai-photo-locked-reference-assets-v1.js \
+            fresh-rebuild/src/features/apps/ai-photo-puter-generator.js \
+            fresh-rebuild/src/features/apps/ai-photo-studio-ai.js; do
+            test -s "$f"
+            node --check "$f"
+          done
+          test -s fresh-rebuild/assets/visuals/ai-photo-locked-featured.webp
+          test -s fresh-rebuild/assets/visuals/ai-photo-locked-recent.webp
+          test -s fresh-rebuild/assets/visuals/ai-photo-locked-styles.webp
+          grep -Fq 'NexusNova AI Photo Studio' fresh-rebuild/src/features/apps/ai-photo-locked-visual-v1.js
+          grep -Fq 'AI Image Generator' fresh-rebuild/src/features/apps/ai-photo-locked-visual-v1.js
+          grep -Fq 'Creative Styles' fresh-rebuild/src/features/apps/ai-photo-locked-visual-v1.js
+          grep -Fq "['custom','▱','Custom','Custom']" fresh-rebuild/src/features/apps/ai-photo-locked-visual-v1.js
+          echo 'Locked visual source frozen: PASS'
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle 8.13
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Require signing secrets
+        env:
+          KEYSTORE_B64: ${{ secrets.NEXUSNOVA_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.NEXUSNOVA_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.NEXUSNOVA_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.NEXUSNOVA_KEY_PASSWORD }}
+        run: |
+          test -n "$KEYSTORE_B64"
+          test -n "$STORE_PASSWORD"
+          test -n "$KEY_ALIAS"
+          test -n "$KEY_PASSWORD"
+
+      - name: Restore permanent signing keystore
+        env:
+          KEYSTORE_B64: ${{ secrets.NEXUSNOVA_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.NEXUSNOVA_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.NEXUSNOVA_KEY_ALIAS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          KEYSTORE="$RUNNER_TEMP/nexusnova-ai-photo-locked-v1.0.11.jks"
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$KEYSTORE"
+          test -s "$KEYSTORE"
+          chmod 600 "$KEYSTORE"
+          keytool -list -keystore "$KEYSTORE" -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
+          echo "NEXUSNOVA_SIGNING_STORE_FILE=$KEYSTORE" >> "$GITHUB_ENV"
+
+      - name: Inject release version and signing config
+        env:
+          STORE_PASSWORD: ${{ secrets.NEXUSNOVA_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.NEXUSNOVA_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.NEXUSNOVA_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "NEXUSNOVA_SIGNING_STORE_PASSWORD=$STORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "NEXUSNOVA_SIGNING_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
+          echo "NEXUSNOVA_SIGNING_KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
+          python3 - <<'PY'
+          import os,re
+          from pathlib import Path
+          p=Path('NexusNovaAndroid/app/build.gradle.kts')
+          t=p.read_text(encoding='utf-8')
+          t,n1=re.subn(r'versionCode\s*=\s*\d+','versionCode = '+os.environ['VERSION_CODE'],t,count=1)
+          t,n2=re.subn(r'versionName\s*=\s*"[^"]*"','versionName = "'+os.environ['VERSION_NAME']+'"',t,count=1)
+          if n1!=1 or n2!=1: raise SystemExit('Android version fields not found')
+          signing='''    signingConfigs {\n        create("nexusRelease") {\n            storeFile = file(System.getenv("NEXUSNOVA_SIGNING_STORE_FILE"))\n            storePassword = System.getenv("NEXUSNOVA_SIGNING_STORE_PASSWORD")\n            keyAlias = System.getenv("NEXUSNOVA_SIGNING_KEY_ALIAS")\n            keyPassword = System.getenv("NEXUSNOVA_SIGNING_KEY_PASSWORD")\n        }\n    }\n\n'''
+          marker='    buildTypes {\n'
+          if marker not in t: raise SystemExit('buildTypes block not found')
+          t=t.replace(marker,signing+marker,1)
+          release='        release {\n'
+          if release not in t: raise SystemExit('release block not found')
+          t=t.replace(release,release+'            signingConfig = signingConfigs.getByName("nexusRelease")\n',1)
+          p.write_text(t,encoding='utf-8')
+          PY
+
+      - name: Build signed release APK
+        working-directory: NexusNovaAndroid
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon clean assembleRelease
+          test -s app/build/outputs/apk/release/app-release.apk
+
+      - name: Verify generated Android assets after build sync
+        shell: bash
+        run: |
+          set -euo pipefail
+          for rel in \
+            src/features/apps/ai-photo-studio-review.js \
+            src/features/apps/ai-photo-locked-visual-v1.js \
+            src/features/apps/ai-photo-locked-reference-assets-v1.js \
+            src/features/apps/ai-photo-phone-feedback-v1.js \
+            src/features/apps/ai-photo-canva-workspace-v3.js \
+            src/features/apps/ai-photo-puter-generator.js \
+            src/features/apps/ai-photo-studio-ai.js \
+            src/features/apps/data/ai-photo-templates.js \
+            assets/visuals/ai-photo-locked-featured.webp \
+            assets/visuals/ai-photo-locked-recent.webp \
+            assets/visuals/ai-photo-locked-styles.webp \
+            assets/styles/ai-photo-route-fullscreen.css; do
+            cmp "fresh-rebuild/$rel" "NexusNovaAndroid/app/src/main/assets/www/$rel"
+          done
+          echo 'Post-build Android asset sync: PASS'
+
+      - name: Verify permanent signer continuity
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$GITHUB_WORKSPACE/NexusNovaAndroid/app/build/outputs/apk/release/app-release.apk"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
+          test -n "$APKSIGNER"
+          "$APKSIGNER" verify --verbose --print-certs "$APK" | tee /tmp/new-signature.txt
+          grep -Eq 'Verified using v(2|3) scheme .*: true' /tmp/new-signature.txt
+          NEW_CERT="$(sed -n -e 's/^Signer #1 certificate SHA-256 digest: //p' -e 's/^V[0-9.]* Signer: certificate SHA-256 digest: //p' /tmp/new-signature.txt | head -1)"
+          test -n "$NEW_CERT"
+          curl -fsSL "https://raw.githubusercontent.com/$PUBLIC_REPO/$PUBLIC_BRANCH/downloads/$PREVIOUS_APK" -o /tmp/previous.apk
+          "$APKSIGNER" verify --print-certs /tmp/previous.apk | tee /tmp/old-signature.txt
+          OLD_CERT="$(sed -n -e 's/^Signer #1 certificate SHA-256 digest: //p' -e 's/^V[0-9.]* Signer: certificate SHA-256 digest: //p' /tmp/old-signature.txt | head -1)"
+          test -n "$OLD_CERT"
+          test "$NEW_CERT" = "$OLD_CERT"
+          echo "SIGNER_CERT_SHA256=$NEW_CERT" >> "$GITHUB_ENV"
+          sha256sum "$APK" | tee /tmp/release.sha256
+          stat -c '%s' "$APK" > /tmp/release.size
+          echo 'Permanent signer continuity: PASS'
+
+      - name: Require public download credential
+        env:
+          PUBLIC_TOKEN: ${{ secrets.GH_PUBLIC_OTA_TOKEN || secrets.OTA_PUBLIC_TOKEN }}
+        run: test -n "$PUBLIC_TOKEN"
+
+      - name: Publish signed APK
+        id: publish
+        env:
+          PUBLIC_TOKEN: ${{ secrets.GH_PUBLIC_OTA_TOKEN || secrets.OTA_PUBLIC_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          PUB="$RUNNER_TEMP/nexusnova-ai-photo-locked-public"
+          git clone --depth 1 --branch "$PUBLIC_BRANCH" "https://github.com/$PUBLIC_REPO.git" "$PUB"
+          cd "$PUB"
+          git config user.name 'NexusNova Signed APK Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          mkdir -p downloads
+          cp "$GITHUB_WORKSPACE/NexusNovaAndroid/app/build/outputs/apk/release/app-release.apk" "downloads/$RELEASE_APK"
+          sha256sum "downloads/$RELEASE_APK" > "downloads/$RELEASE_APK.sha256"
+          printf 'NexusNova AI Photo Studio locked visual signed APK\nSource: %s\nVersion: %s (%s)\nPermanent signature: PASS\nSigner SHA-256: %s\nStatus: READY FOR FAHAD PHONE FINAL ACCEPTANCE\n' "$APP_SOURCE" "$VERSION_NAME" "$VERSION_CODE" "$SIGNER_CERT_SHA256" > downloads/NexusNova-AI-PHOTO-LOCKED-STATUS.txt
+          git add -f "downloads/$RELEASE_APK" "downloads/$RELEASE_APK.sha256" downloads/NexusNova-AI-PHOTO-LOCKED-STATUS.txt
+          git commit -m "Publish AI Photo locked visual signed APK $APP_SOURCE"
+          PUBLISH_SHA="$(git rev-parse HEAD)"
+          AUTH="$(printf 'x-access-token:%s' "$PUBLIC_TOKEN" | base64 -w0)"
+          git -c http.extraheader="AUTHORIZATION: basic $AUTH" push origin HEAD:"$PUBLIC_BRANCH"
+          echo "publish_sha=$PUBLISH_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Verify anonymous public APK byte-for-byte
+        env:
+          PUBLISH_SHA: ${{ steps.publish.outputs.publish_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="https://raw.githubusercontent.com/$PUBLIC_REPO/$PUBLISH_SHA/downloads/$RELEASE_APK"
+          curl -fsSL "$URL" -o /tmp/public.apk
+          test "$(stat -c '%s' /tmp/public.apk)" = "$(cat /tmp/release.size)"
+          LOCAL_SHA="$(awk '{print $1}' /tmp/release.sha256)"
+          PUBLIC_SHA256="$(sha256sum /tmp/public.apk | awk '{print $1}')"
+          test "$LOCAL_SHA" = "$PUBLIC_SHA256"
+          echo "PUBLIC_APK_SHA256=$PUBLIC_SHA256" >> "$GITHUB_ENV"
+          echo 'Anonymous public signed APK byte-for-byte: PASS'
+
+      - name: Release summary
+        shell: bash
+        run: |
+          echo "Source=$APP_SOURCE"
+          echo "Version=$VERSION_NAME"
+          echo "VersionCode=$VERSION_CODE"
+          echo "APK=$RELEASE_APK"
+          echo "SHA256=$PUBLIC_APK_SHA256"
+          echo "Signer=$SIGNER_CERT_SHA256"
+
+      - name: Remove signing material
+        if: always()
+        shell: bash
+        run: rm -f "${NEXUSNOVA_SIGNING_STORE_FILE:-}" || true
