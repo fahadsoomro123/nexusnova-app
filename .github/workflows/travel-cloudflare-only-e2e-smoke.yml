@@ -1,0 +1,108 @@
+name: NexusNova Travel Cloudflare-only E2E Smoke
+
+on:
+  push:
+    branches: [travel-reference-v7-final-staging]
+    paths:
+      - '.github/workflows/travel-cloudflare-only-e2e-smoke.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    env:
+      EDGE: https://nexusnova-travel-api.fahadsoomro123.workers.dev
+    steps:
+      - name: Health must be Cloudflare-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsS "$EDGE/health" -o /tmp/health.json
+          python3 - <<'PY'
+          import json
+          with open('/tmp/health.json', encoding='utf-8') as fh: h=json.load(fh)
+          assert h.get('backend') == 'cloudflare-workers', h
+          assert h.get('architecture') == 'cloudflare-only', h
+          assert h.get('firebaseRequired') is False, h
+          assert h.get('googleBillingRequired') is False, h
+          assert h.get('providers',{}).get('scrappaFlights') is True, h
+          assert h.get('providers',{}).get('scrappaHotels') is True, h
+          print('Cloudflare-only health PASS')
+          print('Coverage:', h.get('coverage'))
+          PY
+
+      - name: Live global flight KHI to DXB in PKR
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsS --connect-timeout 10 --max-time 90 \
+            -H 'Content-Type: application/json' -H 'Accept: application/json' -H 'X-NexusNova-Client: e2e-smoke' \
+            -d '{"origin":"KHI","destination":"DXB","departureDate":"2026-09-12","adults":1,"cabin":"economy","currency":"PKR"}' \
+            "$EDGE/rpc/searchWorldwideFlights" -o /tmp/flights.json
+          python3 - <<'PY'
+          import json
+          with open('/tmp/flights.json', encoding='utf-8') as fh: d=json.load(fh)
+          assert d.get('ok') is True, d
+          rows=d.get('offers') or []
+          assert rows, d
+          f=rows[0]
+          assert f.get('live') is True
+          assert f.get('currency') == 'USD', f
+          assert f.get('compareCurrency') == 'PKR', f
+          assert float(f.get('compareTotal') or 0) > 1000, f
+          print('Cloudflare flight RPC PASS')
+          print('Flights:', len(rows))
+          print('First USD total:', f.get('total'))
+          print('First converted PKR total:', f.get('compareTotal'))
+          print('Carrier:', (f.get('carriers') or [''])[0])
+          PY
+
+      - name: Live Karachi hotels in PKR
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsS --connect-timeout 10 --max-time 90 \
+            -H 'Content-Type: application/json' -H 'Accept: application/json' -H 'X-NexusNova-Client: e2e-smoke' \
+            -d '{"destination":"Karachi, Pakistan","checkIn":"2026-09-15","checkOut":"2026-09-17","adults":1,"rooms":1,"currency":"PKR"}' \
+            "$EDGE/rpc/searchWorldwideHotels" -o /tmp/hotels.json
+          python3 - <<'PY'
+          import json
+          with open('/tmp/hotels.json', encoding='utf-8') as fh: d=json.load(fh)
+          assert d.get('ok') is True, d
+          rows=d.get('offers') or []
+          assert rows, d
+          h=rows[0]
+          assert h.get('live') is True
+          assert h.get('currency') == 'PKR', h
+          assert float(h.get('stayTotal') or 0) > 0, h
+          assert float(h.get('pricePerNight') or 0) > 0, h
+          print('Cloudflare hotel RPC PASS')
+          print('Hotels:', len(rows))
+          print('First hotel:', h.get('name'))
+          print('Stay total PKR:', h.get('stayTotal'))
+          print('Per night PKR:', h.get('pricePerNight'))
+          PY
+
+      - name: Ground provider state must be truthful
+        shell: bash
+        run: |
+          set -euo pipefail
+          code=$(curl -sS -o /tmp/ground.json -w '%{http_code}' \
+            -H 'Content-Type: application/json' -H 'Accept: application/json' -H 'X-NexusNova-Client: e2e-smoke' \
+            -d '{"origin":"Karachi","destination":"Lahore","departureDate":"2026-09-15","departureTime":"08:00","adults":1,"currency":"PKR"}' \
+            "$EDGE/rpc/searchWorldwideGroundTransport")
+          test "$code" = '200'
+          python3 - <<'PY'
+          import json
+          with open('/tmp/ground.json', encoding='utf-8') as fh: d=json.load(fh)
+          assert d.get('ok') is False, d
+          assert d.get('reason') == 'provider-not-configured', d
+          print('Ground transport truthfulness gate PASS: adapter ready, partner key pending')
+          PY
+
+      - name: Clean outputs
+        if: always()
+        run: rm -f /tmp/health.json /tmp/flights.json /tmp/hotels.json /tmp/ground.json
