@@ -24,8 +24,6 @@ jobs:
       CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID || secrets.CF_ACCOUNT_ID }}
       TRAVEL_PROVIDER_CONFIG_JSON: ${{ secrets.NEXUSNOVA_TRAVEL_PROVIDERS_JSON || secrets.TRAVEL_PROVIDER_CONFIG_JSON || secrets.TRAVEL_PROVIDERS_JSON }}
       SCRAPPA_API_KEY_VALUE: ${{ secrets.SCRAPPA_API_KEY || secrets.NEXUSNOVA_SCRAPPA_API_KEY }}
-      AMADEUS_CLIENT_ID_VALUE: ${{ secrets.AMADEUS_CLIENT_ID || secrets.NEXUSNOVA_AMADEUS_CLIENT_ID }}
-      AMADEUS_CLIENT_SECRET_VALUE: ${{ secrets.AMADEUS_CLIENT_SECRET || secrets.NEXUSNOVA_AMADEUS_CLIENT_SECRET }}
       DISTRIBUSION_API_KEY_VALUE: ${{ secrets.DISTRIBUSION_API_KEY || secrets.NEXUSNOVA_DISTRIBUSION_API_KEY }}
       TRAVEL_LINE_API_KEY_VALUE: ${{ secrets.TRAVEL_LINE_API_KEY || secrets.TRAVELLINE_API_KEY || secrets.NEXUSNOVA_TRAVEL_LINE_API_KEY }}
       FLYNDEAL_API_KEY_VALUE: ${{ secrets.FLYNDEAL_API_KEY || secrets.FLY_N_DEAL_API_KEY || secrets.NEXUSNOVA_FLYNDEAL_API_KEY }}
@@ -81,7 +79,7 @@ jobs:
           printf '%s' "$TRAVEL_PROVIDER_CONFIG_JSON" | npx --yes wrangler@4 secret put NEXUSNOVA_TRAVEL_PROVIDERS >/dev/null
           echo 'Packed Travel provider secret synced to Cloudflare.'
 
-      - name: Auto-detect and sync individual provider secrets
+      - name: Auto-detect and sync Cloudflare Travel provider secrets
         working-directory: cloudflare-travel-worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ env.CF_API_TOKEN }}
@@ -102,20 +100,17 @@ jobs:
             synced=$((synced+1))
           }
           sync_one SCRAPPA_API_KEY "${SCRAPPA_API_KEY_VALUE:-}"
-          sync_one AMADEUS_CLIENT_ID "${AMADEUS_CLIENT_ID_VALUE:-}"
-          sync_one AMADEUS_CLIENT_SECRET "${AMADEUS_CLIENT_SECRET_VALUE:-}"
           sync_one DISTRIBUSION_API_KEY "${DISTRIBUSION_API_KEY_VALUE:-}"
           sync_one TRAVEL_LINE_API_KEY "${TRAVEL_LINE_API_KEY_VALUE:-}"
           sync_one FLYNDEAL_API_KEY "${FLYNDEAL_API_KEY_VALUE:-}"
-          echo "Individual provider secret bindings synced: $synced"
+          echo "Cloudflare Travel provider secret bindings synced: $synced"
 
-      - name: Probe Travel Worker health
+      - name: Probe Cloudflare-only Travel health
         env:
           WORKER_URL: ${{ steps.deploy.outputs.worker_url }}
         shell: bash
         run: |
           set -euo pipefail
-          # A newly updated Worker/secret binding can take a few seconds to propagate.
           body=''
           for attempt in 1 2 3 4 5; do
             body=$(curl -fsS --connect-timeout 10 --max-time 20 "$WORKER_URL/health" 2>/dev/null || true)
@@ -130,14 +125,16 @@ jobs:
           import json, os
           data=json.loads(os.environ['BODY'])
           if data.get('backend') != 'cloudflare-workers': raise SystemExit('Unexpected Travel Worker health response')
+          if data.get('architecture') != 'cloudflare-only': raise SystemExit('Travel Worker is not Cloudflare-only')
+          if data.get('firebaseRequired') is not False: raise SystemExit('Firebase dependency still reported')
+          if data.get('googleBillingRequired') is not False: raise SystemExit('Google billing dependency still reported')
           providers=data.get('providers', {})
-          print('Travel Worker health PASS')
+          print('Cloudflare-only Travel health PASS')
           print('Provider readiness:', providers)
-          if not any(bool(v) for v in providers.values()):
-              print('::warning::Cloudflare backend is healthy, but no live travel-provider credential is configured yet.')
           PY
           echo "### NexusNova Travel Edge" >> "$GITHUB_STEP_SUMMARY"
           echo "Worker: $WORKER_URL" >> "$GITHUB_STEP_SUMMARY"
+          echo "Architecture: Cloudflare-only" >> "$GITHUB_STEP_SUMMARY"
           echo "Health: PASS" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Clean temporary output
