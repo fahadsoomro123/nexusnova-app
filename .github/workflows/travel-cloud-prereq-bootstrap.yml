@@ -62,7 +62,8 @@ jobs:
               echo "Credential slot $configured can enable required Travel cloud services."
               break
             fi
-            echo "Credential slot $configured cannot enable required services; trying next configured credential."
+            echo "Credential slot $configured could not enable the services. Exact gcloud output follows:"
+            sed -E 's/[A-Za-z0-9_=-]{32,}/[redacted]/g' /tmp/travel-api-enable.log || true
             rm -f "$file"
           done
           if [ "$configured" -eq 0 ]; then
@@ -70,7 +71,7 @@ jobs:
             exit 1
           fi
           if [ -z "$selected" ]; then
-            echo '::error::Configured service account(s) do not have serviceusage.services.enable permission. A Google Cloud project Owner/Service Usage Admin must enable IAM and Artifact Registry once.'
+            echo '::error::No configured service account could enable all required Travel cloud services.'
             exit 1
           fi
           cp "$selected" "$RUNNER_TEMP/travel-selected-sa.json"
