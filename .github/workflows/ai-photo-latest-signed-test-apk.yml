@@ -21,7 +21,7 @@ env:
 jobs:
   signed_test_apk:
     runs-on: ubuntu-latest
-    timeout-minutes: 55
+    timeout-minutes: 35
     steps:
       - name: Checkout exact QA-passed AI Photo source
         uses: actions/checkout@v4
@@ -93,7 +93,7 @@ jobs:
           keytool -list -keystore "$KEYSTORE" -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
           echo "NEXUSNOVA_SIGNING_STORE_FILE=$KEYSTORE" >> "$GITHUB_ENV"
 
-      - name: Inject higher test version and permanent release signing
+      - name: Inject higher test version and permanent signer into debug build
         env:
           STORE_PASSWORD: ${{ secrets.NEXUSNOVA_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.NEXUSNOVA_KEY_ALIAS }}
@@ -116,30 +116,35 @@ jobs:
           marker='    buildTypes {\n'
           if marker not in t: raise SystemExit('buildTypes block not found')
           t=t.replace(marker,signing+marker,1)
-          release='        release {\n'
-          if release not in t: raise SystemExit('release block not found')
-          t=t.replace(release,release+'            signingConfig = signingConfigs.getByName("nexusRelease")\n',1)
+          debug='        debug {\n'
+          if debug not in t: raise SystemExit('debug block not found')
+          t=t.replace(debug,debug+'            signingConfig = signingConfigs.getByName("nexusRelease")\n',1)
           p.write_text(t,encoding='utf-8')
           PY
 
-      - name: Build signed release APK
+      - name: Build fast installable signed test APK
         working-directory: NexusNovaAndroid
         shell: bash
         run: |
           set -euo pipefail
-          gradle --no-daemon clean assembleRelease
-          test -s app/build/outputs/apk/release/app-release.apk
+          gradle --no-daemon assembleDebug
+          test -s app/build/outputs/apk/debug/app-debug.apk
 
-      - name: Verify signer, package and output
+      - name: Verify permanent signer, package and higher version
         shell: bash
         run: |
           set -euo pipefail
-          APK='NexusNovaAndroid/app/build/outputs/apk/release/app-release.apk'
+          APK='NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk'
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)"
           test -x "$APKSIGNER"
+          test -x "$AAPT"
           "$APKSIGNER" verify --verbose --print-certs "$APK" | tee /tmp/apk-verify.txt
-          SIGNER="$(grep -m1 'Signer #1 certificate SHA-256 digest:' /tmp/apk-verify.txt | awk -F': ' '{print $2}' | tr '[:upper:]' '[:lower:]' | tr -d ':')"
+          SIGNER="$(grep -m1 'certificate SHA-256 digest:' /tmp/apk-verify.txt | sed -E 's/^.*certificate SHA-256 digest: //' | tr '[:upper:]' '[:lower:]' | tr -d ':')"
           test "$SIGNER" = "$EXPECTED_SIGNER_SHA256"
+          "$AAPT" dump badging "$APK" | head -1 | tee /tmp/apk-package.txt
+          grep -Fq "name='com.nexusnova.app'" /tmp/apk-package.txt
+          grep -Fq "versionCode='$VERSION_CODE'" /tmp/apk-package.txt
           cp "$APK" "$RUNNER_TEMP/$APK_NAME"
           sha256sum "$RUNNER_TEMP/$APK_NAME" | tee "$RUNNER_TEMP/$APK_NAME.sha256"
           echo "Permanent signer match: PASS — $SIGNER"
