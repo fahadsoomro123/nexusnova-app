@@ -140,7 +140,7 @@ function decorateEnhance(root,result){
   result.insertBefore(panel,result.querySelector('.nxqt-result-head'));
   const state={...MODE_PRESETS.natural},defaults={...MODE_PRESETS.natural};let mode='natural',version=0,previewFrame=0,commitTimer=0,busy=false;
   const status=panel.querySelector('[data-nxfs-enhance-status]'),exportActions=[...result.querySelectorAll('[data-nxqt-download],[data-nxqt-design],[data-nxqt-edit]')],aiButtons=[...panel.querySelectorAll('[data-nxfs-ai-detail]')],controls=[...panel.querySelectorAll('input,button[data-nxfs-enhance-mode],button[data-nxfs-enhance-wb],button[data-nxfs-enhance-reset]')];
-  const setBusy=value=>{busy=value;exportActions.forEach(button=>button.disabled=value);aiButtons.forEach(button=>button.disabled=value);controls.forEach(control=>control.disabled=value);panel.setAttribute('aria-busy',String(value))};
+  const setBusy=(value,lockControls=false)=>{busy=value;exportActions.forEach(button=>button.disabled=value);aiButtons.forEach(button=>button.disabled=value);controls.forEach(control=>control.disabled=value&&lockControls);panel.setAttribute('aria-busy',String(value))};
   const lockPending=()=>{exportActions.forEach(button=>button.disabled=true);aiButtons.forEach(button=>button.disabled=true);panel.setAttribute('aria-busy','true')};
   const unlockPending=()=>{if(!busy){exportActions.forEach(button=>button.disabled=false);aiButtons.forEach(button=>button.disabled=false);panel.setAttribute('aria-busy','false')}};
   const drawExact=canvas=>{visible.width=canvas.width;visible.height=canvas.height;const context=visible.getContext('2d');context.imageSmoothingEnabled=true;context.imageSmoothingQuality='high';context.clearRect(0,0,visible.width,visible.height);context.drawImage(canvas,0,0)};
@@ -168,7 +168,7 @@ function decorateEnhance(root,result){
   panel.querySelector('[data-nxfs-enhance-wb]').onclick=event=>{state.wb=state.wb?0:70;const active=state.wb>0;event.currentTarget.classList.toggle('is-active',active);event.currentTarget.setAttribute('aria-pressed',String(active));renderPreview();queueCommit()};
   panel.querySelector('[data-nxfs-enhance-reset]').onclick=()=>{Object.assign(state,defaults);mode='natural';syncStateUi();panel.querySelectorAll('[data-nxfs-enhance-mode]').forEach(button=>{const active=button.dataset.nxfsEnhanceMode==='natural';button.classList.toggle('is-active',active);button.setAttribute('aria-pressed',String(active))});renderPreview();queueCommit()};
   aiButtons.forEach(button=>button.onclick=async()=>{
-    if(busy)return;clearTimeout(commitTimer);version++;setBusy(true);const quality=button.dataset.nxfsAiDetail==='4K'?'4K':'2K';status.textContent=`Preparing ${quality} AI Detail with Puter…`;
+    if(busy)return;clearTimeout(commitTimer);version++;setBusy(true,true);const quality=button.dataset.nxfsAiDetail==='4K'?'4K':'2K';status.textContent=`Preparing ${quality} AI Detail with Puter…`;
     try{
       let session=await getPuterImageSession();if(!session.signedIn){status.textContent='Connect Puter to use AI Detail…';session=await signInPuterForImages()}if(!session?.signedIn)throw new Error('Puter sign-in did not complete.');
       await yieldMain();const localSource=await enhanceCanvas(base,mode,state,{yielding:true});if(!localSource)throw new Error('Could not prepare the enhanced source.');lastFullCanvas=localSource;drawExact(localSource);
@@ -178,7 +178,7 @@ function decorateEnhance(root,result){
       Object.assign(state,{strength:0,shadows:0,highlights:0,vibrance:0,detail:0,denoise:0,unblur:0,wb:0});syncStateUi();
       status.textContent=`AI Detail ${quality} ready · actual ${base.width} × ${base.height} · ${out.model}. Review Before/After before export.`;
     }catch(error){drawExact(lastFullCanvas);status.textContent=error?.message||'AI Detail could not finish.'}
-    finally{setBusy(false);unlockPending()}
+    finally{setBusy(false,true);unlockPending()}
   });
   renderPreview();queueCommit();
 }
