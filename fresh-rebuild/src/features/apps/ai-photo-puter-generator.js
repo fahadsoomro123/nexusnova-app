@@ -13,16 +13,38 @@ function ensureStyles(){
   .nxputer-label{display:grid;gap:4px;color:#c7cad6;font-size:9px}.nxputer-label textarea,.nxputer-label select{width:100%!important;border:1px solid rgba(255,255,255,.13)!important;border-radius:10px!important;background:#20232d!important;color:#fff!important}.nxputer-label textarea{min-height:86px!important;padding:9px!important;resize:vertical!important;font-size:12px!important}.nxputer-label select{height:38px!important;padding:0 8px!important;font-size:10px!important}
   .nxputer-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}.nxputer-generate{width:100%;height:43px!important;font-size:12px!important}.nxputer-note{color:#8f95a7;font-size:8px;line-height:1.45}
   .nxputer-result{display:none;overflow:hidden;border:1px solid rgba(255,255,255,.12);border-radius:14px;background:#15171f}.nxputer-result.is-on{display:block}.nxputer-result img{display:block;width:100%;max-height:44vh;object-fit:contain;background:#0c0e13}.nxputer-result-copy{padding:9px}.nxputer-result-copy strong{display:block;font-size:10px}.nxputer-result-copy span{display:block;margin-top:3px;color:#9ba1b2;font-size:8px}.nxputer-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px}
+  .nxputer-actions [data-puter-use-design]{color:#fff!important;-webkit-text-fill-color:#fff!important;opacity:1!important;border-color:rgba(173,137,255,.42)!important;background:#24193f!important;font-weight:800!important}
   .nxputer-error{display:none;padding:8px 9px;border:1px solid rgba(255,100,110,.3);border-radius:10px;background:rgba(120,20,30,.16);color:#ffc6cb;font-size:9px;line-height:1.4}.nxputer-error.is-on{display:block}
   @media(max-width:390px){.nxputer-options{grid-template-columns:1fr}.nxputer-actions{grid-template-columns:1fr}.nxputer-status{grid-template-columns:1fr}.nxputer-status .nxv3-btn{width:100%}}
   `;document.head.appendChild(style)
 }
 
-function usageText(usage){
-  const info=usage?.allowanceInfo;if(!info)return 'Puter connected. Usage details are temporarily unavailable.';
+function allowanceInfo(usage){
+  const info=usage?.allowanceInfo;if(!info)return null;
   const total=Number(info.monthUsageAllowance),remaining=Number(info.remaining);
-  if(Number.isFinite(total)&&total>0&&Number.isFinite(remaining))return `${Math.max(0,Math.min(100,Math.round(remaining/total*100)))}% of your monthly Puter allowance remains.`;
-  return 'Puter connected. Your own Puter allowance is used for generation.';
+  if(!Number.isFinite(total)||total<=0||!Number.isFinite(remaining))return null;
+  return {total,remaining};
+}
+
+function remainingPercent(usage){
+  const info=allowanceInfo(usage);if(!info)return null;
+  return Math.max(0,Math.min(100,info.remaining/info.total*100));
+}
+
+function usageText(usage){
+  const percent=remainingPercent(usage);
+  if(percent!==null)return `${Math.round(percent)}% of your monthly Puter allowance remains.`;
+  return usage?.allowanceInfo?'Puter connected. Your own Puter allowance is used for generation.':'Puter connected. Usage details are temporarily unavailable.';
+}
+
+function perImageUsageText(beforeUsage,afterUsage){
+  const before=allowanceInfo(beforeUsage),after=allowanceInfo(afterUsage),remaining=remainingPercent(afterUsage);
+  if(!before||!after||remaining===null)return usageText(afterUsage);
+  const used=Math.max(0,before.remaining-after.remaining);
+  if(used<=0)return `Usage meter has not reported a measurable change yet · ${Math.round(remaining)}% remains.`;
+  const percent=used/after.total*100;
+  const usedLabel=percent<0.01?'<0.01':percent<1?percent.toFixed(2):percent.toFixed(1);
+  return `This image used ${usedLabel}% of your monthly Puter allowance · ${Math.round(remaining)}% remains.`;
 }
 
 function dataUrlToFile(dataUrl,name){
@@ -48,7 +70,7 @@ export function installPuterImageGenerator(root){
   async function refreshSession(){try{const session=await getPuterImageSession();if(destroyed)return;status.classList.toggle('is-ok',session.signedIn);statusTitle.textContent=session.signedIn?`Connected${session.user?.username?` · ${session.user.username}`:''}`:'Puter account not connected';statusCopy.textContent=session.signedIn?usageText(session.usage):'Connect once to generate images with your own Puter allowance.';connect.textContent=session.signedIn?'Connected':'Connect Puter';connect.disabled=session.signedIn;generate.disabled=!session.signedIn}catch(e){if(destroyed)return;statusTitle.textContent='Puter unavailable';statusCopy.textContent=e?.message||'Could not load Puter AI.';generate.disabled=true}}
   tab.onclick=()=>{workspace.querySelectorAll('[data-v3-tab]').forEach(n=>n.classList.toggle('is-active',n===tab));workspace.querySelectorAll('[data-v3-pane]').forEach(n=>n.classList.toggle('is-active',n===pane));refreshSession()};
   connect.onclick=async()=>{if(busy)return;setError('');connect.disabled=true;connect.textContent='Connecting…';try{if(!globalThis.puter?.auth){await ensurePuterImageSdk();connect.disabled=false;connect.textContent='Connect Puter';statusCopy.textContent='Puter is ready. Tap Connect Puter once more to open sign-in.';return}await signInPuterForImages();await refreshSession()}catch(e){connect.disabled=false;connect.textContent='Connect Puter';setError(e?.msg||e?.message||'Puter sign-in did not complete. Tap Connect and try again.')}};
-  generate.onclick=async()=>{if(busy)return;const text=prompt.value.trim();if(text.length<3){setError('Write what image you want first.');prompt.focus();return}setError('');busy=true;generate.disabled=true;generate.textContent='Generating…';result.classList.remove('is-on');try{const out=await generateAiImage(text,{aspect:q('[data-puter-aspect]').value,style:q('[data-puter-style]').value,mode:q('[data-puter-mode]').value});if(destroyed)return;generated={...out,prompt:text};image.src=out.dataUrl;q('[data-puter-result-title]').textContent=safeName(text).slice(0,64);meta.textContent=`${out.width&&out.height?`${out.width} × ${out.height} · `:''}${out.model||'Puter AI'} · ${usageText(out.usage)}`;result.classList.add('is-on');statusCopy.textContent=usageText(out.usage)}catch(e){setError(e?.msg||e?.message||'Image generation failed.')}finally{busy=false;generate.textContent='Generate Image';const session=await getPuterImageSession().catch(()=>null);generate.disabled=!(session?.signedIn)}};
+  generate.onclick=async()=>{if(busy)return;const text=prompt.value.trim();if(text.length<3){setError('Write what image you want first.');prompt.focus();return}setError('');busy=true;generate.disabled=true;generate.textContent='Generating…';result.classList.remove('is-on');let beforeUsage=null;try{beforeUsage=(await getPuterImageSession()).usage}catch{}try{const out=await generateAiImage(text,{aspect:q('[data-puter-aspect]').value,style:q('[data-puter-style]').value,mode:q('[data-puter-mode]').value});if(destroyed)return;generated={...out,prompt:text};image.src=out.dataUrl;q('[data-puter-result-title]').textContent=safeName(text).slice(0,64);const usageLabel=perImageUsageText(beforeUsage,out.usage);meta.textContent=`${out.width&&out.height?`${out.width} × ${out.height} · `:''}${out.model||'Puter AI'} · ${usageLabel}`;result.classList.add('is-on');statusCopy.textContent=usageText(out.usage)}catch(e){setError(e?.msg||e?.message||'Image generation failed.')}finally{busy=false;generate.textContent='Generate Image';const session=await getPuterImageSession().catch(()=>null);generate.disabled=!(session?.signedIn)}};
   q('[data-puter-use-design]').onclick=async()=>{if(!generated)return;setError('');try{const packed=await compressForProject(generated.dataUrl),design=makeGeneratedDesign(packed.dataUrl,packed.width,packed.height,generated.prompt);saveDesignProject(design);const projects=workspace.querySelector('[data-v3-tab="projects"]');projects?.click();requestAnimationFrame(()=>{workspace.querySelector(`[data-project="${design.id}"] button:not([data-del])`)?.click()})}catch(e){setError(e?.message||'Could not add this generated image to Design.')}};
   q('[data-puter-edit-photo]').onclick=()=>{if(!generated)return;setError('');try{const file=dataUrlToFile(generated.dataUrl,`nexusnova-ai-${Date.now()}.png`),input=root.querySelector('[data-photo-file]');if(!input)throw new Error('Photo editor import is unavailable.');const dt=new DataTransfer();dt.items.add(file);input.files=dt.files;workspace.querySelector('[data-v3-close]')?.click();input.dispatchEvent(new Event('change',{bubbles:true}))}catch(e){setError(e?.message||'Could not send the generated image to Photo Editor.')}};
   ensurePuterImageSdk().then(refreshSession).catch(()=>refreshSession());
