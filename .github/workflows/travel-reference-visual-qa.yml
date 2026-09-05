@@ -1,4 +1,4 @@
-name: NexusNova Travel Reference Visual QA
+name: NexusNova Travel V16 Flagship QA
 
 on:
   push:
@@ -6,121 +6,173 @@ on:
       - travel-reference-v7-final-staging
     paths:
       - '.github/workflows/travel-reference-visual-qa.yml'
-      - 'fresh-rebuild/travel-reference-harness.html'
-      - 'fresh-rebuild/assets/travel/reference-hero-right.webp.b64'
+      - 'fresh-rebuild/travel-flagship-v16-harness.html'
       - 'fresh-rebuild/src/features/apps/travel-suite.js'
-      - 'fresh-rebuild/src/features/apps/travel-suite-v5.js'
-      - 'fresh-rebuild/src/features/apps/travel-suite-v6.js'
-      - 'fresh-rebuild/src/features/apps/travel-suite-v7.js'
-      - 'fresh-rebuild/src/features/apps/travel-suite-v12.js'
-      - 'fresh-rebuild/src/features/apps/travel-suite-v13.js'
-      - 'fresh-rebuild/src/features/apps/travel-suite-v14.js'
+      - 'fresh-rebuild/src/features/apps/travel-suite-v15.js'
+      - 'fresh-rebuild/src/features/apps/travel-suite-v16.js'
+      - 'fresh-rebuild/src/features/apps/travel-edge-client.js'
+      - 'fresh-rebuild/src/features/apps/travel-edge-config.js'
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: travel-v16-flagship-qa-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  WORKER_URL: https://nexusnova-travel-api.fahadsoomro123.workers.dev
+
 jobs:
-  six-gate-reference-qa:
+  flagship-qa:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
 
-      - name: Gate 1 - JavaScript syntax
+      - name: Gate 1 - source and syntax
+        shell: bash
         run: |
-          node --check fresh-rebuild/src/features/apps/travel-suite-v6.js
-          node --check fresh-rebuild/src/features/apps/travel-suite-v7.js
-          node --check fresh-rebuild/src/features/apps/travel-suite-v12.js
-          node --check fresh-rebuild/src/features/apps/travel-suite-v13.js
-          node --check fresh-rebuild/src/features/apps/travel-suite-v14.js
+          set -euo pipefail
+          node --check fresh-rebuild/src/features/apps/travel-suite-v15.js
+          node --check fresh-rebuild/src/features/apps/travel-suite-v16.js
           node --check fresh-rebuild/src/features/apps/travel-suite.js
+          grep -Fq 'renderTravelSuiteV16' fresh-rebuild/src/features/apps/travel-suite.js
+          grep -Fq 'v16-benchmark-inspired' fresh-rebuild/src/features/apps/travel-suite-v16.js
+          grep -Fq 'Round trip' fresh-rebuild/src/features/apps/travel-suite-v16.js
+          grep -Fq 'Cheapest' fresh-rebuild/src/features/apps/travel-suite-v16.js
+          grep -Fq 'Fastest' fresh-rebuild/src/features/apps/travel-suite-v16.js
+          grep -Fq '.nn-panel[hidden]' fresh-rebuild/src/features/apps/travel-suite-v16.js
+          grep -Fq 'data-flight-depart' fresh-rebuild/src/features/apps/travel-suite-v15.js
 
-      - name: Gate 2 - locked reference contract
+      - name: Gate 2 - live Cloudflare health and real provider smoke
+        shell: bash
         run: |
           set -euo pipefail
-          grep -q "referenceLocked = 'true'" fresh-rebuild/src/features/apps/travel-suite-v6.js
-          grep -q "grid-template-columns:repeat(12" fresh-rebuild/src/features/apps/travel-suite-v6.js
-          grep -q "width:550px" fresh-rebuild/src/features/apps/travel-suite-v6.js
-          grep -q "height:1032px" fresh-rebuild/src/features/apps/travel-suite-v6.js
-          grep -q "v13-locked-asset-fetch" fresh-rebuild/src/features/apps/travel-suite-v13.js
-          grep -q "v14-reference-material-pass" fresh-rebuild/src/features/apps/travel-suite-v14.js
-          grep -q "width:521px" fresh-rebuild/src/features/apps/travel-suite-v14.js
-          grep -q "installBottomDockReference" fresh-rebuild/src/features/apps/travel-suite-v14.js
-          grep -q "reference-hero-right.webp.b64" fresh-rebuild/src/features/apps/travel-suite-v13.js
-          test -s fresh-rebuild/assets/travel/reference-hero-right.webp.b64
+          health=$(curl -fsS --connect-timeout 10 --max-time 25 "$WORKER_URL/health")
+          HEALTH="$health" python3 - <<'PY'
+          import json,os
+          d=json.loads(os.environ['HEALTH'])
+          assert d.get('architecture')=='cloudflare-only',d
+          assert d.get('coverage',{}).get('globalFlights') is True,d
+          assert d.get('coverage',{}).get('globalHotels') is True,d
+          print('Health PASS:',d.get('coverage',{}))
+          PY
+          curl -fsS --connect-timeout 10 --max-time 80 -H 'Content-Type: application/json' -H 'Accept: application/json' -H 'X-NexusNova-Client: fresh-rebuild' -X POST "$WORKER_URL/rpc/searchWorldwideFlights" --data '{"origin":"KHI","destination":"DXB","departureDate":"2026-09-12","returnDate":"","adults":1,"cabin":"economy","currency":"PKR"}' >/tmp/v16-flight.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/v16-flight.json')); offers=d.get('offers') or []
+          assert d.get('ok') is True and offers,d
+          assert all(x.get('live') is True for x in offers),offers[:2]
+          print('Real flight PASS:',len(offers))
+          PY
+          curl -fsS --connect-timeout 10 --max-time 80 -H 'Content-Type: application/json' -H 'Accept: application/json' -H 'X-NexusNova-Client: fresh-rebuild' -X POST "$WORKER_URL/rpc/searchWorldwideHotels" --data '{"destination":"Karachi, Pakistan","checkIn":"2026-09-15","checkOut":"2026-09-17","adults":1,"rooms":1,"currency":"PKR"}' >/tmp/v16-hotel.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/v16-hotel.json')); offers=d.get('offers') or []
+          assert d.get('ok') is True and offers,d
+          assert all(x.get('live') is True for x in offers),offers[:2]
+          print('Real hotel PASS:',len(offers))
+          PY
 
-      - name: Gate 3 - live-only API contract
-        run: |
-          set -euo pipefail
-          grep -q "searchWorldwideFlights" fresh-rebuild/src/features/apps/travel-suite-v5.js
-          grep -q "searchPakistanAgencyFlights" fresh-rebuild/src/features/apps/travel-suite-v5.js
-          grep -q "searchWorldwideHotels" fresh-rebuild/src/features/apps/travel-suite-v7.js
-          grep -q "searchWorldwideGroundTransport" fresh-rebuild/src/features/apps/travel-suite-v7.js
-          grep -q "searchPakistanUmrahPackages" fresh-rebuild/src/features/apps/travel-suite-v7.js
-          grep -q "dataset.liveOnly='true'" fresh-rebuild/src/features/apps/travel-suite-v7.js
-
-      - name: Install browser harness
+      - name: Install browser
+        shell: bash
         run: |
           npm init -y >/dev/null 2>&1
           npm install --no-save playwright@1.55.0 >/dev/null
           npx playwright install --with-deps chromium >/dev/null
-
-      - name: Start local Fresh server
-        run: |
-          python3 -m http.server 4173 --directory fresh-rebuild >/tmp/nexusnova-travel-http.log 2>&1 &
-          echo $! > /tmp/nexusnova-travel-http.pid
+          python3 -m http.server 4173 --directory fresh-rebuild >/tmp/travel-v16-http.log 2>&1 &
+          echo $! >/tmp/travel-v16-http.pid
           sleep 2
 
-      - name: Gates 4-6 - six consecutive runtime reference checks
+      - name: Gate 3 - responsive phone layout and real interactions
+        shell: bash
         run: |
           node - <<'NODE'
           const { chromium } = require('playwright');
-          const near=(value,target,tolerance=4)=>Math.abs(Number(value)-target)<=tolerance;
+          const worker='https://nexusnova-travel-api.fahadsoomro123.workers.dev';
+          const json=(route,obj)=>route.fulfill({status:200,contentType:'application/json',headers:{'access-control-allow-origin':'*','access-control-allow-headers':'Content-Type, Accept, X-NexusNova-Client'},body:JSON.stringify(obj)});
+          const sizes=[[360,800],[390,844],[412,915],[550,1215]];
           (async()=>{
             const browser=await chromium.launch({headless:true});
-            let lastPage=null;
-            for(let pass=1;pass<=6;pass++){
-              const page=await browser.newPage({viewport:{width:550,height:1215},deviceScaleFactor:1});
-              lastPage=page;
-              const errors=[];
-              page.on('pageerror',e=>errors.push(String(e)));
-              await page.goto(`http://127.0.0.1:4173/travel-reference-harness.html?pass=${pass}`,{waitUntil:'domcontentloaded',timeout:30000});
-              await page.waitForSelector('[data-reference-locked="true"]',{timeout:15000});
-              await page.waitForFunction(()=>document.querySelector('.nn-locked-hero-right')?.dataset.ready==='true',{timeout:5000});
-              await page.waitForTimeout(250);
-              const report=await page.evaluate(()=>{
-                const root=document.querySelector('[data-reference-locked="true"]');
-                const rect=sel=>{const e=root.querySelector(sel);if(!e)return null;const r=e.getBoundingClientRect();return{x:r.x,y:r.y,w:r.width,h:r.height,b:r.bottom,r:r.right};};
-                const tabs=[...root.querySelectorAll('[data-travel-tab]')].map(e=>{const r=e.getBoundingClientRect();return{name:e.dataset.travelTab,x:r.x,y:r.y,w:r.width,h:r.height,b:r.bottom,r:r.right};});
-                const from=rect('.nn-from'),to=rect('.nn-to'),depart=rect('.nn-depart'),ret=rect('.nn-return'),adults=rect('.nn-adults'),cabin=rect('.nn-cabin'),currency=rect('.nn-currency');
-                const rr=root.getBoundingClientRect();
-                const globalDock=document.querySelector('.nx-dock.global')?.getBoundingClientRect();
-                return{tabs,hero:rect('[data-reference-zone="hero"]'),form:rect('[data-reference-zone="flight-form"]'),results:rect('[data-reference-zone="flight-results"]'),root:{x:rr.x,y:rr.y,w:rr.width,h:rr.height,b:rr.bottom},globalDock:globalDock?{x:globalDock.x,y:globalDock.y,w:globalDock.width,h:globalDock.height}:null,geometry:{fourTabs:tabs.length===4,row1:Boolean(from&&to&&Math.abs(from.y-to.y)<2&&from.r<to.x),row2:Boolean(depart&&ret&&Math.abs(depart.y-ret.y)<2&&depart.r<=ret.x+2),row3:Boolean(adults&&cabin&&currency&&Math.abs(adults.y-cabin.y)<2&&Math.abs(cabin.y-currency.y)<2&&adults.r<=cabin.x+2&&cabin.r<=currency.x+2),rootContained:Boolean(globalDock&&rr.height>0&&rr.bottom<=globalDock.top),pageOverflow:document.documentElement.scrollHeight>1215||document.body.scrollHeight>1215,liveOnly:root.dataset.liveOnly==='true',visualV14:root.dataset.referenceVisual==='v14-reference-material-pass',heroReady:root.querySelector('.nn-locked-hero-right')?.dataset.ready==='true',bottomIcons:document.querySelectorAll('.nx-dock.global .nn-bottom-ref-icon').length===2,controls:[...root.querySelectorAll('button')].filter(b=>!b.classList.contains('nn-tab')).map(b=>b.hasAttribute('data-flight-search')||b.hasAttribute('data-hotel-search')||b.hasAttribute('data-ground-search')||b.hasAttribute('data-trip-save')||b.hasAttribute('data-trip-clear')||b.hasAttribute('data-pakistan-tours')).filter(Boolean).length}};
+            for(const [width,height] of sizes){
+              const page=await browser.newPage({viewport:{width,height},deviceScaleFactor:1});
+              const errors=[];page.on('pageerror',e=>errors.push(String(e)));
+              await page.route(`${worker}/**`,async route=>{
+                const url=route.request().url();
+                if(route.request().method()==='OPTIONS') return route.fulfill({status:204,headers:{'access-control-allow-origin':'*','access-control-allow-headers':'Content-Type, Accept, X-NexusNova-Client','access-control-allow-methods':'GET,POST,OPTIONS'}});
+                if(url.endsWith('/health')) return json(route,{architecture:'cloudflare-only',providers:{scrappa:true,scrappaFlights:true,scrappaHotels:true,distribusion:false,pakistanBusPartner:false},coverage:{globalFlights:true,globalHotels:true,globalRailBus:false,pakistanBusFares:false}});
+                if(url.includes('/rpc/searchWorldwideFlights')) return json(route,{ok:true,offers:[{live:true,provider:'QA Live',originCode:'KHI',destinationCode:'DXB',departingAt:'2026-09-12T10:00:00Z',arrivingAt:'2026-09-12T12:05:00Z',durationMinutes:125,stops:0,total:60400,currency:'PKR',compareTotal:60400,compareCurrency:'PKR',carriers:['QA Air']},{live:true,provider:'QA Live',originCode:'KHI',destinationCode:'DXB',departingAt:'2026-09-12T11:00:00Z',arrivingAt:'2026-09-12T15:15:00Z',durationMinutes:255,stops:1,total:56000,currency:'PKR',compareTotal:56000,compareCurrency:'PKR',carriers:['QA Connect']}]});
+                if(url.includes('/rpc/searchPakistanAgencyFlights')) return json(route,{ok:false,offers:[]});
+                if(url.includes('/rpc/searchWorldwideHotels')) return json(route,{ok:true,offers:[{live:true,name:'QA Hotel',cityCode:'KHI',countryCode:'PK',stayTotal:12000,pricePerNight:6000,currency:'PKR',compareTotal:12000,comparePerNight:6000,compareCurrency:'PKR',nights:2,roomDescription:'QA live room'}]});
+                if(url.includes('/rpc/searchWorldwideGroundTransport')) return json(route,{ok:false,reason:'provider-not-configured',message:'Worldwide rail/bus provider key pending.',offers:[]});
+                if(url.includes('/rpc/searchPakistanGroundTransport')) return json(route,{ok:false,reason:'pakistan-bus-partner-contract-required',message:'Pakistan bus partner approval pending.',offers:[]});
+                if(url.includes('/rpc/searchPakistanUmrahPackages')) return json(route,{ok:false,packages:[]});
+                return json(route,{ok:false,message:'QA route not mocked'});
               });
-              console.log(`PASS ${pass}:`,JSON.stringify(report));
-              await page.screenshot({path:'travel-reference-actual.png',fullPage:false});
-              if(errors.length)throw new Error(`Pass ${pass} page error: ${errors.join(' | ')}`);
-              if(!report.geometry.fourTabs||!report.geometry.row1||!report.geometry.row2||!report.geometry.row3)throw new Error(`Pass ${pass} failed: reference field geometry.`);
-              if(report.geometry.pageOverflow||!report.geometry.rootContained)throw new Error(`Pass ${pass} failed: page scroll/containment.`);
-              if(!report.geometry.liveOnly||!report.geometry.visualV14||!report.geometry.heroReady||!report.geometry.bottomIcons||report.geometry.controls<6)throw new Error(`Pass ${pass} failed: live-only/v14/asset/control contract.`);
-              if(!report.hero||!near(report.hero.x,17,3)||!near(report.hero.y,158,3)||!near(report.hero.w,520,2)||!near(report.hero.h,135,2))throw new Error(`Pass ${pass} failed: hero reference box ${JSON.stringify(report.hero)}`);
-              if(!report.form||!near(report.form.x,17,3)||!near(report.form.y,298,3)||!near(report.form.w,520,2)||!near(report.form.h,388,3))throw new Error(`Pass ${pass} failed: form reference box ${JSON.stringify(report.form)}`);
-              if(!report.results||!near(report.results.x,17,3)||!near(report.results.y,696,3)||!near(report.results.w,520,2))throw new Error(`Pass ${pass} failed: results reference box ${JSON.stringify(report.results)}`);
-              if(pass<6)await page.close();
+              await page.goto(`http://127.0.0.1:4173/travel-flagship-v16-harness.html?w=${width}`,{waitUntil:'domcontentloaded',timeout:30000});
+              await page.waitForSelector('.nn-travel-v16',{timeout:15000});
+              const base=await page.evaluate(()=>{
+                const root=document.querySelector('.nn-travel-v16');const rr=root.getBoundingClientRect();const canvas=root.querySelector('.nn-ref-canvas').getBoundingClientRect();const dock=root.querySelector('.nn-dock').getBoundingClientRect();
+                const visible=[...root.querySelectorAll('[data-panel]')].filter(p=>!p.hidden&&getComputedStyle(p).display!=='none').map(p=>p.dataset.panel);
+                return {root:{w:rr.width,h:rr.height},canvas:{w:canvas.width,h:canvas.height,x:canvas.x},dock:{w:dock.width,h:dock.height},visible,bodyScroll:document.body.scrollHeight>innerHeight+2,docScroll:document.documentElement.scrollHeight>innerHeight+2,tripModes:root.querySelectorAll('[data-v16-trip-mode]').length};
+              });
+              if(base.visible.length!==1||base.visible[0]!=='flights') throw new Error(`${width}: initial panel leak ${JSON.stringify(base)}`);
+              if(base.canvas.w>width+1||base.canvas.x<-.5) throw new Error(`${width}: canvas overflow ${JSON.stringify(base.canvas)}`);
+              if(base.bodyScroll||base.docScroll) throw new Error(`${width}: whole-page scroll detected`);
+              if(base.tripModes!==2) throw new Error(`${width}: trip mode controls missing`);
+
+              for(const tab of ['hotels','ground','plan','flights']){
+                await page.locator(`[data-travel-tab="${tab}"]`).click();await page.waitForTimeout(30);
+                const visible=await page.locator('.nn-travel-v16').evaluate(el=>[...el.querySelectorAll('[data-panel]')].filter(p=>!p.hidden&&getComputedStyle(p).display!=='none').map(p=>p.dataset.panel));
+                if(visible.length!==1||visible[0]!==tab) throw new Error(`${width}: tab ${tab} leak ${visible}`);
+              }
+
+              await page.locator('[data-v16-trip-mode="oneway"]').click();
+              if(await page.locator('[data-flight-return]').isVisible()) throw new Error(`${width}: one-way did not hide return`);
+              await page.locator('[data-v16-trip-mode="roundtrip"]').click();
+              if(!(await page.locator('[data-flight-return]').isVisible())) throw new Error(`${width}: round-trip did not restore return`);
+
+              await page.locator('[data-flight-origin]').fill('KHI');await page.locator('[data-flight-destination]').fill('DXB');
+              await page.locator('.nn-swap').click();
+              const swapped=await page.evaluate(()=>[document.querySelector('[data-flight-origin]').value,document.querySelector('[data-flight-destination]').value]);
+              if(swapped[0]!=='DXB'||swapped[1]!=='KHI') throw new Error(`${width}: swap failed ${swapped}`);
+              await page.locator('.nn-swap').click();
+              await page.locator('[data-flight-departure]').fill('2026-09-12');
+              await page.locator('[data-flight-search]').click();
+              await page.waitForFunction(()=>document.querySelector('[data-flight-status]')?.textContent.includes('genuine live fare'),null,{timeout:5000});
+              if((await page.locator('.nn-ref-result').count())<1) throw new Error(`${width}: flight results absent`);
+              await page.waitForSelector('.nn-v16-result-tools',{timeout:3000});
+              await page.locator('[data-v16-sort="cheapest"]').click();
+              await page.locator('[data-v16-sort="fastest"]').click();
+              await page.locator('[data-v16-sort="direct"]').click();
+
+              await page.locator('[data-travel-tab="hotels"]').click();
+              await page.locator('[data-hotel-destination]').fill('Karachi, Pakistan');await page.locator('[data-hotel-checkin]').fill('2026-09-15');await page.locator('[data-hotel-checkout]').fill('2026-09-17');await page.locator('[data-hotel-search]').click();
+              await page.waitForFunction(()=>document.querySelector('[data-hotel-status]')?.textContent.includes('genuine live hotel'),null,{timeout:5000});
+
+              await page.locator('[data-travel-tab="ground"]').click();await page.locator('[data-ground-origin]').fill('London');await page.locator('[data-ground-destination]').fill('Paris');await page.locator('[data-ground-date]').fill('2026-09-12');await page.locator('[data-ground-search]').click();
+              await page.waitForFunction(()=>/pending|provider-not-configured|contract-required/i.test(document.querySelector('[data-ground-status]')?.textContent||''),null,{timeout:5000});
+
+              await page.locator('[data-travel-tab="plan"]').click();await page.locator('[data-trip-destination]').fill('Dubai');await page.locator('[data-trip-save]').click();await page.waitForFunction(()=>document.querySelector('[data-trip-status]')?.textContent.includes('saved privately'),null,{timeout:3000});
+              if(errors.length) throw new Error(`${width}: page errors ${errors.join(' | ')}`);
+              await page.screenshot({path:`travel-v16-${width}x${height}.png`,fullPage:false});
+              await page.close();
+              console.log(`PASS ${width}x${height}`);
             }
-            await lastPage?.close();await browser.close();console.log('SIX CONSECUTIVE TRAVEL REFERENCE CHECKS PASS');
-          })().catch(error=>{console.error(error);process.exit(1)});
+            await browser.close();console.log('TRAVEL V16 RESPONSIVE + INTERACTION QA PASS');
+          })().catch(e=>{console.error(e);process.exit(1)});
           NODE
 
-      - name: Upload visual evidence
+      - name: Upload phone visual evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: travel-reference-visual-evidence
-          path: travel-reference-actual.png
+          name: travel-v16-phone-evidence
+          path: travel-v16-*.png
           if-no-files-found: warn
           retention-days: 7
