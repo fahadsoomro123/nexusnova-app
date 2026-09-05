@@ -1,0 +1,57 @@
+name: NexusNova Travel Deployed Endpoint Probe
+
+on:
+  push:
+    branches:
+      - travel-reference-v7-final-staging
+    paths:
+      - '.github/workflows/travel-deployed-endpoint-probe.yml'
+      - 'functions/travelSearch.js'
+      - 'functions/hotelSearch.js'
+      - 'functions/groundTransportSearch.js'
+      - 'functions/pakistanAgencySearch.js'
+      - 'functions/main.js'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Probe deployed Travel callable endpoints
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='https://us-central1-nexusnova-6ade2.cloudfunctions.net'
+          endpoints=(
+            searchWorldwideFlights
+            searchWorldwideHotels
+            searchWorldwideGroundTransport
+            searchPakistanAgencyFlights
+            searchPakistanUmrahPackages
+            getProviderHealth
+          )
+          failed=0
+          for fn in "${endpoints[@]}"; do
+            body="$(mktemp)"
+            code=$(curl -sS --connect-timeout 10 --max-time 20 -o "$body" -w '%{http_code}' \
+              -H 'Content-Type: application/json' \
+              -X POST \
+              --data '{"data":{}}' \
+              "$base/$fn" || true)
+            snippet=$(tr '\n' ' ' < "$body" | head -c 180)
+            rm -f "$body"
+            echo "$fn => HTTP $code :: $snippet"
+            if [ "$code" = '000' ] || [ "$code" = '404' ]; then
+              echo "::error::$fn is not reachable as a deployed callable endpoint (HTTP $code)."
+              failed=1
+            fi
+          done
+          if [ "$failed" -ne 0 ]; then
+            echo '::error::One or more Travel functions are missing/unreachable in Firebase production.'
+            exit 1
+          fi
+          echo 'All Travel callable endpoint names resolve in Firebase production. Authentication/App Check errors are acceptable at this unauthenticated probe stage.'
