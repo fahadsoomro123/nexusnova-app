@@ -1,0 +1,96 @@
+name: NexusNova Travel Live Functions Deploy
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nexusnova-travel-live-functions-deploy
+  cancel-in-progress: false
+
+jobs:
+  verify-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      FIREBASE_PROJECT_ID: nexusnova-6ade2
+      FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_NEXUSNOVA_6ADE2 }}
+      FIREBASE_TOKEN_VALUE: ${{ secrets.FIREBASE_TOKEN }}
+    steps:
+      - name: Checkout exact staging commit
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Select Firebase credential without exposing it
+        id: auth
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "${FIREBASE_SERVICE_ACCOUNT_JSON:-}" ]; then
+            cred="$RUNNER_TEMP/nexusnova-firebase-service-account.json"
+            printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$cred"
+            chmod 600 "$cred"
+            echo "GOOGLE_APPLICATION_CREDENTIALS=$cred" >> "$GITHUB_ENV"
+            echo "mode=service-account" >> "$GITHUB_OUTPUT"
+          elif [ -n "${FIREBASE_TOKEN_VALUE:-}" ]; then
+            echo "mode=token" >> "$GITHUB_OUTPUT"
+          else
+            echo '::error::No Firebase deploy credential is configured.'
+            exit 1
+          fi
+
+      - name: Install Functions dependencies
+        run: npm install --prefix functions --ignore-scripts --no-audit --no-fund
+
+      - name: Travel syntax gate
+        run: |
+          set -euo pipefail
+          node --check functions/travelSearch.js
+          node --check functions/hotelSearch.js
+          node --check functions/groundTransportSearch.js
+          node --check functions/pakistanAgencySearch.js
+          node --check functions/providerHealth.js
+          node --check functions/main.js
+
+      - name: Export contract gate
+        run: |
+          node - <<'NODE'
+          const api = require('./functions/main.js');
+          const required = [
+            'searchWorldwideFlights',
+            'searchWorldwideHotels',
+            'searchWorldwideGroundTransport',
+            'searchPakistanAgencyFlights',
+            'searchPakistanUmrahPackages',
+            'getProviderHealth'
+          ];
+          const missing = required.filter(name => typeof api[name] !== 'function');
+          if (missing.length) {
+            console.error('Missing Travel exports:', missing.join(', '));
+            process.exit(1);
+          }
+          console.log('Travel export contract PASS:', required.join(', '));
+          NODE
+
+      - name: Deploy only Travel functions
+        shell: bash
+        run: |
+          set -euo pipefail
+          targets='functions:searchWorldwideFlights,functions:searchWorldwideHotels,functions:searchWorldwideGroundTransport,functions:searchPakistanAgencyFlights,functions:searchPakistanUmrahPackages,functions:getProviderHealth'
+          if [ "${{ steps.auth.outputs.mode }}" = 'service-account' ]; then
+            npx --yes firebase-tools@latest deploy --project "$FIREBASE_PROJECT_ID" --only "$targets" --non-interactive
+          else
+            npx --yes firebase-tools@latest deploy --project "$FIREBASE_PROJECT_ID" --only "$targets" --non-interactive --token "$FIREBASE_TOKEN_VALUE"
+          fi
+
+      - name: Deployment contract summary
+        run: |
+          echo 'Travel Firebase callable deployment completed.'
+          echo 'Provider credentials remain server-side in Firebase Secret Manager secret NEXUSNOVA_TRAVEL_PROVIDERS.'
+          echo 'No OTA or Android release was performed by this workflow.'
