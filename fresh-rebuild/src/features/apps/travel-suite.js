@@ -133,10 +133,73 @@ function installTravelFullscreenShell(root) {
   };
 }
 
+function installHardTabIsolation(root) {
+  let active = root.querySelector('[data-travel-tab].is-active')?.dataset.travelTab || 'flights';
+  let disposed = false;
+  let timers = [];
+
+  const apply = () => {
+    if (disposed || !root.isConnected) return;
+    const normalized = ['flights', 'hotels', 'ground', 'plan'].includes(active) ? active : 'flights';
+
+    root.querySelectorAll('[data-travel-tab]').forEach(tab => {
+      const selected = tab.dataset.travelTab === normalized;
+      tab.classList.toggle('is-active', selected);
+      tab.setAttribute('aria-selected', selected ? 'true' : 'false');
+      tab.tabIndex = selected ? 0 : -1;
+    });
+
+    root.querySelectorAll('[data-panel]').forEach(panel => {
+      const selected = panel.dataset.panel === normalized;
+      panel.hidden = !selected;
+      panel.setAttribute('aria-hidden', selected ? 'false' : 'true');
+      if (selected) {
+        panel.style.setProperty('display', 'grid', 'important');
+        panel.style.setProperty('visibility', 'visible', 'important');
+        panel.style.setProperty('pointer-events', 'auto', 'important');
+      } else {
+        panel.style.setProperty('display', 'none', 'important');
+        panel.style.setProperty('visibility', 'hidden', 'important');
+        panel.style.setProperty('pointer-events', 'none', 'important');
+      }
+    });
+  };
+
+  const settle = () => {
+    timers.forEach(clearTimeout);
+    timers = [];
+    queueMicrotask(apply);
+    requestAnimationFrame(() => requestAnimationFrame(apply));
+    timers.push(window.setTimeout(apply, 40));
+    timers.push(window.setTimeout(apply, 180));
+    timers.push(window.setTimeout(apply, 420));
+  };
+
+  const onClick = event => {
+    const tab = event.target.closest?.('[data-travel-tab]');
+    if (!tab || !root.contains(tab)) return;
+    active = tab.dataset.travelTab || 'flights';
+    settle();
+  };
+
+  root.addEventListener('click', onClick, true);
+  apply();
+  settle();
+
+  const previousCleanup = root.__cleanup;
+  root.__cleanup = () => {
+    disposed = true;
+    timers.forEach(clearTimeout);
+    root.removeEventListener('click', onClick, true);
+    previousCleanup?.();
+  };
+}
+
 export function renderTravelSuite() {
   const root = renderTravelSuiteV16();
-  root.dataset.runtimeRepair = 'viewport-dock-airline-v16';
+  root.dataset.runtimeRepair = 'viewport-dock-airline-tabs-v16';
   clampTravelPhoneWidth(root);
+  installHardTabIsolation(root);
   installTravelFullscreenShell(root);
   return root;
 }
