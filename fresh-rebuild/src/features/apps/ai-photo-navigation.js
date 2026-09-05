@@ -1,4 +1,4 @@
-const WORKSPACE_SCREENS=new Set(['templates','design','layers','projects','generator']);
+const WORKSPACE_SCREENS=new Set(['templates','design','layers','projects','generator','ai-edit']);
 const normalizeTab=tab=>tab==='ai-image'?'generator':WORKSPACE_SCREENS.has(tab)?tab:'templates';
 
 export function installAiPhotoNavigation(root){
