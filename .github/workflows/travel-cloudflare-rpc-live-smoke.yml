@@ -1,0 +1,103 @@
+name: NexusNova Travel Cloudflare RPC Live Smoke
+
+on:
+  push:
+    branches: [travel-reference-v7-final-staging]
+    paths:
+      - '.github/workflows/travel-cloudflare-rpc-live-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      WORKER_URL: https://nexusnova-travel-api.fahadsoomro123.workers.dev
+    steps:
+      - name: Cloudflare-only health gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          body=$(curl -fsS --connect-timeout 10 --max-time 20 "$WORKER_URL/health")
+          BODY="$body" python3 - <<'PY'
+          import json, os
+          data=json.loads(os.environ['BODY'])
+          assert data.get('architecture') == 'cloudflare-only', data
+          assert data.get('firebaseRequired') is False, data
+          assert data.get('googleBillingRequired') is False, data
+          assert data.get('providers',{}).get('scrappa') is True, data
+          print('Cloudflare-only health PASS')
+          print('Coverage:', data.get('coverage',{}))
+          PY
+
+      - name: Flight RPC KHI to DXB live
+        shell: bash
+        run: |
+          set -euo pipefail
+          code=$(curl -sS --connect-timeout 10 --max-time 70 \
+            -H 'Content-Type: application/json' \
+            -H 'Accept: application/json' \
+            -H 'X-NexusNova-Client: fresh-rebuild' \
+            -o /tmp/flight.json -w '%{http_code}' \
+            -X POST "$WORKER_URL/rpc/searchWorldwideFlights" \
+            --data '{"origin":"KHI","destination":"DXB","departureDate":"2026-09-12","returnDate":"","adults":1,"cabin":"economy","currency":"PKR"}')
+          test "$code" = '200' || { echo "::error::Flight RPC HTTP $code"; cat /tmp/flight.json; exit 1; }
+          python3 - <<'PY'
+          import json
+          data=json.load(open('/tmp/flight.json'))
+          assert data.get('ok') is True, data
+          offers=data.get('offers') or []
+          assert offers, data
+          assert all(x.get('live') is True for x in offers), offers[:2]
+          assert all(x.get('source') == 'scrappa-google-flights' for x in offers), offers[:2]
+          assert all(x.get('compareCurrency') == 'PKR' for x in offers), offers[:2]
+          print('Cloudflare Flight RPC PASS:', len(offers), 'live offers')
+          print('Lowest converted PKR fare:', offers[0].get('compareTotal'))
+          PY
+
+      - name: Hotel RPC Karachi live
+        shell: bash
+        run: |
+          set -euo pipefail
+          code=$(curl -sS --connect-timeout 10 --max-time 70 \
+            -H 'Content-Type: application/json' \
+            -H 'Accept: application/json' \
+            -H 'X-NexusNova-Client: fresh-rebuild' \
+            -o /tmp/hotel.json -w '%{http_code}' \
+            -X POST "$WORKER_URL/rpc/searchWorldwideHotels" \
+            --data '{"destination":"Karachi, Pakistan","checkIn":"2026-09-15","checkOut":"2026-09-17","adults":1,"rooms":1,"currency":"PKR"}')
+          test "$code" = '200' || { echo "::error::Hotel RPC HTTP $code"; cat /tmp/hotel.json; exit 1; }
+          python3 - <<'PY'
+          import json
+          data=json.load(open('/tmp/hotel.json'))
+          assert data.get('ok') is True, data
+          offers=data.get('offers') or []
+          assert offers, data
+          assert all(x.get('live') is True for x in offers), offers[:2]
+          assert all(x.get('source') == 'scrappa-google-hotels' for x in offers), offers[:2]
+          assert all(x.get('currency') == 'PKR' for x in offers), offers[:2]
+          print('Cloudflare Hotel RPC PASS:', len(offers), 'live offers')
+          print('Lowest stay total PKR:', offers[0].get('stayTotal'))
+          PY
+
+      - name: Pakistan and worldwide ground readiness contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          health=$(curl -fsS --connect-timeout 10 --max-time 20 "$WORKER_URL/health")
+          HEALTH="$health" python3 - <<'PY'
+          import json, os
+          data=json.loads(os.environ['HEALTH'])
+          c=data.get('coverage',{})
+          print('Worldwide rail/bus ready:', bool(c.get('globalRailBus')))
+          print('Pakistan live bus fares ready:', bool(c.get('pakistanBusFares')))
+          if c.get('pakistanBusFares'):
+              raise SystemExit('Unexpected: Pakistan bus fares marked ready without a verified local contract')
+          PY
+
+      - name: Clean responses
+        if: always()
+        run: rm -f /tmp/flight.json /tmp/hotel.json
