@@ -1,4 +1,4 @@
-import { renderTravelSuite as renderTravelSuiteV14 } from './travel-suite-v14.js';
+import { renderTravelSuite as renderTravelSuiteV15 } from './travel-suite-v15.js';
 
 function installTravelFullscreenShell(root) {
   let disposed = false;
@@ -61,7 +61,7 @@ function installTravelFullscreenShell(root) {
     if (canvas) {
       const width = Math.max(1, root.clientWidth);
       const height = Math.max(1, root.clientHeight);
-      const scale = Math.min(width / 550, height / 1032);
+      const scale = Math.min(width / 550, height / 1215);
       canvas.style.transform = `translateX(-50%) scale(${Math.max(.5, Math.min(1.06, scale))})`;
     }
   };
@@ -80,7 +80,7 @@ function installTravelFullscreenShell(root) {
 }
 
 export function renderTravelSuite() {
-  const root = renderTravelSuiteV14();
+  const root = renderTravelSuiteV15();
   installTravelFullscreenShell(root);
   return root;
 }
