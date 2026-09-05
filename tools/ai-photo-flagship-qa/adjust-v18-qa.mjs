@@ -46,3 +46,5 @@ try{
   await cmd('DELETE',`/session/${sid}`);sid='';
  }
 }catch(e){rec('Execution completed without exception',false,e.stack||e)}finally{if(sid)try{await cmd('DELETE',`/session/${sid}`)}catch{}driver.kill('SIGTERM');const passed=checks.filter(x=>x.pass).length;fs.writeFileSync(`${outDir}/adjust-v18-report.json`,JSON.stringify({passed,total:checks.length,failed:checks.length-passed,checks},null,2));console.log(`Photo Adjust v18: ${passed}/${checks.length}`);if(passed!==checks.length)process.exitCode=1}
+
+// QA rerun trigger after sync repair.
