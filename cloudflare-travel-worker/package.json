@@ -1,0 +1,8 @@
+{
+  "name": "nexusnova-travel-api-worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node --check src/index.js"
+  }
+}
