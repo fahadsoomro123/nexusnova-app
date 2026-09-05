@@ -1,6 +1,18 @@
 name: NexusNova Travel Live Functions Deploy
 
 on:
+  push:
+    branches:
+      - travel-reference-v7-final-staging
+    paths:
+      - '.github/workflows/travel-live-functions-deploy.yml'
+      - 'functions/travelSearch.js'
+      - 'functions/hotelSearch.js'
+      - 'functions/groundTransportSearch.js'
+      - 'functions/pakistanAgencySearch.js'
+      - 'functions/providerHealth.js'
+      - 'functions/main.js'
+      - 'functions/package.json'
   workflow_dispatch:
 
 permissions:
@@ -76,6 +88,72 @@ jobs:
             process.exit(1);
           }
           console.log('Travel export contract PASS:', required.join(', '));
+          NODE
+
+      - name: Read Travel provider secret without exposing it
+        shell: bash
+        run: |
+          set -euo pipefail
+          secret_file="$RUNNER_TEMP/nexusnova-travel-providers.json"
+          if [ "${{ steps.auth.outputs.mode }}" = 'service-account' ]; then
+            npx --yes firebase-tools@latest functions:secrets:access NEXUSNOVA_TRAVEL_PROVIDERS --project "$FIREBASE_PROJECT_ID" > "$secret_file"
+          else
+            npx --yes firebase-tools@latest functions:secrets:access NEXUSNOVA_TRAVEL_PROVIDERS --project "$FIREBASE_PROJECT_ID" --token "$FIREBASE_TOKEN_VALUE" > "$secret_file"
+          fi
+          chmod 600 "$secret_file"
+          echo "TRAVEL_PROVIDER_SECRET_FILE=$secret_file" >> "$GITHUB_ENV"
+
+      - name: Required provider configuration gate
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const path = process.env.TRAVEL_PROVIDER_SECRET_FILE;
+          const cfg = JSON.parse(fs.readFileSync(path, 'utf8'));
+          const state = {
+            amadeus: Boolean(String(cfg.amadeusClientId || '').trim() && String(cfg.amadeusClientSecret || '').trim()),
+            distribusion: Boolean(String(cfg.distribusionApiKey || '').trim()),
+            duffel: Boolean(String(cfg.duffelAccessToken || '').trim()),
+            travelLine: Boolean(String(cfg.travelLineApiKey || '').trim()),
+            flyNDeal: Boolean(String(cfg.flyNDealApiKey || '').trim())
+          };
+          console.log('Travel provider configuration:', Object.entries(state).map(([k,v]) => `${k}=${v?'READY':'MISSING'}`).join(' '));
+          const missing = [];
+          if (!state.amadeus) missing.push('Amadeus (required for Hotels and worldwide flight coverage)');
+          if (!state.distribusion) missing.push('Distribusion (required for Rail/Bus)');
+          if (!(state.travelLine || state.flyNDeal)) missing.push('Pakistan agency API (Travel Line or FlyNDeal)');
+          if (missing.length) {
+            console.error('Required Travel provider configuration is incomplete:', missing.join('; '));
+            process.exit(1);
+          }
+          NODE
+
+      - name: Pakistan agency credential live probe
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const cfg = JSON.parse(fs.readFileSync(process.env.TRAVEL_PROVIDER_SECRET_FILE, 'utf8'));
+          const timeoutFetch = async (url, options={}) => {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 12000);
+            try { return await fetch(url, {...options, signal:controller.signal}); }
+            finally { clearTimeout(timer); }
+          };
+          (async () => {
+            let tested = 0;
+            if (cfg.travelLineApiKey) {
+              tested++;
+              const r = await timeoutFetch('https://api.travellinetour.com/v1/external/ping', {headers:{Authorization:`Bearer ${cfg.travelLineApiKey}`}});
+              if (!r.ok) throw new Error(`Travel Line credential probe failed with HTTP ${r.status}`);
+              console.log('Travel Line API credential probe PASS');
+            }
+            if (cfg.flyNDealApiKey) {
+              tested++;
+              const r = await timeoutFetch('https://flyndeal.com/api/b2b/health', {headers:{'x-api-key':cfg.flyNDealApiKey,Accept:'application/json'}});
+              if (!r.ok) throw new Error(`FlyNDeal credential probe failed with HTTP ${r.status}`);
+              console.log('FlyNDeal API credential probe PASS');
+            }
+            if (!tested) throw new Error('No Pakistan agency credential available to probe.');
+          })().catch(error => { console.error(error.message); process.exit(1); });
           NODE
 
       - name: Deploy only Travel functions
