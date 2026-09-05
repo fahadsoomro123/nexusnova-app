@@ -108,21 +108,18 @@ jobs:
           python3 - <<'PY'
           import os,re
           from pathlib import Path
-
           ota=Path('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt')
           text=ota.read_text(encoding='utf-8')
           old=f'const val BUNDLED_WEB_BASE = "{os.environ["OLD_BUNDLED_BASE"]}"'
           new=f'const val BUNDLED_WEB_BASE = "{os.environ["APP_SOURCE"]}"'
           if text.count(old)!=1: raise SystemExit('OTA bundled base marker mismatch')
           ota.write_text(text.replace(old,new,1),encoding='utf-8')
-
           main=Path('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt')
           text=main.read_text(encoding='utf-8')
           old='settings.cacheMode = WebSettings.LOAD_DEFAULT'
           new='settings.cacheMode = WebSettings.LOAD_NO_CACHE'
           if text.count(old)!=1: raise SystemExit('WebView cache mode marker mismatch')
           main.write_text(text.replace(old,new,1),encoding='utf-8')
-
           p=Path('NexusNovaAndroid/app/build.gradle.kts')
           t=p.read_text(encoding='utf-8')
           t,n1=re.subn(r'versionCode\s*=\s*\d+','versionCode = '+os.environ['VERSION_CODE'],t,count=1)
@@ -167,10 +164,15 @@ jobs:
             cmp -s "$src" "$out"
             echo "Embedded byte match: $rel"
           done
-          unzip -p "$APK" classes.dex | strings > /tmp/classes-strings.txt
-          grep -Fq "$APP_SOURCE" /tmp/classes-strings.txt
-          if grep -Fq "$OLD_BUNDLED_BASE" /tmp/classes-strings.txt; then
-            echo 'Old OTA bundled base still present in APK classes.dex' >&2
+          : > /tmp/all-dex-strings.txt
+          mapfile -t DEX_FILES < <(unzip -Z1 "$APK" | grep -E '^classes([0-9]+)?\.dex$')
+          test "${#DEX_FILES[@]}" -ge 1
+          for dex in "${DEX_FILES[@]}"; do
+            unzip -p "$APK" "$dex" | strings >> /tmp/all-dex-strings.txt
+          done
+          grep -Fq "$APP_SOURCE" /tmp/all-dex-strings.txt
+          if grep -Fq "$OLD_BUNDLED_BASE" /tmp/all-dex-strings.txt; then
+            echo 'Old OTA bundled base still present in APK multidex strings' >&2
             exit 1
           fi
           echo 'PASS — latest Designer, contrast and Enhance code plus new OTA baseline are physically inside APK.'
