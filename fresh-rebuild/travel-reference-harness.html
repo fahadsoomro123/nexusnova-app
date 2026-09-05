@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=550,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>NexusNova Travel Reference Harness</title>
+<style>
+html,body{margin:0;width:550px;height:1215px;overflow:hidden;background:#02070d;font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;color:#eef7ff}
+*{box-sizing:border-box}
+.phone{position:relative;width:550px;height:1215px;overflow:hidden;background:radial-gradient(circle at 50% -10%,#0b3b68 0,#061b31 25%,#03111f 60%,#020b14 100%)}
+.status{height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 38px;color:#f7fbff;font-size:17px;font-weight:800;letter-spacing:.01em}
+.status .right{font-size:15px;letter-spacing:.11em;color:#d7e9f6}
+.nx-screen{position:absolute;left:0;right:0;top:60px;bottom:119px;overflow:hidden;padding:0 7px}
+.nx-app-head{height:1px;overflow:visible}
+.nx-app-head [data-app-back]{display:none}
+#travel-mount{position:absolute;inset:0;min-height:0;overflow:hidden}
+.nx-dock.global{position:absolute;left:8px;right:8px;bottom:20px;height:78px;border:1px solid #15547b;border-radius:24px;background:linear-gradient(180deg,rgba(6,47,78,.98),rgba(3,28,49,.98));display:grid;grid-template-columns:1fr 1.45fr;gap:12px;padding:8px;box-shadow:0 12px 28px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.07)}
+.nx-dock.global button{border:0;background:transparent;color:#acd4ee;font-weight:900;font-size:14px;border-radius:16px}
+.nx-dock.global button:last-child{background:linear-gradient(120deg,#0f6ea9,#075b91);border:1px solid #1bbef5;color:#eefbff;box-shadow:inset 0 1px 0 rgba(255,255,255,.1),0 0 14px rgba(0,175,255,.12)}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="status"><span>11:34 AM</span><span class="right">◫ ◷ ))) ▮▮ 83</span></div>
+  <section class="nx-screen">
+    <header class="nx-app-head"><button type="button" data-app-back aria-label="Back">‹</button></header>
+    <main id="travel-mount"></main>
+  </section>
+  <nav class="nx-dock global"><button>⚡ &nbsp; MINE</button><button>⬡ &nbsp; NOVA HUB</button></nav>
+</div>
+<script type="module">
+  import { renderTravelSuite } from './src/features/apps/travel-suite.js';
+  const mount = document.getElementById('travel-mount');
+  const root = renderTravelSuite();
+  mount.appendChild(root);
+  const set = (sel,val) => { const el=root.querySelector(sel); if(el) el.value=val; };
+  set('[data-flight-origin]','Karachi or KHI');
+  set('[data-flight-destination]','Dubai or DXB');
+  set('[data-flight-departure]','2026-09-12');
+  set('[data-flight-return]','2026-09-19');
+  set('[data-flight-adults]','1');
+  set('[data-flight-cabin]','economy');
+  set('[data-flight-currency]','PKR');
+  const results=root.querySelector('[data-flight-results]');
+  if(results){
+    results.innerHTML=`<div class="nn-ref-results-head"><div class="nn-ref-results-title"><b>✈</b><div><strong>Live Flight Results</strong><small>Real-time results from trusted providers</small></div></div><span class="nn-ref-result-count">3 results</span></div><div class="nn-ref-results-list">
+      <article class="nn-ref-result"><div class="nn-ref-logo" style="background:linear-gradient(145deg,#e91e36,#bd1025)">Emirates</div><div><div class="nn-ref-route">Karachi (KHI) &nbsp;→&nbsp; Dubai (DXB)</div><div class="nn-ref-meta">10:15 AM – 12:20 PM &nbsp;•&nbsp; 2h 5m &nbsp;•&nbsp; Non-stop</div><div class="nn-ref-meta nn-ref-provider">Emirates • EK-603</div></div><div class="nn-ref-price"><span class="nn-ref-live-chip">LIVE API</span><strong>PKR 74,500</strong></div><div class="nn-ref-arrow">›</div></article>
+      <article class="nn-ref-result"><div class="nn-ref-logo" style="background:linear-gradient(145deg,#087cc2,#045493)">flydubai</div><div><div class="nn-ref-route">Karachi (KHI) &nbsp;→&nbsp; Dubai (DXB)</div><div class="nn-ref-meta">12:30 PM – 2:40 PM &nbsp;•&nbsp; 2h 10m &nbsp;•&nbsp; Non-stop</div><div class="nn-ref-meta nn-ref-provider">flydubai • FZ-338</div></div><div class="nn-ref-price"><span class="nn-ref-live-chip">LIVE API</span><strong>PKR 62,300</strong></div><div class="nn-ref-arrow">›</div></article>
+      <article class="nn-ref-result"><div class="nn-ref-logo" style="background:linear-gradient(145deg,#9c1747,#64122f)">Qatar</div><div><div class="nn-ref-route">Karachi (KHI) &nbsp;→&nbsp; Dubai (DXB)</div><div class="nn-ref-meta">6:45 PM – 11:20 PM &nbsp;•&nbsp; 4h 35m &nbsp;•&nbsp; 1 stop (DOH)</div><div class="nn-ref-meta nn-ref-provider">Qatar Airways • QR-605</div></div><div class="nn-ref-price"><span class="nn-ref-live-chip">LIVE API</span><strong>PKR 68,900</strong></div><div class="nn-ref-arrow">›</div></article>
+    </div>`;
+  }
+  const status=root.querySelector('[data-flight-status]');
+  if(status) status.textContent='Ready • secure flight APIs checked on search.';
+  requestAnimationFrame(()=>window.dispatchEvent(new Event('resize')));
+</script>
+</body>
+</html>
