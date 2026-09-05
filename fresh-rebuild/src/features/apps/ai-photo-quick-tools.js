@@ -1,7 +1,7 @@
 import { saveDesignProject } from './ai-photo-project-store.js';
 
 const TOOL_COPY={
-  'remove-bg':{title:'Remove Background',subtitle:'Local background cutout',accept:'image/jpeg,image/png,image/webp'},
+  'remove-bg':{title:'Remove Background',subtitle:'Subject-protected edge-aware cutout',accept:'image/jpeg,image/png,image/webp'},
   enhance:{title:'Enhance Photo',subtitle:'Automatic light, color and detail correction',accept:'image/jpeg,image/png,image/webp'},
   upscale:{title:'Upscale Photo',subtitle:'High-quality 2× local resize',accept:'image/jpeg,image/png,image/webp'},
   filters:{title:'AI Filters',subtitle:'Locally applied creative filter presets',accept:'image/jpeg,image/png,image/webp'},
@@ -115,15 +115,39 @@ function applyFilter(source,key){
 
 function removeBackground(source,tolerance=46){
   const output=cloneCanvas(source),context=output.getContext('2d',{willReadFrequently:true}),image=context.getImageData(0,0,output.width,output.height),data=image.data,width=output.width,height=output.height,total=width*height;
-  const samples=[[0,0],[width-1,0],[0,height-1],[width-1,height-1],[Math.floor(width/2),0],[Math.floor(width/2),height-1],[0,Math.floor(height/2)],[width-1,Math.floor(height/2)]].map(([x,y])=>{const index=(y*width+x)*4;return [data[index],data[index+1],data[index+2]]});
-  const thresholdSquared=tolerance*tolerance*3,visited=new Uint8Array(total),queue=new Uint32Array(total);let head=0,tail=0,removed=0;
-  const eligible=pixel=>{const index=pixel*4,red=data[index],green=data[index+1],blue=data[index+2];let best=Infinity;for(const sample of samples){const dr=red-sample[0],dg=green-sample[1],db=blue-sample[2],distance=dr*dr+dg*dg+db*db;if(distance<best)best=distance}return best<=thresholdSquared};
+  const step=Math.max(1,Math.floor(Math.min(width,height)/48)),buckets=new Map();
+  const collect=(x,y,side)=>{
+    const index=(y*width+x)*4,red=data[index],green=data[index+1],blue=data[index+2],key=((red>>4)<<8)|((green>>4)<<4)|(blue>>4);
+    let entry=buckets.get(key);if(!entry){entry={count:0,red:0,green:0,blue:0,sides:0};buckets.set(key,entry)}
+    entry.count++;entry.red+=red;entry.green+=green;entry.blue+=blue;entry.sides|=1<<side;
+  };
+  for(let x=0;x<width;x+=step){collect(x,0,0);collect(x,height-1,2)}if((width-1)%step){collect(width-1,0,0);collect(width-1,height-1,2)}
+  for(let y=0;y<height;y+=step){collect(width-1,y,1);collect(0,y,3)}if((height-1)%step){collect(width-1,height-1,1);collect(0,height-1,3)}
+  const sideCount=mask=>((mask&1)?1:0)+((mask&2)?1:0)+((mask&4)?1:0)+((mask&8)?1:0),sampleCount=[...buckets.values()].reduce((sum,entry)=>sum+entry.count,0);
+  const candidates=[...buckets.values()].map(entry=>({count:entry.count,ratio:entry.count/sampleCount,sides:sideCount(entry.sides),color:[entry.red/entry.count,entry.green/entry.count,entry.blue/entry.count]})).sort((a,b)=>b.count-a.count);
+  if(!candidates.length)throw new Error('No usable border pixels were found.');
+  const distanceSq=(a,b)=>{const dr=a[0]-b[0],dg=a[1]-b[1],db=a[2]-b[2];return dr*dr+dg*dg+db*db},primary=candidates[0].color,baseTolerance=clamp(Number(tolerance)||46,30,54);
+  const palette=candidates.filter(entry=>entry.ratio>=.035&&(entry.sides>=3||(entry.sides>=2&&distanceSq(entry.color,primary)<=Math.pow(baseTolerance*1.35,2)))).slice(0,4).map(entry=>entry.color);
+  if(!palette.length)palette.push(primary);
+  const hardDistance=baseTolerance*1.55,visited=new Uint8Array(total),queue=new Uint32Array(total);let head=0,tail=0,removed=0;
+  const backgroundDistance=pixel=>{const index=pixel*4,color=[data[index],data[index+1],data[index+2]];let best=Infinity;for(const sample of palette){const value=distanceSq(color,sample);if(value<best)best=value}return best};
+  const limitSquared=pixel=>{const x=pixel%width,y=Math.floor(pixel/width),nx=Math.abs((x-(width-1)/2)/Math.max(1,(width-1)/2)),ny=Math.abs((y-(height-1)/2)/Math.max(1,(height-1)/2)),edge=Math.max(nx,ny),subjectGuard=.68+.32*Math.min(1,edge/.72),limit=hardDistance*subjectGuard;return limit*limit};
+  const eligible=pixel=>backgroundDistance(pixel)<=limitSquared(pixel);
   const add=pixel=>{if(visited[pixel]||!eligible(pixel))return;visited[pixel]=1;queue[tail++]=pixel};
   for(let x=0;x<width;x++){add(x);add((height-1)*width+x)}for(let y=1;y<height-1;y++){add(y*width);add(y*width+width-1)}
   while(head<tail){const pixel=queue[head++],x=pixel%width,y=Math.floor(pixel/width);removed++;if(x>0)add(pixel-1);if(x+1<width)add(pixel+1);if(y>0)add(pixel-width);if(y+1<height)add(pixel+width)}
-  if(removed/total<.004)throw new Error('No edge-connected background was found. Try a photo with a clearer or more even background.');
-  for(let pixel=0;pixel<total;pixel++)if(visited[pixel])data[pixel*4+3]=0;
-  context.putImageData(image,0,0);return {canvas:output,removed,percent:removed/total*100};
+  if(removed/total<.004)throw new Error('No confident edge-connected background was found. Try a photo with a clearer background.');
+  const left=Math.floor(width*.18),right=Math.ceil(width*.82),top=Math.floor(height*.12),bottom=Math.ceil(height*.88);let protectedArea=0,centerRemoved=0;
+  for(let y=top;y<bottom;y++)for(let x=left;x<right;x++){protectedArea++;if(visited[y*width+x])centerRemoved++}
+  if(protectedArea&&centerRemoved/protectedArea>.88&&removed/total>.72)throw new Error('Subject protection stopped an over-aggressive cutout. Try a photo with clearer separation from the background.');
+  for(let pixel=0;pixel<total;pixel++){
+    if(!visited[pixel])continue;
+    const x=pixel%width,y=Math.floor(pixel/width),boundary=(x>0&&!visited[pixel-1])||(x+1<width&&!visited[pixel+1])||(y>0&&!visited[pixel-width])||(y+1<height&&!visited[pixel+width]);
+    if(!boundary){data[pixel*4+3]=0;continue}
+    const limit=Math.sqrt(limitSquared(pixel)),soft=limit*.58,distance=Math.sqrt(backgroundDistance(pixel)),mix=clamp((distance-soft)/Math.max(1,limit-soft),0,1);
+    data[pixel*4+3]=Math.round(mix*96);
+  }
+  context.putImageData(image,0,0);return {canvas:output,removed,percent:removed/total*100,paletteSize:palette.length};
 }
 
 function upscaleCanvas(source,factor=2){
@@ -181,7 +205,7 @@ export function installAiPhotoQuickTools(root){
 
   function showPicker(){
     screen='picker';setHeader(tool);result=null;clearInput();fileInput.multiple=tool==='collage';const copy=TOOL_COPY[tool],multiple=tool==='collage';
-    body.innerHTML=`<div class="nxqt-panel"><div class="nxqt-picker">${multiple?ICONS.collage:tool==='remove-bg'?ICONS.cutout:tool==='enhance'?ICONS.enhance:tool==='upscale'?ICONS.upscale:ICONS.filters}<div><strong>${multiple?'Choose 2–6 photos':'Choose a photo'}</strong><p>${tool==='remove-bg'?'Best results come from a clear, edge-connected background. Processing is local and does not pretend to be a cloud AI cutout.':tool==='upscale'?'Creates a genuine high-quality 2× resized file, capped at 4096 px. It does not invent missing detail.':multiple?'Selected images remain on this device while the collage is rendered.':'The original stays unchanged; your processed result can be compared before export.'}</p><button type="button" class="nxqt-primary" data-nxqt-choose>${multiple?'Select photos':'Select photo'}</button></div></div><div class="nxqt-note">Supported: JPG, PNG and WebP${multiple?' · minimum 2, maximum 6':''}.</div></div>`;
+    body.innerHTML=`<div class="nxqt-panel"><div class="nxqt-picker">${multiple?ICONS.collage:tool==='remove-bg'?ICONS.cutout:tool==='enhance'?ICONS.enhance:tool==='upscale'?ICONS.upscale:ICONS.filters}<div><strong>${multiple?'Choose 2–6 photos':'Choose a photo'}</strong><p>${tool==='remove-bg'?'Uses dominant-border consensus, center subject protection and edge-aware matting to avoid deleting the person or object with the background.':tool==='upscale'?'Creates a genuine high-quality 2× resized file, capped at 4096 px. It does not invent missing detail.':multiple?'Selected images remain on this device while the collage is rendered.':'The original stays unchanged; your processed result can be compared before export.'}</p><button type="button" class="nxqt-primary" data-nxqt-choose>${multiple?'Select photos':'Select photo'}</button></div></div><div class="nxqt-note">Supported: JPG, PNG and WebP${multiple?' · minimum 2, maximum 6':''}.</div></div>`;
     body.querySelector('[data-nxqt-choose]').onclick=()=>fileInput.click();
   }
 
@@ -199,7 +223,7 @@ export function installAiPhotoQuickTools(root){
     try{
       await showBusy(tool==='remove-bg'?'Finding the background…':tool==='enhance'?'Balancing light and color…':tool==='upscale'?'Resampling every pixel…':'Preparing smart filters…');
       const image=await imageFromFile(file);if(destroyed)return;source=canvasFromImage(image,tool==='upscale'?2048:1800);
-      if(tool==='remove-bg'){const processed=removeBackground(source,46);resultView(processed.canvas,{name:'Background removed',detail:`${processed.canvas.width} × ${processed.canvas.height} · ${processed.percent.toFixed(1)}% transparent`})}
+      if(tool==='remove-bg'){const processed=removeBackground(source,46);resultView(processed.canvas,{name:'Background removed',detail:`${processed.canvas.width} × ${processed.canvas.height} · ${processed.percent.toFixed(1)}% transparent · subject protected`})}
       else if(tool==='enhance'){const processed=enhanceCanvas(source);resultView(processed.canvas,{name:'Enhancement applied',detail:`${processed.canvas.width} × ${processed.canvas.height} · ${processed.detail}`})}
       else if(tool==='upscale'){const processed=upscaleCanvas(source,2);resultView(processed.canvas,{name:'Upscale complete',detail:`${source.width} × ${source.height} → ${processed.canvas.width} × ${processed.canvas.height} · ${processed.factor.toFixed(2)}×`})}
       else showFilterChooser();
