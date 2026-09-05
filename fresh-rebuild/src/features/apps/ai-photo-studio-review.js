@@ -9,6 +9,7 @@ import { installAiPhotoLockedVisualV1 } from './ai-photo-locked-visual-v1.js';
 import { installAiPhotoLockedReferenceAssetsV1 } from './ai-photo-locked-reference-assets-v1.js';
 import { installAiPhotoQuickTools } from './ai-photo-quick-tools.js';
 import { installAiPhotoFlagshipToolUpgrades } from './ai-photo-flagship-tool-upgrades.js';
+import { installAiPhotoGeneratorPromptAssistV1 } from './ai-photo-generator-prompt-assist-v1.js';
 import { installAiPhotoNavigation } from './ai-photo-navigation.js';
 
 export function renderAiPhotoStudio(){
@@ -36,11 +37,13 @@ export function renderAiPhotoStudio(){
   const lockedVisualCleanup=installAiPhotoLockedVisualV1(root);
   const quickToolsCleanup=installAiPhotoQuickTools(root);
   const flagshipToolUpgradesCleanup=installAiPhotoFlagshipToolUpgrades(root);
+  const generatorPromptAssistCleanup=installAiPhotoGeneratorPromptAssistV1(root);
   const lockedReferenceCleanup=installAiPhotoLockedReferenceAssetsV1(root);
   const navigationCleanup=installAiPhotoNavigation(root);
   root.__cleanup=()=>{
     navigationCleanup?.();
     lockedReferenceCleanup?.();
+    generatorPromptAssistCleanup?.();
     flagshipToolUpgradesCleanup?.();
     quickToolsCleanup?.();
     lockedVisualCleanup?.();
