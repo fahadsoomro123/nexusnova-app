@@ -12,7 +12,9 @@ function mixColor(r,g,b,mix){
   for(let j=0;j<8;j++){const next=j===7?360:centers[j+1];if(angle>=centers[j]&&angle<next){left=j;right=(j+1)%8;t=(angle-centers[j])/(next-centers[j]);break}}
   t=t*t*(3-2*t);const a=mix[keys[left]]||{},next=mix[keys[right]]||{},weight=Math.min(1,s*5);
   const value=k=>((a[k]||0)*(1-t)+(next[k]||0)*t)*weight;
-  h=(h+value('h')/360+1)%1;s=clamp(s*(1+value('s')/100),0,1);l=clamp(l+value('l')/200,0,1);
+  const dh=value('h'),ds=value('s'),dl=value('l');
+  if(Math.abs(dh)+Math.abs(ds)+Math.abs(dl)<1e-9)return[r,g,b];
+  h=(h+dh/360+1)%1;s=clamp(s*(1+ds/100),0,1);l=clamp(l+dl/200,0,1);
   return hslToRgb(h,s,l);
 }
 function lut(points){const out=new Uint8Array(256);for(let i=0;i<256;i++){const x=i/255;let a=points[0],b=points[points.length-1];for(let p=1;p<points.length;p++)if(x<=points[p].x){a=points[p-1];b=points[p];break}const t=b.x===a.x?0:(x-a.x)/(b.x-a.x);out[i]=clamp8((a.y+(b.y-a.y)*t)*255)}return out}
