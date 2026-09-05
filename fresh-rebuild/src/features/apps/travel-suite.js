@@ -1,4 +1,4 @@
-import { renderTravelSuite as renderTravelSuiteV4 } from './travel-suite-v4.js';
+import { renderTravelSuite as renderTravelSuiteV5 } from './travel-suite-v5.js';
 
 function installTravelFullscreenShell(root) {
   let disposed = false;
@@ -15,16 +15,17 @@ function installTravelFullscreenShell(root) {
       dock.prepend(back);
       back.className = 'nn-travel-back';
       back.setAttribute('aria-label', back.getAttribute('aria-label') || 'Back');
+      back.textContent = '‹';
       Object.assign(back.style, {
-        position: 'absolute', left: '7px', top: '8px', zIndex: '7',
-        width: '35px', height: '40px', minWidth: '35px', minHeight: '40px',
-        padding: '0', borderRadius: '12px',
-        border: '1px solid rgba(160,185,225,.2)',
-        background: 'linear-gradient(180deg,rgba(46,60,88,.78),rgba(13,21,38,.9))',
-        boxShadow: 'inset 0 1px 0 rgba(255,255,255,.08),0 7px 15px rgba(0,0,0,.22)',
-        color: 'inherit', fontSize: '22px', lineHeight: '1'
+        position: 'absolute', left: '8px', top: '7px', zIndex: '7',
+        width: '58px', height: '76px', minWidth: '58px', minHeight: '76px',
+        padding: '0', borderRadius: '18px',
+        border: '1px solid #1d5275',
+        background: 'linear-gradient(180deg,#123958,#0a263f)',
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,.08),0 8px 18px rgba(0,0,0,.26)',
+        color: '#e9f7ff', fontSize: '38px', fontWeight: '300', lineHeight: '1'
       });
-      dock.style.paddingLeft = '48px';
+      dock.style.paddingLeft = '80px';
     }
 
     if (header) {
@@ -55,6 +56,7 @@ function installTravelFullscreenShell(root) {
     root.style.minHeight = '0';
     root.style.height = `${available}px`;
     root.style.setProperty('--nn-h', `${available}px`);
+    window.dispatchEvent(new Event('resize'));
   };
 
   requestAnimationFrame(fit);
@@ -71,7 +73,7 @@ function installTravelFullscreenShell(root) {
 }
 
 export function renderTravelSuite() {
-  const root = renderTravelSuiteV4();
+  const root = renderTravelSuiteV5();
   installTravelFullscreenShell(root);
   return root;
 }
