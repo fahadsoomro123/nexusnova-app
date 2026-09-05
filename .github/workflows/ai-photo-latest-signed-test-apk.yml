@@ -13,15 +13,16 @@ permissions:
 env:
   APP_SOURCE: 62908b21aa1ff14c99795b697c0fd8805d3f557b
   PREVIOUS_RELEASE_SOURCE: 80233fbc1802b80949ee388d72a00cce1358edbf
-  VERSION_CODE: '2026090507'
-  VERSION_NAME: '1.0.16-ai-photo-flagship-test'
-  APK_NAME: 'NexusNova-AI-PHOTO-FLAGSHIP-v1.0.16-TEST-SIGNED.apk'
+  VERSION_CODE: '2026090508'
+  VERSION_NAME: '1.0.17-ai-photo-runtime-fix-test'
+  APK_NAME: 'NexusNova-AI-PHOTO-FLAGSHIP-v1.0.17-RUNTIME-FIX-TEST-SIGNED.apk'
   EXPECTED_SIGNER_SHA256: '30052faf26f112d88d48061b88e6a698371ef0cdc4203122a9350529405a716c'
+  OLD_BUNDLED_BASE: '8d1aaaee6f28b974a8c8b3ff213beb1318ec7405'
 
 jobs:
   signed_test_apk:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 40
     steps:
       - name: Checkout exact QA-passed AI Photo source
         uses: actions/checkout@v4
@@ -93,7 +94,7 @@ jobs:
           keytool -list -keystore "$KEYSTORE" -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
           echo "NEXUSNOVA_SIGNING_STORE_FILE=$KEYSTORE" >> "$GITHUB_ENV"
 
-      - name: Inject higher test version and permanent signer into debug build
+      - name: Inject OTA reset no-cache version and permanent signer
         env:
           STORE_PASSWORD: ${{ secrets.NEXUSNOVA_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.NEXUSNOVA_KEY_ALIAS }}
@@ -107,6 +108,21 @@ jobs:
           python3 - <<'PY'
           import os,re
           from pathlib import Path
+
+          ota=Path('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt')
+          text=ota.read_text(encoding='utf-8')
+          old=f'const val BUNDLED_WEB_BASE = "{os.environ["OLD_BUNDLED_BASE"]}"'
+          new=f'const val BUNDLED_WEB_BASE = "{os.environ["APP_SOURCE"]}"'
+          if text.count(old)!=1: raise SystemExit('OTA bundled base marker mismatch')
+          ota.write_text(text.replace(old,new,1),encoding='utf-8')
+
+          main=Path('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt')
+          text=main.read_text(encoding='utf-8')
+          old='settings.cacheMode = WebSettings.LOAD_DEFAULT'
+          new='settings.cacheMode = WebSettings.LOAD_NO_CACHE'
+          if text.count(old)!=1: raise SystemExit('WebView cache mode marker mismatch')
+          main.write_text(text.replace(old,new,1),encoding='utf-8')
+
           p=Path('NexusNovaAndroid/app/build.gradle.kts')
           t=p.read_text(encoding='utf-8')
           t,n1=re.subn(r'versionCode\s*=\s*\d+','versionCode = '+os.environ['VERSION_CODE'],t,count=1)
@@ -121,6 +137,9 @@ jobs:
           t=t.replace(debug,debug+'            signingConfig = signingConfigs.getByName("nexusRelease")\n',1)
           p.write_text(t,encoding='utf-8')
           PY
+          grep -Fq "const val BUNDLED_WEB_BASE = \"$APP_SOURCE\"" NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt
+          grep -Fq 'settings.cacheMode = WebSettings.LOAD_NO_CACHE' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          echo 'Runtime stale-overlay/cache bypass injection: PASS'
 
       - name: Build fast installable signed test APK
         working-directory: NexusNovaAndroid
@@ -130,7 +149,33 @@ jobs:
           gradle --no-daemon assembleDebug
           test -s app/build/outputs/apk/debug/app-debug.apk
 
-      - name: Verify permanent signer, package and higher version
+      - name: Verify canonical assets embedded byte-for-byte
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK='NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk'
+          diff -qr fresh-rebuild NexusNovaAndroid/app/src/main/assets/www
+          for rel in \
+            src/features/apps/ai-photo-studio-review.js \
+            src/features/apps/ai-photo-design-delight-v13.js \
+            src/features/apps/ai-photo-contextual-contrast-v1.js \
+            src/features/apps/ai-photo-enhance-flagship-v12.js; do
+            src="fresh-rebuild/$rel"
+            out="/tmp/$(basename "$rel").embedded"
+            unzip -p "$APK" "assets/www/$rel" > "$out"
+            test -s "$out"
+            cmp -s "$src" "$out"
+            echo "Embedded byte match: $rel"
+          done
+          unzip -p "$APK" classes.dex | strings > /tmp/classes-strings.txt
+          grep -Fq "$APP_SOURCE" /tmp/classes-strings.txt
+          if grep -Fq "$OLD_BUNDLED_BASE" /tmp/classes-strings.txt; then
+            echo 'Old OTA bundled base still present in APK classes.dex' >&2
+            exit 1
+          fi
+          echo 'PASS — latest Designer, contrast and Enhance code plus new OTA baseline are physically inside APK.'
+
+      - name: Verify permanent signer package and higher version
         shell: bash
         run: |
           set -euo pipefail
@@ -152,7 +197,7 @@ jobs:
       - name: Upload installable signed APK
         uses: actions/upload-artifact@v4
         with:
-          name: NexusNova-AI-Photo-v1.0.16-TEST-SIGNED
+          name: NexusNova-AI-Photo-v1.0.17-RUNTIME-FIX-TEST-SIGNED
           path: |
             ${{ runner.temp }}/${{ env.APK_NAME }}
             ${{ runner.temp }}/${{ env.APK_NAME }}.sha256
