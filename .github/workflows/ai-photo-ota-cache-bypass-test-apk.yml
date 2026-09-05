@@ -1,0 +1,176 @@
+name: AI Photo OTA Cache Bypass Test APK
+
+on:
+  push:
+    branches: [ai-photo-real-canva-ai-generator-correction]
+    paths:
+      - '.github/workflows/ai-photo-ota-cache-bypass-test-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  APP_SOURCE: 45160094f9fe743fc89c1e0906f6278df36f9af5
+  PREVIOUS_RELEASE_SOURCE: 80233fbc1802b80949ee388d72a00cce1358edbf
+  VERSION_CODE: '2026090506'
+  VERSION_NAME: '1.0.15-ai-photo-ota-cache-fix-test'
+  APK_NAME: 'NexusNova-AI-PHOTO-v1.0.15-OTA-CACHE-FIX-TEST-SIGNED.apk'
+  EXPECTED_SIGNER_SHA256: '30052faf26f112d88d48061b88e6a698371ef0cdc4203122a9350529405a716c'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout exact QA-passed AI Photo source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.APP_SOURCE }}
+          fetch-depth: 0
+
+      - name: Sanitize concurrent Travel work
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$APP_SOURCE"
+          git checkout "$PREVIOUS_RELEASE_SOURCE" -- \
+            fresh-rebuild/src/features/apps/travel-hotels.js \
+            fresh-rebuild/src/features/apps/travel-suite.js
+          rm -f fresh-rebuild/src/features/apps/travel-suite-v4.js
+          test -z "$(git diff --name-only "$APP_SOURCE" -- \
+            'fresh-rebuild/src/features/apps/ai-photo-*' \
+            fresh-rebuild/src/features/apps/data/ai-photo-templates.js \
+            'fresh-rebuild/assets/visuals/ai-photo-*' \
+            fresh-rebuild/src/main.js)"
+
+      - name: Re-run AI Photo browser and viewport QA
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash tools/ai-photo-flagship-qa/run-qa.sh
+          bash tools/ai-photo-locked-visual/render-qa.sh
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle 8.13
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Require permanent signing secrets
+        env:
+          KEYSTORE_B64: ${{ secrets.NEXUSNOVA_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.NEXUSNOVA_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.NEXUSNOVA_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.NEXUSNOVA_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$KEYSTORE_B64"
+          test -n "$STORE_PASSWORD"
+          test -n "$KEY_ALIAS"
+          test -n "$KEY_PASSWORD"
+
+      - name: Restore permanent keystore
+        env:
+          KEYSTORE_B64: ${{ secrets.NEXUSNOVA_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.NEXUSNOVA_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.NEXUSNOVA_KEY_ALIAS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          KEYSTORE="$RUNNER_TEMP/nexusnova-permanent.jks"
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$KEYSTORE"
+          test -s "$KEYSTORE"
+          chmod 600 "$KEYSTORE"
+          keytool -list -keystore "$KEYSTORE" -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
+          echo "NEXUSNOVA_SIGNING_STORE_FILE=$KEYSTORE" >> "$GITHUB_ENV"
+
+      - name: Inject OTA baseline reset, no-cache startup, version and permanent signer
+        env:
+          STORE_PASSWORD: ${{ secrets.NEXUSNOVA_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.NEXUSNOVA_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.NEXUSNOVA_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "NEXUSNOVA_SIGNING_STORE_PASSWORD=$STORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "NEXUSNOVA_SIGNING_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
+          echo "NEXUSNOVA_SIGNING_KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
+          python3 - <<'PY'
+          import os,re
+          from pathlib import Path
+
+          ota=Path('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt')
+          text=ota.read_text(encoding='utf-8')
+          old='const val BUNDLED_WEB_BASE = "8d1aaaee6f28b974a8c8b3ff213beb1318ec7405"'
+          new=f'const val BUNDLED_WEB_BASE = "{os.environ["APP_SOURCE"]}"'
+          if text.count(old)!=1: raise SystemExit('OTA bundled base marker mismatch')
+          ota.write_text(text.replace(old,new,1),encoding='utf-8')
+
+          main=Path('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt')
+          text=main.read_text(encoding='utf-8')
+          old='settings.cacheMode = WebSettings.LOAD_DEFAULT'
+          new='settings.cacheMode = WebSettings.LOAD_NO_CACHE'
+          if text.count(old)!=1: raise SystemExit('WebView cache mode marker mismatch')
+          main.write_text(text.replace(old,new,1),encoding='utf-8')
+
+          gradle=Path('NexusNovaAndroid/app/build.gradle.kts')
+          t=gradle.read_text(encoding='utf-8')
+          t,n1=re.subn(r'versionCode\s*=\s*\d+','versionCode = '+os.environ['VERSION_CODE'],t,count=1)
+          t,n2=re.subn(r'versionName\s*=\s*"[^"]*"','versionName = "'+os.environ['VERSION_NAME']+'"',t,count=1)
+          if n1!=1 or n2!=1: raise SystemExit('Android version fields not found')
+          signing='''    signingConfigs {\n        create("nexusRelease") {\n            storeFile = file(System.getenv("NEXUSNOVA_SIGNING_STORE_FILE"))\n            storePassword = System.getenv("NEXUSNOVA_SIGNING_STORE_PASSWORD")\n            keyAlias = System.getenv("NEXUSNOVA_SIGNING_KEY_ALIAS")\n            keyPassword = System.getenv("NEXUSNOVA_SIGNING_KEY_PASSWORD")\n        }\n    }\n\n'''
+          marker='    buildTypes {\n'
+          if marker not in t: raise SystemExit('buildTypes block not found')
+          t=t.replace(marker,signing+marker,1)
+          debug='        debug {\n'
+          if debug not in t: raise SystemExit('debug block not found')
+          t=t.replace(debug,debug+'            signingConfig = signingConfigs.getByName("nexusRelease")\n',1)
+          gradle.write_text(t,encoding='utf-8')
+          PY
+          grep -Fq "const val BUNDLED_WEB_BASE = \"$APP_SOURCE\"" NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt
+          grep -Fq 'settings.cacheMode = WebSettings.LOAD_NO_CACHE' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+
+      - name: Build installable signed test APK
+        working-directory: NexusNovaAndroid
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon assembleDebug
+          test -s app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Verify signer package version and OTA-cache fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK='NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk'
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)"
+          "$APKSIGNER" verify --verbose --print-certs "$APK" | tee /tmp/apk-verify.txt
+          SIGNER="$(grep -m1 'certificate SHA-256 digest:' /tmp/apk-verify.txt | sed -E 's/^.*certificate SHA-256 digest: //' | tr '[:upper:]' '[:lower:]' | tr -d ':')"
+          test "$SIGNER" = "$EXPECTED_SIGNER_SHA256"
+          "$AAPT" dump badging "$APK" | head -1 | tee /tmp/apk-package.txt
+          grep -Fq "name='com.nexusnova.app'" /tmp/apk-package.txt
+          grep -Fq "versionCode='$VERSION_CODE'" /tmp/apk-package.txt
+          unzip -p "$APK" assets/www/src/features/apps/ai-photo-flagship-upgrades-v11.js >/tmp/flagship-upgrades.js
+          test -s /tmp/flagship-upgrades.js
+          grep -Fq 'installAiPhotoFlagshipUpgradesV11' /tmp/flagship-upgrades.js
+          cp "$APK" "$RUNNER_TEMP/$APK_NAME"
+          sha256sum "$RUNNER_TEMP/$APK_NAME" | tee "$RUNNER_TEMP/$APK_NAME.sha256"
+          echo "PASS — permanent signer, higher version and latest flagship bundle embedded."
+
+      - name: Upload installable signed APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: NexusNova-AI-Photo-v1.0.15-OTA-CACHE-FIX-TEST-SIGNED
+          path: |
+            ${{ runner.temp }}/${{ env.APK_NAME }}
+            ${{ runner.temp }}/${{ env.APK_NAME }}.sha256
+          if-no-files-found: error
+          retention-days: 7
