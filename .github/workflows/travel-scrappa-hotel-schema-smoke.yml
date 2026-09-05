@@ -1,0 +1,63 @@
+name: NexusNova Travel Scrappa Hotel Schema Smoke
+
+on:
+  push:
+    branches: [travel-reference-v7-final-staging]
+    paths:
+      - '.github/workflows/travel-scrappa-hotel-schema-smoke.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      SCRAPPA_API_KEY: ${{ secrets.SCRAPPA_API_KEY }}
+    steps:
+      - name: Secret gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${SCRAPPA_API_KEY:-}" || { echo '::error::SCRAPPA_API_KEY missing'; exit 1; }
+          echo 'Scrappa credential: PRESENT'
+
+      - name: Karachi hotel schema probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          url='https://scrappa.co/api/google-hotels/search?q=Karachi%2C%20Pakistan&check_in_date=2026-09-15&check_out_date=2026-09-17&adults=1&currency=PKR&gl=pk&hl=en&sort_by=3'
+          code='000'
+          for attempt in 1 2 3; do
+            code=$(curl -sS --connect-timeout 10 --max-time 60 \
+              -H 'Accept: application/json' \
+              -H "X-API-KEY: ${SCRAPPA_API_KEY}" \
+              -o /tmp/scrappa-hotels.json \
+              -w '%{http_code}' "$url" || true)
+            echo "Scrappa hotel attempt ${attempt}: HTTP ${code}"
+            if [ "$code" = '200' ]; then break; fi
+            if [ "$code" != '429' ] && [ "$code" != '500' ] && [ "$code" != '502' ] && [ "$code" != '503' ]; then break; fi
+            sleep $((attempt * 2))
+          done
+          test "$code" = '200' || { echo "::error::Scrappa hotel probe HTTP ${code}"; exit 1; }
+          python3 - <<'PY'
+          import json
+          with open('/tmp/scrappa-hotels.json', encoding='utf-8') as fh:
+              data=json.load(fh)
+          print('Top-level keys:', sorted(data.keys()) if isinstance(data,dict) else type(data).__name__)
+          props=data.get('properties') if isinstance(data,dict) else None
+          print('Properties returned:', len(props) if isinstance(props,list) else 'not-list')
+          if isinstance(props,list) and props:
+              p=props[0]
+              print('First property keys:', sorted(p.keys()))
+              safe={k:p.get(k) for k in ('name','type','hotel_class','overall_rating','reviews','price','rate_per_night','total_rate','property_token') if k in p}
+              print('First property safe sample:', safe)
+              for k,v in p.items():
+                  if isinstance(v,dict): print(f'Nested {k} keys:', sorted(v.keys()))
+                  if isinstance(v,list) and v and isinstance(v[0],dict): print(f'Nested {k}[0] keys:', sorted(v[0].keys()))
+          PY
+
+      - name: Clean response
+        if: always()
+        run: rm -f /tmp/scrappa-hotels.json
