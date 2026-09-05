@@ -1,0 +1,133 @@
+name: AI Photo Allowance + Result Fix 6-Round Pre-OTA QA
+
+on:
+  push:
+    branches: [ai-photo-real-canva-ai-generator-correction]
+    paths:
+      - 'fresh-rebuild/src/features/apps/ai-photo-puter-generator.js'
+      - '.github/workflows/ai-photo-allowance-result-fix-preota-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout correction branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 'QA 1/6 — Exact scope only'
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE=2749d77bec8ac38cfe6ab7a4ebcfd1fa2e4fb13f
+          allowed='^(fresh-rebuild/src/features/apps/ai-photo-puter-generator\.js|\.github/workflows/ai-photo-allowance-result-fix-preota-ci\.yml)$'
+          unexpected="$(git diff --name-only "$BASE" "$GITHUB_SHA" -- | grep -Ev "$allowed" || true)"
+          test -z "$unexpected" || { echo 'Unexpected changed files:'; echo "$unexpected"; exit 1; }
+          echo 'QA1 PASS — only Puter generator + this QA workflow changed.'
+
+      - name: 'QA 2/6 — Syntax + protected modules untouched'
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE=2749d77bec8ac38cfe6ab7a4ebcfd1fa2e4fb13f
+          node --check fresh-rebuild/src/features/apps/ai-photo-puter-generator.js
+          for path in \
+            fresh-rebuild/assets/styles/ai-photo-route-fullscreen.css \
+            fresh-rebuild/src/features/apps/app-screen.js \
+            fresh-rebuild/src/features/apps/ai-photo-studio-flagship.js \
+            fresh-rebuild/src/features/apps/ai-photo-focus-interaction.js \
+            fresh-rebuild/src/features/apps/ai-photo-locked-visual-v1.js \
+            fresh-rebuild/src/features/apps/ai-photo-locked-reference-assets-v1.js \
+            fresh-rebuild/src/features/apps/ai-photo-phone-feedback-v1.js \
+            fresh-rebuild/src/features/apps/ai-photo-studio-ai.js \
+            fresh-rebuild/src/features/apps/premium-qibla-safe-v2.js \
+            fresh-rebuild/src/features/apps/premium-prayer-safe.js \
+            fresh-rebuild/src/features/apps/pakistan-suite.js \
+            fresh-rebuild/src/features/apps/news-suite.js; do
+            test "$(git rev-parse "$BASE:$path")" = "$(git hash-object "$path")" || { echo "Protected file changed: $path"; exit 1; }
+          done
+          echo 'QA2 PASS — syntax clean; visual architecture/provider/protected apps unchanged.'
+
+      - name: 'QA 3/6 — One AI request per generation + Economy model'
+        shell: bash
+        run: |
+          set -euo pipefail
+          P=fresh-rebuild/src/features/apps/ai-photo-studio-ai.js
+          G=fresh-rebuild/src/features/apps/ai-photo-puter-generator.js
+          test "$(grep -o 'puter\.ai\.txt2img' "$P" | wc -l)" -eq 1
+          grep -Fq "if(mode==='economy')options.model='gpt-image-1-mini'" "$P"
+          grep -Fq 'if(busy)return' "$G"
+          cp "$P" /tmp/ai-photo-studio-ai.mjs
+          node --input-type=module <<'NODE'
+          let calls=0,seen=null;
+          globalThis.puter={
+            auth:{isSignedIn:()=>true,getMonthlyUsage:async()=>({allowanceInfo:{monthUsageAllowance:100,remaining:88}})},
+            ai:{txt2img:async(prompt,options)=>{calls++;seen=options;return {src:'data:image/png;base64,AA==',width:1024,height:1024};}}
+          };
+          const m=await import('file:///tmp/ai-photo-studio-ai.mjs');
+          const out=await m.generateAiImage('QA 3D render',{aspect:'square',style:'threeD',mode:'economy'});
+          if(calls!==1)throw new Error(`Expected exactly 1 txt2img call, got ${calls}`);
+          if(seen?.model!=='gpt-image-1-mini')throw new Error(`Wrong economy model: ${seen?.model}`);
+          if(seen?.quality!=='low')throw new Error(`Economy quality must remain low`);
+          if(out.model!=='gpt-image-1-mini')throw new Error('Returned model mismatch');
+          console.log('One-request mock PASS');
+          NODE
+          echo 'QA3 PASS — one txt2img request, busy guard, gpt-image-1-mini Economy.'
+
+      - name: 'QA 4/6 — Exact per-image allowance meter + visible result action'
+        shell: bash
+        run: |
+          set -euo pipefail
+          G=fresh-rebuild/src/features/apps/ai-photo-puter-generator.js
+          grep -Fq 'function perImageUsageText(beforeUsage,afterUsage)' "$G"
+          grep -Fq 'beforeUsage=(await getPuterImageSession()).usage' "$G"
+          grep -Fq 'perImageUsageText(beforeUsage,out.usage)' "$G"
+          grep -Fq 'This image used ${usedLabel}% of your monthly Puter allowance' "$G"
+          grep -Fq 'Usage meter has not reported a measurable change yet' "$G"
+          grep -Fq '.nxputer-actions [data-puter-use-design]' "$G"
+          grep -Fq 'color:#fff!important' "$G"
+          grep -Fq -- '-webkit-text-fill-color:#fff!important' "$G"
+          grep -Fq 'Use in Design' "$G"
+          grep -Fq 'Edit Photo' "$G"
+          echo 'QA4 PASS — before/after allowance metering + forced white Use in Design label.'
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle 8.13
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: 'QA 5/6 — Android debug build + exact generated asset sync'
+        working-directory: NexusNovaAndroid
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon :app:assembleDebug
+          test -s app/build/outputs/apk/debug/app-debug.apk
+          cmp ../fresh-rebuild/src/features/apps/ai-photo-puter-generator.js app/src/main/assets/www/src/features/apps/ai-photo-puter-generator.js
+          echo 'QA5 PASS — Android debug build + exact generator asset sync.'
+
+      - name: 'QA 6/6 — Regression/release safety'
+        shell: bash
+        run: |
+          set -euo pipefail
+          G=fresh-rebuild/src/features/apps/ai-photo-puter-generator.js
+          P=fresh-rebuild/src/features/apps/ai-photo-studio-ai.js
+          grep -Fq 'data-puter-download' fresh-rebuild/src/features/apps/ai-photo-phone-feedback-v1.js
+          grep -Fq 'data-puter-use-design' "$G"
+          grep -Fq 'data-puter-edit-photo' "$G"
+          grep -Fq 'saveDesignProject' "$G"
+          grep -Fq 'puter.ai.txt2img' "$P"
+          ! git diff --name-only 2749d77bec8ac38cfe6ab7a4ebcfd1fa2e4fb13f "$GITHUB_SHA" | grep -Eq 'NexusPuterPopupManager|premium-qibla|premium-prayer|pakistan-suite|news-suite'
+          echo 'QA6 PASS — Download/Use/Edit preserved, protected modules untouched, no OTA/APK release.'
