@@ -1,6 +1,7 @@
 import { renderAiPhotoStudio as renderFlagshipAiPhotoStudio } from './ai-photo-studio-flagship.js';
 import { installSliderOnlyFocus } from './ai-photo-focus-interaction.js';
 import { installAiPhotoCanvaWorkspaceV3 } from './ai-photo-canva-workspace-v3.js';
+import { installAiPhotoDesignEditorControls } from './ai-photo-design-editor-controls.js';
 import { installPuterImageGenerator } from './ai-photo-puter-generator.js';
 import { installAiPhotoStudioHome } from './ai-photo-studio-home.js';
 import { installAiPhotoPhoneFeedbackV1 } from './ai-photo-phone-feedback-v1.js';
@@ -27,6 +28,7 @@ export function renderAiPhotoStudio(){
   const previousCleanup=root.__cleanup;
   const focusCleanup=installSliderOnlyFocus(root);
   const workspaceCleanup=installAiPhotoCanvaWorkspaceV3(root);
+  const designEditorControlsCleanup=installAiPhotoDesignEditorControls(root);
   const puterCleanup=installPuterImageGenerator(root);
   const homeCleanup=installAiPhotoStudioHome(root);
   const phoneFeedbackCleanup=installAiPhotoPhoneFeedbackV1(root);
@@ -42,10 +44,11 @@ export function renderAiPhotoStudio(){
     phoneFeedbackCleanup?.();
     homeCleanup?.();
     puterCleanup?.();
+    designEditorControlsCleanup?.();
     workspaceCleanup?.();
     focusCleanup?.();
     previousCleanup?.();
   };
-  root.dataset.aiPhotoFlagship='flagship-repair-v9';
+  root.dataset.aiPhotoFlagship='flagship-repair-v10';
   return root;
 }
