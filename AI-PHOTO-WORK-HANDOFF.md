@@ -3,9 +3,9 @@
 - Repo: `fahadsoomro123/nexusnova-app`
 - Branch: `ai-photo-real-canva-ai-generator-correction`
 - Verified inherited HEAD: `9ef070ba55f76506851a1366fc9dc3863e50578d`
-- Latest branch HEAD observed before this update: `a2108d133e912ae8b9b13b076362ef74d3d32532` (unrelated Travel-suite work; direct child of the AI Photo checkpoint below).
-- Latest published AI Photo implementation checkpoint: `9ff3ac49ae1b4cccbdaed7f4b729c6ccfd8f4cc0`
-- Active milestone: browser/viewport/Android CI for `9ff3ac49…` passed, then manual exact-reference review found real title/header/ratio drift. The corrective Home/Generator patch and two exact right-hand Generator crops are local and awaiting the next no-release checkpoint.
+- Latest branch HEAD / published AI Photo checkpoint: `c78fb5433fb13faf53a296259cdcc91fa287f993`.
+- Preserved concurrent parent: `a2108d133e912ae8b9b13b076362ef74d3d32532` (unrelated Travel-suite work; direct child of prior AI Photo checkpoint `9ff3ac49…`).
+- Active milestone: browser/viewport/Android CI for `9ff3ac49…` passed, then manual exact-reference review found real title/header/ratio drift. Corrective Home/Generator patch `c78fb543…` is published and its fresh no-release QA/render/build run is pending.
 - OTA status: **NOT RELEASED**
 - Signed APK status: **NOT RELEASED**
 
@@ -144,7 +144,7 @@ The only host-level change is the narrow `fresh-rebuild/src/main.js` call that l
 
 ## Exact next action
 
-Commit and publish the current exact-reference corrective patch on top of remote `a2108d13…`, inspect all five new Home/Generator render PNGs, repair any evidenced regression, then expand the Design Editor and Photo Editor execution ledger.
+Inspect the no-release run and all five new Home/Generator render PNGs for published checkpoint `c78fb543…`, repair any evidenced regression, then expand the Design Editor and Photo Editor execution ledger.
 
 ## Release status
 
