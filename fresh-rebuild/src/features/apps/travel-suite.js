@@ -206,13 +206,9 @@ function installHardTabIsolation(root) {
   root.addEventListener('click', onClick, true);
   settle();
 
-  const observer = new MutationObserver(() => queueMicrotask(apply));
-  observer.observe(root, { subtree: true, attributes: true, attributeFilter: ['hidden', 'class', 'style'] });
-
   const previousCleanup = root.__cleanup;
   root.__cleanup = () => {
     disposed = true;
-    observer.disconnect();
     timers.forEach(clearTimeout);
     root.removeEventListener('click', onClick, true);
     previousCleanup?.();
