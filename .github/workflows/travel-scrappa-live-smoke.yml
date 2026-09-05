@@ -1,0 +1,55 @@
+name: NexusNova Travel Scrappa Live Smoke
+
+on:
+  push:
+    branches: [travel-reference-v7-final-staging]
+    paths:
+      - '.github/workflows/travel-scrappa-live-smoke.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      SCRAPPA_API_KEY: ${{ secrets.SCRAPPA_API_KEY }}
+    steps:
+      - name: Secret gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${SCRAPPA_API_KEY:-}" || { echo '::error::SCRAPPA_API_KEY missing'; exit 1; }
+          echo 'Scrappa credential: PRESENT'
+
+      - name: KHI to DXB live one-way smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsS --connect-timeout 10 --max-time 60 \
+            -H "Accept: application/json" \
+            -H "X-API-KEY: ${SCRAPPA_API_KEY}" \
+            "https://scrappa.co/api/flights/one-way?origin=KHI&destination=DXB&departure_date=2026-09-12&adults=1&cabin_class=economy&sort_by=cheapest&hl=en&gl=pk&currency=PKR" \
+            -o /tmp/scrappa-flight.json
+          python3 - <<'PY'
+          import json
+          with open('/tmp/scrappa-flight.json', encoding='utf-8') as fh:
+              data = json.load(fh)
+          if not isinstance(data, dict):
+              raise SystemExit('Scrappa response was not a JSON object')
+          flights = data.get('flights')
+          if not isinstance(flights, list):
+              raise SystemExit('Scrappa response missing flights[]')
+          print('Scrappa live API PASS')
+          print('KHI-DXB flights returned:', len(flights))
+          if flights:
+              first = flights[0]
+              print('Sample price:', first.get('price'))
+              print('Sample currency:', first.get('currency'))
+              print('Sample legs:', len(first.get('legs') or []))
+          PY
+
+      - name: Clean response
+        if: always()
+        run: rm -f /tmp/scrappa-flight.json
