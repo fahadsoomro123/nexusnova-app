@@ -1,0 +1,87 @@
+name: NexusNova Travel Live Functions Deploy V2
+
+on:
+  push:
+    branches: [travel-reference-v7-final-staging]
+    paths:
+      - '.github/workflows/travel-live-functions-deploy-v2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      FIREBASE_PROJECT_ID: nexusnova-6ade2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Resolve existing NexusNova Firebase credential
+        id: auth
+        shell: bash
+        env:
+          SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_NEXUSNOVA_6ADE2 || secrets.FIREBASE_SERVICE_ACCOUNT_JSON || secrets.FIREBASE_SERVICE_ACCOUNT || secrets.GCP_SERVICE_ACCOUNT_JSON || secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          FIREBASE_TOKEN_VALUE: ${{ secrets.FIREBASE_TOKEN || secrets.FIREBASE_CI_TOKEN || secrets.NEXUSNOVA_FIREBASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -n "${SERVICE_ACCOUNT_JSON:-}" ]; then
+            p="$RUNNER_TEMP/firebase-sa.json"
+            printf '%s' "$SERVICE_ACCOUNT_JSON" > "$p"
+            python3 -c "import json; json.load(open('$RUNNER_TEMP/firebase-sa.json')); print('Firebase service account: PRESENT')"
+            chmod 600 "$p"
+            echo "GOOGLE_APPLICATION_CREDENTIALS=$p" >> "$GITHUB_ENV"
+            echo 'mode=sa' >> "$GITHUB_OUTPUT"
+          elif [ -n "${FIREBASE_TOKEN_VALUE:-}" ]; then
+            echo "FIREBASE_DEPLOY_TOKEN=$FIREBASE_TOKEN_VALUE" >> "$GITHUB_ENV"
+            echo 'mode=token' >> "$GITHUB_OUTPUT"
+          else
+            echo '::error::Firebase deploy credential missing.'
+            exit 1
+          fi
+
+      - name: Verify exact Travel source
+        run: |
+          npm install --prefix functions --ignore-scripts --no-audit --no-fund
+          node --check functions/travelSearch.js
+          node --check functions/hotelSearch.js
+          node --check functions/groundTransportSearch.js
+          node --check functions/pakistanAgencySearch.js
+          node --check functions/providerHealth.js
+          node - <<'NODE'
+          const m=require('./functions/main.js');
+          for(const k of ['searchWorldwideFlights','searchWorldwideHotels','searchWorldwideGroundTransport','searchPakistanAgencyFlights','searchPakistanUmrahPackages','getProviderHealth']) if(typeof m[k]!=='function') throw new Error(k+' export missing');
+          console.log('Travel exports: PASS');
+          NODE
+
+      - name: Deploy only Travel callables now
+        shell: bash
+        run: |
+          set -euo pipefail
+          targets='functions:searchWorldwideFlights,functions:searchWorldwideHotels,functions:searchWorldwideGroundTransport,functions:searchPakistanAgencyFlights,functions:searchPakistanUmrahPackages,functions:getProviderHealth'
+          if [ "${{ steps.auth.outputs.mode }}" = 'sa' ]; then
+            npx --yes firebase-tools@14.12.1 deploy --project "$FIREBASE_PROJECT_ID" --only "$targets" --non-interactive --debug
+          else
+            npx --yes firebase-tools@14.12.1 deploy --project "$FIREBASE_PROJECT_ID" --only "$targets" --non-interactive --token "$FIREBASE_DEPLOY_TOKEN" --debug
+          fi
+
+      - name: Probe deployed Travel endpoints
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='https://us-central1-nexusnova-6ade2.cloudfunctions.net'
+          for fn in searchWorldwideFlights searchWorldwideHotels searchWorldwideGroundTransport searchPakistanAgencyFlights searchPakistanUmrahPackages getProviderHealth; do
+            code=$(curl -sS --connect-timeout 10 --max-time 20 -o /tmp/body -w '%{http_code}' -H 'Content-Type: application/json' -X POST --data '{"data":{}}' "$base/$fn" || true)
+            echo "$fn => HTTP $code"
+            [ "$code" != '404' ] && [ "$code" != '000' ] || exit 1
+          done
+          echo 'All Travel endpoint names resolve.'
+
+      - name: Cleanup
+        if: always()
+        run: rm -f "$RUNNER_TEMP/firebase-sa.json" /tmp/body
