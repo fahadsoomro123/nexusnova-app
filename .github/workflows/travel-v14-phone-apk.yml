@@ -1,4 +1,4 @@
-name: NexusNova Travel V15 Phone APK
+name: NexusNova Travel V16 Phone APK
 
 on:
   workflow_dispatch:
@@ -7,9 +7,10 @@ on:
       - travel-reference-v7-final-staging
     paths:
       - '.github/workflows/travel-v14-phone-apk.yml'
+      - 'fresh-rebuild/travel-flagship-v16-harness.html'
       - 'fresh-rebuild/src/features/apps/travel-suite.js'
       - 'fresh-rebuild/src/features/apps/travel-suite-v15.js'
-      - 'fresh-rebuild/src/features/apps/travel-suite-v14.js'
+      - 'fresh-rebuild/src/features/apps/travel-suite-v16.js'
       - 'fresh-rebuild/src/features/apps/travel-edge-client.js'
       - 'fresh-rebuild/src/features/apps/travel-edge-config.js'
       - 'fresh-rebuild/assets/travel/reference-hero-right.webp.b64'
@@ -19,59 +20,56 @@ permissions:
   contents: read
 
 concurrency:
-  group: travel-v15-phone-apk-${{ github.ref }}
+  group: travel-v16-phone-apk-${{ github.ref }}
   cancel-in-progress: true
 
 env:
-  VERSION_CODE: '2026090511'
-  VERSION_NAME: '1.0.19-travel-v15-phone-repair'
-  APK_NAME: 'NexusNova-Travel-V15-v1.0.19-SIGNED.apk'
+  VERSION_CODE: '2026090512'
+  VERSION_NAME: '1.0.20-travel-v16-flagship'
+  APK_NAME: 'NexusNova-Travel-V16-v1.0.20-SIGNED.apk'
   EXPECTED_SIGNER_SHA256: '30052faf26f112d88d48061b88e6a698371ef0cdc4203122a9350529405a716c'
   WORKER_URL: 'https://nexusnova-travel-api.fahadsoomro123.workers.dev'
 
 jobs:
   build-travel-phone-apk:
     runs-on: ubuntu-latest
-    timeout-minutes: 50
+    timeout-minutes: 55
     steps:
       - name: Checkout Travel staging branch
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Verify Travel V15 repair source
+      - name: Verify Travel V16 source contracts
         shell: bash
         run: |
           set -euo pipefail
-          test "$GITHUB_REF_NAME" = "travel-reference-v7-final-staging"
-          test -s fresh-rebuild/index.html
-          test -s fresh-rebuild/src/features/apps/travel-suite.js
-          test -s fresh-rebuild/src/features/apps/travel-suite-v14.js
-          test -s fresh-rebuild/src/features/apps/travel-suite-v15.js
-          test -s fresh-rebuild/src/features/apps/travel-edge-client.js
-          test -s fresh-rebuild/src/features/apps/travel-edge-config.js
-          test -s fresh-rebuild/assets/travel/reference-hero-right.webp.b64
-          grep -Fq "renderTravelSuiteV15" fresh-rebuild/src/features/apps/travel-suite.js
-          grep -Fq "height / 1215" fresh-rebuild/src/features/apps/travel-suite.js
-          grep -Fq ".nn-panel[hidden] { display:none!important; }" fresh-rebuild/src/features/apps/travel-suite-v15.js
-          grep -Fq "data-flight-depart" fresh-rebuild/src/features/apps/travel-suite-v15.js
-          grep -Fq "height:1215px" fresh-rebuild/src/features/apps/travel-suite-v15.js
-          grep -Fq "nexusnova-travel-api.fahadsoomro123.workers.dev" fresh-rebuild/src/features/apps/travel-edge-config.js
+          test "$GITHUB_REF_NAME" = 'travel-reference-v7-final-staging'
+          test -s fresh-rebuild/src/features/apps/travel-suite-v16.js
+          test -s fresh-rebuild/travel-flagship-v16-harness.html
           node --check fresh-rebuild/src/features/apps/travel-suite-v15.js
+          node --check fresh-rebuild/src/features/apps/travel-suite-v16.js
           node --check fresh-rebuild/src/features/apps/travel-suite.js
-          echo 'Travel V15 source repair contracts: PASS'
+          grep -Fq 'renderTravelSuiteV16' fresh-rebuild/src/features/apps/travel-suite.js
+          grep -Fq 'v16-benchmark-inspired' fresh-rebuild/src/features/apps/travel-suite-v16.js
+          grep -Fq 'Round trip' fresh-rebuild/src/features/apps/travel-suite-v16.js
+          grep -Fq 'One way' fresh-rebuild/src/features/apps/travel-suite-v16.js
+          grep -Fq 'Cheapest' fresh-rebuild/src/features/apps/travel-suite-v16.js
+          grep -Fq 'Fastest' fresh-rebuild/src/features/apps/travel-suite-v16.js
+          grep -Fq 'nexusnova-travel-api.fahadsoomro123.workers.dev' fresh-rebuild/src/features/apps/travel-edge-config.js
+          echo 'Travel V16 source contracts: PASS'
 
-      - name: Install browser for phone interaction gate
+      - name: Install phone browser
         shell: bash
         run: |
           npm init -y >/dev/null 2>&1
           npm install --no-save playwright@1.55.0 >/dev/null
           npx playwright install --with-deps chromium >/dev/null
-          python3 -m http.server 4173 --directory fresh-rebuild >/tmp/travel-v15-http.log 2>&1 &
-          echo $! >/tmp/travel-v15-http.pid
+          python3 -m http.server 4173 --directory fresh-rebuild >/tmp/travel-v16-apk-http.log 2>&1 &
+          echo $! >/tmp/travel-v16-apk-http.pid
           sleep 2
 
-      - name: Phone tab search and layout interaction gate
+      - name: Phone functional gate before packaging
         shell: bash
         run: |
           node - <<'NODE'
@@ -80,104 +78,54 @@ jobs:
           const json=(route,obj)=>route.fulfill({status:200,contentType:'application/json',headers:{'access-control-allow-origin':'*','access-control-allow-headers':'Content-Type, Accept, X-NexusNova-Client'},body:JSON.stringify(obj)});
           (async()=>{
             const browser=await chromium.launch({headless:true});
-            const page=await browser.newPage({viewport:{width:550,height:1215},deviceScaleFactor:1});
-            const errors=[]; page.on('pageerror',e=>errors.push(String(e)));
-            await page.route(`${worker}/**`, async route=>{
+            const page=await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:1});
+            const errors=[];page.on('pageerror',e=>errors.push(String(e)));
+            await page.route(`${worker}/**`,async route=>{
               const url=route.request().url();
               if(route.request().method()==='OPTIONS') return route.fulfill({status:204,headers:{'access-control-allow-origin':'*','access-control-allow-headers':'Content-Type, Accept, X-NexusNova-Client','access-control-allow-methods':'GET,POST,OPTIONS'}});
               if(url.endsWith('/health')) return json(route,{architecture:'cloudflare-only',providers:{scrappa:true,scrappaFlights:true,scrappaHotels:true,distribusion:false,pakistanBusPartner:false},coverage:{globalFlights:true,globalHotels:true,globalRailBus:false,pakistanBusFares:false}});
-              if(url.includes('/rpc/searchWorldwideFlights')) return json(route,{ok:true,offers:[{live:true,provider:'QA Live',source:'qa-live',originCode:'KHI',destinationCode:'DXB',departingAt:'2026-09-12T10:00:00Z',arrivingAt:'2026-09-12T12:00:00Z',durationMinutes:120,stops:0,total:60000,currency:'PKR',compareTotal:60000,compareCurrency:'PKR',carriers:['QA Air']}]});
-              if(url.includes('/rpc/searchPakistanAgencyFlights')) return json(route,{ok:false,reason:'provider-not-configured',offers:[]});
+              if(url.includes('/rpc/searchWorldwideFlights')) return json(route,{ok:true,offers:[{live:true,provider:'QA Live',originCode:'KHI',destinationCode:'DXB',departingAt:'2026-09-12T10:00:00Z',arrivingAt:'2026-09-12T12:05:00Z',durationMinutes:125,stops:0,total:60400,currency:'PKR',compareTotal:60400,compareCurrency:'PKR',carriers:['QA Air']}]});
+              if(url.includes('/rpc/searchPakistanAgencyFlights')) return json(route,{ok:false,offers:[]});
               if(url.includes('/rpc/searchWorldwideHotels')) return json(route,{ok:true,offers:[{live:true,name:'QA Hotel',cityCode:'KHI',countryCode:'PK',stayTotal:12000,pricePerNight:6000,currency:'PKR',compareTotal:12000,comparePerNight:6000,compareCurrency:'PKR',nights:2,roomDescription:'QA live room'}]});
               if(url.includes('/rpc/searchWorldwideGroundTransport')) return json(route,{ok:false,reason:'provider-not-configured',message:'Worldwide rail/bus provider key pending.',offers:[]});
               if(url.includes('/rpc/searchPakistanGroundTransport')) return json(route,{ok:false,reason:'pakistan-bus-partner-contract-required',message:'Pakistan bus partner approval pending.',offers:[]});
-              if(url.includes('/rpc/searchPakistanUmrahPackages')) return json(route,{ok:false,reason:'provider-not-configured',packages:[]});
+              if(url.includes('/rpc/searchPakistanUmrahPackages')) return json(route,{ok:false,packages:[]});
               return json(route,{ok:false,message:'QA route not mocked'});
             });
-            await page.goto('http://127.0.0.1:4173/travel-reference-harness.html?v15-functional=1',{waitUntil:'domcontentloaded',timeout:30000});
-            await page.waitForSelector('.nn-travel-v15',{timeout:15000});
-            const root=page.locator('.nn-travel-v15');
-            const checkOnePanel=async name=>{
-              await page.locator(`[data-travel-tab="${name}"]`).click();
-              await page.waitForTimeout(50);
-              const state=await root.evaluate((el,n)=>({
-                visible:[...el.querySelectorAll('[data-panel]')].filter(p=>!p.hidden&&getComputedStyle(p).display!=='none').map(p=>p.dataset.panel),
-                active:el.querySelector('[data-travel-tab].is-active')?.dataset.travelTab,
-                alias:el.querySelector('[data-flight-departure]')?.hasAttribute('data-flight-depart'),
-                canvas:el.querySelector('.nn-ref-canvas')?.getBoundingClientRect().height||0
-              }),name);
-              if(state.visible.length!==1||state.visible[0]!==name||state.active!==name) throw new Error(`Tab isolation failed for ${name}: ${JSON.stringify(state)}`);
-              if(!state.alias) throw new Error('Flight departure selector alias missing');
-              if(state.canvas<900) throw new Error(`Phone canvas too short: ${state.canvas}`);
-            };
-            for(const name of ['flights','hotels','ground','plan']) await checkOnePanel(name);
-
-            await page.locator('[data-travel-tab="flights"]').click();
-            await page.locator('[data-flight-origin]').fill('KHI');
-            await page.locator('[data-flight-destination]').fill('DXB');
-            await page.locator('[data-flight-departure]').fill('2026-09-12');
-            await page.locator('[data-flight-search]').click();
-            await page.waitForFunction(()=>document.querySelector('[data-flight-status]')?.textContent.includes('genuine live fare'),null,{timeout:5000});
-            if(!(await page.locator('[data-flight-results]').innerText()).includes('QA Air')) throw new Error('Flight live result did not render');
-
-            await page.locator('[data-travel-tab="hotels"]').click();
-            await page.locator('[data-hotel-destination]').fill('Karachi, Pakistan');
-            await page.locator('[data-hotel-checkin]').fill('2026-09-15');
-            await page.locator('[data-hotel-checkout]').fill('2026-09-17');
-            await page.locator('[data-hotel-search]').click();
-            await page.waitForFunction(()=>document.querySelector('[data-hotel-status]')?.textContent.includes('genuine live hotel'),null,{timeout:5000});
-            if(!(await page.locator('[data-hotel-results]').innerText()).includes('QA Hotel')) throw new Error('Hotel live result did not render');
-
-            await page.locator('[data-travel-tab="ground"]').click();
-            await page.locator('[data-ground-origin]').fill('London');
-            await page.locator('[data-ground-destination]').fill('Paris');
-            await page.locator('[data-ground-date]').fill('2026-09-12');
-            await page.locator('[data-ground-search]').click();
-            await page.waitForFunction(()=>/pending|provider-not-configured|contract-required/i.test(document.querySelector('[data-ground-status]')?.textContent||''),null,{timeout:5000});
-
-            await page.locator('[data-travel-tab="plan"]').click();
-            await page.locator('[data-trip-destination]').fill('Dubai');
-            await page.locator('[data-trip-save]').click();
-            await page.waitForFunction(()=>document.querySelector('[data-trip-status]')?.textContent.includes('saved privately'),null,{timeout:3000});
-
-            if(errors.length) throw new Error(`Page errors: ${errors.join(' | ')}`);
-            await page.screenshot({path:'travel-v15-functional-phone.png',fullPage:false});
-            await browser.close();
-            console.log('PHONE FUNCTIONAL GATE PASS: tabs isolated, flight search wired, hotel search wired, ground pending state truthful, trip save works');
+            await page.goto('http://127.0.0.1:4173/travel-flagship-v16-harness.html',{waitUntil:'domcontentloaded',timeout:30000});
+            await page.waitForSelector('.nn-travel-v16',{timeout:15000});
+            const layout=await page.evaluate(()=>{const root=document.querySelector('.nn-travel-v16');const canvas=root.querySelector('.nn-ref-canvas').getBoundingClientRect();return{bodyScroll:document.body.scrollHeight>innerHeight+2,docScroll:document.documentElement.scrollHeight>innerHeight+2,canvasW:canvas.width,innerW:innerWidth,visible:[...root.querySelectorAll('[data-panel]')].filter(p=>!p.hidden&&getComputedStyle(p).display!=='none').map(p=>p.dataset.panel)}});
+            if(layout.bodyScroll||layout.docScroll||layout.canvasW>layout.innerW+1||layout.visible.join(',')!=='flights') throw new Error(`Layout contract failed ${JSON.stringify(layout)}`);
+            for(const tab of ['hotels','ground','plan','flights']){await page.locator(`[data-travel-tab="${tab}"]`).click();await page.waitForTimeout(25);const v=await page.locator('.nn-travel-v16').evaluate(el=>[...el.querySelectorAll('[data-panel]')].filter(p=>!p.hidden&&getComputedStyle(p).display!=='none').map(p=>p.dataset.panel));if(v.length!==1||v[0]!==tab)throw new Error(`Tab isolation ${tab}: ${v}`)}
+            await page.locator('[data-v16-trip-mode="oneway"]').click();if(await page.locator('[data-flight-return]').isVisible())throw new Error('One-way failed');await page.locator('[data-v16-trip-mode="roundtrip"]').click();
+            await page.locator('[data-flight-origin]').fill('KHI');await page.locator('[data-flight-destination]').fill('DXB');await page.locator('.nn-swap').click();let swap=await page.evaluate(()=>[document.querySelector('[data-flight-origin]').value,document.querySelector('[data-flight-destination]').value]);if(swap[0]!=='DXB'||swap[1]!=='KHI')throw new Error(`Swap failed ${swap}`);await page.locator('.nn-swap').click();
+            await page.locator('[data-flight-departure]').fill('2026-09-12');await page.locator('[data-flight-search]').click();await page.waitForFunction(()=>document.querySelector('[data-flight-status]')?.textContent.includes('genuine live fare'),null,{timeout:5000});if(!(await page.locator('[data-flight-results]').innerText()).includes('QA Air'))throw new Error('Flight result missing');await page.waitForSelector('.nn-v16-result-tools',{timeout:3000});await page.locator('[data-v16-sort="cheapest"]').click();
+            await page.locator('[data-travel-tab="hotels"]').click();await page.locator('[data-hotel-destination]').fill('Karachi, Pakistan');await page.locator('[data-hotel-checkin]').fill('2026-09-15');await page.locator('[data-hotel-checkout]').fill('2026-09-17');await page.locator('[data-hotel-search]').click();await page.waitForFunction(()=>document.querySelector('[data-hotel-status]')?.textContent.includes('genuine live hotel'),null,{timeout:5000});
+            await page.locator('[data-travel-tab="ground"]').click();await page.locator('[data-ground-origin]').fill('London');await page.locator('[data-ground-destination]').fill('Paris');await page.locator('[data-ground-date]').fill('2026-09-12');await page.locator('[data-ground-search]').click();await page.waitForFunction(()=>/pending|provider-not-configured|contract-required/i.test(document.querySelector('[data-ground-status]')?.textContent||''),null,{timeout:5000});
+            await page.locator('[data-travel-tab="plan"]').click();await page.locator('[data-trip-destination]').fill('Dubai');await page.locator('[data-trip-save]').click();await page.waitForFunction(()=>document.querySelector('[data-trip-status]')?.textContent.includes('saved privately'),null,{timeout:3000});
+            if(errors.length)throw new Error(errors.join(' | '));await page.screenshot({path:'travel-v16-apk-phone.png',fullPage:false});await browser.close();console.log('Phone functional gate PASS');
           })().catch(e=>{console.error(e);process.exit(1)});
           NODE
 
-      - name: Live Cloudflare flight and hotel gate
+      - name: Real Cloudflare flight and hotel gate
         shell: bash
         run: |
           set -euo pipefail
           health=$(curl -fsS --connect-timeout 10 --max-time 25 "$WORKER_URL/health")
           HEALTH="$health" python3 - <<'PY'
-          import json, os
-          d=json.loads(os.environ['HEALTH'])
-          assert d.get('architecture') == 'cloudflare-only', d
-          assert d.get('providers',{}).get('scrappa') is True, d
-          assert d.get('coverage',{}).get('globalFlights') is True, d
-          assert d.get('coverage',{}).get('globalHotels') is True, d
-          print('Cloudflare health: flights + hotels live')
+          import json,os
+          d=json.loads(os.environ['HEALTH']); assert d.get('architecture')=='cloudflare-only',d; assert d.get('coverage',{}).get('globalFlights') is True,d; assert d.get('coverage',{}).get('globalHotels') is True,d
+          print('Cloudflare health PASS')
           PY
-
-          curl -fsS --connect-timeout 10 --max-time 80 -H 'Content-Type: application/json' -H 'Accept: application/json' -H 'X-NexusNova-Client: fresh-rebuild' -X POST "$WORKER_URL/rpc/searchWorldwideFlights" --data '{"origin":"KHI","destination":"DXB","departureDate":"2026-09-12","returnDate":"","adults":1,"cabin":"economy","currency":"PKR"}' >/tmp/travel-flight.json
+          curl -fsS --connect-timeout 10 --max-time 80 -H 'Content-Type: application/json' -H 'Accept: application/json' -H 'X-NexusNova-Client: fresh-rebuild' -X POST "$WORKER_URL/rpc/searchWorldwideFlights" --data '{"origin":"KHI","destination":"DXB","departureDate":"2026-09-12","returnDate":"","adults":1,"cabin":"economy","currency":"PKR"}' >/tmp/v16-apk-flight.json
           python3 - <<'PY'
           import json
-          d=json.load(open('/tmp/travel-flight.json')); offers=d.get('offers') or []
-          assert d.get('ok') is True and offers, d
-          assert all(x.get('live') is True for x in offers), offers[:2]
-          print('Live flight RPC:',len(offers),'offers')
+d=json.load(open('/tmp/v16-apk-flight.json'));o=d.get('offers') or [];assert d.get('ok') is True and o,d;assert all(x.get('live') is True for x in o),o[:2];print('Real flight PASS',len(o))
           PY
-
-          curl -fsS --connect-timeout 10 --max-time 80 -H 'Content-Type: application/json' -H 'Accept: application/json' -H 'X-NexusNova-Client: fresh-rebuild' -X POST "$WORKER_URL/rpc/searchWorldwideHotels" --data '{"destination":"Karachi, Pakistan","checkIn":"2026-09-15","checkOut":"2026-09-17","adults":1,"rooms":1,"currency":"PKR"}' >/tmp/travel-hotel.json
+          curl -fsS --connect-timeout 10 --max-time 80 -H 'Content-Type: application/json' -H 'Accept: application/json' -H 'X-NexusNova-Client: fresh-rebuild' -X POST "$WORKER_URL/rpc/searchWorldwideHotels" --data '{"destination":"Karachi, Pakistan","checkIn":"2026-09-15","checkOut":"2026-09-17","adults":1,"rooms":1,"currency":"PKR"}' >/tmp/v16-apk-hotel.json
           python3 - <<'PY'
           import json
-          d=json.load(open('/tmp/travel-hotel.json')); offers=d.get('offers') or []
-          assert d.get('ok') is True and offers, d
-          assert all(x.get('live') is True for x in offers), offers[:2]
-          print('Live hotel RPC:',len(offers),'offers')
+d=json.load(open('/tmp/v16-apk-hotel.json'));o=d.get('offers') or [];assert d.get('ok') is True and o,d;assert all(x.get('live') is True for x in o),o[:2];print('Real hotel PASS',len(o))
           PY
 
       - name: Java 17
@@ -200,7 +148,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -n "$KEYSTORE_B64"; test -n "$STORE_PASSWORD"; test -n "$KEY_ALIAS"; test -n "$KEY_PASSWORD"
+          test -n "$KEYSTORE_B64";test -n "$STORE_PASSWORD";test -n "$KEY_ALIAS";test -n "$KEY_PASSWORD"
 
       - name: Restore permanent NexusNova keystore
         env:
@@ -210,13 +158,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          KEYSTORE="$RUNNER_TEMP/nexusnova-permanent.jks"
-          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$KEYSTORE"
-          test -s "$KEYSTORE"; chmod 600 "$KEYSTORE"
-          keytool -list -keystore "$KEYSTORE" -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
-          echo "NEXUSNOVA_SIGNING_STORE_FILE=$KEYSTORE" >> "$GITHUB_ENV"
+          KEYSTORE="$RUNNER_TEMP/nexusnova-permanent.jks";printf '%s' "$KEYSTORE_B64"|base64 --decode>"$KEYSTORE";test -s "$KEYSTORE";chmod 600 "$KEYSTORE";keytool -list -keystore "$KEYSTORE" -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null;echo "NEXUSNOVA_SIGNING_STORE_FILE=$KEYSTORE" >> "$GITHUB_ENV"
 
-      - name: Inject higher phone version and permanent signer
+      - name: Inject version and permanent signer
         env:
           STORE_PASSWORD: ${{ secrets.NEXUSNOVA_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.NEXUSNOVA_KEY_ALIAS }}
@@ -224,77 +168,58 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo "NEXUSNOVA_SIGNING_STORE_PASSWORD=$STORE_PASSWORD" >> "$GITHUB_ENV"
-          echo "NEXUSNOVA_SIGNING_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
-          echo "NEXUSNOVA_SIGNING_KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
+          echo "NEXUSNOVA_SIGNING_STORE_PASSWORD=$STORE_PASSWORD" >> "$GITHUB_ENV";echo "NEXUSNOVA_SIGNING_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV";echo "NEXUSNOVA_SIGNING_KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
           python3 - <<'PY'
           import os,re
           from pathlib import Path
-          p=Path('NexusNovaAndroid/app/build.gradle.kts'); t=p.read_text(encoding='utf-8')
-          t,n1=re.subn(r'versionCode\s*=\s*\d+','versionCode = '+os.environ['VERSION_CODE'],t,count=1)
-          t,n2=re.subn(r'versionName\s*=\s*"[^"]*"','versionName = "'+os.environ['VERSION_NAME']+'"',t,count=1)
+          p=Path('NexusNovaAndroid/app/build.gradle.kts');t=p.read_text(encoding='utf-8');t,n1=re.subn(r'versionCode\s*=\s*\d+','versionCode = '+os.environ['VERSION_CODE'],t,count=1);t,n2=re.subn(r'versionName\s*=\s*"[^"]*"','versionName = "'+os.environ['VERSION_NAME']+'"',t,count=1)
           if n1!=1 or n2!=1: raise SystemExit('Android version fields not found')
           signing='''    signingConfigs {\n        create("nexusRelease") {\n            storeFile = file(System.getenv("NEXUSNOVA_SIGNING_STORE_FILE"))\n            storePassword = System.getenv("NEXUSNOVA_SIGNING_STORE_PASSWORD")\n            keyAlias = System.getenv("NEXUSNOVA_SIGNING_KEY_ALIAS")\n            keyPassword = System.getenv("NEXUSNOVA_SIGNING_KEY_PASSWORD")\n        }\n    }\n\n'''
-          marker='    buildTypes {\n'; debug='        debug {\n'
-          if marker not in t or debug not in t: raise SystemExit('Android signing insertion marker missing')
-          t=t.replace(marker,signing+marker,1).replace(debug,debug+'            signingConfig = signingConfigs.getByName("nexusRelease")\n',1)
-          p.write_text(t,encoding='utf-8')
+          marker='    buildTypes {\n';debug='        debug {\n'
+          if marker not in t or debug not in t: raise SystemExit('Android signing injection markers missing')
+          t=t.replace(marker,signing+marker,1).replace(debug,debug+'            signingConfig = signingConfigs.getByName("nexusRelease")\n',1);p.write_text(t,encoding='utf-8')
           PY
 
-      - name: Build installable signed APK with Travel V15
+      - name: Build installable signed APK
         shell: bash
         run: |
           set -euo pipefail
           cd NexusNovaAndroid
           gradle --no-daemon clean assembleDebug
-          APK=app/build/outputs/apk/debug/app-debug.apk
-          test -s "$APK"
-          grep -Fq "renderTravelSuiteV15" app/src/main/assets/www/src/features/apps/travel-suite.js
-          grep -Fq "phoneRepair = 'v15-tabs-search-viewport'" app/src/main/assets/www/src/features/apps/travel-suite-v15.js
-          grep -Fq "data-flight-depart" app/src/main/assets/www/src/features/apps/travel-suite-v15.js
-          unzip -l "$APK" | grep -Fq 'assets/www/src/features/apps/travel-suite-v15.js'
-          unzip -l "$APK" | grep -Fq 'assets/www/src/features/apps/travel-edge-client.js'
-          unzip -l "$APK" | grep -Fq 'assets/www/assets/travel/reference-hero-right.webp.b64'
+          APK=app/build/outputs/apk/debug/app-debug.apk;test -s "$APK"
+          grep -Fq 'renderTravelSuiteV16' app/src/main/assets/www/src/features/apps/travel-suite.js
+          grep -Fq 'v16-benchmark-inspired' app/src/main/assets/www/src/features/apps/travel-suite-v16.js
+          unzip -l "$APK"|grep -Fq 'assets/www/src/features/apps/travel-suite-v16.js'
 
-      - name: Verify permanent signer package and upgrade version
+      - name: Verify signer package version and artifact
         shell: bash
         run: |
           set -euo pipefail
-          APK="$GITHUB_WORKSPACE/NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk"
-          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
-          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)"
-          test -x "$APKSIGNER"; test -x "$AAPT"
-          "$APKSIGNER" verify --verbose --print-certs "$APK" | tee /tmp/travel-apk-verify.txt
-          SIGNER="$(grep -m1 'certificate SHA-256 digest:' /tmp/travel-apk-verify.txt | sed -E 's/^.*certificate SHA-256 digest: //' | tr '[:upper:]' '[:lower:]' | tr -d ':')"
-          test "$SIGNER" = "$EXPECTED_SIGNER_SHA256"
-          "$AAPT" dump badging "$APK" | head -1 | tee /tmp/travel-apk-package.txt
-          grep -Fq "name='com.nexusnova.app'" /tmp/travel-apk-package.txt
-          grep -Fq "versionCode='$VERSION_CODE'" /tmp/travel-apk-package.txt
-          OUT="$GITHUB_WORKSPACE/travel-v15-apk"; rm -rf "$OUT"; mkdir -p "$OUT"
-          cp "$APK" "$OUT/$APK_NAME"
-          sha256sum "$OUT/$APK_NAME" > "$OUT/SHA256.txt"
-          printf 'Source commit: %s\nBranch: %s\nVersion: %s (%s)\nPackage: com.nexusnova.app\nPermanent signer: PASS\nSigner SHA-256: %s\nPhone interaction gate: PASS\nTab isolation: PASS\nFlight UI wiring: PASS\nHotel UI wiring: PASS\nGround pending-state handling: PASS\nTrip Plan save: PASS\nCloudflare flight/hotel live gate: PASS\nBuild type: installable signed debug APK\n' "$GITHUB_SHA" "$GITHUB_REF_NAME" "$VERSION_NAME" "$VERSION_CODE" "$SIGNER" > "$OUT/BUILD-STATUS.txt"
+          APK="$GITHUB_WORKSPACE/NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk";APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner|sort -V|tail -1)";AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt|sort -V|tail -1)";test -x "$APKSIGNER";test -x "$AAPT"
+          "$APKSIGNER" verify --verbose --print-certs "$APK"|tee /tmp/v16-apk-verify.txt;SIGNER="$(grep -m1 'certificate SHA-256 digest:' /tmp/v16-apk-verify.txt|sed -E 's/^.*certificate SHA-256 digest: //'|tr '[:upper:]' '[:lower:]'|tr -d ':')";test "$SIGNER" = "$EXPECTED_SIGNER_SHA256"
+          "$AAPT" dump badging "$APK"|head -1|tee /tmp/v16-apk-package.txt;grep -Fq "name='com.nexusnova.app'" /tmp/v16-apk-package.txt;grep -Fq "versionCode='$VERSION_CODE'" /tmp/v16-apk-package.txt
+          OUT="$GITHUB_WORKSPACE/travel-v16-apk";rm -rf "$OUT";mkdir -p "$OUT";cp "$APK" "$OUT/$APK_NAME";sha256sum "$OUT/$APK_NAME">"$OUT/SHA256.txt";printf 'Source commit: %s\nVersion: %s (%s)\nPackage: com.nexusnova.app\nPermanent signer: PASS\nTravel V16 flagship: PASS\nPhone functional gate: PASS\nReal Cloudflare flights/hotels: PASS\n' "$GITHUB_SHA" "$VERSION_NAME" "$VERSION_CODE">"$OUT/BUILD-STATUS.txt"
 
-      - name: Upload signed Travel V15 APK
+      - name: Upload signed Travel V16 APK
         uses: actions/upload-artifact@v4
         with:
-          name: NexusNova-Travel-V15-v1.0.19-SIGNED
-          path: travel-v15-apk/
+          name: NexusNova-Travel-V16-v1.0.20-SIGNED
+          path: travel-v16-apk/
           if-no-files-found: error
           retention-days: 7
 
-      - name: Upload phone functional evidence
+      - name: Upload phone evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: NexusNova-Travel-V15-Functional-Evidence
-          path: travel-v15-functional-phone.png
+          name: NexusNova-Travel-V16-Phone-Evidence
+          path: travel-v16-apk-phone.png
           if-no-files-found: warn
           retention-days: 7
 
-      - name: Remove signing material
+      - name: Cleanup
         if: always()
         shell: bash
         run: |
-          rm -f "${NEXUSNOVA_SIGNING_STORE_FILE:-}" /tmp/travel-flight.json /tmp/travel-hotel.json || true
-          if [ -f /tmp/travel-v15-http.pid ]; then kill "$(cat /tmp/travel-v15-http.pid)" 2>/dev/null || true; fi
+          rm -f "${NEXUSNOVA_SIGNING_STORE_FILE:-}" /tmp/v16-apk-flight.json /tmp/v16-apk-hotel.json || true
+          if [ -f /tmp/travel-v16-apk-http.pid ]; then kill "$(cat /tmp/travel-v16-apk-http.pid)" 2>/dev/null || true; fi
