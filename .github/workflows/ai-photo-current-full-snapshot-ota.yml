@@ -1,0 +1,241 @@
+name: AI Photo Current Full Snapshot OTA
+
+on:
+  push:
+    branches: [ai-photo-real-canva-ai-generator-correction]
+    paths:
+      - '.github/workflows/ai-photo-current-full-snapshot-ota.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  VERIFIED_SOURCE: b86de070bb3d24a2bb71cbd712fcf81599c995b9
+  APPROVED_QA_RUN: '34022170648'
+  OTA_BUNDLED_BASE: 8d1aaaee6f28b974a8c8b3ff213beb1318ec7405
+  PUBLIC_OTA_REPO: fahadsoomro123/nexusnova-website
+  PUBLIC_OTA_BRANCH: nexusnova-ota-public
+
+jobs:
+  publish_current_ai_photo_ota:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout exact OTA trigger state
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Lock release trigger to fully tested source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = "$VERIFIED_SOURCE"
+          changed="$(git diff --name-only "$VERIFIED_SOURCE" "$GITHUB_SHA")"
+          test "$changed" = '.github/workflows/ai-photo-current-full-snapshot-ota.yml'
+          test "$(git rev-parse "$VERIFIED_SOURCE:fresh-rebuild")" = "$(git rev-parse "$GITHUB_SHA:fresh-rebuild")"
+          echo 'OTA trigger is workflow-only over the exact tested web source: PASS'
+
+      - name: Require exact exhaustive QA success
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 120); do
+            curl -fsSL \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H 'Accept: application/vnd.github+json' \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs/${APPROVED_QA_RUN}" \
+              -o /tmp/qa-run.json
+            state="$(python3 - <<'PY'
+          import json, os
+          run=json.load(open('/tmp/qa-run.json',encoding='utf-8'))
+          if run.get('head_sha') != os.environ['VERIFIED_SOURCE']:
+              print('wrong-source')
+          elif run.get('status') != 'completed':
+              print('pending')
+          elif run.get('conclusion') == 'success':
+              print('success')
+          else:
+              print('failed')
+          PY
+            )"
+            case "$state" in
+              success) echo 'Exact exhaustive QA source/run: PASS'; break ;;
+              pending) if [ "$attempt" -eq 120 ]; then echo 'QA did not complete in time' >&2; exit 1; fi; sleep 10 ;;
+              wrong-source) echo 'QA run is not for VERIFIED_SOURCE' >&2; exit 1 ;;
+              *) echo 'Exact exhaustive QA did not pass' >&2; cat /tmp/qa-run.json >&2; exit 1 ;;
+            esac
+          done
+
+      - name: Recheck current AI Photo web contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' file; do node --check "$file" >/dev/null; done < <(find fresh-rebuild -type f -name '*.js' -print0)
+          test "$(grep -o 'puter.ai.txt2img' fresh-rebuild/src/features/apps/ai-photo-studio-ai.js | wc -l)" -eq 1
+          grep -Fq "root.dataset.aiPhotoFlagship='flagship-repair-v16'" fresh-rebuild/src/features/apps/ai-photo-studio-review.js
+          grep -Fq "v3-ai-photo-20260906" fresh-rebuild/sw.js
+          test -s fresh-rebuild/src/features/apps/ai-photo-adjust-pipeline.js
+          test -s fresh-rebuild/src/features/apps/ai-photo-remove-bg-ml-v16.js
+          test -s fresh-rebuild/src/features/apps/ai-photo-generative-edit-v19.js
+          test -s fresh-rebuild/src/features/apps/ai-photo-enhance-flagship-v12.js
+          test -s fresh-rebuild/src/features/apps/ai-photo-retouch-repair-v20.js
+          test -s fresh-rebuild/src/features/apps/ai-photo-product-studio-v21.js
+          test -s fresh-rebuild/src/features/apps/ai-photo-design-flagship-v22.js
+          test -s fresh-rebuild/src/features/apps/ai-photo-batch-v23.js
+          test -s fresh-rebuild/src/features/apps/ai-photo-projects-export-v24.js
+          echo 'Current AI Photo OTA source contracts: PASS'
+
+      - name: Build complete web snapshot OTA for currently installed APK base
+        shell: bash
+        run: |
+          set -euo pipefail
+          git cat-file -e "$OTA_BUNDLED_BASE^{commit}"
+          rm -rf /tmp/nexusnova-ai-photo-ota
+          mkdir -p /tmp/nexusnova-ai-photo-ota/files
+          export SOURCE_TREE="$(git rev-parse "$VERIFIED_SOURCE:fresh-rebuild")"
+          python3 - <<'PY'
+          import hashlib, json, os, shutil
+          from pathlib import Path
+
+          source=Path('fresh-rebuild')
+          dest=Path('/tmp/nexusnova-ai-photo-ota/files')
+          files=[]
+          total=0
+          for p in sorted(x for x in source.rglob('*') if x.is_file()):
+              rel=p.relative_to(source)
+              if any(part.startswith('.') for part in rel.parts):
+                  continue
+              data=p.read_bytes()
+              out=dest/rel
+              out.parent.mkdir(parents=True,exist_ok=True)
+              out.write_bytes(data)
+              files.append({'path':rel.as_posix(),'sha256':hashlib.sha256(data).hexdigest(),'size':len(data)})
+              total += len(data)
+          if not files or not any(x['path']=='index.html' for x in files):
+              raise SystemExit('OTA entry point missing')
+          if len(files) > 2000:
+              raise SystemExit(f'OTA file count too high: {len(files)}')
+          if total > 60*1024*1024:
+              raise SystemExit(f'OTA package too large: {total}')
+          required={
+              'index.html','sw.js','src/main.js','assets/styles/ai-photo-route-fullscreen.css',
+              'src/features/apps/ai-photo-studio-review.js','src/features/apps/ai-photo-navigation.js',
+              'src/features/apps/ai-photo-quick-tools.js','src/features/apps/ai-photo-adjust-pipeline.js',
+              'src/features/apps/ai-photo-remove-bg-ml-v16.js','src/features/apps/ai-photo-generative-edit-v19.js',
+              'src/features/apps/ai-photo-enhance-flagship-v12.js','src/features/apps/ai-photo-retouch-repair-v20.js',
+              'src/features/apps/ai-photo-product-studio-v21.js','src/features/apps/ai-photo-design-flagship-v22.js',
+              'src/features/apps/ai-photo-batch-v23.js','src/features/apps/ai-photo-projects-export-v24.js',
+              'src/features/apps/data/ai-photo-templates.js'
+          }
+          paths={x['path'] for x in files}
+          missing=required-paths
+          if missing:
+              raise SystemExit('Missing OTA critical files: '+', '.join(sorted(missing)))
+          manifest={
+              'schema':2,
+              'base':os.environ['OTA_BUNDLED_BASE'],
+              'version':os.environ['GITHUB_SHA'],
+              'source':os.environ['VERIFIED_SOURCE'],
+              'source_tree':os.environ['SOURCE_TREE'],
+              'files':files,
+          }
+          Path('/tmp/nexusnova-ai-photo-ota/manifest.json').write_text(
+              json.dumps(manifest,separators=(',',':'),sort_keys=True),encoding='utf-8'
+          )
+          print('Full snapshot OTA files:',len(files))
+          print('Full snapshot OTA bytes:',total)
+          print('Installed APK compatible base:',os.environ['OTA_BUNDLED_BASE'])
+          PY
+
+      - name: Require public OTA credential
+        shell: bash
+        env:
+          PUBLIC_OTA_TOKEN: ${{ secrets.GH_PUBLIC_OTA_TOKEN || secrets.OTA_PUBLIC_TOKEN }}
+        run: test -n "$PUBLIC_OTA_TOKEN"
+
+      - name: Publish current full snapshot to public OTA channel
+        id: publish
+        shell: bash
+        env:
+          PUBLIC_OTA_TOKEN: ${{ secrets.GH_PUBLIC_OTA_TOKEN || secrets.OTA_PUBLIC_TOKEN }}
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/nexusnova-ota-public
+          git clone --depth 1 --branch "$PUBLIC_OTA_BRANCH" "https://github.com/$PUBLIC_OTA_REPO.git" /tmp/nexusnova-ota-public
+          cd /tmp/nexusnova-ota-public
+          git config user.name 'NexusNova OTA Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          rm -rf ota
+          mkdir -p ota
+          cp -a /tmp/nexusnova-ai-photo-ota/. ota/
+          git add -A ota
+          git commit -m "Publish fully tested AI Photo snapshot OTA $GITHUB_SHA"
+          PUBLIC_SHA="$(git rev-parse HEAD)"
+          AUTH="$(printf 'x-access-token:%s' "$PUBLIC_OTA_TOKEN" | base64 -w0)"
+          git -c http.extraheader="AUTHORIZATION: basic $AUTH" push origin HEAD:"$PUBLIC_OTA_BRANCH"
+          echo "public_sha=$PUBLIC_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Verify public OTA exactly as current phone will fetch it
+        shell: bash
+        env:
+          PUBLIC_SHA: ${{ steps.publish.outputs.public_sha }}
+        run: |
+          set -euo pipefail
+          test -n "$PUBLIC_SHA"
+          BRANCH_BASE="https://raw.githubusercontent.com/$PUBLIC_OTA_REPO/$PUBLIC_OTA_BRANCH/ota"
+          for attempt in $(seq 1 12); do
+            if curl -fsSL -H 'Cache-Control: no-cache, no-store' "$BRANCH_BASE/manifest.json?v=$GITHUB_SHA&n=$attempt" -o /tmp/public-manifest.json; then
+              if python3 - <<'PY'
+          import json, os
+          m=json.load(open('/tmp/public-manifest.json',encoding='utf-8'))
+          assert m.get('schema')==2
+          assert m.get('base')==os.environ['OTA_BUNDLED_BASE']
+          assert m.get('version')==os.environ['GITHUB_SHA']
+          assert m.get('source')==os.environ['VERIFIED_SOURCE']
+          PY
+              then break; fi
+            fi
+            if [ "$attempt" -eq 12 ]; then echo 'Public OTA manifest did not converge' >&2; exit 1; fi
+            sleep 5
+          done
+          python3 - <<'PY'
+          import hashlib, json, os, urllib.parse, urllib.request
+          m=json.load(open('/tmp/public-manifest.json',encoding='utf-8'))
+          public_sha=os.environ['PUBLIC_SHA']
+          exact=f'https://raw.githubusercontent.com/{os.environ["PUBLIC_OTA_REPO"]}/{public_sha}/ota/files/'
+          for item in m['files']:
+              url=exact+'/'.join(urllib.parse.quote(p,safe='') for p in item['path'].split('/'))
+              data=urllib.request.urlopen(url,timeout=25).read()
+              assert len(data)==item['size'],item['path']
+              assert hashlib.sha256(data).hexdigest()==item['sha256'],item['path']
+          print('Exact public OTA content verified:',len(m['files']),'files')
+          PY
+          for critical in \
+            index.html \
+            sw.js \
+            src/main.js \
+            src/features/apps/ai-photo-studio-review.js \
+            src/features/apps/ai-photo-design-flagship-v22.js \
+            src/features/apps/ai-photo-batch-v23.js \
+            src/features/apps/ai-photo-projects-export-v24.js; do
+            encoded="$(python3 - "$critical" <<'PY'
+          import sys,urllib.parse
+          print('/'.join(urllib.parse.quote(x,safe='') for x in sys.argv[1].split('/')))
+          PY
+            )"
+            curl -fsSL -H 'Cache-Control: no-cache, no-store' "$BRANCH_BASE/files/$encoded?v=$GITHUB_SHA&n=phone" -o /tmp/critical.bin
+            python3 - "$critical" <<'PY'
+          import hashlib,json,sys
+          path=sys.argv[1]
+          m=json.load(open('/tmp/public-manifest.json',encoding='utf-8'))
+          expected=next(x for x in m['files'] if x['path']==path)
+          data=open('/tmp/critical.bin','rb').read()
+          assert len(data)==expected['size'],path
+          assert hashlib.sha256(data).hexdigest()==expected['sha256'],path
+          PY
+          done
+          echo 'PUBLIC OTA READY — current installed APK base accepts this snapshot; no APK published.'
