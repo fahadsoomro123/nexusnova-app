@@ -12,11 +12,12 @@ These rules are mandatory for AI agents, developers, and CI changes in this repo
 Use the private repository and the laptop/self-hosted Windows runner when a task involves any of the following:
 
 - signing keys, keystores, passwords, tokens, secrets, private credentials, service-account/admin material, private infrastructure, VPN/private configuration, or any non-public config;
+- live Firebase/API configuration that GitHub flags as a credential or that enables real backend access;
 - release signing or anything that must use the original permanent signing key;
 - hardware/device/laptop-specific QA, ADB/USB/device access, local-only tools, or local protected files;
 - work that must not be copied to a public repository.
 
-Never copy secret or signing material into the public mirror.
+Never copy secret, signing, or live backend credential material into the public mirror.
 
 ## Routine non-secret Android build / CI
 
@@ -33,9 +34,11 @@ Do not use the laptop/self-hosted runner for routine non-secret debug APK builds
 - Do not develop directly in the public mirror.
 - Sync only the minimum sanitized build-required snapshot from the private repo.
 - Keep signing keys, passwords, secrets, private infrastructure, recovery material, and unnecessary source/reference assets out of the public mirror.
+- The public mirror intentionally uses disabled Firebase/auth/backend stubs and sanitized Android Firebase config. Real Firebase/auth/App Check/runtime verification belongs to the private repo + laptop route.
+- Public CI must fail if a Google API key, private key, GitHub token-like value, or AWS access-key pattern is detected in the checked-out public snapshot.
 
 ## Routing decision
 
-1. If the task contains secrets/private material or needs laptop/device access -> private repo + laptop/self-hosted runner.
+1. If the task contains secrets/private material, real Firebase/backend credentials, or needs laptop/device access -> private repo + laptop/self-hosted runner.
 2. If the task is ordinary non-secret Android build/CI -> sanitized public mirror + public GitHub Actions workflow.
 3. If uncertain -> stay in the private repo and do not expose the material publicly.
