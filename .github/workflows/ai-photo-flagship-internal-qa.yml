@@ -22,13 +22,64 @@ permissions:
 
 jobs:
   verify:
-    runs-on: ubuntu-latest
-    timeout-minutes: 50
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 90
+    env:
+      ANDROID_HOME: C:\Android\Sdk
+      ANDROID_SDK_ROOT: C:\Android\Sdk
     steps:
       - name: Check out exact branch state
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Node 22 for executable QA
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Python 3.12 for local QA servers
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Prepare matching Chrome and ChromeDriver on self-hosted Windows
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Write-Host "Runner: $env:RUNNER_NAME / $env:RUNNER_OS / $env:RUNNER_ARCH"
+          Get-Command bash | Format-List Source
+          node --version
+          python --version
+
+          $root = Join-Path $env:RUNNER_TEMP 'nexusnova-cft-stable'
+          $chromeExe = Join-Path $root 'chrome-win64\chrome.exe'
+          $driverExe = Join-Path $root 'chromedriver-win64\chromedriver.exe'
+
+          if (-not ((Test-Path $chromeExe) -and (Test-Path $driverExe))) {
+            if (Test-Path $root) { Remove-Item -Recurse -Force $root }
+            New-Item -ItemType Directory -Force -Path $root | Out-Null
+            $meta = Invoke-RestMethod -Uri 'https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json'
+            $chromeUrl = ($meta.channels.Stable.downloads.chrome | Where-Object { $_.platform -eq 'win64' }).url
+            $driverUrl = ($meta.channels.Stable.downloads.chromedriver | Where-Object { $_.platform -eq 'win64' }).url
+            if (-not $chromeUrl -or -not $driverUrl) { throw 'Could not resolve Chrome for Testing win64 downloads.' }
+            $chromeZip = Join-Path $env:RUNNER_TEMP 'nx-chrome.zip'
+            $driverZip = Join-Path $env:RUNNER_TEMP 'nx-chromedriver.zip'
+            Invoke-WebRequest -Uri $chromeUrl -OutFile $chromeZip
+            Invoke-WebRequest -Uri $driverUrl -OutFile $driverZip
+            Expand-Archive -LiteralPath $chromeZip -DestinationPath $root -Force
+            Expand-Archive -LiteralPath $driverZip -DestinationPath $root -Force
+          }
+
+          if (-not (Test-Path $chromeExe)) { throw "Chrome missing at $chromeExe" }
+          if (-not (Test-Path $driverExe)) { throw "ChromeDriver missing at $driverExe" }
+          $chromeEnv = $chromeExe -replace '\\','/'
+          $driverEnv = $driverExe -replace '\\','/'
+          "CHROME_BIN=$chromeEnv" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "CHROMEDRIVER_BIN=$driverEnv" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          & $chromeExe --version
+          & $driverExe --version
+          Write-Host 'PASS — self-hosted Windows browser QA toolchain is ready.'
 
       - name: Syntax, scope, provider, and release safety
         shell: bash
@@ -116,9 +167,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cp fresh-rebuild/src/features/apps/data/ai-photo-templates.js /tmp/ai-photo-templates.mjs
+          TMP_TEMPLATE=.ai-photo-templates-qa.mjs
+          cp fresh-rebuild/src/features/apps/data/ai-photo-templates.js "$TMP_TEMPLATE"
           node --input-type=module <<'NODE'
-          const m=await import('file:///tmp/ai-photo-templates.mjs');
+          import { resolve } from 'node:path';
+          import { pathToFileURL } from 'node:url';
+          const m=await import(pathToFileURL(resolve('.ai-photo-templates-qa.mjs')).href);
           if(m.NEXUSNOVA_TEMPLATES.length!==1000)throw new Error('Template total is not 1000');
           if(m.NEXUSNOVA_TEMPLATE_CATEGORIES.length!==20)throw new Error('Category total is not 20');
           for(const category of m.NEXUSNOVA_TEMPLATE_CATEGORIES){
@@ -127,6 +181,7 @@ jobs:
           }
           console.log('PASS — exactly 1000 templates across 20 categories × 50.');
           NODE
+          rm -f "$TMP_TEMPLATE"
 
       - name: Full browser interaction QA
         id: behavior
