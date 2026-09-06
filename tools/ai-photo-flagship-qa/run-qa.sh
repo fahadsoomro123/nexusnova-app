@@ -51,6 +51,7 @@ run_suite "Flagship tool upgrades v16 QA" node tools/ai-photo-flagship-qa/flagsh
 run_suite "Enhance v12 large-photo responsiveness QA" node tools/ai-photo-flagship-qa/enhance-v12-performance-qa.mjs "$CHROME" "$CHROMEDRIVER" "$PORT" "$OUT_DIR"
 run_suite "Retouch Repair v20 executable pixel and history QA" node tools/ai-photo-flagship-qa/retouch-repair-v20-qa.mjs "$CHROME" "$CHROMEDRIVER" "$PORT" "$OUT_DIR"
 run_suite "Product Studio v21 executable composition and phone QA" node tools/ai-photo-flagship-qa/product-studio-v21-qa.mjs "$CHROME" "$CHROMEDRIVER" "$PORT" "$OUT_DIR"
+run_suite "Design flagship v22 structured font crop and phone QA" node tools/ai-photo-flagship-qa/design-flagship-v22-live-qa.mjs "$CHROME" "$CHROMEDRIVER" "$PORT" "$OUT_DIR"
 run_suite "Design Editor execution QA" node tools/ai-photo-flagship-qa/design-editor-qa-v2.mjs "$CHROME" "$CHROMEDRIVER" "$PORT" "$OUT_DIR"
 run_suite "Design Studio delight v13 QA" node tools/ai-photo-flagship-qa/design-delight-v13-qa.mjs "$CHROME" "$CHROMEDRIVER" "$PORT" "$OUT_DIR"
 run_suite "Flagship shell v16 phone visibility and smoothness QA" node tools/ai-photo-flagship-qa/flagship-shell-v16-qa.mjs "$CHROME" "$CHROMEDRIVER" "$PORT" "$OUT_DIR"
