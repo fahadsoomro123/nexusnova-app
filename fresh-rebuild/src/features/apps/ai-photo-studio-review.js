@@ -3,6 +3,7 @@ import { installSliderOnlyFocus } from './ai-photo-focus-interaction.js';
 import { installAiPhotoCanvaWorkspaceV3 } from './ai-photo-canva-workspace-v3.js';
 import { installAiPhotoDesignEditorControls } from './ai-photo-design-editor-controls.js';
 import { installAiPhotoDesignDelightV13 } from './ai-photo-design-delight-v13.js';
+import { installAiPhotoDesignFlagshipV22 } from './ai-photo-design-flagship-v22.js';
 import { installPuterImageGenerator } from './ai-photo-puter-generator.js';
 import { installAiPhotoGenerativeEditV19 } from './ai-photo-generative-edit-v19.js';
 import { installAiPhotoStudioHome } from './ai-photo-studio-home.js';
@@ -42,6 +43,7 @@ export function renderAiPhotoStudio(){
   const workspaceCleanup=installAiPhotoCanvaWorkspaceV3(root);
   const designEditorControlsCleanup=installAiPhotoDesignEditorControls(root);
   const designDelightCleanup=installAiPhotoDesignDelightV13(root);
+  const designFlagshipCleanup=installAiPhotoDesignFlagshipV22(root);
   const puterCleanup=installPuterImageGenerator(root);
   const homeCleanup=installAiPhotoStudioHome(root);
   const phoneFeedbackCleanup=installAiPhotoPhoneFeedbackV1(root);
@@ -79,6 +81,7 @@ export function renderAiPhotoStudio(){
     phoneFeedbackCleanup?.();
     homeCleanup?.();
     puterCleanup?.();
+    designFlagshipCleanup?.();
     designDelightCleanup?.();
     designEditorControlsCleanup?.();
     workspaceCleanup?.();
