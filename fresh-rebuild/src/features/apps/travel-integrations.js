@@ -1,6 +1,6 @@
 import { renderTravelGroundPanel } from './travel-ground.js';
 
-const TRAVEL_HOST_STYLE_ID = 'nn-travel-host-guard-v3';
+const TRAVEL_HOST_STYLE_ID = 'nn-travel-host-guard-v4';
 
 function localDateOffset(days = 0) {
   const date = new Date();
@@ -98,11 +98,11 @@ html.nn-travel-host-lock .nx-dock.global{
 }
 html.nn-travel-keyboard-open .nx-dock.global{display:none!important}
 html.nn-travel-keyboard-open .nn-travel-v19 .nn-flight-panel:not([hidden]){
-  grid-template-rows:0 minmax(0,1fr)!important
+  grid-template-rows:minmax(0,1fr)!important
 }
 html.nn-travel-keyboard-open .nn-travel-v19 .nn-hero{display:none!important}
 html.nn-travel-keyboard-open .nn-travel-v19 .nn-secondary:not([hidden]){
-  grid-template-rows:0 minmax(0,1fr)!important
+  grid-template-rows:minmax(0,1fr)!important
 }
 html.nn-travel-keyboard-open .nn-travel-v19 .nn-secondary-hero{display:none!important}
 html.nn-travel-keyboard-open .nn-travel-v19 .nn-secondary-card{min-height:0!important}
@@ -121,8 +121,8 @@ html.nn-travel-keyboard-open .nn-travel-v19 .nn-secondary-card{min-height:0!impo
 }
 
 function installLockedTravelHost(root) {
-  if (root.dataset.travelHostGuard === 'v3') return;
-  root.dataset.travelHostGuard = 'v3';
+  if (root.dataset.travelHostGuard === 'v4') return;
+  root.dataset.travelHostGuard = 'v4';
   ensureTravelHostStyle();
 
   const doc = document.documentElement;
