@@ -106,7 +106,7 @@ export function installAiPhotoDesignFlagshipV22(root){
   }
   function persist(id,mutator){
     if(applying)return false;const design=api.getDesign(),element=design?.elements?.find(el=>el.id===id);if(!design||!element)return false;
-    mutator(element,design);applying=true;try{saveDesignProject(design);api.openProject(design.id);reselect(id);return true}finally{setTimeout(()=>{applying=false},80)}
+    mutator(element,design);applying=true;try{saveDesignProject(design);api.openProject(design.id);reselect(id);return true}finally{setTimeout(()=>{applying=false;requestAnimationFrame(attach)},80)}
   }
   async function applyCrop(id,{zoom,focusX,focusY}){
     const design=api.getDesign(),element=design?.elements?.find(el=>el.id===id);if(!design||!element?.src)return false;
