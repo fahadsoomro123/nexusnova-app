@@ -5,16 +5,20 @@ OUT_DIR=qa-artifacts/ai-photo-flagship
 PORT=4174
 mkdir -p "$OUT_DIR"
 
-CHROME=
-for candidate in google-chrome google-chrome-stable chromium chromium-browser; do
-  if command -v "$candidate" >/dev/null 2>&1; then CHROME=$(command -v "$candidate"); break; fi
-done
+CHROME="${CHROME_BIN:-}"
+if [ -z "$CHROME" ]; then
+  for candidate in google-chrome google-chrome-stable chromium chromium-browser chrome chrome.exe; do
+    if command -v "$candidate" >/dev/null 2>&1; then CHROME=$(command -v "$candidate"); break; fi
+  done
+fi
 test -n "$CHROME" || { echo '::error::Chrome/Chromium is required.' >&2; exit 1; }
 
-CHROMEDRIVER=
-for candidate in chromedriver google-chrome-chromedriver; do
-  if command -v "$candidate" >/dev/null 2>&1; then CHROMEDRIVER=$(command -v "$candidate"); break; fi
-done
+CHROMEDRIVER="${CHROMEDRIVER_BIN:-}"
+if [ -z "$CHROMEDRIVER" ]; then
+  for candidate in chromedriver chromedriver.exe google-chrome-chromedriver; do
+    if command -v "$candidate" >/dev/null 2>&1; then CHROMEDRIVER=$(command -v "$candidate"); break; fi
+  done
+fi
 if [ -z "$CHROMEDRIVER" ]; then
   for candidate in /usr/local/share/chromedriver-linux64/chromedriver /usr/local/bin/chromedriver; do
     if [ -x "$candidate" ]; then CHROMEDRIVER="$candidate"; break; fi
@@ -22,7 +26,13 @@ if [ -z "$CHROMEDRIVER" ]; then
 fi
 test -n "$CHROMEDRIVER" || { echo '::error::ChromeDriver is required.' >&2; exit 1; }
 
-python3 -m http.server "$PORT" --bind 127.0.0.1 --directory . >"$OUT_DIR/server.log" 2>&1 &
+PYTHON=
+for candidate in python3 python; do
+  if command -v "$candidate" >/dev/null 2>&1; then PYTHON=$(command -v "$candidate"); break; fi
+done
+test -n "$PYTHON" || { echo '::error::Python is required for the local QA server.' >&2; exit 1; }
+
+"$PYTHON" -m http.server "$PORT" --bind 127.0.0.1 --directory . >"$OUT_DIR/server.log" 2>&1 &
 SERVER_PID=$!
 trap 'kill "$SERVER_PID" >/dev/null 2>&1 || true' EXIT
 for attempt in 1 2 3 4 5 6 7 8 9 10; do
