@@ -13,7 +13,7 @@ permissions:
   actions: read
 
 env:
-  TRAVEL_SOURCE_SHA: e57fd9b001acb2232b9802e40002f2433e76fb88
+  TRAVEL_SOURCE_SHA: f00c1912577a8ad6b1da0e0ae7c82f86a8cceb1f
   OTA_BUNDLED_BASE: 8d1aaaee6f28b974a8c8b3ff213beb1318ec7405
   PUBLIC_OTA_REPO: fahadsoomro123/nexusnova-website
   PUBLIC_OTA_BRANCH: nexusnova-ota-public
@@ -40,7 +40,7 @@ jobs:
           }
           Write-Host "Travel release source locked: $env:TRAVEL_SOURCE_SHA"
 
-      - name: Require successful Travel V19 QA for source
+      - name: Require successful Travel V5 host QA for source
         shell: powershell
         env:
           GH_TOKEN: ${{ github.token }}
@@ -54,12 +54,12 @@ jobs:
           $uri = "https://api.github.com/repos/$env:GITHUB_REPOSITORY/actions/runs?head_sha=$env:TRAVEL_SOURCE_SHA&status=completed&per_page=50"
           $runs = (Invoke-RestMethod -UseBasicParsing -Headers $headers -Uri $uri -Method Get).workflow_runs
           $passed = @($runs | Where-Object {
-            $_.path -eq '.github/workflows/travel-reference-visual-qa.yml' -and
+            $_.path -eq '.github/workflows/travel-host-regression-qa-v2.yml' -and
             $_.head_sha -eq $env:TRAVEL_SOURCE_SHA -and
             $_.conclusion -eq 'success'
           })
-          if ($passed.Count -lt 1) { throw "No successful Travel V19 QA exists for $env:TRAVEL_SOURCE_SHA" }
-          Write-Host "Travel QA gate PASS via run $($passed[0].id)"
+          if ($passed.Count -lt 1) { throw "No successful Travel V5 host QA exists for $env:TRAVEL_SOURCE_SHA" }
+          Write-Host "Travel V5 host QA gate PASS via run $($passed[0].id)"
 
       - name: Verify OTA Travel source contract
         shell: powershell
@@ -88,8 +88,10 @@ jobs:
           $edge = Get-Content -Raw fresh-rebuild/src/features/apps/travel-edge-client.js
           if (-not $edge.Contains("from './travel-edge-config.js'")) { throw 'Travel edge client dependency import missing' }
           $integration = Get-Content -Raw fresh-rebuild/src/features/apps/travel-integrations.js
-          if (-not $integration.Contains(".nn-travel-v16,[data-runtime-repair]")) { throw 'Fresh Travel legacy-injection guard missing' }
-          Write-Host 'OTA Travel source and transitive dependency contract PASS'
+          foreach ($needle in @(".nn-travel-v16,[data-runtime-repair]","nn-travel-host-guard-v5","travelHostGuard === 'v5'")) {
+            if (-not $integration.Contains($needle)) { throw "Fresh Travel V5 integration marker missing: $needle" }
+          }
+          Write-Host 'OTA Travel V5 source and transitive dependency contract PASS'
 
       - name: Require public OTA credential
         shell: powershell
@@ -98,7 +100,7 @@ jobs:
         run: |
           if ([string]::IsNullOrWhiteSpace($env:PUBLIC_OTA_TOKEN)) { throw 'Public OTA credential missing' }
 
-      - name: Build cumulative Travel OTA revision 2
+      - name: Build cumulative Travel OTA revision 3
         id: build
         shell: powershell
         env:
@@ -143,13 +145,12 @@ jobs:
             Copy-Item -Force $src $dest
           }
 
-          # Release-stamp the verified source. Revision 1 never reached the Travel
-          # renderer on the phone, so revision 2 is explicit and does not depend
-          # on revision 1 having written localStorage successfully.
+          # Revision 3 is the phone-proof release for the keyboard/location,
+          # fullscreen/no-scroll and internal bottom-gap fixes verified by V5 QA.
           $travelDest = Join-Path $filesRoot 'src\features\apps\travel-suite.js'
           $travelText = [System.IO.File]::ReadAllText($travelDest)
           $stampPairs = [ordered]@{
-            "const OTA_RELEASE_ID = 'travel-reference-ota-1';" = "const OTA_RELEASE_ID = 'travel-reference-ota-2';`nconst OTA_RELEASE_REVISION = 2;"
+            "const OTA_RELEASE_ID = 'travel-reference-ota-1';" = "const OTA_RELEASE_ID = 'travel-reference-ota-3';`nconst OTA_RELEASE_REVISION = 3;"
             'state.count = Math.max(0, Number(state.count) || 0) + 1;' = 'state.count = OTA_RELEASE_REVISION;'
             'state = {releaseId:OTA_RELEASE_ID, count:1};' = 'state = {releaseId:OTA_RELEASE_ID, count:OTA_RELEASE_REVISION};'
             'if (badge) badge.textContent = String(Math.max(1, Number(state.count) || 1));' = 'if (badge) badge.textContent = String(OTA_RELEASE_REVISION);'
@@ -161,8 +162,8 @@ jobs:
             $travelText = $travelText.Replace([string]$pair.Key, [string]$pair.Value)
           }
           [System.IO.File]::WriteAllText($travelDest, $travelText, (New-Object System.Text.UTF8Encoding($false)))
-          if (-not $travelText.Contains("OTA_RELEASE_ID = 'travel-reference-ota-2'")) { throw 'OTA revision 2 release ID stamp failed' }
-          if (-not $travelText.Contains('OTA_RELEASE_REVISION = 2')) { throw 'OTA revision 2 numeric stamp failed' }
+          if (-not $travelText.Contains("OTA_RELEASE_ID = 'travel-reference-ota-3'")) { throw 'OTA revision 3 release ID stamp failed' }
+          if (-not $travelText.Contains('OTA_RELEASE_REVISION = 3')) { throw 'OTA revision 3 numeric stamp failed' }
 
           $entries = @()
           Get-ChildItem -Path $filesRoot -Recurse -File | Sort-Object FullName | ForEach-Object {
@@ -182,7 +183,7 @@ jobs:
             version = $env:GITHUB_SHA.ToLowerInvariant()
             source = $env:TRAVEL_SOURCE_SHA
             proof_number = [string]$old.proof_number
-            travel_revision = 2
+            travel_revision = 3
             files = $entries
           }
           $json = $manifest | ConvertTo-Json -Depth 6 -Compress
@@ -194,7 +195,7 @@ jobs:
           git config user.name 'NexusNova OTA Bot'
           git config user.email 'actions@users.noreply.github.com'
           git add -A ota
-          git commit -m "Publish Travel V19 OTA revision 2 $env:TRAVEL_SOURCE_SHA"
+          git commit -m "Publish Travel V19 OTA revision 3 $env:TRAVEL_SOURCE_SHA"
           if ($LASTEXITCODE -ne 0) { throw 'Public OTA commit failed' }
           $publicSha = (git rev-parse HEAD).Trim()
           $authText = "x-access-token:$env:PUBLIC_OTA_TOKEN"
@@ -204,9 +205,9 @@ jobs:
           Pop-Location
 
           "public_sha=$publicSha" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-          Write-Host "Published public OTA revision 2 commit: $publicSha"
+          Write-Host "Published public OTA revision 3 commit: $publicSha"
 
-      - name: Verify public Travel OTA revision 2 end-to-end
+      - name: Verify public Travel OTA revision 3 end-to-end
         shell: powershell
         env:
           PUBLIC_SHA: ${{ steps.build.outputs.public_sha }}
@@ -224,7 +225,7 @@ jobs:
           if ([string]$m.base -ne $env:OTA_BUNDLED_BASE) { throw 'Published OTA base mismatch' }
           if ([string]$m.version -ne $env:GITHUB_SHA.ToLowerInvariant()) { throw 'Published OTA version mismatch' }
           if ([string]$m.source -ne $env:TRAVEL_SOURCE_SHA) { throw 'Published OTA source mismatch' }
-          if ([int]$m.travel_revision -ne 2) { throw 'Published Travel revision is not 2' }
+          if ([int]$m.travel_revision -ne 3) { throw 'Published Travel revision is not 3' }
 
           $paths = @($m.files | ForEach-Object { [string]$_.path })
           foreach ($required in @(
@@ -253,10 +254,12 @@ jobs:
           }
 
           $publishedTravel = Get-Content -Raw (Join-Path $verifyRoot 'src\features\apps\travel-suite.js')
-          if (-not $publishedTravel.Contains("OTA_RELEASE_ID = 'travel-reference-ota-2'")) { throw 'Published Travel OTA release ID is not revision 2' }
-          if (-not $publishedTravel.Contains('OTA_RELEASE_REVISION = 2')) { throw 'Published Travel numeric badge stamp is not revision 2' }
+          if (-not $publishedTravel.Contains("OTA_RELEASE_ID = 'travel-reference-ota-3'")) { throw 'Published Travel OTA release ID is not revision 3' }
+          if (-not $publishedTravel.Contains('OTA_RELEASE_REVISION = 3')) { throw 'Published Travel numeric badge stamp is not revision 3' }
           $publishedEdge = Get-Content -Raw (Join-Path $verifyRoot 'src\features\apps\travel-edge-client.js')
           if (-not $publishedEdge.Contains("from './travel-edge-config.js'")) { throw 'Published edge client lost transitive config import' }
+          $publishedIntegration = Get-Content -Raw (Join-Path $verifyRoot 'src\features\apps\travel-integrations.js')
+          if (-not $publishedIntegration.Contains("nn-travel-host-guard-v5")) { throw 'Published Travel integration is not V5 host guard' }
 
           [System.IO.File]::WriteAllText((Join-Path $verifyRoot 'package.json'), '{"type":"module"}', (New-Object System.Text.UTF8Encoding($false)))
           Push-Location $verifyRoot
@@ -265,4 +268,4 @@ jobs:
           Pop-Location
           if ($importExit -ne 0) { throw 'Published Travel module graph import failed' }
 
-          Write-Host "PUBLIC TRAVEL OTA REVISION 2 VERIFIED: $env:PUBLIC_SHA"
+          Write-Host "PUBLIC TRAVEL OTA REVISION 3 VERIFIED: $env:PUBLIC_SHA"
