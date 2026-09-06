@@ -44,6 +44,7 @@ run_suite(){
 }
 
 run_suite "Photo Adjust v18 executable pixel, workflow and viewport QA" node tools/ai-photo-flagship-qa/adjust-v18-qa.mjs "$CHROME" "$CHROMEDRIVER" "$PORT" "$OUT_DIR"
+run_suite "Global slider focus touch, keyboard and dynamic-control QA" node tools/ai-photo-flagship-qa/slider-focus-global-qa.mjs "$CHROME" "$CHROMEDRIVER" "$PORT" "$OUT_DIR"
 run_suite "Core navigation v17 regression QA" node tools/ai-photo-flagship-qa/core-architecture-v17-qa.mjs "$CHROME" "$CHROMEDRIVER" "$PORT" "$OUT_DIR"
 run_suite "Generative Edit v19 source-image, mask guidance and candidate QA" node tools/ai-photo-flagship-qa/generative-edit-v19-qa.mjs "$CHROME" "$CHROMEDRIVER" "$PORT" "$OUT_DIR"
 run_suite "Flagship behavior v16 QA" node tools/ai-photo-flagship-qa/behavior-v16-qa.mjs "$CHROME" "$CHROMEDRIVER" "$PORT" "$OUT_DIR"
