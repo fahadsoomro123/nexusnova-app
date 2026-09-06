@@ -1,0 +1,178 @@
+name: NexusNova Travel Host Regression QA
+
+on:
+  push:
+    branches:
+      - travel-reference-v7-final-staging
+    paths:
+      - '.github/workflows/travel-host-regression-qa.yml'
+      - 'fresh-rebuild/travel-flagship-v16-harness.html'
+      - 'fresh-rebuild/src/features/apps/travel-integrations.js'
+      - 'fresh-rebuild/src/features/apps/travel-suite.js'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: travel-host-regression-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  host-regression:
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Gate 1 - host guard source contract
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          node --check fresh-rebuild/src/features/apps/travel-integrations.js
+          @'
+          const fs=require('fs');
+          const src=fs.readFileSync('fresh-rebuild/src/features/apps/travel-integrations.js','utf8');
+          for(const needle of [
+            "TRAVEL_HOST_STYLE_ID = 'nn-travel-host-guard-v3'",
+            'nn-travel-host-lock',
+            'nn-travel-keyboard-open',
+            'nn-travel-route-focus',
+            '--nn-travel-vv-height',
+            "padding:0!important",
+            "installLockedTravelHost(root)"
+          ]) if(!src.includes(needle)) throw new Error(`Missing host regression contract: ${needle}`);
+          console.log('Travel host fullscreen + keyboard guard source PASS');
+          '@ | node
+
+      - name: Install browser and host server
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm init -y | Out-Null
+          npm install --no-save playwright@1.55.0 http-server@14.1.1 | Out-Null
+          npx playwright install chromium
+          $server = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c','npx http-server fresh-rebuild -p 4174 -c-1' -PassThru -WindowStyle Hidden
+          $server.Id | Set-Content '.travel-host-http.pid'
+          Start-Sleep -Seconds 2
+
+      - name: Gate 2 - fullscreen no-gap and keyboard focus regression
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          @'
+          const { chromium } = require('playwright');
+          const profiles=[
+            {w:360,h:800,bottom:48,dock:58,name:'small-phone'},
+            {w:390,h:844,bottom:24,dock:62,name:'reference-phone'},
+            {w:412,h:915,bottom:32,dock:62,name:'tall-phone'}
+          ];
+          (async()=>{
+            const browser=await chromium.launch({headless:true});
+            for(const p of profiles){
+              const page=await browser.newPage({viewport:{width:p.w,height:p.h},deviceScaleFactor:1});
+              const errors=[]; page.on('pageerror',e=>errors.push(String(e)));
+              await page.goto(`http://127.0.0.1:4174/travel-flagship-v16-harness.html?bottom=${p.bottom}&dock=${p.dock}`,{waitUntil:'domcontentloaded',timeout:30000});
+              await page.waitForSelector('.nn-travel-v19',{timeout:15000});
+              await page.waitForTimeout(500);
+
+              const full=await page.evaluate(()=>{
+                const root=document.querySelector('.nn-travel-v19');
+                const screen=document.querySelector('.nx-screen');
+                const stage=document.querySelector('.nx-stage');
+                const dock=document.querySelector('.nx-dock.global');
+                const rr=root.getBoundingClientRect();
+                const sr=screen.getBoundingClientRect();
+                const dr=dock.getBoundingClientRect();
+                const css=getComputedStyle(stage);
+                return {
+                  root:{x:rr.x,y:rr.y,w:rr.width,h:rr.height,right:rr.right,bottom:rr.bottom},
+                  screen:{x:sr.x,y:sr.y,w:sr.width,h:sr.height,right:sr.right,bottom:sr.bottom},
+                  stagePaddingBottom:css.paddingBottom,
+                  stageOverflow:css.overflow,
+                  stagePosition:css.position,
+                  stageScroll:stage.scrollHeight>stage.clientHeight+2,
+                  bodyScroll:document.body.scrollHeight>innerHeight+2,
+                  docScroll:document.documentElement.scrollHeight>innerHeight+2,
+                  dockBottomGap:Math.abs(innerHeight-dr.bottom),
+                  hostLock:document.documentElement.classList.contains('nn-travel-host-lock')
+                };
+              });
+              if(!full.hostLock) throw new Error(`${p.name}: Travel host lock missing`);
+              if(full.stagePaddingBottom!=='0px') throw new Error(`${p.name}: host bottom padding leaked ${full.stagePaddingBottom}`);
+              if(full.stageOverflow!=='hidden') throw new Error(`${p.name}: stage overflow is ${full.stageOverflow}`);
+              if(full.stagePosition!=='fixed') throw new Error(`${p.name}: stage is not fixed fullscreen (${full.stagePosition})`);
+              if(full.stageScroll||full.bodyScroll||full.docScroll) throw new Error(`${p.name}: whole screen scrolling remains ${JSON.stringify(full)}`);
+              if(Math.abs(full.root.w-p.w)>1||Math.abs(full.root.h-p.h)>1||Math.abs(full.screen.w-p.w)>1||Math.abs(full.screen.h-p.h)>1) throw new Error(`${p.name}: Travel does not fill viewport ${JSON.stringify(full)}`);
+              if(full.dockBottomGap>6) throw new Error(`${p.name}: bottom dock dead gap ${full.dockBottomGap}px`);
+
+              const origin=page.locator('[data-flight-origin]');
+              await origin.focus();
+              await origin.fill('KARACHI');
+              const keyboardHeight=Math.max(420,Math.round(p.h*0.58));
+              await page.setViewportSize({width:p.w,height:keyboardHeight});
+              await page.waitForTimeout(350);
+              const focused=await page.evaluate(()=>{
+                const root=document.querySelector('.nn-travel-v19');
+                const input=document.querySelector('[data-flight-origin]');
+                const dock=document.querySelector('.nx-dock.global');
+                const rr=root.getBoundingClientRect();
+                const ir=input.getBoundingClientRect();
+                return {
+                  value:input.value,
+                  rootH:rr.height,
+                  inputTop:ir.top,inputBottom:ir.bottom,
+                  keyboardOpen:root.dataset.keyboardOpen,
+                  routeFocus:root.classList.contains('nn-travel-route-focus'),
+                  dockDisplay:getComputedStyle(dock).display,
+                  bodyScroll:document.body.scrollHeight>innerHeight+2,
+                  docScroll:document.documentElement.scrollHeight>innerHeight+2
+                };
+              });
+              if(focused.value!=='KARACHI') throw new Error(`${p.name}: location text edit failed: ${focused.value}`);
+              if(focused.keyboardOpen!=='true'||!focused.routeFocus) throw new Error(`${p.name}: keyboard route focus guard did not engage ${JSON.stringify(focused)}`);
+              if(focused.inputTop<0||focused.inputBottom>keyboardHeight) throw new Error(`${p.name}: focused location disappeared outside visible viewport ${JSON.stringify(focused)}`);
+              if(Math.abs(focused.rootH-keyboardHeight)>2) throw new Error(`${p.name}: Travel did not resize to visible keyboard viewport ${JSON.stringify(focused)}`);
+              if(focused.dockDisplay!=='none') throw new Error(`${p.name}: bottom dock still overlaps keyboard viewport`);
+              if(focused.bodyScroll||focused.docScroll) throw new Error(`${p.name}: keyboard caused whole-page scroll`);
+              await page.screenshot({path:`travel-host-${p.w}x${p.h}-${p.name}-keyboard.png`,fullPage:false});
+
+              await page.setViewportSize({width:p.w,height:p.h});
+              await origin.blur();
+              await page.waitForTimeout(300);
+              const restored=await page.evaluate(()=>{
+                const root=document.querySelector('.nn-travel-v19');
+                const dock=document.querySelector('.nx-dock.global').getBoundingClientRect();
+                return {h:root.getBoundingClientRect().height,keyboard:root.dataset.keyboardOpen,dockGap:Math.abs(innerHeight-dock.bottom),docScroll:document.documentElement.scrollHeight>innerHeight+2};
+              });
+              if(Math.abs(restored.h-p.h)>2||restored.keyboard==='true'||restored.dockGap>6||restored.docScroll) throw new Error(`${p.name}: fullscreen restore failed ${JSON.stringify(restored)}`);
+              if(errors.length) throw new Error(`${p.name}: page errors ${errors.join(' | ')}`);
+              await page.screenshot({path:`travel-host-${p.w}x${p.h}-${p.name}-restored.png`,fullPage:false});
+              await page.close();
+              console.log(`HOST REGRESSION PASS ${p.name}`);
+            }
+            await browser.close();
+            console.log('TRAVEL HOST FULLSCREEN + KEYBOARD + BOTTOM GAP QA PASS');
+          })().catch(e=>{console.error(e);process.exit(1)});
+          '@ | node
+
+      - name: Upload host regression evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: travel-host-regression-evidence
+          path: travel-host-*.png
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Stop host server
+        if: always()
+        shell: powershell
+        run: |
+          if (Test-Path '.travel-host-http.pid') {
+            $pidValue = Get-Content '.travel-host-http.pid' | Select-Object -First 1
+            if ($pidValue) { Stop-Process -Id ([int]$pidValue) -Force -ErrorAction SilentlyContinue }
+          }
