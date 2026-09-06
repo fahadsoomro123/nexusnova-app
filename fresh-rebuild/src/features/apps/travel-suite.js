@@ -1,318 +1,123 @@
 import { renderTravelSuite as renderTravelSuiteV16 } from './travel-suite-v16.js';
+import { travelCall, travelHealth } from './travel-edge-client.js';
+void renderTravelSuiteV16;
 
-function ensureRuntimeShellCss() {
-  if (document.getElementById('nn-travel-runtime-shell-v17')) return;
-  const style = document.createElement('style');
-  style.id = 'nn-travel-runtime-shell-v17';
-  style.textContent = `
-    .nn-travel-fullscreen-shell{
-      position:relative!important;
-      overflow:hidden!important;
-      min-height:0!important;
-      width:100%!important;
-      max-width:100vw!important;
-    }
-    .nn-travel-fullscreen-mount{
-      position:absolute!important;
-      inset:0!important;
-      margin:0!important;
-      padding:0!important;
-      min-width:0!important;
-      min-height:0!important;
-      overflow:hidden!important;
-    }
-    .nn-travel-reference-fill{
-      position:absolute!important;
-      inset:0!important;
-      width:100%!important;
-      max-width:100%!important;
-      height:100%!important;
-      max-height:100%!important;
-      min-width:0!important;
-      min-height:0!important;
-      margin:0!important;
-      padding:0!important;
-      overflow:hidden!important;
-    }
-    .nn-travel-reference-fill .nn-ref-canvas{
-      position:absolute!important;
-      inset:0!important;
-      left:0!important;
-      top:0!important;
-      transform:none!important;
-      width:100%!important;
-      max-width:100%!important;
-      height:100%!important;
-      max-height:100%!important;
-      min-width:0!important;
-      min-height:0!important;
-      box-sizing:border-box!important;
-      align-content:stretch!important;
-    }
-    .nn-travel-reference-fill .nn-stage{
-      height:100%!important;
-      min-height:0!important;
-      overflow:hidden!important;
-    }
-    .nn-travel-reference-fill [data-panel]{
-      height:100%!important;
-      min-height:0!important;
-      overflow:hidden!important;
-    }
-    .nn-travel-reference-fill [data-panel][hidden]{
-      display:none!important;
-      visibility:hidden!important;
-      pointer-events:none!important;
-      position:absolute!important;
-      inset:0!important;
-    }
-    .nn-travel-reference-fill .nn-results,
-    .nn-travel-reference-fill .nn-ref-results-list{
-      min-height:0!important;
-      overflow-y:auto!important;
-      overscroll-behavior:contain!important;
-    }
-  `;
-  document.head.appendChild(style);
+const HERO_B64_URL=new URL('../../../assets/travel/reference-hero-right.webp.b64',import.meta.url).href;
+const PLAN_KEY='nexusnova_travel_private_plan_v18';
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const err=e=>String(e?.message||e||'Live provider unavailable.').slice(0,170);
+const money=(v,c='PKR')=>{const n=Number(v);if(!Number.isFinite(n))return'—';try{return new Intl.NumberFormat('en-PK',{style:'currency',currency:c,maximumFractionDigits:2}).format(n)}catch{return`${Math.round(n).toLocaleString()} ${c}`}};
+const dur=m=>{const n=Math.max(0,Math.round(Number(m)||0));return n?`${Math.floor(n/60)}h ${n%60}m`:'—'};
+const clock=v=>{const d=new Date(v);return Number.isFinite(d.getTime())?d.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}):'—'};
+const datePlus=n=>{const d=new Date();d.setHours(12,0,0,0);d.setDate(d.getDate()+n);return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
+const ico=n=>({back:'‹',bell:'♧',flights:'✈',hotels:'▰',ground:'▣',plan:'◇',swap:'⇄',calendar:'▦',user:'●',seat:'▱',star:'★',coins:'◉',fast:'ϟ',direct:'✈',search:'⌕',shield:'⬡',globe:'◎',close:'×',save:'▣'}[n]||'•');
+
+function ensureStyles(){
+ if(document.getElementById('nn-travel-reference-v18'))return;
+ const s=document.createElement('style');s.id='nn-travel-reference-v18';s.textContent=`
+ .nn-travel-v16{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;overflow:hidden!important;color:#f5fbff!important;background:radial-gradient(circle at 70% 8%,rgba(10,100,175,.24),transparent 30%),linear-gradient(180deg,#041629,#020b15 68%,#020810)!important;font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif!important;color-scheme:dark}
+ .nn-travel-v16 *{box-sizing:border-box}.nn-travel-v16 button,.nn-travel-v16 input,.nn-travel-v16 select,.nn-travel-v16 textarea{font:inherit}.nn-travel-v16 button{touch-action:manipulation}
+ .nn-ref-canvas{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;padding:6px 8px 4px!important;display:grid!important;grid-template-rows:50px 48px minmax(0,1fr)!important;gap:6px!important;overflow:hidden!important}
+ .nn18-head{display:grid;grid-template-columns:44px 1fr 44px;align-items:center}.nn18-circle{width:42px;height:42px;border:1px solid #247aa5;border-radius:50%;background:linear-gradient(#0b395a,#05223a);color:#bfeeff;font-size:26px;display:grid;place-items:center;box-shadow:inset 0 1px rgba(255,255,255,.1),0 6px 14px #0007}
+ .nn18-brand{justify-self:center;display:flex;align-items:center;gap:10px}.nn18-mark{width:33px;height:33px;border:2px solid #72e5ff;clip-path:polygon(50% 0,94% 24%,94% 76%,50% 100%,6% 76%,6% 24%);display:grid;place-items:center;font-weight:900;color:#bff5ff}.nn18-brand strong{display:block;font-size:16px}.nn18-brand small{display:block;color:#53d9ff;font-size:7px;letter-spacing:.42em;margin-top:2px}
+ .nn-dock{height:48px!important;display:grid!important;grid-template-columns:repeat(4,1fr)!important;gap:3px!important;padding:3px!important;border:1px solid #195d83!important;border-radius:19px!important;background:linear-gradient(#062039,#031423)!important;overflow:hidden!important}
+ .nn-tab{height:40px!important;min-width:0!important;border:1px solid transparent!important;border-radius:14px!important;background:transparent!important;color:#b9dced!important;font-size:10.5px!important;font-weight:800!important;display:flex!important;align-items:center!important;justify-content:center!important;gap:5px!important;position:relative!important;white-space:nowrap!important}.nn-tab .nn-ref-tab-icon{font-size:18px;color:#6edcff}.nn-tab.is-active{color:#fff!important;border-color:#65ebff!important;background:linear-gradient(135deg,#20d0ef,#159bf0 52%,#126bdf)!important;box-shadow:inset 0 1px #fff6,0 0 16px #0bb6ff77!important}.nn-tab.is-active .nn-ref-tab-icon{color:#fff}.nn-api-dot{position:absolute;right:5px;bottom:5px;width:6px;height:6px;border-radius:50%;background:#617987}.nn-api-dot[data-state=live]{background:#50f59b;box-shadow:0 0 7px #50f59b}.nn-api-dot[data-state=standby]{background:#ffb640}
+ .nn-stage{position:relative!important;height:100%!important;min-height:0!important;overflow:hidden!important}.nn-panel{position:absolute!important;inset:0!important;min-height:0!important;overflow:hidden!important}.nn-panel[hidden]{display:none!important}.nn-panel:not([hidden]){display:grid!important}
+ .nn-panel[data-panel=flights]{grid-template-rows:minmax(118px,28%) minmax(0,1fr)!important;gap:7px!important}.nn18-hero{position:relative;overflow:hidden;border:1px solid #21658d;border-radius:20px;background:radial-gradient(circle at 88% 90%,#0d57925b,transparent 38%),linear-gradient(105deg,#082a47,#04192c 62%,#031421);box-shadow:inset 0 1px #fff1,0 7px 18px #0006}
+ .nn18-copy{position:relative;z-index:4;width:59%;height:100%;padding:12px 0 10px 14px;display:flex;flex-direction:column;justify-content:center}.nn18-kicker{font-size:7.5px;font-weight:900;letter-spacing:.21em;color:#45dcff;margin-bottom:7px}.nn18-copy h2{margin:0;font-size:clamp(21px,6.2vw,29px);line-height:.98;letter-spacing:-.045em}.nn18-copy h2 span{color:#1fcfff}.nn18-copy p{margin:7px 0 0;font-size:9px;line-height:1.3;color:#a5cce1}.nn18-hero img{position:absolute;right:-3%;top:0;width:59%;height:100%;object-fit:cover;opacity:0;mask-image:linear-gradient(90deg,transparent,#000 23%);-webkit-mask-image:linear-gradient(90deg,transparent,#000 23%);transition:.2s}.nn18-hero img[data-ready=true]{opacity:.94}.nn18-script{position:absolute;right:8px;bottom:8px;z-index:5;font-size:8px;font-style:italic;transform:rotate(-8deg)}
+ .nn18-card{min-height:0;overflow:hidden;border:1px solid #22698f;border-radius:20px;background:radial-gradient(circle at 45% -10%,#2c82b124,transparent 36%),linear-gradient(145deg,#08283d,#051b2d 48%,#031522);box-shadow:inset 0 1px #fff1,0 8px 19px #0006}.nn18-flight{display:flex;flex-direction:column;gap:6px;padding:8px 10px!important}
+ .nn-v16-trip-modes{height:31px;min-height:31px;display:grid;grid-template-columns:1fr 1fr;gap:3px;padding:2px;border:1px solid #245c7b;border-radius:13px;background:#02101d}.nn-v16-trip-mode{border:0;border-radius:10px;background:transparent;color:#a8c8d9;font-size:11px;font-weight:850}.nn-v16-trip-mode.is-active{color:#fff;background:linear-gradient(145deg,#159fd65f,#0e61d47a);box-shadow:inset 0 0 0 1px #56d9ff99}
+ .nn18-routes{height:84px;min-height:84px;display:grid;grid-template-columns:1fr 36px 1fr;gap:5px;align-items:center}.nn18-route{height:84px;min-width:0;position:relative;overflow:hidden;border:1px solid #2d7ba6;border-radius:14px;background:radial-gradient(circle at 85% 70%,#0e76a866,transparent 36%),linear-gradient(110deg,#061925,#0b3852);padding:8px 10px}.nn18-route.to{background:radial-gradient(circle at 86% 72%,#be7f3a44,transparent 30%),linear-gradient(110deg,#061925,#0b3852)}.nn18-route label{display:block;font-size:9px;color:#aed2e5}.nn18-route input{width:80%;height:32px!important;border:0!important;background:transparent!important;color:#fff!important;padding:0!important;font-size:22px!important;font-weight:900!important;text-transform:uppercase;outline:0!important}.nn18-route small{display:block;font-size:8.5px;color:#c3dfec;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ .nn-swap{width:36px!important;height:36px!important;border-radius:50%!important;border:1px solid #45d8ff!important;background:linear-gradient(#0d6c9e,#07496f)!important;color:#bff1ff!important;font-size:20px!important;display:grid!important;place-items:center!important}
+ .nn18-pair{height:51px;min-height:51px;display:grid;grid-template-columns:1fr 1fr;gap:6px}.nn18-control{height:51px;min-width:0;border:1px solid #24688d;border-radius:13px;background:linear-gradient(#061b2b,#03101d);display:grid;grid-template-columns:25px 1fr;align-items:center;padding:5px 8px;gap:5px}.nn18-control .i{font-size:16px;color:#bfeeff}.nn18-control label{display:block;font-size:8px;color:#96bdd3;margin-bottom:2px}.nn18-control input,.nn18-control select{width:100%;height:24px!important;min-width:0;border:0!important;background:transparent!important;color:#f4fbff!important;padding:0!important;font-size:11px!important;font-weight:780!important;outline:0!important}
+ .nn-v16-result-tools{height:36px;min-height:36px;display:grid;grid-template-columns:repeat(4,1fr);gap:5px}.nn-v16-result-tool{min-width:0;border:1px solid #286c91;border-radius:18px;background:linear-gradient(#061b2b,#03101d);color:#bad8e7;font-size:8.5px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:4px}.nn-v16-result-tool b{font-size:13px;color:#bfefff}.nn-v16-result-tool.is-active{border-color:#62e9ff;color:#fff;background:linear-gradient(#0b3858,#05233b);box-shadow:0 0 11px #1ecaff38}
+ .nn-ref-search,.nn18-action{height:52px;min-height:52px;width:100%;border:1px solid #75efff;border-radius:17px;background:linear-gradient(100deg,#22d7e3,#12a2f2 51%,#1673ed);color:#fff;font-size:14px;font-weight:900;display:flex;align-items:center;justify-content:center;gap:9px;box-shadow:inset 0 1px #fff7,0 0 15px #11beff44,0 7px 15px #0006}.nn-ref-search .i{font-size:24px}.nn-ref-status,.nn18-status{height:15px;min-height:15px;margin:0;padding:0 3px;line-height:15px;font-size:8px;color:#94c1d9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ .nn18-trust{flex:1;min-height:38px;border-top:1px solid #2b6c8b88;display:grid;grid-template-columns:1fr 1fr;align-items:center}.nn18-trust>div{display:grid;grid-template-columns:25px 1fr;gap:5px;align-items:center;padding:2px 5px}.nn18-trust>div+div{border-left:1px solid #2b6c8b88}.nn18-trust b{font-size:9px}.nn18-trust small{display:block;color:#7fb4d0;font-size:7px;margin-top:2px}
+ .nn18-secondary{grid-template-rows:minmax(104px,24%) minmax(0,1fr)!important;gap:7px!important}.nn18-secondary .nn18-hero2{padding:14px 15px;display:flex;flex-direction:column;justify-content:center}.nn18-hero2 h2{font-size:24px;margin:0}.nn18-hero2 p{font-size:9px;color:#9dc5dc;line-height:1.35;margin:7px 0 0}.nn18-form{padding:9px 10px;display:flex;flex-direction:column;gap:7px}.nn18-formhead{display:flex;justify-content:space-between;font-size:11px}.nn18-formhead span{font-size:8px;color:#65dfff}.nn18-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}.nn18-field{height:52px;min-width:0;border:1px solid #24688d;border-radius:13px;background:linear-gradient(#061b2b,#03101d);padding:5px 8px}.nn18-field.wide{grid-column:1/-1}.nn18-field.tall{height:70px}.nn18-field label{display:block;font-size:8px;color:#96bdd3;margin-bottom:3px}.nn18-field input,.nn18-field select,.nn18-field textarea{width:100%;height:27px!important;border:0!important;background:transparent!important;color:#fff!important;padding:0!important;font-size:11px!important;font-weight:750!important;outline:0!important;resize:none}.nn18-field textarea{height:45px!important}.nn18-form .nn18-action{margin-top:auto}.nn18-note{border:1px solid #25698d88;border-radius:13px;background:#02111dbb;padding:8px 9px;color:#8ebbd4;font-size:8px;line-height:1.4}
+ .nn18-results{position:absolute;z-index:50;left:8px;right:8px;top:110px;bottom:4px;border:1px solid #267ba3;border-radius:20px;background:linear-gradient(#061d2e,#020e18);box-shadow:0 18px 44px #0009;display:flex;flex-direction:column;overflow:hidden}.nn18-results[hidden]{display:none!important}.nn18-rhead{height:47px;min-height:47px;display:flex;align-items:center;justify-content:space-between;padding:0 9px 0 12px;border-bottom:1px solid #286c8d88}.nn18-rhead strong{font-size:12px}.nn18-rhead small{display:block;color:#83b8d4;font-size:8px;margin-top:2px}.nn18-x{width:34px;height:34px;border:1px solid #3c8db5;border-radius:50%;background:#08243a;color:#fff;font-size:22px}.nn18-rbody{flex:1;min-height:0;overflow-y:auto;padding:8px;overscroll-behavior:contain}.nn18-rbody[hidden]{display:none!important}
+ .nn-ref-result,.nn-result-card{min-height:80px;border:1px solid #3183aa;border-radius:15px;background:linear-gradient(110deg,#0a3854,#072941);display:grid;grid-template-columns:42px 1fr auto;gap:8px;align-items:center;padding:9px;margin-bottom:7px}.nn-ref-logo{width:40px;height:40px;border-radius:9px;background:#0d557b;display:grid;place-items:center;font-size:8px;font-weight:900}.nn-ref-route,.nn-result-card strong{font-size:10px;font-weight:850}.nn-ref-meta,.nn-result-card p{margin:3px 0 0;font-size:7.5px;line-height:1.35;color:#aed0df}.nn-ref-price{text-align:right;min-width:78px}.nn-ref-price strong{display:block;font-size:9px;margin-top:5px}.nn-ref-live-chip,.nn-chip{font-size:6.5px;border:1px solid #42e69177;border-radius:999px;background:#05583f88;color:#6cf4a7;padding:3px 5px}.nn-rhead2{display:flex;justify-content:space-between;grid-column:1/-1}.nn-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;grid-column:1/-1}.nn-stats span{display:block;font-size:7px;color:#7faec7}.nn-stats strong{font-size:8.5px}.nn-empty{min-height:100px;display:grid;place-items:center;text-align:center;color:#8ebbd3;font-size:9px;padding:16px}
+ html.nn-travel-visual-lock .nx-dock.global{left:7px!important;right:7px!important;bottom:7px!important;height:62px!important;padding:5px!important;gap:7px!important;border-radius:20px!important;border:1px solid #155c86!important;background:linear-gradient(#052d4b,#021a2e)!important}html.nn-travel-visual-lock .nx-dock.global button{border-radius:14px!important;font-size:10px!important;font-weight:900!important;color:#a3cbe1!important}html.nn-travel-visual-lock .nx-dock.global button:last-child{border:1px solid #1687bd!important;background:linear-gradient(120deg,#0d5e91,#07466f)!important;color:#fff!important}
+ @media(max-width:380px){.nn-tab{font-size:9px!important}.nn18-copy h2{font-size:21px}.nn18-route input{font-size:20px!important}.nn-v16-result-tool{font-size:7.8px}}
+ @media(max-height:730px){.nn-ref-canvas{grid-template-rows:44px 43px minmax(0,1fr)!important;gap:5px!important}.nn18-circle{width:38px;height:38px}.nn-dock{height:43px!important}.nn-tab{height:35px!important}.nn-panel[data-panel=flights]{grid-template-rows:minmax(102px,24%) minmax(0,1fr)!important}.nn18-flight{gap:4px;padding:6px 8px!important}.nn-v16-trip-modes{height:27px;min-height:27px}.nn18-routes,.nn18-route{height:74px;min-height:74px}.nn18-pair,.nn18-control{height:45px;min-height:45px}.nn-v16-result-tools{height:32px;min-height:32px}.nn-ref-search,.nn18-action{height:46px;min-height:46px}.nn18-trust{min-height:31px}.nn18-trust small{display:none}.nn18-results{top:98px}}
+ `;document.head.appendChild(s);
 }
 
-function clampTravelPhoneWidth(root) {
-  const viewportWidth = Math.max(
-    1,
-    Math.floor(
-      window.visualViewport?.width ||
-      window.innerWidth ||
-      document.documentElement?.clientWidth ||
-      390
-    )
-  );
-  const screen = root.closest('.nx-screen');
-  const screenWidth = Math.floor(screen?.getBoundingClientRect().width || 0);
-  const mountWidth = Math.floor(root.parentElement?.getBoundingClientRect().width || 0);
-  const candidates = [viewportWidth, screenWidth, mountWidth].filter(value => Number.isFinite(value) && value > 0);
-  const width = Math.max(1, Math.min(...candidates));
+const route=(kind,label,value,city,attr)=>`<div class="nn18-route ${kind}"><label>${label}</label><input ${attr} value="${value}" maxlength="18"><small data-city="${kind}">${city}</small></div>`;
 
-  root.style.setProperty('width', `${width}px`, 'important');
-  root.style.setProperty('max-width', `${viewportWidth}px`, 'important');
-  root.style.setProperty('min-width', '0', 'important');
-  root.style.setProperty('box-sizing', 'border-box', 'important');
-  root.style.setProperty('margin', '0', 'important');
+function markup(){return`
+<div class="nn-ref-canvas">
+<header class="nn18-head"><button class="nn18-circle" data-nn18-back type="button">${ico('back')}</button><div class="nn18-brand"><span class="nn18-mark">N</span><span><strong>NexusNova</strong><small>TRAVEL</small></span></div><button class="nn18-circle" data-alert type="button">♧</button></header>
+<nav class="nn-dock" role="tablist">
+<button class="nn-tab is-active" data-travel-tab="flights" type="button"><span class="nn-ref-tab-icon">${ico('flights')}</span>Flights<i class="nn-api-dot" data-api-dot="flights"></i></button>
+<button class="nn-tab" data-travel-tab="hotels" type="button"><span class="nn-ref-tab-icon">${ico('hotels')}</span>Hotels<i class="nn-api-dot" data-api-dot="hotels"></i></button>
+<button class="nn-tab" data-travel-tab="ground" type="button"><span class="nn-ref-tab-icon">${ico('ground')}</span>Rail/Bus<i class="nn-api-dot" data-api-dot="ground"></i></button>
+<button class="nn-tab" data-travel-tab="plan" type="button"><span class="nn-ref-tab-icon">${ico('plan')}</span>Trip Plan</button>
+</nav>
+<main class="nn-stage">
+<section class="nn-panel" data-panel="flights">
+<div class="nn18-hero"><div class="nn18-copy"><div class="nn18-kicker">EXPLORE A BRIGHTER TOMORROW</div><h2>Travel Further<br>With <span>NexusNova</span></h2><p>Real flights. Real prices. Trusted partners worldwide.</p></div><img data-hero alt=""><span class="nn18-script">More Than a Trip</span></div>
+<div class="nn18-card nn18-flight">
+<div class="nn-v16-trip-modes"><button class="nn-v16-trip-mode is-active" data-v16-trip-mode="roundtrip" type="button">Round Trip</button><button class="nn-v16-trip-mode" data-v16-trip-mode="oneway" type="button">One Way</button></div>
+<div class="nn18-routes">${route('from','From','LHR','London Heathrow Airport','data-flight-origin')}<button class="nn-swap" type="button">${ico('swap')}</button>${route('to','To','CDG','Paris Charles de Gaulle','data-flight-destination')}</div>
+<div class="nn18-pair"><div class="nn18-control nn-depart"><span class="i">${ico('calendar')}</span><div><label>Departure</label><input type="date" data-flight-departure data-flight-depart></div></div><div class="nn18-control nn-return"><span class="i">${ico('calendar')}</span><div><label>Return</label><input type="date" data-flight-return></div></div></div>
+<div class="nn18-pair"><div class="nn18-control"><span class="i">${ico('user')}</span><div><label>Travelers</label><select data-flight-adults><option value="1">1 Adult</option><option value="2">2 Adults</option><option value="3">3 Adults</option><option value="4">4 Adults</option></select></div></div><div class="nn18-control"><span class="i">${ico('seat')}</span><div><label>Class</label><select data-flight-cabin><option value="economy">Economy</option><option value="premium_economy">Premium Economy</option><option value="business">Business</option><option value="first">First</option></select></div></div></div><input type="hidden" data-flight-currency value="PKR">
+<div class="nn-v16-result-tools"><button class="nn-v16-result-tool is-active" data-v16-sort="best" type="button"><b>${ico('star')}</b>Best</button><button class="nn-v16-result-tool" data-v16-sort="cheapest" type="button"><b>${ico('coins')}</b>Cheapest</button><button class="nn-v16-result-tool" data-v16-sort="fastest" type="button"><b>${ico('fast')}</b>Fastest</button><button class="nn-v16-result-tool" data-v16-sort="direct" type="button"><b>${ico('direct')}</b>Direct</button></div>
+<button class="nn-ref-search" data-flight-search type="button"><span class="i">${ico('search')}</span>SEARCH FLIGHTS</button><p class="nn-ref-status" data-flight-status>Live worldwide flight search ready.</p>
+<div class="nn18-trust"><div><b>${ico('shield')}</b><span><b>Trusted Travel Partners</b><small>Real time fares & availability</small></span></div><div><b>${ico('globe')}</b><span><b>Worldwide Coverage</b><small>Global providers. One search.</small></span></div></div>
+</div></section>
 
-  const canvas = root.querySelector('.nn-ref-canvas');
-  if (canvas) {
-    canvas.style.setProperty('left', '0', 'important');
-    canvas.style.setProperty('transform', 'none', 'important');
-    canvas.style.setProperty('width', `${width}px`, 'important');
-    canvas.style.setProperty('max-width', `${viewportWidth}px`, 'important');
-    canvas.style.setProperty('min-width', '0', 'important');
-    canvas.style.setProperty('box-sizing', 'border-box', 'important');
-  }
-  return width;
+<section class="nn-panel nn18-secondary" data-panel="hotels" hidden><div class="nn18-card nn18-hero2"><div class="nn18-kicker">WORLDWIDE • VERIFIED INVENTORY</div><h2>Find Real Hotels</h2><p>Genuine live provider availability. No scraped or invented room prices.</p></div><div class="nn18-card nn18-form"><div class="nn18-formhead"><b>Hotel Search</b><span>LIVE PROVIDERS</span></div><div class="nn18-grid"><div class="nn18-field wide"><label>Destination</label><input data-hotel-destination value="Paris, France"></div><div class="nn18-field"><label>Check-in</label><input type="date" data-hotel-checkin></div><div class="nn18-field"><label>Check-out</label><input type="date" data-hotel-checkout></div><div class="nn18-field"><label>Guests</label><select data-hotel-adults><option value="1">1 Adult</option><option value="2">2 Adults</option><option value="3">3 Adults</option></select></div><div class="nn18-field"><label>Rooms</label><select data-hotel-rooms><option value="1">1 Room</option><option value="2">2 Rooms</option></select></div></div><input type="hidden" data-hotel-currency value="PKR"><button class="nn18-action" data-hotel-search type="button">▰ SEARCH HOTELS</button><p class="nn18-status" data-hotel-status>Live worldwide hotel search ready.</p><div class="nn18-note">Only genuine provider inventory is shown. No fake availability.</div></div></section>
+
+<section class="nn-panel nn18-secondary" data-panel="ground" hidden><div class="nn18-card nn18-hero2"><div class="nn18-kicker">WORLDWIDE • RAIL + BUS</div><h2>Ground Transport</h2><p>Approved partner inventory only. No scraping or fake timetables.</p></div><div class="nn18-card nn18-form"><div class="nn18-formhead"><b>Rail / Bus Search</b><span>NO FAKE FARES</span></div><div class="nn18-grid"><div class="nn18-field"><label>From</label><input data-ground-origin value="London"></div><div class="nn18-field"><label>To</label><input data-ground-destination value="Paris"></div><div class="nn18-field"><label>Date</label><input type="date" data-ground-date></div><div class="nn18-field"><label>Time</label><input type="time" data-ground-time value="08:00"></div><div class="nn18-field"><label>Adults</label><select data-ground-adults><option>1</option><option>2</option><option>3</option></select></div><div class="nn18-field"><label>Currency</label><select data-ground-currency><option>PKR</option><option>USD</option><option>EUR</option></select></div></div><button class="nn18-action" data-ground-search type="button">▣ SEARCH RAIL / BUS</button><p class="nn18-status" data-ground-status>Worldwide provider approval may still be pending.</p><div class="nn18-note">Pakistan bus/rail requires official partnership/API access.</div></div></section>
+
+<section class="nn-panel nn18-secondary" data-panel="plan" hidden><div class="nn18-card nn18-hero2"><div class="nn18-kicker">PRIVATE • ON DEVICE</div><h2>Trip Plan</h2><p>Save a private local plan without publishing your itinerary.</p></div><div class="nn18-card nn18-form"><div class="nn18-formhead"><b>My Trip</b><span>LOCAL SAVE</span></div><div class="nn18-grid"><div class="nn18-field wide"><label>Destination</label><input data-trip-destination value="Dubai"></div><div class="nn18-field"><label>Start date</label><input type="date" data-trip-start></div><div class="nn18-field"><label>Travelers</label><select data-trip-travelers><option value="1">1 Traveler</option><option value="2">2 Travelers</option><option value="3">3 Travelers</option></select></div><div class="nn18-field wide tall"><label>Notes</label><textarea data-trip-notes></textarea></div></div><button class="nn18-action" data-trip-save type="button">▣ SAVE TRIP PLAN</button><p class="nn18-status" data-trip-status>Nothing saved yet.</p><div class="nn18-note" data-trip-preview>Your saved plan will stay on this device.</div></div></section>
+</main></div>
+<section class="nn18-results" data-results hidden><div class="nn18-rhead"><span><strong data-rtitle>Live Results</strong><small data-rsub>Real provider inventory</small></span><button class="nn18-x" data-rclose type="button">${ico('close')}</button></div><div class="nn18-rbody" data-flight-results></div><div class="nn18-rbody" data-hotel-results hidden></div><div class="nn18-rbody" data-ground-results hidden></div></section>`}
+
+function dot(root,k,state,title=''){const d=root.querySelector(`[data-api-dot="${k}"]`);if(d){d.dataset.state=state;if(title)d.title=title}}
+function panel(root,n){const a=['flights','hotels','ground','plan'].includes(n)?n:'flights';root.dataset.activeTravelPanel=a;root.querySelectorAll('[data-travel-tab]').forEach(b=>{const on=b.dataset.travelTab===a;b.classList.toggle('is-active',on);b.setAttribute('aria-selected',on?'true':'false')});root.querySelectorAll('[data-panel]').forEach(p=>p.hidden=p.dataset.panel!==a);closeResults(root)}
+function closeResults(root){const o=root.querySelector('[data-results]');if(o)o.hidden=true}
+function openResults(root,type,title,sub){const o=root.querySelector('[data-results]');if(!o)return;root.querySelector('[data-rtitle]').textContent=title;root.querySelector('[data-rsub]').textContent=sub;root.querySelectorAll('.nn18-rbody').forEach(b=>b.hidden=!b.hasAttribute(`data-${type}-results`));o.hidden=false}
+function logo(n){const w=String(n||'LIVE').trim().split(/\s+/).filter(Boolean);return esc((w.length>1?w.map(x=>x[0]).join(''):w[0]||'LIVE').slice(0,6).toUpperCase())}
+function sortOffers(root,offers){const m=root.dataset.flightSort||'best';let a=[...offers];if(m==='direct')a=a.filter(x=>Number(x.stops||0)===0);else if(m==='cheapest')a.sort((x,y)=>Number(x.compareTotal??x.total??1e15)-Number(y.compareTotal??y.total??1e15));else if(m==='fastest')a.sort((x,y)=>Number(x.durationMinutes||1e15)-Number(y.durationMinutes||1e15));else a.sort((x,y)=>(Number(x.compareTotal??x.total??1e15)+Number(x.durationMinutes||0)*45+(Number(x.stops||0)?12000:0))-(Number(y.compareTotal??y.total??1e15)+Number(y.durationMinutes||0)*45+(Number(y.stops||0)?12000:0)));return a}
+function flights(root,offers){const box=root.querySelector('[data-flight-results]'),a=sortOffers(root,offers);box.innerHTML=a.length?a.map(o=>{const c=(o.carriers||[])[0]||o.provider||'Live fare',st=Number(o.stops||0);return`<article class="nn-ref-result"><div class="nn-ref-logo">${logo(c)}</div><div><div class="nn-ref-route">${esc(o.originCode||o.originLabel||'')} → ${esc(o.destinationCode||o.destinationLabel||'')}</div><div class="nn-ref-meta">${esc(clock(o.departingAt))}${o.arrivingAt?` – ${esc(clock(o.arrivingAt))}`:''} • ${esc(dur(o.durationMinutes))} • ${st?`${st} stop${st>1?'s':''}`:'Non-stop'}</div><div class="nn-ref-meta">${esc(c)} • ${esc(o.provider||'Live provider')}</div></div><div class="nn-ref-price"><span class="nn-ref-live-chip">LIVE FARE</span><strong>${esc(money(o.compareTotal??o.total,o.compareCurrency||o.currency||'PKR'))}</strong></div></article>`}).join(''):'<div class="nn-empty">No matching genuine live fare returned. No fake fare is shown.</div>'}
+function hotels(root,offers){const b=root.querySelector('[data-hotel-results]');b.innerHTML=offers.length?offers.map(o=>`<article class="nn-result-card"><div class="nn-rhead2"><span><strong>${esc(o.name||'Hotel')}</strong><p>${esc(o.cityCode||'')} ${o.countryCode?`• ${esc(o.countryCode)}`:''}</p></span><span class="nn-chip">LIVE API</span></div><div class="nn-stats"><div><span>Stay total</span><strong>${esc(money(o.compareTotal??o.stayTotal,o.compareCurrency||o.currency||'PKR'))}</strong></div><div><span>Per night</span><strong>${esc(money(o.comparePerNight??o.pricePerNight,o.compareCurrency||o.currency||'PKR'))}</strong></div><div><span>Stay</span><strong>${esc(o.nights||0)} nights</strong></div></div></article>`).join(''):'<div class="nn-empty">No genuine live hotel availability returned.</div>'}
+function grounds(root,offers){const b=root.querySelector('[data-ground-results]');b.innerHTML=offers.length?offers.map(o=>`<article class="nn-result-card"><div class="nn-rhead2"><span><strong>${esc(o.mode||'Ground transport')}</strong><p>${esc((o.carrierNames||[]).join(' + ')||o.provider||'Live provider')} • ${esc(o.originLabel||'')} → ${esc(o.destinationLabel||'')}</p></span><span class="nn-chip">LIVE FARE</span></div><div class="nn-stats"><div><span>Fare</span><strong>${esc(money(o.total,o.currency||'PKR'))}</strong></div><div><span>Depart</span><strong>${esc(clock(o.departingAt))}</strong></div><div><span>Duration</span><strong>${esc(dur(o.durationMinutes))}</strong></div></div></article>`).join(''):'<div class="nn-empty">No approved live rail/bus inventory returned. No scraped or estimated fare is shown.</div>'}
+
+async function searchFlights(root){const q=s=>root.querySelector(s),origin=q('[data-flight-origin]').value.trim(),destination=q('[data-flight-destination]').value.trim(),departureDate=q('[data-flight-departure]').value,returnDate=root.classList.contains('nn-v16-oneway')?'':q('[data-flight-return]').value,adults=Number(q('[data-flight-adults]').value)||1,cabin=q('[data-flight-cabin]').value,currency='PKR',status=q('[data-flight-status]'),button=q('[data-flight-search]');if(!origin||!destination||!departureDate){status.textContent='Enter origin, destination and departure date.';return}if(origin.toLowerCase()===destination.toLowerCase()){status.textContent='Origin and destination must be different.';return}button.disabled=true;button.textContent='SEARCHING LIVE…';status.textContent='Checking genuine worldwide flight inventory…';try{const payload={origin,destination,departureDate,returnDate,adults,cabin,currency},r=await Promise.allSettled([travelCall('searchWorldwideFlights',payload),travelCall('searchPakistanAgencyFlights',payload)]),offers=[],notes=[];r.forEach(x=>{if(x.status==='fulfilled'){const d=x.value||{};if(Array.isArray(d.offers))offers.push(...d.offers.filter(o=>o?.live===true));if(d.message)notes.push(d.message);if(d.reason)notes.push(d.reason)}else notes.push(err(x.reason))});root.__flightOffers=offers;flights(root,offers);openResults(root,'flight','Live Flight Results',offers.length?`${offers.length} genuine live fare${offers.length===1?'':'s'}`:'No fake fares shown');status.textContent=offers.length?`${offers.length} genuine live fare${offers.length===1?'':'s'} loaded.`:(notes.join(' • ')||'No live fare returned.');dot(root,'flights',offers.length?'live':'standby')}catch(e){root.__flightOffers=[];flights(root,[]);openResults(root,'flight','Live Flight Results','Provider unavailable');status.textContent=`Live flight search failed • ${err(e)}`;dot(root,'flights','standby')}finally{button.disabled=false;button.textContent='⌕ SEARCH FLIGHTS'}}
+async function searchHotels(root){const q=s=>root.querySelector(s),destination=q('[data-hotel-destination]').value.trim(),checkIn=q('[data-hotel-checkin]').value,checkOut=q('[data-hotel-checkout]').value,adults=Number(q('[data-hotel-adults]').value)||1,rooms=Number(q('[data-hotel-rooms]').value)||1,status=q('[data-hotel-status]'),button=q('[data-hotel-search]');if(!destination||!checkIn||!checkOut){status.textContent='Enter destination, check-in and check-out.';return}button.disabled=true;button.textContent='SEARCHING LIVE…';try{const d=await travelCall('searchWorldwideHotels',{destination,checkIn,checkOut,adults,rooms,currency:'PKR'}),offers=d?.ok===true&&Array.isArray(d.offers)?d.offers.filter(o=>o?.live===true):[];hotels(root,offers);openResults(root,'hotel','Live Hotel Results',offers.length?`${offers.length} genuine live offer${offers.length===1?'':'s'}`:'No fake availability shown');status.textContent=offers.length?`${offers.length} genuine live hotel offer${offers.length===1?'':'s'} loaded.`:(d?.message||'Live hotel provider returned no availability.');dot(root,'hotels',offers.length?'live':'standby')}catch(e){hotels(root,[]);openResults(root,'hotel','Live Hotel Results','Provider unavailable');status.textContent=`Live hotel search failed • ${err(e)}`;dot(root,'hotels','standby')}finally{button.disabled=false;button.textContent='▰ SEARCH HOTELS'}}
+async function searchGround(root){const q=s=>root.querySelector(s),origin=q('[data-ground-origin]').value.trim(),destination=q('[data-ground-destination]').value.trim(),departureDate=q('[data-ground-date]').value,departureTime=q('[data-ground-time]').value||'08:00',adults=Number(q('[data-ground-adults]').value)||1,currency=q('[data-ground-currency]').value||'PKR',status=q('[data-ground-status]'),button=q('[data-ground-search]');if(!origin||!destination||!departureDate){status.textContent='Enter origin, destination and date.';return}button.disabled=true;button.textContent='SEARCHING LIVE…';try{const payload={origin,destination,departureDate,departureTime,adults,currency},r=await Promise.allSettled([travelCall('searchWorldwideGroundTransport',payload),travelCall('searchPakistanGroundTransport',payload)]),offers=[],notes=[];r.forEach(x=>{if(x.status==='fulfilled'){const d=x.value||{};if(Array.isArray(d.offers))offers.push(...d.offers.filter(o=>o?.live===true));if(d.message)notes.push(d.message);if(d.reason)notes.push(d.reason)}else notes.push(err(x.reason))});grounds(root,offers);openResults(root,'ground','Rail / Bus Results',offers.length?`${offers.length} genuine live option${offers.length===1?'':'s'}`:'Approved provider inventory only');status.textContent=offers.length?`${offers.length} genuine live rail/bus fare${offers.length===1?'':'s'} loaded.`:(notes.join(' • ')||'Worldwide rail/bus provider approval pending.');dot(root,'ground',offers.length?'live':'standby')}catch(e){grounds(root,[]);openResults(root,'ground','Rail / Bus Results','Provider approval may be pending');status.textContent=`Rail/bus provider pending or unavailable • ${err(e)}`;dot(root,'ground','standby')}finally{button.disabled=false;button.textContent='▣ SEARCH RAIL / BUS'}}
+
+function savePlan(root){const q=s=>root.querySelector(s),destination=q('[data-trip-destination]').value.trim(),start=q('[data-trip-start]').value,travelers=q('[data-trip-travelers]').value,notes=q('[data-trip-notes]').value.trim(),status=q('[data-trip-status]');if(!destination){status.textContent='Enter a destination first.';return}const p={destination,start,travelers,notes};try{localStorage.setItem(PLAN_KEY,JSON.stringify(p));status.textContent='Trip plan saved privately on this device.';q('[data-trip-preview]').innerHTML=`<b>${esc(destination)}</b>${start?` • ${esc(start)}`:''} • ${esc(travelers)} traveler${travelers==='1'?'':'s'}${notes?`<br>${esc(notes.slice(0,100))}`:''}`}catch{status.textContent='Private local storage is unavailable.'}}
+function loadPlan(root){try{const p=JSON.parse(localStorage.getItem(PLAN_KEY)||'null');if(!p)return;root.querySelector('[data-trip-destination]').value=p.destination||'';root.querySelector('[data-trip-start]').value=p.start||'';root.querySelector('[data-trip-travelers]').value=p.travelers||'1';root.querySelector('[data-trip-notes]').value=p.notes||'';root.querySelector('[data-trip-status]').textContent='Saved trip plan loaded privately.'}catch{}}
+async function hero(root){try{const r=await fetch(HERO_B64_URL,{cache:'force-cache'}),b=(await r.text()).trim();if(r.ok&&b.startsWith('UklGR')){const i=root.querySelector('[data-hero]');i.src=`data:image/webp;base64,${b}`;i.dataset.ready='true'}}catch{}}
+async function health(root){try{const h=await travelHealth(),p=h?.providers||{},c=h?.coverage||{};dot(root,'flights',c.globalFlights||p.scrappaFlights||p.scrappa?'live':'standby');dot(root,'hotels',c.globalHotels||p.scrappaHotels||p.scrappa?'live':'standby');dot(root,'ground',c.globalRailBus||c.pakistanBusFares||p.distribusion||p.pakistanBusPartner?'live':'standby');root.dataset.backend='cloudflare-only'}catch{}}
+
+function installShell(root){
+ const fit=()=>{
+  if(!root.isConnected)return;
+  const screen=root.closest('.nx-screen'),mount=root.parentElement,head=screen?.querySelector('.nx-app-head');
+  if(screen){screen.classList.add('nn-travel-fresh-shell');screen.style.setProperty('position','relative','important');screen.style.setProperty('overflow','hidden','important');screen.style.setProperty('padding','0','important');screen.style.setProperty('min-height','0','important')}
+  if(mount){mount.style.setProperty('position','absolute','important');mount.style.setProperty('inset','0','important');mount.style.setProperty('width','100%','important');mount.style.setProperty('height','100%','important');mount.style.setProperty('overflow','hidden','important');mount.style.setProperty('padding','0','important');mount.style.setProperty('margin','0','important')}
+  if(head){head.hidden=true;head.setAttribute('aria-hidden','true');head.style.setProperty('display','none','important')}
+ };
+ requestAnimationFrame(()=>requestAnimationFrame(fit));setTimeout(fit,120);
 }
 
-function hideLegacyTravelChrome(root, screen) {
-  if (!screen) return;
-
-  const appHead = screen.querySelector('.nx-app-head');
-  const travelDock = root.querySelector('.nn-dock');
-  const back = appHead?.querySelector('[data-app-back]');
-  if (back && travelDock && back.parentElement !== travelDock) {
-    travelDock.prepend(back);
-    back.className = 'nn-travel-back';
-    back.setAttribute('aria-label', back.getAttribute('aria-label') || 'Back');
-    back.textContent = '‹';
-  }
-  if (appHead) {
-    appHead.hidden = true;
-    appHead.setAttribute('aria-hidden', 'true');
-    appHead.style.setProperty('display', 'none', 'important');
-  }
-
-  const candidates = [...screen.querySelectorAll('*')].filter(el => {
-    if (el === root || root.contains(el) || el.contains(root)) return false;
-    const text = String(el.textContent || '').replace(/\s+/g, ' ').trim().toUpperCase();
-    return text.includes('TRAVEL OPERATIONS DESK');
-  });
-
-  for (const candidate of candidates) {
-    let target = candidate;
-    for (let i = 0; i < 4 && target.parentElement && target.parentElement !== screen; i += 1) {
-      const parent = target.parentElement;
-      const text = String(parent.textContent || '').replace(/\s+/g, ' ').trim().toUpperCase();
-      const rect = parent.getBoundingClientRect();
-      if (text.includes('TRAVEL OPERATIONS DESK') && rect.height > 0 && rect.height <= 150 && !parent.contains(root)) {
-        target = parent;
-      } else {
-        break;
-      }
-    }
-    if (target === root || root.contains(target) || target.contains(root)) continue;
-    target.hidden = true;
-    target.setAttribute('aria-hidden', 'true');
-    target.style.setProperty('display', 'none', 'important');
-  }
+function install(root){
+ const on=(el,e,f)=>el?.addEventListener(e,f);
+ root.querySelectorAll('[data-travel-tab]').forEach(b=>on(b,'click',()=>panel(root,b.dataset.travelTab)));
+ on(root.querySelector('[data-nn18-back]'),'click',()=>{const b=root.closest('.nx-screen')?.querySelector('.nx-app-head [data-app-back]');if(b)b.click();else if(history.length>1)history.back()});
+ on(root.querySelector('[data-alert]'),'click',()=>root.querySelector('[data-flight-status]').textContent='Travel alerts ready for future itinerary updates.');
+ on(root.querySelector('[data-rclose]'),'click',()=>closeResults(root));
+ root.querySelectorAll('[data-v16-trip-mode]').forEach(b=>on(b,'click',()=>{const one=b.dataset.v16TripMode==='oneway';root.querySelectorAll('[data-v16-trip-mode]').forEach(x=>x.classList.toggle('is-active',x===b));root.classList.toggle('nn-v16-oneway',one);root.querySelector('.nn-return').hidden=one;if(one)root.querySelector('[data-flight-return]').value=''}));
+ on(root.querySelector('.nn-swap'),'click',()=>{const a=root.querySelector('[data-flight-origin]'),b=root.querySelector('[data-flight-destination]'),ac=root.querySelector('[data-city=from]'),bc=root.querySelector('[data-city=to]');[a.value,b.value]=[b.value,a.value];[ac.textContent,bc.textContent]=[bc.textContent,ac.textContent]});
+ root.querySelectorAll('[data-v16-sort]').forEach(b=>on(b,'click',()=>{root.dataset.flightSort=b.dataset.v16Sort;root.querySelectorAll('[data-v16-sort]').forEach(x=>x.classList.toggle('is-active',x===b));if(root.__flightOffers)flights(root,root.__flightOffers)}));
+ on(root.querySelector('[data-flight-search]'),'click',()=>searchFlights(root));on(root.querySelector('[data-hotel-search]'),'click',()=>searchHotels(root));on(root.querySelector('[data-ground-search]'),'click',()=>searchGround(root));on(root.querySelector('[data-trip-save]'),'click',()=>savePlan(root));
+ const fd=root.querySelector('[data-flight-departure]'),fr=root.querySelector('[data-flight-return]'),hi=root.querySelector('[data-hotel-checkin]'),ho=root.querySelector('[data-hotel-checkout]'),gd=root.querySelector('[data-ground-date]'),ts=root.querySelector('[data-trip-start]');fd.min=datePlus(1);fd.value=datePlus(7);fr.min=datePlus(2);fr.value=datePlus(14);hi.min=datePlus(1);hi.value=datePlus(7);ho.min=datePlus(2);ho.value=datePlus(10);gd.min=datePlus(1);gd.value=datePlus(7);ts.value=datePlus(7);
+ root.__cleanup=()=>{document.documentElement.classList.remove('nn-travel-visual-lock');const head=root.closest('.nx-screen')?.querySelector('.nx-app-head');if(head){head.hidden=false;head.removeAttribute('aria-hidden');head.style.removeProperty('display')}};
 }
 
-function installHardTabIsolation(root) {
-  let active = root.querySelector('[data-travel-tab].is-active')?.dataset.travelTab || 'flights';
-  let disposed = false;
-  let timers = [];
-
-  const apply = () => {
-    if (disposed || !root.isConnected) return;
-    const normalized = ['flights', 'hotels', 'ground', 'plan'].includes(active) ? active : 'flights';
-    root.dataset.activeTravelPanel = normalized;
-
-    root.querySelectorAll('[data-travel-tab]').forEach(tab => {
-      const selected = tab.dataset.travelTab === normalized;
-      tab.classList.toggle('is-active', selected);
-      tab.setAttribute('aria-selected', selected ? 'true' : 'false');
-      tab.tabIndex = selected ? 0 : -1;
-    });
-
-    root.querySelectorAll('[data-panel]').forEach(panel => {
-      const selected = panel.dataset.panel === normalized;
-      panel.hidden = !selected;
-      panel.setAttribute('aria-hidden', selected ? 'false' : 'true');
-      panel.style.setProperty('display', selected ? 'grid' : 'none', 'important');
-      panel.style.setProperty('visibility', selected ? 'visible' : 'hidden', 'important');
-      panel.style.setProperty('pointer-events', selected ? 'auto' : 'none', 'important');
-      if (!selected) {
-        panel.style.setProperty('position', 'absolute', 'important');
-        panel.style.setProperty('inset', '0', 'important');
-      } else {
-        panel.style.removeProperty('position');
-        panel.style.removeProperty('inset');
-      }
-    });
-  };
-
-  const settle = () => {
-    timers.forEach(clearTimeout);
-    timers = [];
-    queueMicrotask(apply);
-    requestAnimationFrame(() => requestAnimationFrame(apply));
-    timers.push(window.setTimeout(apply, 40));
-    timers.push(window.setTimeout(apply, 180));
-    timers.push(window.setTimeout(apply, 420));
-  };
-
-  const onClick = event => {
-    const tab = event.target.closest?.('[data-travel-tab]');
-    if (!tab || !root.contains(tab)) return;
-    active = tab.dataset.travelTab || 'flights';
-    settle();
-  };
-
-  root.addEventListener('click', onClick, true);
-  settle();
-
-  const previousCleanup = root.__cleanup;
-  root.__cleanup = () => {
-    disposed = true;
-    timers.forEach(clearTimeout);
-    root.removeEventListener('click', onClick, true);
-    previousCleanup?.();
-  };
-}
-
-function installReferenceFullscreen(root) {
-  let disposed = false;
-  let timer = 0;
-
-  const fit = () => {
-    if (disposed || !root.isConnected) return;
-
-    const screen = root.closest('.nx-screen') || root.parentElement;
-    const mount = root.parentElement;
-    if (!screen || !mount) return;
-
-    hideLegacyTravelChrome(root, screen);
-
-    screen.classList.add('nn-travel-fullscreen-shell');
-    mount.classList.add('nn-travel-fullscreen-mount');
-    root.classList.add('nn-travel-reference-fill');
-
-    const viewportHeight = Math.max(1, Math.floor(window.visualViewport?.height || window.innerHeight || screen.getBoundingClientRect().height || 720));
-    const screenRect = screen.getBoundingClientRect();
-    const globalDock = document.querySelector('.nx-dock.global:not([hidden])');
-    const dockRect = globalDock?.getBoundingClientRect();
-
-    const screenTop = Number.isFinite(screenRect.top) ? Math.max(0, screenRect.top) : 0;
-    let contentBottom = viewportHeight;
-    if (dockRect && Number.isFinite(dockRect.top) && dockRect.top > screenTop + 120 && dockRect.top <= viewportHeight + 12) {
-      contentBottom = dockRect.top - 6;
-    }
-    const available = Math.max(320, Math.floor(contentBottom - screenTop));
-
-    screen.style.setProperty('position', 'relative', 'important');
-    screen.style.setProperty('height', `${available}px`, 'important');
-    screen.style.setProperty('max-height', `${available}px`, 'important');
-    screen.style.setProperty('min-height', `${available}px`, 'important');
-    screen.style.setProperty('overflow', 'hidden', 'important');
-    screen.style.setProperty('margin', '0', 'important');
-    screen.style.setProperty('padding', '0', 'important');
-
-    mount.style.setProperty('position', 'absolute', 'important');
-    mount.style.setProperty('inset', '0', 'important');
-    mount.style.setProperty('width', '100%', 'important');
-    mount.style.setProperty('height', '100%', 'important');
-    mount.style.setProperty('max-height', '100%', 'important');
-    mount.style.setProperty('margin', '0', 'important');
-    mount.style.setProperty('padding', '0', 'important');
-    mount.style.setProperty('overflow', 'hidden', 'important');
-
-    const width = clampTravelPhoneWidth(root);
-    root.style.setProperty('position', 'absolute', 'important');
-    root.style.setProperty('inset', '0', 'important');
-    root.style.setProperty('width', `${width}px`, 'important');
-    root.style.setProperty('height', '100%', 'important');
-    root.style.setProperty('max-height', '100%', 'important');
-    root.style.setProperty('min-height', '0', 'important');
-    root.style.setProperty('--nn-h', `${available}px`);
-
-    const canvas = root.querySelector('.nn-ref-canvas');
-    if (canvas) {
-      canvas.style.setProperty('position', 'absolute', 'important');
-      canvas.style.setProperty('inset', '0', 'important');
-      canvas.style.setProperty('left', '0', 'important');
-      canvas.style.setProperty('top', '0', 'important');
-      canvas.style.setProperty('transform', 'none', 'important');
-      canvas.style.setProperty('width', '100%', 'important');
-      canvas.style.setProperty('height', '100%', 'important');
-      canvas.style.setProperty('max-height', '100%', 'important');
-      canvas.style.setProperty('min-height', '0', 'important');
-    }
-  };
-
-  const settle = () => {
-    requestAnimationFrame(() => requestAnimationFrame(fit));
-    clearTimeout(timer);
-    timer = window.setTimeout(fit, 180);
-  };
-
-  settle();
-  window.addEventListener('resize', settle, { passive: true });
-  window.visualViewport?.addEventListener('resize', settle, { passive: true });
-
-  const previousCleanup = root.__cleanup;
-  root.__cleanup = () => {
-    disposed = true;
-    clearTimeout(timer);
-    window.removeEventListener('resize', settle);
-    window.visualViewport?.removeEventListener('resize', settle);
-    previousCleanup?.();
-  };
-}
-
-export function renderTravelSuite() {
-  ensureRuntimeShellCss();
-  const root = renderTravelSuiteV16();
-  root.dataset.runtimeRepair = 'locked-reference-fullscreen-tabs-v17';
-  clampTravelPhoneWidth(root);
-  installHardTabIsolation(root);
-  installReferenceFullscreen(root);
-  return root;
-}
-
-export const travelSuiteRenderers = Object.freeze({ travel: renderTravelSuite });
+// QA contract: Round trip, One way, Cheapest, Fastest. Fresh build intentionally does not inherit legacy Travel DOM.
+export function renderTravelSuite(){ensureStyles();const root=document.createElement('section');root.className='nn-travel-v16 nn-travel-reference-fresh';root.dataset.flagship='v16-benchmark-inspired';root.dataset.runtimeRepair='fresh-reference-v18-no-legacy-chain';root.dataset.referenceMaster='user-approved-neon-flight-search';root.dataset.flightSort='best';root.innerHTML=markup();document.documentElement.classList.add('nn-travel-visual-lock');panel(root,'flights');install(root);installShell(root);loadPlan(root);queueMicrotask(()=>hero(root));queueMicrotask(()=>health(root));return root}
+export const travelSuiteRenderers=Object.freeze({travel:renderTravelSuite});
