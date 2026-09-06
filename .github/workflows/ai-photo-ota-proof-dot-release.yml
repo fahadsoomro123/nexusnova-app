@@ -10,9 +10,9 @@ permissions:
   contents: read
 
 env:
-  VERIFIED_SOURCE: a719c9aaca3836852be129084e04cf66170643b4
+  VERIFIED_SOURCE: d33070604fe24a2dfbf893c792680e75b4f9e888
   OTA_BUNDLED_BASE: 8d1aaaee6f28b974a8c8b3ff213beb1318ec7405
-  OTA_PROOF_NUMBER: '1'
+  OTA_PROOF_NUMBER: '2'
   PUBLIC_OTA_REPO: fahadsoomro123/nexusnova-website
   PUBLIC_OTA_BRANCH: nexusnova-ota-public
 
@@ -41,28 +41,22 @@ jobs:
         shell: bash
         run: bash tools/ai-photo-flagship-qa/run-qa.sh
 
-      - name: Build full snapshot and inject OTA-only number badge
+      - name: Build minimal differential OTA and inject number badge
         shell: bash
         run: |
           set -euo pipefail
           git cat-file -e "$OTA_BUNDLED_BASE^{commit}"
           rm -rf /tmp/nexusnova-numbered-ota
-          mkdir -p /tmp/nexusnova-numbered-ota/files
+          mkdir -p /tmp/nexusnova-numbered-ota/files/src/features/apps
+          cp fresh-rebuild/index.html /tmp/nexusnova-numbered-ota/files/index.html
+          cp fresh-rebuild/src/features/apps/ai-photo-studio-review.js \
+            /tmp/nexusnova-numbered-ota/files/src/features/apps/ai-photo-studio-review.js
           export SOURCE_TREE="$(git rev-parse "$VERIFIED_SOURCE:fresh-rebuild")"
           python3 - <<'PY'
-          import hashlib, json, os, shutil
+          import hashlib, json, os
           from pathlib import Path
 
-          source=Path('fresh-rebuild')
           dest=Path('/tmp/nexusnova-numbered-ota/files')
-          for p in sorted(x for x in source.rglob('*') if x.is_file()):
-              rel=p.relative_to(source)
-              if any(part.startswith('.') for part in rel.parts):
-                  continue
-              out=dest/rel
-              out.parent.mkdir(parents=True,exist_ok=True)
-              shutil.copyfile(p,out)
-
           review=dest/'src/features/apps/ai-photo-studio-review.js'
           text=review.read_text(encoding='utf-8')
           marker="const root=renderFlagshipAiPhotoStudio();"
@@ -75,26 +69,16 @@ jobs:
           files=[]
           total=0
           for p in sorted(x for x in dest.rglob('*') if x.is_file()):
-              rel=p.relative_to(dest)
+              rel=p.relative_to(dest).as_posix()
               data=p.read_bytes()
-              files.append({'path':rel.as_posix(),'sha256':hashlib.sha256(data).hexdigest(),'size':len(data)})
+              files.append({'path':rel,'sha256':hashlib.sha256(data).hexdigest(),'size':len(data)})
               total += len(data)
 
-          if not files or not any(x['path']=='index.html' for x in files):
-              raise SystemExit('OTA entry point missing')
-          if len(files) > 2000 or total > 60*1024*1024:
-              raise SystemExit('OTA package exceeds safety limits')
-          required={
-              'index.html','sw.js','src/main.js',
-              'src/features/apps/ai-photo-studio-review.js',
-              'src/features/apps/ai-photo-design-flagship-v22.js',
-              'src/features/apps/ai-photo-batch-v23.js',
-              'src/features/apps/ai-photo-projects-export-v24.js'
-          }
+          expected={'index.html','src/features/apps/ai-photo-studio-review.js'}
           paths={x['path'] for x in files}
-          missing=required-paths
-          if missing:
-              raise SystemExit('Missing OTA critical files: '+', '.join(sorted(missing)))
+          if paths != expected or len(files) != 2:
+              raise SystemExit(f'Unexpected minimal OTA paths: {sorted(paths)}')
+
           manifest={
               'schema':2,
               'base':os.environ['OTA_BUNDLED_BASE'],
@@ -107,8 +91,8 @@ jobs:
           Path('/tmp/nexusnova-numbered-ota/manifest.json').write_text(
               json.dumps(manifest,separators=(',',':'),sort_keys=True),encoding='utf-8'
           )
-          print('Numbered OTA files:',len(files))
-          print('Numbered OTA bytes:',total)
+          print('Minimal differential OTA files:',len(files))
+          print('Minimal differential OTA bytes:',total)
           print('OTA proof number:',number)
           PY
           node --check /tmp/nexusnova-numbered-ota/files/src/features/apps/ai-photo-studio-review.js
@@ -121,7 +105,7 @@ jobs:
           PUBLIC_OTA_TOKEN: ${{ secrets.GH_PUBLIC_OTA_TOKEN || secrets.OTA_PUBLIC_TOKEN }}
         run: test -n "$PUBLIC_OTA_TOKEN"
 
-      - name: Publish numbered snapshot to public OTA channel
+      - name: Publish minimal numbered OTA to public channel
         id: publish
         shell: bash
         env:
@@ -136,13 +120,13 @@ jobs:
           rm -rf ota && mkdir -p ota
           cp -a /tmp/nexusnova-numbered-ota/. ota/
           git add -A ota
-          git commit -m "Publish AI Photo OTA proof ${OTA_PROOF_NUMBER} $GITHUB_SHA"
+          git commit -m "Publish AI Photo minimal OTA proof ${OTA_PROOF_NUMBER} $GITHUB_SHA"
           PUBLIC_SHA="$(git rev-parse HEAD)"
           AUTH="$(printf 'x-access-token:%s' "$PUBLIC_OTA_TOKEN" | base64 -w0)"
           git -c http.extraheader="AUTHORIZATION: basic $AUTH" push origin HEAD:"$PUBLIC_OTA_BRANCH"
           echo "public_sha=$PUBLIC_SHA" >> "$GITHUB_OUTPUT"
 
-      - name: Verify exact public OTA and numbered proof
+      - name: Verify exact public minimal OTA and numbered proof
         shell: bash
         env:
           PUBLIC_SHA: ${{ steps.publish.outputs.public_sha }}
@@ -160,6 +144,8 @@ jobs:
           assert m.get('version')==os.environ['GITHUB_SHA']
           assert m.get('source')==os.environ['VERIFIED_SOURCE']
           assert str(m.get('proof_number'))==os.environ['OTA_PROOF_NUMBER']
+          assert len(m.get('files',[]))==2
+          assert {x['path'] for x in m['files']}=={'index.html','src/features/apps/ai-photo-studio-review.js'}
           PY
               then break; fi
             fi
@@ -175,11 +161,11 @@ jobs:
               data=urllib.request.urlopen(url,timeout=25).read()
               assert len(data)==item['size'],item['path']
               assert hashlib.sha256(data).hexdigest()==item['sha256'],item['path']
-          print('Exact public numbered OTA verified:',len(m['files']),'files')
+          print('Exact public minimal OTA verified:',len(m['files']),'files')
           PY
           curl -fsSL -H 'Cache-Control: no-cache, no-store' \
             "$BRANCH_BASE/files/src/features/apps/ai-photo-studio-review.js?v=$GITHUB_SHA&n=phone" \
             -o /tmp/review.js
           grep -Fq "nx-ai-photo-ota-proof-badge" /tmp/review.js
           grep -Fq "textContent='${OTA_PROOF_NUMBER}'" /tmp/review.js
-          echo "PUBLIC OTA ${OTA_PROOF_NUMBER} READY — badge exists only in OTA package, not bundled source."
+          echo "PUBLIC OTA ${OTA_PROOF_NUMBER} READY — minimal 2-file differential overlay verified."
