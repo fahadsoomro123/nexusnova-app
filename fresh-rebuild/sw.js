@@ -1,6 +1,6 @@
 /* NexusNova Fresh Service Worker — fresh shell + FCM web push */
 const CACHE_PREFIX='nexusnova-fresh-shell-';
-const CACHE=`${CACHE_PREFIX}v2`;
+const CACHE=`${CACHE_PREFIX}v3-ai-photo-20260906`;
 const ASSETS=[
   './','./index.html',
   './assets/styles/tokens.css','./assets/styles/app.css','./assets/styles/features.css','./assets/styles/core-apps.css','./assets/styles/discover-apps.css',
