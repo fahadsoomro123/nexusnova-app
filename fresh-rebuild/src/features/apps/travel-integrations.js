@@ -65,6 +65,13 @@ function normalizeTravelDates(root) {
 export function enhanceTravelApp(id, root) {
   if (!(root instanceof HTMLElement) || id !== 'travel') return root;
 
+  const lockedTravelV16 = root.matches?.('.nn-travel-v16,[data-runtime-repair]')
+    || root.querySelector?.('.nn-travel-v16,[data-runtime-repair]');
+  if (lockedTravelV16) {
+    normalizeTravelDates(root);
+    return root;
+  }
+
   const expansion = [...root.querySelectorAll('.nx-tool-card')]
     .find(card => card.textContent?.includes('Worldwide Travel Expansion')) || null;
   const groundPanel = renderTravelGroundPanel();
