@@ -9,6 +9,8 @@ on:
       - 'fresh-rebuild/assets/visuals/ai-photo-*'
       - 'fresh-rebuild/src/main.js'
       - 'fresh-rebuild/src/features/apps/data/ai-photo-templates.js'
+      - 'fresh-rebuild/sw.js'
+      - 'NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt'
       - 'tools/ai-photo-flagship-qa/**'
       - 'tools/ai-photo-locked-visual/**'
       - 'AI-PHOTO-*.md'
@@ -37,6 +39,7 @@ jobs:
           done
           node --check fresh-rebuild/src/features/apps/data/ai-photo-templates.js
           node --check fresh-rebuild/src/main.js
+          node --check fresh-rebuild/sw.js
           node --check tools/ai-photo-flagship-qa/firebase-stub.mjs
           node --check tools/ai-photo-flagship-qa/behavior-qa.mjs
           BASE=9ef070ba55f76506851a1366fc9dc3863e50578d
@@ -58,6 +61,21 @@ jobs:
             exit 1
           fi
           echo 'PASS — protected product/release files unchanged; Puter remains keyless with one generation call site.'
+
+      - name: Android installed-app web freshness contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          OTA=NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt
+          TREE="$(git rev-parse HEAD:fresh-rebuild)"
+          BUNDLED="$(sed -n 's/.*BUNDLED_WEB_BASE = "\([0-9a-f]\{40\}\)".*/\1/p' "$OTA" | head -1)"
+          test -n "$BUNDLED"
+          test "$BUNDLED" = "$TREE"
+          grep -Fq 'if (storedBase != BUNDLED_WEB_BASE)' "$OTA"
+          grep -Fq 'versionsRoot.deleteRecursively()' "$OTA"
+          grep -Fq 'putString(KEY_BUNDLED_BASE, BUNDLED_WEB_BASE)' "$OTA"
+          grep -Fq 'v3-ai-photo-20260906' fresh-rebuild/sw.js
+          echo "PASS — installed APK baseline $BUNDLED matches fresh-rebuild tree and forces stale OTA/cache invalidation."
 
       - name: Dark UI text visibility contract
         shell: bash
