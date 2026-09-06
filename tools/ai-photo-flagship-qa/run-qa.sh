@@ -63,4 +63,3 @@ run_suite "Photo AI zero-cost execution QA" node tools/ai-photo-flagship-qa/phot
 run_suite "Photo Editor diagnostics" node tools/ai-photo-flagship-qa/photo-editor-diagnostics.mjs "$CHROME" "$CHROMEDRIVER" "$PORT" "$OUT_DIR"
 
 exit "$STATUS"
-
