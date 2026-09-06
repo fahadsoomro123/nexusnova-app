@@ -161,9 +161,9 @@ function decorateEnhance(root,result){
   };
   const commit=async()=>{
     clearTimeout(commitTimer);const localVersion=++version;setBusy(true);status.textContent='Applying full-resolution enhancement · controls stay responsive…';
-    try{await yieldMain();const out=await enhanceCanvas(base,mode,state,{yielding:true,isStale:()=>localVersion!==version});if(!out||localVersion!==version)return null;lastFullCanvas=out;drawExact(out);status.textContent=`Full-resolution ready · ${out.width} × ${out.height} · edge-aware detail and noise cleanup.`;return out}
+    try{await yieldMain();const out=await enhanceCanvas(base,mode,state,{yielding:true,isStale:()=>localVersion!==version});if(!out||localVersion!==version)return null;lastFullCanvas=out;drawExact(out);setBusy(false);status.textContent=`Full-resolution ready · ${out.width} × ${out.height} · edge-aware detail and noise cleanup.`;return out}
     catch(error){if(localVersion===version)status.textContent='Enhance could not finish. Adjust a control to retry.';return null}
-    finally{if(localVersion===version)setBusy(false)}
+    finally{if(localVersion===version&&busy)setBusy(false)}
   };
   const queueCommit=()=>{clearTimeout(commitTimer);commitTimer=setTimeout(commit,280)};
   panel.querySelectorAll('[data-nxfs-enhance]').forEach(input=>{
