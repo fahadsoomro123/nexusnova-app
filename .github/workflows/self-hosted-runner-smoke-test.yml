@@ -13,23 +13,19 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Confirm runner identity
-        shell: powershell
+        shell: cmd
         run: |
-          Write-Host "Runner name: $env:RUNNER_NAME"
-          Write-Host "Runner OS: $env:RUNNER_OS"
-          Write-Host "Runner arch: $env:RUNNER_ARCH"
-          Write-Host "Service user: $env:USERNAME"
-          Write-Host "Working directory: $(Get-Location)"
-          Get-Date
+          echo Runner name: %RUNNER_NAME%
+          echo Runner OS: %RUNNER_OS%
+          echo Runner arch: %RUNNER_ARCH%
+          echo Service user: %USERNAME%
+          echo Working directory: %CD%
+          ver
 
       - name: Probe basic build tools without failing
-        shell: powershell
+        shell: cmd
         run: |
-          foreach ($tool in @('git','java','adb','sdkmanager')) {
-            $cmd = Get-Command $tool -ErrorAction SilentlyContinue
-            if ($cmd) {
-              Write-Host "$tool=FOUND at $($cmd.Source)"
-            } else {
-              Write-Host "$tool=NOT_FOUND"
-            }
-          }
+          where git 2>nul && git --version || echo git=NOT_FOUND
+          where java 2>nul && java -version || echo java=NOT_FOUND
+          where adb 2>nul && adb --version || echo adb=NOT_FOUND
+          where sdkmanager 2>nul && sdkmanager --version || echo sdkmanager=NOT_FOUND
