@@ -35,7 +35,7 @@ jobs:
           node-version: '22'
 
       - name: Gate 1 - fresh source contract and syntax
-        shell: pwsh
+        shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
           node --check fresh-rebuild/src/features/apps/travel-suite.js
@@ -63,7 +63,7 @@ jobs:
           '@ | node
 
       - name: Gate 2 - live Cloudflare provider smoke
-        shell: pwsh
+        shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
           @'
@@ -91,7 +91,7 @@ jobs:
           '@ | node
 
       - name: Install browser and local server
-        shell: pwsh
+        shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
           npm init -y | Out-Null
@@ -102,7 +102,7 @@ jobs:
           Start-Sleep -Seconds 2
 
       - name: Gate 3 - adaptive layout, interactions and OTA badge
-        shell: pwsh
+        shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
           @'
