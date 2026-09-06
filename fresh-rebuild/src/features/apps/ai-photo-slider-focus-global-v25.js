@@ -95,28 +95,22 @@ export function installSliderOnlyFocus(root){
     if(activePreview)protectedRoots.push(activePreview);
     fadeOtherBranches(protectedRoots);
     root.dataset.nxSliderFocus='on';
-    root.classList.add('nx-photo-focus-editing','nx-photo-control-live');
-    activeRow.classList.add('is-live-control');
   };
   const activate=slider=>{
     if(!isUsableSlider(slider))return;
     if(releaseTimer){clearTimeout(releaseTimer);releaseTimer=0;}
-    if(activeRow&&activeRow!==rowFor(slider))activeRow.classList.remove('is-live-control');
     activeSlider=slider;
     activeRow=rowFor(slider);
     paintFocus();
   };
   const clearFocus=()=>{
     if(releaseTimer){clearTimeout(releaseTimer);releaseTimer=0;}
-    activeRow?.classList.remove('is-live-control');
     activeSlider=null;
     activeRow=null;
     activePreview=null;
     pointerActive=false;
     clearMarks();
     delete root.dataset.nxSliderFocus;
-    root.classList.remove('nx-photo-focus-editing','nx-photo-control-live');
-    root.querySelectorAll('.is-live-control').forEach(el=>el.classList.remove('is-live-control'));
   };
   const scheduleRelease=(delay=90)=>{
     if(releaseTimer)clearTimeout(releaseTimer);
