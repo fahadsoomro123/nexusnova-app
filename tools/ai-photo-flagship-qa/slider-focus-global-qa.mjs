@@ -83,7 +83,7 @@ try{
     const panel=window.__qaRoot.querySelector('[data-photo-sheet-panel="adjust"].is-active'),field=document.createElement('div');field.className='nx-photo-field';field.dataset.nxDynamicSlider='1';field.innerHTML='<span>Dynamic QA</span><input type="range" min="0" max="100" value="50"><output>50</output>';panel.appendChild(field);const slider=field.querySelector('input');slider.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,pointerId:72,pointerType:'touch',buttons:1}));return true;
   `);
   await waitUntil('return window.__qaRoot.dataset.nxSliderFocus==="on";',{label:'dynamic slider focus'});
-  await check('Dynamically added slider works without reinstall','return window.__qaRoot.querySelector("[data-nx-dynamic-slider=\"1\"]")?.getAttribute("data-nx-slider-focus-active")==="true";');
+  await check('Dynamically added slider works without reinstall','return window.__qaRoot.querySelector("[data-nx-dynamic-slider]")?.getAttribute("data-nx-slider-focus-active")==="true";');
   await execute("window.dispatchEvent(new PointerEvent('pointercancel',{bubbles:true,pointerId:72,pointerType:'touch',buttons:0}));return true;");await delay(150);
   await check('Pointer cancel also restores UI','const root=window.__qaRoot;return !root.dataset.nxSliderFocus&&!root.querySelector("[data-nx-slider-focus-active],[data-nx-slider-focus-preview],[data-nx-slider-focus-muted]");');
 }catch(error){record('Uncaught test failure',false,error?.stack||error);try{await screenshot('slider-focus-failure')}catch{}}
