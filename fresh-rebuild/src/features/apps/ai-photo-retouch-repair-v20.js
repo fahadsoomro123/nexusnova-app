@@ -45,9 +45,10 @@ function decorateEditor(editor){
     const cfg=TOOL_PRESETS[key],button=document.createElement('button');
     button.type='button';button.className='nx-photo-pill';button.dataset.nxrtPreset=key;button.textContent=cfg.label;
     button.addEventListener('click',()=>{
-      setRange(size,cfg.size);setRange(strength,cfg.strength);heal.click();
+      heal.click();setRange(size,cfg.size);setRange(strength,cfg.strength);
       repair.querySelectorAll('[data-nxrt-preset]').forEach(item=>item.classList.toggle('is-active',item===button));
       const localStatus=repair.querySelector('[data-local-status]');if(localStatus)localStatus.textContent=cfg.status;
+      const retouchStatus=retouch.querySelector('[data-nxrt-status]');if(retouchStatus)retouchStatus.textContent=cfg.status;
     });
     repairPills.appendChild(button);
   }
