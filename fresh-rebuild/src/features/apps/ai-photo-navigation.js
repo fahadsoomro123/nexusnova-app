@@ -3,7 +3,7 @@ const normalizeTab=tab=>tab==='ai-image'?'generator':WORKSPACE_SCREENS.has(tab)?
 
 export function installAiPhotoNavigation(root){
   if(!root||root.__nxStudioNavigation)return()=>{};
-  const workspace=root.querySelector('.nx-canva-v3'),lockedHome=root.querySelector('.nxlock-home');
+  const workspace=root.querySelector('.nx-canva-v3'),batchWorkspace=root.querySelector('.nxbatch-workspace'),lockedHome=root.querySelector('.nxlock-home');
   const trace=[];
   let current='home';
 
@@ -22,6 +22,7 @@ export function installAiPhotoNavigation(root){
   const activeWorkspaceScreen=()=>normalizeTab(workspace?.querySelector('[data-v3-tab].is-active')?.dataset.v3Tab);
   const inferredScreen=()=>{
     if(root.__nxQuickTools?.getState?.().open)return'quick-tools';
+    if(batchWorkspace?.classList.contains('is-open'))return'batch';
     if(workspace?.classList.contains('is-open'))return activeWorkspaceScreen();
     if(isHomeVisible())return'home';
     return'photo-editor';
@@ -34,6 +35,7 @@ export function installAiPhotoNavigation(root){
 
   function showHome({reason='home'}={}){
     root.__nxQuickTools?.close?.({silent:true});
+    root.__nxBatchV23?.close?.({silent:true});
     root.__nxCanvaWorkspaceV3?.close?.();
     closeSheet();
     workspace?.classList.remove('nxlock-ai-mode');
@@ -45,7 +47,7 @@ export function installAiPhotoNavigation(root){
   }
 
   function openWorkspace(tab='templates',{reason='workspace'}={}){
-    root.__nxQuickTools?.close?.({silent:true});hideHome();closeSheet();
+    root.__nxQuickTools?.close?.({silent:true});root.__nxBatchV23?.close?.({silent:true});hideHome();closeSheet();
     const api=root.__nxCanvaWorkspaceV3;
     if(api){
       if(tab==='templates'&&api.openTemplates)api.openTemplates();
@@ -58,8 +60,12 @@ export function installAiPhotoNavigation(root){
     return true;
   }
 
+  function openBatch({reason='batch'}={}){
+    root.__nxQuickTools?.close?.({silent:true});root.__nxCanvaWorkspaceV3?.close?.();closeSheet();hideHome();root.__nxBatchV23?.open?.();record('batch',reason);return true;
+  }
+
   function openEditor({pick=true,reason='photo-editor'}={}){
-    root.__nxQuickTools?.close?.({silent:true});hideHome();root.__nxCanvaWorkspaceV3?.close?.();closeSheet();workspace?.classList.remove('nxlock-ai-mode');
+    root.__nxQuickTools?.close?.({silent:true});root.__nxBatchV23?.close?.({silent:true});hideHome();root.__nxCanvaWorkspaceV3?.close?.();closeSheet();workspace?.classList.remove('nxlock-ai-mode');
     record('photo-editor',reason);
     const canvas=root.querySelector('[data-photo-canvas]');
     if(pick&&(!canvas||canvas.hidden))requestAnimationFrame(()=>root.querySelector('[data-photo-file]')?.click());
@@ -99,6 +105,7 @@ export function installAiPhotoNavigation(root){
 
   function canHandleBack(){
     if(root.__nxQuickTools?.getState?.().open)return true;
+    if(batchWorkspace?.classList.contains('is-open'))return true;
     const popover=root.querySelector('.nxfix-recent-popover');
     if(popover&&!popover.hidden)return true;
     if(workspace?.classList.contains('is-open'))return true;
@@ -112,6 +119,7 @@ export function installAiPhotoNavigation(root){
       queueMicrotask(()=>syncFromDom(`${reason}:quick-tools`));
       return true;
     }
+    if(batchWorkspace?.classList.contains('is-open'))return showHome({reason});
     const popover=root.querySelector('.nxfix-recent-popover');
     if(popover&&!popover.hidden){popover.hidden=true;record(current,`${reason}:recent`);return true}
     if(workspace?.classList.contains('is-open'))return handleWorkspaceBack({reason});
@@ -151,13 +159,14 @@ export function installAiPhotoNavigation(root){
   document.addEventListener('click',routeBackCapture,true);
 
   const api={
-    showHome,openWorkspace,openEditor,handleBack,handleWorkspaceBack,canHandleBack,syncFromDom,
+    showHome,openWorkspace,openBatch,openEditor,handleBack,handleWorkspaceBack,canHandleBack,syncFromDom,
     isAtHome:isHomeVisible,
     getState:()=>({
       screen:current,
       home:isHomeVisible(),
       workspace:Boolean(workspace?.classList.contains('is-open')),
       quickTools:Boolean(root.__nxQuickTools?.getState?.().open),
+      batch:Boolean(batchWorkspace?.classList.contains('is-open')),
       canHandleBack:canHandleBack(),
       trace:[...trace]
     })
@@ -180,3 +189,4 @@ export function installAiPhotoNavigation(root){
     delete root.dataset.aiPhotoArchitecture;
   };
 }
+

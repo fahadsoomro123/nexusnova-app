@@ -13,6 +13,7 @@ import { installAiPhotoLockedReferenceAssetsV1 } from './ai-photo-locked-referen
 import { installAiPhotoQuickTools } from './ai-photo-quick-tools.js';
 import { installAiPhotoRemoveBgMlV16 } from './ai-photo-remove-bg-ml-v16.js';
 import { installAiPhotoProductStudioV21 } from './ai-photo-product-studio-v21.js';
+import { installAiPhotoBatchV23 } from './ai-photo-batch-v23.js';
 import { installAiPhotoDownloadSmoothV1 } from './ai-photo-download-smooth-v1.js';
 import { installAiPhotoEnhanceFlagshipV12 } from './ai-photo-enhance-flagship-v12.js';
 import { installAiPhotoFlagshipToolUpgrades } from './ai-photo-flagship-tool-upgrades.js';
@@ -61,9 +62,11 @@ export function renderAiPhotoStudio(){
   const touchSmoothCleanup=installAiPhotoTouchSmoothV15(root);
   const retouchRepairCleanup=installAiPhotoRetouchRepairV20(root);
   const lockedReferenceCleanup=installAiPhotoLockedReferenceAssetsV1(root);
+  const batchCleanup=installAiPhotoBatchV23(root);
   const navigationCleanup=installAiPhotoNavigation(root);
   root.__cleanup=()=>{
     navigationCleanup?.();
+    batchCleanup?.();
     lockedReferenceCleanup?.();
     retouchRepairCleanup?.();
     touchSmoothCleanup?.();
@@ -91,3 +94,4 @@ export function renderAiPhotoStudio(){
   root.dataset.aiPhotoFlagship='flagship-repair-v16';
   return root;
 }
+
