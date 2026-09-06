@@ -9,6 +9,7 @@ on:
       - 'fresh-rebuild/travel-flagship-v16-harness.html'
       - 'fresh-rebuild/src/features/apps/travel-suite.js'
       - 'fresh-rebuild/src/features/apps/travel-edge-client.js'
+      - 'fresh-rebuild/src/features/apps/travel-edge-config.js'
       - 'fresh-rebuild/assets/travel/reference-hero-right.webp.b64'
       - 'fresh-rebuild/assets/travel/reference-from-exact.webp.b64'
       - 'fresh-rebuild/assets/travel/reference-to-exact.webp.b64'
@@ -40,13 +41,15 @@ jobs:
           $ErrorActionPreference = 'Stop'
           node --check fresh-rebuild/src/features/apps/travel-suite.js
           node --check fresh-rebuild/src/features/apps/travel-edge-client.js
+          node --check fresh-rebuild/src/features/apps/travel-edge-config.js
           @'
           const fs=require('fs');
           const travel=fs.readFileSync('fresh-rebuild/src/features/apps/travel-suite.js','utf8');
+          const edge=fs.readFileSync('fresh-rebuild/src/features/apps/travel-edge-client.js','utf8');
           for(const needle of [
             'fresh-reference-v19-pixel-map',
             'measured-reference-hybrid',
-            "OTA_RELEASE_ID = 'travel-reference-ota-1'",
+            "OTA_RELEASE_ID = 'travel-reference-ota-2'",
             'reference-from-exact.webp.b64',
             'reference-to-exact.webp.b64',
             'searchWorldwideFlights',
@@ -54,12 +57,14 @@ jobs:
             'searchWorldwideGroundTransport',
             'searchPakistanGroundTransport'
           ]) if(!travel.includes(needle)) throw new Error(`Missing source contract: ${needle}`);
+          if(!edge.includes("from './travel-edge-config.js'")) throw new Error('Travel edge config import contract missing');
           for(const file of [
+            'fresh-rebuild/src/features/apps/travel-edge-config.js',
             'fresh-rebuild/assets/travel/reference-from-exact.webp.b64',
             'fresh-rebuild/assets/travel/reference-to-exact.webp.b64',
             'fresh-rebuild/assets/travel/reference-hero-right.webp.b64'
-          ]) if(!fs.existsSync(file)||fs.statSync(file).size<1) throw new Error(`Missing asset: ${file}`);
-          console.log('Fresh measured-reference V19 source PASS');
+          ]) if(!fs.existsSync(file)||fs.statSync(file).size<1) throw new Error(`Missing asset/dependency: ${file}`);
+          console.log('Fresh measured-reference V19 source + OTA dependency graph PASS');
           '@ | node
 
       - name: Gate 2 - live Cloudflare provider smoke
@@ -155,7 +160,7 @@ jobs:
               if(base.visible.length!==1||base.visible[0]!=='flights') throw new Error(`${p.name}: initial panel leak ${JSON.stringify(base.visible)}`);
               if(base.tabs!==4) throw new Error(`${p.name}: expected exactly four Travel tabs, got ${base.tabs}`);
               if(base.modes!==2) throw new Error(`${p.name}: trip mode controls missing`);
-              if(base.ota!=='1') throw new Error(`${p.name}: first OTA badge must be green revision 1, got ${base.ota}`);
+              if(base.ota!=='2') throw new Error(`${p.name}: OTA badge must be green revision 2, got ${base.ota}`);
               if(base.bodyScroll||base.docScroll) throw new Error(`${p.name}: whole page scroll detected`);
               if(base.root.x<-0.5||base.root.right>p.w+0.5||base.root.h<120) throw new Error(`${p.name}: Travel root overflow/zero ${JSON.stringify(base.root)}`);
               if(Math.abs(base.root.w-base.screen.width)>1||Math.abs(base.root.h-base.screen.height)>1) throw new Error(`${p.name}: root does not fill safe app rectangle`);
