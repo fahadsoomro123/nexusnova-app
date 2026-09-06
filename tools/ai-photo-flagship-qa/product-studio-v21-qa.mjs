@@ -21,7 +21,7 @@ try{
   await ex('document.querySelector("[data-nxps-product-studio]").click();return true;');
   await wait('return !document.querySelector(".nxprod")?.hidden&&!!document.querySelector("[data-nxprod-choose]");','product picker');
   await expect('Product Studio picker fits phone viewport without horizontal overflow','return document.documentElement.scrollWidth<=innerWidth+1&&document.querySelector(".nxprod")?.getBoundingClientRect().width<=innerWidth+1;');
-  await expect('Current-photo route is truthful when no editor source exists','const b=document.querySelector("[data-nxprod-current]");return !!b&&b.disabled;');
+  await expect('Current-photo route matches actual editor canvas availability','const b=document.querySelector("[data-nxprod-current]"),c=document.querySelector("[data-photo-canvas]");return !!b&&b.disabled===!Boolean(c?.width);');
 
   await ex(`window.__nxProductQaObserver=new MutationObserver(()=>{const r=document.querySelector('.nxqt-result');if(r&&!r.dataset.nxMlRemoveBg){r.dataset.nxMlRemoveBg='fallback';const d=r.querySelector('[data-nxqt-result-detail]');if(d)d.textContent='QA protected local cutout';}});window.__nxProductQaObserver.observe(window.__qaRoot,{childList:true,subtree:true});return true;`);
   await injectProduct();
