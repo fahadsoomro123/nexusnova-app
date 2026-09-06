@@ -1,4 +1,4 @@
-name: AI Photo Temporary OTA Proof Dot Release
+name: AI Photo Numbered OTA Proof Release
 
 on:
   push:
@@ -10,13 +10,14 @@ permissions:
   contents: read
 
 env:
-  VERIFIED_SOURCE: cfd206ed66d8e8a79169e1b85af319d142eb3cc4
+  VERIFIED_SOURCE: a719c9aaca3836852be129084e04cf66170643b4
   OTA_BUNDLED_BASE: 8d1aaaee6f28b974a8c8b3ff213beb1318ec7405
+  OTA_PROOF_NUMBER: '1'
   PUBLIC_OTA_REPO: fahadsoomro123/nexusnova-website
   PUBLIC_OTA_BRANCH: nexusnova-ota-public
 
 jobs:
-  publish_proof_dot_ota:
+  publish_numbered_ota:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
@@ -25,7 +26,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Lock trigger to exact proof-dot source
+      - name: Lock trigger to exact clean bundled source
         shell: bash
         run: |
           set -euo pipefail
@@ -33,48 +34,52 @@ jobs:
           changed="$(git diff --name-only "$VERIFIED_SOURCE" "$GITHUB_SHA")"
           test "$changed" = '.github/workflows/ai-photo-ota-proof-dot-release.yml'
           test "$(git rev-parse "$VERIFIED_SOURCE:fresh-rebuild")" = "$(git rev-parse "$GITHUB_SHA:fresh-rebuild")"
-          echo 'Proof-dot OTA trigger is workflow-only over exact source: PASS'
+          ! grep -Fq 'nx-ai-photo-ota-proof-badge' fresh-rebuild/src/features/apps/ai-photo-studio-review.js
+          echo 'Bundled/source web has NO OTA proof badge: PASS'
 
-      - name: Verify temporary proof dot contract
-        shell: bash
-        run: |
-          set -euo pipefail
-          node --check fresh-rebuild/src/features/apps/ai-photo-studio-review.js
-          grep -Fq "nx-ai-photo-ota-proof-dot" fresh-rebuild/src/features/apps/ai-photo-studio-review.js
-          grep -Fq "background:'#22c55e'" fresh-rebuild/src/features/apps/ai-photo-studio-review.js
-          grep -Fq "root.dataset.aiPhotoFlagship='flagship-repair-v16'" fresh-rebuild/src/features/apps/ai-photo-studio-review.js
-          test "$(grep -o 'puter.ai.txt2img' fresh-rebuild/src/features/apps/ai-photo-studio-ai.js | wc -l)" -eq 1
-          echo 'Temporary green OTA proof dot contract: PASS'
-
-      - name: Full browser regression for OTA-only web source
+      - name: Full browser regression for clean OTA web source
         shell: bash
         run: bash tools/ai-photo-flagship-qa/run-qa.sh
 
-      - name: Build complete web snapshot for installed APK OTA base
+      - name: Build full snapshot and inject OTA-only number badge
         shell: bash
         run: |
           set -euo pipefail
           git cat-file -e "$OTA_BUNDLED_BASE^{commit}"
-          rm -rf /tmp/nexusnova-proof-dot-ota
-          mkdir -p /tmp/nexusnova-proof-dot-ota/files
+          rm -rf /tmp/nexusnova-numbered-ota
+          mkdir -p /tmp/nexusnova-numbered-ota/files
           export SOURCE_TREE="$(git rev-parse "$VERIFIED_SOURCE:fresh-rebuild")"
           python3 - <<'PY'
-          import hashlib, json, os
+          import hashlib, json, os, shutil
           from pathlib import Path
+
           source=Path('fresh-rebuild')
-          dest=Path('/tmp/nexusnova-proof-dot-ota/files')
-          files=[]
-          total=0
+          dest=Path('/tmp/nexusnova-numbered-ota/files')
           for p in sorted(x for x in source.rglob('*') if x.is_file()):
               rel=p.relative_to(source)
               if any(part.startswith('.') for part in rel.parts):
                   continue
-              data=p.read_bytes()
               out=dest/rel
               out.parent.mkdir(parents=True,exist_ok=True)
-              out.write_bytes(data)
+              shutil.copyfile(p,out)
+
+          review=dest/'src/features/apps/ai-photo-studio-review.js'
+          text=review.read_text(encoding='utf-8')
+          marker="const root=renderFlagshipAiPhotoStudio();"
+          if text.count(marker) != 1:
+              raise SystemExit('Could not locate unique AI Photo render root for OTA badge injection')
+          number=os.environ['OTA_PROOF_NUMBER']
+          injection=f'''const root=renderFlagshipAiPhotoStudio();\n  const otaProofBadge=document.createElement('span');\n  otaProofBadge.id='nx-ai-photo-ota-proof-badge';\n  otaProofBadge.textContent='{number}';\n  otaProofBadge.setAttribute('aria-label','OTA {number} active');\n  Object.assign(otaProofBadge.style,{{position:'fixed',top:'8px',right:'8px',minWidth:'20px',height:'20px',padding:'0 5px',display:'grid',placeItems:'center',borderRadius:'10px',background:'#22c55e',color:'#06130a',font:'800 12px/1 system-ui,sans-serif',border:'2px solid rgba(255,255,255,.95)',boxShadow:'0 0 0 2px rgba(34,197,94,.28),0 0 12px rgba(34,197,94,.85)',zIndex:'2147483647',pointerEvents:'none'}});\n  root.append(otaProofBadge);'''
+          review.write_text(text.replace(marker,injection,1),encoding='utf-8')
+
+          files=[]
+          total=0
+          for p in sorted(x for x in dest.rglob('*') if x.is_file()):
+              rel=p.relative_to(dest)
+              data=p.read_bytes()
               files.append({'path':rel.as_posix(),'sha256':hashlib.sha256(data).hexdigest(),'size':len(data)})
               total += len(data)
+
           if not files or not any(x['path']=='index.html' for x in files):
               raise SystemExit('OTA entry point missing')
           if len(files) > 2000 or total > 60*1024*1024:
@@ -96,14 +101,19 @@ jobs:
               'version':os.environ['GITHUB_SHA'],
               'source':os.environ['VERIFIED_SOURCE'],
               'source_tree':os.environ['SOURCE_TREE'],
+              'proof_number':number,
               'files':files,
           }
-          Path('/tmp/nexusnova-proof-dot-ota/manifest.json').write_text(
+          Path('/tmp/nexusnova-numbered-ota/manifest.json').write_text(
               json.dumps(manifest,separators=(',',':'),sort_keys=True),encoding='utf-8'
           )
-          print('Proof-dot full snapshot files:',len(files))
-          print('Proof-dot full snapshot bytes:',total)
+          print('Numbered OTA files:',len(files))
+          print('Numbered OTA bytes:',total)
+          print('OTA proof number:',number)
           PY
+          node --check /tmp/nexusnova-numbered-ota/files/src/features/apps/ai-photo-studio-review.js
+          grep -Fq "id='nx-ai-photo-ota-proof-badge'" /tmp/nexusnova-numbered-ota/files/src/features/apps/ai-photo-studio-review.js
+          grep -Fq "textContent='${OTA_PROOF_NUMBER}'" /tmp/nexusnova-numbered-ota/files/src/features/apps/ai-photo-studio-review.js
 
       - name: Require public OTA credential
         shell: bash
@@ -111,28 +121,28 @@ jobs:
           PUBLIC_OTA_TOKEN: ${{ secrets.GH_PUBLIC_OTA_TOKEN || secrets.OTA_PUBLIC_TOKEN }}
         run: test -n "$PUBLIC_OTA_TOKEN"
 
-      - name: Publish proof-dot snapshot to public OTA channel
+      - name: Publish numbered snapshot to public OTA channel
         id: publish
         shell: bash
         env:
           PUBLIC_OTA_TOKEN: ${{ secrets.GH_PUBLIC_OTA_TOKEN || secrets.OTA_PUBLIC_TOKEN }}
         run: |
           set -euo pipefail
-          rm -rf /tmp/nexusnova-proof-dot-public
-          git clone --depth 1 --branch "$PUBLIC_OTA_BRANCH" "https://github.com/$PUBLIC_OTA_REPO.git" /tmp/nexusnova-proof-dot-public
-          cd /tmp/nexusnova-proof-dot-public
+          rm -rf /tmp/nexusnova-numbered-public
+          git clone --depth 1 --branch "$PUBLIC_OTA_BRANCH" "https://github.com/$PUBLIC_OTA_REPO.git" /tmp/nexusnova-numbered-public
+          cd /tmp/nexusnova-numbered-public
           git config user.name 'NexusNova OTA Bot'
           git config user.email 'actions@users.noreply.github.com'
           rm -rf ota && mkdir -p ota
-          cp -a /tmp/nexusnova-proof-dot-ota/. ota/
+          cp -a /tmp/nexusnova-numbered-ota/. ota/
           git add -A ota
-          git commit -m "Publish AI Photo temporary OTA proof dot $GITHUB_SHA"
+          git commit -m "Publish AI Photo OTA proof ${OTA_PROOF_NUMBER} $GITHUB_SHA"
           PUBLIC_SHA="$(git rev-parse HEAD)"
           AUTH="$(printf 'x-access-token:%s' "$PUBLIC_OTA_TOKEN" | base64 -w0)"
           git -c http.extraheader="AUTHORIZATION: basic $AUTH" push origin HEAD:"$PUBLIC_OTA_BRANCH"
           echo "public_sha=$PUBLIC_SHA" >> "$GITHUB_OUTPUT"
 
-      - name: Verify exact public OTA and visible proof marker
+      - name: Verify exact public OTA and numbered proof
         shell: bash
         env:
           PUBLIC_SHA: ${{ steps.publish.outputs.public_sha }}
@@ -149,6 +159,7 @@ jobs:
           assert m.get('base')==os.environ['OTA_BUNDLED_BASE']
           assert m.get('version')==os.environ['GITHUB_SHA']
           assert m.get('source')==os.environ['VERIFIED_SOURCE']
+          assert str(m.get('proof_number'))==os.environ['OTA_PROOF_NUMBER']
           PY
               then break; fi
             fi
@@ -164,11 +175,11 @@ jobs:
               data=urllib.request.urlopen(url,timeout=25).read()
               assert len(data)==item['size'],item['path']
               assert hashlib.sha256(data).hexdigest()==item['sha256'],item['path']
-          print('Exact public proof-dot OTA verified:',len(m['files']),'files')
+          print('Exact public numbered OTA verified:',len(m['files']),'files')
           PY
           curl -fsSL -H 'Cache-Control: no-cache, no-store' \
             "$BRANCH_BASE/files/src/features/apps/ai-photo-studio-review.js?v=$GITHUB_SHA&n=phone" \
             -o /tmp/review.js
-          grep -Fq 'nx-ai-photo-ota-proof-dot' /tmp/review.js
-          grep -Fq "background:'#22c55e'" /tmp/review.js
-          echo 'PUBLIC OTA PROOF DOT READY — open AI Photo and look at the top-right green dot.'
+          grep -Fq "nx-ai-photo-ota-proof-badge" /tmp/review.js
+          grep -Fq "textContent='${OTA_PROOF_NUMBER}'" /tmp/review.js
+          echo "PUBLIC OTA ${OTA_PROOF_NUMBER} READY — badge exists only in OTA package, not bundled source."
