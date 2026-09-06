@@ -39,7 +39,7 @@ try{
   await waitForDriver();await createSession();
   await execute(`
     const root=window.__qaRoot;
-    root.__nxStudioNavigation.showEditor();
+    root.__nxStudioNavigation.openEditor({pick:false});
     const canvas=root.querySelector('[data-photo-canvas]');
     canvas.hidden=false;canvas.width=640;canvas.height=480;
     Object.assign(canvas.style,{width:'320px',height:'240px',display:'block'});
