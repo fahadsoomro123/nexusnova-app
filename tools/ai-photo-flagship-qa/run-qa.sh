@@ -26,19 +26,15 @@ if [ -z "$CHROMEDRIVER" ]; then
 fi
 test -n "$CHROMEDRIVER" || { echo '::error::ChromeDriver is required.' >&2; exit 1; }
 
-PYTHON=
-for candidate in python3 python; do
-  if command -v "$candidate" >/dev/null 2>&1; then PYTHON=$(command -v "$candidate"); break; fi
-done
-test -n "$PYTHON" || { echo '::error::Python is required for the local QA server.' >&2; exit 1; }
-
-"$PYTHON" -m http.server "$PORT" --bind 127.0.0.1 --directory . >"$OUT_DIR/server.log" 2>&1 &
+node tools/ai-photo-flagship-qa/static-server.mjs "$PORT" >"$OUT_DIR/server.log" 2>&1 &
 SERVER_PID=$!
 trap 'kill "$SERVER_PID" >/dev/null 2>&1 || true' EXIT
+ready=0
 for attempt in 1 2 3 4 5 6 7 8 9 10; do
-  if curl -fsS "http://127.0.0.1:$PORT/tools/ai-photo-flagship-qa/harness.html" >/dev/null; then break; fi
+  if curl -fsS "http://127.0.0.1:$PORT/tools/ai-photo-flagship-qa/harness.html" >/dev/null; then ready=1; break; fi
   sleep 1
 done
+test "$ready" -eq 1 || { echo '::error::QA server did not become ready.' >&2; exit 1; }
 
 STATUS=0
 run_suite(){
