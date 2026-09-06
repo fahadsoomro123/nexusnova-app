@@ -41,16 +41,7 @@ if [ -z "$CHROMEDRIVER" ]; then
   exit 1
 fi
 
-PYTHON=
-for candidate in python3 python; do
-  if command -v "$candidate" >/dev/null 2>&1; then PYTHON=$(command -v "$candidate"); break; fi
-done
-if [ -z "$PYTHON" ]; then
-  echo '::error::Python is required for the local visual QA server.' >&2
-  exit 1
-fi
-
-"$PYTHON" -m http.server "$PORT" --bind 127.0.0.1 --directory . >"$OUT_DIR/server.log" 2>&1 &
+node tools/ai-photo-flagship-qa/static-server.mjs "$PORT" >"$OUT_DIR/server.log" 2>&1 &
 SERVER_PID=$!
 trap 'kill "$SERVER_PID" >/dev/null 2>&1 || true' EXIT
 
