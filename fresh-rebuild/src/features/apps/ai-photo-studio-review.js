@@ -1,5 +1,5 @@
 import { renderAiPhotoStudio as renderFlagshipAiPhotoStudio } from './ai-photo-adjust-editor.js';
-import { installSliderOnlyFocus } from './ai-photo-focus-interaction.js';
+import { installSliderOnlyFocus } from './ai-photo-slider-focus-global-v25.js';
 import { installAiPhotoCanvaWorkspaceV3 } from './ai-photo-canva-workspace-v3.js';
 import { installAiPhotoDesignEditorControls } from './ai-photo-design-editor-controls.js';
 import { installAiPhotoDesignDelightV13 } from './ai-photo-design-delight-v13.js';
