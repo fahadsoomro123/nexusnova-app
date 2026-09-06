@@ -11,6 +11,7 @@ import { installAiPhotoLockedVisualV1 } from './ai-photo-locked-visual-v1.js';
 import { installAiPhotoLockedReferenceAssetsV1 } from './ai-photo-locked-reference-assets-v1.js';
 import { installAiPhotoQuickTools } from './ai-photo-quick-tools.js';
 import { installAiPhotoRemoveBgMlV16 } from './ai-photo-remove-bg-ml-v16.js';
+import { installAiPhotoProductStudioV21 } from './ai-photo-product-studio-v21.js';
 import { installAiPhotoDownloadSmoothV1 } from './ai-photo-download-smooth-v1.js';
 import { installAiPhotoEnhanceFlagshipV12 } from './ai-photo-enhance-flagship-v12.js';
 import { installAiPhotoFlagshipToolUpgrades } from './ai-photo-flagship-tool-upgrades.js';
@@ -48,6 +49,7 @@ export function renderAiPhotoStudio(){
   const lockedVisualCleanup=installAiPhotoLockedVisualV1(root);
   const quickToolsCleanup=installAiPhotoQuickTools(root);
   const removeBgMlCleanup=installAiPhotoRemoveBgMlV16(root);
+  const productStudioCleanup=installAiPhotoProductStudioV21(root);
   const downloadSmoothCleanup=installAiPhotoDownloadSmoothV1(root);
   const enhanceFlagshipCleanup=installAiPhotoEnhanceFlagshipV12(root);
   const flagshipToolUpgradesCleanup=installAiPhotoFlagshipToolUpgrades(root);
@@ -69,6 +71,7 @@ export function renderAiPhotoStudio(){
     flagshipToolUpgradesCleanup?.();
     enhanceFlagshipCleanup?.();
     downloadSmoothCleanup?.();
+    productStudioCleanup?.();
     removeBgMlCleanup?.();
     quickToolsCleanup?.();
     lockedVisualCleanup?.();
