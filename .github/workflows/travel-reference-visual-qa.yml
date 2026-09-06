@@ -49,7 +49,7 @@ jobs:
           for(const needle of [
             'fresh-reference-v19-pixel-map',
             'measured-reference-hybrid',
-            "OTA_RELEASE_ID = 'travel-reference-ota-2'",
+            "OTA_RELEASE_ID = 'travel-reference-ota-1'",
             'reference-from-exact.webp.b64',
             'reference-to-exact.webp.b64',
             'searchWorldwideFlights',
@@ -160,7 +160,7 @@ jobs:
               if(base.visible.length!==1||base.visible[0]!=='flights') throw new Error(`${p.name}: initial panel leak ${JSON.stringify(base.visible)}`);
               if(base.tabs!==4) throw new Error(`${p.name}: expected exactly four Travel tabs, got ${base.tabs}`);
               if(base.modes!==2) throw new Error(`${p.name}: trip mode controls missing`);
-              if(base.ota!=='2') throw new Error(`${p.name}: OTA badge must be green revision 2, got ${base.ota}`);
+              if(base.ota!=='1') throw new Error(`${p.name}: source OTA badge must be revision 1 before release stamping, got ${base.ota}`);
               if(base.bodyScroll||base.docScroll) throw new Error(`${p.name}: whole page scroll detected`);
               if(base.root.x<-0.5||base.root.right>p.w+0.5||base.root.h<120) throw new Error(`${p.name}: Travel root overflow/zero ${JSON.stringify(base.root)}`);
               if(Math.abs(base.root.w-base.screen.width)>1||Math.abs(base.root.h-base.screen.height)>1) throw new Error(`${p.name}: root does not fill safe app rectangle`);
