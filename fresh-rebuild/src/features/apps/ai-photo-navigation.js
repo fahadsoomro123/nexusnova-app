@@ -189,4 +189,3 @@ export function installAiPhotoNavigation(root){
     delete root.dataset.aiPhotoArchitecture;
   };
 }
-
