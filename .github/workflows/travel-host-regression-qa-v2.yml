@@ -161,5 +161,5 @@ jobs:
         run: |
           if (Test-Path '.travel-host-v2-http.pid') {
             $pidValue = Get-Content '.travel-host-v2-http.pid' | Select-Object -First 1
-            if ($pidValue) { Stop-Process -Id ([int]$pidValue -Force -ErrorAction SilentlyContinue) }
+            if ($pidValue) { Stop-Process -Id ([int]$pidValue) -Force -ErrorAction SilentlyContinue }
           }
