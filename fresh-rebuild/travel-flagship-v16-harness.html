@@ -3,43 +3,44 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>NexusNova Travel Reference Phone Harness</title>
+<title>NexusNova Travel Reference Host Harness</title>
 <style>
-:root{--status-inset:34px;--nav-inset:24px;--dock-h:62px;--dock-gap:7px}
+:root{--nx-pad:16px;--nx-dock-height:62px;--nx-safe-bottom:24px}
 html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#02070d;font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;color:#eef7ff}
 *{box-sizing:border-box}
-.phone{position:relative;width:100vw;height:100vh;overflow:hidden;background:#02070d}
-.status{position:absolute;z-index:20;left:0;right:0;top:0;height:var(--status-inset);display:flex;align-items:center;justify-content:space-between;padding:0 15px;color:#fff;font-size:12px;font-weight:800}
-.nx-screen{position:absolute;left:0;right:0;top:var(--status-inset);bottom:calc(var(--nav-inset) + var(--dock-h) + var(--dock-gap) * 2);overflow:hidden;padding:0}
-.nx-app-head{height:1px;overflow:visible}.nx-app-head [data-app-back]{display:block}
-.mount{position:absolute;inset:0;min-height:0;overflow:hidden}
-.nx-dock.global{position:absolute;z-index:20;left:8px;right:8px;bottom:calc(var(--nav-inset) + var(--dock-gap));height:var(--dock-h);border:1px solid #15547b;border-radius:20px;background:linear-gradient(180deg,rgba(6,47,78,.98),rgba(3,28,49,.98));display:grid;grid-template-columns:1fr 1.45fr;gap:8px;padding:6px}
+.nx-app{width:min(100%,760px);min-height:100dvh;margin:0 auto;position:relative;overflow:visible}
+.nx-stage{min-height:100dvh;padding:var(--nx-pad) var(--nx-pad) calc(var(--nx-dock-height) + var(--nx-safe-bottom) + 58px);scroll-padding-bottom:calc(var(--nx-dock-height) + var(--nx-safe-bottom) + 58px);overflow:auto;outline:none}
+.nx-screen{animation:none}
+.nx-app-head{min-height:74px;padding:10px}.nx-app-head [data-app-back]{display:block}
+[data-app-mount]{min-height:1px}
+.nx-dock.global{position:fixed;z-index:20;left:50%;bottom:max(8px,var(--nx-safe-bottom));width:min(calc(100% - 22px),520px);min-height:66px;transform:translateX(-50%);border:1px solid #15547b;border-radius:20px;background:linear-gradient(180deg,rgba(6,47,78,.98),rgba(3,28,49,.98));display:grid;grid-template-columns:1fr 1.45fr;gap:8px;padding:6px}
 .nx-dock.global button{border:0;background:transparent;color:#acd4ee;font-weight:900;font-size:11px;border-radius:14px}.nx-dock.global button:last-child{background:linear-gradient(120deg,#0f6ea9,#075b91);border:1px solid #1bbef5;color:#eefbff}
-.android-nav{position:absolute;z-index:19;left:0;right:0;bottom:0;height:var(--nav-inset);background:#01060b;display:grid;place-items:center}.android-nav::after{content:"";width:31%;max-width:132px;height:4px;border-radius:999px;background:rgba(235,244,250,.78)}
 </style>
 </head>
 <body>
-<div class="phone">
-  <div class="status"><span>11:34</span><span>5G · 83%</span></div>
-  <section class="nx-screen">
-    <header class="nx-app-head"><button type="button" data-app-back aria-label="Back">‹</button></header>
-    <main class="mount" id="travel-mount"></main>
-  </section>
+<div class="nx-app">
+  <main class="nx-stage" tabindex="-1">
+    <section class="nx-screen">
+      <header class="nx-app-head"><button type="button" data-app-back aria-label="Back">‹</button></header>
+      <div data-app-mount id="travel-mount"></div>
+    </section>
+  </main>
   <nav class="nx-dock global"><button>MINE</button><button>NOVA HUB</button></nav>
-  <div class="android-nav" aria-hidden="true"></div>
 </div>
 <script type="module">
   const params=new URLSearchParams(location.search);
   const clamp=(value,min,max,fallback)=>{const n=Number(value);return Number.isFinite(n)?Math.min(max,Math.max(min,n)):fallback};
-  const top=clamp(params.get('top'),0,70,34);
-  const bottom=clamp(params.get('bottom'),0,70,24);
+  const safeBottom=clamp(params.get('bottom'),0,70,24);
   const dock=clamp(params.get('dock'),48,76,62);
-  document.documentElement.style.setProperty('--status-inset',`${top}px`);
-  document.documentElement.style.setProperty('--nav-inset',`${bottom}px`);
-  document.documentElement.style.setProperty('--dock-h',`${dock}px`);
-  document.documentElement.dataset.insetProfile=`${top}-${bottom}-${dock}`;
-  const { renderTravelSuite }=await import('./src/features/apps/travel-suite.js');
+  document.documentElement.style.setProperty('--nx-safe-bottom',`${safeBottom}px`);
+  document.documentElement.style.setProperty('--nx-dock-height',`${dock}px`);
+  document.documentElement.dataset.insetProfile=`safe-${safeBottom}-${dock}`;
+  const [{ renderTravelSuite },{ enhanceTravelApp }]=await Promise.all([
+    import('./src/features/apps/travel-suite.js'),
+    import('./src/features/apps/travel-integrations.js')
+  ]);
   const root=renderTravelSuite();
+  enhanceTravelApp('travel',root);
   document.getElementById('travel-mount').appendChild(root);
 </script>
 </body>
