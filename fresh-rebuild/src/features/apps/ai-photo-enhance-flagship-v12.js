@@ -153,10 +153,11 @@ function decorateEnhance(root,result){
   const lockPending=()=>{exportActions.forEach(button=>button.disabled=true);aiButtons.forEach(button=>button.disabled=true);panel.setAttribute('aria-busy','true')};
   const unlockPending=()=>{if(!busy){exportActions.forEach(button=>button.disabled=false);aiButtons.forEach(button=>button.disabled=false);panel.setAttribute('aria-busy','false')}};
   const drawExact=canvas=>{visible.width=canvas.width;visible.height=canvas.height;const context=visible.getContext('2d');context.imageSmoothingEnabled=true;context.imageSmoothingQuality='high';context.clearRect(0,0,visible.width,visible.height);context.drawImage(canvas,0,0)};
+  const drawPreview=canvas=>{const width=base.width,height=base.height;if(visible.width!==width)visible.width=width;if(visible.height!==height)visible.height=height;const context=visible.getContext('2d');context.imageSmoothingEnabled=true;context.imageSmoothingQuality='high';context.clearRect(0,0,width,height);context.drawImage(canvas,0,0,width,height)};
   const syncStateUi=()=>{panel.querySelectorAll('[data-nxfs-enhance]').forEach(input=>setOutput(input,state[input.dataset.nxfsEnhance]));const wb=panel.querySelector('[data-nxfs-enhance-wb]'),wbOn=state.wb>0;wb.classList.toggle('is-active',wbOn);wb.setAttribute('aria-pressed',String(wbOn))};
   const renderPreview=()=>{
     lockPending();if(previewFrame)return;
-    const localVersion=++version;previewFrame=requestAnimationFrame(async()=>{previewFrame=0;const out=await enhanceCanvas(previewBase,mode,state);if(!out||localVersion!==version||busy)return;drawExact(out);status.textContent='Live low-resolution preview · release for full-resolution processing.'});
+    const localVersion=++version;previewFrame=requestAnimationFrame(async()=>{previewFrame=0;const out=await enhanceCanvas(previewBase,mode,state);if(!out||localVersion!==version||busy)return;drawPreview(out);status.textContent='Live low-resolution preview · release for full-resolution processing.'});
   };
   const commit=async()=>{
     clearTimeout(commitTimer);const localVersion=++version;setBusy(true);status.textContent='Applying full-resolution enhancement · controls stay responsive…';
