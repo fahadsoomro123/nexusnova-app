@@ -31,28 +31,34 @@ jobs:
       - name: Check out exact branch state
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Node 22 for executable QA
         uses: actions/setup-node@v4
         with:
           node-version: '22'
 
-      - name: Python 3.12 for local QA servers
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
+      - name: Force Git for Windows Bash instead of WSL
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $gitBashDir = 'C:\Program Files\Git\bin'
+          $gitBash = Join-Path $gitBashDir 'bash.exe'
+          if (-not (Test-Path $gitBash)) { throw "Git Bash missing at $gitBash" }
+          $gitBashDir | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          & $gitBash --version
+          Write-Host 'PASS — Git for Windows Bash will be used; WSL is not required.'
 
-      - name: Prepare matching Chrome and ChromeDriver on self-hosted Windows
+      - name: Prepare cached Chrome and ChromeDriver on self-hosted Windows
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
           Write-Host "Runner: $env:RUNNER_NAME / $env:RUNNER_OS / $env:RUNNER_ARCH"
-          Get-Command bash | Format-List Source
           node --version
-          python --version
 
-          $root = Join-Path $env:RUNNER_TEMP 'nexusnova-cft-stable'
+          $toolCache = $env:RUNNER_TOOL_CACHE
+          if (-not $toolCache) { throw 'RUNNER_TOOL_CACHE is not available on the self-hosted runner.' }
+          $root = Join-Path $toolCache 'nexusnova-cft-stable'
           $chromeExe = Join-Path $root 'chrome-win64\chrome.exe'
           $driverExe = Join-Path $root 'chromedriver-win64\chromedriver.exe'
 
@@ -79,7 +85,7 @@ jobs:
           "CHROMEDRIVER_BIN=$driverEnv" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           & $chromeExe --version
           & $driverExe --version
-          Write-Host 'PASS — self-hosted Windows browser QA toolchain is ready.'
+          Write-Host 'PASS — cached self-hosted Windows browser QA toolchain is ready.'
 
       - name: Syntax, scope, provider, and release safety
         shell: bash
@@ -91,9 +97,11 @@ jobs:
           node --check fresh-rebuild/src/features/apps/data/ai-photo-templates.js
           node --check fresh-rebuild/src/main.js
           node --check fresh-rebuild/sw.js
+          node --check tools/ai-photo-flagship-qa/static-server.mjs
           node --check tools/ai-photo-flagship-qa/firebase-stub.mjs
           node --check tools/ai-photo-flagship-qa/behavior-qa.mjs
           BASE=9ef070ba55f76506851a1366fc9dc3863e50578d
+          git fetch --no-tags --depth=1 origin "$BASE"
           git diff --check "$BASE" HEAD
           for protected in \
             fresh-rebuild/src/features/apps/app-screen.js \
@@ -205,18 +213,36 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
-      - name: Java 17
+      - name: Verify installed Java 17
         if: always()
-        uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: '17'
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = (& java -version 2>&1 | Out-String)
+          Write-Host $version
+          if ($version -notmatch 'version "17\.') { throw 'Java 17 is required on the self-hosted runner.' }
+          Write-Host 'PASS — installed Java 17 is ready.'
 
-      - name: Gradle 8.13
+      - name: Prepare cached Gradle 8.13
         if: always()
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.13'
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $toolCache = $env:RUNNER_TOOL_CACHE
+          if (-not $toolCache) { throw 'RUNNER_TOOL_CACHE is not available on the self-hosted runner.' }
+          $root = Join-Path $toolCache 'nexusnova-gradle-8.13'
+          $gradleBat = Join-Path $root 'gradle-8.13\bin\gradle.bat'
+          if (-not (Test-Path $gradleBat)) {
+            if (Test-Path $root) { Remove-Item -Recurse -Force $root }
+            New-Item -ItemType Directory -Force -Path $root | Out-Null
+            $zip = Join-Path $env:RUNNER_TEMP 'gradle-8.13-bin.zip'
+            Invoke-WebRequest -Uri 'https://services.gradle.org/distributions/gradle-8.13-bin.zip' -OutFile $zip
+            Expand-Archive -LiteralPath $zip -DestinationPath $root -Force
+          }
+          if (-not (Test-Path $gradleBat)) { throw "Gradle missing at $gradleBat" }
+          (Split-Path $gradleBat -Parent) | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          & $gradleBat --version
+          Write-Host 'PASS — cached Gradle 8.13 is ready.'
 
       - name: Android debug build and canonical asset sync
         if: always()
