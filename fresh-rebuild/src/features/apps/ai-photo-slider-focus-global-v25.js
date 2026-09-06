@@ -23,6 +23,14 @@ function ensureSliderFocusStyles(){
       position:relative;
       z-index:20;
     }
+    .nx-photo-editor[data-nx-slider-focus="on"].nx-photo-control-live .nx-photo-field[${ACTIVE_ATTR}="true"].is-live-control{
+      padding:0!important;
+      border:0!important;
+      border-radius:0!important;
+      box-shadow:none!important;
+      background:transparent!important;
+      backdrop-filter:none!important;
+    }
     @media(prefers-reduced-motion:reduce){
       .nx-photo-editor[data-nx-slider-focus="on"] [${MUTED_ATTR}="true"]{transition:none!important}
     }
