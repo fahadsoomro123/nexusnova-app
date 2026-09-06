@@ -66,26 +66,7 @@ export function renderAiPhotoStudio(){
   const lockedReferenceCleanup=installAiPhotoLockedReferenceAssetsV1(root);
   const batchCleanup=installAiPhotoBatchV23(root);
   const navigationCleanup=installAiPhotoNavigation(root);
-  const otaProofDot=document.createElement('span');
-  otaProofDot.id='nx-ai-photo-ota-proof-dot';
-  otaProofDot.setAttribute('aria-label','OTA active proof');
-  otaProofDot.title='OTA ACTIVE';
-  Object.assign(otaProofDot.style,{
-    position:'fixed',
-    top:'9px',
-    right:'9px',
-    width:'10px',
-    height:'10px',
-    borderRadius:'50%',
-    background:'#22c55e',
-    border:'2px solid rgba(255,255,255,.95)',
-    boxShadow:'0 0 0 2px rgba(34,197,94,.28),0 0 12px rgba(34,197,94,.9)',
-    zIndex:'2147483647',
-    pointerEvents:'none'
-  });
-  root.append(otaProofDot);
   root.__cleanup=()=>{
-    otaProofDot.remove();
     navigationCleanup?.();
     batchCleanup?.();
     lockedReferenceCleanup?.();
