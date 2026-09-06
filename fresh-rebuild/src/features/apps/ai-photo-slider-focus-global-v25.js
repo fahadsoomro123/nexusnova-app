@@ -23,14 +23,6 @@ function ensureSliderFocusStyles(){
       position:relative;
       z-index:20;
     }
-    .nx-photo-editor[data-nx-slider-focus="on"].nx-photo-control-live .nx-photo-field[${ACTIVE_ATTR}="true"].is-live-control{
-      padding:0!important;
-      border:0!important;
-      border-radius:0!important;
-      box-shadow:none!important;
-      background:transparent!important;
-      backdrop-filter:none!important;
-    }
     @media(prefers-reduced-motion:reduce){
       .nx-photo-editor[data-nx-slider-focus="on"] [${MUTED_ATTR}="true"]{transition:none!important}
     }
@@ -80,6 +72,10 @@ export function installSliderOnlyFocus(root){
       el.removeAttribute(MUTED_ATTR);
     });
   };
+  const clearLegacyLiveState=()=>{
+    root.classList.remove('nx-photo-control-live');
+    root.querySelectorAll('.is-live-control').forEach(el=>el.classList.remove('is-live-control'));
+  };
   const fadeOtherBranches=protectedRoots=>{
     const walk=parent=>{
       [...parent.children].forEach(child=>{
@@ -110,6 +106,9 @@ export function installSliderOnlyFocus(root){
     activeSlider=slider;
     activeRow=rowFor(slider);
     paintFocus();
+    queueMicrotask(()=>{
+      if(activeSlider===slider)clearLegacyLiveState();
+    });
   };
   const clearFocus=()=>{
     if(releaseTimer){clearTimeout(releaseTimer);releaseTimer=0;}
@@ -118,6 +117,7 @@ export function installSliderOnlyFocus(root){
     activePreview=null;
     pointerActive=false;
     clearMarks();
+    clearLegacyLiveState();
     delete root.dataset.nxSliderFocus;
   };
   const scheduleRelease=(delay=90)=>{
