@@ -1,4 +1,4 @@
-name: Self-hosted Runner Smoke Test
+name: Self-hosted Runner Build Gate
 
 on:
   push:
@@ -6,11 +6,17 @@ on:
       - self-hosted-runner-smoke-test
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
-  smoke:
-    name: Windows self-hosted smoke
+  build-gate:
+    name: Windows self-hosted Android build gate
     runs-on: [self-hosted, Windows, X64]
-    timeout-minutes: 5
+    timeout-minutes: 35
+    env:
+      ANDROID_HOME: C:\Android\Sdk
+      ANDROID_SDK_ROOT: C:\Android\Sdk
     steps:
       - name: Confirm runner identity
         shell: cmd
@@ -19,13 +25,44 @@ jobs:
           echo Runner OS: %RUNNER_OS%
           echo Runner arch: %RUNNER_ARCH%
           echo Service user: %USERNAME%
-          echo Working directory: %CD%
           ver
 
-      - name: Probe basic build tools without failing
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Verify installed toolchain
         shell: cmd
         run: |
-          where git 2>nul && git --version || echo git=NOT_FOUND
-          where java 2>nul && java -version || echo java=NOT_FOUND
-          where adb 2>nul && adb --version || echo adb=NOT_FOUND
-          where sdkmanager 2>nul && sdkmanager --version || echo sdkmanager=NOT_FOUND
+          where git
+          git --version
+          where java
+          java -version
+          where adb
+          adb version
+          where apksigner
+          apksigner version
+          if not exist "C:\Android\Sdk\platforms\android-35\android.jar" exit /b 1
+          echo Android SDK 35: PASS
+
+      - name: Setup Gradle 8.13
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Verify Gradle
+        shell: cmd
+        run: gradle --version
+
+      - name: Build NexusNova debug APK
+        working-directory: NexusNovaAndroid
+        shell: cmd
+        run: gradle --no-daemon assembleDebug
+
+      - name: Verify debug APK exists
+        shell: cmd
+        run: |
+          if not exist "NexusNovaAndroid\app\build\outputs\apk\debug\app-debug.apk" exit /b 1
+          for %%I in ("NexusNovaAndroid\app\build\outputs\apk\debug\app-debug.apk") do echo APK size: %%~zI bytes
+          echo SELF_HOSTED_ANDROID_BUILD=PASS
