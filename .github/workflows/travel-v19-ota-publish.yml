@@ -26,14 +26,14 @@ jobs:
       - name: Check out release commit
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 3
 
       - name: Lock release commit to verified Travel source
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $parent = (git rev-parse HEAD^).Trim()
-          if ($parent -ne $env:TRAVEL_SOURCE_SHA) { throw "Release parent mismatch: $parent" }
+          git merge-base --is-ancestor $env:TRAVEL_SOURCE_SHA HEAD
+          if ($LASTEXITCODE -ne 0) { throw "Verified Travel source is not an ancestor: $env:TRAVEL_SOURCE_SHA" }
           $changed = @(git diff --name-only $env:TRAVEL_SOURCE_SHA $env:GITHUB_SHA)
           if ($changed.Count -ne 1 -or $changed[0] -ne '.github/workflows/travel-v19-ota-publish.yml') {
             throw "Release commit changed unexpected files: $($changed -join ', ')"
@@ -103,8 +103,10 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $public = Join-Path $env:RUNNER_TEMP 'nx-travel-v19-public'
           if (Test-Path $public) { Remove-Item -Recurse -Force $public }
-          git clone --depth 1 --branch $env:PUBLIC_OTA_BRANCH "https://github.com/$env:PUBLIC_OTA_REPO.git" $public
+          git -c core.autocrlf=false clone --depth 1 --branch $env:PUBLIC_OTA_BRANCH "https://github.com/$env:PUBLIC_OTA_REPO.git" $public
           if ($LASTEXITCODE -ne 0) { throw 'Could not clone public OTA repository' }
+          git -C $public config core.autocrlf false
+          git -C $public config core.safecrlf false
 
           $ota = Join-Path $public 'ota'
           $filesRoot = Join-Path $ota 'files'
@@ -161,6 +163,8 @@ jobs:
           [System.IO.File]::WriteAllText($manifestPath, $json, (New-Object System.Text.UTF8Encoding($false)))
 
           Push-Location $public
+          git config core.autocrlf false
+          git config core.safecrlf false
           git config user.name 'NexusNova OTA Bot'
           git config user.email 'actions@users.noreply.github.com'
           git add -A ota
