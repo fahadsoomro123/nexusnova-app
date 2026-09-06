@@ -129,7 +129,7 @@ function hideLegacyTravelChrome(root, screen) {
   }
 
   const candidates = [...screen.querySelectorAll('*')].filter(el => {
-    if (el === root || root.contains(el)) return false;
+    if (el === root || root.contains(el) || el.contains(root)) return false;
     const text = String(el.textContent || '').replace(/\s+/g, ' ').trim().toUpperCase();
     return text.includes('TRAVEL OPERATIONS DESK');
   });
@@ -146,6 +146,7 @@ function hideLegacyTravelChrome(root, screen) {
         break;
       }
     }
+    if (target === root || root.contains(target) || target.contains(root)) continue;
     target.hidden = true;
     target.setAttribute('aria-hidden', 'true');
     target.style.setProperty('display', 'none', 'important');
