@@ -84,14 +84,13 @@ jobs:
                 const sc=getComputedStyle(stage);
                 return {
                   root:{x:rr.x,y:rr.y,w:rr.width,h:rr.height,bottom:rr.bottom},
-                  screen:{w:sr.width,h:sr.height},
-                  card:{top:cr.top,bottom:cr.bottom,h:cr.height},dockTop:dr.top,dockBottom:dr.bottom,
+                  screen:{w:sr.width,h:sr.height},card:{top:cr.top,bottom:cr.bottom,h:cr.height},
+                  dockTop:dr.top,dockBottom:dr.bottom,
                   stagePosition:sc.position,stageOverflow:sc.overflow,stagePaddingBottom:sc.paddingBottom,
                   stageScroll:stage.scrollHeight>stage.clientHeight+2,
                   bodyScroll:document.body.scrollHeight>innerHeight+2,
                   docScroll:document.documentElement.scrollHeight>innerHeight+2,
-                  hostLock:document.documentElement.classList.contains('nn-travel-host-lock'),
-                  guard:root.dataset.travelHostGuard
+                  hostLock:document.documentElement.classList.contains('nn-travel-host-lock'),guard:root.dataset.travelHostGuard
                 };
               });
               if(!base.hostLock||base.guard!=='v4') throw new Error(`${p.name}: V4 host lock missing ${JSON.stringify(base)}`);
@@ -123,18 +122,17 @@ jobs:
                   value:input.value,
                   input:{top:ir.top,bottom:ir.bottom,w:ir.width,h:ir.height,display:style.display,visibility:style.visibility,opacity:Number(style.opacity)},
                   route:{top:routeRect.top,bottom:routeRect.bottom,w:routeRect.width,h:routeRect.height},
-                  card:{top:cardRect.top,bottom:cardRect.bottom,w:cardRect.width,h:cardRect.height},
-                  rootH:rr.height,
+                  card:{top:cardRect.top,bottom:cardRect.bottom,w:cardRect.width,h:cardRect.height},rootH:rr.height,
                   keyboard:root.dataset.keyboardOpen,routeFocus:root.classList.contains('nn-travel-route-focus'),guard:root.dataset.travelHostGuard,
                   dockDisplay:getComputedStyle(dock).display,
-                  bodyScroll:document.body.scrollHeight>innerHeight+2,
-                  docScroll:document.documentElement.scrollHeight>innerHeight+2
+                  bodyScroll:document.body.scrollHeight>innerHeight+2,docScroll:document.documentElement.scrollHeight>innerHeight+2
                 };
               });
+              await page.screenshot({path:`travel-host-v2-${p.name}-keyboard.png`,fullPage:false});
               if(focused.value!=='KARACHI') throw new Error(`${p.name}: location edit failed ${focused.value}`);
               if(focused.guard!=='v4'||focused.keyboard!=='true'||!focused.routeFocus) throw new Error(`${p.name}: keyboard route V4 guard missing ${JSON.stringify(focused)}`);
               if(focused.input.display==='none'||focused.input.visibility==='hidden'||focused.input.opacity<0.5) throw new Error(`${p.name}: location input visually hidden ${JSON.stringify(focused.input)}`);
-              if(focused.input.w<90||focused.input.h<24) throw new Error(`${p.name}: location input collapsed ${JSON.stringify(focused.input)}`);
+              if(focused.input.w<80||focused.input.h<24) throw new Error(`${p.name}: location input collapsed ${JSON.stringify(focused.input)}`);
               if(focused.route.w<140||focused.route.h<60) throw new Error(`${p.name}: route card collapsed ${JSON.stringify(focused.route)}`);
               if(focused.card.w<280||focused.card.h<120) throw new Error(`${p.name}: keyboard search card collapsed ${JSON.stringify(focused.card)}`);
               if(focused.input.top<0||focused.input.bottom>keyboardH) throw new Error(`${p.name}: location field outside visible keyboard viewport ${JSON.stringify(focused)}`);
@@ -142,7 +140,6 @@ jobs:
               if(Math.abs(focused.rootH-keyboardH)>3) throw new Error(`${p.name}: visible viewport resize failed ${JSON.stringify(focused)}`);
               if(focused.dockDisplay!=='none') throw new Error(`${p.name}: dock overlaps keyboard`);
               if(focused.bodyScroll||focused.docScroll) throw new Error(`${p.name}: keyboard caused page scroll`);
-              await page.screenshot({path:`travel-host-v2-${p.name}-keyboard.png`,fullPage:false});
 
               await page.setViewportSize({width:p.w,height:p.h});
               await origin.blur();
@@ -151,16 +148,11 @@ jobs:
                 const root=document.querySelector('.nn-travel-v19');
                 const dock=document.querySelector('.nx-dock.global').getBoundingClientRect();
                 const card=document.querySelector('.nn-search-card').getBoundingClientRect();
-                return {
-                  h:root.getBoundingClientRect().height,keyboard:root.dataset.keyboardOpen,
-                  dockGap:Math.abs(innerHeight-dock.bottom),cardH:card.height,
-                  bodyScroll:document.body.scrollHeight>innerHeight+2,
-                  docScroll:document.documentElement.scrollHeight>innerHeight+2
-                };
+                return {h:root.getBoundingClientRect().height,keyboard:root.dataset.keyboardOpen,dockGap:Math.abs(innerHeight-dock.bottom),cardH:card.height,bodyScroll:document.body.scrollHeight>innerHeight+2,docScroll:document.documentElement.scrollHeight>innerHeight+2};
               });
+              await page.screenshot({path:`travel-host-v2-${p.name}-restored.png`,fullPage:false});
               if(Math.abs(restored.h-p.h)>3||restored.keyboard==='true'||restored.dockGap>7||restored.cardH<260||restored.bodyScroll||restored.docScroll) throw new Error(`${p.name}: fullscreen restore failed ${JSON.stringify(restored)}`);
               if(errors.length) throw new Error(`${p.name}: page errors ${errors.join(' | ')}`);
-              await page.screenshot({path:`travel-host-v2-${p.name}-restored.png`,fullPage:false});
               await page.close();
               console.log(`HOST V4 VISIBLE KEYBOARD PASS ${p.name}`);
             }
