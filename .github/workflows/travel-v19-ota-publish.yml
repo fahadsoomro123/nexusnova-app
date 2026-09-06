@@ -13,7 +13,7 @@ permissions:
   actions: read
 
 env:
-  TRAVEL_SOURCE_SHA: 19f8fd8c6d448a2371971b2812f45163181f81c6
+  TRAVEL_SOURCE_SHA: e57fd9b001acb2232b9802e40002f2433e76fb88
   OTA_BUNDLED_BASE: 8d1aaaee6f28b974a8c8b3ff213beb1318ec7405
   PUBLIC_OTA_REPO: fahadsoomro123/nexusnova-website
   PUBLIC_OTA_BRANCH: nexusnova-ota-public
@@ -26,14 +26,14 @@ jobs:
       - name: Check out release commit
         uses: actions/checkout@v4
         with:
-          fetch-depth: 3
+          fetch-depth: 2
 
       - name: Lock release commit to verified Travel source
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          git merge-base --is-ancestor $env:TRAVEL_SOURCE_SHA HEAD
-          if ($LASTEXITCODE -ne 0) { throw "Verified Travel source is not an ancestor: $env:TRAVEL_SOURCE_SHA" }
+          $parent = (git rev-parse HEAD^).Trim()
+          if ($parent -ne $env:TRAVEL_SOURCE_SHA) { throw "Release parent mismatch: $parent" }
           $changed = @(git diff --name-only $env:TRAVEL_SOURCE_SHA $env:GITHUB_SHA)
           if ($changed.Count -ne 1 -or $changed[0] -ne '.github/workflows/travel-v19-ota-publish.yml') {
             throw "Release commit changed unexpected files: $($changed -join ', ')"
@@ -68,6 +68,7 @@ jobs:
           $required = @(
             'fresh-rebuild/src/features/apps/travel-suite.js',
             'fresh-rebuild/src/features/apps/travel-edge-client.js',
+            'fresh-rebuild/src/features/apps/travel-edge-config.js',
             'fresh-rebuild/src/features/apps/travel-integrations.js',
             'fresh-rebuild/assets/travel/reference-hero-right.webp.b64',
             'fresh-rebuild/assets/travel/reference-from-exact.webp.b64',
@@ -78,14 +79,17 @@ jobs:
           }
           node --check fresh-rebuild/src/features/apps/travel-suite.js
           node --check fresh-rebuild/src/features/apps/travel-edge-client.js
+          node --check fresh-rebuild/src/features/apps/travel-edge-config.js
           node --check fresh-rebuild/src/features/apps/travel-integrations.js
           $travel = Get-Content -Raw fresh-rebuild/src/features/apps/travel-suite.js
           foreach ($needle in @('fresh-reference-v19-pixel-map','measured-reference-hybrid',"OTA_RELEASE_ID = 'travel-reference-ota-1'")) {
-            if (-not $travel.Contains($needle)) { throw "Travel release marker missing: $needle" }
+            if (-not $travel.Contains($needle)) { throw "Travel source marker missing: $needle" }
           }
+          $edge = Get-Content -Raw fresh-rebuild/src/features/apps/travel-edge-client.js
+          if (-not $edge.Contains("from './travel-edge-config.js'")) { throw 'Travel edge client dependency import missing' }
           $integration = Get-Content -Raw fresh-rebuild/src/features/apps/travel-integrations.js
           if (-not $integration.Contains(".nn-travel-v16,[data-runtime-repair]")) { throw 'Fresh Travel legacy-injection guard missing' }
-          Write-Host 'OTA Travel source contract PASS'
+          Write-Host 'OTA Travel source and transitive dependency contract PASS'
 
       - name: Require public OTA credential
         shell: powershell
@@ -94,7 +98,7 @@ jobs:
         run: |
           if ([string]::IsNullOrWhiteSpace($env:PUBLIC_OTA_TOKEN)) { throw 'Public OTA credential missing' }
 
-      - name: Build cumulative Travel OTA over current public OTA
+      - name: Build cumulative Travel OTA revision 2
         id: build
         shell: powershell
         env:
@@ -125,6 +129,7 @@ jobs:
           $overlay = @{
             'fresh-rebuild/src/features/apps/travel-suite.js' = 'src/features/apps/travel-suite.js'
             'fresh-rebuild/src/features/apps/travel-edge-client.js' = 'src/features/apps/travel-edge-client.js'
+            'fresh-rebuild/src/features/apps/travel-edge-config.js' = 'src/features/apps/travel-edge-config.js'
             'fresh-rebuild/src/features/apps/travel-integrations.js' = 'src/features/apps/travel-integrations.js'
             'fresh-rebuild/assets/travel/reference-hero-right.webp.b64' = 'assets/travel/reference-hero-right.webp.b64'
             'fresh-rebuild/assets/travel/reference-from-exact.webp.b64' = 'assets/travel/reference-from-exact.webp.b64'
@@ -137,6 +142,27 @@ jobs:
             New-Item -ItemType Directory -Force -Path $parent | Out-Null
             Copy-Item -Force $src $dest
           }
+
+          # Release-stamp the verified source. Revision 1 never reached the Travel
+          # renderer on the phone, so revision 2 is explicit and does not depend
+          # on revision 1 having written localStorage successfully.
+          $travelDest = Join-Path $filesRoot 'src\features\apps\travel-suite.js'
+          $travelText = [System.IO.File]::ReadAllText($travelDest)
+          $stampPairs = [ordered]@{
+            "const OTA_RELEASE_ID = 'travel-reference-ota-1';" = "const OTA_RELEASE_ID = 'travel-reference-ota-2';`nconst OTA_RELEASE_REVISION = 2;"
+            'state.count = Math.max(0, Number(state.count) || 0) + 1;' = 'state.count = OTA_RELEASE_REVISION;'
+            'state = {releaseId:OTA_RELEASE_ID, count:1};' = 'state = {releaseId:OTA_RELEASE_ID, count:OTA_RELEASE_REVISION};'
+            'if (badge) badge.textContent = String(Math.max(1, Number(state.count) || 1));' = 'if (badge) badge.textContent = String(OTA_RELEASE_REVISION);'
+            'root.dataset.otaRevision = String(Math.max(1, Number(state.count) || 1));' = 'root.dataset.otaRevision = String(OTA_RELEASE_REVISION);'
+          }
+          foreach ($pair in $stampPairs.GetEnumerator()) {
+            $count = ([regex]::Matches($travelText, [regex]::Escape([string]$pair.Key))).Count
+            if ($count -ne 1) { throw "Travel OTA release stamp source occurrence mismatch ($count): $($pair.Key)" }
+            $travelText = $travelText.Replace([string]$pair.Key, [string]$pair.Value)
+          }
+          [System.IO.File]::WriteAllText($travelDest, $travelText, (New-Object System.Text.UTF8Encoding($false)))
+          if (-not $travelText.Contains("OTA_RELEASE_ID = 'travel-reference-ota-2'")) { throw 'OTA revision 2 release ID stamp failed' }
+          if (-not $travelText.Contains('OTA_RELEASE_REVISION = 2')) { throw 'OTA revision 2 numeric stamp failed' }
 
           $entries = @()
           Get-ChildItem -Path $filesRoot -Recurse -File | Sort-Object FullName | ForEach-Object {
@@ -156,7 +182,7 @@ jobs:
             version = $env:GITHUB_SHA.ToLowerInvariant()
             source = $env:TRAVEL_SOURCE_SHA
             proof_number = [string]$old.proof_number
-            travel_revision = 1
+            travel_revision = 2
             files = $entries
           }
           $json = $manifest | ConvertTo-Json -Depth 6 -Compress
@@ -168,7 +194,7 @@ jobs:
           git config user.name 'NexusNova OTA Bot'
           git config user.email 'actions@users.noreply.github.com'
           git add -A ota
-          git commit -m "Publish Travel V19 OTA revision 1 $env:TRAVEL_SOURCE_SHA"
+          git commit -m "Publish Travel V19 OTA revision 2 $env:TRAVEL_SOURCE_SHA"
           if ($LASTEXITCODE -ne 0) { throw 'Public OTA commit failed' }
           $publicSha = (git rev-parse HEAD).Trim()
           $authText = "x-access-token:$env:PUBLIC_OTA_TOKEN"
@@ -178,9 +204,9 @@ jobs:
           Pop-Location
 
           "public_sha=$publicSha" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-          Write-Host "Published public OTA commit: $publicSha"
+          Write-Host "Published public OTA revision 2 commit: $publicSha"
 
-      - name: Verify public Travel OTA end-to-end
+      - name: Verify public Travel OTA revision 2 end-to-end
         shell: powershell
         env:
           PUBLIC_SHA: ${{ steps.build.outputs.public_sha }}
@@ -198,7 +224,7 @@ jobs:
           if ([string]$m.base -ne $env:OTA_BUNDLED_BASE) { throw 'Published OTA base mismatch' }
           if ([string]$m.version -ne $env:GITHUB_SHA.ToLowerInvariant()) { throw 'Published OTA version mismatch' }
           if ([string]$m.source -ne $env:TRAVEL_SOURCE_SHA) { throw 'Published OTA source mismatch' }
-          if ([int]$m.travel_revision -ne 1) { throw 'Published Travel revision is not 1' }
+          if ([int]$m.travel_revision -ne 2) { throw 'Published Travel revision is not 2' }
 
           $paths = @($m.files | ForEach-Object { [string]$_.path })
           foreach ($required in @(
@@ -206,6 +232,7 @@ jobs:
             'src/features/apps/ai-photo-studio-review.js',
             'src/features/apps/travel-suite.js',
             'src/features/apps/travel-edge-client.js',
+            'src/features/apps/travel-edge-config.js',
             'src/features/apps/travel-integrations.js',
             'assets/travel/reference-hero-right.webp.b64',
             'assets/travel/reference-from-exact.webp.b64',
@@ -224,4 +251,18 @@ jobs:
             $hash = (Get-FileHash -Algorithm SHA256 $target).Hash.ToLowerInvariant()
             if ($hash -ne [string]$entry.sha256) { throw "Published OTA hash mismatch: $rel" }
           }
-          Write-Host "PUBLIC TRAVEL OTA REVISION 1 VERIFIED: $env:PUBLIC_SHA"
+
+          $publishedTravel = Get-Content -Raw (Join-Path $verifyRoot 'src\features\apps\travel-suite.js')
+          if (-not $publishedTravel.Contains("OTA_RELEASE_ID = 'travel-reference-ota-2'")) { throw 'Published Travel OTA release ID is not revision 2' }
+          if (-not $publishedTravel.Contains('OTA_RELEASE_REVISION = 2')) { throw 'Published Travel numeric badge stamp is not revision 2' }
+          $publishedEdge = Get-Content -Raw (Join-Path $verifyRoot 'src\features\apps\travel-edge-client.js')
+          if (-not $publishedEdge.Contains("from './travel-edge-config.js'")) { throw 'Published edge client lost transitive config import' }
+
+          [System.IO.File]::WriteAllText((Join-Path $verifyRoot 'package.json'), '{"type":"module"}', (New-Object System.Text.UTF8Encoding($false)))
+          Push-Location $verifyRoot
+          node -e "import('./src/features/apps/travel-suite.js').then(m=>{if(typeof m.renderTravelSuite!=='function')throw new Error('Travel renderer export missing');console.log('Published Travel module graph import PASS')}).catch(e=>{console.error(e);process.exit(1)})"
+          $importExit = $LASTEXITCODE
+          Pop-Location
+          if ($importExit -ne 0) { throw 'Published Travel module graph import failed' }
+
+          Write-Host "PUBLIC TRAVEL OTA REVISION 2 VERIFIED: $env:PUBLIC_SHA"
