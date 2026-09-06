@@ -1,0 +1,35 @@
+name: Self-hosted Runner Smoke Test
+
+on:
+  push:
+    branches:
+      - self-hosted-runner-smoke-test
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    name: Windows self-hosted smoke
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 5
+    steps:
+      - name: Confirm runner identity
+        shell: powershell
+        run: |
+          Write-Host "Runner name: $env:RUNNER_NAME"
+          Write-Host "Runner OS: $env:RUNNER_OS"
+          Write-Host "Runner arch: $env:RUNNER_ARCH"
+          Write-Host "Service user: $env:USERNAME"
+          Write-Host "Working directory: $(Get-Location)"
+          Get-Date
+
+      - name: Probe basic build tools without failing
+        shell: powershell
+        run: |
+          foreach ($tool in @('git','java','adb','sdkmanager')) {
+            $cmd = Get-Command $tool -ErrorAction SilentlyContinue
+            if ($cmd) {
+              Write-Host "$tool=FOUND at $($cmd.Source)"
+            } else {
+              Write-Host "$tool=NOT_FOUND"
+            }
+          }
