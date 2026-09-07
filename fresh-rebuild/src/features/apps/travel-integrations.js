@@ -140,6 +140,9 @@ html.nn-travel-host-lock .nn-travel-v19 .nn-travel-frame{
   width:100%!important;height:var(--nn-travel-frame-height,calc(100% - 72px))!important;
   min-height:0!important;max-height:none!important;overflow:hidden!important
 }
+html.nn-travel-host-lock .nn-travel-v19 .nn-travel-stage{
+  grid-row:3!important
+}
 html.nn-travel-host-lock .nn-travel-v19 .nn-travel-stage,
 html.nn-travel-host-lock .nn-travel-v19 .nn-panel,
 html.nn-travel-host-lock .nn-travel-v19 .nn-flight-panel{
