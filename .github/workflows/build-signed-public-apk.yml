@@ -20,7 +20,7 @@ jobs:
       KEY_PASSWORD: ${{ secrets.NEXUSNOVA_KEY_PASSWORD }}
     steps:
       - name: Check required signing secrets
-        shell: pwsh
+        shell: powershell
         run: |
           if (-not $env:KEYSTORE_B64) { throw "Missing NEXUSNOVA_KEYSTORE_BASE64" }
           if (-not $env:KEYSTORE_PASSWORD) { throw "Missing NEXUSNOVA_KEYSTORE_PASSWORD" }
@@ -35,14 +35,14 @@ jobs:
           path: public-build
 
       - name: Decode keystore
-        shell: pwsh
+        shell: powershell
         working-directory: public-build\NexusNovaAndroid
         run: |
           [IO.File]::WriteAllBytes("app/nexusnova-release.jks", [Convert]::FromBase64String($env:KEYSTORE_B64))
           if (-not (Test-Path "app/nexusnova-release.jks")) { throw "Keystore decode failed" }
 
       - name: Inject release signing config
-        shell: pwsh
+        shell: powershell
         working-directory: public-build\NexusNovaAndroid
         run: |
           $p = "app/build.gradle.kts"
@@ -65,12 +65,12 @@ jobs:
           Set-Content -Path $p -Value $s
 
       - name: Build signed release APK
-        shell: pwsh
+        shell: powershell
         working-directory: public-build\NexusNovaAndroid
         run: .\gradlew.bat --no-daemon clean assembleRelease
 
       - name: Verify APK signature
-        shell: pwsh
+        shell: powershell
         working-directory: public-build\NexusNovaAndroid
         run: |
           $apk = "app/build/outputs/apk/release/app-release.apk"
@@ -79,7 +79,7 @@ jobs:
           & $apksigner verify --verbose $apk
 
       - name: Package APK
-        shell: pwsh
+        shell: powershell
         working-directory: public-build\NexusNovaAndroid
         run: |
           New-Item -ItemType Directory -Force -Path signed-output | Out-Null
