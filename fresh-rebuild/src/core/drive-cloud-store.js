@@ -1,9 +1,11 @@
 import { doc, getDoc, serverTimestamp, setDoc } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js';
 import { firestoreDb, waitForFirebaseUser } from './firebase-backend.js';
 
-const CLOUD_VERSION = 2;
+const CLOUD_VERSION = 3;
 const MAX_TRIPS = 90;
 const MAX_DAYS = 400;
+const MAX_ROUTE_POINTS = 96;
+const MAX_LOCATION_LABEL = 160;
 const lastSyncedSignature = new Map();
 const syncInFlight = new Map();
 
@@ -28,6 +30,40 @@ function normalizeMode(value) {
   return mode === 'bicycle' ? 'bicycle' : mode === 'motor' ? 'motor' : 'unknown';
 }
 
+function normalizeLabel(value) {
+  return String(value || '').trim().slice(0, MAX_LOCATION_LABEL);
+}
+
+function normalizeRoutePoint(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const lat = Number(raw.lat ?? raw.latitude);
+  const lng = Number(raw.lng ?? raw.lon ?? raw.longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+  const at = Math.round(finiteNonNegative(raw.at ?? raw.timestamp ?? raw.time));
+  const speedKmh = finiteNonNegative(raw.speedKmh ?? raw.speed);
+  return {
+    lat:Number(lat.toFixed(6)),
+    lng:Number(lng.toFixed(6)),
+    ...(at > 0 ? { at } : {}),
+    ...(speedKmh > 0 ? { speedKmh:Number(speedKmh.toFixed(1)) } : {})
+  };
+}
+
+function compactRoute(raw) {
+  const source = Array.isArray(raw) ? raw.map(normalizeRoutePoint).filter(Boolean) : [];
+  if (source.length <= MAX_ROUTE_POINTS) return source;
+  const result = [];
+  const lastIndex = source.length - 1;
+  for (let index = 0; index < MAX_ROUTE_POINTS; index += 1) {
+    const sourceIndex = Math.round((index / (MAX_ROUTE_POINTS - 1)) * lastIndex);
+    const point = source[sourceIndex];
+    const previous = result.at(-1);
+    if (!previous || previous.lat !== point.lat || previous.lng !== point.lng || previous.at !== point.at) result.push(point);
+  }
+  if (result.at(-1) !== source.at(-1) && result.length < MAX_ROUTE_POINTS) result.push(source.at(-1));
+  return result.slice(0, MAX_ROUTE_POINTS);
+}
+
 function tripKey(trip) {
   const nativeId = String(trip?.nativeId || '').trim();
   if (nativeId) return `native:${nativeId}`;
@@ -43,6 +79,9 @@ function normalizeTrip(raw) {
   const movingMs = Math.round(finiteNonNegative(raw.movingMs));
   const durationMs = Math.round(finiteNonNegative(raw.durationMs));
   const avgKmh = movingMs > 0 ? (distanceM / (movingMs / 1000)) * 3.6 : finiteNonNegative(raw.avgKmh);
+  const points = compactRoute(raw.points || raw.routePoints || raw.route);
+  const startName = normalizeLabel(raw.startName || raw.startLabel);
+  const endName = normalizeLabel(raw.endName || raw.endLabel);
   return {
     ...(nativeId ? { nativeId } : {}),
     at,
@@ -52,7 +91,10 @@ function normalizeTrip(raw) {
     durationMs,
     topKmh: finiteNonNegative(raw.topKmh),
     avgKmh: finiteNonNegative(avgKmh),
-    mode: normalizeMode(raw.mode)
+    mode: normalizeMode(raw.mode),
+    ...(points.length ? { points } : {}),
+    ...(startName ? { startName } : {}),
+    ...(endName ? { endName } : {})
   };
 }
 
@@ -112,6 +154,10 @@ function mergeDayMaps(localDays, remoteDays, tripDays) {
   return result;
 }
 
+function tripRichness(trip) {
+  return (Array.isArray(trip?.points) ? trip.points.length : 0) * 1000 + (trip?.startName ? 10 : 0) + (trip?.endName ? 10 : 0);
+}
+
 export function mergeDriveStores(localRaw, remoteRaw) {
   const local = normalizeDriveStore(localRaw);
   const remote = normalizeDriveStore(remoteRaw);
@@ -119,7 +165,13 @@ export function mergeDriveStores(localRaw, remoteRaw) {
   [...remote.trips, ...local.trips].forEach(trip => {
     const key = tripKey(trip);
     const previous = byKey.get(key);
-    if (!previous || new Date(trip.endedAt).getTime() >= new Date(previous.endedAt).getTime()) byKey.set(key, trip);
+    if (!previous) {
+      byKey.set(key, trip);
+      return;
+    }
+    const tripEnded = new Date(trip.endedAt).getTime();
+    const previousEnded = new Date(previous.endedAt).getTime();
+    if (tripEnded > previousEnded || (tripEnded === previousEnded && tripRichness(trip) >= tripRichness(previous))) byKey.set(key, trip);
   });
   const trips = [...byKey.values()]
     .sort((a, b) => new Date(b.endedAt).getTime() - new Date(a.endedAt).getTime())
