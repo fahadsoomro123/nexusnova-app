@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   signed-apk:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Windows, X64]
     env:
       KEYSTORE_B64: ${{ secrets.NEXUSNOVA_KEYSTORE_BASE64 }}
       KEYSTORE_PASSWORD: ${{ secrets.NEXUSNOVA_KEYSTORE_PASSWORD }}
@@ -20,13 +20,12 @@ jobs:
       KEY_PASSWORD: ${{ secrets.NEXUSNOVA_KEY_PASSWORD }}
     steps:
       - name: Check required signing secrets
-        shell: bash
+        shell: pwsh
         run: |
-          set -euo pipefail
-          test -n "$KEYSTORE_B64"
-          test -n "$KEYSTORE_PASSWORD"
-          test -n "$KEY_ALIAS"
-          test -n "$KEY_PASSWORD"
+          if (-not $env:KEYSTORE_B64) { throw "Missing NEXUSNOVA_KEYSTORE_BASE64" }
+          if (-not $env:KEYSTORE_PASSWORD) { throw "Missing NEXUSNOVA_KEYSTORE_PASSWORD" }
+          if (-not $env:KEY_ALIAS) { throw "Missing NEXUSNOVA_KEY_ALIAS" }
+          if (-not $env:KEY_PASSWORD) { throw "Missing NEXUSNOVA_KEY_PASSWORD" }
 
       - name: Checkout public Android source
         uses: actions/checkout@v4
@@ -35,80 +34,62 @@ jobs:
           ref: main
           path: public-build
 
-      - name: Set up Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
       - name: Decode keystore
-        shell: bash
-        working-directory: public-build/NexusNovaAndroid
+        shell: pwsh
+        working-directory: public-build\NexusNovaAndroid
         run: |
-          set -euo pipefail
-          printf '%s' "$KEYSTORE_B64" | base64 -d > app/nexusnova-release.jks
-          test -s app/nexusnova-release.jks
+          [IO.File]::WriteAllBytes("app/nexusnova-release.jks", [Convert]::FromBase64String($env:KEYSTORE_B64))
+          if (-not (Test-Path "app/nexusnova-release.jks")) { throw "Keystore decode failed" }
 
       - name: Inject release signing config
-        shell: bash
-        working-directory: public-build/NexusNovaAndroid
+        shell: pwsh
+        working-directory: public-build\NexusNovaAndroid
         run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          p=Path('app/build.gradle.kts')
-          s=p.read_text()
-          s=s.replace('versionCode = 1', 'versionCode = 1022')
-          s=s.replace('versionName = "1.0.0"', 'versionName = "1.0.22"')
-          marker='    buildTypes {'
-          signing='''    signingConfigs {
-              create("release") {
-                  storeFile = file("nexusnova-release.jks")
-                  storePassword = System.getenv("KEYSTORE_PASSWORD")
-                  keyAlias = System.getenv("KEY_ALIAS")
-                  keyPassword = System.getenv("KEY_PASSWORD")
-              }
-          }
+          $p = "app/build.gradle.kts"
+          $s = Get-Content $p -Raw
+          $s = $s.Replace('versionCode = 1', 'versionCode = 1022')
+          $s = $s.Replace('versionName = "1.0.0"', 'versionName = "1.0.22"')
+          $signing = @'
+    signingConfigs {
+        create("release") {
+            storeFile = file("nexusnova-release.jks")
+            storePassword = System.getenv("KEYSTORE_PASSWORD")
+            keyAlias = System.getenv("KEY_ALIAS")
+            keyPassword = System.getenv("KEY_PASSWORD")
+        }
+    }
 
-          '''
-          if 'signingConfigs {' not in s:
-              s=s.replace(marker, signing+marker)
-          s=s.replace('        release {\n', '        release {\n            signingConfig = signingConfigs.getByName("release")\n', 1)
-          p.write_text(s)
-          PY
-          grep -Fq 'versionCode = 1022' app/build.gradle.kts
-          grep -Fq 'signingConfig = signingConfigs.getByName("release")' app/build.gradle.kts
+'@
+          if ($s -notmatch 'signingConfigs \{') { $s = $s.Replace('    buildTypes {', $signing + '    buildTypes {') }
+          $s = $s.Replace("        release {`n", "        release {`n            signingConfig = signingConfigs.getByName(`"release`")`n")
+          Set-Content -Path $p -Value $s
 
       - name: Build signed release APK
-        shell: bash
-        working-directory: public-build/NexusNovaAndroid
-        run: |
-          set -euo pipefail
-          chmod +x ./gradlew
-          ./gradlew --no-daemon clean assembleRelease
+        shell: pwsh
+        working-directory: public-build\NexusNovaAndroid
+        run: .\gradlew.bat --no-daemon clean assembleRelease
 
       - name: Verify APK signature
-        shell: bash
-        working-directory: public-build/NexusNovaAndroid
+        shell: pwsh
+        working-directory: public-build\NexusNovaAndroid
         run: |
-          set -euo pipefail
-          APK=app/build/outputs/apk/release/app-release.apk
-          test -s "$APK"
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
+          $apk = "app/build/outputs/apk/release/app-release.apk"
+          if (-not (Test-Path $apk)) { throw "APK missing" }
+          $apksigner = Join-Path $env:ANDROID_HOME "build-tools\35.0.0\apksigner.bat"
+          & $apksigner verify --verbose $apk
 
       - name: Package APK
-        shell: bash
-        working-directory: public-build/NexusNovaAndroid
+        shell: pwsh
+        working-directory: public-build\NexusNovaAndroid
         run: |
-          set -euo pipefail
-          mkdir -p signed-output
-          cp app/build/outputs/apk/release/app-release.apk signed-output/NexusNova-v1.0.22-SIGNED.apk
-          sha256sum signed-output/NexusNova-v1.0.22-SIGNED.apk > signed-output/NexusNova-v1.0.22-SIGNED.apk.sha256
+          New-Item -ItemType Directory -Force -Path signed-output | Out-Null
+          Copy-Item app/build/outputs/apk/release/app-release.apk signed-output/NexusNova-v1.0.22-SIGNED.apk
+          Get-FileHash signed-output/NexusNova-v1.0.22-SIGNED.apk -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  NexusNova-v1.0.22-SIGNED.apk" } | Set-Content signed-output/NexusNova-v1.0.22-SIGNED.apk.sha256
 
       - name: Upload signed APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: NexusNova-v1.0.22-SIGNED
-          path: public-build/NexusNovaAndroid/signed-output/*
+          path: public-build\NexusNovaAndroid\signed-output\*
           if-no-files-found: error
           retention-days: 7
