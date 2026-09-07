@@ -25,7 +25,7 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Gate 1 - module graph and host source
+      - name: Gate 1 - V6 full viewport source contract
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -33,11 +33,20 @@ jobs:
           node --check fresh-rebuild/src/features/apps/travel-integrations.js
           node --check fresh-rebuild/src/features/apps/travel-ground.js
           $src = Get-Content -Raw fresh-rebuild/src/features/apps/travel-integrations.js
-          foreach ($needle in @("TRAVEL_HOST_STYLE_ID = 'nn-travel-host-guard-v5'",'nn-travel-host-lock','nn-travel-keyboard-open','nn-travel-route-focus','--nn-travel-vv-height',"travelHostGuard === 'v5'",'@media (min-height:681px)','grid-template-rows:clamp(132px,26vh,238px) minmax(0,1fr)!important')) {
-            if (-not $src.Contains($needle)) { throw "Missing host V5 marker: $needle" }
+          foreach ($needle in @(
+            "TRAVEL_HOST_STYLE_ID = 'nn-travel-host-guard-v6'",
+            "travelHostGuard === 'v6'",
+            'position:fixed!important;inset:0!important;width:100%!important;height:auto!important',
+            '--nn-travel-dock-reserve',
+            'syncDockReserve',
+            'grid-template-rows:clamp(86px,18vh,126px) minmax(0,1fr)!important',
+            'display:grid!important;visibility:visible!important;opacity:1!important'
+          )) {
+            if (-not $src.Contains($needle)) { throw "Missing host V6 marker: $needle" }
           }
-          if ($src.Contains('grid-template-rows:0 minmax(0,1fr)!important')) { throw 'Collapsed keyboard grid regression returned' }
-          Write-Host 'Travel host V5 source contract PASS'
+          if ($src.Contains('height:var(--nn-travel-vv-height')) { throw 'Closed Travel host still depends on visualViewport height' }
+          if ($src.Contains('.nn-travel-v19.nn-travel-route-focus .nn-search-card>.nn-pair') -and $src.Contains('display:none!important')) { throw 'Route editing still hides the rest of the flight form' }
+          Write-Host 'Travel host V6 full viewport source contract PASS'
 
       - name: Install browser and local server
         shell: powershell
@@ -50,7 +59,7 @@ jobs:
           $server.Id | Set-Content '.travel-host-v2-http.pid'
           Start-Sleep -Seconds 2
 
-      - name: Gate 2 - fullscreen no-scroll no-dead-gap and visible keyboard editing
+      - name: Gate 2 - no outer gap, visible search CTA, preserved location edit form
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -69,7 +78,7 @@ jobs:
               page.on('pageerror',e=>errors.push(String(e)));
               await page.goto('http://127.0.0.1:4175/travel-flagship-v16-harness.html?bottom=24&dock=62',{waitUntil:'domcontentloaded',timeout:30000});
               await page.waitForSelector('.nn-travel-v19',{state:'visible',timeout:15000});
-              await page.waitForTimeout(650);
+              await page.waitForTimeout(700);
 
               const base=await page.evaluate(()=>{
                 const root=document.querySelector('.nn-travel-v19');
@@ -78,12 +87,14 @@ jobs:
                 const dock=document.querySelector('.nx-dock.global');
                 const card=document.querySelector('.nn-search-card');
                 const trust=card.querySelector('.nn-trust');
+                const cta=card.querySelector('.nn-search-button');
                 const hero=document.querySelector('.nn-hero');
                 const rr=root.getBoundingClientRect();
                 const sr=screen.getBoundingClientRect();
                 const dr=dock.getBoundingClientRect();
                 const cr=card.getBoundingClientRect();
                 const tr=trust.getBoundingClientRect();
+                const br=cta.getBoundingClientRect();
                 const hr=hero.getBoundingClientRect();
                 const sc=getComputedStyle(stage);
                 return {
@@ -92,90 +103,114 @@ jobs:
                   hero:{top:hr.top,bottom:hr.bottom,h:hr.height},
                   card:{top:cr.top,bottom:cr.bottom,h:cr.height},
                   trust:{top:tr.top,bottom:tr.bottom,h:tr.height},
+                  cta:{top:br.top,bottom:br.bottom,h:br.height,display:getComputedStyle(cta).display},
+                  outerGap:dr.top-cr.bottom,
                   internalBottomGap:cr.bottom-tr.bottom,
                   dockTop:dr.top,dockBottom:dr.bottom,
-                  stagePosition:sc.position,stageOverflow:sc.overflow,stagePaddingBottom:sc.paddingBottom,
+                  stagePosition:sc.position,stageTop:sc.top,stageBottom:sc.bottom,stageHeight:sc.height,stageOverflow:sc.overflow,stagePaddingBottom:sc.paddingBottom,
                   stageScroll:stage.scrollHeight>stage.clientHeight+2,
                   bodyScroll:document.body.scrollHeight>innerHeight+2,
                   docScroll:document.documentElement.scrollHeight>innerHeight+2,
-                  hostLock:document.documentElement.classList.contains('nn-travel-host-lock'),guard:root.dataset.travelHostGuard
+                  hostLock:document.documentElement.classList.contains('nn-travel-host-lock'),guard:root.dataset.travelHostGuard,
+                  reserve:getComputedStyle(root).getPropertyValue('--nn-travel-dock-reserve').trim()
                 };
               });
-              await page.screenshot({path:`travel-host-v5-${p.name}-base.png`,fullPage:false});
-              if(!base.hostLock||base.guard!=='v5') throw new Error(`${p.name}: V5 host lock missing ${JSON.stringify(base)}`);
-              if(base.stagePosition!=='fixed'||base.stageOverflow!=='hidden'||base.stagePaddingBottom!=='0px') throw new Error(`${p.name}: host shell not fullscreen ${JSON.stringify(base)}`);
+              await page.screenshot({path:`travel-host-v6-${p.name}-base.png`,fullPage:false});
+              if(!base.hostLock||base.guard!=='v6') throw new Error(`${p.name}: V6 host lock missing ${JSON.stringify(base)}`);
+              if(base.stagePosition!=='fixed'||base.stageTop!=='0px'||base.stageBottom!=='0px'||base.stageOverflow!=='hidden'||base.stagePaddingBottom!=='0px') throw new Error(`${p.name}: host shell not full viewport ${JSON.stringify(base)}`);
               if(base.stageScroll||base.bodyScroll||base.docScroll) throw new Error(`${p.name}: whole-screen scrolling remains ${JSON.stringify(base)}`);
               if(Math.abs(base.root.w-p.w)>2||Math.abs(base.root.h-p.h)>2||Math.abs(base.screen.w-p.w)>2||Math.abs(base.screen.h-p.h)>2) throw new Error(`${p.name}: Travel does not fill viewport ${JSON.stringify(base)}`);
-              if(Math.abs(p.h-base.dockBottom)>7) throw new Error(`${p.name}: bottom dock dead gap ${p.h-base.dockBottom}px`);
+              if(Math.abs(p.h-base.dockBottom)>7) throw new Error(`${p.name}: bottom dock itself has dead gap ${p.h-base.dockBottom}px`);
               if(base.card.h<340) throw new Error(`${p.name}: main search card collapsed ${JSON.stringify(base.card)}`);
               if(base.hero.h<120) throw new Error(`${p.name}: adaptive hero collapsed ${JSON.stringify(base.hero)}`);
-              if(base.card.bottom < base.dockTop-40) throw new Error(`${p.name}: large outer content gap remains ${base.dockTop-base.card.bottom}px`);
-              if(Math.abs(base.internalBottomGap)>12) throw new Error(`${p.name}: internal search-card bottom dead gap remains ${JSON.stringify(base)}`);
-              if(base.trust.h<40) throw new Error(`${p.name}: trust footer did not occupy adaptive bottom track ${JSON.stringify(base.trust)}`);
+              if(base.outerGap<2||base.outerGap>24) throw new Error(`${p.name}: card-to-dock gap wrong ${JSON.stringify(base)}`);
+              if(Math.abs(base.internalBottomGap)>12) throw new Error(`${p.name}: internal search-card bottom gap remains ${JSON.stringify(base)}`);
+              if(base.trust.h<34||base.trust.bottom>base.card.bottom+2) throw new Error(`${p.name}: trust footer clipped ${JSON.stringify(base)}`);
+              if(base.cta.display==='none'||base.cta.h<40||base.cta.top<base.card.top||base.cta.bottom>base.card.bottom+2) throw new Error(`${p.name}: SEARCH FLIGHTS CTA clipped or missing ${JSON.stringify(base)}`);
+              if(!base.reserve) throw new Error(`${p.name}: dock reserve was not measured`);
 
               const origin=page.locator('[data-flight-origin]');
               await origin.focus();
               await origin.fill('KARACHI');
               const keyboardH=Math.max(420,Math.round(p.h*0.58));
               await page.setViewportSize({width:p.w,height:keyboardH});
-              await page.waitForTimeout(500);
+              await page.waitForTimeout(520);
               const focused=await page.evaluate(()=>{
                 const root=document.querySelector('.nn-travel-v19');
                 const input=document.querySelector('[data-flight-origin]');
                 const route=input.closest('.nn-route');
                 const card=document.querySelector('.nn-search-card');
+                const hero=document.querySelector('.nn-hero');
+                const datePair=document.querySelector('.nn-date-pair');
+                const filter=document.querySelector('.nn-filter-row');
+                const cta=document.querySelector('.nn-search-button');
+                const footer=card.querySelector(':scope > div:last-child');
                 const ir=input.getBoundingClientRect();
                 const rr=root.getBoundingClientRect();
                 const routeRect=route.getBoundingClientRect();
                 const cardRect=card.getBoundingClientRect();
+                const heroRect=hero.getBoundingClientRect();
                 const dock=document.querySelector('.nx-dock.global');
                 const style=getComputedStyle(input);
                 return {
                   value:input.value,
                   input:{top:ir.top,bottom:ir.bottom,w:ir.width,h:ir.height,display:style.display,visibility:style.visibility,opacity:Number(style.opacity)},
                   route:{top:routeRect.top,bottom:routeRect.bottom,w:routeRect.width,h:routeRect.height},
-                  card:{top:cardRect.top,bottom:cardRect.bottom,w:cardRect.width,h:cardRect.height},rootH:rr.height,
+                  card:{top:cardRect.top,bottom:cardRect.bottom,w:cardRect.width,h:cardRect.height},
+                  hero:{top:heroRect.top,bottom:heroRect.bottom,h:heroRect.height,display:getComputedStyle(hero).display},
+                  dateDisplay:getComputedStyle(datePair).display,
+                  filterDisplay:getComputedStyle(filter).display,
+                  ctaDisplay:getComputedStyle(cta).display,
+                  footerDisplay:getComputedStyle(footer).display,
+                  rootH:rr.height,
                   keyboard:root.dataset.keyboardOpen,routeFocus:root.classList.contains('nn-travel-route-focus'),guard:root.dataset.travelHostGuard,
                   dockDisplay:getComputedStyle(dock).display,
                   bodyScroll:document.body.scrollHeight>innerHeight+2,docScroll:document.documentElement.scrollHeight>innerHeight+2
                 };
               });
-              await page.screenshot({path:`travel-host-v5-${p.name}-keyboard.png`,fullPage:false});
+              await page.screenshot({path:`travel-host-v6-${p.name}-keyboard.png`,fullPage:false});
               if(focused.value!=='KARACHI') throw new Error(`${p.name}: location edit failed ${focused.value}`);
-              if(focused.guard!=='v5'||focused.keyboard!=='true'||!focused.routeFocus) throw new Error(`${p.name}: keyboard route V5 guard missing ${JSON.stringify(focused)}`);
+              if(focused.guard!=='v6'||focused.keyboard!=='true'||!focused.routeFocus) throw new Error(`${p.name}: keyboard route V6 guard missing ${JSON.stringify(focused)}`);
               if(focused.input.display==='none'||focused.input.visibility==='hidden'||focused.input.opacity<0.5) throw new Error(`${p.name}: location input visually hidden ${JSON.stringify(focused.input)}`);
-              if(focused.input.w<80||focused.input.h<24) throw new Error(`${p.name}: location input collapsed ${JSON.stringify(focused.input)}`);
+              if(focused.input.w<100||focused.input.h<24) throw new Error(`${p.name}: location input collapsed ${JSON.stringify(focused.input)}`);
               if(focused.route.w<140||focused.route.h<60) throw new Error(`${p.name}: route card collapsed ${JSON.stringify(focused.route)}`);
-              if(focused.card.w<280||focused.card.h<120) throw new Error(`${p.name}: keyboard search card collapsed ${JSON.stringify(focused.card)}`);
+              if(focused.card.w<280||focused.card.h<180) throw new Error(`${p.name}: keyboard search card collapsed ${JSON.stringify(focused.card)}`);
+              if(focused.hero.display==='none'||focused.hero.h<70) throw new Error(`${p.name}: keyboard edit wrongly removed hero/context ${JSON.stringify(focused.hero)}`);
+              for(const [name,value] of Object.entries({datePair:focused.dateDisplay,filter:focused.filterDisplay,cta:focused.ctaDisplay,footer:focused.footerDisplay})) {
+                if(value==='none') throw new Error(`${p.name}: keyboard edit hid ${name}`);
+              }
               if(focused.input.top<0||focused.input.bottom>keyboardH) throw new Error(`${p.name}: location field outside visible keyboard viewport ${JSON.stringify(focused)}`);
               if(focused.card.top<0||focused.card.top>keyboardH-80) throw new Error(`${p.name}: search card not visibly positioned ${JSON.stringify(focused.card)}`);
-              if(Math.abs(focused.rootH-keyboardH)>3) throw new Error(`${p.name}: visible viewport resize failed ${JSON.stringify(focused)}`);
+              if(Math.abs(focused.rootH-keyboardH)>3) throw new Error(`${p.name}: resized viewport did not remain full height ${JSON.stringify(focused)}`);
               if(focused.dockDisplay!=='none') throw new Error(`${p.name}: dock overlaps keyboard`);
               if(focused.bodyScroll||focused.docScroll) throw new Error(`${p.name}: keyboard caused page scroll`);
 
               await page.setViewportSize({width:p.w,height:p.h});
               await origin.blur();
-              await page.waitForTimeout(400);
+              await page.waitForTimeout(430);
               const restored=await page.evaluate(()=>{
                 const root=document.querySelector('.nn-travel-v19');
                 const dock=document.querySelector('.nx-dock.global').getBoundingClientRect();
                 const cardEl=document.querySelector('.nn-search-card');
                 const card=cardEl.getBoundingClientRect();
                 const trust=cardEl.querySelector('.nn-trust').getBoundingClientRect();
+                const cta=cardEl.querySelector('.nn-search-button').getBoundingClientRect();
                 return {
                   h:root.getBoundingClientRect().height,keyboard:root.dataset.keyboardOpen,
-                  dockGap:Math.abs(innerHeight-dock.bottom),cardH:card.height,internalBottomGap:card.bottom-trust.bottom,
+                  dockGap:Math.abs(innerHeight-dock.bottom),outerGap:dock.top-card.bottom,
+                  cardH:card.height,internalBottomGap:card.bottom-trust.bottom,
+                  ctaInside:cta.top>=card.top&&cta.bottom<=card.bottom+2,
                   bodyScroll:document.body.scrollHeight>innerHeight+2,docScroll:document.documentElement.scrollHeight>innerHeight+2
                 };
               });
-              await page.screenshot({path:`travel-host-v5-${p.name}-restored.png`,fullPage:false});
-              if(Math.abs(restored.h-p.h)>3||restored.keyboard==='true'||restored.dockGap>7||restored.cardH<340||Math.abs(restored.internalBottomGap)>12||restored.bodyScroll||restored.docScroll) throw new Error(`${p.name}: fullscreen restore failed ${JSON.stringify(restored)}`);
+              await page.screenshot({path:`travel-host-v6-${p.name}-restored.png`,fullPage:false});
+              if(Math.abs(restored.h-p.h)>3||restored.keyboard==='true'||restored.dockGap>7||restored.outerGap<2||restored.outerGap>24||restored.cardH<340||Math.abs(restored.internalBottomGap)>12||!restored.ctaInside||restored.bodyScroll||restored.docScroll) throw new Error(`${p.name}: fullscreen restore failed ${JSON.stringify(restored)}`);
               if(errors.length) throw new Error(`${p.name}: page errors ${errors.join(' | ')}`);
               await page.close();
-              console.log(`HOST V5 FULLSCREEN + NO-DEAD-GAP + VISIBLE KEYBOARD PASS ${p.name}`);
+              console.log(`HOST V6 FULLHEIGHT + SEARCH CTA + PRESERVED EDIT FORM PASS ${p.name}`);
             }
             await browser.close();
-            console.log('TRAVEL HOST V5 FULLSCREEN + NO-SCROLL + NO-DEAD-GAP + VISIBLE KEYBOARD PASS');
+            console.log('TRAVEL HOST V6 FULLHEIGHT + NO-SCROLL + NO-BLACK-GAP + PRESERVED LOCATION EDIT FORM PASS');
           })().catch(e=>{console.error(e);process.exit(1)});
           '@ | node
 
@@ -183,8 +218,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: travel-host-v5-evidence
-          path: travel-host-v5-*.png
+          name: travel-host-v6-evidence
+          path: travel-host-v6-*.png
           if-no-files-found: warn
           retention-days: 7
 
