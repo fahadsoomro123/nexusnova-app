@@ -50,17 +50,17 @@ jobs:
           $s = $s.Replace('versionCode = 1', 'versionCode = 1022')
           $s = $s.Replace('versionName = "1.0.0"', 'versionName = "1.0.22"')
           $signing = @'
-    signingConfigs {
-        create("release") {
-            storeFile = file("nexusnova-release.jks")
-            storePassword = System.getenv("KEYSTORE_PASSWORD")
-            keyAlias = System.getenv("KEY_ALIAS")
-            keyPassword = System.getenv("KEY_PASSWORD")
-        }
-    }
+              signingConfigs {
+                  create("release") {
+                      storeFile = file("nexusnova-release.jks")
+                      storePassword = System.getenv("KEYSTORE_PASSWORD")
+                      keyAlias = System.getenv("KEY_ALIAS")
+                      keyPassword = System.getenv("KEY_PASSWORD")
+                  }
+              }
 
-'@
-          if ($s -notmatch 'signingConfigs \{') { $s = $s.Replace('    buildTypes {', $signing + '    buildTypes {') }
+          '@
+          if ($s -notmatch 'signingConfigs \{') { $s = $s.Replace('    buildTypes {', $signing + "`n    buildTypes {") }
           $s = $s.Replace("        release {`n", "        release {`n            signingConfig = signingConfigs.getByName(`"release`")`n")
           Set-Content -Path $p -Value $s
 
