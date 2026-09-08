@@ -244,6 +244,17 @@ function bind(root){
   if(!(root instanceof HTMLElement)||root.dataset.phoneInteractionBoundV28==='true') return;
   root.dataset.phoneInteractionBoundV28='true';
   enhanceClass(root);
+  root.addEventListener('click',event=>{
+    const trigger=event.target instanceof Element?event.target.closest('.nn-passenger-trigger'):null;
+    if(!(trigger instanceof HTMLButtonElement)||!root.contains(trigger)) return;
+    const pop=trigger.closest('.nn-travelers-control')?.querySelector('.nn-passenger-popover');
+    if(!(pop instanceof HTMLElement)) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const opening=pop.dataset.open!=='true';
+    pop.dataset.open=String(opening);
+    trigger.setAttribute('aria-expanded',String(opening));
+  },true);
   const run=()=>schedule(root);
   root.addEventListener('focusin',run,true);
   root.addEventListener('focusout',run,true);
