@@ -144,12 +144,18 @@ jobs:
         working-directory: public-build/NexusNovaAndroid
         run: |
           set -euo pipefail
-          test -f src/main/assets/www/src/core/firebase-backend.js
-          test -f src/main/assets/www/src/core/auth-service.js
-          grep -q 'waitForFirebaseUser' src/main/assets/www/src/core/firebase-backend.js
-          grep -q 'signInWithEmailAndPassword' src/main/assets/www/src/core/auth-service.js
-          ! grep -q 'PUBLIC_DISABLED_ERROR' src/main/assets/www/src/core/firebase-backend.js
-          ! grep -q 'public-mirror auth shim' src/main/assets/www/src/core/auth-service.js
+          apk="app/build/outputs/apk/release/app-release.apk"
+          checkdir="$(mktemp -d)"
+          trap 'rm -rf "$checkdir"' EXIT
+          unzip -q "$apk" 'assets/www/src/core/firebase-backend.js' 'assets/www/src/core/auth-service.js' -d "$checkdir"
+          backend="$checkdir/assets/www/src/core/firebase-backend.js"
+          auth="$checkdir/assets/www/src/core/auth-service.js"
+          test -s "$backend"
+          test -s "$auth"
+          grep -q 'waitForFirebaseUser' "$backend"
+          grep -q 'signInWithEmailAndPassword' "$auth"
+          ! grep -q 'PUBLIC_DISABLED_ERROR' "$backend"
+          ! grep -q 'public-mirror auth shim' "$auth"
 
       - name: Package APK
         shell: bash
