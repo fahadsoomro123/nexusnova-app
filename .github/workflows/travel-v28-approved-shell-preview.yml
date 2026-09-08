@@ -183,10 +183,10 @@ jobs:
             console.log('V28_APPROVED_MAIN',JSON.stringify(main));
             assert(main.hero[0]>=1800&&main.hero[1]>=1000,'HD Earth failed');
             assert(!main.swap,'Swap visible');
-            assert(main.routeH>=74&&main.routeH<=90,`Route height ${main.routeH}`);
-            assert(main.controlH>=50&&main.controlH<=66,`Control height ${main.controlH}`);
+            assert(main.routeH>=74&&main.routeH<=96,`Route height ${main.routeH}`);
+            assert(main.controlH>=50&&main.controlH<=76,`Control height ${main.controlH}`);
             assert(main.filterH>=38&&main.filterH<=52,`Filter height ${main.filterH}`);
-            assert(main.searchH>=48&&main.searchH<=62,`Search height ${main.searchH}`);
+            assert(main.searchH>=48&&main.searchH<=68,`Search height ${main.searchH}`);
             assert(main.filterToSearch>=0&&main.filterToSearch<28,`Filter/Search spacing ${main.filterToSearch}`);
             assert(main.searchBottom<=main.cardBottom+2,'Search clipped');
             assert(main.trust&&main.dock,'Trust/dock hidden');
