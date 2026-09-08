@@ -215,6 +215,9 @@ jobs:
 
             const pax=page.locator('.nn-passenger-trigger').first();
             await pax.click();
+            await page.waitForTimeout(300);
+            const paxDebug=await page.evaluate(()=>[...document.querySelectorAll('[class*="passenger"],[class*="traveler"]')].map(el=>{const r=el.getBoundingClientRect(),s=getComputedStyle(el);return {tag:el.tagName,cls:el.className,open:el.dataset.open||'',display:s.display,visibility:s.visibility,left:r.left,top:r.top,right:r.right,bottom:r.bottom}}));
+            console.log('V28_PAX_DEBUG',JSON.stringify(paxDebug));
             await page.waitForFunction(()=>document.querySelector('.nn-passenger-popover')?.dataset.open==='true',null,{timeout:5000});
             const pop=await page.$eval('.nn-passenger-popover',el=>{const r=el.getBoundingClientRect();return {left:r.left,right:r.right,w:r.width,viewport:innerWidth}});
             console.log('V28_APPROVED_PAX',JSON.stringify(pop));
