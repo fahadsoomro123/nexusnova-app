@@ -71,7 +71,7 @@ jobs:
           ! grep -q 'public-mirror auth shim' public-build/fresh-rebuild/src/core/auth-service.js
           grep -q 'drive-history-v2-hotfix-4' public-build/fresh-rebuild/src/nova-vehicle-premium-ui.js
           grep -q 'nova-drive-recover-feedback' public-build/fresh-rebuild/src/nova-vehicle-premium-ui.js
-          grep -q "closest?.('[data-nx-approved]')" public-build/fresh-rebuild/src/nova-drive-history-v2-hotfix.js
+          grep -Fq "closest?.('[data-nx-approved]')" public-build/fresh-rebuild/src/nova-drive-history-v2-hotfix.js
           grep -q 'hydrateDriveTrackState' public-build/fresh-rebuild/src/nova-drive-recover-feedback.js
 
       - name: Set up Java 17
