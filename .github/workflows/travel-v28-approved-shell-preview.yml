@@ -148,7 +148,7 @@ jobs:
             await page.waitForSelector('.nn-travel-v19[data-phone-interaction-v28="true"]',{timeout:15000});
             await page.waitForTimeout(1000);
 
-            const phoneViewports=[[337,694],[360,760],[360,800],[393,873],[412,915]];
+            const phoneViewports=[[337,694],[360,760],[360,800],[393,873],[412,915],[674,1392],[720,1520]];
             for(const [width,height] of phoneViewports){
               await page.setViewportSize({width,height});
               await page.waitForTimeout(850);
