@@ -60,7 +60,7 @@ jobs:
           test -s public-build/fresh-rebuild/src/core/auth-service.js
           test -s public-build/NexusNovaAndroid/app/google-services.json
 
-      - name: Verify signed workspace uses real auth and keeps public source untouched
+      - name: Verify signed workspace uses real auth and History hotfix
         shell: bash
         run: |
           set -euo pipefail
@@ -90,7 +90,7 @@ jobs:
           printf '%s' "$KEYSTORE_B64" | base64 -d > app/nexusnova-release.jks
           test -s app/nexusnova-release.jks || { echo "Keystore decode failed"; exit 1; }
 
-      - name: Inject release signing and version config
+      - name: Inject release signing and high version config
         shell: bash
         working-directory: public-build/NexusNovaAndroid
         run: |
@@ -101,8 +101,8 @@ jobs:
 
           p = Path("app/build.gradle.kts")
           s = p.read_text(encoding="utf-8")
-          s, n_code = re.subn(r'versionCode\s*=\s*\d+', 'versionCode = 12023', s, count=1)
-          s, n_name = re.subn(r'versionName\s*=\s*"[^"]+"', 'versionName = "1.0.23-owner-recovery"', s, count=1)
+          s, n_code = re.subn(r'versionCode\s*=\s*\d+', 'versionCode = 26090801', s, count=1)
+          s, n_name = re.subn(r'versionName\s*=\s*"[^"]+"', 'versionName = "1.0.24-owner-recovery"', s, count=1)
           if n_code != 1 or n_name != 1:
               raise SystemExit('Version injection failed')
           signing = '''    signingConfigs {
@@ -130,7 +130,7 @@ jobs:
           set -euo pipefail
           gradle --no-daemon clean assembleRelease
 
-      - name: Verify APK signature
+      - name: Verify APK signature and package identity
         shell: bash
         working-directory: public-build/NexusNovaAndroid
         run: |
@@ -138,6 +138,11 @@ jobs:
           apk="app/build/outputs/apk/release/app-release.apk"
           test -s "$apk" || { echo "APK missing"; exit 1; }
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$apk"
+          badging="$($ANDROID_HOME/build-tools/35.0.0/aapt dump badging "$apk" | head -n 1)"
+          echo "$badging"
+          echo "$badging" | grep -q "name='com.nexusnova.app'"
+          echo "$badging" | grep -q "versionCode='26090801'"
+          echo "$badging" | grep -q "versionName='1.0.24-owner-recovery'"
 
       - name: Verify packaged production web auth
         shell: bash
@@ -163,13 +168,13 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p signed-output
-          cp app/build/outputs/apk/release/app-release.apk signed-output/NexusNova-v1.0.23-SIGNED.apk
-          sha256sum signed-output/NexusNova-v1.0.23-SIGNED.apk > signed-output/NexusNova-v1.0.23-SIGNED.apk.sha256
+          cp app/build/outputs/apk/release/app-release.apk signed-output/NexusNova-v1.0.24-SIGNED-HIGHCODE.apk
+          sha256sum signed-output/NexusNova-v1.0.24-SIGNED-HIGHCODE.apk > signed-output/NexusNova-v1.0.24-SIGNED-HIGHCODE.apk.sha256
 
       - name: Upload signed APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: NexusNova-v1.0.23-SIGNED
+          name: NexusNova-v1.0.24-SIGNED-HIGHCODE
           path: public-build/NexusNovaAndroid/signed-output/*
           if-no-files-found: error
           retention-days: 7
