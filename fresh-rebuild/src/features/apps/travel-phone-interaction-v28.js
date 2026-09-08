@@ -240,13 +240,12 @@ function enhanceClass(root){
   refresh();
 }
 
-function bind(root){
-  if(!(root instanceof HTMLElement)||root.dataset.phoneInteractionBoundV28==='true') return;
-  root.dataset.phoneInteractionBoundV28='true';
-  enhanceClass(root);
-  root.addEventListener('click',event=>{
-    const trigger=event.target instanceof Element?event.target.closest('.nn-passenger-trigger'):null;
-    if(!(trigger instanceof HTMLButtonElement)||!root.contains(trigger)) return;
+function installPassengerBridge(){
+  if(globalThis.__nnV28PassengerBridge) return;
+  globalThis.__nnV28PassengerBridge=true;
+  document.addEventListener('click',event=>{
+    const trigger=event.target instanceof Element?event.target.closest('.nn-travel-v19 .nn-passenger-trigger'):null;
+    if(!(trigger instanceof HTMLButtonElement)) return;
     const pop=trigger.closest('.nn-travelers-control')?.querySelector('.nn-passenger-popover');
     if(!(pop instanceof HTMLElement)) return;
     event.preventDefault();
@@ -255,6 +254,12 @@ function bind(root){
     pop.dataset.open=String(opening);
     trigger.setAttribute('aria-expanded',String(opening));
   },true);
+}
+
+function bind(root){
+  if(!(root instanceof HTMLElement)||root.dataset.phoneInteractionBoundV28==='true') return;
+  root.dataset.phoneInteractionBoundV28='true';
+  enhanceClass(root);
   const run=()=>schedule(root);
   root.addEventListener('focusin',run,true);
   root.addEventListener('focusout',run,true);
@@ -274,5 +279,6 @@ function scan(){
 }
 
 installStyle();
+installPassengerBridge();
 scan();
 new MutationObserver(scan).observe(document.documentElement,{childList:true,subtree:true});
