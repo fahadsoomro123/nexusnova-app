@@ -79,6 +79,16 @@ function syncGeometry(root){
   }
   frame.style.setProperty('height',`${height}px`,'important');
   frame.style.setProperty('min-height','0','important');
+  const panel=root.querySelector('.nn-flight-panel:not([hidden])');
+  if(panel instanceof HTMLElement&&!active){
+    const chromeHeight=rr.width*.187+8;
+    const panelHeight=Math.max(1,height-chromeHeight);
+    const cardHeight=Math.min(500,Math.max(455,Math.round(panelHeight*.72)));
+    const heroHeight=Math.max(108,Math.round(panelHeight-cardHeight));
+    panel.style.setProperty('--nn-v17-hero-height',`${heroHeight}px`,'important');
+    root.dataset.v28HeroHeight=String(heroHeight);
+    root.dataset.v28CardTargetHeight=String(cardHeight);
+  }
   root.style.setProperty('--nn-v17-frame-height',`${height}px`,'important');
   root.style.setProperty('--nn-v8-frame-height',`${height}px`,'important');
   root.style.setProperty('--nn-travel-frame-height',`${height}px`,'important');
@@ -91,7 +101,6 @@ function syncGeometry(root){
     card.scrollTop=0;
     const cardRect=card.getBoundingClientRect(),buttonRect=search.getBoundingClientRect();
     if(buttonRect.bottom>cardRect.bottom+1) card.scrollTop=Math.max(0,buttonRect.bottom-cardRect.bottom+card.scrollTop+8);
-    const panel=root.querySelector('.nn-flight-panel:not([hidden])');
     const dockRect=dock instanceof HTMLElement&&visible(dock)?dock.getBoundingClientRect():null;
     const panelRect=panel instanceof HTMLElement?panel.getBoundingClientRect():null;
     root.dataset.v28CardBottom=String(Math.round(cardRect.bottom));
