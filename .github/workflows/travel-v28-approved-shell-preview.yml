@@ -1,0 +1,260 @@
+name: NexusNova Travel V28 Approved Shell Preview
+
+on:
+  push:
+    branches: [travel-v28-phone-gap-final]
+    paths:
+      - 'fresh-rebuild/src/features/apps/travel-phone-interaction-v28.js'
+      - 'fresh-rebuild/src/features/apps/travel-phone-interaction-v28-native-select-fix.js'
+      - '.github/workflows/travel-v28-approved-shell-preview.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  approved-shell-preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      APPROVED_PUBLIC_SHA: 5ce5518f81271fd2e4b8029403b7e74d8d6d2291
+      APPROVED_OTA_SHA: 8aaf0769b88abd3728e65f7c2f545018dc8c1f82
+    steps:
+      - name: Checkout V28 patch branch
+        uses: actions/checkout@v4
+        with:
+          path: v28-patch
+
+      - name: Checkout exact approved V27 public source
+        uses: actions/checkout@v4
+        with:
+          repository: fahadsoomro123/nexusnova-app-public-build
+          ref: ${{ env.APPROVED_PUBLIC_SHA }}
+          path: approved-source
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Stage only V28 interaction patches onto approved source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C approved-source rev-parse HEAD)" = "$APPROVED_PUBLIC_SHA"
+          for f in travel-phone-interaction-v28.js travel-phone-interaction-v28-native-select-fix.js; do
+            node --check "v28-patch/fresh-rebuild/src/features/apps/$f"
+            cp "v28-patch/fresh-rebuild/src/features/apps/$f" "approved-source/fresh-rebuild/src/features/apps/$f"
+          done
+          grep -q 'phoneInteractionV28' approved-source/fresh-rebuild/src/features/apps/travel-phone-interaction-v28.js
+          grep -q "menu.dataset.open='true'" approved-source/fresh-rebuild/src/features/apps/travel-phone-interaction-v28-native-select-fix.js
+
+      - name: Overlay exact approved Travel recovery runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://raw.githubusercontent.com/fahadsoomro123/nexusnova-website/$APPROVED_OTA_SHA/ota/files"
+          files=(
+            'index.html'
+            'assets/travel/reference-from-exact.webp.b64'
+            'assets/travel/reference-hero-right.webp.b64'
+            'assets/travel/reference-to-exact.webp.b64'
+            'src/features/apps/travel-suite.js'
+            'src/features/apps/travel-integrations.js'
+            'src/features/apps/travel-edge-client.js'
+            'src/features/apps/travel-edge-config.js'
+            'src/features/apps/travel-ground.js'
+            'src/features/apps/travel-flagship-runtime-v8.js'
+            'src/features/apps/travel-inline-layout-v11.js'
+            'src/features/apps/travel-phone-layout-v12.js'
+            'src/features/apps/travel-phone-layout-v13.js'
+            'src/features/apps/travel-phone-layout-v17.js'
+            'src/features/apps/travel-exit-isolation-v10.js'
+            'src/features/apps/travel-ota-revision-v13.js'
+          )
+          for f in "${files[@]}"; do
+            mkdir -p "approved-source/fresh-rebuild/$(dirname "$f")"
+            curl -fsSL "$BASE/$f" -o "approved-source/fresh-rebuild/$f"
+          done
+          grep -q "const REVISION = '19'" approved-source/fresh-rebuild/src/features/apps/travel-ota-revision-v13.js
+
+      - name: Build exact approved V27 plus V28 preview shell
+        shell: bash
+        working-directory: approved-source
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs=require('fs');
+          let html=fs.readFileSync('fresh-rebuild/index.html','utf8');
+          html=html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,'');
+          const boot=`
+          <script type="module">
+            import { icon } from './src/components/icons.js';
+            import { appScreen } from './src/features/apps/app-screen.js?preview=v28-approved';
+            const dock=document.querySelector('.nx-dock');
+            const labels={mine:['MINE','mine'],hub:['NOVA HUB','hub']};
+            document.querySelectorAll('.nx-dock__item').forEach(button=>{const route=button.dataset.route||'mine';const [label,iconName]=labels[route];button.innerHTML=\`${'${'}icon(iconName)}<span>${'${'}label}</span>\`;if(route==='hub')button.setAttribute('aria-current','page')});
+            if(dock)dock.hidden=false;
+            document.body.classList.remove('nx-auth-mode','nx-splash-mode');
+            await import('./src/features/apps/travel-flagship-runtime-v8.js?preview=v28-approved');
+            await import('./src/features/apps/travel-inline-layout-v11.js?preview=v28-approved');
+            await import('./src/features/apps/travel-phone-layout-v12.js?preview=v28-approved');
+            await import('./src/features/apps/travel-phone-layout-v13.js?preview=v28-approved');
+            await import('./src/features/apps/travel-phone-layout-v17.js?preview=v28-approved');
+            await import('./src/features/apps/travel-exit-isolation-v10.js?preview=v28-approved');
+            await import('./src/features/apps/travel-ota-revision-v13.js?preview=v28-approved');
+            await import('./src/features/apps/travel-hyper3d-layout-v21.js?preview=v28-approved');
+            await import('./src/features/apps/travel-hyper3d-hd-v23.js?preview=v28-approved');
+            await import('./src/features/apps/travel-hyper3d-flagship-v25.js?preview=v28-approved');
+            await import('./src/features/apps/travel-passenger-popover-v26.js?preview=v28-approved');
+            await import('./src/features/apps/travel-clean-ui-v27.js?preview=v28-approved');
+            await import('./src/features/apps/travel-phone-interaction-v28.js?preview=v28-approved');
+            await import('./src/features/apps/travel-phone-interaction-v28-native-select-fix.js?preview=v28-approved');
+            const root=await appScreen({id:'travel',backToHub(){},backToMine(){}});
+            document.getElementById('nx-stage').replaceChildren(root);
+            await new Promise(r=>setTimeout(r,900));
+            window.__travelV28ApprovedReady=true;
+          </script>`;
+          html=html.replace('</body>',`${boot}\n</body>`);
+          fs.writeFileSync('fresh-rebuild/travel-v28-approved-preview.html',html);
+          NODE
+
+      - name: Install preview browser
+        shell: bash
+        working-directory: approved-source
+        run: |
+          set -euo pipefail
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.55.0 http-server@14.1.1 >/dev/null 2>&1
+          npx playwright install --with-deps chromium >/dev/null
+          nohup npx http-server fresh-rebuild -p 4173 -c-1 >/tmp/travel-v28-approved-http.log 2>&1 &
+          sleep 2
+
+      - name: Gate and render full approved-shell phone preview
+        shell: bash
+        working-directory: approved-source
+        run: |
+          set -euo pipefail
+          mkdir -p travel-v28-approved-preview
+          node <<'NODE'
+          const {chromium}=require('playwright');
+          const assert=(v,m)=>{if(!v)throw new Error(m)};
+          (async()=>{
+            const browser=await chromium.launch({headless:true});
+            const page=await browser.newPage({viewport:{width:393,height:873},deviceScaleFactor:2,isMobile:true,hasTouch:true});
+            await page.route('**/health',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({architecture:'cloudflare-only',coverage:{globalFlights:true,globalHotels:true}})}));
+            await page.route('**/rpc/**',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,offers:[]})}));
+            await page.goto('http://127.0.0.1:4173/travel-v28-approved-preview.html',{waitUntil:'domcontentloaded',timeout:30000});
+            await page.waitForFunction(()=>window.__travelV28ApprovedReady===true,null,{timeout:20000});
+            await page.waitForSelector('.nn-travel-v19[data-phone-interaction-v28="true"]',{timeout:15000});
+            await page.waitForTimeout(1000);
+
+            const phoneViewports=[[337,694],[360,760],[360,800],[393,873],[412,915]];
+            for(const [width,height] of phoneViewports){
+              await page.setViewportSize({width,height});
+              await page.waitForTimeout(850);
+              const geometry=await page.evaluate(()=>{
+                const root=document.querySelector('.nn-travel-v19');
+                const q=s=>root?.querySelector(s),r=e=>e?.getBoundingClientRect();
+                const visible=e=>{if(!e)return false;const s=getComputedStyle(e),x=r(e);return s.display!=='none'&&s.visibility!=='hidden'&&Number(s.opacity)!==0&&x.width>1&&x.height>1&&x.bottom>0&&x.top<innerHeight};
+                const card=q('.nn-search-card'),panel=q('.nn-flight-panel:not([hidden])'),filters=q('.nn-filter-row'),search=q('.nn-search-button'),dock=document.querySelector('#nx-app>.nx-dock');
+                const cr=r(card),pr=r(panel),fr=r(filters),sr=r(search),dr=r(dock);
+                return {viewport:[innerWidth,innerHeight],searchVisible:visible(search),searchH:sr?.height||0,searchTop:sr?.top||0,searchBottom:sr?.bottom||0,filterBottom:fr?.bottom||0,cardBottom:cr?.bottom||0,panelBottom:pr?.bottom||0,dockTop:dr?.top||0,visibleGap:(dr?.top||0)-Math.max(cr?.bottom||0,pr?.bottom||0),dockVisible:visible(dock)};
+              });
+              console.log('V28_TALL_GEOMETRY',JSON.stringify(geometry));
+              assert(geometry.searchVisible,`Search CTA hidden at ${width}x${height}`);
+              assert(geometry.searchH>=48,`Search CTA height ${geometry.searchH} at ${width}x${height}`);
+              assert(geometry.searchTop>=geometry.filterBottom,`Search CTA above filters at ${width}x${height}`);
+              assert(geometry.searchBottom<=geometry.cardBottom+1,`Search CTA clipped at ${width}x${height}`);
+              assert(geometry.visibleGap>=0&&geometry.visibleGap<24,`Visible Travel surface/dock gap ${geometry.visibleGap} at ${width}x${height}`);
+              assert(geometry.dockVisible,`Bottom dock hidden at ${width}x${height}`);
+              await page.screenshot({path:`travel-v28-approved-preview/main-${width}x${height}.png`,fullPage:false});
+            }
+            await page.setViewportSize({width:393,height:873});
+            await page.waitForTimeout(850);
+
+            const main=await page.evaluate(()=>{
+              const root=document.querySelector('.nn-travel-v19');
+              const q=s=>root?.querySelector(s), r=e=>e?.getBoundingClientRect();
+              const hero=q('.nn-hero-art'),swap=q('.nn-swap'),route=q('.nn-route'),control=q('.nn-control'),filters=q('.nn-filter-row'),filter=q('.nn-filter'),search=q('.nn-search-button'),trust=q('.nn-trust'),dock=document.querySelector('#nx-app>.nx-dock'),card=q('.nn-search-card'),frame=q('.nn-travel-frame'),select=q('select[data-flight-cabin]'),trigger=q('.nn-class-trigger-v28');
+              const vis=e=>{if(!e)return false;const s=getComputedStyle(e),x=r(e);return s.display!=='none'&&s.visibility!=='hidden'&&Number(s.opacity)!==0&&x.width>1&&x.height>1&&x.bottom>0&&x.top<innerHeight};
+              const rr=r(route),cr=r(control),fr=r(filter),fs=r(filters),sr=r(search),tr=r(trust),dr=r(dock),car=r(card),frr=r(frame),selr=r(select),tg=r(trigger);
+              return {hero:[hero?.naturalWidth||0,hero?.naturalHeight||0],swap:vis(swap),routeH:rr?.height||0,controlH:cr?.height||0,filterH:fr?.height||0,searchH:sr?.height||0,filterToSearch:sr?.top-fs?.bottom,searchBottom:sr?.bottom,cardBottom:car?.bottom,trust:vis(trust),dock:vis(dock),frameBottom:frr?.bottom,dockTop:dr?.top,badges:root?.querySelectorAll('.nn-ota-badge').length||0,v28:root?.dataset.phoneInteractionV28||'',nativeFix:root?.dataset.nativeClassSelectFixV28||'',native:{display:select?getComputedStyle(select).display:'',w:selr?.width||0,h:selr?.height||0},trigger:{w:tg?.width||0,h:tg?.height||0,bound:trigger?.dataset.v28Isolated||''}};
+            });
+            console.log('V28_APPROVED_MAIN',JSON.stringify(main));
+            assert(main.hero[0]>=1800&&main.hero[1]>=1000,'HD Earth failed');
+            assert(!main.swap,'Swap visible');
+            assert(main.routeH>=74&&main.routeH<=90,`Route height ${main.routeH}`);
+            assert(main.controlH>=50&&main.controlH<=66,`Control height ${main.controlH}`);
+            assert(main.filterH>=38&&main.filterH<=52,`Filter height ${main.filterH}`);
+            assert(main.searchH>=48&&main.searchH<=62,`Search height ${main.searchH}`);
+            assert(main.filterToSearch>=0&&main.filterToSearch<28,`Filter/Search spacing ${main.filterToSearch}`);
+            assert(main.searchBottom<=main.cardBottom+2,'Search clipped');
+            assert(main.trust&&main.dock,'Trust/dock hidden');
+            assert(main.cardBottom<=main.dockTop+1&&main.dockTop-main.cardBottom<24,`Visible card/dock gap ${main.cardBottom}/${main.dockTop}`);
+            assert(main.badges===0,'OTA badge visible');
+            assert(main.v28==='true'&&main.nativeFix==='true','V28 patches inactive');
+            assert(main.native.display==='none'&&main.native.w===0&&main.native.h===0,'Native Android cabin select exposed');
+            assert(main.trigger.w>80&&main.trigger.bound==='true','Custom cabin trigger missing');
+            await page.screenshot({path:'travel-v28-approved-preview/01-flights-main.png',fullPage:false});
+
+            const opened=await page.evaluate(async()=>{
+              const trigger=document.querySelector('.nn-class-trigger-v28');
+              const menu=document.querySelector('.nn-class-menu-v28');
+              trigger.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true,composed:true}));
+              await new Promise(r=>setTimeout(r,150));
+              const x=menu?.getBoundingClientRect();
+              return {open:menu?.dataset.open||'',visibility:menu?getComputedStyle(menu).visibility:'',opacity:menu?getComputedStyle(menu).opacity:'',w:x?.width||0,h:x?.height||0,count:menu?.querySelectorAll('.nn-class-option-v28').length||0};
+            });
+            console.log('V28_APPROVED_CLASS',JSON.stringify(opened));
+            assert(opened.open==='true'&&opened.visibility==='visible'&&Number(opened.opacity)>.9&&opened.count===4&&opened.w>220&&opened.h>150,'Custom Hyper3D cabin menu failed');
+            await page.screenshot({path:'travel-v28-approved-preview/02-class-hyper3d.png',fullPage:false});
+            const business=page.locator('.nn-class-option-v28',{hasText:'Business'}).first();
+            await business.click();
+            const selected=await page.$eval('select[data-flight-cabin]',el=>el.selectedOptions[0]?.textContent||'');
+            assert(/Business/i.test(selected),`Cabin sync failed: ${selected}`);
+
+            const pax=page.locator('.nn-passenger-trigger').first();
+            await pax.click();
+            await page.waitForFunction(()=>document.querySelector('.nn-passenger-popover')?.dataset.open==='true',null,{timeout:5000});
+            const pop=await page.$eval('.nn-passenger-popover',el=>{const r=el.getBoundingClientRect();return {left:r.left,right:r.right,w:r.width,viewport:innerWidth}});
+            console.log('V28_APPROVED_PAX',JSON.stringify(pop));
+            assert(pop.left>=0&&pop.right<=pop.viewport+1,'Passenger picker clips viewport');
+            await page.screenshot({path:'travel-v28-approved-preview/03-passengers.png',fullPage:false});
+            await page.keyboard.press('Escape');
+
+            const origin=page.locator('[data-flight-origin]').first();
+            await origin.focus();
+            await page.setViewportSize({width:393,height:480});
+            await page.waitForTimeout(950);
+            const focus=await page.evaluate(()=>{const root=document.querySelector('.nn-travel-v19'),route=root?.querySelector('.nn-routes')?.getBoundingClientRect(),frame=root?.querySelector('.nn-travel-frame')?.getBoundingClientRect(),input=document.activeElement?.getBoundingClientRect();return {focus:root?.dataset.v28RouteFocus||'',routeTop:route?.top,routeBottom:route?.bottom,frameH:frame?.height,inputTop:input?.top,inputBottom:input?.bottom,viewport:innerHeight}});
+            console.log('V28_APPROVED_ROUTE_FOCUS',JSON.stringify(focus));
+            assert(focus.focus==='true','V28 route focus state missing');
+            assert(focus.frameH>=300,'Focused Travel frame collapsed');
+            assert(focus.routeTop>=0&&focus.routeBottom<=focus.viewport+4,'Route cards lost outside visible viewport');
+            assert(focus.inputTop>=0&&focus.inputBottom<=focus.viewport+4,'Focused route input not visible');
+            await page.screenshot({path:'travel-v28-approved-preview/04-route-focus-short-viewport.png',fullPage:false});
+
+            await page.setViewportSize({width:393,height:873});
+            await page.evaluate(()=>document.activeElement instanceof HTMLElement&&document.activeElement.blur());
+            await page.waitForTimeout(750);
+            const tabs=page.locator('.nn-tab');
+            const count=await tabs.count();
+            assert(count>=4,`Travel tabs missing: ${count}`);
+            const names=['hotels','rail-bus','trip-plan'];
+            for(let i=1;i<4;i++){
+              await tabs.nth(i).click();
+              await page.waitForTimeout(500);
+              await page.screenshot({path:`travel-v28-approved-preview/0${i+4}-${names[i-1]}.png`,fullPage:false});
+            }
+            await browser.close();
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE
+
+      - name: Upload approved-shell preview
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: travel-v28-approved-shell-full-preview
+          path: approved-source/travel-v28-approved-preview/*.png
+          if-no-files-found: error
+          retention-days: 7
