@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/build-signed-public-apk.yml'
+      - 'release-trigger/signed-public-apk.txt'
 
 permissions:
   contents: read
