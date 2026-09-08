@@ -243,9 +243,11 @@ function enhanceClass(root){
 function installPassengerBridge(){
   if(globalThis.__nnV28PassengerBridge) return;
   globalThis.__nnV28PassengerBridge=true;
+  document.documentElement.dataset.v28PaxBridge='true';
   document.addEventListener('click',event=>{
     const trigger=event.target instanceof Element?event.target.closest('.nn-travel-v19 .nn-passenger-trigger'):null;
     if(!(trigger instanceof HTMLButtonElement)) return;
+    document.documentElement.dataset.v28PaxClicks=String(Number(document.documentElement.dataset.v28PaxClicks||0)+1);
     const pop=trigger.closest('.nn-travelers-control')?.querySelector('.nn-passenger-popover');
     if(!(pop instanceof HTMLElement)) return;
     event.preventDefault();
