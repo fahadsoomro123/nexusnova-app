@@ -1,3 +1,3 @@
 trigger signed public apk
-public_source_commit=ae493c24d686614bad886e2a621b40ec8e414924
-reason=Drive History ancestor-mount fix plus Drive recovery outcome diagnostics
+public_source_commit=81d61defbab39638c019ed9b390bdcd743d4279b
+reason=approved Drive v13 production shell; fixed fullscreen no-scroll; real Drive history and owner tracker wiring; all visible controls QA
