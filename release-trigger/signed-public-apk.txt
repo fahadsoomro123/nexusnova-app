@@ -1,3 +1,3 @@
 trigger signed public apk
-public_source_commit=81d61defbab39638c019ed9b390bdcd743d4279b
-reason=approved Drive v13 production shell; fixed fullscreen no-scroll; real Drive history and owner tracker wiring; all visible controls QA
+public_source_commit=87cebeead9f4751f4d7c848672e6750f84a76b67
+reason=approved Drive v13; fixed fullscreen no-scroll; all visible controls QA; real Drive history routes only; real owner Tracker trail only
