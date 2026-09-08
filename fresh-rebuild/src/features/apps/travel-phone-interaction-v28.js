@@ -94,7 +94,7 @@ function syncGeometry(root){
     const tab=root.querySelector('.nn-tab-dock');
     const frameRect=frame.getBoundingClientRect();
     const tabRect=tab instanceof HTMLElement?tab.getBoundingClientRect():null;
-    const stageTop=Math.max(1,Math.round((tabRect?.bottom||frameRect.top+rr.width*.187)-frameRect.top));
+    const stageTop=Math.max(1,Math.round((tabRect?.bottom||rr.top+rr.width*.187)-rr.top));
     let heroHeight=Number(root.dataset.v28ApprovedHeroHeight||0);
     if(!(heroHeight>0)){
       heroHeight=Math.max(64,Math.round(hero.getBoundingClientRect().height||0));
