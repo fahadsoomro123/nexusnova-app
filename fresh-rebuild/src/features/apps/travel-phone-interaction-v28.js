@@ -9,6 +9,7 @@ html.nn-travel-v8-active body #nx-app ${ROOT_SELECTOR} .nn-travel-stage{grid-row
 html.nn-travel-v8-active body #nx-app ${ROOT_SELECTOR}:not(.nn-v28-route-focus) .nn-panel.nn-flight-panel:not([hidden]){position:absolute!important;top:4px!important;bottom:4px!important;left:12px!important;right:12px!important;width:auto!important;height:auto!important;min-height:0!important;max-height:none!important;overflow:hidden!important}
 html.nn-travel-v8-active body #nx-app ${ROOT_SELECTOR}:not(.nn-v28-route-focus) .nn-panel.nn-flight-panel:not([hidden])>.nn-search-card{position:absolute!important;top:var(--nn-v17-hero-height,clamp(108px,17vh,150px))!important;bottom:0!important;left:0!important;right:0!important;width:auto!important;height:auto!important;min-height:0!important;max-height:none!important;overflow-x:hidden!important;overflow-y:auto!important;display:grid!important;grid-template-rows:minmax(34px,.58fr) minmax(74px,1.08fr) minmax(48px,.8fr) minmax(48px,.8fr) minmax(40px,.66fr) minmax(48px,.78fr) minmax(48px,.78fr)!important;align-content:stretch!important;gap:6px!important;padding:8px 8px 7px!important}
 html.nn-travel-v8-active body #nx-app ${ROOT_SELECTOR}:not(.nn-v28-route-focus) .nn-search-card>.nn-trip-top,html.nn-travel-v8-active body #nx-app ${ROOT_SELECTOR}:not(.nn-v28-route-focus) .nn-search-card>.nn-routes,html.nn-travel-v8-active body #nx-app ${ROOT_SELECTOR}:not(.nn-v28-route-focus) .nn-search-card>.nn-pair,html.nn-travel-v8-active body #nx-app ${ROOT_SELECTOR}:not(.nn-v28-route-focus) .nn-search-card>.nn-filter-row,html.nn-travel-v8-active body #nx-app ${ROOT_SELECTOR}:not(.nn-v28-route-focus) .nn-search-card>.nn-search-button,html.nn-travel-v8-active body #nx-app ${ROOT_SELECTOR}:not(.nn-v28-route-focus) .nn-search-card>div:last-child{height:100%!important;min-height:0!important;max-height:none!important}
+html.nn-travel-v8-active.nn-travel-host-lock body #nx-app ${ROOT_SELECTOR}:not(.nn-v28-route-focus) .nn-search-card>.nn-routes .nn-route,html.nn-travel-v8-active.nn-travel-host-lock body #nx-app ${ROOT_SELECTOR}:not(.nn-v28-route-focus) .nn-search-card>.nn-pair .nn-control{height:100%!important;min-height:0!important;max-height:none!important}
 html.nn-travel-v8-active body #nx-app ${ROOT_SELECTOR} .nn-search-button{display:grid!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important;position:relative!important;z-index:180!important}
 html.nn-travel-v8-active body #nx-app ${ROOT_SELECTOR} .nn-search-card{padding-bottom:8px!important}
 html.nn-travel-v8-active body #nx-app ${ROOT_SELECTOR} .nn-control.nn-class-control-v28{position:relative!important;overflow:visible!important;z-index:460!important}
@@ -36,6 +37,12 @@ html.nn-travel-v17-route-edit body #nx-app ${ROOT_SELECTOR} .nn-panel.nn-flight-
 html.nn-travel-v17-route-edit body #nx-app ${ROOT_SELECTOR} .nn-panel.nn-flight-panel:not([hidden])>.nn-search-card,html.nn-travel-v8-active body #nx-app ${ROOT_SELECTOR}.nn-v28-route-focus .nn-panel.nn-flight-panel:not([hidden])>.nn-search-card{display:grid!important;grid-template-rows:34px 74px 48px 48px 40px 48px 44px!important;align-content:start!important;gap:5px!important;overflow-y:auto!important;padding:7px!important}
 html.nn-travel-v17-route-edit body #nx-app ${ROOT_SELECTOR} .nn-search-card>.nn-trip-top,html.nn-travel-v17-route-edit body #nx-app ${ROOT_SELECTOR} .nn-search-card>.nn-routes,html.nn-travel-v17-route-edit body #nx-app ${ROOT_SELECTOR} .nn-search-card>.nn-pair,html.nn-travel-v17-route-edit body #nx-app ${ROOT_SELECTOR} .nn-search-card>.nn-filter-row,html.nn-travel-v17-route-edit body #nx-app ${ROOT_SELECTOR} .nn-search-card>.nn-search-button,html.nn-travel-v17-route-edit body #nx-app ${ROOT_SELECTOR} .nn-search-card>div:last-child,html.nn-travel-v8-active body #nx-app ${ROOT_SELECTOR}.nn-v28-route-focus .nn-search-card>.nn-trip-top,html.nn-travel-v8-active body #nx-app ${ROOT_SELECTOR}.nn-v28-route-focus .nn-search-card>.nn-routes,html.nn-travel-v8-active body #nx-app ${ROOT_SELECTOR}.nn-v28-route-focus .nn-search-card>.nn-pair,html.nn-travel-v8-active body #nx-app ${ROOT_SELECTOR}.nn-v28-route-focus .nn-search-card>.nn-filter-row,html.nn-travel-v8-active body #nx-app ${ROOT_SELECTOR}.nn-v28-route-focus .nn-search-card>.nn-search-button,html.nn-travel-v8-active body #nx-app ${ROOT_SELECTOR}.nn-v28-route-focus .nn-search-card>div:last-child{height:100%!important;min-height:0!important;max-height:none!important}
 @media(max-width:390px){.nn-class-menu-v28{width:min(268px,calc(100vw - 24px));padding:8px}.nn-class-option-v28{height:44px;margin-bottom:7px;font-size:10px}.nn-class-option-v28 .nn-class-check-v28{width:22px;height:22px}}
+@media(min-height:1000px){
+html.nn-travel-v8-active.nn-travel-host-lock body #nx-app ${ROOT_SELECTOR}:not(.nn-v28-route-focus) .nn-panel.nn-flight-panel:not([hidden]){display:block!important;grid-template-rows:none!important}
+html.nn-travel-v8-active.nn-travel-host-lock body #nx-app ${ROOT_SELECTOR}:not(.nn-v28-route-focus) .nn-panel.nn-flight-panel:not([hidden])>.nn-search-card{display:grid!important;grid-template-rows:minmax(34px,.58fr) minmax(74px,1.08fr) minmax(48px,.8fr) minmax(48px,.8fr) minmax(40px,.66fr) minmax(48px,.78fr) minmax(48px,.78fr)!important}
+html.nn-travel-v8-active.nn-travel-host-lock body #nx-app ${ROOT_SELECTOR}:not(.nn-v28-route-focus) .nn-search-card>.nn-trip-top,html.nn-travel-v8-active.nn-travel-host-lock body #nx-app ${ROOT_SELECTOR}:not(.nn-v28-route-focus) .nn-search-card>.nn-routes,html.nn-travel-v8-active.nn-travel-host-lock body #nx-app ${ROOT_SELECTOR}:not(.nn-v28-route-focus) .nn-search-card>.nn-pair,html.nn-travel-v8-active.nn-travel-host-lock body #nx-app ${ROOT_SELECTOR}:not(.nn-v28-route-focus) .nn-search-card>.nn-filter-row,html.nn-travel-v8-active.nn-travel-host-lock body #nx-app ${ROOT_SELECTOR}:not(.nn-v28-route-focus) .nn-search-card>.nn-search-button,html.nn-travel-v8-active.nn-travel-host-lock body #nx-app ${ROOT_SELECTOR}:not(.nn-v28-route-focus) .nn-search-card>div:last-child{min-height:0!important;height:100%!important;max-height:none!important;flex-basis:auto!important}
+html.nn-travel-v8-active.nn-travel-host-lock body #nx-app ${ROOT_SELECTOR}:not(.nn-v28-route-focus) .nn-search-card>.nn-routes .nn-route,html.nn-travel-v8-active.nn-travel-host-lock body #nx-app ${ROOT_SELECTOR}:not(.nn-v28-route-focus) .nn-search-card>.nn-pair .nn-control{min-height:0!important;height:100%!important;max-height:none!important}
+}
 `;
 
 function installStyle(){
@@ -79,15 +86,43 @@ function syncGeometry(root){
   }
   frame.style.setProperty('height',`${height}px`,'important');
   frame.style.setProperty('min-height','0','important');
+  const stage=root.querySelector('.nn-travel-stage');
   const panel=root.querySelector('.nn-flight-panel:not([hidden])');
-  if(panel instanceof HTMLElement&&!active){
-    const chromeHeight=rr.width*.187+8;
-    const panelHeight=Math.max(1,height-chromeHeight);
-    const cardHeight=Math.min(500,Math.max(455,Math.round(panelHeight*.72)));
-    const heroHeight=Math.max(108,Math.round(panelHeight-cardHeight));
+  const hero=panel?.querySelector('.nn-hero');
+  const card=panel?.querySelector('.nn-search-card');
+  if(stage instanceof HTMLElement&&panel instanceof HTMLElement&&hero instanceof HTMLElement&&card instanceof HTMLElement&&!active){
+    const tab=root.querySelector('.nn-tab-dock');
+    const frameRect=frame.getBoundingClientRect();
+    const tabRect=tab instanceof HTMLElement?tab.getBoundingClientRect():null;
+    const stageTop=Math.max(1,Math.round((tabRect?.bottom||frameRect.top+rr.width*.187)-frameRect.top));
+    let heroHeight=Number(root.dataset.v28ApprovedHeroHeight||0);
+    if(!(heroHeight>0)){
+      heroHeight=Math.max(64,Math.round(hero.getBoundingClientRect().height||0));
+      root.dataset.v28ApprovedHeroHeight=String(heroHeight);
+    }
+    stage.style.setProperty('position','absolute','important');
+    stage.style.setProperty('top',`${stageTop}px`,'important');
+    stage.style.setProperty('bottom','0','important');
+    stage.style.setProperty('left','0','important');
+    stage.style.setProperty('right','0','important');
+    stage.style.setProperty('height','auto','important');
+    panel.style.setProperty('position','absolute','important');
+    panel.style.setProperty('top','4px','important');
+    panel.style.setProperty('bottom','4px','important');
+    panel.style.setProperty('left',rr.width<=380?'8px':'12px','important');
+    panel.style.setProperty('right',rr.width<=380?'8px':'12px','important');
+    panel.style.setProperty('height','auto','important');
     panel.style.setProperty('--nn-v17-hero-height',`${heroHeight}px`,'important');
+    hero.style.setProperty('position','absolute','important');
+    hero.style.setProperty('top','0','important');
+    hero.style.setProperty('height',`${heroHeight}px`,'important');
+    card.style.setProperty('position','absolute','important');
+    card.style.setProperty('top',`${heroHeight}px`,'important');
+    card.style.setProperty('bottom','0','important');
+    card.style.setProperty('height','auto','important');
+    card.style.setProperty('min-height','0','important');
     root.dataset.v28HeroHeight=String(heroHeight);
-    root.dataset.v28CardTargetHeight=String(cardHeight);
+    root.dataset.v28StageTop=String(stageTop);
   }
   root.style.setProperty('--nn-v17-frame-height',`${height}px`,'important');
   root.style.setProperty('--nn-v8-frame-height',`${height}px`,'important');
@@ -95,12 +130,12 @@ function syncGeometry(root){
   root.dataset.phoneInteractionV28='true';
   root.dataset.v28FrameHeight=String(height);
   root.dataset.v28RouteFocus=active?'true':'false';
-  const card=root.querySelector('.nn-search-card');
+  const cardNow=root.querySelector('.nn-search-card');
   const search=root.querySelector('.nn-search-button');
-  if(card instanceof HTMLElement&&search instanceof HTMLElement&&!active){
-    card.scrollTop=0;
-    const cardRect=card.getBoundingClientRect(),buttonRect=search.getBoundingClientRect();
-    if(buttonRect.bottom>cardRect.bottom+1) card.scrollTop=Math.max(0,buttonRect.bottom-cardRect.bottom+card.scrollTop+8);
+  if(cardNow instanceof HTMLElement&&search instanceof HTMLElement&&!active){
+    cardNow.scrollTop=0;
+    const cardRect=cardNow.getBoundingClientRect(),buttonRect=search.getBoundingClientRect();
+    if(buttonRect.bottom>cardRect.bottom+1) cardNow.scrollTop=Math.max(0,buttonRect.bottom-cardRect.bottom+cardNow.scrollTop+8);
     const dockRect=dock instanceof HTMLElement&&visible(dock)?dock.getBoundingClientRect():null;
     const panelRect=panel instanceof HTMLElement?panel.getBoundingClientRect():null;
     root.dataset.v28CardBottom=String(Math.round(cardRect.bottom));
@@ -108,10 +143,10 @@ function syncGeometry(root){
     if(panelRect) root.dataset.v28PanelBottom=String(Math.round(panelRect.bottom));
     if(dockRect) root.dataset.v28VisibleGap=String(Math.round(dockRect.top-Math.max(cardRect.bottom,panelRect?.bottom||0)));
   }
-  if(card instanceof HTMLElement&&active){
+  if(cardNow instanceof HTMLElement&&active){
     const routes=root.querySelector('.nn-routes');
     const target=routes instanceof HTMLElement?Math.max(0,routes.offsetTop-4):0;
-    card.scrollTop=target;
+    cardNow.scrollTop=target;
   }
 }
 
