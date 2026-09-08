@@ -133,6 +133,8 @@ function syncGeometry(root){
   const cardNow=root.querySelector('.nn-search-card');
   const search=root.querySelector('.nn-search-button');
   if(cardNow instanceof HTMLElement&&search instanceof HTMLElement&&!active){
+    search.style.setProperty('height','54px','important');
+    search.style.setProperty('min-height','54px','important');
     cardNow.scrollTop=0;
     const cardRect=cardNow.getBoundingClientRect(),buttonRect=search.getBoundingClientRect();
     if(buttonRect.bottom>cardRect.bottom+1) cardNow.scrollTop=Math.max(0,buttonRect.bottom-cardRect.bottom+cardNow.scrollTop+8);
