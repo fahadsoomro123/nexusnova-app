@@ -49,14 +49,45 @@ jobs:
           test -s public-build/fresh-rebuild/src/features/apps/travel-hyper3d-flagship-v25.js
           test -s public-build/fresh-rebuild/src/features/apps/travel-passenger-popover-v26.js
           test -s public-build/fresh-rebuild/src/features/apps/travel-clean-ui-v27.js
+          test -s public-build/fresh-rebuild/src/features/apps/travel-ota-revision-v13.js
           grep -Fq 'left:0!important' public-build/fresh-rebuild/src/features/apps/travel-passenger-popover-v26.js
           grep -Fq 'width:min(278px,calc(100vw - 44px))!important' public-build/fresh-rebuild/src/features/apps/travel-passenger-popover-v26.js
           grep -Fq '.nn-ota-badge{display:none!important' public-build/fresh-rebuild/src/features/apps/travel-clean-ui-v27.js
           grep -Fq "root.querySelectorAll('.nn-ota-badge').forEach(node=>node.remove())" public-build/fresh-rebuild/src/features/apps/travel-clean-ui-v27.js
-          grep -Fq 'travel-clean-ui-v27.js' public-build/fresh-rebuild/index.html
-          grep -Fq 'travel-passenger-popover-v26.js' public-build/fresh-rebuild/index.html
-          grep -Fq 'travel-hyper3d-flagship-v25.js' public-build/fresh-rebuild/index.html
-          grep -Fq 'travel-hyper3d-hd-v23.js' public-build/fresh-rebuild/index.html
+
+      - name: Stage approved Travel V27 loader composition
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('public-build/fresh-rebuild/index.html')
+          lines=p.read_text(encoding='utf-8').splitlines()
+          lines=[line for line in lines if 'travel-result-details-v1.js' not in line]
+          marker='travel-exit-isolation-v10.js'
+          try:
+              idx=next(i for i,line in enumerate(lines) if marker in line)
+          except StopIteration:
+              raise SystemExit('Travel exit-isolation loader marker missing')
+          names=[
+              'travel-clean-ui-v27.js',
+              'travel-ota-revision-v13.js',
+              'travel-hyper3d-layout-v21.js',
+              'travel-hyper3d-hd-v23.js',
+              'travel-hyper3d-flagship-v25.js',
+              'travel-passenger-popover-v26.js',
+          ]
+          for name in names:
+              lines=[line for line in lines if name not in line]
+          idx=next(i for i,line in enumerate(lines) if marker in line)
+          block=[f'  <script type="module" src="./src/features/apps/{name}?bundle=travel-v27"></script>' for name in names]
+          lines[idx+1:idx+1]=block
+          p.write_text('\n'.join(lines)+'\n',encoding='utf-8')
+          PY
+          for name in travel-clean-ui-v27.js travel-ota-revision-v13.js travel-hyper3d-layout-v21.js travel-hyper3d-hd-v23.js travel-hyper3d-flagship-v25.js travel-passenger-popover-v26.js; do
+            grep -Fq "$name?bundle=travel-v27" public-build/fresh-rebuild/index.html
+          done
+          ! grep -Fq 'travel-result-details-v1.js' public-build/fresh-rebuild/index.html
 
       - name: Checkout proven production auth baseline
         uses: actions/checkout@v4
@@ -169,10 +200,13 @@ jobs:
             'assets/www/src/features/apps/travel-hyper3d-flagship-v25.js' \
             'assets/www/src/features/apps/travel-passenger-popover-v26.js' \
             'assets/www/src/features/apps/travel-clean-ui-v27.js' \
+            'assets/www/src/features/apps/travel-ota-revision-v13.js' \
             'assets/www/src/core/firebase-backend.js' \
             'assets/www/src/core/auth-service.js' -d "$d"
-          grep -Fq 'travel-clean-ui-v27.js' "$d/assets/www/index.html"
-          grep -Fq 'travel-passenger-popover-v26.js' "$d/assets/www/index.html"
+          for name in travel-clean-ui-v27.js travel-ota-revision-v13.js travel-hyper3d-layout-v21.js travel-hyper3d-hd-v23.js travel-hyper3d-flagship-v25.js travel-passenger-popover-v26.js; do
+            grep -Fq "$name?bundle=travel-v27" "$d/assets/www/index.html"
+          done
+          ! grep -Fq 'travel-result-details-v1.js' "$d/assets/www/index.html"
           grep -Fq 'left:0!important' "$d/assets/www/src/features/apps/travel-passenger-popover-v26.js"
           grep -Fq 'width:min(278px,calc(100vw - 44px))!important' "$d/assets/www/src/features/apps/travel-passenger-popover-v26.js"
           grep -Fq '.nn-ota-badge{display:none!important' "$d/assets/www/src/features/apps/travel-clean-ui-v27.js"
