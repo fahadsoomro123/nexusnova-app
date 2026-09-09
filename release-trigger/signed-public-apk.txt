@@ -1,3 +1,3 @@
 trigger signed public apk
-public_source_commit=860c7931c43357a930ff00f7637e341f1cfa8cb2
-reason=Fresh final Nova Drive build after Firestore driveData rule publish: owner tracker entitlement, keyless vector map, auto-arm with no manual enable button, recovery fixes, no fixed trip caps
+public_source_commit=8312b6c4083426891d18a0a03bb2a7d3ec905003
+reason=Nova Drive signed APK: direct local plus Firestore recovery from visible Recover button, explicit recovery feedback, premium Trip History and Recover buttons, preserve auto-drive and private tracker
