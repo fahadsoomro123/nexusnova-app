@@ -1,3 +1,3 @@
 trigger signed public apk
-public_source_commit=87cebeead9f4751f4d7c848672e6750f84a76b67
-reason=approved Drive v13; fixed fullscreen no-scroll; all visible controls QA; real Drive history routes only; real owner Tracker trail only
+public_source_commit=cebea5064c99b4145237094c47952f1ea79142e9
+reason=build fresh signed APK for ADB install; current public Drive Gold v14 + MapTiler source; lock exact bundled OTA baseline to this public source
