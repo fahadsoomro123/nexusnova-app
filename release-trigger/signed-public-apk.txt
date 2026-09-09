@@ -1,3 +1,3 @@
 trigger signed public apk
-public_source_commit=61d5791ecd37219cdf458d9339d31e4f332a731d
-reason=Nova Drive critical bugfix build: keyless vector maps, private tracker controls, no fixed history caps, local history archive recovery, auto-arm fixes
+public_source_commit=596a7d08b36cd179140b49ca4e6b63539f230e5c
+reason=Final Nova Drive fix build: keyless vector maps, private tracker controls, no fixed cloud/history/native pending trip caps, local archive recovery, auto-arm fixes
