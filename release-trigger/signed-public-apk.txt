@@ -1,3 +1,3 @@
 trigger signed public apk
-public_source_commit=8312b6c4083426891d18a0a03bb2a7d3ec905003
-reason=Nova Drive signed APK: direct local plus Firestore recovery from visible Recover button, explicit recovery feedback, premium Trip History and Recover buttons, preserve auto-drive and private tracker
+public_source_commit=85fbe1632d73efca77aa49384f271ed13d75f9ce
+reason=Nova Drive signed APK: Recover now checks current account, device, guest and one safe old UID-scoped phone history store; no destructive legacy deletion; premium action buttons preserved; auto-drive and private tracker preserved
