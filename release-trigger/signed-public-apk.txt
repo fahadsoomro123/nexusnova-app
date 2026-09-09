@@ -1,3 +1,3 @@
 trigger signed public apk
-public_source_commit=cebea5064c99b4145237094c47952f1ea79142e9
-reason=build fresh signed APK for ADB install; current public Drive Gold v14 + MapTiler source; lock exact bundled OTA baseline to this public source
+public_source_commit=e6433e9f782ff5e42d23e2cf6372585fbb346017
+reason=build signed APK after Nova Drive WebView hang fix; single Gold runtime; duplicate native start removed; async route blank-screen guard added
