@@ -61,7 +61,7 @@ jobs:
           grep -q 'versionsRoot.deleteRecursively()' public-build/NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt
           grep -q 'if (base != BUNDLED_WEB_BASE)' public-build/NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt
 
-      - name: Verify one-source Drive and Travel composition
+      - name: Verify single Gold Drive and Travel composition
         shell: bash
         run: |
           set -euo pipefail
@@ -69,9 +69,10 @@ jobs:
           drive='public-build/fresh-rebuild/src/nova-vehicle-premium-ui.js'
           test -s "$index"
           test -s "$drive"
-          grep -Fq 'nova-drive-realworld-v13-production.js' "$drive"
-          grep -Fq 'nova-drive-realworld-v13-cockpit.js' "$drive"
-          grep -Fq 'nova-drive-realworld-v13-map.js' "$drive"
+          grep -Fq 'nova-drive-gold-maptiler-v14-ui.js' "$drive"
+          grep -Fq 'nova-drive-gold-maptiler-v14-production.js' "$drive"
+          ! grep -Fq 'nova-drive-realworld-v13-production.js' "$drive"
+          ! grep -Fq 'nova-drive-approved-ui-v2.js' "$drive"
           for name in \
             travel-hyper3d-layout-v21.js \
             travel-hyper3d-hd-v23.js \
@@ -86,9 +87,10 @@ jobs:
           ! grep -Fq 'travel-result-details-v1.js' "$index"
           node --check public-build/fresh-rebuild/src/features/apps/travel-phone-interaction-v28.js
           node --check public-build/fresh-rebuild/src/features/apps/travel-phone-interaction-v28-native-select-fix.js
-          node --check public-build/fresh-rebuild/src/nova-drive-realworld-v13-production.js
-          node --check public-build/fresh-rebuild/src/nova-drive-realworld-v13-cockpit.js
-          node --check public-build/fresh-rebuild/src/nova-drive-realworld-v13-map.js
+          node --check public-build/fresh-rebuild/src/nova-drive-gold-maptiler-v14-ui.js
+          node --check public-build/fresh-rebuild/src/nova-drive-gold-maptiler-v14-production.js
+          node --check public-build/fresh-rebuild/src/features/apps/premium-drive-native-v2.js
+          node --check public-build/fresh-rebuild/src/core/router.js
 
       - name: Checkout proven production auth baseline
         uses: actions/checkout@v4
@@ -133,7 +135,7 @@ jobs:
           printf '%s' "$KEYSTORE_B64" | base64 -d > app/nexusnova-release.jks
           test -s app/nexusnova-release.jks
 
-      - name: Inject v1.0.32 release signing
+      - name: Inject v1.0.33 release signing
         shell: bash
         working-directory: public-build/NexusNovaAndroid
         run: |
@@ -143,8 +145,8 @@ jobs:
           import re
           p=Path('app/build.gradle.kts')
           s=p.read_text(encoding='utf-8')
-          s,n1=re.subn(r'versionCode\s*=\s*\d+','versionCode = 26090932',s,count=1)
-          s,n2=re.subn(r'versionName\s*=\s*"[^"]+"','versionName = "1.0.32-unified-latest"',s,count=1)
+          s,n1=re.subn(r'versionCode\s*=\s*\d+','versionCode = 26090933',s,count=1)
+          s,n2=re.subn(r'versionName\s*=\s*"[^"]+"','versionName = "1.0.33-drive-hang-fix"',s,count=1)
           if n1 != 1 or n2 != 1:
               raise SystemExit('Version injection failed')
           signing='''    signingConfigs {\n        create("release") {\n            storeFile = file("nexusnova-release.jks")\n            storePassword = System.getenv("KEYSTORE_PASSWORD")\n            keyAlias = System.getenv("KEY_ALIAS")\n            keyPassword = System.getenv("KEY_PASSWORD")\n        }\n    }\n\n'''
@@ -174,16 +176,17 @@ jobs:
           badging="$($ANDROID_HOME/build-tools/35.0.0/aapt dump badging "$apk" | head -n 1)"
           echo "$badging"
           echo "$badging" | grep -q "name='com.nexusnova.app'"
-          echo "$badging" | grep -q "versionCode='26090932'"
-          echo "$badging" | grep -q "versionName='1.0.32-unified-latest'"
+          echo "$badging" | grep -q "versionCode='26090933'"
+          echo "$badging" | grep -q "versionName='1.0.33-drive-hang-fix'"
           d="$(mktemp -d)"
           trap 'rm -rf "$d"' EXIT
           unzip -q "$apk" \
             'assets/www/index.html' \
             'assets/www/src/nova-vehicle-premium-ui.js' \
-            'assets/www/src/nova-drive-realworld-v13-production.js' \
-            'assets/www/src/nova-drive-realworld-v13-cockpit.js' \
-            'assets/www/src/nova-drive-realworld-v13-map.js' \
+            'assets/www/src/nova-drive-gold-maptiler-v14-ui.js' \
+            'assets/www/src/nova-drive-gold-maptiler-v14-production.js' \
+            'assets/www/src/features/apps/premium-drive-native-v2.js' \
+            'assets/www/src/core/router.js' \
             'assets/www/src/features/apps/travel-hyper3d-layout-v21.js' \
             'assets/www/src/features/apps/travel-hyper3d-hd-v23.js' \
             'assets/www/src/features/apps/travel-hyper3d-flagship-v25.js' \
@@ -193,7 +196,9 @@ jobs:
             'assets/www/src/features/apps/travel-phone-interaction-v28-native-select-fix.js' \
             'assets/www/src/core/firebase-backend.js' \
             'assets/www/src/core/auth-service.js' -d "$d"
-          grep -Fq 'nova-drive-realworld-v13-production.js' "$d/assets/www/src/nova-vehicle-premium-ui.js"
+          grep -Fq 'nova-drive-gold-maptiler-v14-production.js' "$d/assets/www/src/nova-vehicle-premium-ui.js"
+          ! grep -Fq 'nova-drive-realworld-v13-production.js' "$d/assets/www/src/nova-vehicle-premium-ui.js"
+          grep -Fq 'keep the current DOM visible' "$d/assets/www/src/core/router.js"
           for name in travel-hyper3d-layout-v21.js travel-hyper3d-hd-v23.js travel-hyper3d-flagship-v25.js travel-passenger-popover-v26.js travel-clean-ui-v27.js travel-phone-interaction-v28.js travel-phone-interaction-v28-native-select-fix.js; do
             grep -Fq "$name?bundle=travel-v28-main" "$d/assets/www/index.html"
           done
@@ -210,14 +215,14 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p signed-output
-          cp app/build/outputs/apk/release/app-release.apk signed-output/NexusNova-v1.0.32-SIGNED-UNIFIED.apk
-          sha256sum signed-output/NexusNova-v1.0.32-SIGNED-UNIFIED.apk > signed-output/NexusNova-v1.0.32-SIGNED-UNIFIED.apk.sha256
+          cp app/build/outputs/apk/release/app-release.apk signed-output/NexusNova-v1.0.33-SIGNED-DRIVE-FIX.apk
+          sha256sum signed-output/NexusNova-v1.0.33-SIGNED-DRIVE-FIX.apk > signed-output/NexusNova-v1.0.33-SIGNED-DRIVE-FIX.apk.sha256
           printf '%s\n' "$PUBLIC_SHA" > signed-output/PUBLIC-SOURCE-SHA.txt
 
       - name: Upload signed APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: NexusNova-v1.0.32-SIGNED-UNIFIED
+          name: NexusNova-v1.0.33-SIGNED-DRIVE-FIX
           path: public-build/NexusNovaAndroid/signed-output/*
           if-no-files-found: error
           retention-days: 7
