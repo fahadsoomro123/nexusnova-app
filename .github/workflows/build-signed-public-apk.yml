@@ -42,7 +42,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          PUBLIC_SHA="$(git -C public-build rev-parse HEAD)"
+          export PUBLIC_SHA="$(git -C public-build rev-parse HEAD)"
           test "${#PUBLIC_SHA}" = 40
           echo "PUBLIC_SHA=$PUBLIC_SHA" >> "$GITHUB_ENV"
           echo "Building exact public source: $PUBLIC_SHA"
