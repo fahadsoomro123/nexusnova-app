@@ -1,14 +1,15 @@
-# NexusNova Public Build Mirror
+# NexusNova
 
-BUILD MIRROR ONLY — DO NOT DEVELOP HERE.
+Canonical NexusNova Android app repository.
 
-Private repository remains the source of truth.
+## Source of truth
+- Android shell/native code: `NexusNovaAndroid/`
+- Canonical bundled web app: `fresh-rebuild/`
+- `NexusNovaAndroid/app/src/main/assets/www/` is generated from `fresh-rebuild/` during Android `preBuild` and must not be committed.
+- Firebase backend/hosting configuration remains in this repository where required by the app.
 
-Source branch:
-ai-photo-real-canva-ai-generator-correction
+## Repository hygiene
+Do not commit APK/AAB files, generated Android web assets, build outputs, caches, logs, local environment files, keystores, or temporary preview/test artifacts.
 
-Source commit:
-ad68d64028b3a0cb3a8a2b2af35c9d49699c2441
-
-This public repository intentionally excludes private Git history,
-signing keys, recovery material, backend/VPN infrastructure and secrets.
+## Release/OTA
+Use the current canonical build workflow for signed APK builds. NexusNova OTA is hosted separately by the NexusNova website OTA channel; source state, OTA publication, and phone-side application are separate states and must be verified separately.
