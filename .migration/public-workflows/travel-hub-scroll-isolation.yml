@@ -1,0 +1,90 @@
+name: Travel Hub Scroll Isolation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/travel-hub-scroll-isolation.yml'
+      - 'fresh-rebuild/index.html'
+      - 'fresh-rebuild/src/features/apps/travel-exit-isolation-v10.js'
+      - 'fresh-rebuild/src/features/apps/travel-phone-layout-v29.js'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  isolation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Syntax and production loader contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check fresh-rebuild/src/features/apps/travel-exit-isolation-v10.js
+          node --check fresh-rebuild/src/features/apps/travel-phone-layout-v29.js
+          grep -Fq 'travel-phone-layout-v29.js?ota=travel-v29-single-owner' fresh-rebuild/index.html
+          grep -Fq 'travel-exit-isolation-v10.js?ota=travel-v29-single-owner' fresh-rebuild/index.html
+
+      - name: Install DOM test runtime
+        run: npm install --no-save jsdom@26 >/dev/null 2>&1
+
+      - name: Travel exit releases only Travel-owned scroll locks
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import { resolve } from 'node:path';
+          import { pathToFileURL } from 'node:url';
+          import { JSDOM } from 'jsdom';
+
+          const dom = new JSDOM(`<!doctype html><html class="nn-travel-reference-lock nn-travel-host-lock nn-travel-v8-active nn-travel-v8-editing nn-travel-v29-active nn-travel-v29-keyboard"><body class="unrelated-shell"><div id="nx-app"><main id="nx-stage"><section class="nx-screen nn-travel-host-screen nn-travel-v8-screen"><div class="nn-travel-v19"></div></section></main><nav class="nx-dock" hidden></nav></div></body></html>`, { url: 'https://appassets.androidplatform.net/assets/www/#app', pretendToBeVisual:true });
+          globalThis.window = dom.window;
+          globalThis.document = dom.window.document;
+          globalThis.HTMLElement = dom.window.HTMLElement;
+          globalThis.HTMLInputElement = dom.window.HTMLInputElement;
+          globalThis.HTMLStyleElement = dom.window.HTMLStyleElement;
+          globalThis.MutationObserver = dom.window.MutationObserver;
+          globalThis.Event = dom.window.Event;
+          globalThis.getComputedStyle = dom.window.getComputedStyle.bind(dom.window);
+          globalThis.requestAnimationFrame = dom.window.requestAnimationFrame.bind(dom.window);
+          globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame.bind(dom.window);
+
+          const moduleUrl = pathToFileURL(resolve('fresh-rebuild/src/features/apps/travel-exit-isolation-v10.js')).href + `?qa=${Date.now()}`;
+          await import(moduleUrl);
+          await new Promise(resolve => setTimeout(resolve, 30));
+
+          const travelClasses = [
+            'nn-travel-reference-lock',
+            'nn-travel-host-lock',
+            'nn-travel-keyboard-open',
+            'nn-travel-route-focus-open',
+            'nn-travel-v8-active',
+            'nn-travel-v8-editing',
+            'nn-travel-v29-active',
+            'nn-travel-v29-keyboard'
+          ];
+
+          assert(document.querySelector('.nn-travel-v19'), 'Travel root should be mounted for setup');
+          assert(document.documentElement.classList.contains('nn-travel-host-lock'), 'Guard unlocked Travel while Travel was still mounted');
+
+          document.querySelector('.nn-travel-v19').remove();
+          await new Promise(resolve => setTimeout(resolve, 30));
+
+          for (const name of travelClasses) {
+            assert(!document.documentElement.classList.contains(name), `stale html Travel class ${name}`);
+            assert(!document.body.classList.contains(name), `stale body Travel class ${name}`);
+          }
+          assert(document.body.classList.contains('unrelated-shell'), 'Travel exit guard removed unrelated shell state');
+          assert(!document.querySelector('.nn-travel-host-screen')?.classList.contains('nn-travel-host-screen'), 'stale Travel screen class survived');
+          assert(!document.querySelector('.nn-travel-v8-screen')?.classList.contains('nn-travel-v8-screen'), 'stale Travel v8 screen class survived');
+
+          console.log('Travel -> Nova Hub scroll isolation PASS');
+          NODE

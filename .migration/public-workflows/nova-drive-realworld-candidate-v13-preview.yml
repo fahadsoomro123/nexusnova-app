@@ -1,0 +1,150 @@
+name: Nova Drive RealWorld Candidate V13 Preview
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'fresh-rebuild/preview/nova-drive-realworld-candidate-v13-flagship.html'
+      - 'fresh-rebuild/preview/nova-drive-realworld-candidate-v13-flagship-safe.html'
+      - '.github/workflows/nova-drive-realworld-candidate-v13-preview.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Candidate isolation and syntax gates
+        run: |
+          set -euo pipefail
+          BASE='fresh-rebuild/preview/nova-drive-realworld-candidate-v13-flagship.html'
+          SAFE='fresh-rebuild/preview/nova-drive-realworld-candidate-v13-flagship-safe.html'
+          test -s "$BASE"
+          test -s "$SAFE"
+          grep -Fq 'NexusNovaFlagshipCandidateV13' "$BASE"
+          grep -Fq 'https://tile.openstreetmap.org/' "$BASE"
+          grep -Fq 'No location is simulated.' "$BASE"
+          grep -Fq 'ROUTE NOT STORED' "$BASE"
+          grep -Fq 'OWNER ONLY' "$BASE"
+          grep -Fq 'null GPS activated beacon' "$SAFE"
+          if grep -Fq 'nova-drive-realworld-candidate-v13-flagship' fresh-rebuild/src/nova-vehicle-premium-ui.js; then
+            echo 'Candidate was accidentally wired into production' >&2
+            exit 1
+          fi
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          blocks=[]
+          for path in (
+              'fresh-rebuild/preview/nova-drive-realworld-candidate-v13-flagship.html',
+              'fresh-rebuild/preview/nova-drive-realworld-candidate-v13-flagship-safe.html'):
+              s=Path(path).read_text()
+              found=re.findall(r'<script>([\s\S]*?)</script>',s)
+              if not found: raise SystemExit(f'inline script missing: {path}')
+              blocks.extend(found)
+          Path('/tmp/nx-v13-candidate.js').write_text('\n'.join(blocks))
+          PY
+          node --check /tmp/nx-v13-candidate.js
+
+      - name: Runtime and target fullscreen gates
+        run: |
+          set -euo pipefail
+          CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          test -n "$CHROME"
+          python3 -m http.server 8769 --bind 127.0.0.1 >/tmp/nx-v13-server.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID || true' EXIT
+          sleep 1
+          for size in 674,1386 1080,2200; do
+            OUT="/tmp/nx-v13-${size//,/-}.html"
+            timeout 35s "$CHROME" --headless=new --no-sandbox --disable-dev-shm-usage --disable-gpu \
+              --hide-scrollbars --force-device-scale-factor=1 --window-size="$size" \
+              --virtual-time-budget=2000 --dump-dom \
+              "http://127.0.0.1:8769/fresh-rebuild/preview/nova-drive-realworld-candidate-v13-flagship-safe.html?qa=1&screen=dashboard" > "$OUT"
+            grep -Fq 'data-qa="PASS"' "$OUT" || { cat "$OUT"; exit 1; }
+          done
+
+      - name: Warm exact OSM tiles in persistent Chrome cache
+        run: |
+          set -euo pipefail
+          CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          test -n "$CHROME"
+          PROFILE='/tmp/nx-v13-chrome-profile'
+          rm -rf "$PROFILE"
+          cat > .nx-v13-osm-preload.html <<'HTML'
+          <!doctype html><html><body><div id="tiles"></div><script>
+          (()=>{
+            const urls=[];
+            for(let x=11239;x<=11243;x++)for(let y=7020;y<=7026;y++)urls.push(`https://tile.openstreetmap.org/14/${x}/${y}.png`);
+            let ok=0,fail=0;
+            const root=document.getElementById('tiles');
+            urls.forEach(src=>{const i=new Image();i.onload=()=>{ok++;done()};i.onerror=()=>{fail++;done()};i.src=src;root.appendChild(i)});
+            function done(){if(ok+fail===urls.length){document.body.dataset.ready='1';document.body.dataset.ok=String(ok);document.body.dataset.fail=String(fail)}}
+          })();
+          </script></body></html>
+          HTML
+          python3 -m http.server 8771 --bind 127.0.0.1 >/tmp/nx-v13-preload-server.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID || true' EXIT
+          sleep 1
+          OUT=/tmp/nx-v13-osm-preload-dom.html
+          timeout 55s "$CHROME" --headless=new --no-sandbox --disable-dev-shm-usage --disable-gpu \
+            --user-data-dir="$PROFILE" --disk-cache-size=104857600 \
+            --virtual-time-budget=18000 --dump-dom \
+            "http://127.0.0.1:8771/.nx-v13-osm-preload.html" > "$OUT"
+          grep -Fq 'data-ready="1"' "$OUT" || { cat "$OUT"; exit 1; }
+          grep -Fq 'data-ok="35"' "$OUT" || { cat "$OUT"; exit 1; }
+          grep -Fq 'data-fail="0"' "$OUT" || { cat "$OUT"; exit 1; }
+
+      - name: Render actual 674x1386 code previews from warmed real-map cache
+        run: |
+          set -euo pipefail
+          CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          test -n "$CHROME"
+          PROFILE='/tmp/nx-v13-chrome-profile'
+          mkdir -p preview-v13-flagship
+          python3 -m http.server 8770 --bind 127.0.0.1 >/tmp/nx-v13-render-server.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID || true' EXIT
+          sleep 1
+          for screen in dashboard history tracking; do
+            timeout 45s "$CHROME" --headless=new --no-sandbox --disable-dev-shm-usage --disable-gpu \
+              --user-data-dir="$PROFILE" --disk-cache-size=104857600 \
+              --hide-scrollbars --force-device-scale-factor=1 --window-size=674,1386 \
+              --run-all-compositor-stages-before-draw --virtual-time-budget=7000 \
+              --screenshot="preview-v13-flagship/${screen}.png" \
+              "http://127.0.0.1:8770/fresh-rebuild/preview/nova-drive-realworld-candidate-v13-flagship-safe.html?screen=${screen}"
+            test -s "preview-v13-flagship/${screen}.png"
+          done
+          python3 - <<'PY'
+          from pathlib import Path
+          import struct
+          for name in ('dashboard','history','tracking'):
+              p=Path(f'preview-v13-flagship/{name}.png')
+              if p.stat().st_size < 40000:
+                  raise SystemExit(f'{name} screenshot suspiciously small: {p.stat().st_size}')
+              data=p.read_bytes()[:24]
+              if data[:8] != b'\x89PNG\r\n\x1a\n':
+                  raise SystemExit(f'{name} is not PNG')
+              w,h=struct.unpack('>II',data[16:24])
+              if (w,h)!=(674,1386):
+                  raise SystemExit(f'{name} wrong render size: {w}x{h}')
+          Path('preview-v13-flagship/PROOF.txt').write_text(
+              'Actual committed-code Chrome render at 674x1386. No AI image generation. '
+              'Canvas physical instrument cluster + real OpenStreetMap raster tile engine. '
+              'The exact visible fixture tiles were preloaded into a persistent Chrome HTTP cache before capture. '
+              'No fake route/trip/vehicle telemetry is injected. Candidate-only preview; production loader untouched.\n'
+          )
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Nova-Drive-Flagship-V13-RealMap-PREVIEW
+          path: preview-v13-flagship/
+          if-no-files-found: error
+          retention-days: 7

@@ -1,0 +1,62 @@
+name: Nova Drive HyperDrive Candidate Preview
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'fresh-rebuild/src/nova-drive-hyperdrive-candidate-v11.js'
+      - 'fresh-rebuild/src/nova-drive-hyperdrive-candidate-v11-perf.js'
+      - '.github/workflows/nova-drive-hyperdrive-candidate-preview.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify candidate syntax
+        run: |
+          set -euo pipefail
+          node --check fresh-rebuild/src/nova-drive-hyperdrive-candidate-v11.js
+          node --check fresh-rebuild/src/nova-drive-hyperdrive-candidate-v11-perf.js
+          grep -Fq 'NexusNovaHyperDriveCandidateV11' fresh-rebuild/src/nova-drive-hyperdrive-candidate-v11.js
+          grep -Fq 'www.nexusnovatools.com' fresh-rebuild/src/nova-drive-hyperdrive-candidate-v11.js
+      - name: Build committed-code preview harness
+        run: |
+          set -euo pipefail
+          mkdir -p .github/qa preview
+          cat > .github/qa/hyperdrive.html <<'HTML'
+          <!doctype html><html data-nx-hyperdrive-preview="1"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><style>
+          *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#0b1721;font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif}.status{position:fixed;z-index:9999;left:0;right:0;top:0;height:46px;background:#07111a;color:#f4f7fb;display:flex;align-items:center;justify-content:space-between;padding:0 18px;font-size:18px;font-weight:850}.status small{font-size:12px;letter-spacing:.1em}.osnav{position:fixed;z-index:9999;left:0;right:0;bottom:0;height:46px;background:#07111a;color:#8aa0af;display:flex;align-items:center;justify-content:space-around;font-size:26px}#nxhd11{top:46px!important;bottom:46px!important;height:auto!important}
+          </style></head><body><div class="status"><span>12:18 AM</span><small>◉ 4G ▮▮ 48%</small></div><div class="osnav"><span>□</span><span>○</span><span>◁</span></div><script src="../../fresh-rebuild/src/nova-drive-hyperdrive-candidate-v11.js"></script><script src="../../fresh-rebuild/src/nova-drive-hyperdrive-candidate-v11-perf.js"></script><script>setTimeout(()=>{const s=new URLSearchParams(location.search).get('screen')||'dashboard';window.NexusNovaHyperDriveCandidateV11.show(s)},120)</script></body></html>
+          HTML
+      - name: Render phone previews
+        run: |
+          set -euo pipefail
+          CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          test -n "$CHROME"
+          python3 -m http.server 8765 --bind 127.0.0.1 >/tmp/nxhd-server.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID || true' EXIT
+          sleep 1
+          for screen in dashboard history tracking; do
+            timeout 45s "$CHROME" --headless=new --no-sandbox --disable-dev-shm-usage --disable-gpu --hide-scrollbars --force-device-scale-factor=1 --window-size=674,1386 --virtual-time-budget=500 --screenshot="preview/${screen}.png" "http://127.0.0.1:8765/.github/qa/hyperdrive.html?screen=${screen}" || true
+            test -s "preview/${screen}.png" || { cat /tmp/nxhd-server.log; exit 1; }
+          done
+          python3 - <<'PY'
+          from pathlib import Path
+          for n in ('dashboard','history','tracking'):
+              p=Path(f'preview/{n}.png')
+              if p.stat().st_size < 15000: raise SystemExit(f'{n} suspiciously small')
+          Path('preview/PROOF.txt').write_text('Rendered at 674x1386 from committed v11 + performance override. No image generation. Preview telemetry is deterministic demo data only.\n')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Nova-Drive-HyperDrive-V11-PREVIEW
+          path: preview/
+          if-no-files-found: error
+          retention-days: 7

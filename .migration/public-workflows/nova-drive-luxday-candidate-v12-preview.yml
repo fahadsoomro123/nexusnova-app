@@ -1,0 +1,60 @@
+name: Nova Drive LuxDay Candidate V12 Preview
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'fresh-rebuild/src/nova-drive-luxday-candidate-v12.js'
+      - '.github/workflows/nova-drive-luxday-candidate-v12-preview.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify candidate syntax
+        run: |
+          set -euo pipefail
+          node --check fresh-rebuild/src/nova-drive-luxday-candidate-v12.js
+          grep -Fq 'NexusNovaLuxDayCandidateV12' fresh-rebuild/src/nova-drive-luxday-candidate-v12.js
+          grep -Fq 'DAYLIGHT TOURING' fresh-rebuild/src/nova-drive-luxday-candidate-v12.js
+      - name: Build committed-code preview harness
+        run: |
+          set -euo pipefail
+          mkdir -p .github/qa preview-v12
+          cat > .github/qa/luxday-v12.html <<'HTML'
+          <!doctype html><html data-nx-luxday-preview="1"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><style>
+          *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#f3efe7;font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif}.status{position:fixed;z-index:2147483647;left:0;right:0;top:0;height:46px;background:#f8f5ef;color:#263947;display:flex;align-items:center;justify-content:space-between;padding:0 18px;font-size:18px;font-weight:850;border-bottom:1px solid #ded8ce}.status small{font-size:12px;letter-spacing:.08em}.osnav{position:fixed;z-index:2147483647;left:0;right:0;bottom:0;height:46px;background:#f8f5ef;color:#6f7f88;display:flex;align-items:center;justify-content:space-around;font-size:25px;border-top:1px solid #ded8ce}#nxd12{top:46px!important;bottom:46px!important;height:auto!important}
+          </style></head><body><div class="status"><span>12:18 AM</span><small>◉ 4G ▮▮ 48%</small></div><div class="osnav"><span>□</span><span>○</span><span>◁</span></div><script src="../../fresh-rebuild/src/nova-drive-luxday-candidate-v12.js"></script><script>setTimeout(()=>{const s=new URLSearchParams(location.search).get('screen')||'dashboard';window.NexusNovaLuxDayCandidateV12.show(s)},80)</script></body></html>
+          HTML
+      - name: Render phone previews
+        run: |
+          set -euo pipefail
+          CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          test -n "$CHROME"
+          python3 -m http.server 8766 --bind 127.0.0.1 >/tmp/nxd12-server.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID || true' EXIT
+          sleep 1
+          for screen in dashboard history tracking; do
+            timeout 40s "$CHROME" --headless=new --no-sandbox --disable-dev-shm-usage --disable-gpu --hide-scrollbars --force-device-scale-factor=1 --window-size=674,1386 --virtual-time-budget=450 --screenshot="preview-v12/${screen}.png" "http://127.0.0.1:8766/.github/qa/luxday-v12.html?screen=${screen}" || true
+            test -s "preview-v12/${screen}.png" || { cat /tmp/nxd12-server.log; exit 1; }
+          done
+          python3 - <<'PY'
+          from pathlib import Path
+          for n in ('dashboard','history','tracking'):
+              p=Path(f'preview-v12/{n}.png')
+              if p.stat().st_size < 15000: raise SystemExit(f'{n} suspiciously small')
+          Path('preview-v12/PROOF.txt').write_text('Actual committed-code render, 674x1386. No image generation. V12 daylight luxury candidate only; production loader untouched.\n')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Nova-Drive-LuxDay-V12-PREVIEW
+          path: preview-v12/
+          if-no-files-found: error
+          retention-days: 7

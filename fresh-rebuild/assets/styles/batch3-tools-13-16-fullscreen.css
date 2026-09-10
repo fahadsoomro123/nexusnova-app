@@ -1,0 +1,175 @@
+/* Batch #4 / tools 13-16 — Qibla, Prayer Times, Pakistan Hub, News. */
+html.nx-batch3-tools-active,
+html.nx-batch3-tools-active body{
+  width:100%;height:100%;min-height:100%;overflow:hidden!important;overscroll-behavior:none;
+}
+html.nx-batch3-tools-active body .nx-app{
+  width:100%!important;max-width:760px!important;height:100dvh!important;min-height:0!important;overflow:hidden!important;
+}
+html.nx-batch3-tools-active body .nx-stage{
+  width:100%!important;height:100dvh!important;min-height:0!important;padding:0!important;overflow:hidden!important;
+}
+html.nx-batch3-tools-active body .nx-dock,
+html.nx-batch3-tools-active body #nx-mine-brand-portal{
+  display:none!important;visibility:hidden!important;pointer-events:none!important;
+}
+html.nx-batch3-tools-active .nx-batch3-tools-screen{
+  position:relative!important;width:100%!important;height:100dvh!important;min-height:0!important;max-height:100dvh!important;
+  margin:0!important;padding:0!important;overflow:hidden!important;
+}
+html.nx-batch3-tools-active .nx-batch3-tools-screen>.nx-app-head{display:none!important}
+html.nx-batch3-tools-active .nx-batch3-tools-screen [data-app-mount]{
+  width:100%!important;height:100dvh!important;min-height:0!important;overflow:hidden!important;
+}
+html.nx-batch3-tools-active .nx-batch3-tools-screen .nx-app-body{
+  box-sizing:border-box!important;width:100%!important;height:100dvh!important;min-height:0!important;max-height:none!important;
+  margin:0!important;overflow:hidden!important;
+}
+.nx-batch3-hub-back{
+  position:fixed;top:calc(env(safe-area-inset-top,0px) + 9px);right:max(9px,env(safe-area-inset-right,0px));z-index:2147481000;
+  width:40px;height:40px;display:grid;place-items:center;padding:0 0 2px;border:1px solid rgba(151,188,224,.20);border-radius:13px;
+  background:rgba(8,22,38,.94);color:#f7fbff;box-shadow:0 8px 22px rgba(0,0,0,.27),inset 0 1px rgba(255,255,255,.07);
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);font:750 29px/1 system-ui,-apple-system,"Segoe UI",sans-serif;
+  cursor:pointer;-webkit-tap-highlight-color:transparent;
+}
+.nx-batch3-hub-back:active{transform:scale(.95)}
+
+/* QIBLA — one static compass face + one moving needle layer; no page scroll. */
+html.nx-batch3-tools-active .nx-b3-qibla-root{
+  height:100dvh!important;min-height:0!important;padding:0!important;background:#020a12!important;overflow:hidden!important;
+}
+html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-page{
+  box-sizing:border-box!important;width:100%!important;height:100dvh!important;min-height:0!important;
+  padding:calc(env(safe-area-inset-top,0px) + 7px) 8px calc(env(safe-area-inset-bottom,0px) + 7px)!important;
+  display:grid!important;grid-template-rows:auto minmax(0,1fr) auto!important;gap:7px!important;overflow:hidden!important;
+}
+html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-head{min-height:0!important;gap:6px!important}
+html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-grid{
+  min-height:0!important;height:100%!important;margin:0!important;gap:5px!important;overflow:hidden!important;align-items:stretch!important;
+}
+html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-side{min-height:0!important;height:100%!important;gap:6px!important}
+html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-side--left{
+  display:grid!important;grid-template-rows:1.15fr .95fr 1fr .72fr!important;align-content:stretch!important;
+}
+html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-side--right{
+  display:grid!important;grid-template-rows:.88fr 1.12fr!important;align-content:stretch!important;justify-content:stretch!important;
+}
+html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-side .nx2-qb-card{
+  min-height:0!important;height:auto!important;margin:0!important;overflow:hidden!important;
+}
+html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-visual{
+  min-height:0!important;height:100%!important;padding:0!important;display:grid!important;place-items:center!important;overflow:visible!important;
+}
+html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-compass{
+  width:min(148%,54dvh)!important;max-width:none!important;min-width:0!important;margin:auto!important;filter:none!important;
+}
+html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-svg{filter:none!important}
+html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-ready{
+  min-height:0!important;margin:0!important;padding:9px 11px!important;gap:9px!important;
+}
+html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-ready-icon{width:50px!important;height:50px!important}
+html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-ready-icon svg{width:37px!important;height:37px!important}
+html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-ready-art{height:48px!important}
+
+/* PRAYER TIMES — fixed controls + six cards own the free viewport height. */
+html.nx-batch3-tools-active .nx-b3-prayer-root{
+  height:100dvh!important;min-height:0!important;padding:calc(env(safe-area-inset-top,0px) + 5px) 7px calc(env(safe-area-inset-bottom,0px) + 6px)!important;
+  background:#04111c!important;overflow:hidden!important;
+}
+html.nx-batch3-tools-active .nx-b3-prayer-root .nxprayer-console{
+  box-sizing:border-box!important;height:100%!important;min-height:0!important;margin:0!important;padding:0!important;
+  display:grid!important;grid-template-rows:auto auto auto minmax(0,1fr) auto auto!important;gap:6px!important;overflow:hidden!important;
+}
+html.nx-batch3-tools-active .nx-b3-prayer-root .nxprayer-topbar{margin:0!important;padding:0!important;min-height:52px!important}
+html.nx-batch3-tools-active .nx-b3-prayer-root .nxprayer-citybox{margin:0!important;padding:8px!important;border-radius:18px!important}
+html.nx-batch3-tools-active .nx-b3-prayer-root .nxprayer-locationrow{gap:7px!important}
+html.nx-batch3-tools-active .nx-b3-prayer-root .nxprayer-locationinput,
+html.nx-batch3-tools-active .nx-b3-prayer-root .nxprayer-locationinput input,
+html.nx-batch3-tools-active .nx-b3-prayer-root .nxprayer-gps{min-height:48px!important;height:48px!important}
+html.nx-batch3-tools-active .nx-b3-prayer-root .nxprayer-datebar{margin:0 3px!important;min-height:22px!important}
+html.nx-batch3-tools-active .nx-b3-prayer-root .nxprayer-grid{
+  min-height:0!important;height:100%!important;margin:0!important;gap:5px!important;align-items:stretch!important;overflow:hidden!important;
+}
+html.nx-batch3-tools-active .nx-b3-prayer-root .nxprayer-card{
+  min-height:0!important;height:100%!important;padding-top:10px!important;padding-bottom:6px!important;border-radius:15px!important;overflow:hidden!important;
+}
+html.nx-batch3-tools-active .nx-b3-prayer-root .nxprayer-icon{width:52px!important;height:52px!important;flex-basis:52px!important}
+html.nx-batch3-tools-active .nx-b3-prayer-root .nxprayer-card>span{margin-top:7px!important}
+html.nx-batch3-tools-active .nx-b3-prayer-root .nxprayer-divider{margin:10px auto 8px!important}
+html.nx-batch3-tools-active .nx-b3-prayer-root .nxprayer-card>em{margin-top:10px!important}
+html.nx-batch3-tools-active .nx-b3-prayer-root .nxprayer-ornament{height:min(82px,11dvh)!important}
+html.nx-batch3-tools-active .nx-b3-prayer-root .nxprayer-next{
+  min-height:72px!important;margin:0!important;padding:9px 12px!important;gap:10px!important;border-radius:18px!important;
+}
+html.nx-batch3-tools-active .nx-b3-prayer-root .nxprayer-next-orbit{width:56px!important;height:56px!important}
+html.nx-batch3-tools-active .nx-b3-prayer-root .nxprayer-next-icon{width:40px!important;height:40px!important}
+html.nx-batch3-tools-active .nx-b3-prayer-root .nxprayer-progress{margin-top:7px!important;height:9px!important}
+html.nx-batch3-tools-active .nx-b3-prayer-root .nxprayer-next-copy>small{margin-top:5px!important}
+html.nx-batch3-tools-active .nx-b3-prayer-root .nxpi-status{min-height:15px!important;margin:0 3px!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important}
+
+/* PAKISTAN HUB — hero/tabs stay visible; reader/feed scroll internally. */
+html.nx-batch3-tools-active .nx-b3-pakistan-root{
+  height:100dvh!important;min-height:0!important;padding:calc(env(safe-area-inset-top,0px) + 7px) 8px calc(env(safe-area-inset-bottom,0px) + 7px)!important;
+  display:grid!important;grid-template-rows:auto auto auto minmax(0,1fr)!important;gap:8px!important;background:#06111e!important;overflow:hidden!important;
+}
+html.nx-batch3-tools-active .nx-b3-pakistan-root .nx-pk-hero{
+  min-height:0!important;margin:0!important;padding:11px 55px 11px 12px!important;border-radius:18px!important;
+}
+html.nx-batch3-tools-active .nx-b3-pakistan-root .nx-pk-tabs{
+  min-height:38px!important;margin:0!important;display:flex!important;gap:6px!important;overflow:auto hidden!important;overscroll-behavior-x:contain!important;scrollbar-width:none;
+}
+html.nx-batch3-tools-active .nx-b3-pakistan-root .nx-pk-tabs::-webkit-scrollbar{display:none}
+html.nx-batch3-tools-active .nx-b3-pakistan-root .nx-pk-tabs button{flex:0 0 auto!important;min-height:36px!important}
+html.nx-batch3-tools-active .nx-b3-pakistan-root .nx-news-reader:not([hidden]){
+  min-height:0!important;max-height:38dvh!important;margin:0!important;overflow:auto!important;overscroll-behavior:contain!important;
+}
+html.nx-batch3-tools-active .nx-b3-pakistan-root .nx-news-grid{
+  min-height:0!important;height:100%!important;margin:0!important;padding:0 1px 4px!important;overflow:auto!important;overscroll-behavior:contain!important;align-content:start!important;scrollbar-width:thin;
+}
+html.nx-batch3-tools-active .nx-b3-pakistan-root .nx-news-story{margin-bottom:8px!important}
+
+/* NEWS — compact controls + one internal headline scroller. */
+html.nx-batch3-tools-active .nx-b3-news-root{
+  height:100dvh!important;min-height:0!important;padding:calc(env(safe-area-inset-top,0px) + 7px) 8px calc(env(safe-area-inset-bottom,0px) + 7px)!important;
+  display:grid!important;grid-template-rows:auto auto minmax(0,1fr)!important;gap:8px!important;background:#06111e!important;overflow:hidden!important;
+}
+html.nx-batch3-tools-active .nx-b3-news-root .nxn4-hero{
+  min-height:0!important;margin:0!important;padding:11px 55px 11px 12px!important;border-radius:18px!important;
+}
+html.nx-batch3-tools-active .nx-b3-news-root .nxn4-head h2{margin-top:4px!important;font-size:23px!important}
+html.nx-batch3-tools-active .nx-b3-news-root .nxn4-head p{max-height:30px!important;overflow:hidden!important}
+html.nx-batch3-tools-active .nx-b3-news-root .nxn4-search{margin-top:8px!important;gap:6px!important}
+html.nx-batch3-tools-active .nx-b3-news-root .nxn4-search input,
+html.nx-batch3-tools-active .nx-b3-news-root .nxn4-search button{height:38px!important}
+html.nx-batch3-tools-active .nx-b3-news-root .nxn4-topics{
+  min-height:32px!important;margin:0!important;padding:0!important;overflow:auto hidden!important;overscroll-behavior-x:contain!important;
+}
+html.nx-batch3-tools-active .nx-b3-news-root .nxn4-list{
+  min-height:0!important;height:100%!important;margin:0!important;padding:0 1px 4px!important;overflow:auto!important;overscroll-behavior:contain!important;align-content:start!important;scrollbar-width:thin;
+}
+
+@media(max-height:720px){
+  html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-btn,
+  html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-icon{height:42px!important}
+  html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-title strong{font-size:17px!important}
+  html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-ready{padding:6px 9px!important}
+  html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-ready-icon{width:42px!important;height:42px!important}
+  html.nx-batch3-tools-active .nx-b3-prayer-root .nxprayer-topbar{min-height:46px!important}
+  html.nx-batch3-tools-active .nx-b3-prayer-root .nxprayer-citybox{padding:6px!important}
+  html.nx-batch3-tools-active .nx-b3-prayer-root .nxprayer-locationinput,
+  html.nx-batch3-tools-active .nx-b3-prayer-root .nxprayer-locationinput input,
+  html.nx-batch3-tools-active .nx-b3-prayer-root .nxprayer-gps{min-height:43px!important;height:43px!important}
+  html.nx-batch3-tools-active .nx-b3-prayer-root .nxprayer-icon{width:43px!important;height:43px!important;flex-basis:43px!important}
+  html.nx-batch3-tools-active .nx-b3-prayer-root .nxprayer-ornament{height:54px!important}
+  html.nx-batch3-tools-active .nx-b3-prayer-root .nxprayer-next{min-height:62px!important;padding:7px 10px!important}
+}
+
+@media(max-width:390px){
+  .nx-batch3-hub-back{width:37px;height:37px;right:8px;top:calc(env(safe-area-inset-top,0px) + 8px)}
+  html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-page{padding-left:5px!important;padding-right:5px!important}
+  html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-grid{gap:3px!important}
+  html.nx-batch3-tools-active .nx-b3-qibla-root .nx2-qb-card{padding-left:5px!important;padding-right:5px!important}
+  html.nx-batch3-tools-active .nx-b3-prayer-root{padding-left:5px!important;padding-right:5px!important}
+  html.nx-batch3-tools-active .nx-b3-prayer-root .nxprayer-grid{gap:3px!important}
+  html.nx-batch3-tools-active .nx-b3-news-root .nxn4-story{grid-template-columns:76px minmax(0,1fr) 14px!important;gap:8px!important}
+}

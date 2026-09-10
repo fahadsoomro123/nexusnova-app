@@ -8,8 +8,4 @@
         <item name="android:navigationBarColor">#0B0F17</item>
         <item name="android:windowBackground">#0B0F17</item>
     </style>
-    <style name="Theme.NexusNova.Call" parent="Theme.NexusNova">
-        <item name="android:windowIsTranslucent">false</item>
-        <item name="android:windowFullscreen">true</item>
-    </style>
 </resources>

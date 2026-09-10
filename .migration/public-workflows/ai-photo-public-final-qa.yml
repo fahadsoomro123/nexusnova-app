@@ -1,0 +1,94 @@
+name: AI Photo Public Final QA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'fresh-rebuild/src/features/apps/ai-photo-*.js'
+      - 'fresh-rebuild/src/features/apps/data/ai-photo-templates.js'
+      - 'fresh-rebuild/assets/visuals/ai-photo-*'
+      - '.github/qa/ai-photo-final-harness.html'
+      - '.github/workflows/ai-photo-public-final-qa.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact public source
+        uses: actions/checkout@v4
+
+      - name: Public-source safety and syntax contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check fresh-rebuild/src/features/apps/ai-photo-studio-ai.js
+          node --check fresh-rebuild/src/features/apps/ai-photo-puter-generator.js
+          node --check fresh-rebuild/src/features/apps/ai-photo-template-photo-hydrator-v1.js
+          node --check fresh-rebuild/src/features/apps/ai-photo-mobile-workspace-clean-v1.js
+          node --check fresh-rebuild/src/features/apps/ai-photo-slider-focus-global-v25.js
+          node --check fresh-rebuild/src/features/apps/ai-photo-studio-review.js
+          test "$(grep -o 'puter.ai.txt2img' fresh-rebuild/src/features/apps/ai-photo-studio-ai.js | wc -l)" -eq 1
+          grep -Fq "PUTER_GENERATION_TIMEOUT_MS=90_000" fresh-rebuild/src/features/apps/ai-photo-studio-ai.js
+          grep -Fq "provider:'openai-image-generation'" fresh-rebuild/src/features/apps/ai-photo-studio-ai.js
+          grep -Fq "hydrateAiPhotoTemplatePhotos" fresh-rebuild/src/features/apps/ai-photo-studio-review.js
+          grep -Fq "installAiPhotoMobileWorkspaceCleanV1" fresh-rebuild/src/features/apps/ai-photo-studio-review.js
+          grep -Fq "root.dataset.aiPhotoFlagship='flagship-repair-v16'" fresh-rebuild/src/features/apps/ai-photo-studio-review.js
+          ! grep -Rq "nx-ai-photo-ota-proof-badge" fresh-rebuild
+          if grep -RInE 'AIza[0-9A-Za-z_-]{35}|-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----|gh[pousr]_[0-9A-Za-z]{20,}|AKIA[0-9A-Z]{16}' fresh-rebuild/src/features/apps/ai-photo-*.js; then
+            echo 'Credential-like material detected in public AI Photo source.' >&2
+            exit 1
+          fi
+          test -s fresh-rebuild/assets/visuals/ai-photo-locked-featured.webp
+          echo 'PASS — public source, provider, template, mobile and OTA-source contracts are intact.'
+
+      - name: Start local public web server
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m http.server 4173 --bind 127.0.0.1 > /tmp/nexusnova-qa-server.log 2>&1 &
+          echo $! > /tmp/nexusnova-qa-server.pid
+          for i in {1..20}; do
+            curl -fsS http://127.0.0.1:4173/.github/qa/ai-photo-final-harness.html >/dev/null && exit 0
+            sleep .25
+          done
+          cat /tmp/nexusnova-qa-server.log
+          exit 1
+
+      - name: Locate Chrome
+        shell: bash
+        run: |
+          set -euo pipefail
+          CHROME="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME"
+          echo "CHROME_BIN=$CHROME" >> "$GITHUB_ENV"
+          "$CHROME" --version
+
+      - name: Five Android viewport executable regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p qa-artifacts/ai-photo-public-final
+          for viewport in 360x640 360x740 393x852 415x858 430x865; do
+            width="${viewport%x*}"; height="${viewport#*x}"
+            out="qa-artifacts/ai-photo-public-final/${viewport}.html"
+            "$CHROME_BIN" --headless=new --no-sandbox --disable-gpu --hide-scrollbars \
+              --window-size="$width,$height" --virtual-time-budget=10000 --dump-dom \
+              http://127.0.0.1:4173/.github/qa/ai-photo-final-harness.html > "$out"
+            grep -Fq 'data-qa-result="pass"' "$out"
+            ! grep -Fq 'FAIL ' "$out"
+            echo "PASS — $viewport"
+          done
+
+      - name: Upload phone QA evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-photo-public-final-qa-${{ github.sha }}
+          path: qa-artifacts/ai-photo-public-final
+          if-no-files-found: warn
+          retention-days: 7

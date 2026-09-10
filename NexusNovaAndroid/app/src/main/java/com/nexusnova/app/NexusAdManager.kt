@@ -13,6 +13,7 @@ import com.google.android.libraries.ads.mobile.sdk.initialization.Initialization
 import com.google.android.libraries.ads.mobile.sdk.interstitial.InterstitialAd
 import com.google.android.libraries.ads.mobile.sdk.interstitial.InterstitialAdEventCallback
 import com.google.android.libraries.ads.mobile.sdk.rewarded.OnUserEarnedRewardListener
+import com.google.android.libraries.ads.mobile.sdk.rewarded.ServerSideVerificationOptions
 import com.google.android.libraries.ads.mobile.sdk.rewarded.RewardedAd
 import com.google.android.libraries.ads.mobile.sdk.rewarded.RewardedAdEventCallback
 import com.google.android.libraries.ads.mobile.sdk.rewardedinterstitial.RewardedInterstitialAd
@@ -29,11 +30,10 @@ import org.json.JSONObject
  * events.
  *
  * TEST MODE only:
- * - Primary: Google Ad Manager's direct-sold Rewarded demo unit.
- * - Fallback: Google Ad Manager's direct-sold Rewarded Interstitial demo unit.
- *   Google documents both demo units as configured to return test ads for
- *   development requests. Using direct-sold demo inventory avoids depending on
- *   an auction/no-fill path while validating NexusNova's reward plumbing.
+ * - Primary: Google's dedicated Android AdMob Rewarded test unit.
+ * - Fallback: Google's dedicated Android Rewarded Interstitial test unit.
+ * - Interstitial: Google's dedicated Android AdMob Interstitial test unit.
+ * These units are explicitly configured by Google for development/testing.
  */
 class NexusAdManager(
     private val activity: Activity,
@@ -48,6 +48,12 @@ class NexusAdManager(
     private var rewardedLoading = false
     private var rewardedFallbackLoading = false
     private var interstitialLoading = false
+    private var interstitialRetryRound = 0
+    private var interstitialRetryScheduled = false
+    private var interstitialRetryNotBeforeAt = 0L
+
+    private var activeInterstitialPlacement = ""
+    private var activeInterstitialFeature = ""
 
     private var rewardedAd: RewardedAd? = null
     private var rewardedFallbackAd: RewardedInterstitialAd? = null
@@ -59,6 +65,8 @@ class NexusAdManager(
     private var pendingRewardedStartedAt = 0L
     private var pendingRewardPurpose = REWARD_PURPOSE_MINING
     private var pendingTestOnly = false
+    private var pendingRewardUserId = ""
+    private var pendingRewardCustomData = ""
     private var showingRewarded = false
 
     private var rewardedRetryRound = 0
@@ -125,7 +133,7 @@ class NexusAdManager(
         }
     }
 
-    fun showRewarded(rewardPurpose: String? = null, testOnly: Boolean = false) {
+    fun showRewarded(rewardPurpose: String? = null, testOnly: Boolean = false, userId: String? = null) {
         mainHandler.post {
             val purpose = sanitizePurpose(rewardPurpose)
 
@@ -155,6 +163,8 @@ class NexusAdManager(
 
             pendingRewardPurpose = purpose
             pendingTestOnly = testOnly
+            pendingRewardUserId = sanitizeRewardUserId(userId)
+            pendingRewardCustomData = purpose
 
             if (rewardedAd != null || (TEST_MODE && rewardedFallbackAd != null)) {
                 pendingRewardedShow = true
@@ -185,30 +195,56 @@ class NexusAdManager(
         }
     }
 
-    fun showInterstitial() {
+    fun showInterstitial(placement: String? = null, feature: String? = null, testOnly: Boolean = false) {
         mainHandler.post {
+            val safePlacement = sanitizePlacement(placement)
+            val safeFeature = sanitizeFeature(feature)
+            val context = mapOf(
+                "placement" to safePlacement,
+                "feature" to safeFeature,
+                "testOnly" to testOnly
+            )
+            val miningStartGate = safePlacement == "mining-start"
+
+            if (!miningStartGate && safeFeature.isNotBlank() && safeFeature !in INTERSTITIAL_ALLOWED_FEATURES) {
+                dispatch("interstitial-skipped", context + mapOf("reason" to "protected-or-ineligible"))
+                return@post
+            }
+
+            if (showingRewarded || pendingRewardedShow) {
+                dispatch("interstitial-skipped", context + mapOf("reason" to "rewarded-active"))
+                return@post
+            }
+
             if (!initialized) {
                 initialize()
-                dispatch("interstitial-unavailable", mapOf("reason" to "sdk-initializing"))
+                dispatch("interstitial-unavailable", context + mapOf("reason" to "sdk-initializing"))
                 return@post
             }
 
             val now = System.currentTimeMillis()
-            if (now - lastInterstitialShownAt < INTERSTITIAL_COOLDOWN_MS) {
-                dispatch("interstitial-skipped", mapOf("reason" to "cooldown"))
+            val interstitialCooldownMs = if (BuildConfig.NEXUS_ADS_TEST_MODE) {
+                TEST_INTERSTITIAL_COOLDOWN_MS
+            } else {
+                INTERSTITIAL_COOLDOWN_MS
+            }
+            if (!miningStartGate && now - lastInterstitialShownAt < interstitialCooldownMs) {
+                dispatch("interstitial-skipped", context + mapOf("reason" to "cooldown"))
                 return@post
             }
 
             val ad = interstitialAd
             if (ad == null) {
-                dispatch("interstitial-unavailable", mapOf("reason" to "loading-or-no-fill"))
+                dispatch("interstitial-unavailable", context + mapOf("reason" to "loading-or-no-fill"))
                 loadInterstitial()
                 return@post
             }
 
             interstitialAd = null
+            activeInterstitialPlacement = safePlacement
+            activeInterstitialFeature = safeFeature
             lastInterstitialShownAt = now
-            dispatch("interstitial-showing")
+            dispatch("interstitial-showing", context)
             ad.show(activity)
         }
     }
@@ -451,6 +487,12 @@ class NexusAdManager(
         rewardedRetryScheduled = false
 
         dispatchRewardEvent("rewarded-showing", "rewarded")
+        if (!TEST_MODE && pendingRewardUserId.isNotBlank()) {
+            ad.setServerSideVerificationOptions(
+                ServerSideVerificationOptions(pendingRewardUserId, pendingRewardCustomData)
+            )
+        }
+
         ad.show(
             activity,
             OnUserEarnedRewardListener { rewardItem ->
@@ -472,6 +514,12 @@ class NexusAdManager(
         rewardedRetryScheduled = false
 
         dispatchRewardEvent("rewarded-showing", "rewarded-interstitial-fallback")
+        if (!TEST_MODE && pendingRewardUserId.isNotBlank()) {
+            ad.setServerSideVerificationOptions(
+                ServerSideVerificationOptions(pendingRewardUserId, pendingRewardCustomData)
+            )
+        }
+
         ad.show(
             activity,
             OnUserEarnedRewardListener { rewardItem ->
@@ -533,6 +581,8 @@ class NexusAdManager(
         pendingRewardedStartedAt = 0L
         pendingRewardPurpose = REWARD_PURPOSE_MINING
         pendingTestOnly = false
+        pendingRewardUserId = ""
+        pendingRewardCustomData = ""
         rewardedRetryRound = 0
         rewardedRetryScheduled = false
         primaryLastError = null
@@ -558,6 +608,7 @@ class NexusAdManager(
 
     private fun loadInterstitial() {
         if (!initialized || interstitialLoading || interstitialAd != null || activity.isFinishing || activity.isDestroyed) return
+        if (System.currentTimeMillis() < interstitialRetryNotBeforeAt) return
         interstitialLoading = true
 
         InterstitialAd.load(
@@ -566,16 +617,33 @@ class NexusAdManager(
                 override fun onAdLoaded(ad: InterstitialAd) {
                     mainHandler.post {
                         interstitialLoading = false
+                        interstitialRetryRound = 0
+                        interstitialRetryScheduled = false
+                        interstitialRetryNotBeforeAt = 0L
                         interstitialAd = ad
                         ad.adEventCallback = object : InterstitialAdEventCallback {
                             override fun onAdShowedFullScreenContent() {
-                                dispatch("interstitial-opened")
+                                dispatch(
+                                    "interstitial-opened",
+                                    mapOf(
+                                        "placement" to activeInterstitialPlacement,
+                                        "feature" to activeInterstitialFeature
+                                    )
+                                )
                             }
 
                             override fun onAdDismissedFullScreenContent() {
                                 mainHandler.post {
                                     interstitialAd = null
-                                    dispatch("interstitial-dismissed")
+                                    dispatch(
+                                        "interstitial-dismissed",
+                                        mapOf(
+                                            "placement" to activeInterstitialPlacement,
+                                            "feature" to activeInterstitialFeature
+                                        )
+                                    )
+                                    activeInterstitialPlacement = ""
+                                    activeInterstitialFeature = ""
                                     loadInterstitial()
                                     publishStatusWithoutReload()
                                 }
@@ -588,9 +656,13 @@ class NexusAdManager(
                                         "interstitial-failed",
                                         mapOf(
                                             "codeName" to error.code.toString(),
-                                            "message" to safeMessage(error.message)
+                                            "message" to safeMessage(error.message),
+                                            "placement" to activeInterstitialPlacement,
+                                            "feature" to activeInterstitialFeature
                                         )
                                     )
+                                    activeInterstitialPlacement = ""
+                                    activeInterstitialFeature = ""
                                     loadInterstitial()
                                     publishStatusWithoutReload()
                                 }
@@ -616,6 +688,7 @@ class NexusAdManager(
                                 "sdkFamily" to SDK_FAMILY
                             )
                         )
+                        scheduleInterstitialRetry()
                         publishStatusWithoutReload()
                     }
                 }
@@ -623,11 +696,30 @@ class NexusAdManager(
         )
     }
 
+    private fun scheduleInterstitialRetry() {
+        if (interstitialRetryScheduled || interstitialAd != null || activity.isFinishing || activity.isDestroyed) return
+        val exponent = interstitialRetryRound.coerceAtMost(3)
+        val delayMs = (INTERSTITIAL_RETRY_BASE_MS * (1L shl exponent)).coerceAtMost(INTERSTITIAL_RETRY_MAX_MS)
+        interstitialRetryRound = (interstitialRetryRound + 1).coerceAtMost(4)
+        interstitialRetryScheduled = true
+        interstitialRetryNotBeforeAt = System.currentTimeMillis() + delayMs
+        dispatch(
+            "interstitial-retrying",
+            mapOf("retryInMs" to delayMs, "retryRound" to interstitialRetryRound)
+        )
+        mainHandler.postDelayed({
+            interstitialRetryScheduled = false
+            interstitialRetryNotBeforeAt = 0L
+            loadInterstitial()
+        }, delayMs)
+    }
+
     private fun publishStatusWithoutReload() {
         dispatch(
             "status",
             mapOf(
                 "sdkReady" to initialized,
+                "ssvIdentityReady" to true,
                 "sdkFamily" to SDK_FAMILY,
                 "rewardedReady" to (rewardedAd != null || (TEST_MODE && rewardedFallbackAd != null)),
                 "rewardedPrimaryReady" to (rewardedAd != null),
@@ -635,6 +727,8 @@ class NexusAdManager(
                 "rewardedLoading" to (rewardedLoading || rewardedFallbackLoading),
                 "rewardedPending" to pendingRewardedShow,
                 "interstitialReady" to (interstitialAd != null),
+                "interstitialRetrying" to interstitialRetryScheduled,
+                "interstitialRetryRound" to interstitialRetryRound,
                 "rewardPurpose" to if (pendingRewardedShow || showingRewarded) pendingRewardPurpose else REWARD_PURPOSE_MINING,
                 "boostHours" to BOOST_HOURS
             )
@@ -662,13 +756,25 @@ class NexusAdManager(
         else -> -1
     }
 
+    private fun sanitizePlacement(raw: String?): String =
+        raw.orEmpty().trim().lowercase().replace(Regex("[^a-z0-9:_-]"), "-").take(80)
+
+    private fun sanitizeFeature(raw: String?): String =
+        raw.orEmpty().trim().lowercase().removePrefix("tab-").replace(Regex("[^a-z0-9:_-]"), "-").take(80)
+
     private fun sanitizePurpose(raw: String?): String {
         val purpose = raw.orEmpty().trim().lowercase()
         return when (purpose) {
             REWARD_PURPOSE_DAILY_TEST -> REWARD_PURPOSE_DAILY_TEST
+            REWARD_PURPOSE_WATCH_AD -> REWARD_PURPOSE_WATCH_AD
             REWARD_PURPOSE_MINING -> REWARD_PURPOSE_MINING
             else -> REWARD_PURPOSE_MINING
         }
+    }
+
+    private fun sanitizeRewardUserId(raw: String?): String {
+        val value = raw.orEmpty().trim()
+        return value.takeIf { Regex("^[A-Za-z0-9:_-]{3,128}$").matches(it) }.orEmpty()
     }
 
     private fun dispatch(event: String, extras: Map<String, Any?> = emptyMap()) {
@@ -712,13 +818,13 @@ class NexusAdManager(
         (message ?: "Ad unavailable").take(limit)
 
     private companion object {
-        const val SDK_FAMILY = "gma-next-gen-1.3.0-gam-direct-test"
-        const val TEST_MODE = true
+        const val SDK_FAMILY = "gma-next-gen-1.3.0"
+        val TEST_MODE = BuildConfig.NEXUS_ADS_TEST_MODE
 
         const val TEST_ADMOB_APP_ID = "ca-app-pub-3940256099942544~3347511713"
-        const val TEST_REWARDED_AD_UNIT_ID = "/21775744923/example/rewarded"
-        const val TEST_REWARDED_INTERSTITIAL_AD_UNIT_ID = "/21775744923/example/rewarded-interstitial"
-        const val TEST_INTERSTITIAL_AD_UNIT_ID = "/21775744923/example/interstitial"
+        const val TEST_REWARDED_AD_UNIT_ID = "ca-app-pub-3940256099942544/5224354917"
+        const val TEST_REWARDED_INTERSTITIAL_AD_UNIT_ID = "ca-app-pub-3940256099942544/5354046379"
+        const val TEST_INTERSTITIAL_AD_UNIT_ID = "ca-app-pub-3940256099942544/1033173712"
 
         const val PRODUCTION_ADMOB_APP_ID = "ca-app-pub-5070673529890078~1824799663"
         const val PRODUCTION_REWARDED_AD_UNIT_ID = "ca-app-pub-5070673529890078/7194148596"
@@ -726,9 +832,21 @@ class NexusAdManager(
 
         const val REWARD_PURPOSE_MINING = "mining-boost"
         const val REWARD_PURPOSE_DAILY_TEST = "daily-reward-test"
+        const val REWARD_PURPOSE_WATCH_AD = "task-watch-ad"
         const val BOOST_HOURS = 2
 
+        val INTERSTITIAL_ALLOWED_FEATURES = setOf(
+            "tools", "finance", "money", "news", "learn", "travel", "smart", "ai",
+            "entertainment", "browser", "mega-tools", "mega-finance", "mega-calendar",
+            "mega-reminders", "mega-weather", "mega-learning", "mega-pakistan",
+            "mega-shopping", "mega-marketplace", "mega-orders", "mega-teacher",
+            "marketplace", "shopping"
+        )
+
         const val INTERSTITIAL_COOLDOWN_MS = 3L * 60L * 1000L
+        const val TEST_INTERSTITIAL_COOLDOWN_MS = 5_000L
+        const val INTERSTITIAL_RETRY_BASE_MS = 15_000L
+        const val INTERSTITIAL_RETRY_MAX_MS = 120_000L
         const val REWARDED_PENDING_TIMEOUT_MS = 45_000L
         const val REWARDED_RETRY_DELAY_MS = 3_000L
         const val REWARDED_MAX_RETRY_ROUNDS = 4

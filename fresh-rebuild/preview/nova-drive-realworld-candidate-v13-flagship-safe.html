@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en" data-nx-safe-preview="1">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>NexusNova Nova Drive — Flagship V13 Safe Preview</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#25231f}#app{display:block;width:100vw;height:100dvh;border:0;margin:0;padding:0;background:#25231f}
+</style>
+</head>
+<body>
+<iframe id="app" title="NexusNova Nova Drive flagship candidate"></iframe>
+<script>
+(()=>{
+'use strict';
+const params=new URLSearchParams(location.search);
+const requested=['dashboard','history','tracking'].includes(params.get('screen'))?params.get('screen'):'dashboard';
+const qa=params.get('qa')==='1';
+const frame=document.getElementById('app');
+const childParams=new URLSearchParams({screen:requested});
+if(qa)childParams.set('qa','1');
+frame.src=`./nova-drive-realworld-candidate-v13-flagship.html?${childParams}`;
+const fail=m=>{document.body.dataset.qa='FAIL';document.body.dataset.reason=String(m);document.body.dataset.ready='1'};
+frame.addEventListener('load',()=>{
+  try{
+    const win=frame.contentWindow,doc=frame.contentDocument,api=win.NexusNovaFlagshipCandidateV13;
+    if(!api)throw new Error('candidate runtime missing');
+    const sanitizeTracker=data=>{
+      if(!data)return data;
+      const out={...data};
+      if(out.lat==null)out.lat=undefined;
+      if(out.lng==null)out.lng=undefined;
+      return out;
+    };
+    const rawSetTracker=api.setTracker.bind(api);
+    api.setTracker=data=>rawSetTracker(sanitizeTracker(data));
+    const rawApplyRuntime=api.applyRuntime.bind(api);
+    api.applyRuntime=payload=>rawApplyRuntime(payload&&payload.tracker?{...payload,tracker:sanitizeTracker(payload.tracker)}:payload);
+    api.setTracker({lat:undefined,lng:undefined,online:false});
+    api.show(requested);
+    window.NexusNovaFlagshipCandidateV13=api;
+    setTimeout(()=>{
+      try{
+        const root=doc.getElementById('nxFlagship');
+        const beacon=doc.querySelector('[data-beacon]');
+        const fixture=doc.querySelector('[data-map="tracking"] [data-fixture]');
+        if(!root)throw new Error('candidate root missing');
+        if(root.scrollWidth>root.clientWidth+1||root.scrollHeight>root.clientHeight+1)throw new Error('candidate overflow');
+        if(beacon&&win.getComputedStyle(beacon).display!=='none')throw new Error('null GPS activated beacon');
+        if(fixture&&win.getComputedStyle(fixture).display==='none')throw new Error('no-GPS preview fixture hidden');
+        if(qa&&doc.body.dataset.qa!=='PASS')throw new Error(doc.body.dataset.reason||'child QA failed');
+        document.body.dataset.qa='PASS';document.body.dataset.ready='1';
+      }catch(e){fail(e.message||e)}
+    },520);
+  }catch(e){fail(e.message||e)}
+});
+})();
+</script>
+</body>
+</html>

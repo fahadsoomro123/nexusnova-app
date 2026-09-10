@@ -1,0 +1,247 @@
+/* NexusNova Drive + Vehicle Tracking final-approved alignment patch.
+   Scope: approved Drive/Tracker overlay only. No Mine/Hub/global feature changes.
+   v6: aspect-preserving cover frame, one shared dock, original-raster LED speed arc. */
+
+html.nx-approved-drive-active .nx-approved-view[data-approved-drive-view],
+html.nx-approved-drive-active .nx-approved-view[data-approved-tracker-view],
+html.nx-approved-drive-active .nx-approved-final-frame {
+  position: absolute !important;
+  top: 50% !important;
+  left: 50% !important;
+  right: auto !important;
+  bottom: auto !important;
+  width: var(--nx-final-frame-w, 100vw) !important;
+  height: var(--nx-final-frame-h, 100dvh) !important;
+  max-width: none !important;
+  max-height: none !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  transform: translate(-50%, -50%) !important;
+  transform-origin: center !important;
+  overflow: hidden !important;
+}
+
+/* Drive raster is 864x1472, exactly the shared frame ratio. Contain therefore
+   preserves every pixel without stretching while cover geometry removes phone gaps. */
+html.nx-approved-drive-active .nx-approved-view[data-approved-drive-view] .nx-approved-art {
+  object-fit: contain !important;
+  object-position: center !important;
+  background: #02070d !important;
+}
+
+/* The final-approved prototype intentionally contains the 941x1672 Tracker
+   raster inside the common 864x1472 master frame. */
+html.nx-approved-drive-active .nx-approved-view[data-approved-tracker-view] .nx-approved-art {
+  object-fit: contain !important;
+  object-position: center !important;
+  background: #02070d !important;
+}
+
+/* The old per-screen mode tabs are never visible. One shared dock controls both. */
+html.nx-approved-drive-active .nx-approved-view[data-approved-drive-view] > .nx-approved-mode-tab,
+html.nx-approved-drive-active .nx-approved-view[data-approved-tracker-view] > .nx-approved-mode-tab {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Fully erase the raster-owned lower dock on BOTH screens. This removes Drive's
+   Mine/Nova Hub row and Tracker's second dock, including all duplicate borders. */
+html.nx-approved-drive-active .nx-approved-view[data-approved-drive-view]::after,
+html.nx-approved-drive-active .nx-approved-view[data-approved-tracker-view]::after {
+  content: '' !important;
+  position: absolute !important;
+  z-index: 58 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  height: 11.9% !important;
+  background: linear-gradient(180deg,#061522 0%,#020a12 42%,#02070d 100%) !important;
+  pointer-events: none !important;
+}
+
+html.nx-approved-drive-active .nx-approved-final-frame {
+  z-index: 72 !important;
+  pointer-events: none !important;
+  background: transparent !important;
+}
+
+/* Shared Drive / Tracker tabs: viewport-relative widths, but positioned inside
+   the cropped master frame using the real crop value supplied by v6 JS. */
+html.nx-approved-drive-active .nx-approved-shared-mode-tab {
+  position: absolute !important;
+  z-index: 74 !important;
+  bottom: calc(var(--nx-approved-crop-y, 0px) + 1.10%) !important;
+  width: 37.5vw !important;
+  height: 6.15% !important;
+  border: 1px solid rgba(123,202,237,.38) !important;
+  color: #eafaff !important;
+  cursor: pointer !important;
+  display: grid !important;
+  grid-template-columns: 38px minmax(0,1fr) !important;
+  gap: 8px !important;
+  align-items: center !important;
+  padding: 0 11px !important;
+  background: linear-gradient(180deg,#253847 0%,#0c1e2d 17%,#04111d 66%,#0b2030 100%) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.25), inset 0 -2px 0 rgba(0,0,0,.82), 0 7px 14px rgba(0,0,0,.55) !important;
+  pointer-events: auto !important;
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+html.nx-approved-drive-active .nx-approved-shared-mode-tab::after {
+  content: '' !important;
+  position: absolute !important;
+  inset: 3px !important;
+  border: 1px solid rgba(49,202,255,.14) !important;
+  pointer-events: none !important;
+}
+
+html.nx-approved-drive-active .nx-approved-shared-mode-tab.drive {
+  left: calc(var(--nx-approved-crop-x, 0px) + 4.2vw) !important;
+  clip-path: polygon(0 18%,7% 0,100% 0,100% 100%,7% 100%,0 82%) !important;
+}
+
+html.nx-approved-drive-active .nx-approved-shared-mode-tab.vehicle {
+  right: calc(var(--nx-approved-crop-x, 0px) + 4.2vw) !important;
+  clip-path: polygon(0 0,93% 0,100% 18%,100% 82%,93% 100%,0 100%) !important;
+}
+
+html.nx-approved-drive-active .nx-approved-shared-mode-tab.is-active {
+  border-color: rgba(67,225,255,.84) !important;
+  background: linear-gradient(180deg,#28546d 0%,#0c3149 22%,#041827 70%,#0d354d 100%) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.32), inset 0 -2px 0 rgba(0,0,0,.86), inset 0 0 18px rgba(0,194,255,.10), 0 0 13px rgba(0,200,255,.13) !important;
+}
+
+html.nx-approved-drive-active .nx-approved-shared-mode-tab .nx-approved-tab-icon {
+  width: 36px !important;
+  height: 36px !important;
+  border-radius: 11px !important;
+  display: grid !important;
+  place-items: center !important;
+  background: linear-gradient(155deg,#17374c,#071622 65%,#020810) !important;
+  border: 1px solid rgba(86,218,255,.5) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.18) !important;
+}
+
+html.nx-approved-drive-active .nx-approved-shared-mode-tab .nx-approved-tab-icon svg {
+  width: 25px !important;
+  height: 25px !important;
+}
+
+html.nx-approved-drive-active .nx-approved-shared-mode-tab .nx-approved-tab-copy {
+  min-width: 0 !important;
+  line-height: 1 !important;
+  text-align: left !important;
+}
+
+html.nx-approved-drive-active .nx-approved-shared-mode-tab .nx-approved-tab-copy b {
+  display: block !important;
+  white-space: nowrap !important;
+  font-size: clamp(10px,2.45vw,19px) !important;
+  letter-spacing: .025em !important;
+}
+
+html.nx-approved-drive-active .nx-approved-shared-mode-tab .nx-approved-tab-copy small {
+  display: block !important;
+  margin-top: 5px !important;
+  color: #61dfff !important;
+  font-weight: 900 !important;
+  letter-spacing: .12em !important;
+  font-size: clamp(6px,1.45vw,11px) !important;
+  white-space: nowrap !important;
+}
+
+html.nx-approved-drive-active .nx-approved-shared-mode-tab.vehicle .nx-approved-tab-copy b {
+  font-size: clamp(8px,2.05vw,16px) !important;
+}
+
+html.nx-approved-drive-active .nx-approved-shared-mode-tab.vehicle .nx-approved-tab-copy small {
+  font-size: clamp(5.5px,1.35vw,10px) !important;
+}
+
+/* Shared centre medallion: same DOM node and same coordinates in both modes. */
+html.nx-approved-drive-active .nx-approved-shared-center {
+  position: absolute !important;
+  z-index: 76 !important;
+  left: 50% !important;
+  bottom: calc(var(--nx-approved-crop-y, 0px) + .35%) !important;
+  width: clamp(64px,13.4vw,108px) !important;
+  aspect-ratio: 1 !important;
+  transform: translateX(-50%) !important;
+  border-radius: 50% !important;
+  display: grid !important;
+  place-items: center !important;
+  background: radial-gradient(circle at 50% 42%,rgba(48,214,255,.22) 0 28%,rgba(4,25,40,.98) 52%,#020810 75%) !important;
+  border: 2px solid rgba(55,222,255,.74) !important;
+  box-shadow: inset 0 0 20px rgba(0,205,255,.16), 0 0 11px rgba(0,215,255,.44), 0 0 24px rgba(0,153,255,.20) !important;
+  pointer-events: none !important;
+}
+
+html.nx-approved-drive-active .nx-approved-shared-center svg {
+  width: 55% !important;
+  height: 55% !important;
+  filter: drop-shadow(0 0 4px rgba(87,224,255,.34)) !important;
+}
+
+/* NO NEEDLE. The approved raster already contains the correct cyan→purple
+   illuminated speed scale. This dark ring masks only the unfilled portion,
+   revealing the ORIGINAL approved light as speed rises from 0 to 160 km/h. */
+html.nx-approved-drive-active .nx-approved-speed-needle {
+  display: none !important;
+}
+
+html.nx-approved-drive-active .nx-approved-speed-arc-mask {
+  position: absolute !important;
+  z-index: 17 !important;
+  left: 23.4% !important;
+  top: 18.05% !important;
+  width: 53.25% !important;
+  aspect-ratio: 1 !important;
+  border-radius: 50% !important;
+  background: conic-gradient(
+    from 225deg,
+    transparent 0deg var(--nx-speed-sweep, 0deg),
+    rgba(2,7,13,.94) var(--nx-speed-sweep, 0deg) 270deg,
+    transparent 270deg 360deg
+  ) !important;
+  -webkit-mask: radial-gradient(farthest-side,transparent 0 78%,#000 80% 94%,transparent 96% 100%) !important;
+  mask: radial-gradient(farthest-side,transparent 0 78%,#000 80% 94%,transparent 96% 100%) !important;
+  pointer-events: none !important;
+  transition: background .22s linear !important;
+}
+
+/* OFFLINE must never show the raster's old green online lamp beside the live
+   orange status. Widen the live status cover slightly to erase that source lamp. */
+html.nx-approved-drive-active .nx-approved-tracker-status {
+  left: 66.2% !important;
+  top: 11.95% !important;
+  width: 26.0% !important;
+  height: 4.05% !important;
+  background: #061522 !important;
+  box-shadow: -8px 0 5px 3px #061522, 0 0 5px 3px #061522 !important;
+  overflow: hidden !important;
+}
+
+/* Keep the back control wholly inside the actually visible cropped edge. */
+html.nx-approved-drive-active .nx-approved-back {
+  left: var(--nx-approved-crop-x, 0px) !important;
+  width: 44px !important;
+  min-width: 44px !important;
+  max-width: 44px !important;
+  height: 44px !important;
+  min-height: 44px !important;
+  top: calc(var(--nx-approved-crop-y, 0px) + 3.15%) !important;
+  border-radius: 0 12px 12px 0 !important;
+}
+
+/* Cover the tiny source-label remnant that was visible above the live activity
+   card without moving or resizing the live values themselves. */
+html.nx-approved-drive-active .nx-approved-activity {
+  box-shadow: 0 -8px 0 #06131f, 0 0 6px 4px #06131f !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.nx-approved-drive-active .nx-approved-speed-arc-mask { transition: none !important; }
+}

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.NexusNovaTracker" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:statusBarColor">#020A14</item>
+        <item name="android:navigationBarColor">#020A14</item>
+        <item name="android:windowBackground">#020A14</item>
+        <item name="colorPrimary">#43D5FF</item>
+        <item name="colorSecondary">#9877FF</item>
+    </style>
+</resources>

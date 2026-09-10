@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en" data-qa-result="running">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AI Photo final mobile QA</title></head>
+<body>
+<pre id="report">running</pre>
+<script type="module">
+const report=document.getElementById('report');
+const results=[];
+const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+const assert=(condition,message)=>{if(!condition)throw new Error(message)};
+async function test(name,fn){try{await fn();results.push(`PASS ${name}`)}catch(error){results.push(`FAIL ${name}: ${error?.message||error}`);throw error}}
+const onePixel='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZyT8AAAAASUVORK5CYII=';
+try{
+  await test('template photo hydration',async()=>{
+    const data=await import('/fresh-rebuild/src/features/apps/data/ai-photo-templates.js');
+    const hydrate=await import('/fresh-rebuild/src/features/apps/ai-photo-template-photo-hydrator-v1.js');
+    const beforeMissing=data.NEXUSNOVA_TEMPLATES.flatMap(t=>t.elements||[]).filter(e=>e?.type==='photo'&&!e.src).length;
+    assert(beforeMissing>0,'fixture must contain generic photo placeholders before hydration');
+    const changed=hydrate.hydrateAiPhotoTemplatePhotos();
+    const photos=data.NEXUSNOVA_TEMPLATES.flatMap(t=>t.elements||[]).filter(e=>e?.type==='photo');
+    assert(changed===beforeMissing,'every missing photo must be hydrated once');
+    assert(photos.length>0,'template library must contain photo elements');
+    assert(photos.every(e=>typeof e.src==='string'&&e.src.length>0),'no template photo may remain empty');
+    assert(photos.every(e=>e.sourceCrop&&e.sourceCrop.w>0&&e.sourceCrop.h>0),'every template photo must have a usable crop');
+    const asset=await fetch('/fresh-rebuild/assets/visuals/ai-photo-locked-featured.webp');
+    assert(asset.ok,'bundled template artwork must load');
+  });
+
+  await test('mobile workspace control density',async()=>{
+    const {installAiPhotoMobileWorkspaceCleanV1}=await import('/fresh-rebuild/src/features/apps/ai-photo-mobile-workspace-clean-v1.js');
+    const root=document.createElement('div');root.className='nx-photo-editor';root.innerHTML=`<div class="nx-canva-v3" style="display:grid;width:360px;height:600px"><div class="nxv3-head"><button class="nxv3-btn nxps-workspace-home">Home</button><div class="nxv3-title"><strong>Design</strong><span>Busy subtitle</span></div><div><button class="nxv3-btn nxps-account-chip">AI Account</button><button class="nxv3-btn" data-v3-export>Export</button></div></div><nav class="nxv3-tabs"><button class="nxv3-tab">Templates</button><button class="nxv3-tab">Design</button><button class="nxv3-tab">Layers</button><button class="nxv3-tab">Projects</button><button class="nxv3-tab">AI Image</button></nav><div class="nxv3-body"><section class="nxv3-pane" data-v3-pane="templates"><div class="nxv3-guide"><div>1 Pick</div><div>2 Edit</div><div>3 Export</div></div><div class="nxv3-filter"><input><select><option>All</option></select></div></section></div></div>`;document.body.append(root);
+    installAiPhotoMobileWorkspaceCleanV1(root);
+    await sleep(40);
+    const guide=root.querySelector('.nxv3-guide'),tabs=root.querySelector('.nxv3-tabs'),titleCopy=root.querySelector('.nxv3-title span');
+    assert(getComputedStyle(guide).display==='none','3-step guide must not consume phone workspace');
+    assert(getComputedStyle(tabs).display==='flex','phone tabs must use compact horizontal strip');
+    assert(['auto','scroll'].includes(getComputedStyle(tabs).overflowX),'tabs must be horizontally scrollable');
+    assert(getComputedStyle(titleCopy).display==='none','header subtitle must be removed on phone');
+    root.remove();
+  });
+
+  await test('slider focus no-jump and fade',async()=>{
+    const {installSliderOnlyFocus}=await import('/fresh-rebuild/src/features/apps/ai-photo-slider-focus-global-v25.js');
+    const root=document.createElement('div');root.className='nx-photo-editor';root.style.cssText='position:relative;width:360px;height:500px;display:block';root.innerHTML=`<canvas data-photo-canvas width="260" height="220" style="display:block;width:260px;height:220px"></canvas><div class="nx-photo-field" data-nx-slider-row style="width:330px;height:40px;display:grid;grid-template-columns:70px 1fr 40px"><span>Exposure</span><input id="slider-a" type="range" min="0" max="100"><output>50</output></div><div id="other" style="width:330px;height:50px">Other controls</div>`;document.body.append(root);
+    installSliderOnlyFocus(root);
+    const slider=root.querySelector('#slider-a'),row=slider.closest('[data-nx-slider-row]'),canvas=root.querySelector('canvas'),other=root.querySelector('#other');
+    const before=row.getBoundingClientRect();
+    slider.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,pointerId:1,pointerType:'touch'}));
+    await sleep(20);
+    const during=row.getBoundingClientRect();
+    assert(root.dataset.nxSliderFocus==='on','slider focus mode must activate');
+    assert(row.getAttribute('data-nx-slider-focus-active')==='true','only active slider row must stay clear');
+    assert(canvas.getAttribute('data-nx-slider-focus-preview')==='true','edited canvas must stay clear');
+    assert(other.getAttribute('data-nx-slider-focus-muted')==='true','unrelated controls must fade');
+    assert(Math.abs(before.x-during.x)<.1&&Math.abs(before.y-during.y)<.1&&Math.abs(before.width-during.width)<.1&&Math.abs(before.height-during.height)<.1,'slider row geometry must not jump');
+    window.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,pointerId:1,pointerType:'touch'}));
+    await sleep(130);
+    assert(!root.dataset.nxSliderFocus,'focus mode must release after pointer up');
+    const dynamic=document.createElement('div');dynamic.dataset.nxSliderRow='';dynamic.style.cssText='width:330px;height:40px';dynamic.innerHTML='<input id="slider-dynamic" type="range">';root.append(dynamic);
+    const dynamicSlider=dynamic.querySelector('input');dynamicSlider.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,pointerId:2,pointerType:'touch'}));await sleep(20);
+    assert(dynamic.getAttribute('data-nx-slider-focus-active')==='true','dynamically-added sliders must use the same rule');
+    window.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,pointerId:2,pointerType:'touch'}));await sleep(130);root.remove();
+  });
+
+  await test('signed-out Puter generation succeeds on demand',async()=>{
+    let calls=0,lastOptions=null;
+    globalThis.puter={ai:{txt2img:async(_prompt,options)=>{calls+=1;lastOptions=options;return{src:onePixel,width:1,height:1}}},auth:{isSignedIn:()=>false,getMonthlyUsage:async()=>null,signIn:async()=>{}}};
+    const {installPuterImageGenerator}=await import('/fresh-rebuild/src/features/apps/ai-photo-puter-generator.js');
+    const root=document.createElement('div');root.className='nx-photo-editor';root.innerHTML=`<div class="nx-canva-v3"><div class="nxv3-head"><div></div><div class="nxv3-title"></div><div></div></div><div class="nxv3-tabs"><button data-v3-tab="templates"></button><button data-v3-tab="design"></button><button data-v3-tab="layers"></button><button data-v3-tab="projects"></button></div><div class="nxv3-body"></div></div>`;document.body.append(root);
+    const cleanup=installPuterImageGenerator(root);root.querySelector('[data-v3-tab="ai-image"]').click();await sleep(30);
+    const prompt=root.querySelector('[data-puter-prompt]'),button=root.querySelector('[data-puter-generate]');
+    assert(button.disabled===false,'Generate must be available before manual Puter sign-in');
+    prompt.value='premium studio product photo';button.click();
+    for(let i=0;i<40&&!root.querySelector('[data-puter-result]').classList.contains('is-on');i+=1)await sleep(25);
+    assert(calls===1,'one user action must make exactly one txt2img call');
+    assert(lastOptions?.provider==='openai-image-generation','provider option must be explicit');
+    assert(root.querySelector('[data-puter-result]').classList.contains('is-on'),'generated image result must render');
+    assert(button.textContent==='Generate Image'&&!button.disabled,'Generate button must recover after success');
+    cleanup?.();root.remove();
+  });
+
+  await test('Puter generation failure recovers UI',async()=>{
+    globalThis.puter={ai:{txt2img:async()=>{throw new Error('provider down')}},auth:{isSignedIn:()=>false,getMonthlyUsage:async()=>null,signIn:async()=>{}}};
+    const {installPuterImageGenerator}=await import('/fresh-rebuild/src/features/apps/ai-photo-puter-generator.js');
+    const root=document.createElement('div');root.className='nx-photo-editor';root.innerHTML=`<div class="nx-canva-v3"><div class="nxv3-head"><div></div><div></div><div></div></div><div class="nxv3-tabs"></div><div class="nxv3-body"></div></div>`;document.body.append(root);
+    const cleanup=installPuterImageGenerator(root);const prompt=root.querySelector('[data-puter-prompt]'),button=root.querySelector('[data-puter-generate]');prompt.value='test failure recovery';button.click();
+    for(let i=0;i<40&&!root.querySelector('[data-puter-error]').classList.contains('is-on');i+=1)await sleep(25);
+    assert(root.querySelector('[data-puter-error]').classList.contains('is-on'),'provider failure must be visible');
+    assert(button.textContent==='Generate Image'&&!button.disabled,'Generate button must never stay stuck at Generating');
+    cleanup?.();root.remove();
+  });
+
+  document.documentElement.dataset.qaResult='pass';
+}catch(error){document.documentElement.dataset.qaResult='fail';results.push(`FATAL ${error?.stack||error}`)}
+report.textContent=results.join('\n');
+</script>
+</body></html>

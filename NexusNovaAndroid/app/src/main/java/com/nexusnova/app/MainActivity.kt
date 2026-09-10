@@ -2,7 +2,6 @@ package com.nexusnova.app
 
 import android.Manifest
 import android.annotation.SuppressLint
-import android.app.role.RoleManager
 import android.content.ContentResolver
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -12,6 +11,7 @@ import android.os.Build
 import android.os.Bundle
 import android.webkit.GeolocationPermissions
 import android.webkit.PermissionRequest
+import android.webkit.RenderProcessGoneDetail
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
@@ -33,6 +33,8 @@ import java.util.Locale
 class MainActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
+    private var adManager: NexusAdManager? = null
+    private val otaWebManager by lazy { NexusOtaWebManager(this) }
 
     private val assetLoader by lazy {
         WebViewAssetLoader.Builder()
@@ -48,19 +50,12 @@ class MainActivity : AppCompatActivity() {
     private var mainFrameWatchdogToken = 0
     private var finishedWatchdogToken = -1
     private var webRecoveryAttempts = 0
+    private var rendererCrashRecoveries = 0
 
     private data class PendingGeolocation(
         val origin: String,
         val callback: GeolocationPermissions.Callback
     )
-
-    private val callerRoleLauncher = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { /* user returned from the role screen */ }
-
-    private val callerSetupLauncher = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { /* the one-time prompt is already recorded before launch */ }
 
     private val webPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -111,17 +106,55 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
+        try {
+            NexusNativeAppCheck.initialize(this)
+        } catch (error: Throwable) {
+            android.util.Log.e("NexusNovaAppCheck", "Native App Check initialization failed", error)
+        }
+
         webView = WebView(this)
         setContentView(webView)
 
         configureWebView()
-        installNativeMessageListener()
+        try {
+            installNativeMessageListener()
+        } catch (error: Throwable) {
+            android.util.Log.e("NexusNovaStartup", "Native bridge setup failed", error)
+        }
 
-        // The production GitHub Pages origin is also the registered web App
-        // Check origin. Loading it here means web and Android use one tested
-        // mining engine instead of maintaining two drifting copies.
+        // Render the signed baseline first. The OTA check runs asynchronously and
+        // reloads only after a complete, hash-verified compatible package activates.
         loadProductionApp()
-        showCallerSetupOnce()
+        checkForWebUpdate()
+    }
+
+    private fun initializeAdsSafely() {
+        if (isFinishing || isDestroyed || adManager != null) return
+
+        val manager = try {
+            NexusAdManager(this, webView) { view -> isTrustedAppPage(view) }
+        } catch (error: Throwable) {
+            android.util.Log.e("NexusNovaStartup", "Ad manager creation failed", error)
+            return
+        }
+        adManager = manager
+
+        try {
+            if (BuildConfig.NEXUS_ADS_TEST_MODE) {
+                // Debug/development APKs always use Google's test inventory.
+                manager.initialize()
+            } else {
+                // Release APKs cannot initialize/request production ads until UMP
+                // has refreshed consent state and says ad requests are allowed.
+                NexusAdConsentManager(this).gather { canRequestAds ->
+                    if (canRequestAds && !isFinishing && !isDestroyed) {
+                        runCatching { manager.initialize() }
+                    }
+                }
+            }
+        } catch (error: Throwable) {
+            android.util.Log.e("NexusNovaStartup", "Optional ad initialization failed", error)
+        }
     }
 
     private fun configureWebView() {
@@ -129,6 +162,11 @@ class MainActivity : AppCompatActivity() {
         settings.javaScriptEnabled = true
         settings.domStorageEnabled = true
         settings.databaseEnabled = true
+        // Puter website authentication opens a user-initiated popup. Multiple
+        // windows are enabled only so the guarded onCreateWindow handler below
+        // can place that popup in an isolated WebView with no NexusNova bridge.
+        settings.setSupportMultipleWindows(true)
+        settings.javaScriptCanOpenWindowsAutomatically = true
         settings.allowFileAccess = false
         settings.allowContentAccess = false
         settings.allowFileAccessFromFileURLs = false
@@ -146,14 +184,15 @@ class MainActivity : AppCompatActivity() {
                 request: WebResourceRequest?
             ): WebResourceResponse? {
                 val uri = request?.url ?: return super.shouldInterceptRequest(view, request)
-                return assetLoader.shouldInterceptRequest(uri)
+                return otaWebManager.intercept(uri)
+                    ?: assetLoader.shouldInterceptRequest(uri)
                     ?: super.shouldInterceptRequest(view, request)
             }
 
             override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
                 super.onPageStarted(view, url, favicon)
                 val uri = url?.let { runCatching { Uri.parse(it) }.getOrNull() } ?: return
-                if (!isProductionOrigin(uri) || usingOfflineFallback) return
+                if (!isTrustedAppPage(uri) || usingOfflineFallback) return
                 armMainFrameWatchdog(view ?: return)
             }
 
@@ -161,7 +200,7 @@ class MainActivity : AppCompatActivity() {
                 super.onPageFinished(view, url)
                 val target = view ?: return
                 val uri = url?.let { runCatching { Uri.parse(it) }.getOrNull() } ?: return
-                if (!isProductionOrigin(uri) || usingOfflineFallback) return
+                if (!isTrustedAppPage(uri) || usingOfflineFallback) return
                 finishedWatchdogToken = mainFrameWatchdogToken
                 scheduleBlankScreenCheck(target, mainFrameWatchdogToken)
             }
@@ -191,7 +230,7 @@ class MainActivity : AppCompatActivity() {
                 super.onReceivedError(view, request, error)
                 val failed = request ?: return
                 if (!failed.isForMainFrame || usingOfflineFallback) return
-                if (!isProductionOrigin(failed.url)) return
+                if (!isTrustedAppPage(failed.url)) return
 
                 recoverProductionWebView(view, "main-frame network error")
             }
@@ -205,12 +244,64 @@ class MainActivity : AppCompatActivity() {
                 val failed = request ?: return
                 val status = errorResponse?.statusCode ?: return
                 if (!failed.isForMainFrame || status < 400 || usingOfflineFallback) return
-                if (!isProductionOrigin(failed.url)) return
+                if (!isTrustedAppPage(failed.url)) return
                 recoverProductionWebView(view, "HTTP $status")
+            }
+
+            override fun onRenderProcessGone(
+                view: WebView?,
+                detail: RenderProcessGoneDetail?
+            ): Boolean {
+                val didCrash = detail?.didCrash() == true
+                android.util.Log.e(
+                    "NexusNovaWeb",
+                    "WebView renderer gone; didCrash=$didCrash"
+                )
+                val target = view ?: return true
+                adManager = null
+                clearPendingWebCallbacks()
+                runCatching { target.stopLoading() }
+                runCatching { (target.parent as? android.view.ViewGroup)?.removeView(target) }
+                runCatching { target.removeAllViews() }
+                runCatching { target.destroy() }
+
+                if (isFinishing || isDestroyed) return true
+
+                if (didCrash && rendererCrashRecoveries >= MAX_RENDERER_CRASH_RECOVERIES) {
+                    otaWebManager.rollbackToBundled()
+                    window.decorView.post {
+                        if (!isFinishing && !isDestroyed) showRendererRecoveryFailure()
+                    }
+                    return true
+                }
+
+                if (didCrash) {
+                    otaWebManager.rollbackToBundled()
+                    rendererCrashRecoveries += 1
+                }
+                val delayMs = if (didCrash) RENDERER_CRASH_RECOVERY_DELAY_MS else 0L
+                window.decorView.postDelayed({
+                    if (!isFinishing && !isDestroyed) rebuildWebViewAfterRendererExit()
+                }, delayMs)
+                return true
             }
         }
 
         webView.webChromeClient = object : WebChromeClient() {
+            override fun onCreateWindow(
+                view: WebView?,
+                isDialog: Boolean,
+                isUserGesture: Boolean,
+                resultMsg: android.os.Message?
+            ): Boolean {
+                if (view !== webView || !isTrustedAppPage(view)) return false
+                return NexusPuterPopupManager.open(
+                    this@MainActivity,
+                    resultMsg,
+                    isUserGesture
+                )
+            }
+
             override fun onPermissionRequest(request: PermissionRequest?) {
                 val permissionRequest = request ?: return
                 if (!isTrustedOrigin(permissionRequest.origin)) {
@@ -305,11 +396,71 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    @SuppressLint("SetJavaScriptEnabled")
+    private fun rebuildWebViewAfterRendererExit() {
+        if (isFinishing || isDestroyed) return
+        webView = WebView(this)
+        setContentView(webView)
+        configureWebView()
+        try {
+            installNativeMessageListener()
+        } catch (error: Throwable) {
+            android.util.Log.e("NexusNovaStartup", "Native bridge recovery setup failed", error)
+        }
+        loadProductionApp()
+    }
+
+    private fun showRendererRecoveryFailure() {
+        if (isFinishing || isDestroyed) return
+        setContentView(android.widget.FrameLayout(this))
+        android.app.AlertDialog.Builder(this)
+            .setTitle("NexusNova needs restart")
+            .setMessage("The Android WebView renderer stopped repeatedly. Restart NexusNova to continue.")
+            .setNegativeButton("CLOSE") { dialog, _ ->
+                dialog.dismiss()
+                finishAndRemoveTask()
+            }
+            .setPositiveButton("RESTART") { dialog, _ ->
+                dialog.dismiss()
+                recreate()
+            }
+            .setCancelable(false)
+            .show()
+    }
+
+    private fun clearPendingWebCallbacks() {
+        fileChooserCallback?.onReceiveValue(null)
+        fileChooserCallback = null
+        fileChooserAcceptTypes = emptySet()
+        pendingWebPermissionRequest?.deny()
+        pendingWebPermissionRequest = null
+        pendingGeolocation?.let { pending ->
+            pending.callback.invoke(pending.origin, false, false)
+        }
+        pendingGeolocation = null
+    }
+
     private fun loadProductionApp(forceFresh: Boolean = false) {
         usingOfflineFallback = false
         if (forceFresh) webView.clearCache(true)
-        val suffix = if (forceFresh) "?androidRecovery=${System.currentTimeMillis()}" else ""
-        webView.loadUrl(PRODUCTION_APP_URL + suffix)
+        val suffix = if (forceFresh) {
+            "?appBundle=$WEB_BUNDLE_VERSION&androidRecovery=${System.currentTimeMillis()}"
+        } else {
+            "?appBundle=$WEB_BUNDLE_VERSION"
+        }
+        webView.loadUrl(LOCAL_APP_URL + suffix)
+    }
+
+    private fun checkForWebUpdate() {
+        otaWebManager.checkForUpdate { updated ->
+            if (!updated || isFinishing || isDestroyed || !::webView.isInitialized) return@checkForUpdate
+            webView.post {
+                if (!isFinishing && !isDestroyed && ::webView.isInitialized) {
+                    webRecoveryAttempts = 0
+                    loadProductionApp(forceFresh = true)
+                }
+            }
+        }
     }
 
     private fun armMainFrameWatchdog(view: WebView) {
@@ -352,14 +503,18 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        // A technically successful but visually blank remote page is just as unusable
-        // as a network failure. Fall back to the bundled shell instead of leaving the
-        // user on an empty WebView. Value-bearing mining remains disabled offline.
+        // Never strand the app on a broken OTA. Block that exact version and
+        // immediately return to the signed bundled web baseline.
+        val rolledBackOta = otaWebManager.rollbackToBundled()
         usingOfflineFallback = true
         mainFrameWatchdogToken += 1
         target.stopLoading()
-        target.loadUrl(LOCAL_APP_URL)
-        android.util.Log.w("NexusNovaWeb", "Using local fallback after $reason")
+        target.clearCache(true)
+        target.loadUrl(LOCAL_APP_URL + "?otaRollback=${System.currentTimeMillis()}")
+        android.util.Log.w(
+            "NexusNovaWeb",
+            "Using bundled fallback after $reason; otaRollback=$rolledBackOta"
+        )
     }
 
     private fun installNativeMessageListener() {
@@ -391,6 +546,20 @@ class MainActivity : AppCompatActivity() {
             BROWSER_BRIDGE_NAME,
             trustedOrigins,
             browserListener
+        )
+
+        // App Check tokens are exposed only to the bundled/local NexusNova origin.
+        // Remote pages and browser iframes cannot access this bridge.
+        val appCheckListener = WebViewCompat.WebMessageListener { _, message, sourceOrigin, isMainFrame, replyProxy ->
+            if (isMainFrame && isLocalOrigin(sourceOrigin)) {
+                NexusNativeAppCheck.handleMessage(message.data, replyProxy)
+            }
+        }
+        WebViewCompat.addWebMessageListener(
+            webView,
+            NexusNativeAppCheck.JS_BRIDGE_NAME,
+            setOf(LOCAL_APP_ORIGIN),
+            appCheckListener
         )
     }
 
@@ -432,33 +601,71 @@ class MainActivity : AppCompatActivity() {
         }
 
         when (message.optString("action")) {
-            ACTION_SAVE_CONTACT -> {
-                val accountId = message.optString("accountId").trim()
-                val contactId = message.optString("contactId").trim()
-                val name = message.optString("name").trim()
-                val phone = message.optString("phone").trim()
-                val address = message.optString("address").trim()
-                if (name.length !in 1..MAX_CONTACT_NAME_CHARS ||
-                    address.length > MAX_CONTACT_ADDRESS_CHARS
-                ) return
-                PhonebookStore.save(accountId, contactId, name, phone, address)
+            ACTION_OPEN_NOVA_VPN -> {
+                val authToken = message.optString("authToken").trim()
+                if (authToken.isBlank() || authToken.length > MAX_VPN_AUTH_TOKEN_CHARS) return
+                try {
+                    startActivity(
+                        Intent(this, NovaVpnActivity::class.java)
+                            .putExtra(NovaVpnActivity.EXTRA_AUTH_TOKEN, authToken)
+                    )
+                } catch (_: Throwable) {
+                    // Keep the main app alive if the optional VPN control cannot launch.
+                }
             }
 
-            ACTION_DELETE_CONTACT -> {
-                val accountId = message.optString("accountId").trim()
-                val contactId = message.optString("contactId").trim()
-                PhonebookStore.delete(accountId, contactId)
+            ACTION_SHOW_REWARDED_AD -> {
+                initializeAdsSafely()
+                adManager?.showRewarded(
+                    rewardPurpose = message.optString("rewardPurpose").trim(),
+                    testOnly = message.optBoolean("testOnly", false),
+                    userId = message.optString("userId").trim()
+                )
+            }
+            ACTION_SHOW_INTERSTITIAL_AD -> {
+                initializeAdsSafely()
+                adManager?.showInterstitial(
+                    placement = message.optString("placement", message.optString("reason")).trim(),
+                    feature = message.optString("feature").trim(),
+                    testOnly = message.optBoolean("testOnly", false)
+                )
+            }
+            ACTION_AD_STATUS -> {
+                initializeAdsSafely()
+                adManager?.publishStatus()
             }
 
-            ACTION_SET_ACTIVE_ACCOUNT -> {
-                PhonebookStore.setActiveAccount(message.optString("accountId").trim())
+            ACTION_NATIVE_DRIVE_START -> {
+                if (!hasLocationPermission()) {
+                    publishNativeDriveSnapshot("Location permission is required for Nova Drive.")
+                    return
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                    ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                ) {
+                    runCatching { requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), NATIVE_DRIVE_NOTIFICATION_REQUEST_CODE) }
+                }
+                runCatching { NexusDriveForegroundService.start(this) }
+                    .onFailure { publishNativeDriveSnapshot("Could not start background Drive tracking: ${it.message ?: "system restriction"}") }
+                webView.postDelayed({ publishNativeDriveSnapshot() }, 180L)
             }
 
-            ACTION_CLEAR_ACTIVE_ACCOUNT -> {
-                PhonebookStore.clearActiveAccount(message.optString("accountId").trim())
+            ACTION_NATIVE_DRIVE_PAUSE -> {
+                NexusDriveForegroundService.command(this, NexusDriveForegroundService.ACTION_PAUSE)
+                webView.postDelayed({ publishNativeDriveSnapshot() }, 120L)
             }
 
-            ACTION_REQUEST_CALLER_ROLE -> requestCallerRole()
+            ACTION_NATIVE_DRIVE_RESUME -> {
+                NexusDriveForegroundService.command(this, NexusDriveForegroundService.ACTION_RESUME)
+                webView.postDelayed({ publishNativeDriveSnapshot() }, 120L)
+            }
+
+            ACTION_NATIVE_DRIVE_STOP -> {
+                NexusDriveForegroundService.command(this, NexusDriveForegroundService.ACTION_STOP)
+                webView.postDelayed({ publishNativeDriveSnapshot() }, 280L)
+            }
+
+            ACTION_NATIVE_DRIVE_STATUS -> publishNativeDriveSnapshot()
 
             ACTION_OPEN_EXTERNAL -> {
                 val url = message.optString("url").trim()
@@ -469,6 +676,21 @@ class MainActivity : AppCompatActivity() {
                     return
                 }
                 if (isHttpUri(uri)) openExternalUri(uri)
+            }
+        }
+    }
+
+    private fun publishNativeDriveSnapshot(error: String? = null) {
+        if (!::webView.isInitialized || isFinishing || isDestroyed) return
+        val snapshot = NexusDriveForegroundService.readSnapshot(this)
+        if (!error.isNullOrBlank()) {
+            snapshot.put("error", error)
+            snapshot.put("status", error)
+        }
+        val script = "window.dispatchEvent(new CustomEvent('nexusnova:native-drive',{detail:${snapshot}}));"
+        webView.post {
+            if (!isFinishing && !isDestroyed && ::webView.isInitialized) {
+                runCatching { webView.evaluateJavascript(script, null) }
             }
         }
     }
@@ -609,43 +831,8 @@ class MainActivity : AppCompatActivity() {
         else -> false
     }
 
-    private fun showCallerSetupOnce() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
-        val preferences = getSharedPreferences(CALLER_PROMPT_PREFERENCES, MODE_PRIVATE)
-        if (hasCallerRole() || preferences.getBoolean(CALLER_PROMPT_SHOWN, false)) return
-
-        preferences.edit().putBoolean(CALLER_PROMPT_SHOWN, true).apply()
-        webView.postDelayed({
-            if (!isFinishing && !isDestroyed && !hasCallerRole()) {
-                callerSetupLauncher.launch(Intent(this, CallerSetupActivity::class.java))
-            }
-        }, CALLER_PROMPT_DELAY_MS)
-    }
-
-    fun hasCallerRole(): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return false
-        val roleManager = getSystemService(RoleManager::class.java) ?: return false
-        return roleManager.isRoleHeld(RoleManager.ROLE_CALL_SCREENING)
-    }
-
-    fun requestCallerRole() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
-        val roleManager = getSystemService(RoleManager::class.java) ?: return
-        if (roleManager.isRoleAvailable(RoleManager.ROLE_CALL_SCREENING) &&
-            !roleManager.isRoleHeld(RoleManager.ROLE_CALL_SCREENING)
-        ) {
-            callerRoleLauncher.launch(
-                roleManager.createRequestRoleIntent(RoleManager.ROLE_CALL_SCREENING)
-            )
-        }
-    }
-
     override fun onDestroy() {
-        fileChooserCallback?.onReceiveValue(null)
-        fileChooserCallback = null
-        pendingWebPermissionRequest?.deny()
-        pendingWebPermissionRequest = null
-        pendingGeolocation = null
+        clearPendingWebCallbacks()
         super.onDestroy()
     }
 
@@ -682,6 +869,7 @@ class MainActivity : AppCompatActivity() {
         const val LOCAL_APP_ORIGIN = "https://appassets.androidplatform.net"
         const val ASSET_PATH = "/assets/www/"
         const val LOCAL_APP_URL = "https://appassets.androidplatform.net/assets/www/index.html"
+        const val WEB_BUNDLE_VERSION = "nv16"
 
         const val PRODUCTION_HOST = "fahadsoomro123.github.io"
         const val PRODUCTION_APP_ORIGIN = "https://fahadsoomro123.github.io"
@@ -692,29 +880,31 @@ class MainActivity : AppCompatActivity() {
         const val BROWSER_BRIDGE_NAME = "NexusBrowserAndroid"
         const val BROWSER_ACTION_OPEN = "open"
 
-        const val ACTION_SAVE_CONTACT = "saveContact"
-        const val ACTION_DELETE_CONTACT = "deleteContact"
-        const val ACTION_SET_ACTIVE_ACCOUNT = "setActiveAccount"
-        const val ACTION_CLEAR_ACTIVE_ACCOUNT = "clearActiveAccount"
-        const val ACTION_REQUEST_CALLER_ROLE = "requestCallerRole"
+        const val ACTION_OPEN_NOVA_VPN = "openNovaVpn"
         const val ACTION_OPEN_EXTERNAL = "openExternal"
+        const val ACTION_SHOW_REWARDED_AD = "showRewardedAd"
+        const val ACTION_SHOW_INTERSTITIAL_AD = "showInterstitialAd"
+        const val ACTION_AD_STATUS = "adStatus"
+        const val ACTION_NATIVE_DRIVE_START = "nativeDriveStart"
+        const val ACTION_NATIVE_DRIVE_PAUSE = "nativeDrivePause"
+        const val ACTION_NATIVE_DRIVE_RESUME = "nativeDriveResume"
+        const val ACTION_NATIVE_DRIVE_STOP = "nativeDriveStop"
+        const val ACTION_NATIVE_DRIVE_STATUS = "nativeDriveStatus"
+        const val NATIVE_DRIVE_NOTIFICATION_REQUEST_CODE = 2608
 
-        const val MAX_BRIDGE_MESSAGE_CHARS = 2_048
-        const val MAX_CONTACT_NAME_CHARS = 100
-        const val MAX_CONTACT_ADDRESS_CHARS = 300
+        const val MAX_BRIDGE_MESSAGE_CHARS = 8_192
+        const val MAX_VPN_AUTH_TOKEN_CHARS = 7_000
         const val MAX_EXTERNAL_URL_CHARS = 2_000
         const val MAX_PICKED_FILES = 5
         const val MAX_PICKED_FILE_BYTES = 20L * 1024L * 1024L
         const val MAX_PICKED_TOTAL_BYTES = 20L * 1024L * 1024L
 
-        const val CALLER_PROMPT_PREFERENCES = "caller_role_prompt"
-        const val CALLER_PROMPT_SHOWN = "shown"
-        const val CALLER_PROMPT_DELAY_MS = 2_500L
-
         const val MAIN_FRAME_LOAD_TIMEOUT_MS = 12_000L
         const val BLANK_SCREEN_GRACE_MS = 3_500L
         const val WEB_RECOVERY_RELOAD_DELAY_MS = 350L
         const val MAX_WEB_RECOVERY_ATTEMPTS = 1
+        const val RENDERER_CRASH_RECOVERY_DELAY_MS = 1_500L
+        const val MAX_RENDERER_CRASH_RECOVERIES = 1
         const val SYSTEM_BACK_SCRIPT = """
             (function(){
               try {

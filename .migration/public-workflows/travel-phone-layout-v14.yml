@@ -1,0 +1,118 @@
+name: NexusNova Travel Phone Layout V14
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/travel-phone-layout-v14.yml'
+      - 'fresh-rebuild/travel-flagship-v16-harness.html'
+      - 'fresh-rebuild/src/features/apps/travel-phone-layout-v14.js'
+      - 'fresh-rebuild/src/features/apps/travel-exit-isolation-v10.js'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  phone-layout-v14:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Static v14 contract
+        run: |
+          set -euo pipefail
+          node --check fresh-rebuild/src/features/apps/travel-phone-layout-v14.js
+          node --check fresh-rebuild/src/features/apps/travel-exit-isolation-v10.js
+          node <<'NODE'
+          const fs=require('fs');
+          const v14=fs.readFileSync('fresh-rebuild/src/features/apps/travel-phone-layout-v14.js','utf8');
+          const exit=fs.readFileSync('fresh-rebuild/src/features/apps/travel-exit-isolation-v10.js','utf8');
+          for(const n of ['nn-travel-inline-layout-v11','nn-travel-phone-layout-v12','nn-travel-phone-layout-v13','nn-travel-host-guard-v8','bottom:6px!important','--nn-v14-frame-height','nn-travel-v14-keyboard']) if(!v14.includes(n)) throw new Error(`Missing v14 contract: ${n}`);
+          if(!exit.includes("import './travel-phone-layout-v14.js'")) throw new Error('v14 is not loaded by Travel exit isolation');
+          console.log('Static v14 contract PASS');
+          NODE
+
+      - name: Install browser and server
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.55.0 http-server@14.1.1 >/dev/null 2>&1
+          npx playwright install --with-deps chromium >/dev/null
+          nohup npx http-server fresh-rebuild -p 4173 -c-1 >/tmp/travel-v14-http.log 2>&1 &
+          sleep 2
+
+      - name: Physical tall-phone and inline edit regression
+        run: |
+          node <<'NODE'
+          const {chromium}=require('playwright');
+          const profiles=[
+            {w:390,h:844,name:'reference'},
+            {w:674,h:1536,name:'physical-tall'}
+          ];
+          const rect=async l=>l.evaluate(el=>{const r=el.getBoundingClientRect();return {top:r.top,bottom:r.bottom,width:r.width,height:r.height}});
+          const visible=async l=>l.evaluate(el=>{const r=el.getBoundingClientRect(),s=getComputedStyle(el);return s.display!=='none'&&s.visibility!=='hidden'&&Number(s.opacity)!==0&&r.width>1&&r.height>1&&r.bottom>0&&r.top<innerHeight});
+          (async()=>{
+            const browser=await chromium.launch({headless:true});
+            const failures=[];
+            for(const p of profiles){
+              const page=await browser.newPage({viewport:{width:p.w,height:p.h}});
+              await page.addInitScript(()=>{
+                const listeners={resize:new Set(),scroll:new Set()};
+                const vv={height:Math.max(1,innerHeight-90),offsetTop:0,width:innerWidth,offsetLeft:0,scale:1,
+                  addEventListener(type,fn){listeners[type]?.add(fn)},removeEventListener(type,fn){listeners[type]?.delete(fn)},
+                  __setHeight(value){this.height=Math.max(1,Number(value)||1);for(const fn of listeners.resize)try{fn(new Event('resize'))}catch{}},
+                  __setOffsetTop(value){this.offsetTop=Math.max(0,Number(value)||0);for(const fn of listeners.scroll)try{fn(new Event('scroll'))}catch{}}};
+                Object.defineProperty(window,'visualViewport',{configurable:true,value:vv});
+              });
+              await page.goto('http://127.0.0.1:4173/travel-flagship-v16-harness.html?bottom=48&dock=62',{waitUntil:'domcontentloaded',timeout:30000});
+              await page.waitForSelector('.nn-travel-v19[data-phone-layout-v14="true"]',{timeout:15000});
+              await page.waitForTimeout(1300);
+              const root=page.locator('.nn-travel-v19');
+              const dock=page.locator('#nx-app>.nx-dock');
+              const card=page.locator('.nn-search-card');
+              const panel=page.locator('.nn-flight-panel:not([hidden])');
+              const search=page.locator('[data-flight-search]');
+              const [dr,cr,pr]=await Promise.all([rect(dock),rect(card),rect(panel)]);
+              const disabled=await page.evaluate(()=>['nn-travel-host-guard-v8','nn-travel-inline-layout-v11','nn-travel-phone-layout-v12','nn-travel-phone-layout-v13'].every(id=>{const e=document.getElementById(id);return !(e instanceof HTMLStyleElement)||e.disabled}));
+              const normal={cardGap:Math.round((dr.top-cr.bottom)*10)/10,panelGap:Math.round((dr.top-pr.bottom)*10)/10,searchVisible:await visible(search),keyboard:await root.getAttribute('data-v14-keyboard-open'),legacyDisabled:disabled};
+              console.log(`${p.name} NORMAL ${JSON.stringify(normal)}`);
+              if(!disabled) failures.push(`${p.name}: legacy conflicting styles still enabled`);
+              if(normal.keyboard!=='false') failures.push(`${p.name}: false keyboard detected`);
+              if(!(normal.cardGap>=4&&normal.cardGap<=24)) failures.push(`${p.name}: card-to-dock gap ${normal.cardGap}`);
+              if(!(normal.panelGap>=4&&normal.panelGap<=24)) failures.push(`${p.name}: panel-to-dock gap ${normal.panelGap}`);
+              if(!normal.searchVisible) failures.push(`${p.name}: Search Flights hidden`);
+              await page.screenshot({path:`travel-v14-${p.name}-normal.png`,fullPage:false});
+
+              const input=page.locator('[data-flight-origin]');
+              await input.click();
+              await page.evaluate(()=>window.visualViewport.__setHeight(Math.max(420,innerHeight-380)));
+              await page.waitForTimeout(620);
+              await input.fill('KARACHI');
+              await page.waitForTimeout(260);
+              const edit={value:await input.inputValue(),inputVisible:await visible(input),headVisible:await visible(page.locator('.nn-travel-head')),tabsVisible:await visible(page.locator('.nn-tab-dock')),heroVisible:await visible(page.locator('.nn-hero')),insideCard:await input.evaluate(el=>Boolean(el.closest('.nn-search-card'))),editorCount:await page.locator('.nn-route-editor-v8').count(),dockDisplay:await dock.evaluate(el=>getComputedStyle(el).display),keyboard:await root.getAttribute('data-v14-keyboard-open')};
+              console.log(`${p.name} EDIT ${JSON.stringify(edit)}`);
+              if(edit.value!=='KARACHI') failures.push(`${p.name}: route typing failed`);
+              if(!edit.inputVisible||!edit.insideCard) failures.push(`${p.name}: route left original box`);
+              if(!edit.headVisible||!edit.tabsVisible||!edit.heroVisible) failures.push(`${p.name}: Travel shell collapsed during edit`);
+              if(edit.editorCount!==0) failures.push(`${p.name}: fullscreen editor returned`);
+              if(edit.dockDisplay!=='none') failures.push(`${p.name}: dock visible over keyboard`);
+              if(edit.keyboard!=='true') failures.push(`${p.name}: keyboard not detected`);
+              await page.screenshot({path:`travel-v14-${p.name}-edit.png`,fullPage:false});
+              await page.close();
+            }
+            await browser.close();
+            if(failures.length){console.error(`V14 FAILURES\n${failures.join('\n')}`);process.exit(1)}
+            console.log('Travel v14 physical tall-phone PASS');
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: travel-phone-layout-v14-evidence
+          path: travel-v14-*.png
+          if-no-files-found: ignore

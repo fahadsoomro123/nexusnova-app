@@ -1,0 +1,11 @@
+name: Hyper3D Preview Touch
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/travel-hyper3d-v21-preview-touch.yml'
+jobs:
+  noop:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo ok

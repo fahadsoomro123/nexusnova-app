@@ -1,0 +1,276 @@
+name: NexusNova Travel Public Flagship QA
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/travel-public-flagship-qa.yml'
+      - 'fresh-rebuild/index.html'
+      - 'fresh-rebuild/travel-flagship-v16-harness.html'
+      - 'fresh-rebuild/src/features/apps/travel-suite.js'
+      - 'fresh-rebuild/src/features/apps/travel-integrations.js'
+      - 'fresh-rebuild/src/features/apps/travel-flagship-runtime-v8.js'
+      - 'fresh-rebuild/src/features/apps/travel-inline-layout-v11.js'
+      - 'fresh-rebuild/src/features/apps/travel-exit-isolation-v10.js'
+      - 'fresh-rebuild/src/features/apps/travel-ground.js'
+      - 'fresh-rebuild/src/features/apps/travel-edge-client.js'
+      - 'fresh-rebuild/src/features/apps/travel-edge-config.js'
+      - 'fresh-rebuild/assets/travel/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: travel-public-flagship-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  WORKER_URL: https://nexusnova-travel-api.fahadsoomro123.workers.dev
+
+jobs:
+  qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Source and production-shell contract
+        run: |
+          set -euo pipefail
+          node --check fresh-rebuild/src/features/apps/travel-suite.js
+          node --check fresh-rebuild/src/features/apps/travel-integrations.js
+          node --check fresh-rebuild/src/features/apps/travel-flagship-runtime-v8.js
+          node --check fresh-rebuild/src/features/apps/travel-inline-layout-v11.js
+          node --check fresh-rebuild/src/features/apps/travel-exit-isolation-v10.js
+          node --check fresh-rebuild/src/features/apps/travel-ground.js
+          node --check fresh-rebuild/src/features/apps/travel-edge-client.js
+          node --check fresh-rebuild/src/features/apps/travel-edge-config.js
+          node <<'NODE'
+          const fs=require('fs');
+          const index=fs.readFileSync('fresh-rebuild/index.html','utf8');
+          const harness=fs.readFileSync('fresh-rebuild/travel-flagship-v16-harness.html','utf8');
+          const runtime=fs.readFileSync('fresh-rebuild/src/features/apps/travel-flagship-runtime-v8.js','utf8');
+          const shield=fs.readFileSync('fresh-rebuild/src/features/apps/travel-inline-layout-v11.js','utf8');
+          const suite=fs.readFileSync('fresh-rebuild/src/features/apps/travel-suite.js','utf8');
+          const ground=fs.readFileSync('fresh-rebuild/src/features/apps/travel-ground.js','utf8');
+          for(const host of [index,harness]) {
+            if(!host.includes('travel-flagship-runtime-v8.js')) throw new Error('Travel runtime loader missing');
+            if(!host.includes('travel-inline-layout-v11.js')) throw new Error('Travel v11 inline-layout shield loader missing');
+            if(!host.includes('travel-exit-isolation-v10.js')) throw new Error('Travel exit isolation loader missing');
+          }
+          if(!harness.includes('class="nx-dock"') || harness.includes('class="nx-dock global"')) throw new Error('Harness must match production .nx-dock exactly');
+          for(const needle of [
+            "#nx-app>.nx-dock",
+            "routeEditingMode = 'inline'",
+            "safe-area-inset-top",
+            "overflow-y:auto",
+            "nn-v8-results-open",
+            "grid-template-rows:56px minmax(0,1fr) auto",
+            "results.appendChild(filterRow)",
+            "flagshipRuntimeV8"
+          ]) if(!runtime.includes(needle)) throw new Error(`Missing runtime contract: ${needle}`);
+          if(runtime.includes('editorSurface.appendChild(routes)') || runtime.includes('Edit flight route')) throw new Error('Fullscreen route editor regression returned');
+          for(const needle of [
+            'safe-area-inset-top',
+            'left:50%!important;right:auto!important',
+            'transform:translateX(-50%)!important',
+            'overflow-y:auto!important',
+            '.nn-travel-head{',
+            '.nn-tab-dock{',
+            '.nn-hero{'
+          ]) if(!shield.includes(needle)) throw new Error(`Missing v11 shield contract: ${needle}`);
+          for(const needle of [
+            'searchWorldwideFlights','searchWorldwideHotels','searchWorldwideGroundTransport','searchPakistanGroundTransport',
+            'reference-from-exact.webp.b64','reference-to-exact.webp.b64'
+          ]) if(!suite.includes(needle)) throw new Error(`Missing Travel contract: ${needle}`);
+          if(!ground.includes('fresh-travel-only') || /firebase/i.test(ground)) throw new Error('Fresh Travel ground bridge regressed');
+          if(!fs.readFileSync('fresh-rebuild/src/features/apps/travel-edge-client.js','utf8').includes("from './travel-edge-config.js'")) throw new Error('travel-edge-config dependency missing');
+          console.log('Production-shell source contract PASS');
+          NODE
+
+      - name: Live Cloudflare provider smoke
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const base=process.env.WORKER_URL;
+          async function json(url, options={}) {
+            const r=await fetch(url,{...options,signal:AbortSignal.timeout(80000)});
+            if(!r.ok) throw new Error(`${url} HTTP ${r.status}`);
+            return r.json();
+          }
+          (async()=>{
+            const health=await json(`${base}/health`);
+            if(health.architecture!=='cloudflare-only') throw new Error('Cloudflare-only architecture missing');
+            if(health.coverage?.globalFlights!==true||health.coverage?.globalHotels!==true) throw new Error('Live flight/hotel coverage missing');
+            const headers={'Content-Type':'application/json','Accept':'application/json','X-NexusNova-Client':'fresh-rebuild'};
+            const flight=await json(`${base}/rpc/searchWorldwideFlights`,{method:'POST',headers,body:JSON.stringify({origin:'KHI',destination:'DXB',departureDate:'2026-09-14',returnDate:'',adults:1,cabin:'economy',currency:'PKR'})});
+            const flights=flight.offers||[];
+            if(flight.ok!==true||!flights.length||!flights.every(x=>x.live===true)) throw new Error('Real flight smoke failed');
+            const hotel=await json(`${base}/rpc/searchWorldwideHotels`,{method:'POST',headers,body:JSON.stringify({destination:'Karachi, Pakistan',checkIn:'2026-09-15',checkOut:'2026-09-17',adults:1,rooms:1,currency:'PKR'})});
+            const hotels=hotel.offers||[];
+            if(hotel.ok!==true||!hotels.length||!hotels.every(x=>x.live===true)) throw new Error('Real hotel smoke failed');
+            console.log(`Live provider PASS flights=${flights.length} hotels=${hotels.length}`);
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE
+
+      - name: Install browser and local server
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.55.0 http-server@14.1.1 >/dev/null 2>&1
+          npx playwright install --with-deps chromium >/dev/null
+          nohup npx http-server fresh-rebuild -p 4173 -c-1 >/tmp/travel-http.log 2>&1 &
+          sleep 2
+
+      - name: Production-real safe viewport inline-route results QA
+        run: |
+          node <<'NODE'
+          const {chromium}=require('playwright');
+          const worker=process.env.WORKER_URL;
+          const profiles=[
+            {w:360,h:800,bottom:48,dock:58,name:'small-3button'},
+            {w:390,h:844,bottom:24,dock:62,name:'reference-gesture'},
+            {w:412,h:915,bottom:32,dock:62,name:'punchhole'},
+            {w:480,h:1040,bottom:24,dock:64,name:'wide-phone'},
+            {w:550,h:1215,bottom:48,dock:66,name:'large-phone'}
+          ];
+          const fulfill=(route,obj)=>route.fulfill({status:200,contentType:'application/json',headers:{'access-control-allow-origin':'*','access-control-allow-headers':'Content-Type, Accept, X-NexusNova-Client'},body:JSON.stringify(obj)});
+          const rect=async locator=>locator.evaluate(el=>{const r=el.getBoundingClientRect();return {x:r.x,y:r.y,w:r.width,h:r.height,top:r.top,right:r.right,bottom:r.bottom,left:r.left}});
+          const visible=async locator=>locator.evaluate(el=>{const r=el.getBoundingClientRect(),s=getComputedStyle(el);return s.display!=='none'&&s.visibility!=='hidden'&&Number(s.opacity)!==0&&r.width>1&&r.height>1&&r.bottom>0&&r.right>0&&r.top<innerHeight&&r.left<innerWidth});
+          const hit=async locator=>locator.evaluate(el=>{const r=el.getBoundingClientRect();const x=Math.max(0,Math.min(innerWidth-1,r.left+r.width/2));const y=Math.max(0,Math.min(innerHeight-1,r.top+r.height/2));const top=document.elementFromPoint(x,y);return Boolean(top&&(top===el||el.contains(top)))});
+          const assert=(cond,msg)=>{if(!cond)throw new Error(msg)};
+
+          (async()=>{
+            const browser=await chromium.launch({headless:true});
+            for(const p of profiles){
+              const page=await browser.newPage({viewport:{width:p.w,height:p.h}});
+              const errors=[]; page.on('pageerror',e=>errors.push(String(e)));
+              await page.route(`${worker}/**`,async route=>{
+                const url=route.request().url();
+                if(route.request().method()==='OPTIONS') return route.fulfill({status:204,headers:{'access-control-allow-origin':'*','access-control-allow-headers':'Content-Type, Accept, X-NexusNova-Client','access-control-allow-methods':'GET,POST,OPTIONS'}});
+                if(url.endsWith('/health')) return fulfill(route,{architecture:'cloudflare-only',providers:{scrappa:true},coverage:{globalFlights:true,globalHotels:true,globalRailBus:false,pakistanBusFares:false}});
+                if(url.includes('/rpc/searchWorldwideFlights')) return fulfill(route,{ok:true,offers:[
+                  {live:true,provider:'QA Live',originCode:'KHI',destinationCode:'DXB',departingAt:'2026-09-14T10:00:00Z',arrivingAt:'2026-09-14T12:05:00Z',durationMinutes:125,stops:0,total:60400,currency:'PKR',compareTotal:60400,compareCurrency:'PKR',carriers:['QA Air']},
+                  {live:true,provider:'QA Live',originCode:'KHI',destinationCode:'DXB',departingAt:'2026-09-14T11:00:00Z',arrivingAt:'2026-09-14T15:15:00Z',durationMinutes:255,stops:1,total:56000,currency:'PKR',compareTotal:56000,compareCurrency:'PKR',carriers:['QA Connect']},
+                  {live:true,provider:'QA Live',originCode:'KHI',destinationCode:'DXB',departingAt:'2026-09-14T13:10:00Z',arrivingAt:'2026-09-14T15:20:00Z',durationMinutes:130,stops:0,total:64500,currency:'PKR',compareTotal:64500,compareCurrency:'PKR',carriers:['QA Direct']}
+                ]});
+                if(url.includes('/rpc/searchPakistanAgencyFlights')) return fulfill(route,{ok:false,offers:[]});
+                if(url.includes('/rpc/searchWorldwideHotels')) return fulfill(route,{ok:true,offers:[{live:true,name:'QA Hotel',cityCode:'KHI',countryCode:'PK',stayTotal:12000,currency:'PKR',compareTotal:12000,compareCurrency:'PKR',nights:2}]});
+                return fulfill(route,{ok:false,offers:[]});
+              });
+
+              await page.goto(`http://127.0.0.1:4173/travel-flagship-v16-harness.html?bottom=${p.bottom}&dock=${p.dock}`,{waitUntil:'domcontentloaded',timeout:30000});
+              await page.waitForSelector('.nn-travel-v19[data-flagship-runtime-v8="true"]',{timeout:15000});
+              await page.waitForTimeout(900);
+              const root=page.locator('.nn-travel-v19');
+              const frame=page.locator('.nn-travel-frame');
+              const card=page.locator('.nn-search-card');
+              const cta=page.locator('[data-flight-search]');
+              const dock=page.locator('.nx-dock');
+              assert((await root.getAttribute('data-route-editing-mode'))==='inline',`${p.name}: route mode is not inline`);
+              assert((await page.locator('.nn-route-editor-v8').count())===0,`${p.name}: fullscreen route editor still exists`);
+              await page.screenshot({path:`travel-inline-${p.name}-normal.png`});
+
+              const [rr,fr,dr]=await Promise.all([rect(root),rect(frame),rect(dock)]);
+              const scroll=await page.evaluate(()=>({body:document.body.scrollHeight-innerHeight,doc:document.documentElement.scrollHeight-innerHeight}));
+              assert(Math.abs(rr.w-p.w)<=1,`${p.name}: Travel not full width ${rr.w}/${p.w}`);
+              assert(scroll.body<=2&&scroll.doc<=2,`${p.name}: whole page scrolls body=${scroll.body} doc=${scroll.doc}`);
+              assert(await visible(dock),`${p.name}: production dock missing`);
+              assert(dr.top-fr.bottom>=3&&dr.top-fr.bottom<=14,`${p.name}: frame-to-dock gap ${dr.top-fr.bottom}`);
+              const dockCenterError=await dock.evaluate(el=>Math.abs((el.getBoundingClientRect().left+el.getBoundingClientRect().width/2)-innerWidth/2));
+              assert(dockCenterError<=2,`${p.name}: dock lost global centered positioning`);
+              const overflowY=await card.evaluate(el=>getComputedStyle(el).overflowY);
+              assert(overflowY==='auto'||overflowY==='scroll',`${p.name}: form is not internally scrollable`);
+              await card.evaluate(el=>{el.scrollTop=el.scrollHeight});
+              await page.waitForTimeout(80);
+              assert(await visible(cta)&&await hit(cta),`${p.name}: Search Flights is unreachable/clipped`);
+
+              for(const selector of ['[data-flight-origin]','[data-flight-destination]']){
+                await card.evaluate(el=>{el.scrollTop=0});
+                const input=page.locator(selector);
+                const route=input.locator('xpath=ancestor::*[contains(concat(" ",normalize-space(@class)," ")," nn-route ")][1]');
+                await input.click();
+                const compactH=Math.max(480,Math.round(p.h*0.62));
+                await page.setViewportSize({width:p.w,height:compactH});
+                await page.waitForTimeout(220);
+                await input.fill('KARACHI');
+                await page.waitForTimeout(100);
+                await page.screenshot({path:`travel-inline-${p.name}-${selector.includes('origin')?'from':'to'}-keyboard.png`});
+                assert((await page.locator('.nn-route-editor-v8').count())===0,`${p.name}: fullscreen route editor appeared`);
+                assert(await visible(input)&&await hit(input),`${p.name}: inline ${selector} input invisible/covered`);
+                assert((await input.inputValue())==='KARACHI',`${p.name}: ${selector} typing failed`);
+                assert(await route.evaluate(el=>Boolean(el.closest('.nn-search-card'))),`${p.name}: route moved out of original card`);
+                assert(await visible(page.locator('.nn-travel-head')),`${p.name}: Travel header vanished while typing`);
+                assert(await visible(page.locator('.nn-tab-dock')),`${p.name}: Travel tabs vanished while typing`);
+                assert(await visible(page.locator('.nn-hero')),`${p.name}: Travel hero vanished while typing`);
+                assert((await dock.evaluate(el=>getComputedStyle(el).display))==='none',`${p.name}: dock must hide while route keyboard is active`);
+                await input.blur();
+                await page.setViewportSize({width:p.w,height:p.h});
+                await page.waitForTimeout(320);
+                assert(await visible(dock),`${p.name}: dock did not restore after inline edit`);
+              }
+
+              await page.evaluate(()=>{
+                const o=document.querySelector('[data-flight-origin]');
+                const d=document.querySelector('[data-flight-destination]');
+                const date=document.querySelector('[data-flight-departure]');
+                o.value='KHI'; d.value='DXB'; date.value='2026-09-14';
+                o.dispatchEvent(new Event('input',{bubbles:true})); d.dispatchEvent(new Event('input',{bubbles:true}));
+              });
+              await card.evaluate(el=>{el.scrollTop=el.scrollHeight});
+              await cta.click();
+              await page.waitForSelector('.nn-results:not([hidden])');
+              await page.waitForTimeout(300);
+              await page.screenshot({path:`travel-inline-${p.name}-results.png`});
+              const results=page.locator('.nn-results');
+              const filters=page.locator('.nn-results>.nn-filter-row');
+              const body=page.locator('.nn-results-body:not([hidden])');
+              const first=page.locator('.nn-result').first();
+              const [resR,filR,bodyR,firstR,dockR]=await Promise.all([rect(results),rect(filters),rect(body),rect(first),rect(dock)]);
+              assert(resR.h>=Math.max(360,p.h*0.58),`${p.name}: results still too small h=${resR.h}`);
+              assert(await visible(filters),`${p.name}: results filters not visible`);
+              assert(filR.bottom>=resR.bottom-2&&filR.bottom<=resR.bottom+2,`${p.name}: filters not pinned to results bottom`);
+              assert(bodyR.bottom<=filR.top+1,`${p.name}: results body overlaps filter footer`);
+              assert(dockR.top-resR.bottom>=3&&dockR.top-resR.bottom<=14,`${p.name}: results not anchored above dock ${dockR.top-resR.bottom}`);
+              assert(firstR.h>=84,`${p.name}: result card too tiny ${firstR.h}`);
+              await filters.locator('[data-v16-sort="cheapest"]').click();
+              assert(await filters.locator('[data-v16-sort="cheapest"]').evaluate(el=>el.classList.contains('is-active')),`${p.name}: filter interaction failed`);
+
+              const cleanupState=await page.evaluate(()=>{
+                const travel=document.querySelector('.nn-travel-v19');
+                if(!(travel instanceof HTMLElement)||typeof travel.__cleanup!=='function') throw new Error('Travel cleanup missing');
+                travel.__cleanup();
+                const filter=travel.querySelector('.nn-filter-row');
+                return {
+                  htmlClasses:[...document.documentElement.classList],
+                  rootClasses:[...travel.classList],
+                  frameHeight:travel.style.getPropertyValue('--nn-v8-frame-height'),
+                  filterInResults:Boolean(filter?.parentElement?.classList.contains('nn-results'))
+                };
+              });
+              for(const cls of ['nn-travel-v8-active','nn-travel-v8-editing','nn-travel-host-lock','nn-travel-keyboard-open','nn-travel-route-focus-open','nn-travel-reference-lock']) {
+                assert(!cleanupState.htmlClasses.includes(cls),`${p.name}: stale global class ${cls}`);
+              }
+              assert(!cleanupState.rootClasses.includes('nn-v8-results-open'),`${p.name}: results class survived cleanup`);
+              assert(cleanupState.frameHeight==='',`${p.name}: frame height survived cleanup`);
+              assert(cleanupState.filterInResults===false,`${p.name}: filter stayed trapped in results`);
+              assert(await visible(dock),`${p.name}: dock not visible after cleanup`);
+              assert(errors.length===0,`${p.name}: page errors ${errors.join(' | ')}`);
+              await page.close();
+            }
+            await browser.close();
+            console.log('Travel safe-viewport inline-route/results/isolation QA PASS');
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE
+
+      - name: Upload visual evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: travel-inline-production-real-evidence
+          path: travel-inline-*.png
+          if-no-files-found: ignore

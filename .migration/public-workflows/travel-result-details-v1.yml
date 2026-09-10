@@ -1,0 +1,193 @@
+name: Travel Result Details V1
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/travel-result-details-v1.yml'
+      - 'fresh-rebuild/index.html'
+      - 'fresh-rebuild/src/features/apps/travel-result-details-v1.js'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: travel-result-details-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Additive source contract
+        run: |
+          set -euo pipefail
+          node --check fresh-rebuild/src/features/apps/travel-result-details-v1.js
+          node <<'NODE'
+          const fs=require('fs');
+          const index=fs.readFileSync('fresh-rebuild/index.html','utf8');
+          const extra=fs.readFileSync('fresh-rebuild/src/features/apps/travel-result-details-v1.js','utf8');
+          if(!index.includes('travel-result-details-v1.js?ota=travel-details-v1')) throw new Error('Additive result-detail loader missing');
+          for(const needle of [
+            "import { travelCall } from './travel-edge-client.js'",
+            "card.dataset.rdvType = 'flight'","card.dataset.rdvType='hotel'",
+            'TAP FOR FULL ROUTE + MAP','TAP FOR HOTEL DETAILS + MAP','FULL ROUTE MAP','HOTEL LOCATION',
+            'openFlight(root,card)','openHotel(root,card)','directImage(offer)','wikiThumb(','queueGeo(','openstreetmap.org/export/embed.html'
+          ]) if(!extra.includes(needle)) throw new Error(`Missing additive contract: ${needle}`);
+          if(extra.includes('Math.random()')) throw new Error('Random fabricated data forbidden');
+          console.log('Additive source contract PASS');
+          NODE
+
+      - name: Install browser and local server
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.55.0 http-server@14.1.1 >/dev/null 2>&1
+          npx playwright install --with-deps chromium >/dev/null
+          nohup npx http-server fresh-rebuild -p 4173 -c-1 >/tmp/rdv-http.log 2>&1 &
+          sleep 2
+
+      - name: Flights and Hotels thumbnail detail map QA
+        run: |
+          node <<'NODE'
+          const {chromium}=require('playwright');
+          const assert=(v,m)=>{if(!v)throw new Error(m)};
+          const worker='https://nexusnova-travel-api.fahadsoomro123.workers.dev';
+          const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=','base64');
+          const json=(route,obj)=>route.fulfill({status:200,contentType:'application/json',headers:{'access-control-allow-origin':'*','access-control-allow-headers':'Content-Type, Accept, X-NexusNova-Client'},body:JSON.stringify(obj)});
+
+          (async()=>{
+            const browser=await chromium.launch({headless:true});
+            const page=await browser.newPage({viewport:{width:390,height:844}});
+            const errors=[];
+            const requests=[];
+            let hotelRpcCalls=0;
+            page.on('pageerror',e=>errors.push(String(e)));
+
+            await page.route('https://qa-images.invalid/**',r=>r.fulfill({status:200,contentType:'image/png',body:png}));
+            await page.route('https://www.openstreetmap.org/**',r=>r.fulfill({status:200,contentType:'text/html',body:'<!doctype html><title>QA OSM</title>'}));
+            await page.route('https://en.wikipedia.org/**',r=>json(r,{query:{pages:{1:{title:'Dubai International Airport',thumbnail:{source:'https://qa-images.invalid/wiki.jpg'}}}}}));
+            await page.route('https://nominatim.openstreetmap.org/**',r=>json(r,[{lat:'25.1972',lon:'55.2744',display_name:'QA resolved location'}]));
+            await page.route(`${worker}/**`,async route=>{
+              const u=route.request().url();
+              requests.push(`${route.request().method()} ${u}`);
+              if(route.request().method()==='OPTIONS') return route.fulfill({status:204,headers:{'access-control-allow-origin':'*','access-control-allow-headers':'Content-Type, Accept, X-NexusNova-Client','access-control-allow-methods':'GET,POST,OPTIONS'}});
+              if(u.endsWith('/health')) return json(route,{architecture:'cloudflare-only',providers:{qa:true},coverage:{globalFlights:true,globalHotels:true,globalRailBus:false,pakistanBusFares:false}});
+              if(u.includes('/rpc/searchWorldwideFlights')) return json(route,{ok:true,offers:[{
+                live:true,provider:'QA Live',originCode:'KHI',destinationCode:'DXB',
+                departingAt:'2026-09-14T10:00:00Z',arrivingAt:'2026-09-14T12:05:00Z',durationMinutes:125,stops:0,
+                total:60400,currency:'PKR',compareTotal:60400,compareCurrency:'PKR',carriers:['QA Air']
+              }]});
+              if(u.includes('/rpc/searchPakistanAgencyFlights')) return json(route,{ok:false,offers:[]});
+              if(u.includes('/rpc/searchWorldwideHotels')) {
+                hotelRpcCalls += 1;
+                if(hotelRpcCalls === 1) return json(route,{ok:true,offers:[{
+                  live:true,name:'QA Waterfront Hotel',cityCode:'DXB',countryCode:'AE',stayTotal:38000,currency:'PKR',compareTotal:38000,compareCurrency:'PKR',nights:2
+                }]});
+                return json(route,{ok:true,offers:[{
+                  live:true,name:'QA Waterfront Hotel',cityCode:'DXB',countryCode:'AE',nights:2,
+                  stayTotal:38000,total:38000,currency:'PKR',compareTotal:38000,compareCurrency:'PKR',provider:'QA Hotel Provider',
+                  rating:4.7,photoUrl:'https://qa-images.invalid/hotel.jpg',latitude:25.1972,longitude:55.2744,
+                  address:'Downtown Dubai, Dubai, United Arab Emirates'
+                }]});
+              }
+              return json(route,{ok:false,offers:[]});
+            });
+
+            await page.goto('http://127.0.0.1:4173/travel-flagship-v16-harness.html?bottom=24&dock=62',{waitUntil:'domcontentloaded',timeout:30000});
+            await page.waitForSelector('.nn-travel-v19[data-flagship-runtime-v8="true"]',{timeout:15000});
+            await page.addScriptTag({type:'module',url:'http://127.0.0.1:4173/src/features/apps/travel-result-details-v1.js?qa=1'});
+            await page.waitForTimeout(500);
+
+            // Exact same field/search flow used by the existing GREEN flagship QA.
+            await page.evaluate(()=>{
+              const o=document.querySelector('[data-flight-origin]');
+              const d=document.querySelector('[data-flight-destination]');
+              const date=document.querySelector('[data-flight-departure]');
+              o.value='KHI'; d.value='DXB'; date.value='2026-09-14';
+              o.dispatchEvent(new Event('input',{bubbles:true}));
+              d.dispatchEvent(new Event('input',{bubbles:true}));
+            });
+            await page.locator('.nn-search-card').evaluate(el=>{el.scrollTop=el.scrollHeight});
+            await page.locator('[data-flight-search]').click();
+            try {
+              await page.waitForSelector('.nn-results:not([hidden])',{timeout:10000});
+            } catch (error) {
+              console.log('FLIGHT STATUS:',await page.locator('[data-flight-status]').textContent().catch(()=>''));
+              console.log('WORKER REQUESTS:',requests.join(' | '));
+              console.log('PAGE ERRORS:',errors.join(' | '));
+              throw error;
+            }
+            assert(await page.locator('[data-flight-results] article.nn-result').count()===1,'Core flight result missing');
+            await page.waitForSelector('[data-flight-results] article.nn-result.nn-rdv-ready');
+            const fc=page.locator('[data-flight-results] article.nn-result.nn-rdv-ready').first();
+            assert(await fc.locator('.nn-rdv-thumb').count()===1,'Flight thumbnail missing');
+            assert(await fc.locator('.nn-rdv-tap').count()===1,'Flight tap affordance missing');
+            await page.waitForFunction(()=>document.querySelector('[data-flight-results] .nn-rdv-thumb')?.dataset.ready==='true');
+            assert(/60.?400|PKR/i.test(await fc.locator('.nn-price strong').textContent()||''),'Flight fare changed');
+
+            // Enrich only the QA object after the proven core result rendered, so detail/map data is tested without changing core search contract.
+            await fc.evaluate(card=>{
+              const offer=card.__nnRdvOffer || {};
+              offer.imageUrl='https://qa-images.invalid/flight.jpg';
+              offer.origin={latitude:24.9065,longitude:67.1608,name:'Jinnah International Airport'};
+              offer.destination={latitude:25.2532,longitude:55.3657,name:'Dubai International Airport'};
+              offer.segments=[{originCode:'KHI',destinationCode:'DXB',departingAt:'2026-09-14T10:00:00Z',carrierName:'QA Air'}];
+              card.__nnRdvOffer=offer;
+            });
+            await fc.click();
+            await page.waitForFunction(()=>document.querySelector('[data-rdv-head]')?.textContent==='Full Flight Details');
+            assert(await page.getByText('FULL ROUTE MAP',{exact:true}).count()===1,'Flight map section missing');
+            await page.waitForSelector('.nn-rdv-map iframe');
+            assert(await page.locator('.nn-rdv-map svg path').count()===1,'Flight route arc missing');
+            assert((await page.locator('.nn-rdv-detail').textContent()).includes('KHI → DXB'),'Flight route mismatch');
+            await page.locator('.nn-rdv-close').click();
+            assert(await page.locator('html.nn-rdv-open').count()===0,'Flight detail state leaked');
+
+            await page.locator('[data-travel-tab="hotels"]').click();
+            await page.evaluate(()=>{
+              const destination=document.querySelector('[data-hotel-destination]');
+              const checkin=document.querySelector('[data-hotel-checkin]');
+              const checkout=document.querySelector('[data-hotel-checkout]');
+              destination.value='Dubai, UAE'; checkin.value='2026-09-15'; checkout.value='2026-09-17';
+            });
+            await page.locator('[data-hotel-search]').click();
+            try {
+              await page.waitForSelector('.nn-results:not([hidden])',{timeout:10000});
+            } catch (error) {
+              console.log('HOTEL STATUS:',await page.locator('[data-hotel-status]').textContent().catch(()=>''));
+              console.log('WORKER REQUESTS:',requests.join(' | '));
+              console.log('PAGE ERRORS:',errors.join(' | '));
+              throw error;
+            }
+            assert(await page.locator('[data-hotel-results] article.nn-result').count()===1,'Core hotel result missing');
+            await page.waitForSelector('[data-hotel-results] article.nn-result.nn-rdv-ready');
+            const hc=page.locator('[data-hotel-results] article.nn-result.nn-rdv-ready').first();
+            assert(await hc.locator('.nn-rdv-thumb').count()===1,'Hotel thumbnail missing');
+            assert(await hc.locator('.nn-rdv-tap').count()===1,'Hotel tap affordance missing');
+            await page.waitForFunction(()=>document.querySelector('[data-hotel-results] .nn-rdv-thumb')?.dataset.ready==='true');
+            assert(/38.?000|PKR/i.test(await hc.locator('.nn-price strong').textContent()||''),'Hotel price changed');
+            await page.waitForFunction(()=>Number(window.__neverUsed||0)===0); // yield one task so additive hotel hydration can settle
+            await page.waitForTimeout(250);
+            await hc.click();
+            await page.waitForFunction(()=>document.querySelector('[data-rdv-head]')?.textContent==='Full Hotel Details');
+            assert(await page.getByText('HOTEL LOCATION',{exact:true}).count()===1,'Hotel location section missing');
+            await page.waitForSelector('.nn-rdv-map iframe');
+            const text=await page.locator('.nn-rdv-detail').textContent();
+            assert(text.includes('QA Waterfront Hotel'),'Hotel name missing');
+            assert(text.includes('Downtown Dubai'),'Hotel address missing');
+            assert(text.includes('4.7'),'Hotel rating missing');
+            await page.locator('.nn-rdv-close').click();
+            assert(await page.locator('html.nn-rdv-open').count()===0,'Hotel detail state leaked');
+            assert(errors.length===0,`Browser errors: ${errors.join(' | ')}`);
+            assert(hotelRpcCalls>=2,`Hotel additive hydration did not use live RPC: calls=${hotelRpcCalls}`);
+            console.log('Travel result details PASS: flight + hotel thumbnail/detail/map');
+            await browser.close();
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE

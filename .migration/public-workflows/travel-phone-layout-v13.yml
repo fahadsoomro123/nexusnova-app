@@ -1,0 +1,141 @@
+name: NexusNova Travel Phone Layout V13
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/travel-phone-layout-v13.yml'
+      - 'fresh-rebuild/index.html'
+      - 'fresh-rebuild/travel-flagship-v16-harness.html'
+      - 'fresh-rebuild/src/features/apps/travel-phone-layout-v13.js'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  phone-layout-v13:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Static v13 contract
+        run: |
+          set -euo pipefail
+          node --check fresh-rebuild/src/features/apps/travel-phone-layout-v13.js
+          node <<'NODE'
+          const fs=require('fs');
+          const index=fs.readFileSync('fresh-rebuild/index.html','utf8');
+          const harness=fs.readFileSync('fresh-rebuild/travel-flagship-v16-harness.html','utf8');
+          const v13=fs.readFileSync('fresh-rebuild/src/features/apps/travel-phone-layout-v13.js','utf8');
+          for(const host of [index,harness]) if(!host.includes('travel-phone-layout-v13.js')) throw new Error('v13 loader missing');
+          for(const needle of ['--nn-v13-frame-height','const keyboardOpen=Boolean(active)','rawVisualHeight','dock.getBoundingClientRect().top','SAFE_LEGACY_CSS','height:100%!important','nn-route-editor-v8']) if(!v13.includes(needle)) throw new Error(`Missing v13 contract: ${needle}`);
+          console.log('Static v13 contract PASS');
+          NODE
+
+      - name: Install browser and server
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.55.0 http-server@14.1.1 >/dev/null 2>&1
+          npx playwright install --with-deps chromium >/dev/null
+          nohup npx http-server fresh-rebuild -p 4173 -c-1 >/tmp/travel-v13-http.log 2>&1 &
+          sleep 2
+
+      - name: Infinix-like visual viewport regression
+        run: |
+          node <<'NODE'
+          const {chromium}=require('playwright');
+          const profiles=[
+            {w:360,h:800,name:'small-3button'},
+            {w:390,h:844,name:'reference-phone'},
+            {w:412,h:915,name:'tall-phone'}
+          ];
+          const rect=async l=>l.evaluate(el=>{const r=el.getBoundingClientRect();return {top:r.top,bottom:r.bottom,left:r.left,right:r.right,width:r.width,height:r.height}});
+          const visible=async l=>l.evaluate(el=>{const r=el.getBoundingClientRect(),s=getComputedStyle(el);return s.display!=='none'&&s.visibility!=='hidden'&&Number(s.opacity)!==0&&r.width>1&&r.height>1&&r.bottom>0&&r.top<innerHeight});
+          (async()=>{
+            const browser=await chromium.launch({headless:true});
+            const failures=[];
+            for(const p of profiles){
+              const page=await browser.newPage({viewport:{width:p.w,height:p.h}});
+              await page.addInitScript(({normalDelta})=>{
+                const listeners={resize:new Set(),scroll:new Set()};
+                const vv={
+                  height:Math.max(1,innerHeight-normalDelta),offsetTop:0,width:innerWidth,offsetLeft:0,scale:1,
+                  addEventListener(type,fn){listeners[type]?.add(fn)},
+                  removeEventListener(type,fn){listeners[type]?.delete(fn)},
+                  __setHeight(value){this.height=Math.max(1,Number(value)||1);for(const fn of listeners.resize)try{fn(new Event('resize'))}catch{}},
+                  __setOffsetTop(value){this.offsetTop=Math.max(0,Number(value)||0);for(const fn of listeners.scroll)try{fn(new Event('scroll'))}catch{}}
+                };
+                Object.defineProperty(window,'visualViewport',{configurable:true,value:vv});
+              },{normalDelta:90});
+              await page.goto('http://127.0.0.1:4173/travel-flagship-v16-harness.html?bottom=48&dock=62',{waitUntil:'domcontentloaded',timeout:30000});
+              await page.waitForSelector('.nn-travel-v19[data-phone-layout-v13="true"]',{timeout:15000});
+              await page.waitForTimeout(1250);
+              const root=page.locator('.nn-travel-v19');
+              const dock=page.locator('#nx-app>.nx-dock');
+              const frame=page.locator('.nn-travel-frame');
+              const card=page.locator('.nn-search-card');
+              const search=page.locator('[data-flight-search]');
+              const [dr,fr,cr]=await Promise.all([rect(dock),rect(frame),rect(card)]);
+              const normal={
+                keyboard:await root.getAttribute('data-v13-keyboard-open'),
+                frameGap:Math.round((dr.top-fr.bottom)*10)/10,
+                cardGap:Math.round((dr.top-cr.bottom)*10)/10,
+                searchVisible:await visible(search),
+                frameHeight:await root.getAttribute('data-v13-frame-height'),
+                layoutHeight:await root.getAttribute('data-v13-layout-height'),
+                visualHeight:await root.getAttribute('data-v13-visual-height')
+              };
+              console.log(`${p.name} NORMAL ${JSON.stringify(normal)}`);
+              if(normal.keyboard!=='false') failures.push(`${p.name}: false keyboard detected`);
+              if(!(normal.frameGap>=3&&normal.frameGap<=22)) failures.push(`${p.name}: internal frame gap ${normal.frameGap}`);
+              if(!(normal.cardGap>=3&&normal.cardGap<=18)) failures.push(`${p.name}: visible form gap ${normal.cardGap}`);
+              if(!normal.searchVisible) failures.push(`${p.name}: Search Flights hidden`);
+              await page.screenshot({path:`travel-v13-${p.name}-normal.png`,fullPage:false});
+
+              const input=page.locator('[data-flight-origin]');
+              await input.click();
+              await page.evaluate(()=>window.visualViewport.__setHeight(Math.max(420,innerHeight-300)));
+              await page.waitForTimeout(420);
+              await input.fill('KARACHI');
+              await page.waitForTimeout(220);
+              const edit={
+                value:await input.inputValue(),
+                inputVisible:await visible(input),
+                headVisible:await visible(page.locator('.nn-travel-head')),
+                tabsVisible:await visible(page.locator('.nn-tab-dock')),
+                heroVisible:await visible(page.locator('.nn-hero')),
+                insideCard:await input.evaluate(el=>Boolean(el.closest('.nn-search-card'))),
+                editorCount:await page.locator('.nn-route-editor-v8').count(),
+                dockDisplay:await dock.evaluate(el=>getComputedStyle(el).display),
+                keyboard:await root.getAttribute('data-v13-keyboard-open')
+              };
+              console.log(`${p.name} EDIT ${JSON.stringify(edit)}`);
+              if(edit.value!=='KARACHI') failures.push(`${p.name}: route typing failed`);
+              if(!edit.inputVisible) failures.push(`${p.name}: route input hidden`);
+              if(!edit.headVisible) failures.push(`${p.name}: header vanished`);
+              if(!edit.tabsVisible) failures.push(`${p.name}: tabs vanished`);
+              if(!edit.heroVisible) failures.push(`${p.name}: hero vanished`);
+              if(!edit.insideCard) failures.push(`${p.name}: route left original card`);
+              if(edit.editorCount!==0) failures.push(`${p.name}: fullscreen editor returned`);
+              if(edit.dockDisplay!=='none') failures.push(`${p.name}: dock not hidden during keyboard`);
+              if(edit.keyboard!=='true') failures.push(`${p.name}: keyboard not detected`);
+              await page.screenshot({path:`travel-v13-${p.name}-edit.png`,fullPage:false});
+              await page.close();
+            }
+            await browser.close();
+            if(failures.length){console.error(`V13 FAILURES\n${failures.join('\n')}`);process.exit(1)}
+            console.log('Travel v13 physical-shape viewport PASS');
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: travel-phone-layout-v13-evidence
+          path: travel-v13-*.png
+          if-no-files-found: ignore

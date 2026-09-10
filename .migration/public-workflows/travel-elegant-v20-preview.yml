@@ -1,0 +1,125 @@
+name: NexusNova Travel Elegant V20 Preview
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'fresh-rebuild/src/features/apps/travel-elegant-layout-v20.js'
+      - '.github/workflows/travel-elegant-v20-preview.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Overlay staged OTA 19 Travel files
+        run: |
+          set -euo pipefail
+          BASE='https://raw.githubusercontent.com/fahadsoomro123/nexusnova-website/nexusnova-ota-public/ota/files'
+          files=(
+            'index.html'
+            'assets/travel/reference-from-exact.webp.b64'
+            'assets/travel/reference-hero-right.webp.b64'
+            'assets/travel/reference-to-exact.webp.b64'
+            'src/features/apps/travel-suite.js'
+            'src/features/apps/travel-integrations.js'
+            'src/features/apps/travel-edge-client.js'
+            'src/features/apps/travel-edge-config.js'
+            'src/features/apps/travel-ground.js'
+            'src/features/apps/travel-flagship-runtime-v8.js'
+            'src/features/apps/travel-inline-layout-v11.js'
+            'src/features/apps/travel-phone-layout-v12.js'
+            'src/features/apps/travel-phone-layout-v13.js'
+            'src/features/apps/travel-phone-layout-v17.js'
+            'src/features/apps/travel-exit-isolation-v10.js'
+            'src/features/apps/travel-ota-revision-v13.js'
+          )
+          for f in "${files[@]}"; do
+            mkdir -p "fresh-rebuild/$(dirname "$f")"
+            curl -fsSL "$BASE/$f" -o "fresh-rebuild/$f"
+          done
+          grep -q "const REVISION = '19'" fresh-rebuild/src/features/apps/travel-ota-revision-v13.js
+
+      - name: Build production-shell preview with elegant additive layout
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          let html=fs.readFileSync('fresh-rebuild/index.html','utf8');
+          html=html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,'');
+          const boot=`
+          <script type="module">
+            import { icon } from './src/components/icons.js';
+            import { appScreen } from './src/features/apps/app-screen.js?ota=nv16';
+            const dock=document.querySelector('.nx-dock');
+            const labels={mine:['MINE','mine'],hub:['NOVA HUB','hub']};
+            document.querySelectorAll('.nx-dock__item').forEach(button=>{const route=button.dataset.route||'mine';const [label,iconName]=labels[route];button.innerHTML=\`${'${'}icon(iconName)}<span>${'${'}label}</span>\`;if(route==='hub')button.setAttribute('aria-current','page')});
+            if(dock)dock.hidden=false;
+            document.body.classList.remove('nx-auth-mode','nx-splash-mode');
+            await import('./src/features/apps/travel-flagship-runtime-v8.js?ota=travel-v19-recovery');
+            await import('./src/features/apps/travel-inline-layout-v11.js?ota=travel-v19-recovery');
+            await import('./src/features/apps/travel-phone-layout-v12.js?ota=travel-v19-recovery');
+            await import('./src/features/apps/travel-phone-layout-v13.js?ota=travel-v19-recovery');
+            await import('./src/features/apps/travel-phone-layout-v17.js?ota=travel-v19-recovery');
+            await import('./src/features/apps/travel-exit-isolation-v10.js?ota=travel-v19-recovery');
+            await import('./src/features/apps/travel-ota-revision-v13.js?ota=travel-v19-recovery');
+            await import('./src/features/apps/travel-elegant-layout-v20.js?preview=v20');
+            const root=await appScreen({id:'travel',backToHub(){},backToMine(){}});
+            document.getElementById('nx-stage').replaceChildren(root);
+            await new Promise(r=>setTimeout(r,120));
+            window.__travelElegantPreviewReady=true;
+          </script>`;
+          html=html.replace('</body>',`${boot}\n</body>`);
+          fs.writeFileSync('fresh-rebuild/travel-v20-preview.html',html);
+          NODE
+
+      - name: Install browser
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.55.0 http-server@14.1.1 >/dev/null 2>&1
+          npx playwright install --with-deps chromium >/dev/null
+          nohup npx http-server fresh-rebuild -p 4173 -c-1 >/tmp/travel-v20-preview-http.log 2>&1 &
+          sleep 2
+
+      - name: Render elegant original Travel preview
+        run: |
+          node <<'NODE'
+          const {chromium}=require('playwright');
+          (async()=>{
+            const browser=await chromium.launch({headless:true});
+            const page=await browser.newPage({viewport:{width:674,height:1388},deviceScaleFactor:1});
+            await page.goto('http://127.0.0.1:4173/travel-v20-preview.html',{waitUntil:'domcontentloaded',timeout:30000});
+            await page.waitForFunction(()=>window.__travelElegantPreviewReady===true,null,{timeout:20000});
+            await page.waitForSelector('.nn-travel-v19[data-ota-revision="19"]',{timeout:15000});
+            await page.waitForTimeout(1200);
+            const state=await page.evaluate(()=>{
+              const root=document.querySelector('.nn-travel-v19');
+              const search=root?.querySelector('[data-flight-search]');
+              const date=root?.querySelector('.nn-date-card');
+              const meta=root?.querySelector('.nn-meta-card');
+              const trust=root?.querySelector('.nn-trust');
+              const dock=document.querySelector('#nx-app>.nx-dock');
+              const h=el=>el?Math.round(el.getBoundingClientRect().height):0;
+              return {elegant:root?.dataset.elegantLayoutV20||'',searchH:h(search),dateH:h(date),metaH:h(meta),trustH:h(trust),dockTop:dock?Math.round(dock.getBoundingClientRect().top):null};
+            });
+            console.log('TRAVEL_V20_ELEGANT',JSON.stringify(state));
+            if(state.elegant!=='true')throw new Error('Elegant additive layout not active');
+            if(state.searchH<50||state.searchH>72)throw new Error(`Search CTA height ${state.searchH}`);
+            if(state.dateH>105||state.metaH>105)throw new Error(`Field cards too tall ${state.dateH}/${state.metaH}`);
+            await page.screenshot({path:'travel-v20-elegant-original-preview.png',fullPage:false});
+            await browser.close();
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: travel-v20-elegant-original-preview
+          path: travel-v20-elegant-original-preview.png
+          if-no-files-found: error

@@ -1,0 +1,323 @@
+/* NexusNova Mine — hyper-real tactile material pass
+   SURFACE ONLY: no width/height/margin/padding/grid/position changes.
+   Palette sampled from the supplied reference image. */
+
+#nx-stage[data-route="mine"]{
+  --m-void:#04070a;
+  --m-black:#0c131a;
+  --m-steel:#1b242f;
+  --m-steel-mid:#373d48;
+  --m-steel-hi:#909aa1;
+  --m-cyan:#18bace;
+  --m-blue:#0d66b1;
+  --m-blue-hi:#20b8ff;
+  --m-green:#19e1a1;
+  --m-purple:#b64cff;
+  --m-red:#8d2528;
+}
+
+/* machined chassis */
+#nx-stage[data-route="mine"] .nx-screen,
+#nx-stage[data-route="mine"] .nx-screen-head,
+#nx-stage[data-route="mine"] .nx-nebula-miner,
+#nx-stage[data-route="mine"] .nx-mining-tools{
+  background-image:
+    linear-gradient(118deg,rgba(255,255,255,.075) 0%,rgba(255,255,255,.012) 8%,transparent 16%,transparent 84%,rgba(255,255,255,.02) 92%,rgba(255,255,255,.07) 100%),
+    repeating-linear-gradient(90deg,rgba(255,255,255,.012) 0 1px,rgba(0,0,0,.018) 1px 3px,transparent 3px 6px),
+    linear-gradient(180deg,#1b2630 0%,#101820 36%,#091017 68%,#04080c 100%)!important;
+  background-blend-mode:screen,overlay,normal!important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.22),
+    inset 0 -1px 0 rgba(255,255,255,.045),
+    inset 0 -7px 12px rgba(0,0,0,.72),
+    inset 0 0 0 1px rgba(160,180,194,.08),
+    0 2px 0 rgba(0,0,0,.94),
+    0 9px 20px rgba(0,0,0,.42)!important;
+}
+
+#nx-stage[data-route="mine"] .nx-screen-head{
+  background-image:
+    radial-gradient(circle at 82% 10%,rgba(114,164,194,.18),transparent 25%),
+    linear-gradient(118deg,rgba(255,255,255,.11),transparent 13% 86%,rgba(255,255,255,.03)),
+    repeating-linear-gradient(90deg,rgba(255,255,255,.014) 0 1px,transparent 1px 5px),
+    linear-gradient(180deg,#263640 0%,#17242d 50%,#0b141a 100%)!important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.30),
+    inset 0 -2px 0 #020406,
+    inset 0 -8px 16px rgba(0,0,0,.48),
+    inset 0 0 0 1px rgba(180,198,210,.12),
+    0 2px 0 #000,
+    0 8px 16px rgba(0,0,0,.42)!important;
+}
+
+#nx-stage[data-route="mine"] .nx-screen-head::after{
+  filter:contrast(1.08) saturate(1.12)!important;
+  box-shadow:
+    0 0 0 2px #020405,
+    0 0 0 5px #7d8c96,
+    0 0 0 8px #11191f,
+    inset 0 2px 4px rgba(255,255,255,.70),
+    inset -3px -7px 12px rgba(0,0,0,.62),
+    inset 5px 5px 10px rgba(100,255,205,.22),
+    0 0 22px rgba(25,225,161,.38)!important;
+}
+
+#nx-stage[data-route="mine"] .nx-title{
+  filter:drop-shadow(0 2px 0 #000) drop-shadow(0 5px 5px rgba(0,0,0,.4))!important;
+}
+#nx-stage[data-route="mine"] .nx-screen-head .nx-eyebrow,
+#nx-stage[data-route="mine"] .nx-mining-tools__head .nx-eyebrow{
+  text-shadow:0 0 8px rgba(24,186,206,.28),0 1px 0 #001018!important;
+}
+
+/* miner body */
+#nx-stage[data-route="mine"] .nx-nebula-miner{
+  background-image:
+    radial-gradient(circle at 29% 39%,rgba(0,137,230,.10),transparent 29%),
+    linear-gradient(135deg,rgba(255,255,255,.065),transparent 11% 88%,rgba(255,255,255,.018)),
+    repeating-linear-gradient(90deg,rgba(255,255,255,.012) 0 1px,rgba(0,0,0,.03) 1px 3px,transparent 3px 7px),
+    linear-gradient(180deg,#111b23 0%,#081118 54%,#03080c 100%)!important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.24),
+    inset 0 -2px 0 #010304,
+    inset 0 -11px 22px rgba(0,0,0,.58),
+    inset 0 0 0 1px rgba(133,153,166,.10),
+    0 3px 0 #000,
+    0 12px 22px rgba(0,0,0,.46)!important;
+}
+
+#nx-stage[data-route="mine"] .nx-nebula-miner__head>div>span{
+  filter:drop-shadow(0 1px 0 #000) drop-shadow(0 2px 2px rgba(0,0,0,.44))!important;
+}
+#nx-stage[data-route="mine"] .nx-nebula-miner__sync{
+  background-image:
+    linear-gradient(180deg,rgba(255,255,255,.08),transparent 30%),
+    linear-gradient(180deg,#151d23,#060b0f)!important;
+  box-shadow:inset 0 1px rgba(255,255,255,.12),inset 0 -2px rgba(0,0,0,.76),0 3px 7px rgba(0,0,0,.5)!important;
+}
+
+/* mechanical ring */
+#nx-stage[data-route="mine"] .nx-nebula-core{
+  filter:drop-shadow(0 2px 0 #000) drop-shadow(0 12px 12px rgba(0,0,0,.62)) contrast(1.06) saturate(1.08)!important;
+}
+#nx-stage[data-route="mine"] .nx-nebula-core::after{
+  background:
+    repeating-conic-gradient(from -5deg,
+      #030507 0deg 5deg,
+      #202b34 5.5deg 8deg,
+      #73828d 8.5deg 9.5deg,
+      #111a20 10deg 14deg,
+      #3b4b56 14.5deg 16deg,
+      #0a1015 16.5deg 22deg)!important;
+  box-shadow:
+    0 0 0 3px #000,
+    0 0 0 6px #4f5d66,
+    0 0 0 9px #080e12,
+    inset 0 0 0 2px rgba(190,205,214,.13),
+    inset 0 0 20px #000,
+    0 10px 16px rgba(0,0,0,.55)!important;
+}
+#nx-stage[data-route="mine"] .nx-nebula-core::before{
+  box-shadow:
+    0 0 0 4px #020608,
+    0 0 0 7px #2f3e48,
+    inset 0 0 0 5px #010405,
+    inset 0 1px 0 rgba(255,255,255,.30),
+    inset 0 -8px 15px rgba(0,0,0,.40),
+    inset 0 0 28px rgba(0,170,255,.36),
+    0 0 24px rgba(0,145,255,.26)!important;
+}
+#nx-stage[data-route="mine"] .nx-nebula-core__aura{
+  background:
+    radial-gradient(circle at 42% 30%,rgba(29,90,120,.92) 0%,rgba(6,23,33,.98) 45%,#010405 76%)!important;
+  box-shadow:
+    0 0 0 4px #020608,
+    0 0 0 7px #4b5b65,
+    inset 0 1px 0 rgba(255,255,255,.14),
+    inset 0 -10px 20px rgba(0,0,0,.72),
+    inset 0 0 34px rgba(0,149,255,.18)!important;
+}
+#nx-stage[data-route="mine"] .nx-nebula-core__center{
+  background:
+    radial-gradient(circle at 45% 28%,#173e52 0%,#081923 46%,#020609 76%,#010304 100%)!important;
+  box-shadow:
+    0 0 0 4px #020608,
+    0 0 0 7px #596a75,
+    inset 0 1px rgba(255,255,255,.18),
+    inset 4px 4px 12px rgba(74,186,240,.10),
+    inset -5px -11px 24px rgba(0,0,0,.78),
+    0 10px 20px rgba(0,0,0,.58)!important;
+}
+#nx-stage[data-route="mine"] .nx-nebula-core__mark{
+  background:
+    linear-gradient(145deg,rgba(66,210,255,.18),transparent 52%),
+    linear-gradient(180deg,#16394b,#07131c)!important;
+  box-shadow:
+    0 0 0 2px #020608,
+    inset 0 1px rgba(255,255,255,.25),
+    inset 0 -3px rgba(0,0,0,.7),
+    0 0 15px rgba(20,207,255,.22)!important;
+}
+#nx-stage[data-route="mine"] .nx-nebula-core__center strong{
+  text-shadow:0 3px 0 #000,0 0 16px rgba(43,181,255,.14)!important;
+}
+
+/* readout modules */
+#nx-stage[data-route="mine"] .nx-nebula-readout{
+  background-image:
+    linear-gradient(132deg,rgba(255,255,255,.08),transparent 21% 80%,rgba(255,255,255,.015)),
+    repeating-linear-gradient(90deg,rgba(255,255,255,.01) 0 1px,transparent 1px 5px),
+    linear-gradient(180deg,#121d25 0%,#071017 68%,#03070b 100%)!important;
+  box-shadow:
+    inset 0 1px rgba(255,255,255,.17),
+    inset 0 -4px #010304,
+    inset 0 0 0 1px rgba(130,150,164,.12),
+    0 0 0 2px #010304,
+    0 0 0 4px #4d5d68,
+    0 7px 13px rgba(0,0,0,.40)!important;
+  filter:drop-shadow(0 1px 0 rgba(175,192,205,.15))!important;
+}
+#nx-stage[data-route="mine"] .nx-nebula-readout>span{
+  text-shadow:0 0 8px rgba(24,186,206,.18)!important;
+}
+#nx-stage[data-route="mine"] .nx-nebula-readout>strong{
+  text-shadow:0 2px 0 #000,0 4px 7px rgba(0,0,0,.32)!important;
+}
+
+/* stage/vault/session hardware */
+#nx-stage[data-route="mine"] .nx-nebula-meta>div{
+  background-image:
+    linear-gradient(135deg,rgba(255,255,255,.07),transparent 22% 82%,rgba(255,255,255,.015)),
+    linear-gradient(180deg,#151f27 0%,#090f14 67%,#030609 100%)!important;
+  box-shadow:
+    inset 0 1px rgba(255,255,255,.14),
+    inset 0 -4px #010304,
+    0 0 0 2px #010304,
+    0 0 0 4px #34434d,
+    0 7px 12px rgba(0,0,0,.38)!important;
+}
+#nx-stage[data-route="mine"] .nx-nebula-meta>div::before{
+  background-image:
+    linear-gradient(145deg,rgba(255,255,255,.16),transparent 42%),
+    linear-gradient(180deg,#1e2c35,#060b0f)!important;
+  box-shadow:
+    0 0 0 2px #020608,
+    0 0 0 4px #64737d,
+    inset 0 1px rgba(255,255,255,.22),
+    inset -3px -5px 8px rgba(0,0,0,.74),
+    0 4px 8px rgba(0,0,0,.48)!important;
+}
+
+/* primary action plate */
+#nx-stage[data-route="mine"] .nx-nebula-action{
+  background-image:
+    linear-gradient(180deg,rgba(255,255,255,.14),transparent 20%),
+    repeating-linear-gradient(90deg,rgba(255,255,255,.015) 0 1px,rgba(0,0,0,.025) 1px 3px,transparent 3px 6px),
+    linear-gradient(180deg,#155985 0%,#0b3c64 48%,#061d31 100%)!important;
+  box-shadow:
+    0 0 0 2px #010304,
+    0 0 0 5px #64747f,
+    0 0 0 7px #0b1115,
+    inset 0 2px rgba(255,255,255,.30),
+    inset 0 -7px 11px rgba(0,0,0,.66),
+    inset 0 0 18px rgba(0,153,255,.12),
+    0 10px 18px rgba(0,0,0,.46),
+    0 0 22px rgba(0,149,255,.15)!important;
+  text-shadow:0 2px 0 #00111d,0 4px 7px rgba(0,0,0,.48)!important;
+}
+
+/* tool bay and cards */
+#nx-stage[data-route="mine"] .nx-mining-tools{
+  background-image:
+    linear-gradient(135deg,rgba(255,255,255,.055),transparent 12% 88%,rgba(255,255,255,.018)),
+    repeating-linear-gradient(90deg,rgba(255,255,255,.01) 0 1px,transparent 1px 5px),
+    linear-gradient(180deg,#0d171f,#050b10)!important;
+}
+#nx-stage[data-route="mine"] .nx-mining-tool{
+  background-image:
+    linear-gradient(135deg,rgba(255,255,255,.075),transparent 23% 82%,rgba(255,255,255,.012)),
+    linear-gradient(180deg,#131e26,#080f14 68%,#03070a)!important;
+  box-shadow:
+    inset 0 1px rgba(255,255,255,.13),
+    inset 0 -4px #010304,
+    0 0 0 2px #010304,
+    0 0 0 4px #25313a,
+    0 8px 14px rgba(0,0,0,.36)!important;
+}
+#nx-stage[data-route="mine"] .nx-mining-tool--featured{
+  background-image:
+    linear-gradient(135deg,rgba(85,226,255,.10),transparent 24%),
+    linear-gradient(180deg,#102a36,#07151c 68%,#03090d)!important;
+  box-shadow:inset 0 1px rgba(255,255,255,.13),inset 0 -4px #010304,0 0 0 2px #010304,0 0 0 4px #0b6584,0 8px 14px rgba(0,0,0,.36)!important;
+}
+#nx-stage[data-route="mine"] .nx-mining-tool--boost{
+  background-image:
+    linear-gradient(135deg,rgba(205,95,255,.13),transparent 26%),
+    linear-gradient(180deg,#271630,#0e0c17 68%,#05070c)!important;
+  box-shadow:inset 0 1px rgba(255,255,255,.13),inset 0 -4px #010304,0 0 0 2px #010304,0 0 0 4px #6b368b,0 8px 14px rgba(0,0,0,.36)!important;
+}
+#nx-stage[data-route="mine"] .nx-mining-tool__icon{
+  background-image:
+    linear-gradient(145deg,rgba(91,221,255,.17),transparent 50%),
+    linear-gradient(180deg,#14394a,#081821)!important;
+  box-shadow:
+    0 0 0 2px #020608,
+    0 0 0 4px #394a55,
+    inset 0 1px rgba(255,255,255,.18),
+    inset 0 -4px rgba(0,0,0,.72),
+    0 0 13px rgba(0,190,255,.09)!important;
+}
+#nx-stage[data-route="mine"] .nx-mining-tool--boost .nx-mining-tool__icon{
+  background-image:
+    linear-gradient(145deg,rgba(213,105,255,.24),transparent 50%),
+    linear-gradient(180deg,#351943,#120b19)!important;
+  box-shadow:0 0 0 2px #020608,0 0 0 4px #5c3869,inset 0 1px rgba(255,255,255,.18),inset 0 -4px rgba(0,0,0,.72),0 0 14px rgba(190,82,255,.12)!important;
+}
+#nx-stage[data-route="mine"] .nx-mining-tool__icon svg{
+  filter:drop-shadow(0 2px 2px #000) drop-shadow(0 0 5px rgba(24,186,206,.20))!important;
+}
+
+/* SOS: glossy physical emergency switch */
+body:has(#nx-stage[data-route="mine"]) #nxEmergencySosButton{
+  background-image:
+    radial-gradient(circle at 36% 23%,rgba(255,255,255,.82) 0 4%,rgba(255,172,175,.70) 5%,transparent 17%),
+    radial-gradient(circle at 42% 34%,#ff676d 0%,#df303a 28%,#9d111d 66%,#4a060d 100%)!important;
+  border-color:#77262d!important;
+  box-shadow:
+    0 0 0 3px #120406,
+    0 0 0 6px #642a30,
+    0 0 0 8px #16070a,
+    inset 0 3px 6px rgba(255,255,255,.48),
+    inset -5px -9px 14px rgba(55,0,6,.62),
+    inset 5px 5px 12px rgba(255,88,96,.20),
+    0 9px 20px rgba(180,0,22,.44),
+    0 0 20px rgba(196,17,36,.22)!important;
+  text-shadow:0 2px 2px #5d0009,0 0 5px rgba(255,255,255,.18)!important;
+}
+
+/* tactile bottom dock */
+body:has(#nx-stage[data-route="mine"]) .nx-dock{
+  background-image:
+    linear-gradient(135deg,rgba(255,255,255,.08),transparent 15% 85%,rgba(255,255,255,.018)),
+    repeating-linear-gradient(90deg,rgba(255,255,255,.01) 0 1px,transparent 1px 5px),
+    linear-gradient(180deg,#151f27,#070d13 68%,#020609)!important;
+  box-shadow:
+    0 0 0 3px #000,
+    0 0 0 5px #33414a,
+    0 15px 28px rgba(0,0,0,.55),
+    inset 0 1px rgba(255,255,255,.17),
+    inset 0 -5px #010304!important;
+}
+body:has(#nx-stage[data-route="mine"]) .nx-dock__item{
+  background-image:
+    linear-gradient(180deg,rgba(255,255,255,.06),transparent 25%),
+    linear-gradient(180deg,#121a21,#050b10)!important;
+  box-shadow:inset 0 1px rgba(255,255,255,.09),inset 0 -4px #010304,0 3px 6px rgba(0,0,0,.32)!important;
+}
+body:has(#nx-stage[data-route="mine"]) .nx-dock__item[aria-current="page"]{
+  background-image:
+    linear-gradient(180deg,rgba(255,255,255,.08),transparent 22%),
+    linear-gradient(180deg,rgba(0,138,255,.24),rgba(0,75,132,.12)),
+    linear-gradient(180deg,#142a37,#07151e 62%,#030a0f)!important;
+  box-shadow:inset 0 1px rgba(255,255,255,.18),inset 0 -4px #010304,0 0 14px rgba(0,160,255,.12)!important;
+}

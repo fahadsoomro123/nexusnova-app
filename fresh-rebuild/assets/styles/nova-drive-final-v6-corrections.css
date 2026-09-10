@@ -1,0 +1,8 @@
+/* Final v6 phone correction: preserve both website strips while erasing only the old raster docks. */
+html.nx-approved-drive-active .nx-approved-view[data-approved-drive-view]::after {
+  height: 8.55% !important;
+}
+
+html.nx-approved-drive-active .nx-approved-view[data-approved-tracker-view]::after {
+  height: 13.55% !important;
+}
