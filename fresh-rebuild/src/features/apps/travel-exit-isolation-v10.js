@@ -1,11 +1,6 @@
-// Do not import travel-phone-layout-v31 here. index.html loads v31 as the final
-// Travel module; importing it early from this guard makes ES module caching skip
-// that final execution and allows older layout CSS to override the phone layout.
-// NexusNova Travel v10 route-exit isolation.
+// NexusNova Travel route-exit isolation.
 // Travel intentionally locks the document while its fullscreen shell is mounted.
-// Physical Android proof showed that stale Travel state can survive a route exit
-// and leave Nova Hub unable to scroll. This guard finalizes Travel cleanup only;
-// it never rewrites generic shell styles owned by other NexusNova apps.
+// This guard removes only Travel-owned state after leaving the route.
 const TRAVEL_ROOT = '.nn-travel-v19';
 const GLOBAL_CLASSES = Object.freeze([
   'nn-travel-reference-lock',
@@ -18,7 +13,9 @@ const GLOBAL_CLASSES = Object.freeze([
   'nn-travel-v15-keyboard',
   'nn-travel-v17-route-edit',
   'nn-travel-v31-active',
-  'nn-travel-v31-keyboard'
+  'nn-travel-v31-keyboard',
+  'nn-travel-v32-active',
+  'nn-travel-v32-keyboard'
 ]);
 const ROOT_CLASSES = Object.freeze([
   'nn-v8-results-open',
@@ -39,12 +36,14 @@ const ROOT_PROPERTIES = Object.freeze([
   '--nn-v29-frame-height',
   '--nn-v29-root-height',
   '--nn-v30-frame-height',
-  '--nn-v30-root-height'
+  '--nn-v30-root-height',
+  '--nn-v32-content-h'
 ]);
 const SCREEN_CLASSES = Object.freeze([
   'nn-travel-reference-shell',
   'nn-travel-host-screen',
-  'nn-travel-v8-screen'
+  'nn-travel-v8-screen',
+  'nn-travel-v32-screen'
 ]);
 
 let sawTravel = false;
@@ -93,7 +92,7 @@ function wrapTravelCleanup(root) {
   };
   wrappedCleanups.add(wrapped);
   root.__cleanup = wrapped;
-  root.dataset.travelExitIsolation = 'v10';
+  root.dataset.travelExitIsolation = 'v32';
 }
 
 export function releaseTravelExitLocks() {
@@ -106,10 +105,6 @@ export function releaseTravelExitLocks() {
   const hadLock = sawTravel || hasStaleTravelLock();
   if (!hadLock) return false;
   stripGlobalState();
-
-  // Do not write generic overflow/position inline styles here. Other NexusNova
-  // apps own their own shell state; removing only Travel-owned state restores
-  // the normal Hub/Mine scrolling contract without trampling unrelated modules.
   sawTravel = false;
   return true;
 }
