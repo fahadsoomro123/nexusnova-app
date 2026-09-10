@@ -73,13 +73,16 @@ jobs:
           grep -Fq 'nova-drive-gold-maptiler-v14-production.js' "$drive"
           ! grep -Fq 'nova-drive-realworld-v13-production.js' "$drive"
           ! grep -Fq 'nova-drive-approved-ui-v2.js' "$drive"
-          test -s public-build/fresh-rebuild/src/features/apps/travel-phone-layout-v29.js
-          grep -Fq 'travel-phone-layout-v29.js?ota=travel-v29-single-owner' "$index"
+          test -s public-build/fresh-rebuild/src/features/apps/travel-phone-layout-v30.js
+          grep -Fq 'travel-phone-layout-v30.js?ota=travel-v30-dock-boundary' "$index"
           for legacy in travel-phone-layout-v11.js travel-phone-layout-v12.js travel-phone-viewport-v13.js travel-viewport-diagnostics-v17.js; do
             ! grep -Fq "$legacy" "$index"
           done
           ! grep -Fq 'travel-result-details-v1.js' "$index"
-          node --check public-build/fresh-rebuild/src/features/apps/travel-phone-layout-v29.js
+          node --check public-build/fresh-rebuild/src/features/apps/travel-phone-layout-v30.js
+          node --check public-build/fresh-rebuild/src/core/drive-track-persistence.js
+          grep -Fq 'for (const candidate of candidates)' public-build/fresh-rebuild/src/core/drive-track-persistence.js
+          grep -Fq 'ROUTE_MAX_ACCURACY_M = 45.0' public-build/NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusDriveForegroundService.kt
           node --check public-build/fresh-rebuild/src/nova-drive-gold-maptiler-v14-ui.js
           node --check public-build/fresh-rebuild/src/nova-drive-gold-maptiler-v14-production.js
           node --check public-build/fresh-rebuild/src/features/apps/premium-drive-native-v2.js
@@ -128,7 +131,7 @@ jobs:
           printf '%s' "$KEYSTORE_B64" | base64 -d > app/nexusnova-release.jks
           test -s app/nexusnova-release.jks
 
-      - name: Inject v1.0.34 release signing
+      - name: Inject v1.0.35 release signing
         shell: bash
         working-directory: public-build/NexusNovaAndroid
         run: |
@@ -138,8 +141,8 @@ jobs:
           import re
           p=Path('app/build.gradle.kts')
           s=p.read_text(encoding='utf-8')
-          s,n1=re.subn(r'versionCode\s*=\s*\d+','versionCode = 26091034',s,count=1)
-          s,n2=re.subn(r'versionName\s*=\s*"[^"]+"','versionName = "1.0.34-travel-v29-fix"',s,count=1)
+          s,n1=re.subn(r'versionCode\s*=\s*\d+','versionCode = 26091035',s,count=1)
+          s,n2=re.subn(r'versionName\s*=\s*"[^"]+"','versionName = "1.0.35-travel-v30-drive-recovery"',s,count=1)
           if n1 != 1 or n2 != 1:
               raise SystemExit('Version injection failed')
           signing='''    signingConfigs {\n        create("release") {\n            storeFile = file("nexusnova-release.jks")\n            storePassword = System.getenv("KEYSTORE_PASSWORD")\n            keyAlias = System.getenv("KEY_ALIAS")\n            keyPassword = System.getenv("KEY_PASSWORD")\n        }\n    }\n\n'''
@@ -169,8 +172,8 @@ jobs:
           badging="$($ANDROID_HOME/build-tools/35.0.0/aapt dump badging "$apk" | head -n 1)"
           echo "$badging"
           echo "$badging" | grep -q "name='com.nexusnova.app'"
-          echo "$badging" | grep -q "versionCode='26091034'"
-          echo "$badging" | grep -q "versionName='1.0.34-travel-v29-fix'"
+          echo "$badging" | grep -q "versionCode='26091035'"
+          echo "$badging" | grep -q "versionName='1.0.35-travel-v30-drive-recovery'"
           d="$(mktemp -d)"
           trap 'rm -rf "$d"' EXIT
           unzip -q "$apk" \
@@ -180,14 +183,17 @@ jobs:
             'assets/www/src/nova-drive-gold-maptiler-v14-production.js' \
             'assets/www/src/features/apps/premium-drive-native-v2.js' \
             'assets/www/src/core/router.js' \
-            'assets/www/src/features/apps/travel-phone-layout-v29.js' \
+            'assets/www/src/core/drive-track-persistence.js' \
+            'assets/www/src/features/apps/travel-phone-layout-v30.js' \
             'assets/www/src/core/firebase-backend.js' \
             'assets/www/src/core/auth-service.js' -d "$d"
           grep -Fq 'nova-drive-gold-maptiler-v14-production.js' "$d/assets/www/src/nova-vehicle-premium-ui.js"
           ! grep -Fq 'nova-drive-realworld-v13-production.js' "$d/assets/www/src/nova-vehicle-premium-ui.js"
           grep -Fq 'keep the current DOM visible' "$d/assets/www/src/core/router.js"
-          grep -Fq 'travel-phone-layout-v29.js?ota=travel-v29-single-owner' "$d/assets/www/index.html"
-          grep -Fq 'nn-travel-phone-layout-v29' "$d/assets/www/src/features/apps/travel-phone-layout-v29.js"
+          grep -Fq 'for (const candidate of candidates)' "$d/assets/www/src/core/drive-track-persistence.js"
+          grep -Fq 'ROUTE_MAX_ACCURACY_M = 45.0' app/src/main/java/com/nexusnova/app/NexusDriveForegroundService.kt
+          grep -Fq 'travel-phone-layout-v30.js?ota=travel-v30-dock-boundary' "$d/assets/www/index.html"
+          grep -Fq 'nn-travel-phone-layout-v30' "$d/assets/www/src/features/apps/travel-phone-layout-v30.js"
           for legacy in travel-phone-layout-v11.js travel-phone-layout-v12.js travel-phone-viewport-v13.js travel-viewport-diagnostics-v17.js; do
             ! grep -Fq "$legacy" "$d/assets/www/index.html"
           done
@@ -204,14 +210,14 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p signed-output
-          cp app/build/outputs/apk/release/app-release.apk signed-output/NexusNova-v1.0.34-SIGNED-TRAVEL-V29-FIX.apk
-          sha256sum signed-output/NexusNova-v1.0.34-SIGNED-TRAVEL-V29-FIX.apk > signed-output/NexusNova-v1.0.34-SIGNED-TRAVEL-V29-FIX.apk.sha256
+          cp app/build/outputs/apk/release/app-release.apk signed-output/NexusNova-v1.0.35-SIGNED-TRAVEL-V29-FIX.apk
+          sha256sum signed-output/NexusNova-v1.0.35-SIGNED-TRAVEL-V29-FIX.apk > signed-output/NexusNova-v1.0.35-SIGNED-TRAVEL-V29-FIX.apk.sha256
           printf '%s\n' "$PUBLIC_SHA" > signed-output/PUBLIC-SOURCE-SHA.txt
 
       - name: Upload signed APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: NexusNova-v1.0.34-SIGNED-TRAVEL-V29-FIX
+          name: NexusNova-v1.0.35-SIGNED-TRAVEL-V29-FIX
           path: public-build/NexusNovaAndroid/signed-output/*
           if-no-files-found: error
           retention-days: 7
