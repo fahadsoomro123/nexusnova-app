@@ -30,22 +30,21 @@ jobs:
           test -n "$KEY_ALIAS"
           test -n "$KEY_PASSWORD"
 
-      - name: Checkout current public main once
+      - name: Checkout current original NexusNova source
         uses: actions/checkout@v4
         with:
-          repository: fahadsoomro123/nexusnova-app-public-build
-          ref: main
+          ref: ${{ github.sha }}
           path: public-build
           fetch-depth: 1
 
-      - name: Lock exact public source and reset stale OTA identity
+      - name: Lock exact original source and reset stale OTA identity
         shell: bash
         run: |
           set -euo pipefail
           export PUBLIC_SHA="$(git -C public-build rev-parse HEAD)"
           test "${#PUBLIC_SHA}" = 40
           echo "PUBLIC_SHA=$PUBLIC_SHA" >> "$GITHUB_ENV"
-          echo "Building exact public source: $PUBLIC_SHA"
+          echo "Building exact nexusnova-app source: $PUBLIC_SHA"
           python3 - <<'PY'
           from pathlib import Path
           import os,re
@@ -208,7 +207,7 @@ jobs:
           grep -q 'signInWithEmailAndPassword' "$d/assets/www/src/core/auth-service.js"
           ! grep -q 'PUBLIC_DISABLED_ERROR' "$d/assets/www/src/core/firebase-backend.js"
           ! grep -q 'public-mirror auth shim' "$d/assets/www/src/core/auth-service.js"
-          echo "Verified exact public source $PUBLIC_SHA inside signed APK"
+          echo "Verified exact original source $PUBLIC_SHA inside signed APK"
 
       - name: Package APK
         shell: bash
