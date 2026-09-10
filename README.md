@@ -1,14 +1,15 @@
-# NexusNova Public Build Mirror
+# NexusNova Android App
 
-BUILD MIRROR ONLY � DO NOT DEVELOP HERE.
+Canonical Android source repository for NexusNova.
 
-Private repository remains the source of truth.
+## Source of truth
 
-Source branch:
-ai-photo-real-canva-ai-generator-correction
+- `fresh-rebuild/` — canonical web UI/runtime source used by the Android WebView shell.
+- `NexusNovaAndroid/` — Android application shell, native services, bridges, Gradle project and generated bundled web assets.
+- `.github/workflows/` — CI, QA and signed APK workflows.
 
-Source commit:
-ad68d64028b3a0cb3a8a2b2af35c9d49699c2441
+Android builds sync `fresh-rebuild/` into `NexusNovaAndroid/app/src/main/assets/www/` during `preBuild`. Do not hand-edit the generated bundled web copy as an independent source.
 
-This public repository intentionally excludes private Git history,
-signing keys, recovery material, backend/VPN infrastructure and secrets.
+## Development rule
+
+Make app/runtime changes in the canonical source paths above. Preserve OTA compatibility and verify both the web runtime and Android build before release.
