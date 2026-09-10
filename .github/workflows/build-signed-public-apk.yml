@@ -198,7 +198,7 @@ jobs:
           grep -Fq 'keep the current DOM visible' "$d/assets/www/src/core/router.js"
           grep -Fq 'for (const candidate of candidates)' "$d/assets/www/src/core/drive-track-persistence.js"
           grep -Fq 'ROUTE_MAX_ACCURACY_M = 45.0' app/src/main/java/com/nexusnova/app/NexusDriveForegroundService.kt
-          grep -Fq 'travel-phone-layout-v31.js?ota=travel-v30-dock-boundary' "$d/assets/www/index.html"
+          grep -Fq 'travel-phone-layout-v31.js?ota=travel-v31-final-owner' "$d/assets/www/index.html"
           grep -Fq 'nn-travel-phone-layout-v31' "$d/assets/www/src/features/apps/travel-phone-layout-v31.js"
           for legacy in travel-phone-layout-v11.js travel-phone-layout-v12.js travel-phone-viewport-v13.js travel-viewport-diagnostics-v17.js; do
             ! grep -Fq "$legacy" "$d/assets/www/index.html"
