@@ -74,7 +74,7 @@ jobs:
           ! grep -Fq 'nova-drive-realworld-v13-production.js' "$drive"
           ! grep -Fq 'nova-drive-approved-ui-v2.js' "$drive"
           test -s public-build/fresh-rebuild/src/features/apps/travel-phone-layout-v31.js
-          grep -Fq 'travel-phone-layout-v31.js?ota=travel-v31-final-authority' "$index"
+          grep -Fq 'travel-phone-layout-v31.js?ota=travel-v31-final-owner' "$index"
           for legacy in travel-phone-layout-v11.js travel-phone-layout-v12.js travel-phone-viewport-v13.js travel-viewport-diagnostics-v17.js; do
             ! grep -Fq "$legacy" "$index"
           done
