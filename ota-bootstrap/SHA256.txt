@@ -1,1 +1,0 @@
-f5979852ce1572d0824ee3e474839de459c8fe72aa5da4e5cc3f46e628ee6acc  public-ota-bootstrap/NexusNova-PUBLIC-OTA-BOOTSTRAP.apk

@@ -1,9 +1,0 @@
-Source commit: d01838cb4511817356a27d7e26d19a18906e6d43
-Branch: nova-sol57-pro-v128
-Version name: 1.0.5-vault-v14
-Version code: 20260901
-Permanent signature: PASS
-Living Vault v14 bundled directly: PASS
-OTA baseline: 8d1aaaee6f28b974a8c8b3ff213beb1318ec7405
-OTA baseline migration/reset: PASS
-AdMob mode: TEST LOCKED
