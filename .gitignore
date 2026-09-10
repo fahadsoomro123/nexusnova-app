@@ -1,0 +1,19 @@
+# NexusNova generated/build artifacts
+NexusNovaAndroid/app/src/main/assets/www/
+**/build/
+.gradle/
+local.properties
+*.apk
+*.aab
+*.log
+
+# Local dependencies and caches
+node_modules/
+.cache/
+tmp/
+.DS_Store
+
+# Local secrets/config
+.env
+*.jks
+*.keystore
