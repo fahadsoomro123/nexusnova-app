@@ -1,35 +1,20 @@
-# NexusNova Public Build Mirror Rules
+# NexusNova Repository Rules
 
-This repository is a sanitized public build mirror. It is not the development source of truth.
+This repository is the canonical NexusNova Android app source.
 
-## Allowed here
+## Preserve working app behavior
+- Do not redesign or rewrite working features unless the user explicitly approves that change.
+- Protect Mining, Nova Hub apps, authentication, wallet/rewards, Firebase integration, native Android services, and current production UI.
+- Treat similar/old-looking runtime files as removable only after dependency and runtime ownership are verified.
 
-- ordinary non-secret Android debug build / CI;
-- sanitized build-required source and assets;
-- workflow verification for `NexusNova Fast Public Android Build`.
+## Canonical web source
+- `fresh-rebuild/` is the canonical bundled web source used by the Android app.
+- `NexusNovaAndroid/app/src/main/assets/www/` is generated from `fresh-rebuild/` during Gradle `preBuild`; never maintain or commit a second copy there.
 
-## Route back to the private repo / laptop
+## Repository hygiene
+- Never commit APK/AAB outputs, build directories, caches, logs, temporary previews, one-off release markers, `.env`, keystores, or local secrets.
+- Keep only workflows/scripts that still serve the current build, QA, security, or recovery process.
+- Do not recreate the deleted `nexusnova-app-public-build` mirror.
 
-If a task involves any of the following, do not do it here. Use the private repo `fahadsoomro123/nexusnova-app` and, when needed, the laptop/self-hosted Windows runner:
-
-- secrets, passwords, tokens, credentials, service-account/admin material;
-- live Firebase/API configuration that GitHub flags as a credential or that enables real backend access;
-- signing keys, keystores, release signing, or the original permanent signing key;
-- private infrastructure, VPN/private configuration, recovery material, or protected local files;
-- ADB/USB/device access, hardware-specific QA, or laptop-only tooling;
-- anything that must remain private.
-
-Never add secret, signing, or live backend credential material to this public repository.
-
-## Firebase / backend rule
-
-- This public mirror intentionally contains sanitized Firebase configuration and disabled Firebase/auth/backend stubs.
-- Real Firebase authentication, Firestore, FCM, App Check, or credential-backed runtime QA must use the private repo + laptop route.
-- Public CI includes a credential-pattern gate and must fail if Google API keys, private keys, GitHub-token-like values, or AWS access-key patterns appear in the checked-out snapshot.
-
-## Development rule
-
-- Do not develop directly in this public mirror.
-- The private repo remains the source of truth.
-- Sync only a sanitized build-required snapshot here.
-- If uncertain whether material is safe for public use, stop and route the task to the private repo instead.
+## Verification rule
+Keep these states separate: source-code change, successful build/CI, OTA publication, phone-side OTA/application, and screenshot/device verification. Never claim a later state from an earlier one.
