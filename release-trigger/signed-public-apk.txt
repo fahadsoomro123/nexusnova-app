@@ -1,3 +1,0 @@
-trigger signed public apk
-public_source_commit=85fbe1632d73efca77aa49384f271ed13d75f9ce
-reason=Nova Drive signed APK: Recover now checks current account, device, guest and one safe old UID-scoped phone history store; no destructive legacy deletion; premium action buttons preserved; auto-drive and private tracker preserved
