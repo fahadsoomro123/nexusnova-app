@@ -10,6 +10,9 @@ PRODUCTION_APP_ID = f'ca-app-pub-{PUBLISHER_NUMERIC}~1824799663'
 PRODUCTION_REWARDED_ID = f'ca-app-pub-{PUBLISHER_NUMERIC}/7194148596'
 PRODUCTION_INTERSTITIAL_ID = f'ca-app-pub-{PUBLISHER_NUMERIC}/7807608294'
 TEST_APP_ID = 'ca-app-pub-3940256099942544~3347511713'
+TEST_REWARDED_ID = 'ca-app-pub-3940256099942544/5224354917'
+TEST_REWARDED_INTERSTITIAL_ID = 'ca-app-pub-3940256099942544/5354046379'
+TEST_INTERSTITIAL_ID = 'ca-app-pub-3940256099942544/1033173712'
 APP_ADS_LINE = f'google.com, {PUBLISHER_ID}, DIRECT, f08c47fec0942fa0'
 
 errors = []
@@ -61,14 +64,17 @@ if build.count(TEST_APP_ID) < 2:
 if PRODUCTION_APP_ID in build:
     fail('production AdMob App ID must not be selectable by build.gradle')
 
+# Current canonical Android source uses Google's dedicated AdMob Android test
+# inventory. Older recovery branches may still use Google's Ad Manager demo
+# units, which are checked separately by the cross-branch workflow guard.
 manager = read('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusAdManager.kt')
 for marker in [
-    '/21775744923/example/rewarded',
-    '/21775744923/example/rewarded-interstitial',
-    '/21775744923/example/interstitial',
+    TEST_REWARDED_ID,
+    TEST_REWARDED_INTERSTITIAL_ID,
+    TEST_INTERSTITIAL_ID,
 ]:
     if marker not in manager:
-        fail(f'Google TEST inventory marker missing: {marker}')
+        fail(f'current Google AdMob TEST inventory marker missing: {marker}')
 if ('BuildConfig.NEXUS_ADS_TEST_MODE' not in manager and
         'const val TEST_MODE = true' not in manager):
     fail('native ad manager is not bound to TEST mode')
@@ -119,8 +125,8 @@ if errors:
     sys.exit(1)
 
 print('NexusNova AdMob TEST lock/readiness: PASS')
-print(' - debug APKs: Google TEST inventory')
-print(' - release/signed APKs: Google TEST inventory')
+print(' - debug APKs: Google AdMob TEST inventory')
+print(' - release/signed APKs: Google AdMob TEST inventory')
 print(' - LIVE build selector: blocked')
 print(' - production value-bearing Watch Ad: disabled')
 print(' - dormant production wiring retained only for a future explicit unlock')
