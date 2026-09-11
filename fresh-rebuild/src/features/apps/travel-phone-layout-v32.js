@@ -16,6 +16,7 @@ html.nn-travel-v32-active .nx-screen.nn-travel-v32-screen{position:fixed!importa
 html.nn-travel-v32-active .nx-screen.nn-travel-v32-screen>.nx-app-head{display:none!important}
 html.nn-travel-v32-active .nx-screen.nn-travel-v32-screen>[data-app-mount]{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;min-height:0!important;margin:0!important;padding:0!important;overflow:hidden!important}
 html.nn-travel-v32-active body #nx-app ${ROOT_SELECTOR}{position:absolute!important;left:0!important;right:0!important;top:0!important;bottom:auto!important;width:100%!important;height:var(--nn-v32-content-h,calc(100dvh - 76px))!important;min-height:0!important;max-height:none!important;margin:0!important;padding:0!important;overflow:hidden!important}
+html.nn-travel-v32-active body #nx-app ${ROOT_SELECTOR}::after{content:'OTA 36 • TRAVEL FIX';position:fixed;right:13px;bottom:72px;z-index:2147482000;padding:4px 7px;border:1px solid #48e8ff;border-radius:999px;background:#041827;color:#9af4ff;box-shadow:0 0 14px rgba(72,232,255,.35);font:900 7px/1.1 system-ui,sans-serif;letter-spacing:.08em;pointer-events:none}
 html.nn-travel-v32-active body #nx-app ${ROOT_SELECTOR} .nn-travel-frame{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;min-height:0!important;max-height:none!important;overflow:hidden!important;display:grid!important;grid-template-rows:10vw 8.7vw minmax(0,1fr)!important}
 html.nn-travel-v32-active body #nx-app ${ROOT_SELECTOR} .nn-travel-stage{grid-row:3!important;position:absolute!important;top:18.7vw!important;bottom:0!important;left:0!important;right:0!important;width:auto!important;height:auto!important;min-height:0!important;max-height:none!important;padding:0!important;overflow:hidden!important}
 html.nn-travel-v32-active body #nx-app ${ROOT_SELECTOR} .nn-panel.nn-flight-panel:not([hidden]){--nn-v32-hero:clamp(108px,17vh,150px);position:absolute!important;inset:4px 12px!important;width:auto!important;height:auto!important;min-height:0!important;max-height:none!important;display:block!important;overflow:hidden!important}
@@ -80,6 +81,7 @@ function bind(root){
     root.dataset.v32ContentHeight=String(contentH);
     root.dataset.v32DockTop=String(dockTop);
     root.dataset.v32LayoutHeight=String(layoutH);
+    root.dataset.otaProof='36';
   };
   const schedule=()=>{sync();requestAnimationFrame(sync);setTimeout(sync,80);setTimeout(sync,320);setTimeout(sync,900)};
   visual?.addEventListener('resize',schedule);
