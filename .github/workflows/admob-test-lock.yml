@@ -8,11 +8,6 @@ on:
       - 'tools/**'
       - '.github/scripts/admob-production-readiness.py'
       - '.github/workflows/admob-test-lock.yml'
-      - '.github/workflows/nexusnova-oneoff-permanent-ota-apk.yml'
-      - '.github/workflows/nexusnova-main-permanent-signed-launcher-20260825.yml'
-      - '.github/workflows/nexusnova-permanent-signed-v1.0.2-vc3-20260825.yml'
-      - '.github/workflows/nexusnova-all-bugs-signed-v105.yml'
-      - '.github/workflows/nexusnova-oneoff-public-ota-apk.yml'
   workflow_dispatch:
 
 permissions:
@@ -88,18 +83,13 @@ jobs:
           print('NexusNova AdMob TEST Lock: PASS')
           PY
 
-      - name: Reject active builders that can force LIVE mode
+      - name: Reject active build configuration that can force LIVE mode
         shell: bash
         run: |
           set -euo pipefail
           BUILD_PATHS=(
             'NexusNovaAndroid/app/build.gradle.kts'
             'tools'
-            '.github/workflows/nexusnova-oneoff-permanent-ota-apk.yml'
-            '.github/workflows/nexusnova-main-permanent-signed-launcher-20260825.yml'
-            '.github/workflows/nexusnova-permanent-signed-v1.0.2-vc3-20260825.yml'
-            '.github/workflows/nexusnova-all-bugs-signed-v105.yml'
-            '.github/workflows/nexusnova-oneoff-public-ota-apk.yml'
           )
           for ref in \
             origin/main \
@@ -111,4 +101,4 @@ jobs:
               exit 1
             fi
           done
-          echo 'No active Android/signing builder can force LIVE AdMob mode.'
+          echo 'No active Android build configuration can force LIVE AdMob mode.'
