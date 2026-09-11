@@ -49,6 +49,25 @@ jobs:
           test_app_id = 'ca-app-pub-3940256099942544~3347511713'
           production_app_suffix = '~1824799663'
 
+          approved_test_inventory = [
+              (
+                  'AdMob',
+                  [
+                      'ca-app-pub-3940256099942544/5224354917',
+                      'ca-app-pub-3940256099942544/5354046379',
+                      'ca-app-pub-3940256099942544/1033173712',
+                  ],
+              ),
+              (
+                  'Ad Manager demo',
+                  [
+                      '/21775744923/example/rewarded',
+                      '/21775744923/example/rewarded-interstitial',
+                      '/21775744923/example/interstitial',
+                  ],
+              ),
+          ]
+
           def show(ref, path):
               return subprocess.check_output(['git', 'show', f'{ref}:{path}'], text=True)
 
@@ -65,20 +84,19 @@ jobs:
               if production_app_suffix in gradle:
                   raise SystemExit(f'{ref}: production AdMob App ID detected in active build config')
 
-              required_demo_units = [
-                  '/21775744923/example/rewarded',
-                  '/21775744923/example/rewarded-interstitial',
-                  '/21775744923/example/interstitial',
-              ]
-              for unit in required_demo_units:
-                  if unit not in manager:
-                      raise SystemExit(f'{ref}: Google TEST ad unit missing: {unit}')
+              matched = None
+              for label, units in approved_test_inventory:
+                  if all(unit in manager for unit in units):
+                      matched = label
+                      break
+              if matched is None:
+                  raise SystemExit(f'{ref}: no complete approved Google TEST inventory set found')
 
               if ('BuildConfig.NEXUS_ADS_TEST_MODE' not in manager and
                       'const val TEST_MODE = true' not in manager):
                   raise SystemExit(f'{ref}: native ad manager is not bound to TEST mode')
 
-              print(f'PASS {ref}: signed/debug/release inventory is TEST-only')
+              print(f'PASS {ref}: signed/debug/release inventory is TEST-only ({matched})')
 
           print('NexusNova AdMob TEST Lock: PASS')
           PY
