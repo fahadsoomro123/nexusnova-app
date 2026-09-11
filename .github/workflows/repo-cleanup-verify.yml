@@ -64,6 +64,8 @@ jobs:
             'fresh-rebuild/src/features/apps/travel-phone-interaction-v28.js'
             'fresh-rebuild/src/core/drive-track-persistence.js'
             'fresh-rebuild/src/core/router.js'
+            'fresh-rebuild/src/core/firebase-backend.js'
+            'fresh-rebuild/src/core/auth-service.js'
             'fresh-rebuild/src/nova-drive-gold-maptiler-v14-ui.js'
             'fresh-rebuild/src/nova-drive-gold-maptiler-v14-production.js'
             'NexusNovaAndroid/app/src/main/AndroidManifest.xml'
@@ -75,6 +77,8 @@ jobs:
           )
           for path in "${required[@]}"; do test -s "$path"; done
           grep -Fq 'include(":tracker")' NexusNovaAndroid/settings.gradle.kts
+          grep -Fq 'compileSdk = 36' NexusNovaAndroid/app/build.gradle.kts
+          grep -Fq 'targetSdk = 36' NexusNovaAndroid/app/build.gradle.kts
           grep -Fq 'rootProject.projectDir.parentFile.resolve("fresh-rebuild")' NexusNovaAndroid/app/build.gradle.kts
           grep -Fq 'dependsOn(syncFreshWebAssets)' NexusNovaAndroid/app/build.gradle.kts
           if git ls-files 'NexusNovaAndroid/app/src/main/assets/www/**' | grep -q .; then
@@ -140,9 +144,11 @@ jobs:
           cmp fresh-rebuild/src/features/apps/travel-phone-layout-v32.js "$WEB/src/features/apps/travel-phone-layout-v32.js"
           cmp fresh-rebuild/src/core/drive-track-persistence.js "$WEB/src/core/drive-track-persistence.js"
           cmp fresh-rebuild/src/core/router.js "$WEB/src/core/router.js"
+          cmp fresh-rebuild/src/core/firebase-backend.js "$WEB/src/core/firebase-backend.js"
+          cmp fresh-rebuild/src/core/auth-service.js "$WEB/src/core/auth-service.js"
           echo 'PASS: Gradle regenerated an exact Android web bundle from canonical fresh-rebuild.'
 
-      - name: Verify compiled APK contains current Travel Drive and auth payload
+      - name: Verify compiled APK contains exact canonical payload
         shell: bash
         run: |
           set -euo pipefail
@@ -164,6 +170,6 @@ jobs:
           cmp fresh-rebuild/src/features/apps/travel-phone-layout-v32.js "$d/assets/www/src/features/apps/travel-phone-layout-v32.js"
           cmp fresh-rebuild/src/core/drive-track-persistence.js "$d/assets/www/src/core/drive-track-persistence.js"
           cmp fresh-rebuild/src/core/router.js "$d/assets/www/src/core/router.js"
-          grep -Fq 'waitForFirebaseUser' "$d/assets/www/src/core/firebase-backend.js"
-          grep -Fq 'signInWithEmailAndPassword' "$d/assets/www/src/core/auth-service.js"
-          echo 'PASS: compiled APK contains current canonical Travel/Drive/router/auth payload.'
+          cmp fresh-rebuild/src/core/firebase-backend.js "$d/assets/www/src/core/firebase-backend.js"
+          cmp fresh-rebuild/src/core/auth-service.js "$d/assets/www/src/core/auth-service.js"
+          echo 'PASS: compiled APK contains exact canonical Travel/Drive/router/auth payload.'
