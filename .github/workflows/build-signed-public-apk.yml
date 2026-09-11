@@ -6,7 +6,6 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/build-signed-public-apk.yml'
-      - 'release-trigger/signed-public-apk.txt'
 
 permissions:
   contents: read
@@ -215,14 +214,14 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p signed-output
-          cp app/build/outputs/apk/release/app-release.apk signed-output/NexusNova-v1.0.36-SIGNED-TRAVEL-V29-FIX.apk
-          sha256sum signed-output/NexusNova-v1.0.36-SIGNED-TRAVEL-V29-FIX.apk > signed-output/NexusNova-v1.0.36-SIGNED-TRAVEL-V29-FIX.apk.sha256
+          cp app/build/outputs/apk/release/app-release.apk signed-output/NexusNova-v1.0.36-SIGNED-TRAVEL-V31-DRIVE-RECOVERY.apk
+          sha256sum signed-output/NexusNova-v1.0.36-SIGNED-TRAVEL-V31-DRIVE-RECOVERY.apk > signed-output/NexusNova-v1.0.36-SIGNED-TRAVEL-V31-DRIVE-RECOVERY.apk.sha256
           printf '%s\n' "$PUBLIC_SHA" > signed-output/PUBLIC-SOURCE-SHA.txt
 
       - name: Upload signed APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: NexusNova-v1.0.36-SIGNED-TRAVEL-V29-FIX
+          name: NexusNova-v1.0.36-SIGNED-TRAVEL-V31-DRIVE-RECOVERY
           path: public-build/NexusNovaAndroid/signed-output/*
           if-no-files-found: error
           retention-days: 7
