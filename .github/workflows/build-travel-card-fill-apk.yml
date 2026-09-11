@@ -1,0 +1,238 @@
+name: Build Signed Travel Card Fill APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [repo-cleanup-v2-20260911]
+    paths:
+      - '.github/workflows/build-travel-card-fill-apk.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  signed-travel-card-fill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      KEYSTORE_B64: ${{ secrets.NEXUSNOVA_KEYSTORE_BASE64 }}
+      KEYSTORE_PASSWORD: ${{ secrets.NEXUSNOVA_KEYSTORE_PASSWORD }}
+      KEY_ALIAS: ${{ secrets.NEXUSNOVA_KEY_ALIAS }}
+      KEY_PASSWORD: ${{ secrets.NEXUSNOVA_KEY_PASSWORD }}
+    steps:
+      - name: Check required signing secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$KEYSTORE_B64"
+          test -n "$KEYSTORE_PASSWORD"
+          test -n "$KEY_ALIAS"
+          test -n "$KEY_PASSWORD"
+
+      - name: Checkout exact Travel card-fill source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: public-build
+          fetch-depth: 1
+
+      - name: Lock exact source and reset stale OTA identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PUBLIC_SHA="$(git -C public-build rev-parse HEAD)"
+          test "${#PUBLIC_SHA}" = 40
+          echo "PUBLIC_SHA=$PUBLIC_SHA" >> "$GITHUB_ENV"
+          python3 - <<'PY'
+          from pathlib import Path
+          import os,re
+          p=Path('public-build/NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt')
+          s=p.read_text(encoding='utf-8')
+          sha=os.environ['PUBLIC_SHA']
+          s,n=re.subn(r'const val BUNDLED_WEB_BASE = "[0-9a-f]{40}"',f'const val BUNDLED_WEB_BASE = "{sha}"',s,count=1)
+          if n != 1:
+              raise SystemExit('Could not inject exact bundled web baseline')
+          p.write_text(s,encoding='utf-8')
+          PY
+          grep -Fq "const val BUNDLED_WEB_BASE = \"$PUBLIC_SHA\"" public-build/NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt
+          grep -q 'versionsRoot.deleteRecursively()' public-build/NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt
+          grep -q 'if (base != BUNDLED_WEB_BASE)' public-build/NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt
+
+      - name: Verify Travel proof39 structural card fill
+        shell: bash
+        run: |
+          set -euo pipefail
+          index='public-build/fresh-rebuild/index.html'
+          v28='public-build/fresh-rebuild/src/features/apps/travel-phone-interaction-v28.js'
+          v31='public-build/fresh-rebuild/src/features/apps/travel-phone-layout-v31.js'
+          v32='public-build/fresh-rebuild/src/features/apps/travel-phone-layout-v32.js'
+          suite='public-build/fresh-rebuild/src/features/apps/travel-suite.js'
+          test -s "$index"
+          test -s "$v28"
+          test -s "$v31"
+          test -s "$v32"
+          test -s "$suite"
+          grep -Fq 'travel-phone-layout-v31.js?ota=travel-v31-proof39' "$index"
+          ! grep -Fq 'travel-phone-layout-v31.js?ota=travel-v31-proof38' "$index"
+          grep -Fq "import './travel-phone-layout-v32.js?ota=travel-v32-proof39';" "$v31"
+          grep -Fq "window.NexusNovaTravelLayoutOwner='v31';" "$v31"
+          grep -Fq "window.NexusNovaTravelPhysicalLayoutOwner='v32';" "$v31"
+          grep -Fq "content:'OTA 39 • CARD FILL'" "$v31"
+          grep -Fq 'grid-template-rows:38px 82px 58px 58px 44px 52px 44px' "$v31"
+          grep -Fq "setImportant(panel,'bottom','4px')" "$v31"
+          grep -Fq "setImportant(card,'bottom','0')" "$v31"
+          grep -Fq "setImportant(card,'height','auto')" "$v31"
+          grep -Fq "root.dataset.v39PanelGap" "$v31"
+          grep -Fq "root.dataset.v39CardGap" "$v31"
+          grep -Fq "root.dataset.otaProof='39';" "$v31"
+          grep -Fq "if(window.NexusNovaTravelLayoutOwner==='v31'&&window.NexusNovaTravelLayoutV31?.sync)" "$v28"
+          grep -Fq '<section class="nn-panel nn-flight-panel" data-panel="flights">' "$suite"
+          grep -Fq '<div class="nn-search-card">' "$suite"
+          node --check "$v28"
+          node --check "$v31"
+          node --check "$v32"
+          node --check "$suite"
+
+      - name: Verify existing Drive composition remains intact
+        shell: bash
+        run: |
+          set -euo pipefail
+          drive='public-build/fresh-rebuild/src/nova-vehicle-premium-ui.js'
+          test -s "$drive"
+          grep -Fq 'nova-drive-gold-maptiler-v14-ui.js' "$drive"
+          grep -Fq 'nova-drive-gold-maptiler-v14-production.js' "$drive"
+          ! grep -Fq 'nova-drive-realworld-v13-production.js' "$drive"
+          ! grep -Fq 'nova-drive-approved-ui-v2.js' "$drive"
+          node --check public-build/fresh-rebuild/src/core/drive-track-persistence.js
+          grep -Fq 'for (const candidate of candidates)' public-build/fresh-rebuild/src/core/drive-track-persistence.js
+          grep -Fq 'ROUTE_MAX_ACCURACY_M = 45.0' public-build/NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusDriveForegroundService.kt
+
+      - name: Checkout proven production auth baseline
+        uses: actions/checkout@v4
+        with:
+          repository: fahadsoomro123/nexusnova-app
+          ref: 5b0f3c0d905c66264d7591131d7224ff441e0742
+          path: production-auth-source
+          sparse-checkout: |
+            fresh-rebuild/src/core/firebase-backend.js
+            fresh-rebuild/src/core/auth-service.js
+            NexusNovaAndroid/app/google-services.json
+          sparse-checkout-cone-mode: false
+
+      - name: Restore production auth only in signed workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp production-auth-source/fresh-rebuild/src/core/firebase-backend.js public-build/fresh-rebuild/src/core/firebase-backend.js
+          cp production-auth-source/fresh-rebuild/src/core/auth-service.js public-build/fresh-rebuild/src/core/auth-service.js
+          cp production-auth-source/NexusNovaAndroid/app/google-services.json public-build/NexusNovaAndroid/app/google-services.json
+          grep -q 'waitForFirebaseUser' public-build/fresh-rebuild/src/core/firebase-backend.js
+          grep -q 'signInWithEmailAndPassword' public-build/fresh-rebuild/src/core/auth-service.js
+          ! grep -q 'PUBLIC_DISABLED_ERROR' public-build/fresh-rebuild/src/core/firebase-backend.js
+          ! grep -q 'public-mirror auth shim' public-build/fresh-rebuild/src/core/auth-service.js
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle 8.13
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Decode release keystore
+        shell: bash
+        working-directory: public-build/NexusNovaAndroid
+        run: |
+          set -euo pipefail
+          printf '%s' "$KEYSTORE_B64" | base64 -d > app/nexusnova-release.jks
+          test -s app/nexusnova-release.jks
+
+      - name: Inject v1.0.39 Travel card-fill release signing
+        shell: bash
+        working-directory: public-build/NexusNovaAndroid
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('app/build.gradle.kts')
+          s=p.read_text(encoding='utf-8')
+          s,n1=re.subn(r'versionCode\s*=\s*\d+','versionCode = 26091239',s,count=1)
+          s,n2=re.subn(r'versionName\s*=\s*"[^"]+"','versionName = "1.0.39-travel-card-fill"',s,count=1)
+          if n1 != 1 or n2 != 1:
+              raise SystemExit('Version injection failed')
+          signing='''    signingConfigs {\n        create("release") {\n            storeFile = file("nexusnova-release.jks")\n            storePassword = System.getenv("KEYSTORE_PASSWORD")\n            keyAlias = System.getenv("KEY_ALIAS")\n            keyPassword = System.getenv("KEY_PASSWORD")\n        }\n    }\n\n'''
+          if 'signingConfigs {' not in s:
+              s=s.replace('    buildTypes {',signing+'    buildTypes {',1)
+          release='        release {\n'
+          if 'signingConfig = signingConfigs.getByName("release")' not in s:
+              s=s.replace(release,release+'            signingConfig = signingConfigs.getByName("release")\n',1)
+          p.write_text(s,encoding='utf-8')
+          PY
+
+      - name: Build signed release APK
+        shell: bash
+        working-directory: public-build/NexusNovaAndroid
+        run: |
+          set -euo pipefail
+          gradle --no-daemon clean assembleRelease
+
+      - name: Verify final signed APK payload
+        shell: bash
+        working-directory: public-build/NexusNovaAndroid
+        run: |
+          set -euo pipefail
+          apk='app/build/outputs/apk/release/app-release.apk'
+          test -s "$apk"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$apk"
+          badging="$($ANDROID_HOME/build-tools/35.0.0/aapt dump badging "$apk" | head -n 1)"
+          echo "$badging"
+          echo "$badging" | grep -q "name='com.nexusnova.app'"
+          echo "$badging" | grep -q "versionCode='26091239'"
+          echo "$badging" | grep -q "versionName='1.0.39-travel-card-fill'"
+          d="$(mktemp -d)"
+          trap 'rm -rf "$d"' EXIT
+          unzip -q "$apk" \
+            'assets/www/index.html' \
+            'assets/www/src/features/apps/travel-phone-interaction-v28.js' \
+            'assets/www/src/features/apps/travel-phone-layout-v31.js' \
+            'assets/www/src/features/apps/travel-phone-layout-v32.js' \
+            'assets/www/src/features/apps/travel-suite.js' \
+            'assets/www/src/nova-vehicle-premium-ui.js' \
+            'assets/www/src/core/drive-track-persistence.js' \
+            'assets/www/src/core/firebase-backend.js' \
+            'assets/www/src/core/auth-service.js' -d "$d"
+          grep -Fq 'travel-phone-layout-v31.js?ota=travel-v31-proof39' "$d/assets/www/index.html"
+          ! grep -Fq 'travel-phone-layout-v31.js?ota=travel-v31-proof38' "$d/assets/www/index.html"
+          grep -Fq "import './travel-phone-layout-v32.js?ota=travel-v32-proof39';" "$d/assets/www/src/features/apps/travel-phone-layout-v31.js"
+          grep -Fq "content:'OTA 39 • CARD FILL'" "$d/assets/www/src/features/apps/travel-phone-layout-v31.js"
+          grep -Fq "setImportant(panel,'bottom','4px')" "$d/assets/www/src/features/apps/travel-phone-layout-v31.js"
+          grep -Fq "setImportant(card,'bottom','0')" "$d/assets/www/src/features/apps/travel-phone-layout-v31.js"
+          grep -Fq "root.dataset.v39CardGap" "$d/assets/www/src/features/apps/travel-phone-layout-v31.js"
+          grep -Fq 'nova-drive-gold-maptiler-v14-production.js' "$d/assets/www/src/nova-vehicle-premium-ui.js"
+          ! grep -Fq 'nova-drive-realworld-v13-production.js' "$d/assets/www/src/nova-vehicle-premium-ui.js"
+          grep -Fq 'for (const candidate of candidates)' "$d/assets/www/src/core/drive-track-persistence.js"
+          grep -q 'waitForFirebaseUser' "$d/assets/www/src/core/firebase-backend.js"
+          grep -q 'signInWithEmailAndPassword' "$d/assets/www/src/core/auth-service.js"
+          echo "Verified Travel proof39 structural card fill from exact source $PUBLIC_SHA inside signed APK"
+
+      - name: Package APK
+        shell: bash
+        working-directory: public-build/NexusNovaAndroid
+        run: |
+          set -euo pipefail
+          mkdir -p signed-output
+          cp app/build/outputs/apk/release/app-release.apk signed-output/NexusNova-v1.0.39-SIGNED-TRAVEL-CARD-FILL.apk
+          sha256sum signed-output/NexusNova-v1.0.39-SIGNED-TRAVEL-CARD-FILL.apk > signed-output/NexusNova-v1.0.39-SIGNED-TRAVEL-CARD-FILL.apk.sha256
+          printf '%s\n' "$PUBLIC_SHA" > signed-output/PUBLIC-SOURCE-SHA.txt
+
+      - name: Upload signed APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NexusNova-v1.0.39-SIGNED-TRAVEL-CARD-FILL
+          path: public-build/NexusNovaAndroid/signed-output/*
+          if-no-files-found: error
+          retention-days: 7
