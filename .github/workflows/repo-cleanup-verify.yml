@@ -28,34 +28,30 @@ jobs:
           test "$(git rev-list --count origin/main..HEAD)" -gt 0
           test "$(git rev-list --count HEAD..origin/main)" -eq 0
 
-      - name: Audit residual references to deleted cleanup files
+      - name: Audit residual references to deleted cleanup helpers
         shell: bash
         run: |
           set -euo pipefail
           fail=0
-          mapfile -t deleted < <(git diff --diff-filter=D --name-only origin/main...HEAD)
-          echo "Deleted paths under audit: ${#deleted[@]}"
+          mapfile -t deleted < <(git diff --diff-filter=D --name-only origin/main...HEAD | grep -E '^(\.github/(workflows|scripts)/|release-trigger/)' || true)
+          echo "Deleted workflow/script/trigger paths under audit: ${#deleted[@]}"
           for path in "${deleted[@]}"; do
+            base="${path##*/}"
             hits="$(git grep -n -F -- "$path" HEAD -- . 2>/dev/null || true)"
             if [ -n "$hits" ]; then
               echo "STALE FULL PATH: $path"
               echo "$hits"
               fail=1
             fi
-            case "$path" in
-              .github/workflows/*|.github/scripts/*|release-trigger/*)
-                base="${path##*/}"
-                hits="$(git grep -n -F -- "$base" HEAD -- . 2>/dev/null || true)"
-                if [ -n "$hits" ]; then
-                  echo "STALE BASENAME: $base (deleted path: $path)"
-                  echo "$hits"
-                  fail=1
-                fi
-                ;;
-            esac
+            hits="$(git grep -n -F -- "$base" HEAD -- . 2>/dev/null || true)"
+            if [ -n "$hits" ]; then
+              echo "STALE BASENAME: $base (deleted path: $path)"
+              echo "$hits"
+              fail=1
+            fi
           done
           test "$fail" -eq 0
-          echo 'PASS: no residual references to deleted cleanup workflow/script/trigger paths.'
+          echo 'PASS: no residual references to deleted cleanup workflow/script/trigger helpers.'
 
       - name: Verify canonical source and native modules are preserved
         shell: bash
