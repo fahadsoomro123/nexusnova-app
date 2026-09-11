@@ -114,6 +114,17 @@ function enhance(screen) {
   activeScreen = screen;
   applyTheme();
 
+  const viewport = window.visualViewport;
+  const syncViewport = () => {
+    const height = Math.max(320, Math.round(viewport?.height || window.innerHeight || document.documentElement.clientHeight || 0));
+    document.documentElement.style.setProperty('--nx-calc-viewport-h', `${height}px`);
+    screen.dataset.calcViewportHeight = String(height);
+  };
+  syncViewport();
+  viewport?.addEventListener('resize', syncViewport);
+  window.addEventListener('resize', syncViewport);
+  window.addEventListener('orientationchange', syncViewport);
+
   const back = document.createElement('button');
   back.type = 'button';
   back.className = 'nx-calculator-hub-back';
@@ -128,6 +139,10 @@ function enhance(screen) {
   lightQuery?.addEventListener?.('change', onTheme);
 
   return () => {
+    viewport?.removeEventListener('resize', syncViewport);
+    window.removeEventListener('resize', syncViewport);
+    window.removeEventListener('orientationchange', syncViewport);
+    document.documentElement.style.removeProperty('--nx-calc-viewport-h');
     lightQuery?.removeEventListener?.('change', onTheme);
     back.remove();
     screen.classList.remove(SCREEN_CLASS);

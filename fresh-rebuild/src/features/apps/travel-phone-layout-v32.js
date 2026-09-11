@@ -21,10 +21,28 @@ html.nn-travel-v32-active body #nx-app ${ROOT_SELECTOR} .nn-travel-stage{grid-ro
 html.nn-travel-v32-active body #nx-app ${ROOT_SELECTOR} .nn-panel.nn-flight-panel:not([hidden]){--nn-v32-hero:clamp(108px,17vh,150px);position:absolute!important;inset:4px 12px!important;width:auto!important;height:auto!important;min-height:0!important;max-height:none!important;display:block!important;overflow:hidden!important}
 html.nn-travel-v32-active body #nx-app ${ROOT_SELECTOR} .nn-panel.nn-flight-panel:not([hidden])>.nn-hero{position:absolute!important;top:0!important;left:0!important;right:0!important;width:auto!important;height:var(--nn-v32-hero)!important;min-height:0!important;max-height:none!important;margin:0!important}
 html.nn-travel-v32-active body #nx-app ${ROOT_SELECTOR} .nn-panel.nn-flight-panel:not([hidden])>.nn-search-card{position:absolute!important;top:var(--nn-v32-hero)!important;left:0!important;right:0!important;bottom:0!important;width:auto!important;height:auto!important;min-height:0!important;max-height:none!important;margin:0!important;overflow-x:hidden!important;overflow-y:auto!important;overscroll-behavior:contain!important;-webkit-overflow-scrolling:touch!important;scroll-padding-bottom:10px!important}
-html.nn-travel-v32-active body #nx-app ${ROOT_SELECTOR} .nn-search-card>.nn-search-button{margin-top:0!important;flex-shrink:0!important}
-html.nn-travel-v32-active body #nx-app ${ROOT_SELECTOR} .nn-search-card>div:last-child{flex-shrink:0!important}
+/* V31's accepted compact geometry is intentionally preserved under the V32
+   physical-viewport owner. Without these rows, late premium skin min-heights
+   win and push the CTA below the phone viewport. */
+html.nn-travel-v32-active body #nx-app ${ROOT_SELECTOR} .nn-panel.nn-flight-panel:not([hidden])>.nn-search-card{display:grid!important;grid-template-rows:minmax(34px,.58fr) minmax(74px,1.08fr) minmax(48px,.8fr) minmax(48px,.8fr) minmax(40px,.66fr) minmax(48px,.78fr) minmax(48px,.78fr)!important;align-content:stretch!important;gap:6px!important;padding:8px 8px 7px!important;overflow:hidden!important}
+html.nn-travel-v32-active body #nx-app ${ROOT_SELECTOR} .nn-search-card>.nn-trip-top,
+html.nn-travel-v32-active body #nx-app ${ROOT_SELECTOR} .nn-search-card>.nn-routes,
+html.nn-travel-v32-active body #nx-app ${ROOT_SELECTOR} .nn-search-card>.nn-pair,
+html.nn-travel-v32-active body #nx-app ${ROOT_SELECTOR} .nn-search-card>.nn-filter-row,
+html.nn-travel-v32-active body #nx-app ${ROOT_SELECTOR} .nn-search-card>.nn-search-button,
+html.nn-travel-v32-active body #nx-app ${ROOT_SELECTOR} .nn-search-card>div:last-child{min-height:0!important;height:100%!important;max-height:none!important;margin-top:0!important}
+html.nn-travel-v32-active body #nx-app ${ROOT_SELECTOR} .nn-search-card>.nn-routes .nn-route,
+html.nn-travel-v32-active body #nx-app ${ROOT_SELECTOR} .nn-search-card>.nn-pair .nn-control{min-height:0!important;height:100%!important;max-height:none!important}
+html.nn-travel-v32-active body #nx-app ${ROOT_SELECTOR} .nn-search-card>div:last-child{display:grid!important;grid-template-rows:13px minmax(34px,1fr)!important;overflow:hidden!important}
+html.nn-travel-v32-active body #nx-app ${ROOT_SELECTOR} .nn-search-card .nn-trust{min-height:0!important;height:100%!important;max-height:none!important}
 html.nn-travel-v32-keyboard body #nx-app>.nx-dock{display:none!important}
 html.nn-travel-v32-keyboard body #nx-app ${ROOT_SELECTOR} .nn-panel.nn-flight-panel:not([hidden]){--nn-v32-hero:clamp(72px,13vh,96px)}
+html.nn-travel-v32-keyboard body #nx-app ${ROOT_SELECTOR} .nn-panel.nn-flight-panel:not([hidden])>.nn-search-card{display:flex!important;flex-direction:column!important;justify-content:flex-start!important;gap:5px!important;padding:7px!important;overflow-y:auto!important}
+html.nn-travel-v32-keyboard body #nx-app ${ROOT_SELECTOR} .nn-search-card>.nn-trip-top{flex:0 0 34px!important;height:34px!important}
+html.nn-travel-v32-keyboard body #nx-app ${ROOT_SELECTOR} .nn-search-card>.nn-routes{flex:0 0 74px!important;height:74px!important}
+html.nn-travel-v32-keyboard body #nx-app ${ROOT_SELECTOR} .nn-search-card>.nn-pair{flex:0 0 48px!important;height:48px!important}
+html.nn-travel-v32-keyboard body #nx-app ${ROOT_SELECTOR} .nn-search-card>.nn-filter-row{flex:0 0 40px!important;height:40px!important}
+html.nn-travel-v32-keyboard body #nx-app ${ROOT_SELECTOR} .nn-search-card>.nn-search-button{flex:0 0 48px!important;height:48px!important}
 `;
   document.head.appendChild(s);
 }

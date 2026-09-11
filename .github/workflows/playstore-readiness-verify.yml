@@ -105,11 +105,18 @@ jobs:
           PY
           grep -Fq 'signingConfig = signingConfigs.getByName("release")' app/build.gradle.kts
 
-      - name: Build signed Play Store AAB
+      - name: Build debug app, tracker and signed Play Store AAB
         shell: bash
         run: |
           set -euo pipefail
-          gradle -p NexusNovaAndroid :app:bundleRelease --stacktrace --no-daemon
+          node --check fresh-rebuild/src/features/apps/travel-phone-layout-v31.js
+          node --check fresh-rebuild/src/features/apps/travel-phone-layout-v32.js
+          node --check fresh-rebuild/src/features/apps/travel-result-details-v1.js
+          node --check fresh-rebuild/src/features/apps/calculator-fullscreen-v1.js
+          node --check fresh-rebuild/src/features/apps/everyday-tools.js
+          grep -Fq 'travel-result-details-v1.js?ota=travel-map-runtime-v2' fresh-rebuild/index.html
+          grep -Fq "NexusNovaTravelLayoutOwner='v32'" fresh-rebuild/src/features/apps/travel-phone-layout-v31.js
+          gradle -p NexusNovaAndroid :app:assembleDebug :tracker:assembleDebug :app:bundleRelease --stacktrace --no-daemon
 
       - name: Verify signed production AAB
         shell: bash
@@ -121,10 +128,16 @@ jobs:
           grep -Fq 'jar verified.' /tmp/aab-signature.txt
           unzip -l "$AAB" | grep -Fq 'base/assets/www/src/core/firebase-backend.js'
           unzip -l "$AAB" | grep -Fq 'base/assets/www/src/core/auth-service.js'
+          unzip -l "$AAB" | grep -Fq 'base/assets/www/src/features/apps/travel-phone-layout-v32.js'
+          unzip -l "$AAB" | grep -Fq 'base/assets/www/src/features/apps/travel-result-details-v1.js'
+          unzip -l "$AAB" | grep -Fq 'base/assets/www/src/features/apps/everyday-tools.js'
           unzip -p "$AAB" base/assets/www/src/core/firebase-backend.js > /tmp/aab-firebase-backend.js
           unzip -p "$AAB" base/assets/www/src/core/auth-service.js > /tmp/aab-auth-service.js
           cmp fresh-rebuild/src/core/firebase-backend.js /tmp/aab-firebase-backend.js
           cmp fresh-rebuild/src/core/auth-service.js /tmp/aab-auth-service.js
+          unzip -p "$AAB" base/assets/www/index.html | grep -Fq 'travel-result-details-v1.js?ota=travel-map-runtime-v2'
+          unzip -p "$AAB" base/assets/www/src/features/apps/travel-phone-layout-v31.js | grep -Fq "NexusNovaTravelLayoutOwner='v32'"
+          unzip -p "$AAB" base/assets/www/src/features/apps/everyday-tools.js | grep -Fq "paint('ENTER NEXT VALUE')"
           grep -Fq 'waitForFirebaseUser' /tmp/aab-firebase-backend.js
           grep -Fq 'signInWithEmailAndPassword' /tmp/aab-auth-service.js
           ! grep -Fq 'PUBLIC_DISABLED_ERROR' /tmp/aab-firebase-backend.js

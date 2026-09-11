@@ -533,6 +533,11 @@ export function renderCalculator() {
   let mode = localStorage.getItem(KEYS.calcMode) === 'RAD' ? 'RAD' : 'DEG';
   const savedProfile = localStorage.getItem(KEYS.calcProfile);
   let profile = ['standard','scientific','pro'].includes(savedProfile) ? savedProfile : 'standard';
+  // Classic calculator entry state: an operator keeps the pending expression,
+  // while the next numeric key starts a fresh visible operand.
+  let freshOperand = false;
+  let operandStart = null;
+  let resultLocked = false;
   let disposed = false;
 
   const readHistory = () => {
@@ -547,6 +552,9 @@ export function renderCalculator() {
       if (!item) return;
       expr = String(item.result || '');
       ans = Number(item.result) || ans;
+      freshOperand = true;
+      operandStart = null;
+      resultLocked = true;
       paint();
     }));
   };
@@ -577,6 +585,15 @@ export function renderCalculator() {
   const startsValue = value => /^(?:pi|ans|e|sin\(|cos\(|tan\(|asin\(|acos\(|atan\(|sinh\(|cosh\(|tanh\(|asinh\(|acosh\(|atanh\(|sqrt\(|cbrt\(|log\(|ln\(|abs\(|exp\(|inv\(|sq\(|cube\(|floor\(|ceil\(|round\(|trunc\(|\()/.test(value);
   const append = value => {
     if (expr.length >= 240) return;
+    const numericEntry = /^(?:\d|00|\.)$/.test(value);
+    if (resultLocked && numericEntry) {
+      expr = '';
+      resultLocked = false;
+    }
+    if (freshOperand && numericEntry) {
+      operandStart = expr.length;
+      freshOperand = false;
+    }
     if (startsValue(value) && isValueEnding(expr)) expr += '*';
     if (/^(?:\d|\.)/.test(value) && /(?:\)|!|%|pi|ans|e)$/.test(expr)) expr += '*';
     expr += value;
@@ -589,7 +606,8 @@ export function renderCalculator() {
   const paint = (message = '') => {
     const live = preview();
     expressionEl.textContent = expr || 'Ready';
-    resultEl.textContent = live.text;
+    const entry = operandStart === null ? '' : expr.slice(operandStart);
+    resultEl.textContent = freshOperand ? '0' : (entry && /^-?(?:\d+(?:\.\d*)?|\.\d+)$/.test(entry) ? entry : live.text);
     stateEl.textContent = message || (live.ok && expr ? 'LIVE RESULT' : 'LIVE PREVIEW');
     stateEl.classList.toggle('hot', live.ok);
     memoryEl.textContent = `M ${calcFormat(memory)}`;
@@ -607,6 +625,9 @@ export function renderCalculator() {
       const result = calcFormat(value);
       ans = value;
       expr = result;
+      freshOperand = true;
+      operandStart = null;
+      resultLocked = true;
       const history = readHistory();
       history.unshift({ expression:original, result, at:new Date().toISOString() });
       saveJson(KEYS.calcHistory, history.slice(0, 12));
@@ -619,11 +640,11 @@ export function renderCalculator() {
     }
   };
   const handle = value => {
-    if (value === 'clear') { expr = ''; paint('CLEARED'); return; }
-    if (value === 'back') { expr = expr.slice(0,-1); paint(); return; }
+    if (value === 'clear') { expr = ''; freshOperand = false; operandStart = null; resultLocked = false; paint('CLEARED'); return; }
+    if (value === 'back') { if(freshOperand)return; expr = expr.slice(0,-1); if(operandStart!==null&&expr.length<=operandStart)operandStart=null; resultLocked=false; paint(); return; }
     if (value === 'equals') { solve(); return; }
     if (value === 'mode') { mode = mode === 'DEG' ? 'RAD' : 'DEG'; paint(`${mode} MODE`); return; }
-    if (value === 'negate') { expr = expr ? `-(${expr})` : '-'; paint('SIGN CHANGED'); return; }
+    if (value === 'negate') { expr = expr ? `-(${expr})` : '-'; freshOperand=false;operandStart=null;resultLocked=false;paint('SIGN CHANGED'); return; }
     if (value === 'mc') { memory = 0; paint('MEMORY CLEARED'); return; }
     if (value === 'mr') { append(calcFormat(memory)); paint('MEMORY RECALL'); return; }
     if (value === 'mplus' || value === 'mminus') {
@@ -631,7 +652,18 @@ export function renderCalculator() {
       catch (error) { stateEl.textContent = error?.message || 'Memory operation failed'; }
       return;
     }
+    if (/^[+\-*/^]$/.test(value)) {
+      if (!expr && value === '-') { expr='-'; freshOperand=false; operandStart=0; resultLocked=false; paint(); return; }
+      if (!expr) return;
+      expr = /[+\-*/^]$/.test(expr) ? `${expr.slice(0,-1)}${value}` : `${expr}${value}`;
+      freshOperand = true;
+      operandStart = null;
+      resultLocked = false;
+      paint('ENTER NEXT VALUE');
+      return;
+    }
     append(value);
+    resultLocked = false;
     paint();
   };
 

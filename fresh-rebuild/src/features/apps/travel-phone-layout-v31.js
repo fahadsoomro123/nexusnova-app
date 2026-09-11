@@ -8,5 +8,8 @@ const COMPAT_STYLE_ID='nn-travel-phone-layout-v31';
 window.NexusNovaTravelLayoutV31={
   sync(root){ return window.NexusNovaTravelLayoutV32?.sync?.(root); }
 };
-window.NexusNovaTravelLayoutOwner='v31';
+// Keep the public owner truthful: this file is only an OTA compatibility entry.
+// Some late Travel integrations use this marker to decide whether to inject
+// fallback geometry; reporting v31 here could reactivate a second owner.
+window.NexusNovaTravelLayoutOwner='v32';
 window.NexusNovaTravelLayoutCompatStyleId=COMPAT_STYLE_ID;

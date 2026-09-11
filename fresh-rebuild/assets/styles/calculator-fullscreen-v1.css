@@ -15,14 +15,14 @@ html.nx-calculator-fullscreen-active body {
 html.nx-calculator-fullscreen-active body .nx-app {
   width:100%!important;
   max-width:760px!important;
-  height:100dvh!important;
+  height:var(--nx-calc-viewport-h,100dvh)!important;
   min-height:0!important;
   overflow:hidden!important;
 }
 
 html.nx-calculator-fullscreen-active body .nx-stage {
   width:100%!important;
-  height:100dvh!important;
+  height:var(--nx-calc-viewport-h,100dvh)!important;
   min-height:0!important;
   padding:0!important;
   overflow:hidden!important;
@@ -36,9 +36,9 @@ html.nx-calculator-fullscreen-active body #nx-mine-brand-portal {
 
 html.nx-calculator-fullscreen-active .nx-calculator-fullscreen-screen {
   width:100%!important;
-  height:100dvh!important;
+  height:var(--nx-calc-viewport-h,100dvh)!important;
   min-height:0!important;
-  max-height:100dvh!important;
+  max-height:var(--nx-calc-viewport-h,100dvh)!important;
   margin:0!important;
   padding:0!important;
   overflow:hidden!important;
@@ -51,7 +51,7 @@ html.nx-calculator-fullscreen-active .nx-calculator-fullscreen-screen > .nx-app-
 
 html.nx-calculator-fullscreen-active .nx-calculator-fullscreen-screen [data-app-mount] {
   width:100%!important;
-  height:100dvh!important;
+  height:var(--nx-calc-viewport-h,100dvh)!important;
   min-height:0!important;
   overflow:hidden!important;
 }
@@ -59,11 +59,11 @@ html.nx-calculator-fullscreen-active .nx-calculator-fullscreen-screen [data-app-
 /* Use the released shell space for the calculator itself, not blank chrome. */
 html.nx-calculator-fullscreen-active .nx-calculator-fullscreen-screen .nx-everyday-calculator {
   width:100%!important;
-  height:100dvh!important;
+  height:var(--nx-calc-viewport-h,100dvh)!important;
   min-height:0!important;
-  max-height:100dvh!important;
+  max-height:var(--nx-calc-viewport-h,100dvh)!important;
   margin:0!important;
-  padding:calc(env(safe-area-inset-top,0px) + 7px) 8px calc(env(safe-area-inset-bottom,0px) + 7px)!important;
+  padding:7px 8px!important;
   border-radius:0!important;
   overflow:hidden!important;
   background:radial-gradient(circle at var(--calc-light-x,50%) var(--calc-light-y,10%),rgba(112,235,255,.13),transparent 27%),linear-gradient(160deg,#111b25,#071019 64%,#04090e)!important;
@@ -254,8 +254,8 @@ html.nx-calculator-fullscreen-active .nx-calculator-fullscreen-screen .nx-calc-p
 
 @media (max-height:720px) {
   html.nx-calculator-fullscreen-active .nx-calculator-fullscreen-screen .nx-everyday-calculator {
-    padding-top:calc(env(safe-area-inset-top,0px) + 4px)!important;
-    padding-bottom:calc(env(safe-area-inset-bottom,0px) + 4px)!important;
+    padding-top:4px!important;
+    padding-bottom:4px!important;
   }
   html.nx-calculator-fullscreen-active .nx-calculator-fullscreen-screen .nx-calculator-pro {
     padding:7px!important;
