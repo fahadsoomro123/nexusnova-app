@@ -117,7 +117,7 @@ jobs:
           grep -Fq 'travel-result-details-v1.js?ota=travel-map-runtime-v2' fresh-rebuild/index.html
           grep -Fq 'travel-phone-layout-v31.js?ota=travel-v31-proof36' fresh-rebuild/index.html
           grep -Fq "NexusNovaTravelLayoutOwner='v32'" fresh-rebuild/src/features/apps/travel-phone-layout-v31.js
-          gradle -p NexusNovaAndroid :app:assembleDebug :tracker:assembleDebug :app:bundleRelease --stacktrace --no-daemon
+          gradle -p NexusNovaAndroid :app:assembleDebug :tracker:assembleDebug :app:assembleRelease :app:bundleRelease --stacktrace --no-daemon
 
       - name: Verify signed production AAB
         shell: bash
@@ -147,24 +147,26 @@ jobs:
           sha256sum "$AAB" | tee NexusNovaAndroid/app/build/outputs/bundle/release/app-release.aab.sha256
           echo 'PASS: signed API-36 AAB contains production Firebase/auth payload.'
 
-      - name: Verify installable debug APK
+      - name: Verify signed installable release APK
         shell: bash
         run: |
           set -euo pipefail
-          APK='NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk'
+          APK='NexusNovaAndroid/app/build/outputs/apk/release/app-release.apk'
           test -s "$APK"
+          jarsigner -verify "$APK" | tee /tmp/apk-signature.txt
+          grep -Fq 'jar verified.' /tmp/apk-signature.txt
           unzip -l "$APK" | grep -Fq 'assets/www/src/features/apps/travel-phone-layout-v32.js'
           unzip -l "$APK" | grep -Fq 'assets/www/src/features/apps/travel-result-details-v1.js'
           unzip -p "$APK" assets/www/index.html | grep -Fq 'travel-phone-layout-v31.js?ota=travel-v31-proof36'
-          sha256sum "$APK" | tee NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk.sha256
+          sha256sum "$APK" | tee NexusNovaAndroid/app/build/outputs/apk/release/app-release.apk.sha256
 
-      - name: Upload installable APK
+      - name: Upload signed installable release APK
         uses: actions/upload-artifact@v4
         with:
-          name: NexusNova-Travel-Fix-APK
+          name: NexusNova-Travel-Fix-SIGNED-APK
           path: |
-            NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk
-            NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk.sha256
+            NexusNovaAndroid/app/build/outputs/apk/release/app-release.apk
+            NexusNovaAndroid/app/build/outputs/apk/release/app-release.apk.sha256
           if-no-files-found: error
           retention-days: 7
 
