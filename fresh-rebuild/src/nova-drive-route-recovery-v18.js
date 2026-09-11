@@ -1,3 +1,4 @@
+import './nova-drive-history-native-v3.js';
 import { loadDriveTrackState, persistDriveTrackState } from './core/drive-track-persistence.js';
 
 // Repairs completed native trips that were imported by older web builds before
