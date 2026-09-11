@@ -147,6 +147,27 @@ jobs:
           sha256sum "$AAB" | tee NexusNovaAndroid/app/build/outputs/bundle/release/app-release.aab.sha256
           echo 'PASS: signed API-36 AAB contains production Firebase/auth payload.'
 
+      - name: Verify installable debug APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK='NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk'
+          test -s "$APK"
+          unzip -l "$APK" | grep -Fq 'assets/www/src/features/apps/travel-phone-layout-v32.js'
+          unzip -l "$APK" | grep -Fq 'assets/www/src/features/apps/travel-result-details-v1.js'
+          unzip -p "$APK" assets/www/index.html | grep -Fq 'travel-phone-layout-v31.js?ota=travel-v31-proof36'
+          sha256sum "$APK" | tee NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk.sha256
+
+      - name: Upload installable APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: NexusNova-Travel-Fix-APK
+          path: |
+            NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk
+            NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk.sha256
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Upload Play Store proof artifact
         uses: actions/upload-artifact@v4
         with:
