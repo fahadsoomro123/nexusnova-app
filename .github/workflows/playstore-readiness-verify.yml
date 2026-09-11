@@ -153,8 +153,10 @@ jobs:
           set -euo pipefail
           APK='NexusNovaAndroid/app/build/outputs/apk/release/app-release.apk'
           test -s "$APK"
-          jarsigner -verify "$APK" | tee /tmp/apk-signature.txt
-          grep -Fq 'jar verified.' /tmp/apk-signature.txt
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)"
+          test -x "$APKSIGNER"
+          "$APKSIGNER" verify --verbose --print-certs "$APK" | tee /tmp/apk-signature.txt
+          grep -Fq 'Verified using v2 scheme (APK Signature Scheme v2): true' /tmp/apk-sign.txt
           unzip -l "$APK" | grep -Fq 'assets/www/src/features/apps/travel-phone-layout-v32.js'
           unzip -l "$APK" | grep -Fq 'assets/www/src/features/apps/travel-result-details-v1.js'
           unzip -p "$APK" assets/www/index.html | grep -Fq 'travel-phone-layout-v31.js?ota=travel-v31-proof36'
