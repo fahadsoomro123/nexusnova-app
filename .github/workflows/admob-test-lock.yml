@@ -90,6 +90,7 @@ jobs:
           BUILD_PATHS=(
             'NexusNovaAndroid/app/build.gradle.kts'
             'tools'
+            '.github/workflows'
           )
           for ref in \
             origin/main \
