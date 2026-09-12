@@ -24,6 +24,12 @@ function openRouteInNovaBrowser(destination) {
   return openInNovaBrowser(url);
 }
 
+function openLiveFlightStatus(flightNumber) {
+  const flight = String(flightNumber || '').trim().replace(/\s+/g, '').toUpperCase();
+  if (!/^[A-Z0-9-]{2,10}$/.test(flight)) return false;
+  return openInNovaBrowser('https://www.google.com/search?q=' + encodeURIComponent(flight + ' live flight status'));
+}
+
 function money(amount) {
   return new Intl.NumberFormat('en-PK', { style: 'currency', currency: 'PKR', maximumFractionDigits: 0 }).format(amount);
 }
@@ -59,6 +65,7 @@ function createRoot() {
       <button type="button" data-nnfl-refresh>Refresh comparison</button>
     </div>
     <div class="nnfl-status"><span>FARE LENS</span><strong data-nnfl-title>Family comparison</strong><em data-nnfl-state>Planning fares — live provider connection will replace these only when approved.</em></div>
+    <div class="nnfl-live-track"><label>LIVE FLIGHT TRACKER<input data-nnfl-flight-number inputmode="text" maxlength="10" placeholder="e.g. PK-301"></label><button type="button" data-nnfl-track-live>TRACK LIVE</button></div>
     <div class="nnfl-results" data-nnfl-results></div>
     <footer><button type="button" data-nnfl-brand>www.nexusnovatools.com</button><span>Always opens inside Nova Browser</span></footer>
   `;
@@ -79,7 +86,7 @@ function styles() {
     .nnfl-route{display:grid;grid-template-columns:1fr 32px 1fr;align-items:center;padding:10px 0 7px;border-bottom:1px solid #e5eaf0}.nnfl-route>div:last-of-type{text-align:right}.nnfl-route small,.nnfl-route span{display:block;color:#748196;font-size:10px}.nnfl-route strong{display:block;font-size:28px;line-height:1;margin:3px 0}.nnfl-route>button{width:32px;height:32px;color:#1769ff;font-size:20px}.nnfl-route p{grid-column:1/-1;display:flex;gap:7px;margin:9px 0 0;font-size:10px;color:#748196}
     .nnfl-tabs{display:grid;grid-template-columns:repeat(5,1fr);border-bottom:1px solid #e5eaf0}.nnfl-tabs button{padding:10px 2px 8px;border-bottom:2px solid transparent;color:#748196;font-size:10px}.nnfl-tabs button.is-active{color:#1769ff;border-color:#1769ff;font-weight:800}
     .nnfl-controls{display:grid;grid-template-columns:repeat(3,1fr) 1.45fr;gap:6px;align-items:end;padding:8px 0;border-bottom:1px solid #e5eaf0}.nnfl-controls label{display:grid;gap:3px;font-size:8px;color:#748196;text-transform:uppercase;letter-spacing:.05em}.nnfl-controls select{width:100%;height:28px;border:0;border-bottom:1px solid #cfd8e3;background:#fff;color:#111827;font-size:10px}.nnfl-controls button{height:28px;background:#1769ff;color:#fff;border-radius:8px;font-size:9px;font-weight:800}
-    .nnfl-status{display:grid;grid-template-columns:auto 1fr;gap:5px 9px;padding:9px 0 6px}.nnfl-status span{font-size:8px;color:#1769ff;font-weight:900;letter-spacing:.08em}.nnfl-status strong{font-size:12px}.nnfl-status em{grid-column:1/-1;font-size:9px;color:#748196;font-style:normal}
+    .nnfl-status{display:grid;grid-template-columns:auto 1fr;gap:5px 9px;padding:9px 0 6px}.nnfl-live-track{display:grid;grid-template-columns:1fr 106px;gap:7px;align-items:end;border-bottom:1px solid #e5eaf0;padding:0 0 7px}.nnfl-live-track label{display:grid;gap:3px;color:#748196;font-size:8px;letter-spacing:.05em}.nnfl-live-track input{height:27px;border:0;border-bottom:1px solid #cfd8e3;background:#fff;padding:0;color:#111827;font-size:10px}.nnfl-live-track button{height:27px;border:0;border-radius:8px;background:#087f5b;color:#fff;font-size:9px;font-weight:800}.nnfl-status span{font-size:8px;color:#1769ff;font-weight:900;letter-spacing:.08em}.nnfl-status strong{font-size:12px}.nnfl-status em{grid-column:1/-1;font-size:9px;color:#748196;font-style:normal}
     .nnfl-results{min-height:0;overflow:hidden}.nnfl-fare{display:grid;grid-template-columns:26px minmax(0,1fr) auto;gap:8px;align-items:center;min-height:58px;border-bottom:1px solid #e5eaf0}.nnfl-fare-mark{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:#eef4ff;color:#1769ff;font-size:11px;font-weight:900}.nnfl-fare:nth-child(2) .nnfl-fare-mark{background:#fff6df;color:#9a6308}.nnfl-fare:nth-child(3) .nnfl-fare-mark{background:#eaf8f2;color:#087f5b}.nnfl-fare small,.nnfl-fare em{display:block;color:#748196;font-size:8px;font-style:normal}.nnfl-fare strong{display:block;font-size:11px;margin:2px 0}.nnfl-fare>div:last-child{text-align:right}.nnfl-fare b{display:block;font-size:12px}.nn-fare-book{color:#1769ff;font-size:9px;font-weight:800;margin-top:4px}
     .nnfl-empty{display:grid;place-items:center;height:100%;text-align:center;color:#748196;font-size:11px;padding:20px}.nnfl-hotel{display:grid;grid-template-columns:62px minmax(0,1fr) auto;gap:8px;min-height:66px;align-items:center;border-bottom:1px solid #e5eaf0}.nnfl-hotel img{width:62px;height:48px;object-fit:cover;border-radius:8px;background:#eef4ff}.nnfl-hotel strong{font-size:11px}.nnfl-hotel span,.nnfl-hotel small{display:block;font-size:9px;color:#748196;margin-top:3px}.nnfl-hotel button{border:0;background:#1769ff;color:#fff;border-radius:8px;padding:8px;font-size:9px;font-weight:800}
     [data-nn-fare-lens="true"] footer{display:flex;justify-content:space-between;align-items:center;min-height:30px;border-top:1px solid #e5eaf0}.nnfl-fallback-link,[data-nn-fare-lens="true"] footer button{font-size:8px;color:#1769ff;font-weight:800}.nnfl-fallback-link{padding:0}.nnfl-fallback-link a{color:inherit}.nnfl-fallback-link{display:none}
@@ -148,6 +155,12 @@ export const fareLensRenderers = {
       paint(root, active);
     }));
     root.querySelector('[data-nnfl-refresh]').addEventListener('click', () => paint(root, active));
+    root.querySelector('[data-nnfl-track-live]').addEventListener('click', () => {
+      const flight = root.querySelector('[data-nnfl-flight-number]').value;
+      root.querySelector('[data-nnfl-state]').textContent = openLiveFlightStatus(flight)
+        ? 'Live flight status opened inside Nova Browser.'
+        : 'Enter a valid flight number, for example PK-301.';
+    });
     root.querySelector('[data-nnfl-swap]').addEventListener('click', () => {
       const cities = root.querySelectorAll('.nnfl-route>div');
       const first = cities[0].innerHTML, second = cities[1].innerHTML;
