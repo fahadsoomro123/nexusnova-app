@@ -1,0 +1,22 @@
+name: Travel V13 Temporary QA
+on:
+  push:
+    branches:
+      - travel-v13-futuristic-approved
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify Travel V13 JavaScript syntax
+        run: |
+          node --check fresh-rebuild/src/features/apps/travel-futuristic-v13.js
+          node --check fresh-rebuild/src/features/apps/travel-phone-layout-v32.js
+          node --check fresh-rebuild/src/features/apps/travel-edge-client.js
+      - name: Verify approved integration anchors
+        run: |
+          grep -q "travel-futuristic-v13.js" fresh-rebuild/src/features/apps/travel-phone-layout-v32.js
+          grep -q "overflow-y:hidden" fresh-rebuild/src/features/apps/travel-phone-layout-v32.js
+          grep -q "https://nexusnovatools.com" fresh-rebuild/src/features/apps/travel-futuristic-v13.js
+          grep -q "NexusBrowserAndroid" fresh-rebuild/src/features/apps/travel-futuristic-v13.js
+          grep -q "nexusnova:travel-rpc" fresh-rebuild/src/features/apps/travel-edge-client.js
