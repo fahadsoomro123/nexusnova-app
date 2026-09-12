@@ -68,7 +68,13 @@ async function callEdge(name, payload) {
 }
 
 export async function travelCall(name, payload = {}) {
-  return callEdge(name, payload);
+  const data = await callEdge(name, payload);
+  try {
+    document.dispatchEvent(new CustomEvent('nexusnova:travel-rpc', {
+      detail: { name, data }
+    }));
+  } catch {}
+  return data;
 }
 
 export async function travelHealth() {
