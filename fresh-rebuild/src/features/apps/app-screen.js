@@ -30,6 +30,7 @@ import { budgetSuiteRenderers } from './budget-suite.js';
 import { healthSuiteRenderers } from './health-suite.js';
 import { familySuiteRenderers } from './family-suite.js';
 import { travelSuiteRenderers } from './travel-suite.js';
+import { fareLensRenderers } from './travel-fare-lens.js';
 import { marketplaceSuiteRenderers } from './marketplace-suite.js';
 import { fileVaultSuiteRenderers } from './file-vault-suite.js';
 import { securityLockSuiteRenderers } from './security-lock-suite.js';
@@ -211,13 +212,13 @@ export function appScreen({ id, backToHub, backToMine } = {}) {
 
   root.querySelector('[data-app-back]').addEventListener('click', () => goBack?.());
   const mount = root.querySelector('[data-app-mount]');
-  const renderer = premiumStudioRenderers[id] || novaSol57Renderers[id] || novaVaultSafeRenderers[id] || hadithSafeRenderers[id] || browserSafeRenderers[id] || premiumWeatherRenderers[id] || qiblaSafeV2Renderers[id] || premiumQiblaRenderers[id] || premiumPrayerSafeRenderers[id] || premiumPrayerRenderers[id] || premiumWorldClockRenderers[id] || driveNativeV2Renderers[id] || premiumDriveSafeRenderers[id] || premiumDriveRenderers[id] || premiumQuranRenderers[id] || documentsLiveRenderers[id] || teacherAIRenderers[id] || pakistanSuiteRenderers[id] || articleRenderers[id] || novaVpnRenderers[id] || newsSuiteRenderers[id] || entertainmentResilientRenderers[id] || entertainmentLiveRenderers[id] || entertainmentSuiteRenderers[id] || urduLibraryRenderers[id] || locationSuiteRenderers[id] || notificationsSuiteRenderers[id] || securityLockSuiteRenderers[id] || fileVaultSuiteRenderers[id] || marketplaceSuiteRenderers[id] || coreEnhancementRenderers[id] || coreRenderers[id] || healthSuiteRenderers[id] || familySuiteRenderers[id] || personalRenderers[id] || teacherSuiteRenderers[id] || islamicSuiteRenderers[id] || documentsSuiteRenderers[id] || communityChatRenderers[id] || learningSuiteRenderers[id] || budgetSuiteRenderers[id] || billRenderers[id] || travelSuiteRenderers[id] || discoverRenderers[id] || faithSecurityRenderers[id] || deviceRenderers[id] || smartRenderers[id] || everydayRenderers[id] || liveRenderers[id];
+  const renderer = fareLensRenderers[id] || premiumStudioRenderers[id] || novaSol57Renderers[id] || novaVaultSafeRenderers[id] || hadithSafeRenderers[id] || browserSafeRenderers[id] || premiumWeatherRenderers[id] || qiblaSafeV2Renderers[id] || premiumQiblaRenderers[id] || premiumPrayerSafeRenderers[id] || premiumPrayerRenderers[id] || premiumWorldClockRenderers[id] || driveNativeV2Renderers[id] || premiumDriveSafeRenderers[id] || premiumDriveRenderers[id] || premiumQuranRenderers[id] || documentsLiveRenderers[id] || teacherAIRenderers[id] || pakistanSuiteRenderers[id] || articleRenderers[id] || novaVpnRenderers[id] || newsSuiteRenderers[id] || entertainmentResilientRenderers[id] || entertainmentLiveRenderers[id] || entertainmentSuiteRenderers[id] || urduLibraryRenderers[id] || locationSuiteRenderers[id] || notificationsSuiteRenderers[id] || securityLockSuiteRenderers[id] || fileVaultSuiteRenderers[id] || marketplaceSuiteRenderers[id] || coreEnhancementRenderers[id] || coreRenderers[id] || healthSuiteRenderers[id] || familySuiteRenderers[id] || personalRenderers[id] || teacherSuiteRenderers[id] || islamicSuiteRenderers[id] || documentsSuiteRenderers[id] || communityChatRenderers[id] || learningSuiteRenderers[id] || budgetSuiteRenderers[id] || billRenderers[id] || travelSuiteRenderers[id] || discoverRenderers[id] || faithSecurityRenderers[id] || deviceRenderers[id] || smartRenderers[id] || everydayRenderers[id] || liveRenderers[id];
   if (renderer) {
     try {
       const body = renderer();
       if (!(body instanceof Node)) throw new Error('Renderer returned an invalid screen.');
       enhanceMiningApp(id, body);
-      enhanceTravelApp(id, body);
+      if (id !== 'travel') enhanceTravelApp(id, body);
       mount.appendChild(body);
       if (aiPhotoRoute) document.body.classList.add('nx-ai-photo-route-active');
       const novaSidebarCleanup = id === 'ai' ? installNovaPremiumSidebar(root, body) : () => {};
