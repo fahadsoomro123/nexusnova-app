@@ -20,7 +20,7 @@ html.nn-travel-v32-active body #nx-app ${ROOT_SELECTOR} .nn-travel-frame{positio
 html.nn-travel-v32-active body #nx-app ${ROOT_SELECTOR} .nn-travel-stage{grid-row:3!important;position:absolute!important;top:18.7vw!important;bottom:0!important;left:0!important;right:0!important;width:auto!important;height:auto!important;min-height:0!important;max-height:none!important;padding:0!important;overflow:hidden!important}
 html.nn-travel-v32-active body #nx-app ${ROOT_SELECTOR} .nn-panel.nn-flight-panel:not([hidden]){--nn-v32-hero:clamp(108px,17vh,150px);position:absolute!important;inset:4px 12px!important;width:auto!important;height:auto!important;min-height:0!important;max-height:none!important;display:block!important;overflow:hidden!important}
 html.nn-travel-v32-active body #nx-app ${ROOT_SELECTOR} .nn-panel.nn-flight-panel:not([hidden])>.nn-hero{position:absolute!important;top:0!important;left:0!important;right:0!important;width:auto!important;height:var(--nn-v32-hero)!important;min-height:0!important;max-height:none!important;margin:0!important}
-html.nn-travel-v32-active body #nx-app ${ROOT_SELECTOR} .nn-panel.nn-flight-panel:not([hidden])>.nn-search-card{position:absolute!important;top:var(--nn-v32-hero)!important;left:0!important;right:0!important;bottom:0!important;width:auto!important;height:auto!important;min-height:0!important;max-height:none!important;margin:0!important;overflow-x:hidden!important;overflow-y:auto!important;overscroll-behavior:contain!important;-webkit-overflow-scrolling:touch!important}
+html.nn-travel-v32-active body #nx-app ${ROOT_SELECTOR} .nn-panel.nn-flight-panel:not([hidden])>.nn-search-card{position:absolute!important;top:var(--nn-v32-hero)!important;left:0!important;right:0!important;bottom:0!important;width:auto!important;height:auto!important;min-height:0!important;max-height:none!important;margin:0!important;overflow-x:hidden!important;overflow-y:hidden!important;overscroll-behavior:none!important}
 html.nn-travel-v32-keyboard body #nx-app>.nx-dock{display:none!important}
 html.nn-travel-v32-keyboard body #nx-app ${ROOT_SELECTOR} .nn-panel.nn-flight-panel:not([hidden]){--nn-v32-hero:clamp(72px,13vh,96px)}
 `;
@@ -86,3 +86,8 @@ function bind(root){
 
 function scan(){document.querySelectorAll(ROOT_SELECTOR).forEach(bind)}
 installStyle();scan();new MutationObserver(scan).observe(document.documentElement,{subtree:true,childList:true});
+
+// Preview-only flagship presentation layer. This branch keeps v32 as the single
+// physical viewport owner while loading the visual system after all legacy
+// Travel layout CSS, so it can remove scrolling without reviving v29-v31 hacks.
+import('./travel-flagship-v5-preview.js').catch(error=>console.warn('[NexusNova Travel V5] preview layer skipped:',error));
