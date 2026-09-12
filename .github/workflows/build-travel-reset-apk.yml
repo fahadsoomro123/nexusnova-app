@@ -1,0 +1,253 @@
+name: Build Signed Travel Reset APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [travel-reset-build-20260912]
+    paths:
+      - '.github/workflows/build-travel-reset-apk.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  signed-travel-reset:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      KEYSTORE_B64: ${{ secrets.NEXUSNOVA_KEYSTORE_BASE64 }}
+      KEYSTORE_PASSWORD: ${{ secrets.NEXUSNOVA_KEYSTORE_PASSWORD }}
+      KEY_ALIAS: ${{ secrets.NEXUSNOVA_KEY_ALIAS }}
+      KEY_PASSWORD: ${{ secrets.NEXUSNOVA_KEY_PASSWORD }}
+      ORIGINAL_SHA: 140253ea1415e72e65bc36b962756ce1d5c05ec1
+    steps:
+      - name: Check required signing secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$KEYSTORE_B64"
+          test -n "$KEYSTORE_PASSWORD"
+          test -n "$KEY_ALIAS"
+          test -n "$KEY_PASSWORD"
+
+      - name: Checkout exact Travel reset source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: public-build
+          fetch-depth: 0
+
+      - name: Prove Travel-only source scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd public-build
+          git fetch origin "$ORIGINAL_SHA" --depth=1 || true
+          mapfile -t changed < <(git diff --name-only "$ORIGINAL_SHA"..HEAD)
+          printf '%s\n' "${changed[@]}"
+          for p in "${changed[@]}"; do
+            case "$p" in
+              .github/workflows/build-travel-reset-apk.yml) ;;
+              fresh-rebuild/index.html) ;;
+              fresh-rebuild/assets/travel/*) ;;
+              fresh-rebuild/src/features/apps/travel-*.js) ;;
+              *) echo "OUT-OF-SCOPE CHANGE: $p"; exit 1 ;;
+            esac
+          done
+          test "$(git rev-parse "$ORIGINAL_SHA:fresh-rebuild/src/features/hub/app-registry.js")" = "$(git rev-parse HEAD:fresh-rebuild/src/features/hub/app-registry.js)"
+          test "$(git rev-parse "$ORIGINAL_SHA:fresh-rebuild/src/nova-vehicle-premium-ui.js")" = "$(git rev-parse HEAD:fresh-rebuild/src/nova-vehicle-premium-ui.js)"
+          test "$(git rev-parse "$ORIGINAL_SHA:fresh-rebuild/src/core/drive-track-persistence.js")" = "$(git rev-parse HEAD:fresh-rebuild/src/core/drive-track-persistence.js)"
+          test "$(git rev-parse "$ORIGINAL_SHA:NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusDriveForegroundService.kt")" = "$(git rev-parse HEAD:NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusDriveForegroundService.kt)"
+
+      - name: Lock exact source and reset stale OTA identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PUBLIC_SHA="$(git -C public-build rev-parse HEAD)"
+          test "${#PUBLIC_SHA}" = 40
+          echo "PUBLIC_SHA=$PUBLIC_SHA" >> "$GITHUB_ENV"
+          python3 - <<'PY'
+          from pathlib import Path
+          import os,re
+          p=Path('public-build/NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt')
+          s=p.read_text(encoding='utf-8')
+          sha=os.environ['PUBLIC_SHA']
+          s,n=re.subn(r'const val BUNDLED_WEB_BASE = "[0-9a-f]{40}"',f'const val BUNDLED_WEB_BASE = "{sha}"',s,count=1)
+          if n != 1:
+              raise SystemExit('Could not inject exact bundled web baseline')
+          p.write_text(s,encoding='utf-8')
+          PY
+          grep -Fq "const val BUNDLED_WEB_BASE = \"$PUBLIC_SHA\"" public-build/NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt
+          grep -q 'versionsRoot.deleteRecursively()' public-build/NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt
+          grep -q 'if (base != BUNDLED_WEB_BASE)' public-build/NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt
+
+      - name: Verify clean Travel reset contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          index='public-build/fresh-rebuild/index.html'
+          suite='public-build/fresh-rebuild/src/features/apps/travel-suite.js'
+          integration='public-build/fresh-rebuild/src/features/apps/travel-integrations.js'
+          registry='public-build/fresh-rebuild/src/features/hub/app-registry.js'
+          test -s "$index"
+          test -s "$suite"
+          test -s "$integration"
+          test -s "$registry"
+          grep -Fq "const TRIP_KEY = 'nexusnova_trip_plan_v1';" "$suite"
+          grep -Fq "const RESET_KEY = 'nexusnova_travel_reset_20260912_v1';" "$suite"
+          grep -Fq "Real Travel Providers" "$suite"
+          grep -Fq "Plan Your Trip" "$suite"
+          grep -Fq "GOOGLE FLIGHTS" "$suite"
+          grep -Fq "PAKISTAN RAILWAYS • OFFICIAL" "$suite"
+          grep -Fq "BOOKME BUS" "$suite"
+          grep -Fq "DAEWOO EXPRESS" "$suite"
+          grep -Fq "export function enhanceTravelApp(_id, root)" "$integration"
+          grep -Fq "return root;" "$integration"
+          grep -Fq "id: 'travel'" "$registry"
+          ! grep -Eq 'travel-(flagship|hyper3d|phone-|overlay-|geometry-|clean-ui|exit-isolation|result-details)' "$index"
+          test "$(find public-build/fresh-rebuild/src/features/apps -maxdepth 1 -type f -name 'travel-*.js' -printf '%f\n' | sort | tr '\n' ' ')" = 'travel-integrations.js travel-suite.js '
+          test ! -d public-build/fresh-rebuild/assets/travel
+          node --check "$suite"
+          node --check "$integration"
+
+      - name: Verify existing Drive composition remains intact
+        shell: bash
+        run: |
+          set -euo pipefail
+          drive='public-build/fresh-rebuild/src/nova-vehicle-premium-ui.js'
+          test -s "$drive"
+          grep -Fq 'nova-drive-gold-maptiler-v14-ui.js' "$drive"
+          grep -Fq 'nova-drive-gold-maptiler-v14-production.js' "$drive"
+          ! grep -Fq 'nova-drive-realworld-v13-production.js' "$drive"
+          ! grep -Fq 'nova-drive-approved-ui-v2.js' "$drive"
+          node --check public-build/fresh-rebuild/src/core/drive-track-persistence.js
+          grep -Fq 'for (const candidate of candidates)' public-build/fresh-rebuild/src/core/drive-track-persistence.js
+          grep -Fq 'ROUTE_MAX_ACCURACY_M = 45.0' public-build/NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusDriveForegroundService.kt
+
+      - name: Checkout proven production auth baseline
+        uses: actions/checkout@v4
+        with:
+          repository: fahadsoomro123/nexusnova-app
+          ref: 5b0f3c0d905c66264d7591131d7224ff441e0742
+          path: production-auth-source
+          sparse-checkout: |
+            fresh-rebuild/src/core/firebase-backend.js
+            fresh-rebuild/src/core/auth-service.js
+            NexusNovaAndroid/app/google-services.json
+          sparse-checkout-cone-mode: false
+
+      - name: Restore production auth only in signed workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp production-auth-source/fresh-rebuild/src/core/firebase-backend.js public-build/fresh-rebuild/src/core/firebase-backend.js
+          cp production-auth-source/fresh-rebuild/src/core/auth-service.js public-build/fresh-rebuild/src/core/auth-service.js
+          cp production-auth-source/NexusNovaAndroid/app/google-services.json public-build/NexusNovaAndroid/app/google-services.json
+          grep -q 'waitForFirebaseUser' public-build/fresh-rebuild/src/core/firebase-backend.js
+          grep -q 'signInWithEmailAndPassword' public-build/fresh-rebuild/src/core/auth-service.js
+          ! grep -q 'PUBLIC_DISABLED_ERROR' public-build/fresh-rebuild/src/core/firebase-backend.js
+          ! grep -q 'public-mirror auth shim' public-build/fresh-rebuild/src/core/auth-service.js
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle 8.13
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Decode release keystore
+        shell: bash
+        working-directory: public-build/NexusNovaAndroid
+        run: |
+          set -euo pipefail
+          printf '%s' "$KEYSTORE_B64" | base64 -d > app/nexusnova-release.jks
+          test -s app/nexusnova-release.jks
+
+      - name: Inject v1.0.43 Travel reset release signing
+        shell: bash
+        working-directory: public-build/NexusNovaAndroid
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('app/build.gradle.kts')
+          s=p.read_text(encoding='utf-8')
+          s,n1=re.subn(r'versionCode\s*=\s*\d+','versionCode = 26091243',s,count=1)
+          s,n2=re.subn(r'versionName\s*=\s*"[^"]+"','versionName = "1.0.43-travel-reset"',s,count=1)
+          if n1 != 1 or n2 != 1:
+              raise SystemExit('Version injection failed')
+          signing='''    signingConfigs {\n        create("release") {\n            storeFile = file("nexusnova-release.jks")\n            storePassword = System.getenv("KEYSTORE_PASSWORD")\n            keyAlias = System.getenv("KEY_ALIAS")\n            keyPassword = System.getenv("KEY_PASSWORD")\n        }\n    }\n\n'''
+          if 'signingConfigs {' not in s:
+              s=s.replace('    buildTypes {',signing+'    buildTypes {',1)
+          release='        release {\n'
+          if 'signingConfig = signingConfigs.getByName("release")' not in s:
+              s=s.replace(release,release+'            signingConfig = signingConfigs.getByName("release")\n',1)
+          p.write_text(s,encoding='utf-8')
+          PY
+
+      - name: Build signed release APK
+        shell: bash
+        working-directory: public-build/NexusNovaAndroid
+        run: |
+          set -euo pipefail
+          gradle --no-daemon clean assembleRelease
+
+      - name: Verify final signed APK payload
+        shell: bash
+        working-directory: public-build/NexusNovaAndroid
+        run: |
+          set -euo pipefail
+          apk='app/build/outputs/apk/release/app-release.apk'
+          test -s "$apk"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$apk"
+          badging="$($ANDROID_HOME/build-tools/35.0.0/aapt dump badging "$apk" | head -n 1)"
+          echo "$badging"
+          echo "$badging" | grep -q "name='com.nexusnova.app'"
+          echo "$badging" | grep -q "versionCode='26091243'"
+          echo "$badging" | grep -q "versionName='1.0.43-travel-reset'"
+          d="$(mktemp -d)"
+          trap 'rm -rf "$d"' EXIT
+          unzip -q "$apk" \
+            'assets/www/index.html' \
+            'assets/www/src/features/apps/travel-integrations.js' \
+            'assets/www/src/features/apps/travel-suite.js' \
+            'assets/www/src/features/hub/app-registry.js' \
+            'assets/www/src/nova-vehicle-premium-ui.js' \
+            'assets/www/src/core/drive-track-persistence.js' \
+            'assets/www/src/core/firebase-backend.js' \
+            'assets/www/src/core/auth-service.js' -d "$d"
+          grep -Fq "const TRIP_KEY = 'nexusnova_trip_plan_v1';" "$d/assets/www/src/features/apps/travel-suite.js"
+          grep -Fq "const RESET_KEY = 'nexusnova_travel_reset_20260912_v1';" "$d/assets/www/src/features/apps/travel-suite.js"
+          grep -Fq 'Real Travel Providers' "$d/assets/www/src/features/apps/travel-suite.js"
+          grep -Fq 'export function enhanceTravelApp(_id, root)' "$d/assets/www/src/features/apps/travel-integrations.js"
+          ! grep -Eq 'travel-(flagship|hyper3d|phone-|overlay-|geometry-|clean-ui|exit-isolation|result-details)' "$d/assets/www/index.html"
+          grep -Fq "id: 'travel'" "$d/assets/www/src/features/hub/app-registry.js"
+          grep -Fq 'nova-drive-gold-maptiler-v14-production.js' "$d/assets/www/src/nova-vehicle-premium-ui.js"
+          ! grep -Fq 'nova-drive-realworld-v13-production.js' "$d/assets/www/src/nova-vehicle-premium-ui.js"
+          grep -Fq 'for (const candidate of candidates)' "$d/assets/www/src/core/drive-track-persistence.js"
+          grep -q 'waitForFirebaseUser' "$d/assets/www/src/core/firebase-backend.js"
+          grep -q 'signInWithEmailAndPassword' "$d/assets/www/src/core/auth-service.js"
+          echo "Verified Travel-only reset from exact source $PUBLIC_SHA inside signed APK"
+
+      - name: Package APK
+        shell: bash
+        working-directory: public-build/NexusNovaAndroid
+        run: |
+          set -euo pipefail
+          mkdir -p signed-output
+          cp app/build/outputs/apk/release/app-release.apk signed-output/NexusNova-v1.0.43-SIGNED-TRAVEL-RESET.apk
+          sha256sum signed-output/NexusNova-v1.0.43-SIGNED-TRAVEL-RESET.apk > signed-output/NexusNova-v1.0.43-SIGNED-TRAVEL-RESET.apk.sha256
+          printf '%s\n' "$PUBLIC_SHA" > signed-output/PUBLIC-SOURCE-SHA.txt
+
+      - name: Upload signed APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NexusNova-v1.0.43-SIGNED-TRAVEL-RESET
+          path: public-build/NexusNovaAndroid/signed-output/*
+          if-no-files-found: error
+          retention-days: 7
