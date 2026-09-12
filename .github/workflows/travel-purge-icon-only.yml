@@ -1,0 +1,152 @@
+name: Travel Icon-Only Hard Purge
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/travel-purge-icon-only.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  purge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Hard purge Travel runtime and keep Hub icon only
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ICON='fresh-rebuild/assets/icons/nova-hub/travel.webp'
+          REG='fresh-rebuild/src/features/hub/app-registry.js'
+          HUB='fresh-rebuild/src/features/hub/hub-screen.js'
+          APP='fresh-rebuild/src/features/apps/app-screen.js'
+          INDEX='fresh-rebuild/index.html'
+          MIXED='fresh-rebuild/src/features/apps/discover-study-travel-skin.js'
+
+          test -s "$ICON"
+          grep -Eq "id: ['\"]travel['\"]" "$REG"
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          index=Path('fresh-rebuild/index.html')
+          s=index.read_text(encoding='utf-8')
+          s='\n'.join(line for line in s.splitlines() if 'src/features/apps/travel-' not in line) + '\n'
+          index.write_text(s,encoding='utf-8')
+
+          app=Path('fresh-rebuild/src/features/apps/app-screen.js')
+          s=app.read_text(encoding='utf-8')
+          s=s.replace("  ['./travel-suite.js', 'travelSuiteRenderers'],\n",'')
+          s=s.replace("    import('./travel-integrations.js').then(module => module.enhanceTravelApp?.(id, body))\n",'')
+          s=s.replace("    import('./mining-integrations.js').then(module => module.enhanceMiningApp?.(id, body)),\n  ];", "    import('./mining-integrations.js').then(module => module.enhanceMiningApp?.(id, body))\n  ];")
+          app.write_text(s,encoding='utf-8')
+
+          hub=Path('fresh-rebuild/src/features/hub/hub-screen.js')
+          s=hub.read_text(encoding='utf-8')
+          anchor="const HIDDEN_HUB_APP_IDS = new Set(['nova-track']);\n"
+          guard="const ICON_ONLY_HUB_APP_IDS = new Set(['travel']);\n"
+          if guard not in s:
+              if anchor not in s: raise SystemExit('hub hidden-set anchor missing')
+              s=s.replace(anchor,anchor+guard,1)
+          old="""      button.addEventListener('click', () => {
+        hubState.scrollY = currentScrollY();
+        hubState.lastAppId = button.dataset.appId;
+"""
+          new="""      button.addEventListener('click', () => {
+        const appId = button.dataset.appId;
+        if (ICON_ONLY_HUB_APP_IDS.has(appId)) return;
+        hubState.scrollY = currentScrollY();
+        hubState.lastAppId = appId;
+"""
+          if old in s:
+              s=s.replace(old,new,1)
+          elif "if (ICON_ONLY_HUB_APP_IDS.has(appId)) return;" not in s:
+              raise SystemExit('hub click anchor missing')
+          s=s.replace('        openApp?.(button.dataset.appId);','        openApp?.(appId);')
+          hub.write_text(s,encoding='utf-8')
+
+          mixed=Path('fresh-rebuild/src/features/apps/discover-study-travel-skin.js')
+          if mixed.exists():
+              s=mixed.read_text(encoding='utf-8')
+              s=s.replace("import { travelSuiteRenderers } from './travel-suite.js';\n",'')
+              s='\n'.join(line for line in s.splitlines() if "travel: () => wrap(travelSuiteRenderers.travel" not in line) + '\n'
+              mixed.write_text(s,encoding='utf-8')
+          PY
+
+          git rm -f --ignore-unmatch \
+            fresh-rebuild/src/features/apps/travel-clean-ui-v27.js \
+            fresh-rebuild/src/features/apps/travel-edge-client.js \
+            fresh-rebuild/src/features/apps/travel-edge-config.js \
+            fresh-rebuild/src/features/apps/travel-elegant-layout-v20.js \
+            fresh-rebuild/src/features/apps/travel-exit-isolation-v10.js \
+            fresh-rebuild/src/features/apps/travel-flagship-runtime-v8.js \
+            fresh-rebuild/src/features/apps/travel-futuristic-v13-integrity.js \
+            fresh-rebuild/src/features/apps/travel-futuristic-v13.js \
+            fresh-rebuild/src/features/apps/travel-ground.js \
+            fresh-rebuild/src/features/apps/travel-hotels.js \
+            fresh-rebuild/src/features/apps/travel-hyper3d-flagship-v24.js \
+            fresh-rebuild/src/features/apps/travel-hyper3d-flagship-v25.js \
+            fresh-rebuild/src/features/apps/travel-hyper3d-hd-v23.js \
+            fresh-rebuild/src/features/apps/travel-hyper3d-layout-v21.js \
+            fresh-rebuild/src/features/apps/travel-hyper3d-polish-v22.js \
+            fresh-rebuild/src/features/apps/travel-inline-layout-v11.js \
+            fresh-rebuild/src/features/apps/travel-integrations.js \
+            fresh-rebuild/src/features/apps/travel-passenger-popover-v26.js \
+            fresh-rebuild/src/features/apps/travel-phone-interaction-v28-native-select-fix.js \
+            fresh-rebuild/src/features/apps/travel-phone-interaction-v28.js \
+            fresh-rebuild/src/features/apps/travel-phone-layout-v12.js \
+            fresh-rebuild/src/features/apps/travel-phone-layout-v13.js \
+            fresh-rebuild/src/features/apps/travel-phone-layout-v14.js \
+            fresh-rebuild/src/features/apps/travel-phone-layout-v15.js \
+            fresh-rebuild/src/features/apps/travel-phone-layout-v17.js \
+            fresh-rebuild/src/features/apps/travel-phone-layout-v31.js \
+            fresh-rebuild/src/features/apps/travel-phone-layout-v32.js \
+            fresh-rebuild/src/features/apps/travel-result-details-v1.js \
+            fresh-rebuild/src/features/apps/travel-suite-v4.js \
+            fresh-rebuild/src/features/apps/travel-suite.js \
+            fresh-rebuild/assets/travel/reference-from-exact.webp.b64 \
+            fresh-rebuild/assets/travel/reference-hero-right.webp.b64 \
+            fresh-rebuild/assets/travel/reference-to-exact.webp.b64 \
+            fresh-rebuild/travel-flagship-v16-harness.html \
+            js/nexusnova-travel-live-v1.js
+
+          # Remove Travel-only CI/recovery machinery too. Mixed Travel+Learning scripts are preserved.
+          git rm -f --ignore-unmatch .github/workflows/*travel*.yml .github/workflows/*travel*.txt
+
+          # Source verification: icon + registry survive; Travel app code and entry routes do not.
+          test -s "$ICON"
+          grep -Eq "id: ['\"]travel['\"]" "$REG"
+          grep -Fq "const ICON_ONLY_HUB_APP_IDS = new Set(['travel']);" "$HUB"
+          grep -Fq 'if (ICON_ONLY_HUB_APP_IDS.has(appId)) return;' "$HUB"
+          ! grep -Fq "./travel-suite.js" "$APP"
+          ! grep -Fq "./travel-integrations.js" "$APP"
+          ! grep -Fq 'src/features/apps/travel-' "$INDEX"
+          ! grep -Fq "travelSuiteRenderers" "$MIXED"
+          if find fresh-rebuild/src/features/apps -maxdepth 1 -type f -name 'travel-*.js' -print | grep -q .; then
+            echo 'Travel runtime files still exist:'
+            find fresh-rebuild/src/features/apps -maxdepth 1 -type f -name 'travel-*.js' -print
+            exit 1
+          fi
+          if find fresh-rebuild/assets/travel -type f -print 2>/dev/null | grep -q .; then
+            echo 'Travel assets still exist'
+            exit 1
+          fi
+          node --check "$HUB"
+          node --check "$APP"
+          node --check "$MIXED"
+
+          git config user.name 'NexusNova Reset Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add -A
+          git status --short
+          git commit -m 'reset(travel): remove app runtime and keep hub icon only'
+          git push origin HEAD:main
