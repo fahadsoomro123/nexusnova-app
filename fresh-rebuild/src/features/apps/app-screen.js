@@ -202,10 +202,12 @@ export function appScreen({ id, backToHub, backToMine } = {}) {
   const parentName = miningOwned ? 'Mine' : 'Nova Hub';
   const goBack = miningOwned ? backToMine : backToHub;
   const aiPhotoRoute = id === AI_PHOTO_ID;
+  const travelRoute = id === 'travel';
 
-  if (aiPhotoRoute) {
-    root.classList.add('nx-ai-photo-route-screen');
-    root.innerHTML = `<button class="nx-ai-photo-route-back" type="button" data-app-back aria-label="Back to ${parentName}">‹</button><div data-app-mount></div>`;
+  if (aiPhotoRoute || travelRoute) {
+    root.classList.add(aiPhotoRoute ? 'nx-ai-photo-route-screen' : 'nx-travel-route-screen');
+    const routeClass = aiPhotoRoute ? 'nx-ai-photo-route-back' : 'nnfl-floating-back';
+    root.innerHTML = `<button class="${routeClass}" type="button" data-app-back aria-label="Back to ${parentName}">‹</button><div data-app-mount></div>`;
   } else {
     root.innerHTML = `<header class="nx-app-head"><button class="nx-back" type="button" data-app-back aria-label="Back to ${parentName}">‹</button><span class="nx-app-head__icon">${icon(app.icon)}</span><div><p class="nx-eyebrow">${app.category}</p><h1>${app.name}</h1><p>${app.description}</p></div></header><div data-app-mount></div>`;
   }
