@@ -56,7 +56,7 @@ function createRoot() {
       <button type="button" class="nnfl-brand" data-nnfl-brand aria-label="Open NexusNova Tools in Nova Browser">
         NEXUSNOVA <span>TOOLS</span><small>nexusnovatools.com</small>
       </button>
-      <button type="button" class="nnfl-route-link" data-nnfl-brand>OPEN IN NOVA BROWSER ↗</button>
+      <div class="nnfl-top-actions"><button type="button" class="nnfl-pak-mode" data-nnfl-pak-mode>PK MODE</button><button type="button" class="nnfl-route-link" data-nnfl-brand>OPEN IN NOVA BROWSER ↗</button></div>
     </div>
     <div class="nnfl-route">
       <div><small>FROM</small><strong>KHI</strong><span>Karachi</span></div>
@@ -96,7 +96,7 @@ function styles() {
     [data-nn-fare-lens="true"] button,[data-nn-fare-lens="true"] select{font:inherit}
     .nnfl-top{display:flex;align-items:center;justify-content:space-between;min-height:42px;border-bottom:1px solid #e5eaf0}
     .nnfl-brand,.nnfl-route-link,.nnfl-tabs button,.nnfl-results button, .nnfl-controls button, .nnfl-route button, .nn-fare-book, .nnfl-fallback-link{border:0;background:transparent;color:inherit;cursor:pointer}
-    .nnfl-brand{padding:0;text-align:left;font-size:11px;font-weight:900;letter-spacing:.08em}.nnfl-brand span{color:#1769ff}.nnfl-brand small{display:block;color:#748196;font-size:8px;letter-spacing:.04em;margin-top:2px}.nnfl-route-link{font-size:8px;color:#1769ff;font-weight:800}
+    .nnfl-top-actions{display:flex;align-items:center;gap:7px}.nnfl-pak-mode{border:1px solid #cfe0ff;background:#fff;color:#1769ff;border-radius:7px;padding:5px 6px;font-size:8px;font-weight:900}.nnfl-pak-mode.is-active{background:#1769ff;color:#fff}.nnfl-brand{padding:0;text-align:left;font-size:11px;font-weight:900;letter-spacing:.08em}.nnfl-brand span{color:#1769ff}.nnfl-brand small{display:block;color:#748196;font-size:8px;letter-spacing:.04em;margin-top:2px}.nnfl-route-link{font-size:8px;color:#1769ff;font-weight:800}
     .nnfl-route{display:grid;grid-template-columns:1fr 32px 1fr;align-items:center;padding:10px 0 7px;border-bottom:1px solid #e5eaf0}.nnfl-route>div:last-of-type{text-align:right}.nnfl-route small,.nnfl-route span{display:block;color:#748196;font-size:10px}.nnfl-route strong{display:block;font-size:28px;line-height:1;margin:3px 0}.nnfl-route>button{width:32px;height:32px;color:#1769ff;font-size:20px}.nnfl-route p{grid-column:1/-1;display:flex;gap:7px;margin:9px 0 0;font-size:10px;color:#748196}
     .nnfl-tabs{display:grid;grid-template-columns:repeat(5,1fr);border-bottom:1px solid #e5eaf0}.nnfl-tabs button{padding:10px 2px 8px;border-bottom:2px solid transparent;color:#748196;font-size:10px}.nnfl-tabs button.is-active{color:#1769ff;border-color:#1769ff;font-weight:800}
     .nnfl-controls{display:grid;grid-template-columns:repeat(3,1fr) 1.45fr;gap:6px;align-items:end;padding:8px 0;border-bottom:1px solid #e5eaf0}.nnfl-controls label{display:grid;gap:3px;font-size:8px;color:#748196;text-transform:uppercase;letter-spacing:.05em}.nnfl-controls select{width:100%;height:28px;border:0;border-bottom:1px solid #cfd8e3;background:#fff;color:#111827;font-size:10px}.nnfl-controls button{height:28px;background:#1769ff;color:#fff;border-radius:8px;font-size:9px;font-weight:800}
@@ -122,6 +122,7 @@ function offers(adults, children, cabin) {
 }
 
 function paint(root, mode = 'flights') {
+  const pakistanMode = root.dataset.nnflPakistanMode === 'true';
   const adults = Number(root.querySelector('[data-nnfl-adults]').value) || 1;
   const children = Number(root.querySelector('[data-nnfl-children]').value) || 0;
   const cabin = root.querySelector('[data-nnfl-cabin]').value;
@@ -188,6 +189,16 @@ export const fareLensRenderers = {
       paint(root, active);
     }));
     root.querySelector('[data-nnfl-refresh]').addEventListener('click', () => paint(root, active));
+    root.querySelector('[data-nnfl-pak-mode]').addEventListener('click', event => {
+      const enabled = root.dataset.nnflPakistanMode !== 'true';
+      root.dataset.nnflPakistanMode = String(enabled);
+      event.currentTarget.classList.toggle('is-active', enabled);
+      event.currentTarget.textContent = enabled ? 'PAKISTAN MODE' : 'PK MODE';
+      root.querySelector('[data-nnfl-state]').textContent = enabled
+        ? 'Pakistan Mode on — local flight, rail, bus and hotel comparison. Live inventory appears only from approved providers.'
+        : 'Worldwide comparison mode on.';
+      paint(root, active);
+    });
     root.querySelector('[data-nnfl-track-live]').addEventListener('click', () => {
       const flight = root.querySelector('[data-nnfl-flight-number]').value;
       root.querySelector('[data-nnfl-state]').textContent = openLiveFlightStatus(flight)
