@@ -1,3 +1,4 @@
+# one-shot trigger v2
 name: Travel Icon-Only Hard Purge
 
 on:
@@ -119,10 +120,8 @@ jobs:
             fresh-rebuild/travel-flagship-v16-harness.html \
             js/nexusnova-travel-live-v1.js
 
-          # Remove Travel-only CI/recovery machinery too. Mixed Travel+Learning scripts are preserved.
           git rm -f --ignore-unmatch .github/workflows/*travel*.yml .github/workflows/*travel*.txt
 
-          # Source verification: icon + registry survive; Travel app code and entry routes do not.
           test -s "$ICON"
           grep -Eq "id: ['\"]travel['\"]" "$REG"
           grep -Fq "const ICON_ONLY_HUB_APP_IDS = new Set(['travel']);" "$HUB"
