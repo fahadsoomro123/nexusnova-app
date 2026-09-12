@@ -110,7 +110,7 @@ function createRoot() {
     <div class="nnfl-controls">
       <label>Adults<select data-nnfl-adults>${Array.from({ length: 9 }, (_, index) => `<option value="${index + 1}"${index === 1 ? ' selected' : ''}>${index + 1}</option>`).join('')}</select></label>
       <label>Children<select data-nnfl-children>${Array.from({ length: 9 }, (_, index) => `<option value="${index}"${index === 1 ? ' selected' : ''}>${index}</option>`).join('')}</select></label>
-      <label>Cabin<select data-nnfl-cabin><option value="economy">Economy</option><option value="business">Business</option></select></label>
+      <label>Cabin<select data-nnfl-cabin><option value="economy">Economy</option><option value="premium_economy">Premium Economy</option><option value="business">Business</option><option value="first">First Class</option></select></label>
       <button type="button" data-nnfl-refresh>Refresh comparison</button>
     </div>
     <div class="nnfl-premium-row"><button type="button" data-nnfl-premium="calendar">FARE CALENDAR</button><button type="button" data-nnfl-premium="rescue">DISRUPTION RESCUE</button><button type="button" data-nnfl-premium="preference">SEAT / ROOM</button></div>
@@ -147,7 +147,7 @@ function styles() {
 }
 
 function offers(adults, children, cabin) {
-  const multiplier = cabin === 'business' ? 2.45 : 1;
+  const multiplier = ({ economy: 1, premium_economy: 1.55, business: 2.45, first: 4.1 })[cabin] || 1;
   const adult = 14900 * adults * multiplier;
   const child = 8650 * children * multiplier;
   const base = adult + child;
