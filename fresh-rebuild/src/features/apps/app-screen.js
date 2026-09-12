@@ -46,7 +46,6 @@ const rendererSources = [
   ['./learning-suite.js', 'learningSuiteRenderers'],
   ['./budget-suite.js', 'budgetSuiteRenderers'],
   ['./bills-app.js', 'billRenderers'],
-  ['./travel-suite.js', 'travelSuiteRenderers'],
   ['./discover-apps.js', 'discoverRenderers'],
   ['./faith-security-apps.js', 'faithSecurityRenderers'],
   ['./device-apps.js', 'deviceRenderers'],
@@ -80,8 +79,7 @@ async function resolveRenderer(id) {
 
 async function enhanceAppSafely(id, body) {
   const tasks = [
-    import('./mining-integrations.js').then(module => module.enhanceMiningApp?.(id, body)),
-    import('./travel-integrations.js').then(module => module.enhanceTravelApp?.(id, body))
+    import('./mining-integrations.js').then(module => module.enhanceMiningApp?.(id, body))
   ];
   const results = await Promise.allSettled(tasks);
   results.forEach(result => {
