@@ -1,15 +1,17 @@
 // TEMPORARY PHONE-VISIBLE DIAGNOSTIC ONLY.
-// Does not own or mutate Travel geometry; it only reads rects/computed styles,
-// draws outlines, and prints the ancestor chain so the first clipping owner is visible.
+// Read-only geometry probe. It must never block touch or react to its own DOM writes.
 const PANEL_ID='nn-travel-geometry-diagnostic-v40';
 const ROOT_SELECTOR='.nn-travel-v19';
 const BIG_GAP_PX=80;
-const REFRESH_MS=350;
+const REFRESH_MS=800;
 
 const OUTLINES=[
   '#ff5252','#ff9f43','#ffe66d','#5cffb0',
   '#4ddcff','#6c8cff','#b67cff','#ff6bd6'
 ];
+
+let lastPanelText='';
+let rafQueued=false;
 
 function round(value){
   return Number.isFinite(value)?Math.round(value):null;
@@ -34,14 +36,17 @@ function ensurePanel(){
     'box-sizing:border-box','padding:7px 8px','border:1px solid #27f58b',
     'border-radius:7px','background:rgba(0,0,0,.92)','color:#27f58b',
     'font:8px/1.32 monospace','letter-spacing:-.02em','white-space:pre-wrap',
-    'pointer-events:none','box-shadow:0 8px 24px rgba(0,0,0,.55)'
+    'pointer-events:none','touch-action:none','user-select:none',
+    'box-shadow:0 8px 24px rgba(0,0,0,.55)'
   ].join(';');
   document.body.appendChild(panel);
   return panel;
 }
 
 function clearPanel(){
-  document.getElementById(PANEL_ID)?.remove();
+  const panel=document.getElementById(PANEL_ID);
+  if(panel) panel.remove();
+  lastPanelText='';
 }
 
 function clearOutlines(){
@@ -74,6 +79,7 @@ function item(label,el){
 }
 
 function paint(){
+  rafQueued=false;
   const root=document.querySelector(ROOT_SELECTOR);
   if(!(root instanceof HTMLElement)||!visible(root)){
     clearOutlines();
@@ -125,7 +131,7 @@ function paint(){
 
   const vv=window.visualViewport;
   const lines=[
-    'TRAVEL GEOMETRY V40 — READ ONLY',
+    'TRAVEL GEOMETRY V40 SAFE — READ ONLY',
     `innerH:${round(window.innerHeight)} vvH:${round(vv?.height)} vvTop:${round(vv?.offsetTop)||0}`,
     `dockTop:${dockTop??'NA'} dockBottom:${dockRect?round(dockRect.bottom):'NA'}`,
     `owner:${window.NexusNovaTravelLayoutOwner||'NA'} physical:${window.NexusNovaTravelPhysicalLayoutOwner||'NA'} proof:${root.dataset.otaProof||'NA'}`,
@@ -150,15 +156,30 @@ function paint(){
   if(firstBig>=0) lines.push(`CULPRIT CANDIDATE: ${chain[firstBig].label}`);
   else lines.push('No >=80px first-gap jump detected in measured chain.');
 
+  const nextText=lines.join('\n');
   const panel=ensurePanel();
-  panel.textContent=lines.join('\n');
+  if(nextText!==lastPanelText){
+    panel.textContent=nextText;
+    lastPanelText=nextText;
+  }
   root.dataset.v40DiagCandidate=firstBig>=0?chain[firstBig].label:'none';
   root.dataset.v40DiagDockTop=String(dockTop??'');
 }
 
-paint();
-const timer=setInterval(paint,REFRESH_MS);
-new MutationObserver(()=>paint()).observe(document.documentElement,{subtree:true,childList:true});
-window.addEventListener('resize',paint);
-window.visualViewport?.addEventListener('resize',paint);
-window.addEventListener('pagehide',()=>clearInterval(timer),{once:true});
+function schedulePaint(){
+  if(rafQueued) return;
+  rafQueued=true;
+  requestAnimationFrame(paint);
+}
+
+schedulePaint();
+const timer=setInterval(schedulePaint,REFRESH_MS);
+window.addEventListener('resize',schedulePaint);
+window.addEventListener('orientationchange',schedulePaint);
+window.visualViewport?.addEventListener('resize',schedulePaint);
+window.visualViewport?.addEventListener('scroll',schedulePaint);
+window.addEventListener('pagehide',()=>{
+  clearInterval(timer);
+  clearOutlines();
+  clearPanel();
+},{once:true});
