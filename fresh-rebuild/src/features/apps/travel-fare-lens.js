@@ -1,7 +1,11 @@
+import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-functions.js';
+import { firebaseApp, requireFirebaseUser } from '../../core/firebase-backend.js';
 import { escapeHtml } from '../../core/local-store.js';
 
 const WEBSITE_URL = 'https://nexusnovatools.com/';
 const TRIP_STORE_KEY = 'nexusnova_travel_trip_center_v1';
+const functions = getFunctions(firebaseApp, 'us-central1');
+const LIVE_TIMEOUT_MS = 15_000;
 const HOTEL_IMAGES = [
   'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=900&q=80',
   'https://images.unsplash.com/photo-1564501049412-61c2a3083791?auto=format&fit=crop&w=900&q=80',
@@ -43,14 +47,46 @@ function openLiveFlightStatus(flightNumber) {
   return openInNovaBrowser('https://www.google.com/search?q=' + encodeURIComponent(flight + ' live flight status'));
 }
 
-function money(amount) {
-  return new Intl.NumberFormat('en-PK', { style: 'currency', currency: 'PKR', maximumFractionDigits: 0 }).format(amount);
+function money(amount, currency = 'PKR') {
+  try { return new Intl.NumberFormat('en-PK', { style: 'currency', currency, maximumFractionDigits: 0 }).format(amount); }
+  catch { return `${Math.round(Number(amount) || 0).toLocaleString()} ${currency}`; }
+}
+
+function futureDate(days = 6) {
+  return new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
+}
+
+function compactDate(value) {
+  const date = new Date(`${value}T00:00:00`);
+  return Number.isFinite(date.getTime()) ? date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : value;
+}
+
+function timeout(promise, ms = LIVE_TIMEOUT_MS) {
+  return Promise.race([promise, new Promise((_, reject) => setTimeout(() => reject(new Error('Secure travel API timed out.')), ms))]);
+}
+
+function errorText(error) {
+  return String(error?.message || error || 'Search unavailable.').replace(/^FirebaseError:\s*/i, '').replace(/^functions\/[a-z-]+:\s*/i, '').slice(0, 160);
+}
+
+function durationText(minutes) {
+  const total = Math.max(0, Math.round(Number(minutes) || 0));
+  return total ? `${Math.floor(total / 60)}h ${total % 60}m` : 'Duration pending';
+}
+
+function routeData(root) {
+  const cities = root.querySelectorAll('.nnfl-route > div');
+  return {
+    origin: cities[0]?.querySelector('strong')?.textContent?.trim() || 'KHI',
+    destination: cities[1]?.querySelector('strong')?.textContent?.trim() || 'ISB'
+  };
 }
 
 function createRoot() {
   const root = document.createElement('section');
   root.className = 'nn-fare-lens';
   root.dataset.nnFareLens = 'true';
+  const departureDate = futureDate();
   root.innerHTML = `
     <div class="nnfl-top">
       <button type="button" class="nnfl-brand" data-nnfl-brand aria-label="Open NexusNova Tools in Nova Browser">
@@ -62,7 +98,7 @@ function createRoot() {
       <div><small>FROM</small><strong>KHI</strong><span>Karachi</span></div>
       <button type="button" data-nnfl-swap aria-label="Swap route">→</button>
       <div><small>TO</small><strong>ISB</strong><span>Islamabad</span></div>
-      <p><span data-nnfl-date>18 Sep</span><span>•</span><span data-nnfl-travellers>2 adults · 1 child</span></p>
+      <p><span data-nnfl-date>${compactDate(departureDate)}</span><span>•</span><span data-nnfl-travellers>2 adults · 1 child</span></p>
     </div>
     <nav class="nnfl-tabs" aria-label="Travel mode">
       <button type="button" class="is-active" data-nnfl-tab="flights">Flights</button>
@@ -92,7 +128,7 @@ function styles() {
   style.id = 'nn-fare-lens-style';
   style.textContent = `
     .nx-travel-route-screen{height:calc(100dvh - 72px)!important;min-height:0!important;overflow:hidden!important;padding:0!important;margin:0!important}.nx-travel-route-screen [data-app-mount]{height:100%;overflow:hidden}.nnfl-floating-back{position:absolute;z-index:10;right:12px;top:11px;width:34px;height:34px;border:0;border-radius:50%;background:#fff;color:#1769ff;font-size:26px;line-height:1;box-shadow:0 2px 10px rgba(17,24,39,.12)}
-    [data-nn-fare-lens="true"]{height:100%;min-height:390px;max-height:none;overflow:hidden!important;background:#fff;color:#111827;padding:env(safe-area-inset-top) 14px 0;display:grid;grid-template-rows:auto auto auto auto auto minmax(0,1fr) auto;gap:0;font-family:Inter,system-ui,sans-serif}
+    [data-nn-fare-lens="true"]{height:100%;min-height:390px;max-height:none;overflow:hidden!important;background:#fff;color:#111827;padding:env(safe-area-inset-top) 14px 0;display:grid;grid-template-rows:auto auto auto auto auto auto auto minmax(0,1fr) auto;gap:0;font-family:Inter,system-ui,sans-serif}
     [data-nn-fare-lens="true"],[data-nn-fare-lens="true"] *{box-sizing:border-box;overscroll-behavior:none}[data-nn-fare-lens="true"]{touch-action:none}
     [data-nn-fare-lens="true"] button,[data-nn-fare-lens="true"] select{font:inherit}
     .nnfl-top{display:flex;align-items:center;justify-content:space-between;min-height:42px;border-bottom:1px solid #e5eaf0}
@@ -120,6 +156,49 @@ function offers(adults, children, cabin) {
     ['₨', 'LOWEST', '1 stop · 4h 10m', 'Cabin baggage', Math.round(base)],
     ['◷', 'FASTEST', 'Non-stop · 1h 45m', 'Checked bag', Math.round(base * 1.23)]
   ];
+}
+
+function renderLiveOffers(liveOffers) {
+  return liveOffers.slice(0, 3).map((offer, index) => {
+    const carrier = escapeHtml(String(offer.carriers?.join(' · ') || offer.provider || 'Live offer'));
+    const route = `${Number(offer.stops) || 0 ? `${offer.stops} stop${Number(offer.stops) === 1 ? '' : 's'}` : 'Non-stop'} · ${durationText(offer.durationMinutes)}`;
+    const note = offer.expiresAt ? `Live fare · expires ${escapeHtml(String(offer.expiresAt).slice(0, 10))}` : 'Live fare from approved provider';
+    return `<article class="nnfl-fare"><div class="nnfl-fare-mark">${index === 0 ? '✦' : index === 1 ? '₨' : '◷'}</div><div><small>${index === 0 ? 'LIVE BEST VALUE' : index === 1 ? 'LIVE LOWEST' : 'LIVE OPTION'}</small><strong>${carrier}</strong><em>${escapeHtml(route)} · ${note}</em></div><div><b>${money(offer.compareTotal ?? offer.total, offer.compareCurrency || offer.currency || 'PKR')}</b><button type="button" class="nn-fare-book" data-nnfl-book="${escapeHtml(String(offer.id || index))}">SELECT & BOOK</button></div></article>`;
+  }).join('');
+}
+
+async function refreshFlightComparison(root) {
+  const state = root.querySelector('[data-nnfl-state]');
+  const refresh = root.querySelector('[data-nnfl-refresh]');
+  const { origin, destination } = routeData(root);
+  const adults = Number(root.querySelector('[data-nnfl-adults]').value) || 1;
+  const children = Number(root.querySelector('[data-nnfl-children]').value) || 0;
+  const cabin = root.querySelector('[data-nnfl-cabin]').value || 'economy';
+  const departureDate = futureDate();
+  refresh.disabled = true;
+  refresh.textContent = 'Checking live…';
+  state.textContent = 'Checking approved secure flight providers…';
+  try {
+    await timeout(requireFirebaseUser(), 5_000);
+    const call = httpsCallable(functions, 'searchWorldwideFlights');
+    const response = await timeout(call({ origin, destination, departureDate, adults, children, cabin, currency: 'PKR' }));
+    const data = response?.data || {};
+    const liveOffers = Array.isArray(data.offers) ? data.offers.filter(item => item?.live === true) : [];
+    if (!data.ok || !liveOffers.length) {
+      root.__nnflLiveOffers = [];
+      state.textContent = data.message || 'No live fares returned. Planning comparison remains clearly marked.';
+    } else {
+      root.__nnflLiveOffers = liveOffers;
+      state.textContent = `${liveOffers.length} live fare${liveOffers.length === 1 ? '' : 's'} returned from approved provider${liveOffers.length === 1 ? '' : 's'}. Booking is enabled only after a provider booking flow is connected.`;
+    }
+  } catch (error) {
+    root.__nnflLiveOffers = [];
+    state.textContent = `Live fare search unavailable — planning comparison kept (${errorText(error)}).`;
+  } finally {
+    refresh.disabled = false;
+    refresh.textContent = 'Refresh comparison';
+    paint(root, 'flights');
+  }
 }
 
 function paint(root, mode = 'flights') {
@@ -163,8 +242,11 @@ function paint(root, mode = 'flights') {
       <p class="nnfl-trip-note">Live price and delay alerts activate only after an approved provider is connected. No fake alerts.</p>
     </section>`;
   } else {
-    title.textContent = `${mode === 'flights' ? 'Family comparison' : mode === 'buses' ? 'Bus comparison' : 'Rail comparison'}`;
-    box.innerHTML = offers(adults, children, cabin).map((offer, index) => `<article class="nnfl-fare"><div class="nnfl-fare-mark">${offer[0]}</div><div><small>${offer[1]}</small><strong>${offer[2]}</strong><em>${offer[3]}</em></div><div><b>${money(offer[4])}</b><button type="button" class="nn-fare-book" data-nnfl-book="fare-${index}">SELECT & BOOK</button></div></article>`).join('');
+    const liveOffers = mode === 'flights' ? (root.__nnflLiveOffers || []) : [];
+    title.textContent = liveOffers.length ? 'Live family comparison' : `${mode === 'flights' ? 'Family comparison' : mode === 'buses' ? 'Bus comparison' : 'Rail comparison'}`;
+    box.innerHTML = liveOffers.length
+      ? renderLiveOffers(liveOffers)
+      : offers(adults, children, cabin).map((offer, index) => `<article class="nnfl-fare"><div class="nnfl-fare-mark">${offer[0]}</div><div><small>${offer[1]}</small><strong>${offer[2]}</strong><em>${offer[3]}</em></div><div><b>${money(offer[4])}</b><button type="button" class="nn-fare-book" data-nnfl-book="fare-${index}">SELECT & BOOK</button></div></article>`).join('');
   }
   box.querySelectorAll('[data-nnfl-book]').forEach(button => button.addEventListener('click', () => {
     root.querySelector('[data-nnfl-state]').textContent = 'Booking handoff is reserved for an approved live provider. No fake ticket or payment was created.';
@@ -201,7 +283,7 @@ export const fareLensRenderers = {
       root.querySelectorAll('[data-nnfl-tab]').forEach(tab => tab.classList.toggle('is-active', tab === button));
       paint(root, active);
     }));
-    root.querySelector('[data-nnfl-refresh]').addEventListener('click', () => paint(root, active));
+    root.querySelector('[data-nnfl-refresh]').addEventListener('click', () => active === 'flights' ? refreshFlightComparison(root) : paint(root, active));
     root.querySelectorAll('[data-nnfl-premium]').forEach(button => button.addEventListener('click', () => {
       root.dataset.nnflPremium = button.dataset.nnflPremium || '';
       root.querySelectorAll('[data-nnfl-premium]').forEach(item => item.classList.toggle('is-active', item === button));
