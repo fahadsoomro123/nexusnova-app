@@ -48,10 +48,9 @@ function openRouteInNovaBrowser(destination) {
   return openInNovaBrowser(url);
 }
 
-function openLiveFlightStatus(flightNumber) {
+function cleanFlightNumber(flightNumber) {
   const flight = String(flightNumber || '').trim().replace(/\s+/g, '').toUpperCase();
-  if (!/^[A-Z0-9-]{2,10}$/.test(flight)) return false;
-  return openInNovaBrowser('https://www.google.com/search?q=' + encodeURIComponent(flight + ' live flight status'));
+  return /^[A-Z0-9-]{2,10}$/.test(flight) ? flight : '';
 }
 
 function money(amount, currency = 'PKR') {
@@ -86,6 +85,12 @@ function routeData(root) {
     origin: root.dataset.nnflOrigin || 'Karachi',
     destination: root.dataset.nnflDestination || 'Islamabad'
   };
+}
+
+function updateSearchButton(root, mode) {
+  const button = root.querySelector('[data-nnfl-refresh]');
+  const labels = { flights: 'SEARCH FLIGHTS', buses: 'SEARCH BUSES', trains: 'SEARCH TRAINS', hotels: 'SEARCH HOTELS', trip: 'REFRESH TRIP' };
+  button.textContent = labels[mode] || 'SEARCH';
 }
 
 function renderRoute(root, side, city) {
@@ -134,7 +139,7 @@ function createRoot() {
       <button type="button" class="nnfl-brand" data-nnfl-brand aria-label="Open NexusNova Tools in Nova Browser">
         NEXUSNOVA <span>TOOLS</span><small>nexusnovatools.com</small>
       </button>
-      <div class="nnfl-top-actions"><button type="button" class="nnfl-pak-mode" data-nnfl-pak-mode>PK MODE</button><button type="button" class="nnfl-route-link" data-nnfl-brand>OPEN IN NOVA BROWSER ↗</button></div>
+      <div class="nnfl-top-actions"><button type="button" class="nnfl-pak-mode" data-nnfl-pak-mode><i class="nnfl-pak-flag" aria-hidden="true"></i><span>Pakistan</span></button><button type="button" class="nnfl-route-link" data-nnfl-brand><span>Nova</span><b>↗</b></button></div>
     </div>
     <div class="nnfl-route">
       <button type="button" class="nnfl-route-city" data-nnfl-edit-route="origin"><small>FROM</small><strong data-nnfl-origin-code>KHI</strong><span data-nnfl-origin-name>Karachi</span></button>
@@ -180,12 +185,12 @@ function styles() {
     [data-nn-fare-lens="true"] button,[data-nn-fare-lens="true"] select{font:inherit}
     .nnfl-top{display:flex;align-items:center;justify-content:space-between;min-height:42px;border-bottom:1px solid #e5eaf0}
     .nnfl-brand,.nnfl-route-link,.nnfl-tabs button,.nnfl-results button, .nnfl-controls button, .nnfl-route button, .nn-fare-book, .nnfl-fallback-link{border:0;background:transparent;color:inherit;cursor:pointer}
-    .nnfl-top-actions{display:flex;align-items:center;gap:7px}.nnfl-pak-mode{border:1px solid #cfe0ff;background:#fff;color:#1769ff;border-radius:7px;padding:5px 6px;font-size:8px;font-weight:900}.nnfl-pak-mode.is-active{background:#1769ff;color:#fff}.nnfl-brand{padding:0;text-align:left;font-size:11px;font-weight:900;letter-spacing:.08em}.nnfl-brand span{color:#1769ff}.nnfl-brand small{display:block;color:#748196;font-size:8px;letter-spacing:.04em;margin-top:2px}.nnfl-route-link{font-size:8px;color:#1769ff;font-weight:800}
+    .nnfl-top-actions{display:flex;align-items:center;gap:6px}.nnfl-pak-mode,.nnfl-route-link{height:27px;border-radius:14px;font-size:8px;font-weight:900;letter-spacing:.01em}.nnfl-pak-mode{display:flex;align-items:center;gap:5px;border:1px solid #cfe0ff;background:linear-gradient(135deg,#fff,#edf5ff);color:#1769ff;padding:3px 8px 3px 4px}.nnfl-pak-flag{position:relative;display:block;width:20px;height:13px;border-radius:2px;background:linear-gradient(90deg,#fff 0 24%,#01411c 24%);box-shadow:inset 0 0 0 1px rgba(1,65,28,.12);overflow:hidden}.nnfl-pak-flag:before{content:'☾';position:absolute;left:8px;top:-3px;color:#fff;font-size:12px;line-height:13px}.nnfl-pak-flag:after{content:'★';position:absolute;left:13px;top:0;color:#fff;font-size:5px;line-height:13px}.nnfl-pak-mode.is-active{border-color:#087f5b;background:#087f5b;color:#fff}.nnfl-pak-mode.is-active .nnfl-pak-flag{box-shadow:0 0 0 1px rgba(255,255,255,.35)}.nnfl-route-link{display:flex;align-items:center;gap:5px;border:1px solid #dce5f0;background:#fff;color:#1769ff;padding:3px 8px}.nnfl-route-link b{display:grid;place-items:center;width:17px;height:17px;border-radius:50%;background:#1769ff;color:#fff;font-size:10px;line-height:1}.nnfl-brand{padding:0;text-align:left;font-size:11px;font-weight:900;letter-spacing:.08em}.nnfl-brand span{color:#1769ff}.nnfl-brand small{display:block;color:#748196;font-size:8px;letter-spacing:.04em;margin-top:2px}
     .nnfl-route{display:grid;grid-template-columns:1fr 32px 1fr;align-items:center;padding:10px 0 7px;border-bottom:1px solid #e5eaf0}.nnfl-route-city{min-width:0;border:0;background:#fff;padding:0;text-align:left;color:#111827}.nnfl-route-city:last-of-type{text-align:right}.nnfl-route small,.nnfl-route span{display:block;color:#748196;font-size:10px}.nnfl-route strong{display:block;font-size:28px;line-height:1;margin:3px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.nnfl-route>[data-nnfl-swap]{width:32px;height:32px;color:#1769ff;font-size:20px}.nnfl-route p{grid-column:1/-1;display:flex;gap:7px;margin:9px 0 0;font-size:10px;color:#748196}
     .nnfl-tabs{display:grid;grid-template-columns:repeat(5,1fr);border-bottom:1px solid #e5eaf0}.nnfl-tabs button{padding:10px 2px 8px;border-bottom:2px solid transparent;color:#748196;font-size:10px}.nnfl-tabs button.is-active{color:#1769ff;border-color:#1769ff;font-weight:800}
     .nnfl-controls{display:grid;grid-template-columns:repeat(3,1fr) 1.45fr;gap:6px;align-items:end;padding:8px 0;border-bottom:1px solid #e5eaf0}.nnfl-controls label{display:grid;gap:3px;font-size:8px;color:#748196;text-transform:uppercase;letter-spacing:.05em}.nnfl-controls select{width:100%;height:28px;border:0;border-bottom:1px solid #cfd8e3;background:#fff;color:#111827;font-size:10px}.nnfl-controls button{height:28px;background:#1769ff;color:#fff;border-radius:8px;font-size:9px;font-weight:800}
     .nnfl-premium-row{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:7px 0 0}.nnfl-premium-row button{border:1px solid #dce5f0;background:#fff;color:#1769ff;border-radius:7px;padding:6px 3px;font-size:7px;font-weight:900}.nnfl-premium-row button.is-active{background:#1769ff;color:#fff}.nnfl-fare-calendar{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;padding-top:5px}.nnfl-fare-calendar button{min-height:52px;border:1px solid #e1e7ef;background:#fff;border-radius:8px;text-align:left;padding:6px}.nnfl-fare-calendar small,.nnfl-fare-calendar span{display:block;color:#748196;font-size:7px}.nnfl-fare-calendar strong{display:block;font-size:9px;margin:4px 0}.nnfl-premium-note,.nnfl-preference p,.nnfl-rescue span,.nnfl-rescue small{font-size:9px;color:#748196}.nnfl-rescue{display:grid;gap:7px;padding-top:6px}.nnfl-rescue strong{font-size:13px}.nnfl-rescue button{border:0;border-bottom:1px solid #e5eaf0;background:#fff;text-align:left;padding:9px 0;color:#1769ff;font-size:10px;font-weight:800}.nnfl-preference{padding-top:8px}.nnfl-preference>div{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}.nnfl-preference button{border:1px solid #dce5f0;background:#fff;padding:11px 6px;border-radius:8px;color:#1769ff;font-size:9px;font-weight:800}.nnfl-status{display:grid;grid-template-columns:auto 1fr;gap:5px 9px;padding:9px 0 6px}.nnfl-live-track{display:grid;grid-template-columns:1fr 106px;gap:7px;align-items:end;border-bottom:1px solid #e5eaf0;padding:0 0 7px}.nnfl-live-track label{display:grid;gap:3px;color:#748196;font-size:8px;letter-spacing:.05em}.nnfl-live-track input{height:27px;border:0;border-bottom:1px solid #cfd8e3;background:#fff;padding:0;color:#111827;font-size:10px}.nnfl-live-track button{height:27px;border:0;border-radius:8px;background:#087f5b;color:#fff;font-size:8px;font-weight:800}.nnfl-status span{font-size:8px;color:#1769ff;font-weight:900;letter-spacing:.08em}.nnfl-status strong{font-size:12px}.nnfl-status em{grid-column:1/-1;font-size:9px;color:#748196;font-style:normal}
-    .nnfl-results{min-height:0;overflow:hidden}.nnfl-fare{display:grid;grid-template-columns:26px minmax(0,1fr) auto;gap:8px;align-items:center;min-height:58px;border-bottom:1px solid #e5eaf0}.nnfl-fare-mark{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:#eef4ff;color:#1769ff;font-size:11px;font-weight:900}.nnfl-fare:nth-child(2) .nnfl-fare-mark{background:#fff6df;color:#9a6308}.nnfl-fare:nth-child(3) .nnfl-fare-mark{background:#eaf8f2;color:#087f5b}.nnfl-fare small,.nnfl-fare em{display:block;color:#748196;font-size:8px;font-style:normal}.nnfl-fare strong{display:block;font-size:11px;margin:2px 0}.nnfl-fare>div:last-child{text-align:right}.nnfl-fare b{display:block;font-size:12px}.nn-fare-book{color:#1769ff;font-size:9px;font-weight:800;margin-top:4px}
+    .nnfl-results{min-height:0;overflow:hidden}.nnfl-fare{display:grid;grid-template-columns:26px minmax(0,1fr) auto;gap:8px;align-items:center;min-height:58px;border-bottom:1px solid #e5eaf0}.nnfl-fare-mark{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:#eef4ff;color:#1769ff;font-size:11px;font-weight:900}.nnfl-fare:nth-child(2) .nnfl-fare-mark{background:#fff6df;color:#9a6308}.nnfl-fare:nth-child(3) .nnfl-fare-mark{background:#eaf8f2;color:#087f5b}.nnfl-fare small,.nnfl-fare em{display:block;color:#748196;font-size:8px;font-style:normal}.nnfl-fare strong{display:block;font-size:11px;margin:2px 0}.nnfl-fare>div:last-child{text-align:right}.nnfl-fare b{display:block;font-size:12px}.nn-fare-book{color:#1769ff;font-size:9px;font-weight:800;margin-top:4px}.nnfl-tracker-panel{padding:14px 0;border-bottom:1px solid #e5eaf0}.nnfl-tracker-panel small{display:block;color:#1769ff;font-size:8px;font-weight:900;letter-spacing:.08em}.nnfl-tracker-panel strong{display:block;font-size:25px;margin:5px 0}.nnfl-tracker-panel>span{display:block;color:#748196;font-size:10px;line-height:1.35}.nnfl-tracker-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:0;margin-top:12px;border-top:1px solid #e5eaf0}.nnfl-tracker-grid div{padding:9px 0;border-bottom:1px solid #e5eaf0}.nnfl-tracker-grid div:nth-child(even){padding-left:9px;border-left:1px solid #e5eaf0}.nnfl-tracker-grid span,.nnfl-tracker-grid b{display:block}.nnfl-tracker-grid span{font-size:8px;color:#748196}.nnfl-tracker-grid b{margin-top:3px;font-size:10px}.nnfl-tracker-note{margin:10px 0 0;color:#748196;font-size:9px}
     .nnfl-empty{display:grid;place-items:center;height:100%;text-align:center;color:#748196;font-size:11px;padding:20px}.nnfl-trip-center{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0;border-top:1px solid #e5eaf0}.nnfl-trip-budget{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid #e5eaf0}.nnfl-trip-budget small,.nnfl-trip-budget span{display:block;color:#748196;font-size:9px}.nnfl-trip-budget strong{font-size:15px}.nnfl-trip-action{min-height:50px;padding:8px 5px 8px 0;text-align:left;border:0;border-bottom:1px solid #e5eaf0;background:#fff;color:#111827}.nnfl-trip-action:nth-of-type(even){padding-left:9px;border-left:1px solid #e5eaf0}.nnfl-trip-action strong,.nnfl-trip-action span{display:block}.nnfl-trip-action strong{font-size:10px}.nnfl-trip-action span{font-size:8px;color:#748196;margin-top:3px}.nnfl-trip-action.is-saved strong{color:#087f5b}.nnfl-trip-note{grid-column:1/-1;margin:0;padding:8px 0;color:#748196;font-size:8px}.nnfl-hotel{display:grid;grid-template-columns:62px minmax(0,1fr) auto;gap:8px;min-height:66px;align-items:center;border-bottom:1px solid #e5eaf0}.nnfl-hotel img{width:62px;height:48px;object-fit:cover;border-radius:8px;background:#eef4ff}.nnfl-hotel strong{font-size:11px}.nnfl-hotel span,.nnfl-hotel small{display:block;font-size:9px;color:#748196;margin-top:3px}.nnfl-hotel button{border:0;background:#1769ff;color:#fff;border-radius:8px;padding:8px;font-size:9px;font-weight:800}
     [data-nn-fare-lens="true"] footer{display:flex;justify-content:space-between;align-items:center;min-height:30px;border-top:1px solid #e5eaf0;overflow:hidden}.nnfl-fallback-link,[data-nn-fare-lens="true"] footer button,[data-nn-fare-lens="true"] footer span{font-size:8px!important;line-height:1.1!important;color:#1769ff;font-weight:800}.nnfl-fallback-link{padding:0}.nnfl-fallback-link a{color:inherit}.nnfl-fallback-link{display:none}
     .nnfl-city-picker{position:absolute;inset:0;z-index:50;background:#fff;padding:max(14px,env(safe-area-inset-top)) 14px 14px;overflow:hidden}.nnfl-city-picker__head{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #e5eaf0;padding-bottom:10px}.nnfl-city-picker__head strong{font-size:15px}.nnfl-city-picker__head button{border:0;background:#fff;color:#1769ff;font-size:11px;font-weight:800}.nnfl-city-picker input{width:100%;height:42px;margin:13px 0 7px;border:0;border-bottom:2px solid #1769ff;background:#fff;color:#111827;font-size:16px}.nnfl-city-picker [data-nnfl-city-list]{display:grid}.nnfl-city-picker [data-nnfl-city-list] button{display:grid;grid-template-columns:46px 1fr;gap:8px;align-items:center;min-height:48px;border:0;border-bottom:1px solid #e5eaf0;background:#fff;text-align:left;color:#111827}.nnfl-city-picker [data-nnfl-city-list] strong{color:#1769ff;font-size:13px}.nnfl-city-picker [data-nnfl-city-list] span{font-size:13px}.nnfl-city-picker p{font-size:12px;color:#748196}
@@ -213,6 +218,40 @@ function renderLiveOffers(liveOffers) {
     const note = offer.expiresAt ? `Live fare · expires ${escapeHtml(String(offer.expiresAt).slice(0, 10))}` : 'Live fare from approved provider';
     return `<article class="nnfl-fare"><div class="nnfl-fare-mark">${index === 0 ? '✦' : index === 1 ? '₨' : '◷'}</div><div><small>${index === 0 ? 'LIVE BEST VALUE' : index === 1 ? 'LIVE LOWEST' : 'LIVE OPTION'}</small><strong>${carrier}</strong><em>${escapeHtml(route)} · ${note}</em></div><div><b>${money(offer.compareTotal ?? offer.total, offer.compareCurrency || offer.currency || 'PKR')}</b><button type="button" class="nn-fare-book" data-nnfl-book="${escapeHtml(String(offer.id || index))}">SELECT & BOOK</button></div></article>`;
   }).join('');
+}
+
+function trackerPanel(flight, data = null, message = 'Searching public ADS-B signal…') {
+  const position = data?.position;
+  const location = position ? `${Number(position.latitude).toFixed(4)}, ${Number(position.longitude).toFixed(4)}` : 'Signal unavailable';
+  const altitude = Number.isFinite(Number(data?.altitudeFt)) ? `${Math.round(data.altitudeFt).toLocaleString()} ft` : '—';
+  const speed = Number.isFinite(Number(data?.speedKts)) ? `${Math.round(data.speedKts)} kt` : '—';
+  const arrival = data?.destination || '—';
+  const seen = Number.isFinite(Number(data?.seenSeconds)) ? `${Math.round(data.seenSeconds)} sec ago` : '—';
+  return `<section class="nnfl-tracker-panel"><small>IN-APP LIVE FLIGHT TRACKER · KEYLESS</small><strong>${escapeHtml(flight)}</strong><span>${escapeHtml(message)}</span><div class="nnfl-tracker-grid"><div><span>LIVE LOCATION</span><b>${escapeHtml(location)}</b></div><div><span>ALTITUDE</span><b>${escapeHtml(altitude)}</b></div><div><span>SPEED</span><b>${escapeHtml(speed)}</b></div><div><span>DESTINATION</span><b>${escapeHtml(arrival)}</b></div></div><p class="nnfl-tracker-note">${position ? `Last public receiver update: ${escapeHtml(seen)}. This stays inside NexusNova Travel.` : 'No position was returned from the public receiver network. Try again shortly or use another flight number.'}</p></section>`;
+}
+
+async function trackWorldwideFlight(root, flight) {
+  const state = root.querySelector('[data-nnfl-state]');
+  const box = root.querySelector('[data-nnfl-results]');
+  root.__nnflTrackingFlight = flight;
+  root.querySelector('[data-nnfl-title]').textContent = 'Live flight tracker';
+  state.textContent = `Searching keyless public ADS-B data for ${flight}…`;
+  box.innerHTML = trackerPanel(flight);
+  try {
+    const call = httpsCallable(functions, 'trackWorldwideFlight');
+    const response = await timeout(call({ flight }), 12_000);
+    const data = response?.data || {};
+    if (!data.ok || !data.position) {
+      state.textContent = data.message || `No public live signal found for ${flight}.`;
+      box.innerHTML = trackerPanel(flight, null, state.textContent);
+      return;
+    }
+    state.textContent = `Live public ADS-B position received for ${flight}.`;
+    box.innerHTML = trackerPanel(flight, data, `Live public ADS-B signal · ${data.aircraft || flight}`);
+  } catch (error) {
+    state.textContent = `Live tracker unavailable — ${errorText(error)}`;
+    box.innerHTML = trackerPanel(flight, null, state.textContent);
+  }
 }
 
 async function refreshFlightComparison(root) {
@@ -248,7 +287,7 @@ async function refreshFlightComparison(root) {
     state.textContent = `Live fare search unavailable — planning comparison kept (${errorText(error)}).`;
   } finally {
     refresh.disabled = false;
-    refresh.textContent = 'SEARCH FLIGHTS';
+    updateSearchButton(root, 'flights');
     paint(root, 'flights');
   }
 }
@@ -263,6 +302,7 @@ function paint(root, mode = 'flights') {
   const box = root.querySelector('[data-nnfl-results]');
   const premium = root.dataset.nnflPremium || '';
   const title = root.querySelector('[data-nnfl-title]');
+  updateSearchButton(root, mode);
   if (premium === 'calendar') {
     title.textContent = '7-day Fare Calendar';
     box.innerHTML = '<div class="nnfl-fare-calendar">' + [0,1,2,3,4,5,6].map((day) => '<button type="button" data-nnfl-calendar-day="' + day + '"><small>' + (18 + day) + ' SEP</small><strong>' + money(36450 + (day * 1150 % 5100)) + '</strong><span>' + (day === 2 ? 'LOWEST' : 'COMPARE') + '</span></button>').join('') + '</div><p class="nnfl-premium-note">Planning comparison only. Live price alert watches an approved provider when connected.</p>';
@@ -336,7 +376,12 @@ export const fareLensRenderers = {
       root.querySelectorAll('[data-nnfl-tab]').forEach(tab => tab.classList.toggle('is-active', tab === button));
       paint(root, active);
     }));
-    root.querySelector('[data-nnfl-refresh]').addEventListener('click', () => active === 'flights' ? refreshFlightComparison(root) : paint(root, active));
+    root.querySelector('[data-nnfl-refresh]').addEventListener('click', () => {
+      if (active === 'flights') return refreshFlightComparison(root);
+      const labels = { buses: 'Bus', trains: 'Rail', hotels: 'Hotel', trip: 'Trip' };
+      root.querySelector('[data-nnfl-state]').textContent = `${labels[active] || 'Travel'} comparison refreshed for the selected route.`;
+      paint(root, active);
+    });
     root.querySelectorAll('[data-nnfl-edit-route]').forEach(button => button.addEventListener('click', () => openCityPicker(root, button.dataset.nnflEditRoute)));
     root.querySelector('[data-nnfl-close-city]').addEventListener('click', () => { root.querySelector('[data-nnfl-city-picker]').hidden = true; });
     root.querySelector('[data-nnfl-city-query]').addEventListener('input', () => paintCityChoices(root));
@@ -360,17 +405,19 @@ export const fareLensRenderers = {
       const enabled = root.dataset.nnflPakistanMode !== 'true';
       root.dataset.nnflPakistanMode = String(enabled);
       event.currentTarget.classList.toggle('is-active', enabled);
-      event.currentTarget.textContent = enabled ? 'PAKISTAN MODE' : 'PK MODE';
+      event.currentTarget.innerHTML = enabled ? '<i class="nnfl-pak-flag" aria-hidden="true"></i><span>Pakistan On</span>' : '<i class="nnfl-pak-flag" aria-hidden="true"></i><span>Pakistan</span>';
       root.querySelector('[data-nnfl-state]').textContent = enabled
         ? 'Pakistan Mode on — local flight, rail, bus and hotel comparison. Live inventory appears only from approved providers.'
         : 'Worldwide comparison mode on.';
       paint(root, active);
     });
     root.querySelector('[data-nnfl-track-live]').addEventListener('click', () => {
-      const flight = root.querySelector('[data-nnfl-flight-number]').value;
-      root.querySelector('[data-nnfl-state]').textContent = openLiveFlightStatus(flight)
-        ? 'Live flight status opened inside Nova Browser.'
-        : 'Choose or type any worldwide flight number, for example PK-301, EK-600 or QR-610.';
+      const flight = cleanFlightNumber(root.querySelector('[data-nnfl-flight-number]').value);
+      if (!flight) {
+        root.querySelector('[data-nnfl-state]').textContent = 'Choose or type any worldwide flight number, for example PK-301, EK-600 or QR-610.';
+        return;
+      }
+      trackWorldwideFlight(root, flight);
     });
     root.querySelector('[data-nnfl-swap]').addEventListener('click', () => {
       const current = routeData(root);
