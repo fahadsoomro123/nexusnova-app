@@ -25,3 +25,5 @@ jobs:
               workflow_id: 'build-travel-card-fill-apk.yml',
               ref: 'repo-cleanup-v2-20260911'
             });
+
+# Safe diagnostic dispatch marker: 2026-09-12-v40-safe1
