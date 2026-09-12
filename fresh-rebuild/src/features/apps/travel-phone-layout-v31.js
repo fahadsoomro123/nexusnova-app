@@ -2,6 +2,7 @@
 // V32 remains the physical viewport engine. This bridge deliberately reports v31
 // to legacy v28 code so that v28 delegates here instead of re-applying old geometry.
 import './travel-phone-layout-v32.js?ota=travel-v32-proof39';
+import './travel-geometry-diagnostic-v40.js?ota=travel-diag-v40';
 
 const COMPAT_STYLE_ID='nn-travel-phone-layout-v31';
 const ROOT_SELECTOR='.nn-travel-v19';
