@@ -2,7 +2,7 @@
 // V32 remains the physical viewport engine. This bridge deliberately reports v31
 // to legacy v28 code so that v28 delegates here instead of re-applying old geometry.
 import './travel-phone-layout-v32.js?ota=travel-v32-proof39';
-import './travel-geometry-diagnostic-v40.js?ota=travel-diag-v40';
+import './travel-geometry-diagnostic-v40.js?ota=travel-diag-v40-safe1';
 
 const COMPAT_STYLE_ID='nn-travel-phone-layout-v31';
 const ROOT_SELECTOR='.nn-travel-v19';
@@ -87,9 +87,6 @@ function correctGeometry(root){
     ? Math.round(dock.getBoundingClientRect().top-8)
     : Math.round(visualTop+visualH-4);
 
-  // Preserve proof38's root sizing because the physical screenshot proved the dock
-  // itself is correctly pinned. Proof39 fixes the first descendants whose bottoms
-  // were still hundreds of pixels above that dock.
   const contentH=Math.max(360,Math.min(layoutH,dockTop));
   root.style.setProperty('--nn-v39-content-h',`${contentH}px`,'important');
   root.style.setProperty('height','var(--nn-v39-content-h)','important');
@@ -172,8 +169,6 @@ function correctGeometry(root){
       setImportant(card,'margin','0');
     }
 
-    // Store actual physical geometry after the forced layout. These values make a
-    // future phone-only mismatch diagnosable without another guess-based patch.
     const frameRect=frame instanceof HTMLElement?frame.getBoundingClientRect():null;
     const stageRect=stage instanceof HTMLElement?stage.getBoundingClientRect():null;
     const panelRect=panel instanceof HTMLElement?panel.getBoundingClientRect():null;
@@ -206,7 +201,6 @@ function sync(root){
 
 installCompatStyle();
 window.NexusNovaTravelLayoutV31={sync};
-// v28 only delegates when it sees v31. Keep the physical engine truth separately.
 window.NexusNovaTravelLayoutOwner='v31';
 window.NexusNovaTravelPhysicalLayoutOwner='v32';
 window.NexusNovaTravelLayoutCompatStyleId=COMPAT_STYLE_ID;
