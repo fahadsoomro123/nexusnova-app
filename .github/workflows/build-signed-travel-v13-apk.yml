@@ -118,6 +118,7 @@ jobs:
             'caller_setup_title':'Caller ID setup',
             'caller_setup_body':'Set up caller identification and spam protection.',
             'enable_caller_id':'Enable Caller ID',
+            'unknown_caller':'Unknown caller',
           }
           for name,value in wanted.items():
               if f'name="{name}"' not in s:
