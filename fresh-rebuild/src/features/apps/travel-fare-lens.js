@@ -11,6 +11,13 @@ const HOTEL_IMAGES = [
   'https://images.unsplash.com/photo-1564501049412-61c2a3083791?auto=format&fit=crop&w=900&q=80',
   'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&w=900&q=80'
 ];
+const CITY_OPTIONS = [
+  ['KHI', 'Karachi'], ['ISB', 'Islamabad'], ['LHE', 'Lahore'], ['PEW', 'Peshawar'], ['MUX', 'Multan'], ['SKT', 'Sialkot'],
+  ['DXB', 'Dubai'], ['AUH', 'Abu Dhabi'], ['DOH', 'Doha'], ['JED', 'Jeddah'], ['RUH', 'Riyadh'], ['IST', 'Istanbul'],
+  ['LHR', 'London'], ['CDG', 'Paris'], ['FRA', 'Frankfurt'], ['FCO', 'Rome'], ['AMS', 'Amsterdam'], ['MAD', 'Madrid'],
+  ['JFK', 'New York'], ['LAX', 'Los Angeles'], ['YYZ', 'Toronto'], ['SYD', 'Sydney'], ['MEL', 'Melbourne'], ['SIN', 'Singapore'],
+  ['KUL', 'Kuala Lumpur'], ['BKK', 'Bangkok'], ['DEL', 'Delhi'], ['BOM', 'Mumbai'], ['DAC', 'Dhaka'], ['CAI', 'Cairo']
+];
 
 function tripStore() {
   try { return JSON.parse(localStorage.getItem(TRIP_STORE_KEY) || '{}'); } catch { return {}; }
@@ -75,17 +82,52 @@ function durationText(minutes) {
 }
 
 function routeData(root) {
-  const cities = root.querySelectorAll('.nnfl-route > div');
   return {
-    origin: cities[0]?.querySelector('strong')?.textContent?.trim() || 'KHI',
-    destination: cities[1]?.querySelector('strong')?.textContent?.trim() || 'ISB'
+    origin: root.dataset.nnflOrigin || 'Karachi',
+    destination: root.dataset.nnflDestination || 'Islamabad'
   };
+}
+
+function renderRoute(root, side, city) {
+  const key = side === 'origin' ? 'nnflOrigin' : 'nnflDestination';
+  root.dataset[key] = city.name;
+  root.querySelector(`[data-nnfl-${side}-code]`).textContent = city.code;
+  root.querySelector(`[data-nnfl-${side}-name]`).textContent = city.name;
+}
+
+function cityMatches(query = '') {
+  const needle = String(query).trim().toLowerCase();
+  const matches = CITY_OPTIONS.filter(([code, name]) => !needle || code.toLowerCase().includes(needle) || name.toLowerCase().includes(needle)).slice(0, 6);
+  if (needle && !matches.some(([, name]) => name.toLowerCase() === needle)) {
+    matches.push([needle.slice(0, 3).toUpperCase(), String(query).trim()]);
+  }
+  return matches.slice(0, 6);
+}
+
+function paintCityChoices(root) {
+  const picker = root.querySelector('[data-nnfl-city-picker]');
+  const query = picker.querySelector('[data-nnfl-city-query]').value;
+  const choices = cityMatches(query);
+  picker.querySelector('[data-nnfl-city-list]').innerHTML = choices.map(([code, name]) => `<button type="button" data-nnfl-city-choice data-code="${escapeHtml(code)}" data-name="${escapeHtml(name)}"><strong>${escapeHtml(code)}</strong><span>${escapeHtml(name)}</span></button>`).join('') || '<p>No city found. Type any city name, then choose it.</p>';
+}
+
+function openCityPicker(root, side) {
+  const picker = root.querySelector('[data-nnfl-city-picker]');
+  picker.dataset.nnflCitySide = side;
+  picker.hidden = false;
+  const input = picker.querySelector('[data-nnfl-city-query]');
+  input.value = '';
+  picker.querySelector('[data-nnfl-city-picker-title]').textContent = side === 'origin' ? 'Choose departure city' : 'Choose destination city';
+  paintCityChoices(root);
+  requestAnimationFrame(() => input.focus({ preventScroll: true }));
 }
 
 function createRoot() {
   const root = document.createElement('section');
   root.className = 'nn-fare-lens';
   root.dataset.nnFareLens = 'true';
+  root.dataset.nnflOrigin = 'Karachi';
+  root.dataset.nnflDestination = 'Islamabad';
   const departureDate = futureDate();
   root.innerHTML = `
     <div class="nnfl-top">
@@ -95,9 +137,9 @@ function createRoot() {
       <div class="nnfl-top-actions"><button type="button" class="nnfl-pak-mode" data-nnfl-pak-mode>PK MODE</button><button type="button" class="nnfl-route-link" data-nnfl-brand>OPEN IN NOVA BROWSER ↗</button></div>
     </div>
     <div class="nnfl-route">
-      <div><small>FROM</small><strong>KHI</strong><span>Karachi</span></div>
+      <button type="button" class="nnfl-route-city" data-nnfl-edit-route="origin"><small>FROM</small><strong data-nnfl-origin-code>KHI</strong><span data-nnfl-origin-name>Karachi</span></button>
       <button type="button" data-nnfl-swap aria-label="Swap route">→</button>
-      <div><small>TO</small><strong>ISB</strong><span>Islamabad</span></div>
+      <button type="button" class="nnfl-route-city" data-nnfl-edit-route="destination"><small>TO</small><strong data-nnfl-destination-code>ISB</strong><span data-nnfl-destination-name>Islamabad</span></button>
       <p><span data-nnfl-date>${compactDate(departureDate)}</span><span>•</span><span data-nnfl-travellers>2 adults · 1 child</span></p>
     </div>
     <nav class="nnfl-tabs" aria-label="Travel mode">
@@ -111,13 +153,18 @@ function createRoot() {
       <label>Adults<select data-nnfl-adults>${Array.from({ length: 9 }, (_, index) => `<option value="${index + 1}"${index === 1 ? ' selected' : ''}>${index + 1}</option>`).join('')}</select></label>
       <label>Children<select data-nnfl-children>${Array.from({ length: 9 }, (_, index) => `<option value="${index}"${index === 1 ? ' selected' : ''}>${index}</option>`).join('')}</select></label>
       <label>Cabin<select data-nnfl-cabin><option value="economy">Economy</option><option value="premium_economy">Premium Economy</option><option value="business">Business</option><option value="first">First Class</option></select></label>
-      <button type="button" data-nnfl-refresh>Refresh comparison</button>
+      <button type="button" data-nnfl-refresh>SEARCH FLIGHTS</button>
     </div>
     <div class="nnfl-premium-row"><button type="button" data-nnfl-premium="calendar">FARE CALENDAR</button><button type="button" data-nnfl-premium="rescue">DISRUPTION RESCUE</button><button type="button" data-nnfl-premium="preference">SEAT / ROOM</button></div>
     <div class="nnfl-status"><span>FARE LENS</span><strong data-nnfl-title>Family comparison</strong><em data-nnfl-state>Planning fares — live provider connection will replace these only when approved.</em></div>
     <div class="nnfl-live-track"><label>LIVE FLIGHT TRACKER<input data-nnfl-flight-number inputmode="text" maxlength="10" placeholder="e.g. PK-301"></label><button type="button" data-nnfl-track-live>TRACK LIVE</button></div>
     <div class="nnfl-results" data-nnfl-results></div>
-    <footer><button type="button" data-nnfl-brand>www.nexusnovatools.com</button><span>Always opens inside Nova Browser</span></footer>
+    <footer><button type="button" data-nnfl-brand>www.nexusnovatools.com</button><span>Nova Browser</span></footer>
+    <section class="nnfl-city-picker" data-nnfl-city-picker hidden aria-modal="true" role="dialog">
+      <div class="nnfl-city-picker__head"><strong data-nnfl-city-picker-title>Choose city</strong><button type="button" data-nnfl-close-city>Close</button></div>
+      <input data-nnfl-city-query autocomplete="off" placeholder="Search any city or airport">
+      <div data-nnfl-city-list></div>
+    </section>
   `;
   return root;
 }
@@ -127,21 +174,22 @@ function styles() {
   const style = document.createElement('style');
   style.id = 'nn-fare-lens-style';
   style.textContent = `
-    .nx-travel-route-screen{height:calc(100dvh - 72px)!important;min-height:0!important;overflow:hidden!important;padding:0!important;margin:0!important}.nx-travel-route-screen [data-app-mount]{height:100%;overflow:hidden}.nnfl-floating-back{position:absolute;z-index:10;right:12px;top:11px;width:34px;height:34px;border:0;border-radius:50%;background:#fff;color:#1769ff;font-size:26px;line-height:1;box-shadow:0 2px 10px rgba(17,24,39,.12)}
-    [data-nn-fare-lens="true"]{height:100%;min-height:390px;max-height:none;overflow:hidden!important;background:#fff;color:#111827;padding:env(safe-area-inset-top) 14px 0;display:grid;grid-template-rows:auto auto auto auto auto auto auto minmax(0,1fr) auto;gap:0;font-family:Inter,system-ui,sans-serif}
+    .nx-travel-route-screen{position:fixed!important;inset:0 0 72px 0!important;width:100vw!important;height:auto!important;min-height:0!important;overflow:hidden!important;padding:0!important;margin:0!important;background:#fff!important;z-index:20}.nx-travel-route-screen [data-app-mount]{width:100vw!important;height:100%;overflow:hidden}.nnfl-floating-back{position:fixed;z-index:30;right:12px;top:max(11px,env(safe-area-inset-top));width:34px;height:34px;border:0;border-radius:50%;background:#fff;color:#1769ff;font-size:26px;line-height:1;box-shadow:0 2px 10px rgba(17,24,39,.12)}
+    [data-nn-fare-lens="true"]{position:relative;width:100vw;height:100%;min-height:390px;max-height:none;overflow:hidden!important;background:#fff;color:#111827;padding:max(10px,env(safe-area-inset-top)) 14px 0;display:grid;grid-template-rows:auto auto auto auto auto auto auto minmax(0,1fr) auto;gap:0;font-family:Inter,system-ui,sans-serif}
     [data-nn-fare-lens="true"],[data-nn-fare-lens="true"] *{box-sizing:border-box;overscroll-behavior:none}[data-nn-fare-lens="true"]{touch-action:none}
     [data-nn-fare-lens="true"] button,[data-nn-fare-lens="true"] select{font:inherit}
     .nnfl-top{display:flex;align-items:center;justify-content:space-between;min-height:42px;border-bottom:1px solid #e5eaf0}
     .nnfl-brand,.nnfl-route-link,.nnfl-tabs button,.nnfl-results button, .nnfl-controls button, .nnfl-route button, .nn-fare-book, .nnfl-fallback-link{border:0;background:transparent;color:inherit;cursor:pointer}
     .nnfl-top-actions{display:flex;align-items:center;gap:7px}.nnfl-pak-mode{border:1px solid #cfe0ff;background:#fff;color:#1769ff;border-radius:7px;padding:5px 6px;font-size:8px;font-weight:900}.nnfl-pak-mode.is-active{background:#1769ff;color:#fff}.nnfl-brand{padding:0;text-align:left;font-size:11px;font-weight:900;letter-spacing:.08em}.nnfl-brand span{color:#1769ff}.nnfl-brand small{display:block;color:#748196;font-size:8px;letter-spacing:.04em;margin-top:2px}.nnfl-route-link{font-size:8px;color:#1769ff;font-weight:800}
-    .nnfl-route{display:grid;grid-template-columns:1fr 32px 1fr;align-items:center;padding:10px 0 7px;border-bottom:1px solid #e5eaf0}.nnfl-route>div:last-of-type{text-align:right}.nnfl-route small,.nnfl-route span{display:block;color:#748196;font-size:10px}.nnfl-route strong{display:block;font-size:28px;line-height:1;margin:3px 0}.nnfl-route>button{width:32px;height:32px;color:#1769ff;font-size:20px}.nnfl-route p{grid-column:1/-1;display:flex;gap:7px;margin:9px 0 0;font-size:10px;color:#748196}
+    .nnfl-route{display:grid;grid-template-columns:1fr 32px 1fr;align-items:center;padding:10px 0 7px;border-bottom:1px solid #e5eaf0}.nnfl-route-city{min-width:0;border:0;background:#fff;padding:0;text-align:left;color:#111827}.nnfl-route-city:last-of-type{text-align:right}.nnfl-route small,.nnfl-route span{display:block;color:#748196;font-size:10px}.nnfl-route strong{display:block;font-size:28px;line-height:1;margin:3px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.nnfl-route>[data-nnfl-swap]{width:32px;height:32px;color:#1769ff;font-size:20px}.nnfl-route p{grid-column:1/-1;display:flex;gap:7px;margin:9px 0 0;font-size:10px;color:#748196}
     .nnfl-tabs{display:grid;grid-template-columns:repeat(5,1fr);border-bottom:1px solid #e5eaf0}.nnfl-tabs button{padding:10px 2px 8px;border-bottom:2px solid transparent;color:#748196;font-size:10px}.nnfl-tabs button.is-active{color:#1769ff;border-color:#1769ff;font-weight:800}
     .nnfl-controls{display:grid;grid-template-columns:repeat(3,1fr) 1.45fr;gap:6px;align-items:end;padding:8px 0;border-bottom:1px solid #e5eaf0}.nnfl-controls label{display:grid;gap:3px;font-size:8px;color:#748196;text-transform:uppercase;letter-spacing:.05em}.nnfl-controls select{width:100%;height:28px;border:0;border-bottom:1px solid #cfd8e3;background:#fff;color:#111827;font-size:10px}.nnfl-controls button{height:28px;background:#1769ff;color:#fff;border-radius:8px;font-size:9px;font-weight:800}
     .nnfl-premium-row{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:7px 0 0}.nnfl-premium-row button{border:1px solid #dce5f0;background:#fff;color:#1769ff;border-radius:7px;padding:6px 3px;font-size:7px;font-weight:900}.nnfl-premium-row button.is-active{background:#1769ff;color:#fff}.nnfl-fare-calendar{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;padding-top:5px}.nnfl-fare-calendar button{min-height:52px;border:1px solid #e1e7ef;background:#fff;border-radius:8px;text-align:left;padding:6px}.nnfl-fare-calendar small,.nnfl-fare-calendar span{display:block;color:#748196;font-size:7px}.nnfl-fare-calendar strong{display:block;font-size:9px;margin:4px 0}.nnfl-premium-note,.nnfl-preference p,.nnfl-rescue span,.nnfl-rescue small{font-size:9px;color:#748196}.nnfl-rescue{display:grid;gap:7px;padding-top:6px}.nnfl-rescue strong{font-size:13px}.nnfl-rescue button{border:0;border-bottom:1px solid #e5eaf0;background:#fff;text-align:left;padding:9px 0;color:#1769ff;font-size:10px;font-weight:800}.nnfl-preference{padding-top:8px}.nnfl-preference>div{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}.nnfl-preference button{border:1px solid #dce5f0;background:#fff;padding:11px 6px;border-radius:8px;color:#1769ff;font-size:9px;font-weight:800}.nnfl-status{display:grid;grid-template-columns:auto 1fr;gap:5px 9px;padding:9px 0 6px}.nnfl-live-track{display:grid;grid-template-columns:1fr 106px;gap:7px;align-items:end;border-bottom:1px solid #e5eaf0;padding:0 0 7px}.nnfl-live-track label{display:grid;gap:3px;color:#748196;font-size:8px;letter-spacing:.05em}.nnfl-live-track input{height:27px;border:0;border-bottom:1px solid #cfd8e3;background:#fff;padding:0;color:#111827;font-size:10px}.nnfl-live-track button{height:27px;border:0;border-radius:8px;background:#087f5b;color:#fff;font-size:9px;font-weight:800}.nnfl-status span{font-size:8px;color:#1769ff;font-weight:900;letter-spacing:.08em}.nnfl-status strong{font-size:12px}.nnfl-status em{grid-column:1/-1;font-size:9px;color:#748196;font-style:normal}
     .nnfl-results{min-height:0;overflow:hidden}.nnfl-fare{display:grid;grid-template-columns:26px minmax(0,1fr) auto;gap:8px;align-items:center;min-height:58px;border-bottom:1px solid #e5eaf0}.nnfl-fare-mark{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:#eef4ff;color:#1769ff;font-size:11px;font-weight:900}.nnfl-fare:nth-child(2) .nnfl-fare-mark{background:#fff6df;color:#9a6308}.nnfl-fare:nth-child(3) .nnfl-fare-mark{background:#eaf8f2;color:#087f5b}.nnfl-fare small,.nnfl-fare em{display:block;color:#748196;font-size:8px;font-style:normal}.nnfl-fare strong{display:block;font-size:11px;margin:2px 0}.nnfl-fare>div:last-child{text-align:right}.nnfl-fare b{display:block;font-size:12px}.nn-fare-book{color:#1769ff;font-size:9px;font-weight:800;margin-top:4px}
     .nnfl-empty{display:grid;place-items:center;height:100%;text-align:center;color:#748196;font-size:11px;padding:20px}.nnfl-trip-center{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0;border-top:1px solid #e5eaf0}.nnfl-trip-budget{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid #e5eaf0}.nnfl-trip-budget small,.nnfl-trip-budget span{display:block;color:#748196;font-size:9px}.nnfl-trip-budget strong{font-size:15px}.nnfl-trip-action{min-height:50px;padding:8px 5px 8px 0;text-align:left;border:0;border-bottom:1px solid #e5eaf0;background:#fff;color:#111827}.nnfl-trip-action:nth-of-type(even){padding-left:9px;border-left:1px solid #e5eaf0}.nnfl-trip-action strong,.nnfl-trip-action span{display:block}.nnfl-trip-action strong{font-size:10px}.nnfl-trip-action span{font-size:8px;color:#748196;margin-top:3px}.nnfl-trip-action.is-saved strong{color:#087f5b}.nnfl-trip-note{grid-column:1/-1;margin:0;padding:8px 0;color:#748196;font-size:8px}.nnfl-hotel{display:grid;grid-template-columns:62px minmax(0,1fr) auto;gap:8px;min-height:66px;align-items:center;border-bottom:1px solid #e5eaf0}.nnfl-hotel img{width:62px;height:48px;object-fit:cover;border-radius:8px;background:#eef4ff}.nnfl-hotel strong{font-size:11px}.nnfl-hotel span,.nnfl-hotel small{display:block;font-size:9px;color:#748196;margin-top:3px}.nnfl-hotel button{border:0;background:#1769ff;color:#fff;border-radius:8px;padding:8px;font-size:9px;font-weight:800}
-    [data-nn-fare-lens="true"] footer{display:flex;justify-content:space-between;align-items:center;min-height:30px;border-top:1px solid #e5eaf0}.nnfl-fallback-link,[data-nn-fare-lens="true"] footer button{font-size:8px;color:#1769ff;font-weight:800}.nnfl-fallback-link{padding:0}.nnfl-fallback-link a{color:inherit}.nnfl-fallback-link{display:none}
-    @media(max-height:650px){[data-nn-fare-lens="true"]{height:calc(100dvh - 104px)}.nnfl-route{padding:6px 0}.nnfl-route strong{font-size:23px}.nnfl-tabs button{padding:7px 1px}.nnfl-controls{padding:5px 0}.nnfl-fare{min-height:48px}.nnfl-status{padding:5px 0}}
+    [data-nn-fare-lens="true"] footer{display:flex;justify-content:space-between;align-items:center;min-height:30px;border-top:1px solid #e5eaf0;overflow:hidden}.nnfl-fallback-link,[data-nn-fare-lens="true"] footer button,[data-nn-fare-lens="true"] footer span{font-size:8px!important;line-height:1.1!important;color:#1769ff;font-weight:800}.nnfl-fallback-link{padding:0}.nnfl-fallback-link a{color:inherit}.nnfl-fallback-link{display:none}
+    .nnfl-city-picker{position:absolute;inset:0;z-index:50;background:#fff;padding:max(14px,env(safe-area-inset-top)) 14px 14px;overflow:hidden}.nnfl-city-picker__head{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #e5eaf0;padding-bottom:10px}.nnfl-city-picker__head strong{font-size:15px}.nnfl-city-picker__head button{border:0;background:#fff;color:#1769ff;font-size:11px;font-weight:800}.nnfl-city-picker input{width:100%;height:42px;margin:13px 0 7px;border:0;border-bottom:2px solid #1769ff;background:#fff;color:#111827;font-size:16px}.nnfl-city-picker [data-nnfl-city-list]{display:grid}.nnfl-city-picker [data-nnfl-city-list] button{display:grid;grid-template-columns:46px 1fr;gap:8px;align-items:center;min-height:48px;border:0;border-bottom:1px solid #e5eaf0;background:#fff;text-align:left;color:#111827}.nnfl-city-picker [data-nnfl-city-list] strong{color:#1769ff;font-size:13px}.nnfl-city-picker [data-nnfl-city-list] span{font-size:13px}.nnfl-city-picker p{font-size:12px;color:#748196}
+    @media(max-height:650px){.nx-travel-route-screen{bottom:64px!important}[data-nn-fare-lens="true"]{padding-top:8px}.nnfl-route{padding:6px 0}.nnfl-route strong{font-size:23px}.nnfl-tabs button{padding:7px 1px}.nnfl-controls{padding:5px 0}.nnfl-fare{min-height:48px}.nnfl-status{padding:5px 0}}
   `;
   document.head.appendChild(style);
 }
@@ -200,7 +248,7 @@ async function refreshFlightComparison(root) {
     state.textContent = `Live fare search unavailable — planning comparison kept (${errorText(error)}).`;
   } finally {
     refresh.disabled = false;
-    refresh.textContent = 'Refresh comparison';
+    refresh.textContent = 'SEARCH FLIGHTS';
     paint(root, 'flights');
   }
 }
@@ -289,6 +337,20 @@ export const fareLensRenderers = {
       paint(root, active);
     }));
     root.querySelector('[data-nnfl-refresh]').addEventListener('click', () => active === 'flights' ? refreshFlightComparison(root) : paint(root, active));
+    root.querySelectorAll('[data-nnfl-edit-route]').forEach(button => button.addEventListener('click', () => openCityPicker(root, button.dataset.nnflEditRoute)));
+    root.querySelector('[data-nnfl-close-city]').addEventListener('click', () => { root.querySelector('[data-nnfl-city-picker]').hidden = true; });
+    root.querySelector('[data-nnfl-city-query]').addEventListener('input', () => paintCityChoices(root));
+    root.querySelector('[data-nnfl-city-list]').addEventListener('click', event => {
+      const choice = event.target.closest('[data-nnfl-city-choice]');
+      if (!choice) return;
+      const picker = root.querySelector('[data-nnfl-city-picker]');
+      const side = picker.dataset.nnflCitySide === 'origin' ? 'origin' : 'destination';
+      renderRoute(root, side, { code: choice.dataset.code || 'CITY', name: choice.dataset.name || 'City' });
+      picker.hidden = true;
+      root.__nnflLiveOffers = [];
+      root.querySelector('[data-nnfl-state]').textContent = 'Route changed. Tap SEARCH FLIGHTS for live approved-provider fares.';
+      paint(root, active);
+    });
     root.querySelectorAll('[data-nnfl-premium]').forEach(button => button.addEventListener('click', () => {
       root.dataset.nnflPremium = button.dataset.nnflPremium || '';
       root.querySelectorAll('[data-nnfl-premium]').forEach(item => item.classList.toggle('is-active', item === button));
@@ -311,10 +373,14 @@ export const fareLensRenderers = {
         : 'Enter a valid flight number, for example PK-301.';
     });
     root.querySelector('[data-nnfl-swap]').addEventListener('click', () => {
-      const cities = root.querySelectorAll('.nnfl-route>div');
-      const first = cities[0].innerHTML, second = cities[1].innerHTML;
-      cities[0].innerHTML = second; cities[1].innerHTML = first;
-      root.querySelector('[data-nnfl-state]').textContent = 'Route swapped. Refresh comparison when ready.';
+      const current = routeData(root);
+      const originCode = root.querySelector('[data-nnfl-origin-code]').textContent;
+      const destinationCode = root.querySelector('[data-nnfl-destination-code]').textContent;
+      renderRoute(root, 'origin', { code: destinationCode, name: current.destination });
+      renderRoute(root, 'destination', { code: originCode, name: current.origin });
+      root.__nnflLiveOffers = [];
+      root.querySelector('[data-nnfl-state]').textContent = 'Route swapped. Tap SEARCH FLIGHTS when ready.';
+      paint(root, active);
     });
     paint(root, active);
     return root;
