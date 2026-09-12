@@ -108,8 +108,8 @@ function createRoot() {
       <button type="button" data-nnfl-tab="trip">Trip</button>
     </nav>
     <div class="nnfl-controls">
-      <label>Adults<select data-nnfl-adults><option value="1">1</option><option value="2" selected>2</option><option value="3">3</option><option value="4">4</option></select></label>
-      <label>Children<select data-nnfl-children><option value="0">0</option><option value="1" selected>1</option><option value="2">2</option><option value="3">3</option></select></label>
+      <label>Adults<select data-nnfl-adults>${Array.from({ length: 9 }, (_, index) => `<option value="${index + 1}"${index === 1 ? ' selected' : ''}>${index + 1}</option>`).join('')}</select></label>
+      <label>Children<select data-nnfl-children>${Array.from({ length: 9 }, (_, index) => `<option value="${index}"${index === 1 ? ' selected' : ''}>${index}</option>`).join('')}</select></label>
       <label>Cabin<select data-nnfl-cabin><option value="economy">Economy</option><option value="business">Business</option></select></label>
       <button type="button" data-nnfl-refresh>Refresh comparison</button>
     </div>
@@ -175,6 +175,10 @@ async function refreshFlightComparison(root) {
   const children = Number(root.querySelector('[data-nnfl-children]').value) || 0;
   const cabin = root.querySelector('[data-nnfl-cabin]').value || 'economy';
   const departureDate = futureDate();
+  if (adults + children > 9) {
+    state.textContent = 'Airline comparison allows up to 9 travellers at one time. Reduce Adults + Children to continue.';
+    return;
+  }
   refresh.disabled = true;
   refresh.textContent = 'Checking live…';
   state.textContent = 'Checking approved secure flight providers…';
@@ -207,6 +211,7 @@ function paint(root, mode = 'flights') {
   const children = Number(root.querySelector('[data-nnfl-children]').value) || 0;
   const cabin = root.querySelector('[data-nnfl-cabin]').value;
   root.querySelector('[data-nnfl-travellers]').textContent = `${adults} adult${adults === 1 ? '' : 's'} · ${children} child${children === 1 ? '' : 'ren'}`;
+  root.querySelector('[data-nnfl-refresh]').disabled = adults + children > 9;
   const box = root.querySelector('[data-nnfl-results]');
   const premium = root.dataset.nnflPremium || '';
   const title = root.querySelector('[data-nnfl-title]');
