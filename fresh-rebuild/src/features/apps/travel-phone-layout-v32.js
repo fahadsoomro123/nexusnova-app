@@ -87,4 +87,6 @@ function bind(root){
 function scan(){document.querySelectorAll(ROOT_SELECTOR).forEach(bind)}
 installStyle();scan();new MutationObserver(scan).observe(document.documentElement,{subtree:true,childList:true});
 
-import('./travel-futuristic-v13.js').catch(error=>console.warn('[NexusNova Travel V13] presentation layer skipped:',error));
+import('./travel-futuristic-v13.js')
+  .then(()=>import('./travel-futuristic-v13-integrity.js'))
+  .catch(error=>console.warn('[NexusNova Travel V13] presentation layer skipped:',error));
