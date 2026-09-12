@@ -1,0 +1,109 @@
+name: Restore Golden Clean APK
+
+on:
+  push:
+    branches:
+      - restore-golden-clean-20260820
+    paths:
+      - '.github/workflows/restore-golden-clean-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  JAVA_VERSION: '17'
+  GRADLE_VERSION: '8.13'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout restore branch
+        uses: actions/checkout@v4
+        with:
+          ref: restore-golden-clean-20260820
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: ${{ env.GRADLE_VERSION }}
+
+      - name: Validate locked clean source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f fresh-rebuild/index.html
+          test -f fresh-rebuild/src/main.js
+          test -f NexusNovaAndroid/prepare_fresh_rebuild.py
+          test -f NexusNovaAndroid/patch_admob.py
+          test ! -e NexusNovaAndroid/patch_fresh_ad_coverage.py
+          while IFS= read -r -d '' file; do
+            node --check "$file"
+          done < <(find fresh-rebuild/src -type f -name '*.js' -print0 | sort -z)
+          echo "SOURCE_SHA=$(git rev-parse HEAD)"
+
+      - name: Prepare isolated Android fresh bundle
+        env:
+          NEXUSNOVA_APP_CHECK_SITE_KEY: ${{ secrets.NEXUSNOVA_APP_CHECK_SITE_KEY }}
+        run: python NexusNovaAndroid/prepare_fresh_rebuild.py
+
+      - name: Apply TEST AdMob bridge
+        run: python NexusNovaAndroid/patch_admob.py
+
+      - name: Verify prepared Android bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f NexusNovaAndroid/app/src/main/assets/www/FRESH-REBUILD-BUILD.txt
+          test -f NexusNovaAndroid/app/src/main/assets/www/src/main.js
+          test ! -e NexusNovaAndroid/app/src/main/assets/www/page2.html
+          grep -q 'buildConfigField("boolean", "NEXUS_ADS_TEST_MODE", "true")' NexusNovaAndroid/app/build.gradle.kts
+
+      - name: Build debug TEST APK
+        working-directory: NexusNovaAndroid
+        run: gradle --no-daemon --stacktrace clean assembleDebug
+
+      - name: Package restored APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p restore-output
+          cp NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk restore-output/NexusNova-RESTORED-GOLDEN-CLEAN-20260820.apk
+          sha256sum restore-output/NexusNova-RESTORED-GOLDEN-CLEAN-20260820.apk | tee restore-output/SHA256.txt
+          {
+            echo 'NexusNova restored from locked clean Golden state'
+            echo 'Base app tree: c4ae8cf7c05328951692e2bfdeb9e69456dadef6'
+            echo "Workflow commit: $GITHUB_SHA"
+            echo 'Main branch untouched'
+            echo 'Broken Travel experiment branch untouched'
+          } > restore-output/RESTORE-STATUS.txt
+
+      - name: Upload restored APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: NexusNova-RESTORED-GOLDEN-CLEAN-20260820
+          path: |
+            restore-output/NexusNova-RESTORED-GOLDEN-CLEAN-20260820.apk
+            restore-output/SHA256.txt
+            restore-output/RESTORE-STATUS.txt
+          if-no-files-found: error
+          retention-days: 14
