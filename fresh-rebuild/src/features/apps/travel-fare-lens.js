@@ -154,10 +154,10 @@ function paint(root, mode = 'flights') {
     const savedClass = action => saved[action] ? ' is-saved' : '';
     box.innerHTML = `<section class="nnfl-trip-center">
       <div class="nnfl-trip-budget"><div><small>SMART FAMILY BUDGET</small><strong>Flight + stay + transfers</strong></div><span>PKR 149,700<br>estimated total</span></div>
-      <button type="button" class="nnfl-trip-action${saved.trip ? ' is-saved' : ''}" data-nnfl-trip-action="trip"><strong>MY TRIPS</strong><span>${saved.trip ? 'Saved offline' : 'Save this journey'}</span></button>
+      <button type="button" class="nnfl-trip-action${saved.trip ? ' is-saved' : ''}" data-nnfl-trip-action="trip"><strong>MULTI-CITY / MY TRIPS</strong><span>${saved.trip ? 'Saved offline' : 'Add next city + save plan'}</span></button>
       <button type="button" class="nnfl-trip-action${saved.priceAlert ? ' is-saved' : ''}" data-nnfl-trip-action="priceAlert"><strong>PRICE ALERT</strong><span>${saved.priceAlert ? 'Alert saved' : 'Watch this fare'}</span></button>
-      <button type="button" class="nnfl-trip-action${saved.delayAlert ? ' is-saved' : ''}" data-nnfl-trip-action="delayAlert"><strong>FLIGHT DELAY ALERT</strong><span>${saved.delayAlert ? 'Tracking saved' : 'Requires live provider'}</span></button>
-      <button type="button" class="nnfl-trip-action${saved.offlinePass ? ' is-saved' : ''}" data-nnfl-trip-action="offlinePass"><strong>OFFLINE TRIP PASS</strong><span>${saved.offlinePass ? 'Ready on this device' : 'Save key trip details'}</span></button>
+      <button type="button" class="nnfl-trip-action${saved.delayAlert ? ' is-saved' : ''}" data-nnfl-trip-action="delayAlert"><strong>CONNECTION GUARD</strong><span>${saved.delayAlert ? 'Guard saved' : 'Delay + missed-connection rescue'}</span></button>
+      <button type="button" class="nnfl-trip-action${saved.offlinePass ? ' is-saved' : ''}" data-nnfl-trip-action="offlinePass"><strong>TRAVEL WALLET</strong><span>${saved.offlinePass ? 'Pass ready offline' : 'Tickets + PNR + documents'}</span></button>
       <button type="button" class="nnfl-trip-action${saved.hotelCompare ? ' is-saved' : ''}" data-nnfl-trip-action="hotelCompare"><strong>HOTEL COMPARE</strong><span>${saved.hotelCompare ? 'Compare saved' : 'Photos, distance, rooms'}</span></button>
       <button type="button" class="nnfl-trip-action${saved.checklist ? ' is-saved' : ''}" data-nnfl-trip-action="checklist"><strong>VISA CHECKLIST</strong><span>${saved.checklist ? 'Checklist saved' : 'Passport · visa · baggage'}</span></button>
       <p class="nnfl-trip-note">Live price and delay alerts activate only after an approved provider is connected. No fake alerts.</p>
