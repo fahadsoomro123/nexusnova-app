@@ -1,0 +1,5 @@
+Safety anchor only.
+Original working branch before Travel-only reset:
+repo-cleanup-v2-20260911 @ 140253ea1415e72e65bc36b962756ce1d5c05ec1
+
+This file exists only on the temporary Travel reset branch and is not intended for production merge.
