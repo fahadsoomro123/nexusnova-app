@@ -32,6 +32,12 @@ function cleanAdults(value) {
   return n;
 }
 
+function cleanChildren(value) {
+  const n = Math.floor(Number(value || 0));
+  if (!Number.isInteger(n) || n < 0 || n > 8) throw new HttpsError("invalid-argument", "Children must be between 0 and 8.");
+  return n;
+}
+
 function cleanCabin(value) {
   const raw = String(value || "economy").toLowerCase();
   const allowed = new Set(["economy", "premium_economy", "business", "first"]);
@@ -249,7 +255,10 @@ async function searchDuffel(config, criteria) {
   ]);
   const slices = [{ origin: origin.code, destination: destination.code, departure_date: criteria.departureDate }];
   if (criteria.returnDate) slices.push({ origin: destination.code, destination: origin.code, departure_date: criteria.returnDate });
-  const passengers = Array.from({ length: criteria.adults }, () => ({ type: "adult" }));
+  const passengers = [
+    ...Array.from({ length: criteria.adults }, () => ({ type: "adult" })),
+    ...Array.from({ length: criteria.children }, () => ({ type: "child" }))
+  ];
   const body = { data: { slices, passengers, cabin_class: criteria.cabin } };
   const json = await duffelRequest(config, "/air/offer_requests?return_offers=true&supplier_timeout=12000", {
     method: "POST",
@@ -311,6 +320,7 @@ async function searchAmadeus(config, criteria) {
     currencyCode: criteria.currency,
     max: "24"
   });
+  if (criteria.children) params.set("children", String(criteria.children));
   if (criteria.returnDate) params.set("returnDate", criteria.returnDate);
   const json = await amadeusRequest(config, `/v2/shopping/flight-offers?${params.toString()}`);
   return {
@@ -380,9 +390,13 @@ exports.searchWorldwideFlights = onCall({
     departureDate,
     returnDate,
     adults: cleanAdults(req.data?.adults),
+    children: cleanChildren(req.data?.children),
     cabin: cleanCabin(req.data?.cabin),
     currency: cleanCurrency(req.data?.currency)
   };
+  if (criteria.adults + criteria.children > 9) {
+    throw new HttpsError("invalid-argument", "Adults and children together must not exceed 9.");
+  }
 
   const config = parseProviderSecret();
   const configured = {
