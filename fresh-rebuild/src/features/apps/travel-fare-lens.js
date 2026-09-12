@@ -1,6 +1,11 @@
 import { escapeHtml } from '../../core/local-store.js';
 
 const WEBSITE_URL = 'https://nexusnovatools.com/';
+const HOTEL_IMAGES = [
+  'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=900&q=80',
+  'https://images.unsplash.com/photo-1564501049412-61c2a3083791?auto=format&fit=crop&w=900&q=80',
+  'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&w=900&q=80'
+];
 
 function openInNovaBrowser(url = WEBSITE_URL) {
   try {
@@ -12,6 +17,11 @@ function openInNovaBrowser(url = WEBSITE_URL) {
     console.warn('[Travel Fare Lens] Nova Browser:', error);
   }
   return false;
+}
+
+function openRouteInNovaBrowser(destination) {
+  const url = 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(destination);
+  return openInNovaBrowser(url);
 }
 
 function money(amount) {
@@ -71,7 +81,7 @@ function styles() {
     .nnfl-controls{display:grid;grid-template-columns:repeat(3,1fr) 1.45fr;gap:6px;align-items:end;padding:8px 0;border-bottom:1px solid #e5eaf0}.nnfl-controls label{display:grid;gap:3px;font-size:8px;color:#748196;text-transform:uppercase;letter-spacing:.05em}.nnfl-controls select{width:100%;height:28px;border:0;border-bottom:1px solid #cfd8e3;background:#fff;color:#111827;font-size:10px}.nnfl-controls button{height:28px;background:#1769ff;color:#fff;border-radius:8px;font-size:9px;font-weight:800}
     .nnfl-status{display:grid;grid-template-columns:auto 1fr;gap:5px 9px;padding:9px 0 6px}.nnfl-status span{font-size:8px;color:#1769ff;font-weight:900;letter-spacing:.08em}.nnfl-status strong{font-size:12px}.nnfl-status em{grid-column:1/-1;font-size:9px;color:#748196;font-style:normal}
     .nnfl-results{min-height:0;overflow:hidden}.nnfl-fare{display:grid;grid-template-columns:26px minmax(0,1fr) auto;gap:8px;align-items:center;min-height:58px;border-bottom:1px solid #e5eaf0}.nnfl-fare-mark{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:#eef4ff;color:#1769ff;font-size:11px;font-weight:900}.nnfl-fare:nth-child(2) .nnfl-fare-mark{background:#fff6df;color:#9a6308}.nnfl-fare:nth-child(3) .nnfl-fare-mark{background:#eaf8f2;color:#087f5b}.nnfl-fare small,.nnfl-fare em{display:block;color:#748196;font-size:8px;font-style:normal}.nnfl-fare strong{display:block;font-size:11px;margin:2px 0}.nnfl-fare>div:last-child{text-align:right}.nnfl-fare b{display:block;font-size:12px}.nn-fare-book{color:#1769ff;font-size:9px;font-weight:800;margin-top:4px}
-    .nnfl-empty{display:grid;place-items:center;height:100%;text-align:center;color:#748196;font-size:11px;padding:20px}.nnfl-hotel{display:grid;grid-template-columns:1fr auto;gap:8px;min-height:58px;align-items:center;border-bottom:1px solid #e5eaf0}.nnfl-hotel strong{font-size:11px}.nnfl-hotel span,.nnfl-hotel small{display:block;font-size:9px;color:#748196;margin-top:3px}.nnfl-hotel button{border:0;background:#1769ff;color:#fff;border-radius:8px;padding:8px;font-size:9px;font-weight:800}
+    .nnfl-empty{display:grid;place-items:center;height:100%;text-align:center;color:#748196;font-size:11px;padding:20px}.nnfl-hotel{display:grid;grid-template-columns:62px minmax(0,1fr) auto;gap:8px;min-height:66px;align-items:center;border-bottom:1px solid #e5eaf0}.nnfl-hotel img{width:62px;height:48px;object-fit:cover;border-radius:8px;background:#eef4ff}.nnfl-hotel strong{font-size:11px}.nnfl-hotel span,.nnfl-hotel small{display:block;font-size:9px;color:#748196;margin-top:3px}.nnfl-hotel button{border:0;background:#1769ff;color:#fff;border-radius:8px;padding:8px;font-size:9px;font-weight:800}
     [data-nn-fare-lens="true"] footer{display:flex;justify-content:space-between;align-items:center;min-height:30px;border-top:1px solid #e5eaf0}.nnfl-fallback-link,[data-nn-fare-lens="true"] footer button{font-size:8px;color:#1769ff;font-weight:800}.nnfl-fallback-link{padding:0}.nnfl-fallback-link a{color:inherit}.nnfl-fallback-link{display:none}
     @media(max-height:650px){[data-nn-fare-lens="true"]{height:calc(100dvh - 104px)}.nnfl-route{padding:6px 0}.nnfl-route strong{font-size:23px}.nnfl-tabs button{padding:7px 1px}.nnfl-controls{padding:5px 0}.nnfl-fare{min-height:48px}.nnfl-status{padding:5px 0}}
   `;
@@ -99,7 +109,12 @@ function paint(root, mode = 'flights') {
   const title = root.querySelector('[data-nnfl-title]');
   if (mode === 'hotels') {
     title.textContent = 'Hotel comparison';
-    box.innerHTML = [['Margalla Grand','4.7 ★ · 1.2 km · family room','PKR 18,200 / night'],['Centaurus Suites','4.6 ★ · 2.4 km · breakfast','PKR 16,900 / night'],['Serena Islamabad','4.8 ★ · 3.6 km · premium','PKR 31,500 / night']].map((hotel, index) => `<article class="nnfl-hotel"><div><strong>${escapeHtml(hotel[0])}</strong><span>${escapeHtml(hotel[1])}</span><small>${escapeHtml(hotel[2])}</small></div><button type="button" data-nnfl-book="hotel-${index}">ROUTE + BOOK</button></article>`).join('');
+    const hotels = [
+      ['Margalla Grand','4.7 ★ · 1.2 km · family room','PKR 18,200 / night','Margalla Grand Hotel Islamabad'],
+      ['Centaurus Suites','4.6 ★ · 2.4 km · breakfast','PKR 16,900 / night','Centaurus Suites Islamabad'],
+      ['Serena Islamabad','4.8 ★ · 3.6 km · premium','PKR 31,500 / night','Islamabad Serena Hotel']
+    ];
+    box.innerHTML = hotels.map((hotel, index) => `<article class="nnfl-hotel"><img src="${HOTEL_IMAGES[index]}" alt="${escapeHtml(hotel[0])} hotel photo" referrerpolicy="no-referrer"><div><strong>${escapeHtml(hotel[0])}</strong><span>${escapeHtml(hotel[1])}</span><small>${escapeHtml(hotel[2])}</small></div><button type="button" data-nnfl-route="${escapeHtml(hotel[3])}">ONE-TAP ROUTE</button></article>`).join('');
   } else if (mode === 'trip') {
     title.textContent = 'Trip plan';
     box.innerHTML = `<div class="nnfl-empty">Build your complete journey: flight, hotel, local route and tickets stay together in My Trips.<br><button type="button" class="nnfl-fallback-link" data-nnfl-brand>nexusnovatools.com</button></div>`;
@@ -109,6 +124,12 @@ function paint(root, mode = 'flights') {
   }
   box.querySelectorAll('[data-nnfl-book]').forEach(button => button.addEventListener('click', () => {
     root.querySelector('[data-nnfl-state]').textContent = 'Booking handoff is reserved for an approved live provider. No fake ticket or payment was created.';
+  }));
+  box.querySelectorAll('[data-nnfl-route]').forEach(button => button.addEventListener('click', () => {
+    const destination = button.dataset.nnflRoute || '';
+    root.querySelector('[data-nnfl-state]').textContent = openRouteInNovaBrowser(destination)
+      ? 'Route opened inside Nova Browser.'
+      : 'Nova Browser bridge is unavailable in this web preview.';
   }));
   box.querySelectorAll('[data-nnfl-brand]').forEach(button => button.addEventListener('click', () => openInNovaBrowser()));
 }
