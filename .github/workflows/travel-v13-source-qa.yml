@@ -43,7 +43,7 @@ jobs:
           for(const token of [
             "const BRAND_URL='https://nexusnovatools.com/'",
             'searchWorldwideHotels',
-            'offer.live===true',
+            'o?.live===true',
             'collectImages',
             'roomImages',
             'propertyImages',
