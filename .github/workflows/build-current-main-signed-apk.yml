@@ -1,0 +1,237 @@
+name: Build Verified Current Main Signed APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/build-current-main-signed-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  signed-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      KEYSTORE_B64: ${{ secrets.NEXUSNOVA_KEYSTORE_BASE64 }}
+      KEYSTORE_PASSWORD: ${{ secrets.NEXUSNOVA_KEYSTORE_PASSWORD }}
+      KEY_ALIAS: ${{ secrets.NEXUSNOVA_KEY_ALIAS }}
+      KEY_PASSWORD: ${{ secrets.NEXUSNOVA_KEY_PASSWORD }}
+    steps:
+      - name: Check signing secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$KEYSTORE_B64"
+          test -n "$KEYSTORE_PASSWORD"
+          test -n "$KEY_ALIAS"
+          test -n "$KEY_PASSWORD"
+
+      - name: Checkout exact current main source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: build-src
+          fetch-depth: 1
+
+      - name: Lock exact bundled web baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PUBLIC_SHA="$(git -C build-src rev-parse HEAD)"
+          test "${#PUBLIC_SHA}" = 40
+          echo "PUBLIC_SHA=$PUBLIC_SHA" >> "$GITHUB_ENV"
+          python3 - <<'PY'
+          from pathlib import Path
+          import os,re
+          p=Path('build-src/NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt')
+          s=p.read_text(encoding='utf-8')
+          sha=os.environ['PUBLIC_SHA']
+          s,n=re.subn(r'const val BUNDLED_WEB_BASE = "[0-9a-f]{40}"',f'const val BUNDLED_WEB_BASE = "{sha}"',s,count=1)
+          if n != 1:
+              raise SystemExit('Could not inject exact bundled web baseline')
+          p.write_text(s,encoding='utf-8')
+          PY
+
+      - name: Verify Travel hard purge before build
+        shell: bash
+        run: |
+          set -euo pipefail
+          WEB='build-src/fresh-rebuild'
+          test -s "$WEB/assets/icons/nova-hub/travel.webp"
+          grep -Eq "id: ['\"]travel['\"]" "$WEB/src/features/hub/app-registry.js"
+          grep -Fq "const ICON_ONLY_HUB_APP_IDS = new Set(['travel']);" "$WEB/src/features/hub/hub-screen.js"
+          grep -Fq 'if (ICON_ONLY_HUB_APP_IDS.has(appId)) return;' "$WEB/src/features/hub/hub-screen.js"
+          ! grep -Fq "./travel-suite.js" "$WEB/src/features/apps/app-screen.js"
+          ! grep -Fq "./travel-integrations.js" "$WEB/src/features/apps/app-screen.js"
+          ! grep -Fq 'src/features/apps/travel-' "$WEB/index.html"
+          if find "$WEB/src/features/apps" -maxdepth 1 -type f -name 'travel-*.js' -print | grep -q .; then
+            echo 'ERROR: Travel runtime JS still present'
+            find "$WEB/src/features/apps" -maxdepth 1 -type f -name 'travel-*.js' -print
+            exit 1
+          fi
+          if find "$WEB/assets/travel" -type f -print 2>/dev/null | grep -q .; then
+            echo 'ERROR: Travel-only assets still present'
+            exit 1
+          fi
+          node --check "$WEB/src/features/hub/hub-screen.js"
+          node --check "$WEB/src/features/apps/app-screen.js"
+
+      - name: Restore proven production auth in build workspace
+        uses: actions/checkout@v4
+        with:
+          repository: fahadsoomro123/nexusnova-app
+          ref: 5b0f3c0d905c66264d7591131d7224ff441e0742
+          path: production-auth-source
+          sparse-checkout: |
+            fresh-rebuild/src/core/firebase-backend.js
+            fresh-rebuild/src/core/auth-service.js
+            NexusNovaAndroid/app/google-services.json
+          sparse-checkout-cone-mode: false
+
+      - name: Apply production auth only to packaged workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp production-auth-source/fresh-rebuild/src/core/firebase-backend.js build-src/fresh-rebuild/src/core/firebase-backend.js
+          cp production-auth-source/fresh-rebuild/src/core/auth-service.js build-src/fresh-rebuild/src/core/auth-service.js
+          cp production-auth-source/NexusNovaAndroid/app/google-services.json build-src/NexusNovaAndroid/app/google-services.json
+          grep -q 'waitForFirebaseUser' build-src/fresh-rebuild/src/core/firebase-backend.js
+          grep -q 'signInWithEmailAndPassword' build-src/fresh-rebuild/src/core/auth-service.js
+          ! grep -q 'PUBLIC_DISABLED_ERROR' build-src/fresh-rebuild/src/core/firebase-backend.js
+
+      - name: Repair known missing Caller ID resources in build workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('build-src/NexusNovaAndroid/app/src/main/res/values/strings.xml')
+          s=p.read_text(encoding='utf-8')
+          wanted={
+            'caller_setup_title':'Caller ID setup',
+            'caller_setup_body':'Set up caller identification and spam protection.',
+            'enable_caller_id':'Enable Caller ID',
+            'unknown_caller':'Unknown caller',
+          }
+          additions=[]
+          for name,value in wanted.items():
+              if f'name="{name}"' not in s:
+                  additions.append(f'    <string name="{name}">{value}</string>')
+          if additions:
+              if '</resources>' not in s:
+                  raise SystemExit('strings.xml has no closing resources tag')
+              s=s.replace('</resources>','\n'.join(additions)+'\n</resources>',1)
+              p.write_text(s,encoding='utf-8')
+          PY
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle 8.13
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Decode permanent release keystore
+        shell: bash
+        working-directory: build-src/NexusNovaAndroid
+        run: |
+          set -euo pipefail
+          printf '%s' "$KEYSTORE_B64" | base64 -d > app/nexusnova-release.jks
+          test -s app/nexusnova-release.jks
+          keytool -list -keystore app/nexusnova-release.jks -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
+
+      - name: Inject reset release version and signing
+        shell: bash
+        working-directory: build-src/NexusNovaAndroid
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('app/build.gradle.kts')
+          s=p.read_text(encoding='utf-8')
+          s,n1=re.subn(r'versionCode\s*=\s*\d+','versionCode = 26091214',s,count=1)
+          s,n2=re.subn(r'versionName\s*=\s*"[^"]+"','versionName = "1.0.38-icon-reset"',s,count=1)
+          if n1 != 1 or n2 != 1:
+              raise SystemExit('Version injection failed')
+          signing='''    signingConfigs {\n        create("release") {\n            storeFile = file("nexusnova-release.jks")\n            storePassword = System.getenv("KEYSTORE_PASSWORD")\n            keyAlias = System.getenv("KEY_ALIAS")\n            keyPassword = System.getenv("KEY_PASSWORD")\n        }\n    }\n\n'''
+          if 'signingConfigs {' not in s:
+              s=s.replace('    buildTypes {',signing+'    buildTypes {',1)
+          if 'signingConfig = signingConfigs.getByName("release")' not in s:
+              s=s.replace('        release {\n','        release {\n            signingConfig = signingConfigs.getByName("release")\n',1)
+          p.write_text(s,encoding='utf-8')
+          PY
+
+      - name: Build signed release APK
+        shell: bash
+        working-directory: build-src/NexusNovaAndroid
+        run: |
+          set -euo pipefail
+          gradle --no-daemon clean assembleRelease
+
+      - name: Verify signature package version and icon-only Travel payload
+        shell: bash
+        working-directory: build-src/NexusNovaAndroid
+        run: |
+          set -euo pipefail
+          apk='app/build/outputs/apk/release/app-release.apk'
+          test -s "$apk"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)"
+          test -n "$APKSIGNER"
+          test -n "$AAPT"
+          "$APKSIGNER" verify --verbose --print-certs "$apk"
+          badging="$($AAPT dump badging "$apk" | head -n 1)"
+          echo "$badging"
+          echo "$badging" | grep -q "name='com.nexusnova.app'"
+          echo "$badging" | grep -q "versionCode='26091214'"
+          echo "$badging" | grep -q "versionName='1.0.38-icon-reset'"
+
+          unzip -l "$apk" > /tmp/apk-list.txt
+          grep -Fq 'assets/www/assets/icons/nova-hub/travel.webp' /tmp/apk-list.txt
+          ! grep -Eq 'assets/www/src/features/apps/travel-[^ ]*\.js' /tmp/apk-list.txt
+          ! grep -Fq 'assets/www/assets/travel/' /tmp/apk-list.txt
+
+          d="$(mktemp -d)"
+          trap 'rm -rf "$d"' EXIT
+          unzip -q "$apk" \
+            'assets/www/index.html' \
+            'assets/www/src/features/hub/app-registry.js' \
+            'assets/www/src/features/hub/hub-screen.js' \
+            'assets/www/src/features/apps/app-screen.js' \
+            'assets/www/src/core/firebase-backend.js' \
+            'assets/www/src/core/auth-service.js' -d "$d"
+          grep -Eq "id: ['\"]travel['\"]" "$d/assets/www/src/features/hub/app-registry.js"
+          grep -Fq "const ICON_ONLY_HUB_APP_IDS = new Set(['travel']);" "$d/assets/www/src/features/hub/hub-screen.js"
+          grep -Fq 'if (ICON_ONLY_HUB_APP_IDS.has(appId)) return;' "$d/assets/www/src/features/hub/hub-screen.js"
+          ! grep -Fq "./travel-suite.js" "$d/assets/www/src/features/apps/app-screen.js"
+          ! grep -Fq "./travel-integrations.js" "$d/assets/www/src/features/apps/app-screen.js"
+          ! grep -Fq 'src/features/apps/travel-' "$d/assets/www/index.html"
+          grep -q 'waitForFirebaseUser' "$d/assets/www/src/core/firebase-backend.js"
+          grep -q 'signInWithEmailAndPassword' "$d/assets/www/src/core/auth-service.js"
+          echo "SIGNED ICON-ONLY RESET APK VERIFIED from $PUBLIC_SHA"
+
+      - name: Package verified APK
+        shell: bash
+        working-directory: build-src/NexusNovaAndroid
+        run: |
+          set -euo pipefail
+          mkdir -p signed-output
+          cp app/build/outputs/apk/release/app-release.apk signed-output/NexusNova-v1.0.38-SIGNED-ICON-ONLY-RESET.apk
+          sha256sum signed-output/NexusNova-v1.0.38-SIGNED-ICON-ONLY-RESET.apk > signed-output/NexusNova-v1.0.38-SIGNED-ICON-ONLY-RESET.apk.sha256
+          printf '%s\n' "$PUBLIC_SHA" > signed-output/PUBLIC-SOURCE-SHA.txt
+
+      - name: Upload verified APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NexusNova-v1.0.38-SIGNED-ICON-ONLY-RESET
+          path: build-src/NexusNovaAndroid/signed-output/*
+          if-no-files-found: error
+          retention-days: 7
