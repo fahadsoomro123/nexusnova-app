@@ -5,6 +5,7 @@ const MAX_RESULTS = 36;
 const SEARCH_TIMEOUT_MS = 24_000;
 const DUFFEL_API = "https://api.duffel.com";
 const TRAVEL_PROVIDER_CONFIG = defineSecret("NEXUSNOVA_TRAVEL_PROVIDERS");
+const PUBLIC_ADSB_API = "https://api.adsb.lol/v2/callsign/";
 let amadeusTokenCache = { token: "", expiresAt: 0, fingerprint: "" };
 
 function requireUser(req) {
@@ -443,5 +444,58 @@ exports.searchWorldwideFlights = onCall({
     routes,
     currency: criteria.currency,
     offers
+  };
+});
+
+function cleanFlightNumber(value) {
+  const normalized = String(value || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (!/^[A-Z0-9]{2,10}$/.test(normalized)) {
+    throw new HttpsError("invalid-argument", "Enter a valid flight number, for example PK-301.");
+  }
+  return normalized;
+}
+
+function finiteNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+// Keyless fallback. The client never contacts the public receiver directly, so the
+// provider can later be swapped for a paid API without changing the app UI.
+exports.trackWorldwideFlight = onCall({
+  enforceAppCheck: false,
+  timeoutSeconds: 15,
+  memory: "256MiB"
+}, async req => {
+  const flight = cleanFlightNumber(req.data?.flight);
+  let response;
+  try {
+    response = await fetch(`${PUBLIC_ADSB_API}${encodeURIComponent(flight)}`, {
+      headers: { "accept": "application/json", "user-agent": "NexusNova-Travel/1.0" },
+      signal: AbortSignal.timeout(10_000)
+    });
+  } catch {
+    throw new HttpsError("unavailable", "Public flight receiver is temporarily unavailable.");
+  }
+  if (!response.ok) {
+    throw new HttpsError("unavailable", "Public flight receiver did not return a live result.");
+  }
+  let payload = {};
+  try { payload = await response.json(); } catch {}
+  const aircraft = Array.isArray(payload.ac) ? payload.ac : [];
+  const match = aircraft.find(item => finiteNumber(item?.lat) !== null && finiteNumber(item?.lon) !== null) || aircraft[0];
+  if (!match || finiteNumber(match.lat) === null || finiteNumber(match.lon) === null) {
+    return { ok: false, flight, message: `No public live position is available for ${flight} right now.` };
+  }
+  return {
+    ok: true,
+    source: "public-adsb",
+    flight,
+    aircraft: String(match.flight || flight).trim(),
+    position: { latitude: finiteNumber(match.lat), longitude: finiteNumber(match.lon) },
+    altitudeFt: finiteNumber(match.alt_baro),
+    speedKts: finiteNumber(match.gs),
+    destination: String(match.r || "").trim(),
+    seenSeconds: finiteNumber(match.seen_pos)
   };
 });
