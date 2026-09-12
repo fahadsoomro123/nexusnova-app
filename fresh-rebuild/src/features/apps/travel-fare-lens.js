@@ -92,7 +92,7 @@ function styles() {
   style.textContent = `
     .nx-travel-route-screen{height:calc(100dvh - 72px)!important;min-height:0!important;overflow:hidden!important;padding:0!important;margin:0!important}.nx-travel-route-screen [data-app-mount]{height:100%;overflow:hidden}.nnfl-floating-back{position:absolute;z-index:10;right:12px;top:11px;width:34px;height:34px;border:0;border-radius:50%;background:#fff;color:#1769ff;font-size:26px;line-height:1;box-shadow:0 2px 10px rgba(17,24,39,.12)}
     [data-nn-fare-lens="true"]{height:100%;min-height:390px;max-height:none;overflow:hidden!important;background:#fff;color:#111827;padding:env(safe-area-inset-top) 14px 0;display:grid;grid-template-rows:auto auto auto auto auto minmax(0,1fr) auto;gap:0;font-family:Inter,system-ui,sans-serif}
-    [data-nn-fare-lens="true"],[data-nn-fare-lens="true"] *{box-sizing:border-box;overscroll-behavior:none}[data-nn-fare-lens="true"]{touch-action:pan-y}
+    [data-nn-fare-lens="true"],[data-nn-fare-lens="true"] *{box-sizing:border-box;overscroll-behavior:none}[data-nn-fare-lens="true"]{touch-action:none}
     [data-nn-fare-lens="true"] button,[data-nn-fare-lens="true"] select{font:inherit}
     .nnfl-top{display:flex;align-items:center;justify-content:space-between;min-height:42px;border-bottom:1px solid #e5eaf0}
     .nnfl-brand,.nnfl-route-link,.nnfl-tabs button,.nnfl-results button, .nnfl-controls button, .nnfl-route button, .nn-fare-book, .nnfl-fallback-link{border:0;background:transparent;color:inherit;cursor:pointer}
