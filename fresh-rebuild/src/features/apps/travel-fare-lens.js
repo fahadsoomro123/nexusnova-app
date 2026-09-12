@@ -1,0 +1,139 @@
+import { escapeHtml } from '../../core/local-store.js';
+
+const WEBSITE_URL = 'https://nexusnovatools.com/';
+
+function openInNovaBrowser(url = WEBSITE_URL) {
+  try {
+    if (typeof window.NexusBrowserAndroid?.postMessage === 'function') {
+      window.NexusBrowserAndroid.postMessage(JSON.stringify({ action: 'open', url }));
+      return true;
+    }
+  } catch (error) {
+    console.warn('[Travel Fare Lens] Nova Browser:', error);
+  }
+  return false;
+}
+
+function money(amount) {
+  return new Intl.NumberFormat('en-PK', { style: 'currency', currency: 'PKR', maximumFractionDigits: 0 }).format(amount);
+}
+
+function createRoot() {
+  const root = document.createElement('section');
+  root.className = 'nn-fare-lens';
+  root.dataset.nnFareLens = 'true';
+  root.innerHTML = `
+    <div class="nnfl-top">
+      <button type="button" class="nnfl-brand" data-nnfl-brand aria-label="Open NexusNova Tools in Nova Browser">
+        NEXUSNOVA <span>TOOLS</span><small>nexusnovatools.com</small>
+      </button>
+      <button type="button" class="nnfl-route-link" data-nnfl-brand>OPEN IN NOVA BROWSER ↗</button>
+    </div>
+    <div class="nnfl-route">
+      <div><small>FROM</small><strong>KHI</strong><span>Karachi</span></div>
+      <button type="button" data-nnfl-swap aria-label="Swap route">→</button>
+      <div><small>TO</small><strong>ISB</strong><span>Islamabad</span></div>
+      <p><span data-nnfl-date>18 Sep</span><span>•</span><span data-nnfl-travellers>2 adults · 1 child</span></p>
+    </div>
+    <nav class="nnfl-tabs" aria-label="Travel mode">
+      <button type="button" class="is-active" data-nnfl-tab="flights">Flights</button>
+      <button type="button" data-nnfl-tab="buses">Buses</button>
+      <button type="button" data-nnfl-tab="trains">Trains</button>
+      <button type="button" data-nnfl-tab="hotels">Hotels</button>
+      <button type="button" data-nnfl-tab="trip">Trip</button>
+    </nav>
+    <div class="nnfl-controls">
+      <label>Adults<select data-nnfl-adults><option value="1">1</option><option value="2" selected>2</option><option value="3">3</option><option value="4">4</option></select></label>
+      <label>Children<select data-nnfl-children><option value="0">0</option><option value="1" selected>1</option><option value="2">2</option><option value="3">3</option></select></label>
+      <label>Cabin<select data-nnfl-cabin><option value="economy">Economy</option><option value="business">Business</option></select></label>
+      <button type="button" data-nnfl-refresh>Refresh comparison</button>
+    </div>
+    <div class="nnfl-status"><span>FARE LENS</span><strong data-nnfl-title>Family comparison</strong><em data-nnfl-state>Planning fares — live provider connection will replace these only when approved.</em></div>
+    <div class="nnfl-results" data-nnfl-results></div>
+    <footer><button type="button" data-nnfl-brand>www.nexusnovatools.com</button><span>Always opens inside Nova Browser</span></footer>
+  `;
+  return root;
+}
+
+function styles() {
+  if (document.getElementById('nn-fare-lens-style')) return;
+  const style = document.createElement('style');
+  style.id = 'nn-fare-lens-style';
+  style.textContent = `
+    [data-nn-fare-lens="true"]{height:calc(100dvh - 118px);min-height:390px;max-height:820px;overflow:hidden!important;background:#fff;color:#111827;padding:env(safe-area-inset-top) 14px 0;display:grid;grid-template-rows:auto auto auto auto auto minmax(0,1fr) auto;gap:0;font-family:Inter,system-ui,sans-serif}
+    [data-nn-fare-lens="true"] *{box-sizing:border-box}
+    [data-nn-fare-lens="true"] button,[data-nn-fare-lens="true"] select{font:inherit}
+    .nnfl-top{display:flex;align-items:center;justify-content:space-between;min-height:42px;border-bottom:1px solid #e5eaf0}
+    .nnfl-brand,.nnfl-route-link,.nnfl-tabs button,.nnfl-results button, .nnfl-controls button, .nnfl-route button, .nn-fare-book, .nnfl-fallback-link{border:0;background:transparent;color:inherit;cursor:pointer}
+    .nnfl-brand{padding:0;text-align:left;font-size:11px;font-weight:900;letter-spacing:.08em}.nnfl-brand span{color:#1769ff}.nnfl-brand small{display:block;color:#748196;font-size:8px;letter-spacing:.04em;margin-top:2px}.nnfl-route-link{font-size:8px;color:#1769ff;font-weight:800}
+    .nnfl-route{display:grid;grid-template-columns:1fr 32px 1fr;align-items:center;padding:10px 0 7px;border-bottom:1px solid #e5eaf0}.nnfl-route>div:last-of-type{text-align:right}.nnfl-route small,.nnfl-route span{display:block;color:#748196;font-size:10px}.nnfl-route strong{display:block;font-size:28px;line-height:1;margin:3px 0}.nnfl-route>button{width:32px;height:32px;color:#1769ff;font-size:20px}.nnfl-route p{grid-column:1/-1;display:flex;gap:7px;margin:9px 0 0;font-size:10px;color:#748196}
+    .nnfl-tabs{display:grid;grid-template-columns:repeat(5,1fr);border-bottom:1px solid #e5eaf0}.nnfl-tabs button{padding:10px 2px 8px;border-bottom:2px solid transparent;color:#748196;font-size:10px}.nnfl-tabs button.is-active{color:#1769ff;border-color:#1769ff;font-weight:800}
+    .nnfl-controls{display:grid;grid-template-columns:repeat(3,1fr) 1.45fr;gap:6px;align-items:end;padding:8px 0;border-bottom:1px solid #e5eaf0}.nnfl-controls label{display:grid;gap:3px;font-size:8px;color:#748196;text-transform:uppercase;letter-spacing:.05em}.nnfl-controls select{width:100%;height:28px;border:0;border-bottom:1px solid #cfd8e3;background:#fff;color:#111827;font-size:10px}.nnfl-controls button{height:28px;background:#1769ff;color:#fff;border-radius:8px;font-size:9px;font-weight:800}
+    .nnfl-status{display:grid;grid-template-columns:auto 1fr;gap:5px 9px;padding:9px 0 6px}.nnfl-status span{font-size:8px;color:#1769ff;font-weight:900;letter-spacing:.08em}.nnfl-status strong{font-size:12px}.nnfl-status em{grid-column:1/-1;font-size:9px;color:#748196;font-style:normal}
+    .nnfl-results{min-height:0;overflow:hidden}.nnfl-fare{display:grid;grid-template-columns:26px minmax(0,1fr) auto;gap:8px;align-items:center;min-height:58px;border-bottom:1px solid #e5eaf0}.nnfl-fare-mark{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:#eef4ff;color:#1769ff;font-size:11px;font-weight:900}.nnfl-fare:nth-child(2) .nnfl-fare-mark{background:#fff6df;color:#9a6308}.nnfl-fare:nth-child(3) .nnfl-fare-mark{background:#eaf8f2;color:#087f5b}.nnfl-fare small,.nnfl-fare em{display:block;color:#748196;font-size:8px;font-style:normal}.nnfl-fare strong{display:block;font-size:11px;margin:2px 0}.nnfl-fare>div:last-child{text-align:right}.nnfl-fare b{display:block;font-size:12px}.nn-fare-book{color:#1769ff;font-size:9px;font-weight:800;margin-top:4px}
+    .nnfl-empty{display:grid;place-items:center;height:100%;text-align:center;color:#748196;font-size:11px;padding:20px}.nnfl-hotel{display:grid;grid-template-columns:1fr auto;gap:8px;min-height:58px;align-items:center;border-bottom:1px solid #e5eaf0}.nnfl-hotel strong{font-size:11px}.nnfl-hotel span,.nnfl-hotel small{display:block;font-size:9px;color:#748196;margin-top:3px}.nnfl-hotel button{border:0;background:#1769ff;color:#fff;border-radius:8px;padding:8px;font-size:9px;font-weight:800}
+    [data-nn-fare-lens="true"] footer{display:flex;justify-content:space-between;align-items:center;min-height:30px;border-top:1px solid #e5eaf0}.nnfl-fallback-link,[data-nn-fare-lens="true"] footer button{font-size:8px;color:#1769ff;font-weight:800}.nnfl-fallback-link{padding:0}.nnfl-fallback-link a{color:inherit}.nnfl-fallback-link{display:none}
+    @media(max-height:650px){[data-nn-fare-lens="true"]{height:calc(100dvh - 104px)}.nnfl-route{padding:6px 0}.nnfl-route strong{font-size:23px}.nnfl-tabs button{padding:7px 1px}.nnfl-controls{padding:5px 0}.nnfl-fare{min-height:48px}.nnfl-status{padding:5px 0}}
+  `;
+  document.head.appendChild(style);
+}
+
+function offers(adults, children, cabin) {
+  const multiplier = cabin === 'business' ? 2.45 : 1;
+  const adult = 14900 * adults * multiplier;
+  const child = 8650 * children * multiplier;
+  const base = adult + child;
+  return [
+    ['✦', 'BEST OVERALL', 'Non-stop · 1h 55m', 'Bags + flexible change', Math.round(base * 1.11)],
+    ['₨', 'LOWEST', '1 stop · 4h 10m', 'Cabin baggage', Math.round(base)],
+    ['◷', 'FASTEST', 'Non-stop · 1h 45m', 'Checked bag', Math.round(base * 1.23)]
+  ];
+}
+
+function paint(root, mode = 'flights') {
+  const adults = Number(root.querySelector('[data-nnfl-adults]').value) || 1;
+  const children = Number(root.querySelector('[data-nnfl-children]').value) || 0;
+  const cabin = root.querySelector('[data-nnfl-cabin]').value;
+  root.querySelector('[data-nnfl-travellers]').textContent = `${adults} adult${adults === 1 ? '' : 's'} · ${children} child${children === 1 ? '' : 'ren'}`;
+  const box = root.querySelector('[data-nnfl-results]');
+  const title = root.querySelector('[data-nnfl-title]');
+  if (mode === 'hotels') {
+    title.textContent = 'Hotel comparison';
+    box.innerHTML = [['Margalla Grand','4.7 ★ · 1.2 km · family room','PKR 18,200 / night'],['Centaurus Suites','4.6 ★ · 2.4 km · breakfast','PKR 16,900 / night'],['Serena Islamabad','4.8 ★ · 3.6 km · premium','PKR 31,500 / night']].map((hotel, index) => `<article class="nnfl-hotel"><div><strong>${escapeHtml(hotel[0])}</strong><span>${escapeHtml(hotel[1])}</span><small>${escapeHtml(hotel[2])}</small></div><button type="button" data-nnfl-book="hotel-${index}">ROUTE + BOOK</button></article>`).join('');
+  } else if (mode === 'trip') {
+    title.textContent = 'Trip plan';
+    box.innerHTML = `<div class="nnfl-empty">Build your complete journey: flight, hotel, local route and tickets stay together in My Trips.<br><button type="button" class="nnfl-fallback-link" data-nnfl-brand>nexusnovatools.com</button></div>`;
+  } else {
+    title.textContent = `${mode === 'flights' ? 'Family comparison' : mode === 'buses' ? 'Bus comparison' : 'Rail comparison'}`;
+    box.innerHTML = offers(adults, children, cabin).map((offer, index) => `<article class="nnfl-fare"><div class="nnfl-fare-mark">${offer[0]}</div><div><small>${offer[1]}</small><strong>${offer[2]}</strong><em>${offer[3]}</em></div><div><b>${money(offer[4])}</b><button type="button" class="nn-fare-book" data-nnfl-book="fare-${index}">SELECT & BOOK</button></div></article>`).join('');
+  }
+  box.querySelectorAll('[data-nnfl-book]').forEach(button => button.addEventListener('click', () => {
+    root.querySelector('[data-nnfl-state]').textContent = 'Booking handoff is reserved for an approved live provider. No fake ticket or payment was created.';
+  }));
+  box.querySelectorAll('[data-nnfl-brand]').forEach(button => button.addEventListener('click', () => openInNovaBrowser()));
+}
+
+export const fareLensRenderers = {
+  travel: () => {
+    styles();
+    const root = createRoot();
+    let active = 'flights';
+    root.querySelectorAll('[data-nnfl-brand]').forEach(button => button.addEventListener('click', () => {
+      if (!openInNovaBrowser()) root.querySelector('[data-nnfl-state]').textContent = 'Nova Browser bridge is unavailable in this web preview.';
+    }));
+    root.querySelectorAll('[data-nnfl-tab]').forEach(button => button.addEventListener('click', () => {
+      active = button.dataset.nnflTab;
+      root.querySelectorAll('[data-nnfl-tab]').forEach(tab => tab.classList.toggle('is-active', tab === button));
+      paint(root, active);
+    }));
+    root.querySelector('[data-nnfl-refresh]').addEventListener('click', () => paint(root, active));
+    root.querySelector('[data-nnfl-swap]').addEventListener('click', () => {
+      const cities = root.querySelectorAll('.nnfl-route>div');
+      const first = cities[0].innerHTML, second = cities[1].innerHTML;
+      cities[0].innerHTML = second; cities[1].innerHTML = first;
+      root.querySelector('[data-nnfl-state]').textContent = 'Route swapped. Refresh comparison when ready.';
+    });
+    paint(root, active);
+    return root;
+  }
+};
