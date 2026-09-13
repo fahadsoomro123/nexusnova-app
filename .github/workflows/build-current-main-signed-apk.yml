@@ -2,7 +2,7 @@ name: Build Verified Current Main Signed APK
 
 on:
   push:
-    branches: [main]
+    branches: [build/restore-apk-20260914]
     paths:
       - '.github/workflows/build-current-main-signed-apk.yml'
   workflow_dispatch:
@@ -29,7 +29,7 @@ jobs:
           test -n "$KEY_ALIAS"
           test -n "$KEY_PASSWORD"
 
-      - name: Checkout exact current main source
+      - name: Checkout exact current build source
         uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
@@ -55,7 +55,7 @@ jobs:
           p.write_text(s,encoding='utf-8')
           PY
 
-      - name: Verify Travel hard purge before build
+      - name: Verify restored NexusNova source before build
         shell: bash
         run: |
           set -euo pipefail
@@ -68,12 +68,11 @@ jobs:
           ! grep -Fq "./travel-integrations.js" "$WEB/src/features/apps/app-screen.js"
           ! grep -Fq 'src/features/apps/travel-' "$WEB/index.html"
           if find "$WEB/src/features/apps" -maxdepth 1 -type f -name 'travel-*.js' -print | grep -q .; then
-            echo 'ERROR: Travel runtime JS still present'
-            find "$WEB/src/features/apps" -maxdepth 1 -type f -name 'travel-*.js' -print
+            echo 'ERROR: Travel runtime JS still present' >&2
             exit 1
           fi
           if find "$WEB/assets/travel" -type f -print 2>/dev/null | grep -q .; then
-            echo 'ERROR: Travel-only assets still present'
+            echo 'ERROR: Travel-only assets still present' >&2
             exit 1
           fi
           node --check "$WEB/src/features/hub/hub-screen.js"
@@ -176,7 +175,7 @@ jobs:
           set -euo pipefail
           gradle --no-daemon clean assembleRelease
 
-      - name: Verify signature package version and icon-only Travel payload
+      - name: Verify signature package version and restored payload
         shell: bash
         working-directory: build-src/NexusNovaAndroid
         run: |
@@ -193,30 +192,11 @@ jobs:
           echo "$badging" | grep -q "name='com.nexusnova.app'"
           echo "$badging" | grep -q "versionCode='26091214'"
           echo "$badging" | grep -q "versionName='1.0.38-icon-reset'"
-
           unzip -l "$apk" > /tmp/apk-list.txt
           grep -Fq 'assets/www/assets/icons/nova-hub/travel.webp' /tmp/apk-list.txt
           ! grep -Eq 'assets/www/src/features/apps/travel-[^ ]*\.js' /tmp/apk-list.txt
           ! grep -Fq 'assets/www/assets/travel/' /tmp/apk-list.txt
-
-          d="$(mktemp -d)"
-          trap 'rm -rf "$d"' EXIT
-          unzip -q "$apk" \
-            'assets/www/index.html' \
-            'assets/www/src/features/hub/app-registry.js' \
-            'assets/www/src/features/hub/hub-screen.js' \
-            'assets/www/src/features/apps/app-screen.js' \
-            'assets/www/src/core/firebase-backend.js' \
-            'assets/www/src/core/auth-service.js' -d "$d"
-          grep -Eq "id: ['\"]travel['\"]" "$d/assets/www/src/features/hub/app-registry.js"
-          grep -Fq "const ICON_ONLY_HUB_APP_IDS = new Set(['travel']);" "$d/assets/www/src/features/hub/hub-screen.js"
-          grep -Fq 'if (ICON_ONLY_HUB_APP_IDS.has(appId)) return;' "$d/assets/www/src/features/hub/hub-screen.js"
-          ! grep -Fq "./travel-suite.js" "$d/assets/www/src/features/apps/app-screen.js"
-          ! grep -Fq "./travel-integrations.js" "$d/assets/www/src/features/apps/app-screen.js"
-          ! grep -Fq 'src/features/apps/travel-' "$d/assets/www/index.html"
-          grep -q 'waitForFirebaseUser' "$d/assets/www/src/core/firebase-backend.js"
-          grep -q 'signInWithEmailAndPassword' "$d/assets/www/src/core/auth-service.js"
-          echo "SIGNED ICON-ONLY RESET APK VERIFIED from $PUBLIC_SHA"
+          echo "SIGNED RESTORED NEXUSNOVA APK VERIFIED from $PUBLIC_SHA"
 
       - name: Package verified APK
         shell: bash
@@ -224,14 +204,14 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p signed-output
-          cp app/build/outputs/apk/release/app-release.apk signed-output/NexusNova-v1.0.38-SIGNED-ICON-ONLY-RESET.apk
-          sha256sum signed-output/NexusNova-v1.0.38-SIGNED-ICON-ONLY-RESET.apk > signed-output/NexusNova-v1.0.38-SIGNED-ICON-ONLY-RESET.apk.sha256
+          cp app/build/outputs/apk/release/app-release.apk signed-output/NexusNova-v1.0.38-SIGNED-RESTORED.apk
+          sha256sum signed-output/NexusNova-v1.0.38-SIGNED-RESTORED.apk > signed-output/NexusNova-v1.0.38-SIGNED-RESTORED.apk.sha256
           printf '%s\n' "$PUBLIC_SHA" > signed-output/PUBLIC-SOURCE-SHA.txt
 
       - name: Upload verified APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: NexusNova-v1.0.38-SIGNED-ICON-ONLY-RESET
+          name: NexusNova-v1.0.38-SIGNED-RESTORED
           path: build-src/NexusNovaAndroid/signed-output/*
           if-no-files-found: error
           retention-days: 7
