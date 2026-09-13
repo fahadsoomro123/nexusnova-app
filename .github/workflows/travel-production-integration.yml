@@ -1,0 +1,78 @@
+name: Travel Flagship Production Integration
+on:
+  push:
+    branches: [travel-flagship-production-20260914]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  integrate-build-sign:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Attach flagship renderer to current app architecture
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('fresh-rebuild/src/features/apps/app-screen.js')
+          s=p.read_text(encoding='utf-8')
+          marker="const rendererSources = [\n"
+          line="  ['./travel-flagship.js', 'travelFlagshipRenderers'],\n"
+          if line not in s:
+              s=s.replace(marker, marker+line, 1)
+              p.write_text(s, encoding='utf-8')
+          assert line in p.read_text(encoding='utf-8')
+          PY
+      - name: Setup Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Setup Gradle 8.13
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+      - name: Build release APK
+        working-directory: NexusNovaAndroid
+        run: gradle --no-daemon assembleRelease
+      - name: Require configured release signing
+        env:
+          KEYSTORE_B64: ${{ secrets.NEXUS_RELEASE_KEYSTORE_B64 }}
+          STORE_PASSWORD: ${{ secrets.NEXUS_RELEASE_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.NEXUS_RELEASE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.NEXUS_RELEASE_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$KEYSTORE_B64" || { echo 'Release keystore secret is not configured; refusing to label an unsigned APK as signed.'; exit 1; }
+          test -n "$STORE_PASSWORD" && test -n "$KEY_ALIAS" && test -n "$KEY_PASSWORD"
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/nexus-release.jks"
+          UNSIGNED="NexusNovaAndroid/app/build/outputs/apk/release/app-release-unsigned.apk"
+          ALIGNED="$RUNNER_TEMP/nexus-release-aligned.apk"
+          SIGNED="$RUNNER_TEMP/NexusNova Travel Signed APK.apk"
+          $ANDROID_HOME/build-tools/35.0.0/zipalign -f 4 "$UNSIGNED" "$ALIGNED"
+          $ANDROID_HOME/build-tools/35.0.0/apksigner sign --ks "$RUNNER_TEMP/nexus-release.jks" --ks-pass "pass:$STORE_PASSWORD" --ks-key-alias "$KEY_ALIAS" --key-pass "pass:$KEY_PASSWORD" --out "$SIGNED" "$ALIGNED"
+          $ANDROID_HOME/build-tools/35.0.0/apksigner verify --verbose "$SIGNED"
+          mkdir -p "$GITHUB_WORKSPACE/artifacts"
+          cp "$SIGNED" "$GITHUB_WORKSPACE/artifacts/NexusNova Travel Signed APK.apk"
+      - name: Commit source integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'NexusNova Build Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add fresh-rebuild/src/features/apps/app-screen.js
+          if ! git diff --cached --quiet; then git commit -m 'feat(travel): attach flagship renderer to app architecture'; fi
+          git push origin HEAD:travel-flagship-production-20260914
+      - name: Upload verified signed APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: NexusNova Travel Signed APK
+          path: artifacts/NexusNova Travel Signed APK.apk
+          if-no-files-found: error
+          retention-days: 14
