@@ -1,7 +1,7 @@
 name: Travel Flagship Production Integration
 on:
-  push:
-    branches: [travel-flagship-production-20260914]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 permissions:
   contents: write
@@ -13,6 +13,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.head_ref || github.ref_name }}
       - name: Attach flagship renderer to current app architecture
         shell: bash
         run: |
@@ -60,15 +61,25 @@ jobs:
           $ANDROID_HOME/build-tools/35.0.0/apksigner verify --verbose "$SIGNED"
           mkdir -p "$GITHUB_WORKSPACE/artifacts"
           cp "$SIGNED" "$GITHUB_WORKSPACE/artifacts/NexusNova Travel Signed APK.apk"
-      - name: Commit source integration
+      - name: Commit source integration back to branch
+        if: github.event_name == 'pull_request'
         shell: bash
         run: |
           set -euo pipefail
           git config user.name 'NexusNova Build Bot'
           git config user.email 'actions@users.noreply.github.com'
           git add fresh-rebuild/src/features/apps/app-screen.js
-          if ! git diff --cached --quiet; then git commit -m 'feat(travel): attach flagship renderer to app architecture'; fi
-          git push origin HEAD:travel-flagship-production-20260914
+          git diff --cached --quiet || git commit -m 'feat(travel): attach flagship renderer to app architecture'
+          git push origin HEAD:${{ github.head_ref }}
+      - name: Remove one-time integration workflow
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          git config user.name 'NexusNova Build Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git rm .github/workflows/travel-production-integration.yml
+          git commit -m 'chore(travel): remove one-time integration workflow'
+          git push origin HEAD:${{ github.head_ref }}
       - name: Upload verified signed APK
         uses: actions/upload-artifact@v4
         with:
