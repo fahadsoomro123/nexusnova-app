@@ -1,0 +1,2 @@
+NexusNova exact restored source build marker
+source=5677f071d8c5af6b66a0b2ad89847854978c291d
