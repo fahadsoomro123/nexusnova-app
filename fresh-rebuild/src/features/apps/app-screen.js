@@ -4,6 +4,7 @@ import { novaApps } from '../hub/app-registry.js';
 let cleanup = null;
 const AI_PHOTO_ID = 'ai-photo-studio';
 const rendererSources = [
+  ['./travel-flagship.js', 'travelFlagshipRenderers'],
   ['./premium-studio-suite.js', 'premiumStudioRenderers'],
   ['./nova-sol57-fresh.js', 'novaSol57Renderers'],
   ['./nova-vault-safe.js', 'novaVaultSafeRenderers'],
