@@ -1,0 +1,189 @@
+name: AI Photo Studio Canva UI Review APK
+
+on:
+  push:
+    branches:
+      - nova-sol57-pro-v128-ai-photo-canva-review
+    paths:
+      - '.github/workflows/ai-photo-canva-review-signed-apk.yml'
+      - 'fresh-rebuild/src/features/apps/ai-photo-studio.js'
+
+permissions:
+  contents: read
+
+env:
+  VERSION_CODE: '2026090301'
+  VERSION_NAME: '1.0.8-photo-review-1'
+  REVIEW_APK: 'NexusNova-AI-PHOTO-REVIEW-v1.0.8-SIGNED.apk'
+  PUBLIC_REPO: 'fahadsoomro123/nexusnova-website'
+  PUBLIC_BRANCH: 'main'
+
+jobs:
+  review_apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout review branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify isolated AI Photo UI scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'nova-sol57-pro-v128-ai-photo-canva-review'
+          git fetch origin nova-sol57-pro-v128
+          bad="$(git diff --name-only origin/nova-sol57-pro-v128...HEAD | grep -Ev '^(fresh-rebuild/src/features/apps/ai-photo-studio\.js|\.github/workflows/ai-photo-canva-review-signed-apk\.yml)$' || true)"
+          if [ -n "$bad" ]; then
+            echo 'Unexpected review-branch changes:' >&2
+            printf '%s\n' "$bad" >&2
+            exit 1
+          fi
+          node --check fresh-rebuild/src/features/apps/ai-photo-studio.js
+          grep -Fq 'nx-photo-editor-v2' fresh-rebuild/src/features/apps/ai-photo-studio.js
+          grep -Fq 'Pinch to zoom' fresh-rebuild/src/features/apps/ai-photo-studio.js
+          grep -Fq 'Hold for original' fresh-rebuild/src/features/apps/ai-photo-studio.js
+          grep -Fq 'AI Director' fresh-rebuild/src/features/apps/ai-photo-studio.js
+          grep -Fq 'Export photo' fresh-rebuild/src/features/apps/ai-photo-studio.js
+          echo 'AI Photo review scope + syntax: PASS'
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle 8.13
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Require permanent signing secrets
+        env:
+          KEYSTORE_B64: ${{ secrets.NEXUSNOVA_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.NEXUSNOVA_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.NEXUSNOVA_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.NEXUSNOVA_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$KEYSTORE_B64"
+          test -n "$STORE_PASSWORD"
+          test -n "$KEY_ALIAS"
+          test -n "$KEY_PASSWORD"
+
+      - name: Restore signing keystore
+        env:
+          KEYSTORE_B64: ${{ secrets.NEXUSNOVA_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.NEXUSNOVA_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.NEXUSNOVA_KEY_ALIAS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          KEYSTORE="$RUNNER_TEMP/nexusnova-review-release.jks"
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$KEYSTORE"
+          test -s "$KEYSTORE"
+          chmod 600 "$KEYSTORE"
+          keytool -list -keystore "$KEYSTORE" -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
+          echo "NEXUSNOVA_SIGNING_STORE_FILE=$KEYSTORE" >> "$GITHUB_ENV"
+
+      - name: Inject review version and signing config
+        env:
+          STORE_PASSWORD: ${{ secrets.NEXUSNOVA_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.NEXUSNOVA_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.NEXUSNOVA_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "NEXUSNOVA_SIGNING_STORE_PASSWORD=$STORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "NEXUSNOVA_SIGNING_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
+          echo "NEXUSNOVA_SIGNING_KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
+          python3 - <<'PY'
+          import os,re
+          from pathlib import Path
+          p=Path('NexusNovaAndroid/app/build.gradle.kts')
+          t=p.read_text(encoding='utf-8')
+          t,n1=re.subn(r'versionCode\s*=\s*\d+','versionCode = '+os.environ['VERSION_CODE'],t,count=1)
+          t,n2=re.subn(r'versionName\s*=\s*"[^"]*"','versionName = "'+os.environ['VERSION_NAME']+'"',t,count=1)
+          if n1!=1 or n2!=1: raise SystemExit('Android version fields not found')
+          signing='''    signingConfigs {\n        create("nexusRelease") {\n            storeFile = file(System.getenv("NEXUSNOVA_SIGNING_STORE_FILE"))\n            storePassword = System.getenv("NEXUSNOVA_SIGNING_STORE_PASSWORD")\n            keyAlias = System.getenv("NEXUSNOVA_SIGNING_KEY_ALIAS")\n            keyPassword = System.getenv("NEXUSNOVA_SIGNING_KEY_PASSWORD")\n        }\n    }\n\n'''
+          marker='    buildTypes {\n'
+          if marker not in t: raise SystemExit('buildTypes block not found')
+          t=t.replace(marker,signing+marker,1)
+          release='        release {\n'
+          if release not in t: raise SystemExit('release block not found')
+          t=t.replace(release,release+'            signingConfig = signingConfigs.getByName("nexusRelease")\n',1)
+          p.write_text(t,encoding='utf-8')
+          PY
+
+      - name: Build signed review APK
+        working-directory: NexusNovaAndroid
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon clean assembleRelease
+          APK=app/build/outputs/apk/release/app-release.apk
+          test -s "$APK"
+          test -s app/src/main/assets/www/src/features/apps/ai-photo-studio.js
+          grep -Fq 'nx-photo-editor-v2' app/src/main/assets/www/src/features/apps/ai-photo-studio.js
+          grep -Fq 'Pinch to zoom' app/src/main/assets/www/src/features/apps/ai-photo-studio.js
+          echo 'Review APK bundles redesigned AI Photo Studio: PASS'
+
+      - name: Verify permanent APK signature
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$GITHUB_WORKSPACE/NexusNovaAndroid/app/build/outputs/apk/release/app-release.apk"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
+          test -n "$APKSIGNER"
+          "$APKSIGNER" verify --verbose --print-certs "$APK" | tee /tmp/review-signature.txt
+          grep -Eq 'Verified using v(2|3) scheme .*: true' /tmp/review-signature.txt
+          sha256sum "$APK" | tee /tmp/review.sha256
+          stat -c '%s' "$APK" > /tmp/review.size
+
+      - name: Require public download credential
+        env:
+          PUBLIC_TOKEN: ${{ secrets.GH_PUBLIC_OTA_TOKEN || secrets.OTA_PUBLIC_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$PUBLIC_TOKEN"
+
+      - name: Publish phone review APK
+        env:
+          PUBLIC_TOKEN: ${{ secrets.GH_PUBLIC_OTA_TOKEN || secrets.OTA_PUBLIC_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          PUB="$RUNNER_TEMP/nexusnova-photo-review-public"
+          git clone --depth 1 --branch "$PUBLIC_BRANCH" "https://github.com/$PUBLIC_REPO.git" "$PUB"
+          cd "$PUB"
+          git config user.name 'NexusNova Review APK Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          mkdir -p downloads
+          cp "$GITHUB_WORKSPACE/NexusNovaAndroid/app/build/outputs/apk/release/app-release.apk" "downloads/$REVIEW_APK"
+          sha256sum "downloads/$REVIEW_APK" > "downloads/$REVIEW_APK.sha256"
+          printf 'AI Photo Studio Canva-style UI review\nSource: %s\nVersion: %s (%s)\nPermanent signature: PASS\nStatus: READY FOR FAHAD REVIEW — NOT APPROVED\n' "$GITHUB_SHA" "$VERSION_NAME" "$VERSION_CODE" > downloads/NexusNova-AI-PHOTO-REVIEW-STATUS.txt
+          git add -f "downloads/$REVIEW_APK" "downloads/$REVIEW_APK.sha256" downloads/NexusNova-AI-PHOTO-REVIEW-STATUS.txt
+          git commit -m "Publish AI Photo Studio UI review APK $GITHUB_SHA"
+          AUTH="$(printf 'x-access-token:%s' "$PUBLIC_TOKEN" | base64 -w0)"
+          git -c http.extraheader="AUTHORIZATION: basic $AUTH" push origin HEAD:"$PUBLIC_BRANCH"
+
+      - name: Verify anonymous public review APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="https://raw.githubusercontent.com/$PUBLIC_REPO/$PUBLIC_BRANCH/downloads/$REVIEW_APK"
+          curl -fsSL "$URL?sha=$GITHUB_SHA" -o /tmp/public-review.apk
+          test "$(stat -c '%s' /tmp/public-review.apk)" = "$(cat /tmp/review.size)"
+          LOCAL_SHA="$(awk '{print $1}' /tmp/review.sha256)"
+          PUBLIC_SHA="$(sha256sum /tmp/public-review.apk | awk '{print $1}')"
+          test "$LOCAL_SHA" = "$PUBLIC_SHA"
+          echo 'Anonymous public AI Photo review APK: PASS'
+
+      - name: Remove signing material
+        if: always()
+        shell: bash
+        run: |
+          rm -f "${NEXUSNOVA_SIGNING_STORE_FILE:-}" || true
