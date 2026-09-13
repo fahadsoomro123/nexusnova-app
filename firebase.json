@@ -1,25 +1,14 @@
 {
-  "functions": {
-    "source": "functions"
-  },
-  "firestore": {
-    "rules": "firestore.rules"
-  },
+  "functions": {"source": "functions"},
+  "firestore": {"rules": "firestore.rules"},
   "hosting": {
     "public": "firebase-public",
-    "ignore": [
-      "firebase.json",
-      "**/.*",
-      "**/node_modules/**"
-    ],
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
     "headers": [
-      {
-        "source": "/app-ads.txt",
-        "headers": [
-          { "key": "Content-Type", "value": "text/plain; charset=utf-8" },
-          { "key": "Cache-Control", "value": "public, max-age=3600" }
-        ]
-      }
+      {"source": "/app-ads.txt", "headers": [{"key": "Content-Type", "value": "text/plain; charset=utf-8"}, {"key": "Cache-Control", "value": "public, max-age=3600"}]}
+    ],
+    "rewrites": [
+      {"source": "/api/travel/**", "function": {"functionId": "travelApi", "region": "us-central1"}}
     ]
   }
 }
