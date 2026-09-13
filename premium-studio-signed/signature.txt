@@ -1,0 +1,18 @@
+Verifies
+Verified using v1 scheme (JAR signing): false
+Verified using v2 scheme (APK Signature Scheme v2): true
+Verified using v3 scheme (APK Signature Scheme v3): false
+Verified using v3.1 scheme (APK Signature Scheme v3.1): false
+Verified using v3.2 scheme (APK Signature Scheme v3.2): false
+Verified using v4 scheme (APK Signature Scheme v4): false
+Verified for SourceStamp: false
+Number of signers: 1
+V2 Signer: certificate DN: CN=NexusNova, OU=Development, O=NexusNova, L=karachi, ST=sindh, C=pk
+V2 Signer: certificate SHA-256 digest: 30052faf26f112d88d48061b88e6a698371ef0cdc4203122a9350529405a716c
+V2 Signer: certificate SHA-1 digest: fe18fd0bb9f927647921c557589f23b16a756a81
+V2 Signer: certificate MD5 digest: e7bfaee670a387d749d34a7d5b3a312a
+V2 Signer: key algorithm: RSA
+V2 Signer: key size (bits): 2048
+V2 Signer: public key SHA-256 digest: d72d64af6ee4a9f115ffa3409a9114ff415778e6fc1b44feef3318dd716c66de
+V2 Signer: public key SHA-1 digest: f8014a3fb188e92e246ea78e75a867e58e861bdc
+V2 Signer: public key MD5 digest: 1c07705af060535213d8d9d179b00c5c
