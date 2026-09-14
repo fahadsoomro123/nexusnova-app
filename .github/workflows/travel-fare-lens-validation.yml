@@ -89,3 +89,72 @@ jobs:
           ! grep -REq '\b(eval|Function)\s*\(' fresh-rebuild/src functions
           ! grep -REiq 'DUFFEL_ACCESS_TOKEN[[:space:]]*[:=][[:space:]]*.*duffel_' fresh-rebuild/src functions
           ! grep -REiq 'FLIGHTAPI_API_KEY[[:space:]]*[:=][[:space:]]*.*[A-Za-z0-9_-]{20,}' fresh-rebuild/src functions
+      - name: Real browser Android viewport validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v chromium >/dev/null 2>&1 && ! command -v google-chrome >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y chromium
+          fi
+          BROWSER_BIN="$(command -v chromium || command -v google-chrome)"
+          cat > fresh-rebuild/.ci-fare-lens-mobile-test.html <<'EOF'
+          <!doctype html>
+          <html lang="en"><head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+            <link rel="stylesheet" href="./assets/styles/phone-visible-fixes.css">
+          </head><body>
+            <script type="module">
+              import { renderTravel } from './src/features/apps/travel-fare-lens.js';
+              document.body.append(renderTravel());
+            </script>
+          </body></html>
+          EOF
+          python3 -m http.server 8765 --directory fresh-rebuild >/tmp/fare-lens-http.log 2>&1 &
+          SERVER_PID=$!
+          BROWSER_BIN "$@" 2>/dev/null || true
+          cleanup(){ kill "$SERVER_PID" >/dev/null 2>&1 || true; kill "$BROWSER_PID" >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          "$BROWSER_BIN" --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --user-data-dir="$RUNNER_TEMP/fare-lens-chrome" --remote-debugging-port=9222 --remote-allow-origins=* about:blank >/tmp/fare-lens-chrome.log 2>&1 &
+          BROWSER_PID=$!
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:9222/json/version >/dev/null 2>&1 && break; sleep 1; done
+          python3 - <<'PY'
+          import base64, json, os, time, urllib.request, websocket
+          page_data=json.load(urllib.request.urlopen('http://127.0.0.1:9222/json/new?http://127.0.0.1:8765/.ci-fare-lens-mobile-test.html'))
+          ws=websocket.create_connection(page_data['webSocketDebuggerUrl'], timeout=30)
+          seq=0
+          def call(method, params=None):
+              global seq; seq += 1
+              ws.send(json.dumps({'id':seq,'method':method,'params':params or {}}))
+              while True:
+                  msg=json.loads(ws.recv())
+                  if msg.get('id')==seq:
+                      if 'error' in msg: raise RuntimeError(msg['error'])
+                      return msg.get('result',{})
+          call('Page.enable'); call('Runtime.enable')
+          results={}
+          for width,height in ((390,844),(412,915)):
+              call('Emulation.setDeviceMetricsOverride', {'width':width,'height':height,'deviceScaleFactor':1,'mobile':True,'screenWidth':width,'screenHeight':height})
+              call('Page.reload', {'ignoreCache':True})
+              time.sleep(1.5)
+              expr="""(async()=>{await new Promise(r=>setTimeout(r,250));document.documentElement.scrollTop=0;document.body.scrollTop=0;window.scrollTo(0,0);const travel=document.querySelector('.nxf-travel'),main=document.querySelector('.nxf-main'),body=document.body,doc=document.documentElement;window.scrollTo(0,100);const forced={y:scrollY,x:scrollX};window.scrollTo(0,0);const internal=[...document.querySelectorAll('*')].filter(el=>{const cs=getComputedStyle(el);return (cs.overflowY==='auto'||cs.overflowY==='scroll')&&el.scrollHeight>el.clientHeight+1});return {width:innerWidth,height:innerHeight,documentScrollHeight:Math.max(body.scrollHeight,doc.scrollHeight),documentScrollWidth:Math.max(body.scrollWidth,doc.scrollWidth),bodyScrollHeight:body.scrollHeight,bodyScrollWidth:body.scrollWidth,scrollY:forced.y,scrollX:forced.x,mainScrollHeight:main?.scrollHeight||0,mainClientHeight:main?.clientHeight||0,mainOverflow:getComputedStyle(main||body).overflowY,internalScrollable:internal.map(el=>({class:String(el.className||el.id||el.tagName),scrollHeight:el.scrollHeight,clientHeight:el.clientHeight})),travelPresent:!!travel,requiredLabels:['Compare before you book.','Fare Calendar','Disruption Rescue','Flight status','SEARCH FLIGHTS'].map(t=>[t,document.body.innerText.includes(t)])}})()"""
+              r=call('Runtime.evaluate', {'expression':expr,'awaitPromise':True,'returnByValue':True})['result']['value']
+              results[f'{width}x{height}']=r
+              out=os.environ['RUNNER_TEMP']+f'/fare-lens-{width}x{height}.png'
+              open(out,'wb').write(base64.b64decode(call('Page.captureScreenshot', {'format':'png','captureBeyondViewport':False,'fromSurface':True})['data']))
+          print(json.dumps(results,indent=2,sort_keys=True))
+          for key,r in results.items():
+              ok=r['travelPresent'] and r['documentScrollHeight']<=r['height'] and r['documentScrollWidth']<=r['width'] and r['scrollY']==0 and r['scrollX']==0 and all(v for _,v in r['requiredLabels'])
+              print(f'ACCEPT {key}: {"PASS" if ok else "FAIL"}')
+              if not ok: raise SystemExit(1)
+          PY
+          mkdir -p "$RUNNER_TEMP/fare-lens-screenshots"
+          cp "$RUNNER_TEMP"/fare-lens-390x844.png "$RUNNER_TEMP/fare-lens-screenshots/"
+          cp "$RUNNER_TEMP"/fare-lens-412x915.png "$RUNNER_TEMP/fare-lens-screenshots/"
+      - name: Upload real mobile screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: fare-lens-real-browser-390-412
+          path: ${{ runner.temp }}/fare-lens-screenshots/
+          if-no-files-found: error
