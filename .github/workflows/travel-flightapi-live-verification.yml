@@ -1,0 +1,68 @@
+name: Travel FlightAPI Live Verification
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [travel-fare-lens-final]
+
+permissions:
+  contents: read
+
+jobs:
+  verify-live:
+    if: ${{ secrets.FLIGHTAPI_API_KEY != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Query real FlightAPI endpoint
+        env:
+          FLIGHTAPI_API_KEY: ${{ secrets.FLIGHTAPI_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          departure="$(date -u -d '+30 days' +%F)"
+          url="https://api.flightapi.io/onewaytrip"
+          tmp="$(mktemp)"
+          code="$(curl -sS -o "$tmp" -w '%{http_code}' --get "$url" \
+            --data-urlencode "api_key=$FLIGHTAPI_API_KEY" \
+            --data-urlencode "departure_airport_code=KHI" \
+            --data-urlencode "arrival_airport_code=ISB" \
+            --data-urlencode "departure_date=$departure" \
+            --data-urlencode "number_of_adults=1" \
+            --data-urlencode "number_of_childrens=0" \
+            --data-urlencode "number_of_infants=0" \
+            --data-urlencode "cabin_class=Economy" \
+            --data-urlencode "currency=USD" \
+            --data-urlencode "region=PK")"
+          if [ "$code" != "200" ]; then
+            echo "REAL_API_FAIL http=$code"
+            python - "$tmp" <<'PY'
+          import json,sys
+          try:
+              obj=json.load(open(sys.argv[1]))
+              print('provider_error_class=' + str(obj.get('error') or obj.get('message') or 'non-200 response'))
+          except Exception:
+              print('provider_error_class=non-json-response')
+          PY
+            exit 1
+          fi
+          python - "$tmp" <<'PY'
+          import json,sys
+          obj=json.load(open(sys.argv[1]))
+          itineraries=obj.get('itineraries') or obj.get('data',{}).get('itineraries') or []
+          if not isinstance(itineraries,list):
+              raise SystemExit('REAL_API_FAIL itineraries-not-array')
+          print('REAL_API_OK http=200')
+          print(f'itineraries={len(itineraries)}')
+          print('provider_response_shape=FlightAPI relational payload')
+          PY
+          rm -f "$tmp"
+
+  credential-blocked:
+    if: ${{ secrets.FLIGHTAPI_API_KEY == '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report blocked state without exposing secrets
+        run: |
+          echo "LIVE_VERIFICATION_BLOCKED missing GitHub Actions secret: FLIGHTAPI_API_KEY"
+          echo "No provider request was attempted."
