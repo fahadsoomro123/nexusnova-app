@@ -23,132 +23,18 @@ function cooldown(data,now){const until=optionalInt(data,"novaFeatureCooldownUnt
 function inventoryOf(data){return {booster:optionalInt(data,"novaBoosterInventory",0),rain:optionalInt(data,"novaRainInventory",0),timeWarp:optionalInt(data,"novaTimeWarpInventory",0),pendingVaults:optionalInt(data,"novaVaultPending",0)}}
 function miningElapsed(data,now){const active=data?.miningActive===true;const started=optionalInt(data,"miningStartedAt",0);return {active,started,elapsed:active&&started>0?Math.max(0,now-started):0}}
 function randomVaultReward(){const roll=require("node:crypto").randomInt(10000);const type=roll<6000?"nvx":roll<7800?"booster":roll<9500?"rain":"time-warp";return {type,amount:type==="nvx"?require("node:crypto").randomInt(1,11):1}}
-
 exports.getSecureAccount=protectedCallable(async req=>{const uid=uidOf(req);const s=await ref(uid).get();if(!s.exists)throw new HttpsError("not-found","User profile not found.");return s.data()||{}});
-
-exports.finishMiningSession=protectedCallable(async req=>{
-  const uid=verifiedUidOf(req), now=Date.now();
-  return db.runTransaction(async tx=>{
-    const r=ref(uid), s=await tx.get(r);if(!s.exists)throw new HttpsError("not-found","User profile not found.");const d=s.data()||{};
-    const {active,started,elapsed}=miningElapsed(d,now);
-    if(!active||started<=0)throw new HttpsError("failed-precondition","No active mining session.");
-    if(elapsed<DAY)throw new HttpsError("failed-precondition","Mining session is not complete yet.");
-    const balance=profileNumber(d,"balance"), total=profileNumber(d,"totalMined"), pending=optionalInt(d,"novaVaultPending",0);
-    const nextBalance=balance+MINING_REWARD,nextTotal=total+MINING_REWARD;
-    tx.update(r,{balance:nextBalance,totalMined:nextTotal,miningActive:false,miningStartedAt:0,miningLastUpdate:now,novaVaultPending:pending+1});
-    return {balance:nextBalance,totalMined:nextTotal,miningActive:false,miningStartedAt:0,miningLastUpdate:now,novaVaultPending:pending+1,earned:MINING_REWARD};
-  });
-});
-
-exports.claimDailyReward=protectedCallable(async req=>{
-  const uid=verifiedUidOf(req), now=Date.now();
-  return db.runTransaction(async tx=>{
-    const r=ref(uid),s=await tx.get(r);if(!s.exists)throw new HttpsError("not-found","User profile not found.");const d=s.data()||{};
-    const last=profileNumber(d,"lastDailyReward"),balance=profileNumber(d,"balance");
-    if(now-last<DAY)throw new HttpsError("resource-exhausted","Daily reward is not ready yet.");
-    const reward=5,nextBalance=balance+reward;tx.update(r,{balance:nextBalance,lastDailyReward:now,dailyRewardStreak:FieldValue.increment(1)});return {reward,balance:nextBalance,lastDailyReward:now};
-  });
-});
-
-exports.completeTaskReward=protectedCallable(async req=>{
-  const uid=verifiedUidOf(req);const taskId=String(req.data?.taskId||"");if(taskId!=="task1")throw new HttpsError("invalid-argument","Unknown task.");
-  return db.runTransaction(async tx=>{
-    const r=ref(uid),s=await tx.get(r);if(!s.exists)throw new HttpsError("not-found","User profile not found.");const d=s.data()||{};const done=d.completedTasks||{};
-    if(done[taskId])throw new HttpsError("already-exists","Task already completed.");const balance=profileNumber(d,"balance"),reward=10,nextBalance=balance+reward;
-    tx.update(r,{balance:nextBalance,tasksCompleted:FieldValue.increment(1),[`completedTasks.${taskId}`]:true});return {reward,balance:nextBalance};
-  });
-});
-
-exports.openNovaVault=protectedCallable(async req=>{
-  const uid=verifiedUidOf(req),now=Date.now(),reward=randomVaultReward();
-  return db.runTransaction(async tx=>{
-    const r=ref(uid),s=await tx.get(r);if(!s.exists)throw new HttpsError("not-found","User profile not found.");const d=s.data()||{};cooldown(d,now);
-    const inv=inventoryOf(d);if(inv.pendingVaults<1)throw new HttpsError("failed-precondition","No Nova Vault is ready.");
-    const updates={novaVaultPending:inv.pendingVaults-1,novaFeatureCooldownUntil:now+NOVA_COOLDOWN,novaLastVaultReward:reward.type,novaLastVaultAmount:reward.amount,novaLastVaultOpenedAt:now};
-    let balance=profileNumber(d,"balance"),booster=inv.booster,rain=inv.rain,timeWarp=inv.timeWarp;
-    if(reward.type==="nvx"){balance+=reward.amount;updates.balance=balance}else if(reward.type==="booster"){booster+=1;updates.novaBoosterInventory=booster}else if(reward.type==="rain"){rain+=1;updates.novaRainInventory=rain}else{timeWarp+=1;updates.novaTimeWarpInventory=timeWarp}
-    tx.update(r,updates);return {reward,balance,cooldownUntil:now+NOVA_COOLDOWN,novaVaultPending:inv.pendingVaults-1,inventory:{booster,rain,timeWarp,pendingVaults:inv.pendingVaults-1}};
-  });
-});
-
-exports.useNovaBoost=protectedCallable(async req=>{
-  const uid=verifiedUidOf(req),now=Date.now(),kind=String(req.data?.kind||"").toLowerCase();if(kind!=="booster"&&kind!=="rain")throw new HttpsError("invalid-argument","Unknown Nova Boost.");
-  return db.runTransaction(async tx=>{
-    const r=ref(uid),s=await tx.get(r);if(!s.exists)throw new HttpsError("not-found","User profile not found.");const d=s.data()||{};cooldown(d,now);
-    const inv=inventoryOf(d),mining=miningElapsed(d,now);if(!mining.active||mining.started<=0)throw new HttpsError("failed-precondition","Start mining first.");if(mining.elapsed>=DAY)throw new HttpsError("failed-precondition","Mining session is already complete.");
-    const uses=optionalInt(d,"novaBoostUsesThisSession",0);if(uses>=NOVA_MAX_BOOST_USES)throw new HttpsError("resource-exhausted","Maximum Nova Boosts used this session.");
-    if(kind==="booster"&&inv.booster<1)throw new HttpsError("failed-precondition","No Nova Booster available.");if(kind==="rain"&&inv.rain<1)throw new HttpsError("failed-precondition","No Nova Rain available.");
-    const newStart=Math.max(1,mining.started-NOVA_BOOST_MS),updates={miningStartedAt:newStart,novaBoostUsesThisSession:uses+1,novaFeatureCooldownUntil:now+NOVA_COOLDOWN,novaVaultPending:inv.pendingVaults+1};
-    if(kind==="booster")updates.novaBoosterInventory=inv.booster-1;else updates.novaRainInventory=inv.rain-1;
-    tx.update(r,updates);return {kind,miningActive:true,miningStartedAt:newStart,cooldownUntil:now+NOVA_COOLDOWN,reducedHours:(uses+1)*2,novaVaultPending:inv.pendingVaults+1,inventory:{booster:kind==="booster"?inv.booster-1:inv.booster,rain:kind==="rain"?inv.rain-1:inv.rain,timeWarp:inv.timeWarp,pendingVaults:inv.pendingVaults+1}};
-  });
-});
-
-exports.useNovaTimeWarp=protectedCallable(async req=>{
-  const uid=verifiedUidOf(req),now=Date.now();
-  return db.runTransaction(async tx=>{
-    const r=ref(uid),s=await tx.get(r);if(!s.exists)throw new HttpsError("not-found","User profile not found.");const d=s.data()||{};cooldown(d,now);const inv=inventoryOf(d),mining=miningElapsed(d,now);
-    if(inv.timeWarp<1)throw new HttpsError("failed-precondition","No Time Warp available.");if(!mining.active||mining.started<=0)throw new HttpsError("failed-precondition","Start mining first.");if(mining.elapsed>=DAY)throw new HttpsError("failed-precondition","Mining session is already complete.");
-    const balance=profileNumber(d,"balance"),total=profileNumber(d,"totalMined"),nextBalance=balance+MINING_REWARD,nextTotal=total+MINING_REWARD;
-    tx.update(r,{balance:nextBalance,totalMined:nextTotal,miningActive:false,miningStartedAt:0,miningLastUpdate:now,novaTimeWarpInventory:inv.timeWarp-1,novaFeatureCooldownUntil:now+NOVA_COOLDOWN});
-    return {earned:MINING_REWARD,balance:nextBalance,totalMined:nextTotal,miningActive:false,miningStartedAt:0,cooldownUntil:now+NOVA_COOLDOWN,inventory:{booster:inv.booster,rain:inv.rain,timeWarp:inv.timeWarp-1,pendingVaults:inv.pendingVaults}};
-  });
-});
-
-exports.getDepositAddress=protectedCallable(async req=>{
-  uidOf(req);
-  const asset=requestAsset(req.data?.asset);
-  const network=requestNetwork(req.data?.network);
-  const raw=process.env.NEXUSNOVA_DEPOSIT_ADDRESSES_JSON||"";
-  if(!raw) throw new HttpsError("failed-precondition","Deposit address service is not configured yet. No fake address will be generated.");
-  let map; try{map=JSON.parse(raw);}catch{throw new HttpsError("internal","Deposit address configuration is invalid.");}
-  const address=map?.[network]?.[asset]||"";
-  if(!address) throw new HttpsError("failed-precondition",`No real deposit address is configured for ${asset} on ${network}.`);
-  return {address,asset,network};
-});
-
-exports.requestWithdrawal=protectedCallable(async req=>{
-  const uid=verifiedUidOf(req), now=Date.now();
-  const asset=requestAsset(req.data?.asset);
-  const network=requestNetwork(req.data?.network);
-  const policy=parseWithdrawalPolicy();
-  const networkPolicy=policy?.[asset]?.[network];
-  if(!networkPolicy){
-    throw new HttpsError("invalid-argument","That asset and network are not enabled for withdrawals.");
-  }
-  const {amount,minor}=decimalToMinor(req.data?.amount,networkPolicy.decimals);
-  if(minor<networkPolicy.minMinor||minor>networkPolicy.maxMinor){
-    throw new HttpsError("invalid-argument","Amount is outside this asset's configured withdrawal limits.");
-  }
-  const destination=requestString(req.data?.destination,"destination address",MAX_DESTINATION_LENGTH);
-  if(networkPolicy.destinationType!=="evm"||!/^0x[a-fA-F0-9]{40}$/.test(destination))
-    throw new HttpsError("invalid-argument","Invalid EVM destination address.");
-  const profile=ref(uid);
-  const throttle=db.collection("withdrawalRateLimits").doc(uid);
-  const request=db.collection("withdrawalRequests").doc();
-  await db.runTransaction(async tx=>{
-    const profileSnapshot=await tx.get(profile);
-    if(!profileSnapshot.exists) throw new HttpsError("not-found","User profile not found.");
-    const throttleSnapshot=await tx.get(throttle);
-    const previous=throttleSnapshot.exists
-      ? profileNumber(throttleSnapshot.data(),"lastRequestAt")
-      : 0;
-    if(now-previous<WITHDRAWAL_COOLDOWN){
-      throw new HttpsError("resource-exhausted","Please wait before submitting another withdrawal request.");
-    }
-    tx.set(request,{
-      uid,asset,network,amount,amountMinor:minor.toString(),destination,
-      status:"pending_review",createdAt:FieldValue.serverTimestamp()
-    });
-    tx.set(throttle,{lastRequestAt:now,updatedAt:FieldValue.serverTimestamp()});
-  });
-  return {requestId:request.id,status:"pending_review"};
-});
-
-Object.assign(exports, require("./notifications"));
-Object.assign(exports, require("./admobRewardedSsv"));
-Object.assign(exports, require("./novaVault10x"));
-// v2 intentionally loads last so the deployed admobRewardedSsv export
-// routes both Watch Ad and Nova Vault 10x through one signed endpoint.
-Object.assign(exports, require("./admobRewardedSsvV2"));
-Object.assign(exports, require("./travel-api"));
+exports.finishMiningSession=protectedCallable(async req=>{const uid=verifiedUidOf(req),now=Date.now();return db.runTransaction(async tx=>{const r=ref(uid),s=await tx.get(r);if(!s.exists)throw new HttpsError("not-found","User profile not found.");const d=s.data()||{},m=miningElapsed(d,now);if(!m.active||m.started<=0)throw new HttpsError("failed-precondition","No active mining session.");if(m.elapsed<DAY)throw new HttpsError("failed-precondition","Mining session is not complete yet.");const balance=profileNumber(d,"balance"),total=profileNumber(d,"totalMined"),pending=optionalInt(d,"novaVaultPending",0),nextBalance=balance+MINING_REWARD,nextTotal=total+MINING_REWARD;tx.update(r,{balance:nextBalance,totalMined:nextTotal,miningActive:false,miningStartedAt:0,miningLastUpdate:now,novaVaultPending:pending+1});return {balance:nextBalance,totalMined:nextTotal,miningActive:false,miningStartedAt:0,miningLastUpdate:now,novaVaultPending:pending+1,earned:MINING_REWARD}})});
+exports.claimDailyReward=protectedCallable(async req=>{const uid=verifiedUidOf(req),now=Date.now();return db.runTransaction(async tx=>{const r=ref(uid),s=await tx.get(r);if(!s.exists)throw new HttpsError("not-found","User profile not found.");const d=s.data()||{},last=profileNumber(d,"lastDailyReward"),balance=profileNumber(d,"balance");if(now-last<DAY)throw new HttpsError("resource-exhausted","Daily reward is not ready yet.");const reward=5,nextBalance=balance+reward;tx.update(r,{balance:nextBalance,lastDailyReward:now,dailyRewardStreak:FieldValue.increment(1)});return {reward,balance:nextBalance,lastDailyReward:now}})});
+exports.completeTaskReward=protectedCallable(async req=>{const uid=verifiedUidOf(req),taskId=String(req.data?.taskId||"");if(taskId!=="task1")throw new HttpsError("invalid-argument","Unknown task.");return db.runTransaction(async tx=>{const r=ref(uid),s=await tx.get(r);if(!s.exists)throw new HttpsError("not-found","User profile not found.");const d=s.data()||{},done=d.completedTasks||{};if(done[taskId])throw new HttpsError("already-exists","Task already completed.");const balance=profileNumber(d,"balance"),reward=10,nextBalance=balance+reward;tx.update(r,{balance:nextBalance,tasksCompleted:FieldValue.increment(1),[`completedTasks.${taskId}`]:true});return {reward,balance:nextBalance}})});
+exports.openNovaVault=protectedCallable(async req=>{const uid=verifiedUidOf(req),now=Date.now(),reward=randomVaultReward();return db.runTransaction(async tx=>{const r=ref(uid),s=await tx.get(r);if(!s.exists)throw new HttpsError("not-found","User profile not found.");const d=s.data()||{};cooldown(d,now);const inv=inventoryOf(d);if(inv.pendingVaults<1)throw new HttpsError("failed-precondition","No Nova Vault is ready.");const updates={novaVaultPending:inv.pendingVaults-1,novaFeatureCooldownUntil:now+NOVA_COOLDOWN,novaLastVaultReward:reward.type,novaLastVaultAmount:reward.amount,novaLastVaultOpenedAt:now};let balance=profileNumber(d,"balance"),booster=inv.booster,rain=inv.rain,timeWarp=inv.timeWarp;if(reward.type==="nvx"){balance+=reward.amount;updates.balance=balance}else if(reward.type==="booster"){booster+=1;updates.novaBoosterInventory=booster}else if(reward.type==="rain"){rain+=1;updates.novaRainInventory=rain}else{timeWarp+=1;updates.novaTimeWarpInventory=timeWarp}tx.update(r,updates);return {reward,balance,cooldownUntil:now+NOVA_COOLDOWN,novaVaultPending:inv.pendingVaults-1,inventory:{booster,rain,timeWarp,pendingVaults:inv.pendingVaults-1}}})});
+exports.useNovaBoost=protectedCallable(async req=>{const uid=verifiedUidOf(req),now=Date.now(),kind=String(req.data?.kind||"").toLowerCase();if(kind!=="booster"&&kind!=="rain")throw new HttpsError("invalid-argument","Unknown Nova Boost.");return db.runTransaction(async tx=>{const r=ref(uid),s=await tx.get(r);if(!s.exists)throw new HttpsError("not-found","User profile not found.");const d=s.data()||{};cooldown(d,now);const inv=inventoryOf(d),m=miningElapsed(d,now);if(!m.active||m.started<=0)throw new HttpsError("failed-precondition","Start mining first.");if(m.elapsed>=DAY)throw new HttpsError("failed-precondition","Mining session is already complete.");const uses=optionalInt(d,"novaBoostUsesThisSession",0);if(uses>=NOVA_MAX_BOOST_USES)throw new HttpsError("resource-exhausted","Maximum Nova Boosts used this session.");if(kind==="booster"&&inv.booster<1)throw new HttpsError("failed-precondition","No Nova Booster available.");if(kind==="rain"&&inv.rain<1)throw new HttpsError("failed-precondition","No Nova Rain available.");const newStart=Math.max(1,m.started-NOVA_BOOST_MS),updates={miningStartedAt:newStart,novaBoostUsesThisSession:uses+1,novaFeatureCooldownUntil:now+NOVA_COOLDOWN,novaVaultPending:inv.pendingVaults+1};if(kind==="booster")updates.novaBoosterInventory=inv.booster-1;else updates.novaRainInventory=inv.rain-1;tx.update(r,updates);return {kind,miningActive:true,miningStartedAt:newStart,cooldownUntil:now+NOVA_COOLDOWN,reducedHours:(uses+1)*2,novaVaultPending:inv.pendingVaults+1,inventory:{booster:kind==="booster"?inv.booster-1:inv.booster,rain:kind==="rain"?inv.rain-1:inv.rain,timeWarp:inv.timeWarp,pendingVaults:inv.pendingVaults+1}}})});
+exports.useNovaTimeWarp=protectedCallable(async req=>{const uid=verifiedUidOf(req),now=Date.now();return db.runTransaction(async tx=>{const r=ref(uid),s=await tx.get(r);if(!s.exists)throw new HttpsError("not-found","User profile not found.");const d=s.data()||{};cooldown(d,now);const inv=inventoryOf(d),m=miningElapsed(d,now);if(inv.timeWarp<1)throw new HttpsError("failed-precondition","No Time Warp available.");if(!m.active||m.started<=0)throw new HttpsError("failed-precondition","Start mining first.");if(m.elapsed>=DAY)throw new HttpsError("failed-precondition","Mining session is already complete.");const balance=profileNumber(d,"balance"),total=profileNumber(d,"totalMined"),nextBalance=balance+MINING_REWARD,nextTotal=total+MINING_REWARD;tx.update(r,{balance:nextBalance,totalMined:nextTotal,miningActive:false,miningStartedAt:0,miningLastUpdate:now,novaTimeWarpInventory:inv.timeWarp-1,novaFeatureCooldownUntil:now+NOVA_COOLDOWN});return {earned:MINING_REWARD,balance:nextBalance,totalMined:nextTotal,miningActive:false,miningStartedAt:0,cooldownUntil:now+NOVA_COOLDOWN,inventory:{booster:inv.booster,rain:inv.rain,timeWarp:inv.timeWarp-1,pendingVaults:inv.pendingVaults}}})});
+exports.getDepositAddress=protectedCallable(async req=>{uidOf(req);const asset=requestAsset(req.data?.asset),network=requestNetwork(req.data?.network),raw=process.env.NEXUSNOVA_DEPOSIT_ADDRESSES_JSON||"";if(!raw)throw new HttpsError("failed-precondition","Deposit address service is not configured yet. No fake address will be generated.");let map;try{map=JSON.parse(raw)}catch{throw new HttpsError("internal","Deposit address configuration is invalid.")}const address=map?.[network]?.[asset]||"";if(!address)throw new HttpsError("failed-precondition",`No real deposit address is configured for ${asset} on ${network}.`);return {address,asset,network}});
+exports.requestWithdrawal=protectedCallable(async req=>{const uid=verifiedUidOf(req),now=Date.now(),asset=requestAsset(req.data?.asset),network=requestNetwork(req.data?.network),policy=parseWithdrawalPolicy(),networkPolicy=policy?.[asset]?.[network];if(!networkPolicy)throw new HttpsError("invalid-argument","That asset and network are not enabled for withdrawals.");const {amount,minor}=decimalToMinor(req.data?.amount,networkPolicy.decimals);if(minor<networkPolicy.minMinor||minor>networkPolicy.maxMinor)throw new HttpsError("invalid-argument","Amount is outside this asset's configured withdrawal limits.");const destination=requestString(req.data?.destination,"destination address",MAX_DESTINATION_LENGTH);if(networkPolicy.destinationType!=="evm"||!/^0x[a-fA-F0-9]{40}$/.test(destination))throw new HttpsError("invalid-argument","Invalid EVM destination address.");const profile=ref(uid),throttle=db.collection("withdrawalRateLimits").doc(uid),request=db.collection("withdrawalRequests").doc();await db.runTransaction(async tx=>{const profileSnapshot=await tx.get(profile);if(!profileSnapshot.exists)throw new HttpsError("not-found","User profile not found.");const throttleSnapshot=await tx.get(throttle),previous=throttleSnapshot.exists?profileNumber(throttleSnapshot.data(),"lastRequestAt"):0;if(now-previous<WITHDRAWAL_COOLDOWN)throw new HttpsError("resource-exhausted","Please wait before submitting another withdrawal request.");tx.set(request,{uid,asset,network,amount,amountMinor:minor.toString(),destination,status:"pending_review",createdAt:FieldValue.serverTimestamp()});tx.set(throttle,{lastRequestAt:now,updatedAt:FieldValue.serverTimestamp()})});return {requestId:request.id,status:"pending_review"}});
+Object.assign(exports,require("./notifications"));
+Object.assign(exports,require("./admobRewardedSsv"));
+Object.assign(exports,require("./novaVault10x"));
+Object.assign(exports,require("./admobRewardedSsvV2"));
+Object.assign(exports,require("./travel-api"));
+Object.assign(exports,require("./travel-api-v2"));
