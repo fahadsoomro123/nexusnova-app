@@ -10,9 +10,9 @@ Status vocabulary is evidence-strict:
 
 | Capability | Provider | Search | Revalidate | Book | Payment | Live Verified | Status |
 |---|---|---|---|---|---|---|---|
-| Flights | FlightAPI | CODE VERIFIED | PROVIDER-SUPPORTED PATH / CODE VERIFIED | PROVIDER DEEP-LINK ONLY / not NexusNova order | Not provided by current adapter | No | OWNER VERIFICATION REQUIRED — existing adapter path requires `FLIGHTAPI_API_KEY` and real runtime verification |
-| Flights | Duffel | CODE VERIFIED | CODE VERIFIED via offer refresh | Not yet NexusNova order flow | Not yet wired | No | OWNER VERIFICATION REQUIRED — authorized Duffel token + real request required |
-| Flights | Travelport | Not yet implemented | Not yet implemented | Provider supports book/ticket/manage | Provider Pay API exists | No | OWNER VERIFICATION REQUIRED — trial/provisioning credentials required before implementation/live test |
+| Flights | FlightAPI | CODE VERIFIED | PROVIDER-SUPPORTED PATH / CODE VERIFIED | PROVIDER DEEP-LINK ONLY / not NexusNOVA order | Not provided by current adapter | No | OWNER VERIFICATION REQUIRED — existing adapter path requires `FLIGHTAPI_API_KEY` and real runtime verification |
+| Flights | Duffel | CODE VERIFIED | CODE VERIFIED via offer refresh | Not yet NexusNOVA order flow | Not yet wired | No | OWNER VERIFICATION REQUIRED — authorized Duffel token + real request required |
+| Flights | Travelport TripServices | CODE VERIFIED | Not yet implemented | Not yet implemented | Travelport Pay available, not wired | No | OWNER VERIFICATION REQUIRED — trial/provisioning credentials required before live verification; search adapter is server-side and routed only when configured |
 | Hotels | Duffel Stays | CODE VERIFIED | CODE VERIFIED via quotes | CODE VERIFIED in server adapter | Provider/payment boundary not yet verified | No | OWNER VERIFICATION REQUIRED — Stays access + authorized token required |
 | Hotels | Travelport Stays | Not yet implemented | Not yet implemented | Provider supports reservation workflows | Provider Pay exists | No | OWNER VERIFICATION REQUIRED — provisioning credentials required |
 | Tracking | FlightAPI | N/A | N/A | N/A | N/A | No | OWNER VERIFICATION REQUIRED — real `/airline` or `/trackbyroute` request requires authorized key |
@@ -26,7 +26,7 @@ Status vocabulary is evidence-strict:
 
 ### FlightAPI
 
-`functions/flightapi-provider.js` implements one-way and round-trip search, flight tracking, route tracking, schedules and IATA lookup behind `FLIGHTAPI_API_KEY`. The adapter now normalizes FlightAPI's relational response shape using `itineraries`, `leg_ids`, `segment_ids`, `pricing_options`, `carriers` and provider deep links. No API key is stored in source.
+`functions/flightapi-provider.js` implements one-way and round-trip search, flight tracking, route tracking, schedules and IATA lookup behind `FLIGHTAPI_API_KEY`. The adapter normalizes FlightAPI's relational response shape using `itineraries`, `leg_ids`, `segment_ids`, `pricing_options`, `carriers` and provider deep links. No API key is stored in source.
 
 ### Duffel Flights
 
@@ -36,15 +36,19 @@ Status vocabulary is evidence-strict:
 
 `functions/duffel-stays-provider.js` provides server-side stays search, room/rate retrieval, quote and booking paths. `functions/travel-api-v2.js` requires Firebase Auth and an `Idempotency-Key` for booking and stores only a bounded provider booking record in the user's Trip Center.
 
+### Travelport TripServices Flights
+
+`functions/travelport-provider.js` provides a server-side OAuth 2.0 client-credentials token path and TripServices v11 air shopping request against the documented pre-production/production endpoints. `functions/travel-api-v2.js` includes Travelport in the flight provider chain after FlightAPI and Duffel by default, while remaining fail-closed when Travelport credentials are absent. The adapter currently implements search only; revalidation, booking, ticketing, payment and cancellation remain deliberately unclaimed until the corresponding provider workflow is implemented and tested with authorized credentials.
+
 ### Honest capability gating
 
-`functions/travel-contracts.js` no longer labels a capability `LIVE VERIFIED` merely because an environment variable exists. Bus inventory is explicitly `BLOCKED` until a verified inventory provider is configured; rail tracking is `NOT SUPPORTED` without an operator/status feed; unconfigured flight/hotel payment is `BLOCKED`.
+`functions/travel-contracts.js` does not label a capability `LIVE VERIFIED` merely because an environment variable exists. Bus inventory is explicitly `BLOCKED` until a verified inventory provider is configured; rail tracking is `NOT SUPPORTED` without an operator/status feed; unconfigured flight/hotel payment is `BLOCKED`.
 
 ## External provider findings
 
-FlightAPI currently advertises live prices, tracking, schedules and IATA capabilities, and its current developer signup page advertises a free-credit account without requiring a card. This repository still cannot treat an account or founder relationship as live access without an authorized key and a successful real request.
+FlightAPI currently advertises live prices, tracking, schedules and IATA capabilities. The repository still cannot treat an existing founder relationship, account or configured secret as live access without an authorized key and a successful real request.
 
-Travelport currently advertises trial access and end-to-end Flights, Stays and Pay capabilities, but API use depends on legitimate provisioning/trial credentials. The runtime available to this agent cannot complete third-party account creation, OTP, KYC or commercial approval.
+Travelport currently advertises trial access and end-to-end Flights, Stays and Pay capabilities. Current documentation specifies OAuth 2.0, trial/provisioning credentials, and separate pre-production/production endpoints. The runtime available to this agent cannot complete third-party account creation, OTP, KYC or commercial approval.
 
 Duffel currently supports sandbox/test access for flights and offers a separate Stays access workflow. Test/live access is external to the repository runtime and is not fabricated here.
 
