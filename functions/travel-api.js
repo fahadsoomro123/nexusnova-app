@@ -1,5 +1,5 @@
 const {onRequest}=require('firebase-functions/v2/https');
-const {DuffelAdapter,ProviderError,createFlightProvider,keylessAirportSearch}=require('./travel-provider');
+const {ProviderError,createFlightProvider,keylessAirportSearch}=require('./travel-provider');
 
 const MAX_BODY=8192;
 const MAX_Q=80;
@@ -33,12 +33,14 @@ exports.travelApi=onRequest({timeoutSeconds:60,memory:'256MiB'},async(req,res)=>
       if(departure<new Date().toISOString().slice(0,10))throw new ProviderError('invalid_request','Departure date is in the past.',400);
       if(tripType==='roundtrip'&&returnDate<=departure)throw new ProviderError('invalid_request','Return date must be after departure.',400);
       const adults=positiveInt(b.adults,1,9)||1,children=positiveInt(b.children,0,8),provider=providerOrFail();
-      const result=await provider.searchFlights({origin,destination,departure,returnDate,tripType,adults,children,cabin:cabin(b.cabin),currency:text(b.currency||'PKR',3)});
+      const childAges=Array.isArray(b.childrenAges)?b.childrenAges.map(Number):[];
+      if(childAges.length!==children||childAges.some(age=>!Number.isInteger(age)||age<2||age>17))throw new ProviderError('child_age_required','Enter a valid age (2–17) for every child before live flight search.',400);
+      const result=await provider.searchFlights({origin,destination,departure,returnDate,tripType,adults,children,cabin:cabin(b.cabin),currency:text(b.currency||'PKR',3),childAges});
       return json(res,200,result);
     }
     if(path==='/flights/calendar'&&req.method==='GET'){
       const provider=providerOrFail();
-      const result=await provider.fareCalendar({origin:code(req.query?.origin),destination:code(req.query?.destination),from:date(req.query?.from),tripType:'oneway',returnDate:'',adults:1,children:0,cabin:'economy',currency:String(req.query?.currency||'PKR').slice(0,3)});
+      const result=await provider.fareCalendar({origin:code(req.query?.origin),destination:code(req.query?.destination),from:date(req.query?.from),tripType:'oneway',returnDate:'',adults:1,children:0,childAges:[],cabin:'economy',currency:String(req.query?.currency||'PKR').slice(0,3)});
       return json(res,200,result);
     }
     if(path==='/flights/offer'&&req.method==='GET'){
@@ -53,5 +55,3 @@ exports.travelApi=onRequest({timeoutSeconds:60,memory:'256MiB'},async(req,res)=>
     return json(res,404,{code:'not_found',message:'Travel endpoint not found.'});
   }catch(error){return handlerError(res,error)}
 });
-
-void DuffelAdapter;
