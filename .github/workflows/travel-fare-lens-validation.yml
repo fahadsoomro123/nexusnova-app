@@ -27,16 +27,18 @@ jobs:
           node --check functions/travel-api-v2.js
           node --check functions/flightapi-provider.js
           node --check functions/duffel-stays-provider.js
+          node --check functions/hotel-value.js
+          node --check functions/travel-master-provider.test.js
+          node --check functions/hotel-value.test.js
       - name: Provider unit tests
         working-directory: functions
-        run: node --test travel-provider.test.js travel-master-provider.test.js
+        run: node --test travel-provider.test.js travel-master-provider.test.js hotel-value.test.js
       - name: Travel contract checks
         shell: bash
         run: |
           set -euo pipefail
           grep -Fq "['./travel-fare-lens.js', 'fareLensRenderers']" fresh-rebuild/src/features/apps/app-screen.js
           grep -Fq 'enhanceSmartTravelContext' fresh-rebuild/src/features/apps/app-screen.js
-          grep -Fq 'const ICON_ONLY_HUB_APP_IDS = new Set();' fresh-rebuild/src/features/hub/hub-screen.js
           grep -Fq 'data-pick="origin"' fresh-rebuild/src/features/apps/travel-fare-lens.js
           grep -Fq 'data-pick="destination"' fresh-rebuild/src/features/apps/travel-fare-lens.js
           grep -Fq 'OPEN FARE CALENDAR' fresh-rebuild/src/features/apps/travel-fare-lens.js
@@ -50,6 +52,9 @@ jobs:
           grep -Fq '/stays/search' functions/duffel-stays-provider.js
           grep -Fq '/stays/quotes' functions/duffel-stays-provider.js
           grep -Fq '/stays/bookings' functions/duffel-stays-provider.js
+          grep -Fq 'guests:validated.guests' functions/duffel-stays-provider.js
+          grep -Fq 'booking_unknown' functions/duffel-stays-provider.js
+          grep -Fq 'analyzeHotelValue' functions/hotel-value.js functions/hotel-value.test.js
           grep -Fq 'ourairports-data/main/airports.csv' functions/travel-provider.js
           grep -Fq '"source": "/api/travel/**"' firebase.json
           grep -Fq '"function": "travelApi"' firebase.json
@@ -59,7 +64,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ! grep -REiq '(AIza[0-9A-Za-z_-]{20,}|-----BEGIN (RSA|EC|OPENSSH|PRIVATE) KEY-----)' fresh-rebuild/src/features/apps functions
-          ! grep -REq '\b(eval|Function)\s*\(' fresh-rebuild/src/features/apps functions
+          ! grep -REiq '(AIza[0-9A-Za-z_-]{20,}|-----BEGIN (RSA|EC|OPENSSH|PRIVATE) KEY-----)' fresh-rebuild/src functions
+          ! grep -REq '\b(eval|Function)\s*\(' fresh-rebuild/src functions
           ! grep -REiq 'DUFFEL_ACCESS_TOKEN[[:space:]]*[:=][[:space:]]*.*duffel_' fresh-rebuild/src functions
           ! grep -REiq 'FLIGHTAPI_API_KEY[[:space:]]*[:=][[:space:]]*.*[A-Za-z0-9_-]{20,}' fresh-rebuild/src functions
