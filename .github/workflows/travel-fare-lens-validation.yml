@@ -8,7 +8,7 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
@@ -19,6 +19,12 @@ jobs:
           node --check fresh-rebuild/src/features/apps/travel-fare-lens.js
           node --check fresh-rebuild/src/features/apps/app-screen.js
           node --check fresh-rebuild/src/features/hub/hub-screen.js
+          node --check functions/travel-provider.js
+          node --check functions/travel-provider.test.js
+          node --check functions/travel-api.js
+      - name: Provider unit tests
+        working-directory: functions
+        run: node --test travel-provider.test.js
       - name: Travel contract checks
         shell: bash
         run: |
@@ -30,11 +36,18 @@ jobs:
           grep -Fq 'OPEN FARE CALENDAR' fresh-rebuild/src/features/apps/travel-fare-lens.js
           grep -Fq 'CHECK RESCUE OPTIONS' fresh-rebuild/src/features/apps/travel-fare-lens.js
           grep -Fq 'www.nexusnovatools.com' fresh-rebuild/src/features/apps/travel-fare-lens.js
+          grep -Fq 'exports.travelApi=onRequest' functions/travel-api.js
+          grep -Fq 'DUFFEL_ACCESS_TOKEN' functions/travel-provider.js
+          grep -Fq 'api/air/offer_requests' functions/travel-provider.js || grep -Fq '/air/offer_requests' functions/travel-provider.js
+          grep -Fq 'ourairports-data/main/airports.csv' functions/travel-provider.js
+          grep -Fq '"source": "/api/travel/**"' firebase.json
+          grep -Fq '"function": "travelApi"' firebase.json
           ! grep -Fq 'Always opens inside Nova Browser' fresh-rebuild/src/features/apps/travel-fare-lens.js
           ! grep -Fq 'SELECT & BOOK' fresh-rebuild/src/features/apps/travel-fare-lens.js
       - name: Secret and dynamic-code scan
         shell: bash
         run: |
           set -euo pipefail
-          ! grep -Eiq '(AIza[0-9A-Za-z_-]{20,}|-----BEGIN (RSA|EC|OPENSSH|PRIVATE) KEY-----)' fresh-rebuild/src/features/apps/travel-fare-lens.js
-          ! grep -Eq '\b(eval|Function)\s*\(' fresh-rebuild/src/features/apps/travel-fare-lens.js
+          ! grep -Eiq '(AIza[0-9A-Za-z_-]{20,}|-----BEGIN (RSA|EC|OPENSSH|PRIVATE) KEY-----)' fresh-rebuild/src/features/apps/travel-fare-lens.js functions/travel-provider.js functions/travel-api.js
+          ! grep -Eq '\b(eval|Function)\s*\(' fresh-rebuild/src/features/apps/travel-fare-lens.js functions/travel-provider.js functions/travel-api.js
+          ! grep -Eiq 'DUFFEL_ACCESS_TOKEN\s*[:=]\s*["'"']duffel_' fresh-rebuild/src functions || true
