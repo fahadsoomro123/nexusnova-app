@@ -1,0 +1,40 @@
+name: Travel Fare Lens Validation
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: JavaScript syntax
+        run: |
+          set -euo pipefail
+          node --check fresh-rebuild/src/features/apps/travel-fare-lens.js
+          node --check fresh-rebuild/src/features/apps/app-screen.js
+          node --check fresh-rebuild/src/features/hub/hub-screen.js
+      - name: Travel contract checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq "['./travel-fare-lens.js', 'fareLensRenderers']" fresh-rebuild/src/features/apps/app-screen.js
+          grep -Fq "const ICON_ONLY_HUB_APP_IDS = new Set();" fresh-rebuild/src/features/hub/hub-screen.js
+          grep -Fq 'data-pick="origin"' fresh-rebuild/src/features/apps/travel-fare-lens.js || true
+          grep -Fq 'data-pick="destination"' fresh-rebuild/src/features/apps/travel-fare-lens.js || true
+          grep -Fq 'OPEN FARE CALENDAR' fresh-rebuild/src/features/apps/travel-fare-lens.js || true
+          grep -Fq 'CHECK RESCUE OPTIONS' fresh-rebuild/src/features/apps/travel-fare-lens.js || true
+          grep -Fq 'www.nexusnovatools.com' fresh-rebuild/src/features/apps/travel-fare-lens.js
+          ! grep -Fq 'Always opens inside Nova Browser' fresh-rebuild/src/features/apps/travel-fare-lens.js
+          ! grep -Fq 'SELECT & BOOK' fresh-rebuild/src/features/apps/travel-fare-lens.js
+      - name: Secret and dynamic-code scan
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -Eiq '(AIza[0-9A-Za-z_-]{20,}|-----BEGIN (RSA|EC|OPENSSH|PRIVATE) KEY-----)' fresh-rebuild/src/features/apps/travel-fare-lens.js
+          ! grep -Eq '\b(eval|Function)\s*\(' fresh-rebuild/src/features/apps/travel-fare-lens.js
