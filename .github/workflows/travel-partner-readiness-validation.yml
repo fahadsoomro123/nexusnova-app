@@ -1,0 +1,53 @@
+name: Travel Partner Readiness Validation
+on:
+  push:
+    branches: [travel-fare-lens-final]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Syntax checks
+        run: |
+          set -euo pipefail
+          node --check functions/travel-contracts.js
+          node --check functions/travel-contracts.test.js
+          node --check functions/travel-api-v2.js
+      - name: Partner contract tests
+        working-directory: functions
+        run: node --test travel-provider.test.js travel-master-provider.test.js hotel-value.test.js travel-contracts.test.js
+      - name: Readiness invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq "LIVE VERIFIED" functions/travel-contracts.js
+          grep -Fq "READY FOR PROVIDER" functions/travel-contracts.js
+          grep -Fq "BLOCKED" functions/travel-contracts.js
+          grep -Fq "NOT SUPPORTED" functions/travel-contracts.js
+          grep -Fq "UNKNOWN" functions/travel-contracts.js
+          grep -Fq "PAYMENT_UNKNOWN" functions/travel-contracts.js
+          grep -Fq "TRAVEL_DEMO_MODE" functions/travel-contracts.js
+          grep -Fq "TRAVEL_ENVIRONMENT" functions/travel-contracts.js
+          grep -Fq "X-Request-Id" functions/travel-api-v2.js
+          grep -Fq "Retry-After" functions/travel-api-v2.js
+          grep -Fq "MAX_REQUESTS_PER_WINDOW" functions/travel-api-v2.js
+          grep -Fq "TRAVEL_ALLOWED_ORIGINS" functions/travel-api-v2.js
+          grep -Fq "booking/contract" functions/travel-api-v2.js
+          grep -Fq "No verified bus inventory provider" functions/travel-api-v2.js
+          grep -Fq "No verified rail inventory provider" functions/travel-api-v2.js
+          test -s TRAVEL-PARTNER-READINESS.md
+      - name: Secret and sensitive-log guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -REiq '(-----BEGIN (RSA|EC|OPENSSH|PRIVATE) KEY-----|AIza[0-9A-Za-z_-]{20,})' functions fresh-rebuild/src
+          ! grep -REiq '(console\.log|console\.error|console\.warn).*?(DUFFEL_ACCESS_TOKEN|FLIGHTAPI_API_KEY|Authorization|cardNumber|cvv|cvc)' functions fresh-rebuild/src
+          ! grep -REiq 'TRAVEL_DEMO_MODE[[:space:]]*=[[:space:]]*true' firebase-public fresh-rebuild 2>/dev/null || true
