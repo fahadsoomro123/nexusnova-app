@@ -37,29 +37,50 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -Fq "['./travel-fare-lens.js', 'fareLensRenderers']" fresh-rebuild/src/features/apps/app-screen.js
-          grep -Fq 'enhanceSmartTravelContext' fresh-rebuild/src/features/apps/app-screen.js
-          grep -Fq 'data-pick="origin"' fresh-rebuild/src/features/apps/travel-fare-lens.js
-          grep -Fq 'data-pick="destination"' fresh-rebuild/src/features/apps/travel-fare-lens.js
-          grep -Fq 'OPEN FARE CALENDAR' fresh-rebuild/src/features/apps/travel-fare-lens.js
-          grep -Fq 'CHECK RESCUE OPTIONS' fresh-rebuild/src/features/apps/travel-fare-lens.js
-          grep -Fq 'www.nexusnovatools.com' fresh-rebuild/src/features/apps/travel-fare-lens.js
-          grep -Fq 'exports.travelApi=onRequest' functions/travel-api.js
-          grep -Fq 'travelApi-v2' functions/index.js
-          grep -Fq 'DUFFEL_ACCESS_TOKEN' functions/travel-provider.js
-          grep -Fq 'FLIGHTAPI_API_KEY' functions/flightapi-provider.js
-          grep -Fq '/air/offer_requests' functions/travel-provider.js
-          grep -Fq '/stays/search' functions/duffel-stays-provider.js
-          grep -Fq '/stays/quotes' functions/duffel-stays-provider.js
-          grep -Fq '/stays/bookings' functions/duffel-stays-provider.js
-          grep -Fq 'guests:validated.guests' functions/duffel-stays-provider.js
-          grep -Fq 'booking_unknown' functions/duffel-stays-provider.js
-          grep -Fq 'analyzeHotelValue' functions/hotel-value.js functions/hotel-value.test.js
-          grep -Fq 'ourairports-data/main/airports.csv' functions/travel-provider.js
-          grep -Fq '"source": "/api/travel/**"' firebase.json
-          grep -Fq '"function": "travelApi"' firebase.json
-          ! grep -Fq 'Always opens inside Nova Browser' fresh-rebuild/src/features/apps/travel-fare-lens.js
-          ! grep -Fq 'SELECT & BOOK' fresh-rebuild/src/features/apps/travel-fare-lens.js
+          assert_contains() {
+            local file="$1"
+            local needle="$2"
+            if grep -Fq -- "$needle" "$file"; then
+              echo "PASS: $file contains: $needle"
+            else
+              echo "FAIL: $file is missing required travel contract: $needle"
+              exit 1
+            fi
+          }
+          assert_absent() {
+            local file="$1"
+            local needle="$2"
+            if grep -Fq -- "$needle" "$file"; then
+              echo "FAIL: $file contains forbidden travel contract: $needle"
+              exit 1
+            else
+              echo "PASS: $file omits forbidden contract: $needle"
+            fi
+          }
+          assert_contains fresh-rebuild/src/features/apps/app-screen.js "['./travel-fare-lens.js', 'fareLensRenderers']"
+          assert_contains fresh-rebuild/src/features/apps/app-screen.js 'enhanceSmartTravelContext'
+          assert_contains fresh-rebuild/src/features/apps/travel-fare-lens.js 'data-pick="origin"'
+          assert_contains fresh-rebuild/src/features/apps/travel-fare-lens.js 'data-pick="destination"'
+          assert_contains fresh-rebuild/src/features/apps/travel-fare-lens.js 'OPEN FARE CALENDAR'
+          assert_contains fresh-rebuild/src/features/apps/travel-fare-lens.js 'CHECK RESCUE OPTIONS'
+          assert_contains fresh-rebuild/src/features/apps/travel-fare-lens.js 'www.nexusnovatools.com'
+          assert_contains functions/travel-api.js 'exports.travelApi=onRequest'
+          assert_contains functions/index.js 'travel-api-v2'
+          assert_contains functions/travel-provider.js 'DUFFEL_ACCESS_TOKEN'
+          assert_contains functions/flightapi-provider.js 'FLIGHTAPI_API_KEY'
+          assert_contains functions/travel-provider.js '/air/offer_requests'
+          assert_contains functions/duffel-stays-provider.js '/stays/search'
+          assert_contains functions/duffel-stays-provider.js '/stays/quotes'
+          assert_contains functions/duffel-stays-provider.js '/stays/bookings'
+          assert_contains functions/duffel-stays-provider.js 'guests:validated.guests'
+          assert_contains functions/duffel-stays-provider.js 'booking_unknown'
+          assert_contains functions/hotel-value.js 'analyzeHotelValue'
+          assert_contains functions/hotel-value.test.js 'analyzeHotelValue'
+          assert_contains functions/travel-provider.js 'ourairports-data/main/airports.csv'
+          assert_contains firebase.json '"source": "/api/travel/**"'
+          assert_contains firebase.json '"function": "travelApi"'
+          assert_absent fresh-rebuild/src/features/apps/travel-fare-lens.js 'Always opens inside Nova Browser'
+          assert_absent fresh-rebuild/src/features/apps/travel-fare-lens.js 'SELECT & BOOK'
       - name: Secret and dynamic-code scan
         shell: bash
         run: |
