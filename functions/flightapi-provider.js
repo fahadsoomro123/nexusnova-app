@@ -1,34 +1,49 @@
 const FLIGHTAPI_BASE='https://api.flightapi.io';
 class FlightApiError extends Error{constructor(code,message,status=503){super(message);this.name='FlightApiError';this.code=code;this.status=status}}
 const clean=(v,max=120)=>String(v??'').trim().slice(0,max);
-const isoDate=s=>/^\d{4}-\d{2}-\d{2}$/.test(s);
+const validDate=s=>/^\d{4}-\d{2}-\d{2}$/.test(String(s||''));
+const asNumber=v=>{const n=Number(v);return Number.isFinite(n)?n:null};
+function indexById(rows){const out=new Map();for(const row of Array.isArray(rows)?rows:[]){if(row?.id!=null)out.set(String(row.id),row)}return out;}
 function normalizeItineraryRows(payload){
-  const data=payload?.itineraries||payload?.data?.itineraries||payload?.data||[];
-  const rows=Array.isArray(data)?data:[];
-  return rows.map((itinerary,index)=>{
-    const legs=Array.isArray(itinerary?.legs)?itinerary.legs:[];
-    const leg=legs[0]||{};
-    const segments=Array.isArray(leg?.segments)?leg.segments:[];
-    const first=segments[0]||{};
-    const last=segments[segments.length-1]||first;
-    const price=itinerary?.price||itinerary?.pricing||itinerary?.fare||{};
-    const amount=Number(price?.total??price?.amount??itinerary?.price?.raw??itinerary?.price);
-    const carrier=itinerary?.carriers?.[0]||itinerary?.carrier||first?.carrier||{};
-    const stops=Math.max(0,segments.length-1);
-    const dep=first?.departureTime?.utc||first?.departureTime?.local||first?.departure||leg?.departureTime?.utc||leg?.departureTime?.local||'';
-    const arr=last?.arrivalTime?.utc||last?.arrivalTime?.local||last?.arrival||leg?.arrivalTime?.utc||leg?.arrivalTime?.local||'';
-    return {id:clean(itinerary?.id||itinerary?.key||`flightapi-${index}`,120),price:Number.isFinite(amount)?amount:null,currency:clean(price?.currency||itinerary?.currency||'',3),airline:clean(carrier?.name||carrier?.short||''),flightNumber:clean(first?.flightNumber||first?.flight?.number||''),departure:clean(dep,64),arrival:clean(arr,64),originCode:clean(first?.departureAirport?.iata||first?.origin?.iata||leg?.departureAirport?.iata||'',3),destinationCode:clean(last?.arrivalAirport?.iata||last?.destination?.iata||leg?.arrivalAirport?.iata||'',3),durationMinutes:Number.isFinite(Number(leg?.durationMinutes))?Number(leg.durationMinutes):null,stops,bookingUrl:typeof itinerary?.deepLink==='string'?itinerary.deepLink:'',provider:'FlightAPI',liveMode:true,metadata:{source:'FlightAPI'}};
+  const root=payload&&typeof payload==='object'?payload:{};
+  const itineraries=Array.isArray(root.itineraries)?root.itineraries:Array.isArray(root.data?.itineraries)?root.data.itineraries:[];
+  const legs=indexById(root.legs||root.data?.legs);
+  const segments=indexById(root.segments||root.data?.segments);
+  const carriers=indexById(root.carriers||root.data?.carriers);
+  return itineraries.map((itinerary,index)=>{
+    const itineraryLegs=Array.isArray(itinerary?.legs)?itinerary.legs:Array.isArray(itinerary?.leg_ids)?itinerary.leg_ids.map(id=>legs.get(String(id))).filter(Boolean):[];
+    const legsResolved=itineraryLegs.length?itineraryLegs:[itinerary?.leg].filter(Boolean);
+    const allSegments=legsResolved.flatMap(leg=>Array.isArray(leg?.segments)?leg.segments:Array.isArray(leg?.segment_ids)?leg.segment_ids.map(id=>segments.get(String(id))).filter(Boolean):[]);
+    const first=allSegments[0]||{};
+    const last=allSegments.at(-1)||first;
+    const segmentCarriers=allSegments.map(s=>carriers.get(String(s?.marketing_carrier_id))).filter(Boolean);
+    const carrier=itinerary?.carriers?.[0]||itinerary?.carrier||segmentCarriers[0]||carriers.get(String(first?.marketing_carrier_id))||{};
+    const pricing=Array.isArray(itinerary?.pricing_options)?itinerary.pricing_options:Array.isArray(itinerary?.prices)?itinerary.prices:[];
+    const cheapest=pricing.find(x=>Number.isFinite(Number(x?.price?.amount)))||pricing[0]||{};
+    const amount=asNumber(cheapest?.price?.amount??cheapest?.totalAmount??itinerary?.price?.amount??itinerary?.price?.total??itinerary?.price);
+    const currency=cheapest?.price?.currency||itinerary?.currency||'';
+    const dep=first?.departure||first?.departureTime?.utc||first?.departureTime?.local||legsResolved[0]?.departure||'';
+    const arr=last?.arrival||last?.arrivalTime?.utc||last?.arrivalTime?.local||legsResolved.at(-1)?.arrival||'';
+    const duration=legsResolved.reduce((sum,leg)=>sum+(asNumber(leg?.durationMinutes)??asNumber(leg?.duration)??0),0)||null;
+    const stopCount=allSegments.length>0?Math.max(0,allSegments.length-legsResolved.length):null;
+    const itemUrl=cheapest?.items?.find(item=>typeof item?.url==='string')?.url||'';
+    const deepLink=typeof itinerary?.deepLink==='string'?itinerary.deepLink:itemUrl;
+    return {id:clean(itinerary?.id||itinerary?.key||`flightapi-${index}`,120),price:amount,currency:clean(currency,3),airline:clean(carrier?.name||carrier?.short||''),flightNumber:clean(first?.marketing_flight_number||first?.flightNumber||first?.flight?.number||''),departure:clean(dep,64),arrival:clean(arr,64),originCode:clean(first?.origin?.iata||first?.departureAirport?.iata||legsResolved[0]?.origin?.iata||'',3),destinationCode:clean(last?.destination?.iata||last?.arrivalAirport?.iata||legsResolved.at(-1)?.destination?.iata||'',3),durationMinutes:duration,stops:stopCount,bookingUrl:typeof deepLink==='string'&&/^https?:\/\//i.test(deepLink)?deepLink:'',provider:'FlightAPI',liveMode:true,expiresAt:'',lastUpdated:clean(cheapest?.price?.last_updated||'',64),baggage:null,checkedBags:null,flexible:null,flexibility:'Provider fare conditions apply',familyFriendly:null,metadata:{source:'FlightAPI',pricingOptionCount:pricing.length}};
   }).filter(row=>row.originCode&&row.destinationCode);
+}
+function normalizeTrackingRows(payload){
+  const rows=Array.isArray(payload)?payload:Array.isArray(payload?.data)?payload.data:Array.isArray(payload?.flights)?payload.flights:payload&&typeof payload==='object'?[payload]:[];
+  return rows.map((row,index)=>({id:clean(row?.id||`${row?.FlightNumber||row?.flightNumber||'flight'}-${index}`,80),airline:clean(row?.Airline||row?.airline||''),flightNumber:clean(row?.FlightNumber||row?.flightNumber||''),status:clean(row?.Status||row?.status||'UNKNOWN',80),operatedBy:clean(row?.['Operated By']||row?.operatedBy||''),departure:clean(row?.DepartureTime||row?.departureTime||row?.departure||'',80),arrival:clean(row?.ArrivalTime||row?.arrivalTime||row?.arrival||'',80),liveMode:true,provider:'FlightAPI'}));
 }
 class FlightAPIAdapter{
   constructor(apiKey){this.apiKey=clean(apiKey,512)}
   get available(){return Boolean(this.apiKey)}
-  async request(endpoint,params={}){if(!this.available)throw new FlightApiError('provider_unavailable','FlightAPI is not configured.');const url=new URL(`${FLIGHTAPI_BASE}${endpoint}`);url.searchParams.set('api_key',this.apiKey);for(const [k,v] of Object.entries(params))url.searchParams.set(k,String(v));const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),20000);try{const r=await fetch(url,{signal:controller.signal,headers:{Accept:'application/json'},cache:'no-store'});const text=await r.text();let data=null;try{data=text?JSON.parse(text):null}catch{throw new FlightApiError('provider_malformed','FlightAPI returned malformed JSON.',502)}if(!r.ok){if(r.status===401||r.status===403)throw new FlightApiError('provider_auth','FlightAPI authentication failed.',502);if(r.status===429)throw new FlightApiError('provider_rate_limit','FlightAPI rate limit reached.',429);throw new FlightApiError('provider_error','FlightAPI returned an error.',502)}return data}catch(e){if(e instanceof FlightApiError)throw e;if(e?.name==='AbortError')throw new FlightApiError('provider_timeout','FlightAPI request timed out.',504);throw new FlightApiError('provider_unavailable','FlightAPI could not be reached.',503)}finally{clearTimeout(timer)}}
+  async request(endpoint,params={}){if(!this.available)throw new FlightApiError('provider_unavailable','FlightAPI is not configured.');const url=new URL(`${FLIGHTAPI_BASE}${endpoint}`);url.searchParams.set('api_key',this.apiKey);for(const [k,v] of Object.entries(params)){if(v!==undefined&&v!==null&&String(v)!=='')url.searchParams.set(k,String(v))}const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),20000);try{const r=await fetch(url,{signal:controller.signal,headers:{Accept:'application/json'},cache:'no-store'});const text=await r.text();let data=null;try{data=text?JSON.parse(text):null}catch{throw new FlightApiError('provider_malformed','FlightAPI returned malformed JSON.',502)}if(!r.ok){if(r.status===401||r.status===403)throw new FlightApiError('provider_auth','FlightAPI authentication failed.',502);if(r.status===429)throw new FlightApiError('provider_rate_limit','FlightAPI rate limit reached.',429);throw new FlightApiError('provider_error','FlightAPI returned an error.',502)}return data}catch(e){if(e instanceof FlightApiError)throw e;if(e?.name==='AbortError')throw new FlightApiError('provider_timeout','FlightAPI request timed out.',504);throw new FlightApiError('provider_unavailable','FlightAPI could not be reached.',503)}finally{clearTimeout(timer)}}
   async searchFlights(input){const base={departure_airport_code:input.origin,arrival_airport_code:input.destination,departure_date:input.departure,number_of_adults:input.adults,number_of_childrens:input.children,number_of_infants:input.infants||0,cabin_class:input.cabin==='premium_economy'?'Premium_Economy':input.cabin[0].toUpperCase()+input.cabin.slice(1),currency:input.currency,region:input.region||'PK'};const endpoint=input.tripType==='roundtrip'?'/roundtrip':'/onewaytrip';if(input.tripType==='roundtrip')base.arrival_date=input.returnDate;const payload=await this.request(endpoint,base);return{provider:'FlightAPI',live:true,requestId:clean(payload?.requestId||payload?.id||'',120),results:normalizeItineraryRows(payload)}}
-  async trackFlight(input){const num=clean(input.number,16),name=clean(input.airline,8),date=clean(input.date,8);if(!num||!name||!/^\d{8}$/.test(date))throw new FlightApiError('invalid_request','Flight tracking requires flight number, airline code and YYYYMMDD date.',400);return this.request('/airline',{num,name,date,depap:clean(input.departureAirport,3)}).then(payload=>({provider:'FlightAPI',live:true,data:payload}))}
-  async trackRoute(input){return this.request('/trackbyroute',{date:clean(input.date,8),airport1:clean(input.airport1,3),airport2:clean(input.airport2,3)}).then(payload=>({provider:'FlightAPI',live:true,data:payload}))}
-  async airportSchedule(input){return this.request('/schedule',{mode:clean(input.mode,12),day:clean(input.day,2),iata:clean(input.iata,3),page:clean(input.page,8)}).then(payload=>({provider:'FlightAPI',live:true,data:payload}))}
-  async iataSearch(input){return this.request('/iata',{name:clean(input.name,80),type:clean(input.type,12)}).then(payload=>({provider:'FlightAPI',live:true,data:payload}))}
+  async trackFlight(input){const num=clean(input.number,16),name=clean(input.airline,8).toUpperCase(),date=clean(input.date,8);if(!num||!name||!/^\d{8}$/.test(date))throw new FlightApiError('invalid_request','Flight tracking requires flight number, airline code and YYYYMMDD date.',400);const payload=await this.request('/airline',{num,name,date,depap:clean(input.departureAirport,3).toUpperCase()});return{provider:'FlightAPI',live:true,results:normalizeTrackingRows(payload)}}
+  async trackRoute(input){const date=clean(input.date,8),airport1=clean(input.airport1,3).toUpperCase(),airport2=clean(input.airport2,3).toUpperCase();if(!/^\d{8}$/.test(date)||!/^[A-Z]{3}$/.test(airport1)||!/^[A-Z]{3}$/.test(airport2))throw new FlightApiError('invalid_request','Route tracking requires YYYYMMDD plus two IATA airport codes.',400);const payload=await this.request('/trackbyroute',{date,airport1,airport2});return{provider:'FlightAPI',live:true,results:normalizeTrackingRows(payload)}}
+  async airportSchedule(input){const mode=clean(input.mode,12),day=clean(input.day,2),iata=clean(input.iata,3).toUpperCase();if(!['arrivals','departures','arr','dep'].includes(mode)||!/^[A-Z]{3}$/.test(iata))throw new FlightApiError('invalid_request','Airport schedule requires arrivals/departures mode and a valid IATA code.',400);const payload=await this.request('/schedule',{mode,day,iata,page:clean(input.page,8)});return{provider:'FlightAPI',live:true,data:payload}}
+  async iataSearch(input){const type=clean(input.type,12).toLowerCase();if(!['airline','airport'].includes(type))throw new FlightApiError('invalid_request','IATA search type must be airline or airport.',400);const payload=await this.request('/iata',{name:clean(input.name,80),type});return{provider:'FlightAPI',live:true,data:payload}}
 }
 function createFlightApiProvider(env=process.env){return env.FLIGHTAPI_API_KEY?new FlightAPIAdapter(env.FLIGHTAPI_API_KEY):null}
-module.exports={FlightAPIAdapter,FlightApiError,createFlightApiProvider,normalizeItineraryRows};
+module.exports={FlightAPIAdapter,FlightApiError,createFlightApiProvider,normalizeItineraryRows,normalizeTrackingRows,validDate};
