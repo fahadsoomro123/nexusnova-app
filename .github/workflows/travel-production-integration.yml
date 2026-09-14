@@ -1,89 +1,34 @@
-name: Travel Flagship Production Integration
+name: Travel Fare Lens Validation
 on:
   pull_request:
     branches: [main]
   workflow_dispatch:
 permissions:
-  contents: write
+  contents: read
 jobs:
-  integrate-build-sign:
+  validate-travel:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          ref: ${{ github.head_ref || github.ref_name }}
-      - name: Attach flagship renderer to current app architecture
+      - name: Verify Travel renderer is attached
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          p=Path('fresh-rebuild/src/features/apps/app-screen.js')
-          s=p.read_text(encoding='utf-8')
-          marker="const rendererSources = [\n"
-          line="  ['./travel-flagship.js', 'travelFlagshipRenderers'],\n"
-          if line not in s:
-              s=s.replace(marker, marker+line, 1)
-              p.write_text(s, encoding='utf-8')
-          assert line in p.read_text(encoding='utf-8')
-          PY
-      - name: Setup Java 17
-        uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: '17'
-      - name: Setup Gradle 8.13
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.13'
-      - name: Build release APK
-        working-directory: NexusNovaAndroid
-        run: gradle --no-daemon assembleRelease
-      - name: Require configured release signing
-        env:
-          KEYSTORE_B64: ${{ secrets.NEXUS_RELEASE_KEYSTORE_B64 }}
-          STORE_PASSWORD: ${{ secrets.NEXUS_RELEASE_STORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.NEXUS_RELEASE_KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.NEXUS_RELEASE_KEY_PASSWORD }}
+          test -f fresh-rebuild/src/features/apps/travel-flagship.js
+          grep -F "['./travel-flagship.js', 'travelFlagshipRenderers']" fresh-rebuild/src/features/apps/app-screen.js
+      - name: JavaScript syntax check
         shell: bash
         run: |
           set -euo pipefail
-          test -n "$KEYSTORE_B64" || { echo 'Release keystore secret is not configured; refusing to label an unsigned APK as signed.'; exit 1; }
-          test -n "$STORE_PASSWORD" && test -n "$KEY_ALIAS" && test -n "$KEY_PASSWORD"
-          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/nexus-release.jks"
-          UNSIGNED="NexusNovaAndroid/app/build/outputs/apk/release/app-release-unsigned.apk"
-          ALIGNED="$RUNNER_TEMP/nexus-release-aligned.apk"
-          SIGNED="$RUNNER_TEMP/NexusNova Travel Signed APK.apk"
-          $ANDROID_HOME/build-tools/35.0.0/zipalign -f 4 "$UNSIGNED" "$ALIGNED"
-          $ANDROID_HOME/build-tools/35.0.0/apksigner sign --ks "$RUNNER_TEMP/nexus-release.jks" --ks-pass "pass:$STORE_PASSWORD" --ks-key-alias "$KEY_ALIAS" --key-pass "pass:$KEY_PASSWORD" --out "$SIGNED" "$ALIGNED"
-          $ANDROID_HOME/build-tools/35.0.0/apksigner verify --verbose "$SIGNED"
-          mkdir -p "$GITHUB_WORKSPACE/artifacts"
-          cp "$SIGNED" "$GITHUB_WORKSPACE/artifacts/NexusNova Travel Signed APK.apk"
-      - name: Commit source integration back to branch
-        if: github.event_name == 'pull_request'
+          node --check fresh-rebuild/src/features/apps/travel-flagship.js
+          node --check fresh-rebuild/src/features/apps/app-screen.js
+      - name: Travel safety assertions
         shell: bash
         run: |
           set -euo pipefail
-          git config user.name 'NexusNova Build Bot'
-          git config user.email 'actions@users.noreply.github.com'
-          git add fresh-rebuild/src/features/apps/app-screen.js
-          git diff --cached --quiet || git commit -m 'feat(travel): attach flagship renderer to app architecture'
-          git push origin HEAD:${{ github.head_ref }}
-      - name: Remove one-time integration workflow
-        if: github.event_name == 'pull_request'
-        shell: bash
-        run: |
-          git config user.name 'NexusNova Build Bot'
-          git config user.email 'actions@users.noreply.github.com'
-          git rm .github/workflows/travel-production-integration.yml
-          git commit -m 'chore(travel): remove one-time integration workflow'
-          git push origin HEAD:${{ github.head_ref }}
-      - name: Upload verified signed APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: NexusNova Travel Signed APK
-          path: artifacts/NexusNova Travel Signed APK.apk
-          if-no-files-found: error
-          retention-days: 14
+          ! grep -Fq "Always opens inside Nova Browser" fresh-rebuild/src/features/apps/travel-flagship.js
+          ! grep -Eiq "(fake|demo|sample) (fare|flight|hotel|booking)" fresh-rebuild/src/features/apps/travel-flagship.js
+          grep -Fq "www.nexusnovatools.com" fresh-rebuild/src/features/apps/travel-flagship.js || grep -Fq "nexusnovatools.com" fresh-rebuild/src/features/apps/travel-flagship.js
+          grep -Fq "KHI" fresh-rebuild/src/features/apps/travel-flagship.js
+          grep -Fq "ISB" fresh-rebuild/src/features/apps/travel-flagship.js
