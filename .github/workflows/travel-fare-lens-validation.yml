@@ -38,7 +38,7 @@ jobs:
           grep -Fq 'www.nexusnovatools.com' fresh-rebuild/src/features/apps/travel-fare-lens.js
           grep -Fq 'exports.travelApi=onRequest' functions/travel-api.js
           grep -Fq 'DUFFEL_ACCESS_TOKEN' functions/travel-provider.js
-          grep -Fq 'api/air/offer_requests' functions/travel-provider.js || grep -Fq '/air/offer_requests' functions/travel-provider.js
+          grep -Fq '/air/offer_requests' functions/travel-provider.js
           grep -Fq 'ourairports-data/main/airports.csv' functions/travel-provider.js
           grep -Fq '"source": "/api/travel/**"' firebase.json
           grep -Fq '"function": "travelApi"' firebase.json
@@ -50,4 +50,4 @@ jobs:
           set -euo pipefail
           ! grep -Eiq '(AIza[0-9A-Za-z_-]{20,}|-----BEGIN (RSA|EC|OPENSSH|PRIVATE) KEY-----)' fresh-rebuild/src/features/apps/travel-fare-lens.js functions/travel-provider.js functions/travel-api.js
           ! grep -Eq '\b(eval|Function)\s*\(' fresh-rebuild/src/features/apps/travel-fare-lens.js functions/travel-provider.js functions/travel-api.js
-          ! grep -Eiq 'DUFFEL_ACCESS_TOKEN\s*[:=]\s*["'"']duffel_' fresh-rebuild/src functions || true
+          ! grep -Eiq 'DUFFEL_ACCESS_TOKEN[[:space:]]*[:=][[:space:]]*["'"']duffel_' fresh-rebuild/src functions
