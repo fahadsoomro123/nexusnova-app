@@ -1,5 +1,7 @@
 name: Travel Fare Lens Validation
 on:
+  push:
+    branches: [travel-fare-lens-final]
   pull_request:
     branches: [main]
   workflow_dispatch:
