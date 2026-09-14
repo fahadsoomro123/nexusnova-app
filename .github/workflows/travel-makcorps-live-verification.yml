@@ -11,31 +11,11 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: Real Makcorps hotel search and normalization
+      - name: Real Makcorps hotel search
         env:
           MAKCORPS_API_KEY: ${{ secrets.MAKCORPS_API_KEY }}
+        shell: bash
         run: |
           set -euo pipefail
-          if [ -z "${MAKCORPS_API_KEY:-}" ]; then
-            echo "LIVE_VERIFICATION_BLOCKED missing GitHub Actions secret: MAKCORPS_API_KEY"
-            echo "No provider request was attempted."
-            exit 0
-          fi
-          node - <<'NODE'
-const {createMakcorpsProvider}=require('./functions/makcorps-provider');
-const p=createMakcorpsProvider(process.env);
-if(!p) throw new Error('MAKCORPS_PROVIDER_NOT_CONFIGURED');
-const base=Date.now()+30*86400000;
-const checkIn=new Date(base).toISOString().slice(0,10);
-const checkOut=new Date(base+86400000).toISOString().slice(0,10);
-(async()=>{
-  const result=await p.search({latitude:25.2048,longitude:55.2708,checkIn,checkOut,guests:2,rooms:1,children:0,currency:'USD'});
-  const priced=result.results.filter(x=>x.price!=null);
-  if(!result.live||result.provider!=='Makcorps') throw new Error('MAKCORPS_NOT_LIVE');
-  if(!result.results.length) throw new Error('MAKCORPS_EMPTY_INVENTORY');
-  if(!priced.length) throw new Error('MAKCORPS_NO_PRICED_HOTELS');
-  console.log(`MAKCORPS_REAL_API_OK provider=Makcorps httpStatuses=${(result.meta?.httpStatuses||[]).join(',')} hotels=${result.results.length} priced=${priced.length} city=${result.city}`);
-  console.log(`MAKCORPS_SAMPLE hotel="${String(priced[0].name).replace(/[\r\n\"]+/g,' ').slice(0,100)}" price=${priced[0].price} ${priced[0].currency} vendor=${String(priced[0].vendor||'').slice(0,80)}`);
-  console.log('MAKCORPS_CAPABILITY=SEARCH/PRICE VERIFIED; BOOKING NOT SUPPORTED');
-})().catch(e=>{console.error(`MAKCORPS_REAL_API_FAIL code=${e.code||'unknown'} message=${e.message||'provider failure'}`);process.exit(1)});
-NODE
+          test -n "${MAKCORPS_API_KEY:-}" || { echo 'LIVE_VERIFICATION_BLOCKED missing MAKCORPS_API_KEY'; exit 0; }
+          node -e "const {createMakcorpsProvider}=require('./functions/makcorps-provider');const p=createMakcorpsProvider(process.env);if(!p)throw new Error('MAKCORPS_PROVIDER_NOT_CONFIGURED');const t=Date.now()+30*86400000;const checkIn=new Date(t).toISOString().slice(0,10),checkOut=new Date(t+86400000).toISOString().slice(0,10);p.search({latitude:25.2048,longitude:55.2708,checkIn,checkOut,guests:2,rooms:1,children:0,currency:'USD'}).then(r=>{const priced=r.results.filter(x=>x.price!=null);if(!r.live||r.provider!=='Makcorps')throw new Error('MAKCORPS_NOT_LIVE');if(!r.results.length)throw new Error('MAKCORPS_EMPTY_INVENTORY');if(!priced.length)throw new Error('MAKCORPS_NO_PRICED_HOTELS');console.log('MAKCORPS_REAL_API_OK provider=Makcorps httpStatuses='+(r.meta?.httpStatuses||[]).join(',')+' hotels='+r.results.length+' priced='+priced.length+' city='+r.city);console.log('MAKCORPS_CAPABILITY=SEARCH/PRICE VERIFIED; BOOKING NOT SUPPORTED')}).catch(e=>{console.error('MAKCORPS_REAL_API_FAIL code='+(e.code||'unknown'));process.exit(1)});"
