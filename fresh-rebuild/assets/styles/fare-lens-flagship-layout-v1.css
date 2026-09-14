@@ -1,0 +1,95 @@
+/* NexusNova Fare Lens — flagship layout support layer. Scoped to Travel only. */
+
+.nxf-travel .nxf-main { min-width: 0 !important; }
+.nxf-travel .nxf-grid > * { min-width: 0 !important; box-sizing: border-box !important; }
+
+@media (min-width: 701px) {
+  .nxf-travel .nxf-main {
+    overflow: hidden !important;
+    padding: 8px 10px 6px !important;
+  }
+
+  .nxf-travel .nxf-grid {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1.28fr) minmax(340px, .72fr) !important;
+    grid-auto-rows: auto !important;
+    align-content: start !important;
+    gap: 8px !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    overflow: hidden !important;
+  }
+
+  .nxf-travel .nxf-grid > .nxf-hero {
+    grid-column: 1 / -1 !important;
+    grid-row: 1 !important;
+  }
+  .nxf-travel .nxf-grid > .nxf-panel:has(.nxf-route) {
+    grid-column: 1 !important;
+    grid-row: 2 !important;
+  }
+  .nxf-travel .nxf-grid > .nxf-panel:has(.nxf-form) {
+    grid-column: 2 !important;
+    grid-row: 2 / span 2 !important;
+  }
+  .nxf-travel .nxf-grid > [data-search] {
+    grid-column: 2 !important;
+    grid-row: 3 !important;
+  }
+  .nxf-travel .nxf-grid > .nxf-state {
+    grid-column: 1 !important;
+    grid-row: 3 !important;
+  }
+
+  .nxf-travel .nxf-grid > .nxf-filter {
+    grid-column: 1 / -1 !important;
+    grid-row: 4 !important;
+  }
+  .nxf-travel .nxf-grid > .nxf-results {
+    grid-column: 1 / -1 !important;
+    grid-row: 5 !important;
+    min-height: 0 !important;
+    max-height: 118px !important;
+    overflow: auto !important;
+    overscroll-behavior: contain !important;
+    scrollbar-width: none !important;
+  }
+  .nxf-travel .nxf-grid > .nxf-results::-webkit-scrollbar { display: none; }
+
+  .nxf-travel .nxf-grid > .nxf-tool:has([data-calendar]) {
+    grid-column: 1 !important;
+    grid-row: 4 !important;
+  }
+  .nxf-travel .nxf-grid > .nxf-tool:has([data-rescue]) {
+    grid-column: 2 !important;
+    grid-row: 4 !important;
+  }
+  .nxf-travel .nxf-grid > .nxf-live {
+    grid-column: 1 / -1 !important;
+    grid-row: 5 !important;
+  }
+
+  /* When result filters/cards exist, move the intelligence rail down as a
+     bounded row instead of allowing the outer document to grow. */
+  .nxf-travel .nxf-grid:has(.nxf-results) > .nxf-tool:has([data-calendar]),
+  .nxf-travel .nxf-grid:has(.nxf-results) > .nxf-tool:has([data-rescue]) {
+    grid-row: 6 !important;
+  }
+  .nxf-travel .nxf-grid:has(.nxf-results) > .nxf-live {
+    grid-row: 7 !important;
+  }
+
+  .nxf-travel .nxf-hero { padding: 9px 11px !important; }
+  .nxf-travel .nxf-panel { padding: 9px !important; }
+  .nxf-travel .nxf-route { min-height: 0 !important; }
+  .nxf-travel .nxf-field input,
+  .nxf-travel .nxf-field select { min-height: 38px !important; }
+  .nxf-travel .nxf-primary { min-height: 40px !important; }
+  .nxf-travel .nxf-tool,
+  .nxf-travel .nxf-live { padding: 8px !important; }
+}
+
+@media (max-width: 700px) {
+  .nxf-travel .nxf-main,
+  .nxf-travel .nxf-grid { overflow: hidden !important; }
+}
