@@ -93,3 +93,5 @@
   .nxf-travel .nxf-main,
   .nxf-travel .nxf-grid { overflow: hidden !important; }
 }
+
+/* Final QA trigger marker — no runtime behavior. */
