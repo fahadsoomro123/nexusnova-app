@@ -1,4 +1,4 @@
-name: Travel Fare Lens Validation
+name: Travel Fare Lens Integration Gate
 on:
   pull_request:
     branches: [main]
@@ -6,7 +6,7 @@ on:
 permissions:
   contents: write
 jobs:
-  validate-travel:
+  travel-gate:
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
@@ -14,7 +14,7 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ github.head_ref || github.ref_name }}
-      - name: Attach Travel renderer to app router
+      - name: Attach renderer to fresh app router
         shell: bash
         run: |
           set -euo pipefail
@@ -28,26 +28,32 @@ jobs:
               if marker not in s: raise SystemExit('rendererSources marker missing')
               s=s.replace(marker, marker+line, 1)
               p.write_text(s, encoding='utf-8')
-          assert line in p.read_text(encoding='utf-8')
+          if line not in p.read_text(encoding='utf-8'): raise SystemExit('Travel renderer not attached')
           PY
           if ! git diff --quiet -- fresh-rebuild/src/features/apps/app-screen.js; then
-            git config user.name 'NexusNova Travel Validation'
+            git config user.name 'NexusNova Travel Gate'
             git config user.email 'actions@users.noreply.github.com'
             git add fresh-rebuild/src/features/apps/app-screen.js
             git commit -m 'feat(travel): attach Fare Lens renderer to app router'
             git push origin HEAD:${{ github.head_ref || github.ref_name }}
           fi
-      - name: JavaScript syntax checks
+      - name: Syntax and safety checks
         shell: bash
         run: |
           set -euo pipefail
           node --check fresh-rebuild/src/features/apps/travel-flagship.js
           node --check fresh-rebuild/src/features/apps/app-screen.js
-      - name: Fare Lens safety assertions
-        shell: bash
-        run: |
-          set -euo pipefail
           ! grep -Fq "Always opens inside Nova Browser" fresh-rebuild/src/features/apps/travel-flagship.js
           grep -Fq "KHI" fresh-rebuild/src/features/apps/travel-flagship.js
           grep -Fq "ISB" fresh-rebuild/src/features/apps/travel-flagship.js
-          grep -Fq "www.nexusnovatools.com" fresh-rebuild/src/features/apps/travel-flagship.js || grep -Fq "nexusnovatools.com" fresh-rebuild/src/features/apps/travel-flagship.js
+          grep -Fq "www.nexusnovatools.com" fresh-rebuild/src/features/apps/travel-flagship.js
+      - name: Remove temporary gate from branch
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'NexusNova Travel Gate'
+          git config user.email 'actions@users.noreply.github.com'
+          git rm .github/workflows/travel-production-integration.yml
+          git commit -m 'chore(travel): remove temporary integration gate'
+          git push origin HEAD:${{ github.head_ref || github.ref_name }}
