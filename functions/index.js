@@ -151,3 +151,4 @@ Object.assign(exports, require("./novaVault10x"));
 // v2 intentionally loads last so the deployed admobRewardedSsv export
 // routes both Watch Ad and Nova Vault 10x through one signed endpoint.
 Object.assign(exports, require("./admobRewardedSsvV2"));
+Object.assign(exports, require("./travel-api"));
