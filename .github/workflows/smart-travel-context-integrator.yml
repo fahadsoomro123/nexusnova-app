@@ -1,0 +1,47 @@
+name: Smart Travel Context Integrator
+on:
+  push:
+    branches: [travel-fare-lens-final]
+permissions:
+  contents: write
+jobs:
+  integrate:
+    if: github.actor == 'github-actions[bot]' || github.event.head_commit.message != 'ci: wire smart travel context into travel renderer'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Wire enhancement and airport metadata
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('fresh-rebuild/src/features/apps/app-screen.js')
+          s=p.read_text()
+          marker="import { icon } from '../../components/icons.js';\n"
+          imp="import { enhanceSmartTravelContext } from './smart-travel-context.js';\n"
+          if imp not in s:
+              s=s.replace(marker, marker+imp, 1)
+          needle="void enhanceAppSafely(id, body);"
+          repl="void enhanceAppSafely(id, body);\n      void enhanceSmartTravelContext(id, body).catch(error => console.warn('[NexusNova Fresh] smart travel context skipped:', error));"
+          if "enhanceSmartTravelContext(id, body)" not in s:
+              if needle not in s: raise SystemExit('renderer enhancement hook not found')
+              s=s.replace(needle,repl,1)
+          p.write_text(s)
+
+          p=Path('fresh-rebuild/src/features/apps/travel-fare-lens.js')
+          s=p.read_text()
+          additions="['MAN','Manchester','Manchester Airport','UK'],['ESB','Ankara','Esenboga International Airport','Türkiye'],['JFK','New York','John F. Kennedy International Airport','USA'],['LAX','Los Angeles','Los Angeles International Airport','USA'],"
+          anchor="['LHR','London','Heathrow Airport','UK'],"
+          if "['MAN','Manchester'" not in s:
+              if anchor not in s: raise SystemExit('airport anchor not found')
+              s=s.replace(anchor,anchor+additions,1)
+          p.write_text(s)
+          PY
+          node --check fresh-rebuild/src/features/apps/app-screen.js
+          node --check fresh-rebuild/src/features/apps/smart-travel-context.js
+          node --check fresh-rebuild/src/features/apps/travel-fare-lens.js
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add fresh-rebuild/src/features/apps/app-screen.js fresh-rebuild/src/features/apps/travel-fare-lens.js
+          git diff --cached --check
+          git diff --cached --quiet || git commit -m 'ci: wire smart travel context into travel renderer'
+          git push
