@@ -1,18 +1,16 @@
 name: Travel FlightAPI Live Verification
-
 on:
   workflow_dispatch:
   push:
     branches: [travel-fare-lens-final]
-
 permissions:
   contents: read
-
 jobs:
   verify-live:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - uses: actions/checkout@v4
       - name: Query real FlightAPI endpoint when credential is configured
         env:
           FLIGHTAPI_API_KEY: ${{ secrets.FLIGHTAPI_API_KEY }}
@@ -25,39 +23,51 @@ jobs:
             exit 0
           fi
           departure="$(date -u -d '+30 days' +%F)"
-          url="https://api.flightapi.io/onewaytrip"
+          url="https://api.flightapi.io/onewaytrip/${FLIGHTAPI_API_KEY}/KHI/ISB/${departure}/1/0/0/Economy/USD"
           tmp="$(mktemp)"
           trap 'rm -f "$tmp"' EXIT
-          code="$(curl -sS -o "$tmp" -w '%{http_code}' --get "$url" \
-            --data-urlencode "api_key=$FLIGHTAPI_API_KEY" \
-            --data-urlencode "departure_airport_code=KHI" \
-            --data-urlencode "arrival_airport_code=ISB" \
-            --data-urlencode "departure_date=$departure" \
-            --data-urlencode "number_of_adults=1" \
-            --data-urlencode "number_of_childrens=0" \
-            --data-urlencode "number_of_infants=0" \
-            --data-urlencode "cabin_class=Economy" \
-            --data-urlencode "currency=USD" \
-            --data-urlencode "region=PK")"
+          code="$(curl -sS -o "$tmp" -w '%{http_code}' --get "$url" --data-urlencode "region=PK")"
           if [ "$code" != "200" ]; then
             echo "REAL_API_FAIL http=$code"
             python - "$tmp" <<'PY'
-          import json,sys
-          try:
-              obj=json.load(open(sys.argv[1]))
-              print('provider_error_class=' + str(obj.get('error') or obj.get('message') or 'non-200 response'))
-          except Exception:
-              print('provider_error_class=non-json-response')
-          PY
+import json,sys
+try:
+    obj=json.load(open(sys.argv[1]))
+    print('provider_error_class=' + str(obj.get('error') or obj.get('message') or 'provider error'))
+except Exception:
+    print('provider_error_class=non-json-response')
+PY
             exit 1
           fi
           python - "$tmp" <<'PY'
-          import json,sys
-          obj=json.load(open(sys.argv[1]))
-          itineraries=obj.get('itineraries') or obj.get('data',{}).get('itineraries') or []
-          if not isinstance(itineraries,list):
-              raise SystemExit('REAL_API_FAIL itineraries-not-array')
-          print('REAL_API_OK http=200')
-          print(f'itineraries={len(itineraries)}')
-          print('provider_response_shape=FlightAPI relational payload')
-          PY
+import json,sys
+obj=json.load(open(sys.argv[1]))
+itineraries=obj.get('itineraries') or obj.get('data',{}).get('itineraries') or []
+if not isinstance(itineraries,list): raise SystemExit('REAL_API_FAIL itineraries-not-array')
+if not itineraries: raise SystemExit('REAL_API_FAIL empty-inventory')
+print('REAL_API_OK http=200')
+print(f'itineraries={len(itineraries)}')
+print('provider=FlightAPI')
+print('response_shape=relational itineraries/legs/segments/carriers')
+PY
+      - name: Verify NexusNova normalization against the same real response contract
+        env:
+          FLIGHTAPI_API_KEY: ${{ secrets.FLIGHTAPI_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${FLIGHTAPI_API_KEY:-}" ]; then exit 0; fi
+          departure="$(date -u -d '+30 days' +%F)"
+          tmp="$(mktemp)"
+          trap 'rm -f "$tmp"' EXIT
+          curl -sS --fail --get "https://api.flightapi.io/onewaytrip/${FLIGHTAPI_API_KEY}/KHI/ISB/${departure}/1/0/0/Economy/USD" --data-urlencode "region=PK" -o "$tmp"
+          FLIGHTAPI_CAPTURE="$tmp" node - <<'NODE'
+const fs=require('fs');
+const {normalizeItineraryRows}=require('./functions/flightapi-provider');
+const payload=JSON.parse(fs.readFileSync(process.env.FLIGHTAPI_CAPTURE,'utf8'));
+const rows=normalizeItineraryRows(payload);
+if(!rows.length) throw new Error('NORMALIZED_EMPTY');
+const priced=rows.filter(x=>x.price!=null&&x.currency).length;
+if(!priced) throw new Error('NORMALIZED_NO_PRICED_INVENTORY');
+console.log(`NORMALIZED_OK provider=FlightAPI normalized=${rows.length} priced=${priced}`);
+NODE
