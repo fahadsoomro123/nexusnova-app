@@ -400,3 +400,5 @@
     min-width: 84px !important;
   }
 }
+
+/* Trigger-only note: no visual/behavioral change; keeps the final responsive check on PR sync. */
