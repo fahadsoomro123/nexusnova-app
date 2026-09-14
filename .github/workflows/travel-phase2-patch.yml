@@ -1,0 +1,51 @@
+name: Travel Phase 2 Patch
+on:
+  push:
+    branches: [travel-fare-lens-final]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.actor == 'fahadsoomro123'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Patch Travel defaults and public airport search
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('fresh-rebuild/src/features/apps/travel-fare-lens.js')
+          s=p.read_text(encoding='utf-8')
+          old="const state={mode:'flights',origin:AIRPORTS[0],destination:AIRPORTS[1],tripType:'roundtrip',departure:day(7),returnDate:day(14),adults:2,children:1"
+          new="const state={mode:'flights',origin:AIRPORTS[0],destination:AIRPORTS[1],tripType:'roundtrip',departure:day(7),returnDate:day(14),adults:2,children:0"
+          if old not in s:
+              raise SystemExit('expected state initializer not found')
+          s=s.replace(old,new,1)
+          start=s.index('function picker(root,state,key,redraw){')
+          end=s.index('\nexport const fareLensRenderers=',start)
+          replacement=r'''function picker(root,state,key,redraw){
+  const layer=document.createElement('div');layer.className='nxf-picker';layer.innerHTML=`<div class="nxf-picker-sheet" role="dialog" aria-modal="true" aria-label="Choose ${key}"><div class="nxf-sheet-head"><b>Choose ${key}</b><button type="button" data-close aria-label="Close">×</button></div><label>Airport, city or IATA<input data-q autocomplete="off" aria-label="Search airport, city or IATA" placeholder="KHI, Karachi, Dubai…"></label><div data-options></div></div>`;root.append(layer);
+  const q=layer.querySelector('[data-q]'),out=layer.querySelector('[data-options]');let rows=AIRPORTS.slice(),requestId=0;
+  const draw=term=>{rows=(term?rows:AIRPORTS.slice());const shown=rows.filter(a=>`${a.code||a.iata||''} ${a.city||''} ${a.airport||a.name||''} ${a.country||''}`.toLowerCase().includes(String(term||'').toLowerCase())).slice(0,12);out.innerHTML=shown.map(a=>`<button type="button" data-code="${esc(a.code||a.iata)}"><b>${esc(a.code||a.iata)}</b><span>${esc(a.city)} · ${esc(a.airport||a.name||'Airport')}<br>${esc(a.country)}</span></button>`).join('')||'<p class="nxf-empty">No airport or city match.</p>';out.querySelectorAll('[data-code]').forEach(btn=>btn.onclick=()=>{const selected=rows.find(a=>(a.code||a.iata)===btn.dataset.code);if(!selected)return;state[key]={code:selected.code||selected.iata,city:selected.city,airport:selected.airport||selected.name,country:selected.country};state.offers=[];state.filtered=[];state.selected=null;state.message='Route changed. Search again for fresh provider data.';layer.remove();redraw()})};
+  q.oninput=async()=>{const term=q.value.trim();if(term.length<2){rows=AIRPORTS.slice();draw(term);return}const id=++requestId;draw(term);try{const d=await api(`/airports/search?q=${encodeURIComponent(term)}`);if(id!==requestId)return;const remote=Array.isArray(d?.results)?d.results:[];rows=remote.length?remote:AIRPORTS.slice();draw(term)}catch{rows=AIRPORTS.slice();draw(term)}};
+  layer.querySelector('[data-close]').onclick=()=>layer.remove();draw('');setTimeout(()=>q.focus(),0)
+}
+'''
+          s=s[:start]+replacement+s[end+1:]
+          p.write_text(s,encoding='utf-8')
+          PY
+      - name: Commit and remove temporary patch workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'NexusNova Build Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add fresh-rebuild/src/features/apps/travel-fare-lens.js
+          git diff --cached --quiet || git commit -m 'fix(travel): wire global airport search and safe child default'
+          git rm .github/workflows/travel-phase2-patch.yml
+          git commit -m 'chore(travel): remove temporary phase 2 patch workflow'
+          git push origin HEAD:${GITHUB_REF_NAME}
