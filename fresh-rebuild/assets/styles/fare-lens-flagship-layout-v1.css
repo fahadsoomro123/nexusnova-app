@@ -1,5 +1,9 @@
 /* NexusNova Fare Lens — flagship layout support layer. Scoped to Travel only. */
 
+.nxf-travel {
+  color-scheme: light !important;
+}
+
 .nxf-travel .nxf-main { min-width: 0 !important; }
 .nxf-travel .nxf-grid > * { min-width: 0 !important; box-sizing: border-box !important; }
 
