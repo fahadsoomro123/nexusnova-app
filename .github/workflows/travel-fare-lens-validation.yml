@@ -113,11 +113,10 @@ jobs:
           EOF
           python3 -m http.server 8765 --directory fresh-rebuild >/tmp/fare-lens-http.log 2>&1 &
           SERVER_PID=$!
-          BROWSER_BIN "$@" 2>/dev/null || true
-          cleanup(){ kill "$SERVER_PID" >/dev/null 2>&1 || true; kill "$BROWSER_PID" >/dev/null 2>&1 || true; }
-          trap cleanup EXIT
           "$BROWSER_BIN" --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --user-data-dir="$RUNNER_TEMP/fare-lens-chrome" --remote-debugging-port=9222 --remote-allow-origins=* about:blank >/tmp/fare-lens-chrome.log 2>&1 &
           BROWSER_PID=$!
+          cleanup(){ kill "$SERVER_PID" >/dev/null 2>&1 || true; kill "$BROWSER_PID" >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
           for i in $(seq 1 30); do curl -fsS http://127.0.0.1:9222/json/version >/dev/null 2>&1 && break; sleep 1; done
           python3 - <<'PY'
           import base64, json, os, time, urllib.request, websocket
