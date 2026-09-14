@@ -11,63 +11,21 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: Query real FlightAPI endpoint when credential is configured
+      - name: Real FlightAPI request
         env:
           FLIGHTAPI_API_KEY: ${{ secrets.FLIGHTAPI_API_KEY }}
         shell: bash
         run: |
           set -euo pipefail
-          if [ -z "${FLIGHTAPI_API_KEY:-}" ]; then
-            echo "LIVE_VERIFICATION_BLOCKED missing GitHub Actions secret: FLIGHTAPI_API_KEY"
-            echo "No provider request was attempted."
-            exit 0
-          fi
+          test -n "${FLIGHTAPI_API_KEY:-}" || { echo 'LIVE_VERIFICATION_BLOCKED missing FLIGHTAPI_API_KEY'; exit 0; }
           departure="$(date -u -d '+30 days' +%F)"
-          url="https://api.flightapi.io/onewaytrip/${FLIGHTAPI_API_KEY}/KHI/ISB/${departure}/1/0/0/Economy/USD"
-          tmp="$(mktemp)"
-          trap 'rm -f "$tmp"' EXIT
-          code="$(curl -sS -o "$tmp" -w '%{http_code}' --get "$url" --data-urlencode "region=PK")"
-          if [ "$code" != "200" ]; then
-            echo "REAL_API_FAIL http=$code"
-            python - "$tmp" <<'PY'
-import json,sys
-try:
-    obj=json.load(open(sys.argv[1]))
-    print('provider_error_class=' + str(obj.get('error') or obj.get('message') or 'provider error'))
-except Exception:
-    print('provider_error_class=non-json-response')
-PY
-            exit 1
-          fi
-          python - "$tmp" <<'PY'
-import json,sys
-obj=json.load(open(sys.argv[1]))
-itineraries=obj.get('itineraries') or obj.get('data',{}).get('itineraries') or []
-if not isinstance(itineraries,list): raise SystemExit('REAL_API_FAIL itineraries-not-array')
-if not itineraries: raise SystemExit('REAL_API_FAIL empty-inventory')
-print('REAL_API_OK http=200')
-print(f'itineraries={len(itineraries)}')
-print('provider=FlightAPI')
-print('response_shape=relational itineraries/legs/segments/carriers')
-PY
-      - name: Verify NexusNova normalization against the same real response contract
+          curl -sS --fail --get "https://api.flightapi.io/onewaytrip/${FLIGHTAPI_API_KEY}/KHI/ISB/${departure}/1/0/0/Economy/USD" --data-urlencode 'region=PK' -o /tmp/flightapi.json
+          node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync('/tmp/flightapi.json','utf8'));const a=x.itineraries||x.data?.itineraries||[];if(!Array.isArray(a)||!a.length)throw new Error('EMPTY_FLIGHT_INVENTORY');console.log('REAL_API_OK provider=FlightAPI http=200 itineraries='+a.length);"
+      - name: NexusNova normalization check
         env:
           FLIGHTAPI_API_KEY: ${{ secrets.FLIGHTAPI_API_KEY }}
         shell: bash
         run: |
           set -euo pipefail
-          if [ -z "${FLIGHTAPI_API_KEY:-}" ]; then exit 0; fi
-          departure="$(date -u -d '+30 days' +%F)"
-          tmp="$(mktemp)"
-          trap 'rm -f "$tmp"' EXIT
-          curl -sS --fail --get "https://api.flightapi.io/onewaytrip/${FLIGHTAPI_API_KEY}/KHI/ISB/${departure}/1/0/0/Economy/USD" --data-urlencode "region=PK" -o "$tmp"
-          FLIGHTAPI_CAPTURE="$tmp" node - <<'NODE'
-const fs=require('fs');
-const {normalizeItineraryRows}=require('./functions/flightapi-provider');
-const payload=JSON.parse(fs.readFileSync(process.env.FLIGHTAPI_CAPTURE,'utf8'));
-const rows=normalizeItineraryRows(payload);
-if(!rows.length) throw new Error('NORMALIZED_EMPTY');
-const priced=rows.filter(x=>x.price!=null&&x.currency).length;
-if(!priced) throw new Error('NORMALIZED_NO_PRICED_INVENTORY');
-console.log(`NORMALIZED_OK provider=FlightAPI normalized=${rows.length} priced=${priced}`);
-NODE
+          test -n "${FLIGHTAPI_API_KEY:-}" || exit 0
+          FLIGHTAPI_CAPTURE=/tmp/flightapi.json node -e "const fs=require('fs');const {normalizeItineraryRows}=require('./functions/flightapi-provider');const x=normalizeItineraryRows(JSON.parse(fs.readFileSync(process.env.FLIGHTAPI_CAPTURE,'utf8')));const p=x.filter(r=>r.price!=null&&r.currency).length;if(!x.length)throw new Error('NORMALIZED_EMPTY');if(!p)throw new Error('NORMALIZED_NO_PRICED_INVENTORY');console.log('NORMALIZED_OK provider=FlightAPI normalized='+x.length+' priced='+p);"
