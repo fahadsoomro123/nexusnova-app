@@ -25,10 +25,10 @@ jobs:
           set -euo pipefail
           grep -Fq "['./travel-fare-lens.js', 'fareLensRenderers']" fresh-rebuild/src/features/apps/app-screen.js
           grep -Fq "const ICON_ONLY_HUB_APP_IDS = new Set();" fresh-rebuild/src/features/hub/hub-screen.js
-          grep -Fq 'data-pick="origin"' fresh-rebuild/src/features/apps/travel-fare-lens.js || true
-          grep -Fq 'data-pick="destination"' fresh-rebuild/src/features/apps/travel-fare-lens.js || true
-          grep -Fq 'OPEN FARE CALENDAR' fresh-rebuild/src/features/apps/travel-fare-lens.js || true
-          grep -Fq 'CHECK RESCUE OPTIONS' fresh-rebuild/src/features/apps/travel-fare-lens.js || true
+          grep -Fq 'data-pick="origin"' fresh-rebuild/src/features/apps/travel-fare-lens.js
+          grep -Fq 'data-pick="destination"' fresh-rebuild/src/features/apps/travel-fare-lens.js
+          grep -Fq 'OPEN FARE CALENDAR' fresh-rebuild/src/features/apps/travel-fare-lens.js
+          grep -Fq 'CHECK RESCUE OPTIONS' fresh-rebuild/src/features/apps/travel-fare-lens.js
           grep -Fq 'www.nexusnovatools.com' fresh-rebuild/src/features/apps/travel-fare-lens.js
           ! grep -Fq 'Always opens inside Nova Browser' fresh-rebuild/src/features/apps/travel-fare-lens.js
           ! grep -Fq 'SELECT & BOOK' fresh-rebuild/src/features/apps/travel-fare-lens.js
