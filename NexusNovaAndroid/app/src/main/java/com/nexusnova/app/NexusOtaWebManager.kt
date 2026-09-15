@@ -51,11 +51,12 @@ class NexusOtaWebManager(context: Context) {
         val path = uri.path ?: return null
         if (!path.startsWith(ASSET_PATH)) return null
 
-        val relativePath = normalizeAssetPath(path.removePrefix(ASSET_PATH)) ?: return null
+        val relativePath = OtaPathPolicy.normalize(path.removePrefix(ASSET_PATH)) ?: return null
         val active = activeVersion().takeIf { it.isNotBlank() } ?: return null
         val root = File(versionsRoot, active)
         val file = safeChild(root, relativePath)
 
+        // OTA payload always wins when the exact file is present.
         if (file?.isFile == true) {
             return try {
                 WebResourceResponse(
@@ -68,10 +69,11 @@ class NexusOtaWebManager(context: Context) {
             }
         }
 
-        if (isBlocked(relativePath)) {
-            return blockedResponse()
-        }
+        // Explicit deletion/blocking consumes the request. Returning a response here
+        // is critical: null would fall through to the bundled APK WebViewAssetLoader.
+        if (isBlocked(relativePath)) return blockedResponse()
 
+        // Unlisted/non-OTA paths keep the historical bundled fallback behavior.
         return null
     }
 
@@ -123,14 +125,9 @@ class NexusOtaWebManager(context: Context) {
 
     private fun checkForUpdateBlocking(attempt: Int): Boolean {
         val requestNonce = "${System.currentTimeMillis()}-$attempt"
-        val manifestText = downloadText(
-            addQuery(MANIFEST_URL, "n", requestNonce),
-            MAX_MANIFEST_BYTES
-        )
+        val manifestText = downloadText(addQuery(MANIFEST_URL, "n", requestNonce), MAX_MANIFEST_BYTES)
         val manifest = JSONObject(manifestText)
-        if (manifest.optInt("schema", 0) != MANIFEST_SCHEMA) {
-            throw IOException("Unsupported OTA manifest schema")
-        }
+        if (manifest.optInt("schema", 0) != MANIFEST_SCHEMA) throw IOException("Unsupported OTA manifest schema")
 
         val base = manifest.optString("base").trim().lowercase()
         if (base != BUNDLED_WEB_BASE) throw IOException("OTA base mismatch")
@@ -140,9 +137,7 @@ class NexusOtaWebManager(context: Context) {
         if (version == activeVersion()) return false
         if (version == prefs.getString(KEY_BLOCKED_VERSION, "")?.trim()) return false
 
-        data class Entry(val path: String, val sha256: String, val size: Long)
         val entries = parseFileEntries(manifest.optJSONArray("files"))
-        if (entries.isEmpty()) throw IOException("OTA file list missing")
         if (entries.none { it.path == "index.html" }) throw IOException("OTA entry point missing")
 
         val blockedPaths = parseBlockedPaths(manifest)
@@ -169,12 +164,15 @@ class NexusOtaWebManager(context: Context) {
                 }
             }
 
+            // Persist blocklist inside staging. The directory rename activates files
+            // and deletion metadata as one filesystem operation.
             writeBlockedPaths(staging, blockedPaths)
 
             val destination = File(versionsRoot, version)
             if (destination.exists()) destination.deleteRecursively()
             if (!staging.renameTo(destination)) throw IOException("Could not activate OTA package")
 
+            // Pointer is updated only after the fully validated staging tree is active.
             prefs.edit()
                 .putString(KEY_ACTIVE_VERSION, version)
                 .putString(KEY_BUNDLED_BASE, BUNDLED_WEB_BASE)
@@ -220,9 +218,8 @@ class NexusOtaWebManager(context: Context) {
         val seen = HashSet<String>(array.length())
         val normalized = ArrayList<String>(array.length())
         for (i in 0 until array.length()) {
-            val raw = array.optString(i, "")
-            val path = normalizeManifestPath(raw)
-            if (!isTravelSpecificPath(path)) throw IOException("Blocked path is not Travel-specific: $path")
+            val path = normalizeManifestPath(array.optString(i, ""))
+            if (!OtaPathPolicy.isTravelSpecific(path)) throw IOException("Blocked path is not Travel-specific: $path")
             if (!seen.add(path)) throw IOException("Duplicate blocked path")
             normalized += path
         }
@@ -232,9 +229,7 @@ class NexusOtaWebManager(context: Context) {
 
     private fun validateNoOverlap(entries: List<FileEntry>, blockedPaths: List<String>) {
         val files = entries.mapTo(HashSet()) { it.path }
-        blockedPaths.forEach { path ->
-            if (path in files) throw IOException("Path cannot be both OTA file and blocked: $path")
-        }
+        blockedPaths.forEach { path -> if (path in files) throw IOException("Path cannot be both OTA file and blocked: $path") }
     }
 
     private fun writeBlockedPaths(staging: File, blockedPaths: List<String>) {
@@ -249,7 +244,8 @@ class NexusOtaWebManager(context: Context) {
         return runCatching {
             file.readLines(Charsets.UTF_8)
                 .filter { it.isNotBlank() }
-                .map { normalizeRuntimePath(it) }
+                .mapNotNull { OtaPathPolicy.normalize(it) }
+                .filter { OtaPathPolicy.isTravelSpecific(it) }
                 .toSet()
         }.getOrDefault(emptySet())
     }
@@ -257,34 +253,7 @@ class NexusOtaWebManager(context: Context) {
     private fun isBlocked(path: String): Boolean = path in blockedPathsForActive()
 
     private fun normalizeManifestPath(raw: String): String =
-        normalizeAssetPath(raw.trim()) ?: throw IOException("Malformed OTA path")
-
-    private fun normalizeRuntimePath(raw: String): String =
-        normalizeAssetPath(raw.trim()) ?: throw IOException("Malformed active blocklist path")
-
-    private fun normalizeAssetPath(raw: String): String? {
-        if (raw.isBlank() || raw.startsWith('/') || raw.startsWith('\\')) return null
-        if (raw.contains('\\') || raw.contains('\u0000')) return null
-        val parts = raw.split('/')
-        if (parts.any { it.isBlank() || it == "." || it == ".." }) return null
-        return parts.joinToString("/")
-    }
-
-    private fun isSafeRelativePath(path: String): Boolean = normalizeAssetPath(path) != null
-
-    private fun isTravelSpecificPath(path: String): Boolean {
-        val p = path.lowercase()
-        return p.startsWith("fresh-rebuild/src/features/apps/travel") ||
-            p.startsWith("fresh-rebuild/src/features/travel") ||
-            p.contains("travel-fare-lens") ||
-            p.contains("fare-lens") ||
-            p.contains("smart-travel") ||
-            p.startsWith("travel/") ||
-            p.startsWith("assets/travel/") ||
-            p.startsWith("js/travel/") ||
-            p.startsWith("css/travel/") ||
-            p.startsWith("features/travel/")
-    }
+        OtaPathPolicy.normalize(raw) ?: throw IOException("Malformed OTA path")
 
     private fun blockedResponse(): WebResourceResponse =
         WebResourceResponse("text/plain", "UTF-8", 404, "Not Found", emptyMap(), "NexusNova OTA blocked resource".byteInputStream())
@@ -338,9 +307,7 @@ class NexusOtaWebManager(context: Context) {
                 }
                 output.toByteArray().toString(Charsets.UTF_8)
             }
-        } finally {
-            connection.disconnect()
-        }
+        } finally { connection.disconnect() }
     }
 
     private fun downloadFile(url: String, output: File, expectedSize: Long): Long {
@@ -363,9 +330,7 @@ class NexusOtaWebManager(context: Context) {
                 }
             }
             return total
-        } finally {
-            connection.disconnect()
-        }
+        } finally { connection.disconnect() }
     }
 
     private fun open(url: String): HttpURLConnection {

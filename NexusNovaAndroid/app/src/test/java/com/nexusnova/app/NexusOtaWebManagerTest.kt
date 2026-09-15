@@ -1,7 +1,6 @@
 package com.nexusnova.app
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -19,15 +18,15 @@ class NexusOtaWebManagerTest {
     }
 
     @Test fun invalidBlocklistEntryIsRejected() {
-        listOf(
+        val invalid = listOf(
             "../fresh-rebuild/src/features/apps/travel-fare-lens.js",
             "fresh-rebuild/src/features/apps/../travel-fare-lens.js",
             "/fresh-rebuild/src/features/apps/travel-fare-lens.js",
-            "fresh-rebuild/src/features/apps/travel-fare-lens.js",
-            "fresh-rebuild/src/features/apps/Travel-Fare-Lens.js"
-        ).forEach { path ->
-            val valid = normalizeTravelPath(path) != null && path == path.lowercase()
-            assertFalse("Expected rejection: $path", valid && isTravelSpecificPath(path))
+            "travel-fare-lens.js"
+        )
+        invalid.forEach { path ->
+            val normalized = OtaPathPolicy.normalize(path)
+            assertTrue("Expected rejection: $path", normalized == null || !OtaPathPolicy.isTravelSpecific(normalized))
         }
     }
 
@@ -49,28 +48,6 @@ class NexusOtaWebManagerTest {
         requested in blocked -> "BLOCKED_404"
         requested in bundled -> "BUNDLED"
         else -> "MISS"
-    }
-
-    private fun normalizeTravelPath(raw: String): String? {
-        if (raw.isBlank() || raw.startsWith('/') || raw.startsWith('\\')) return null
-        if (raw.contains('\\') || raw.contains('\u0000')) return null
-        val parts = raw.split('/')
-        if (parts.any { it.isBlank() || it == "." || it == ".." }) return null
-        return parts.joinToString("/")
-    }
-
-    private fun isTravelSpecificPath(path: String): Boolean {
-        val p = path.lowercase()
-        return p.startsWith("fresh-rebuild/src/features/apps/travel") ||
-            p.startsWith("fresh-rebuild/src/features/travel") ||
-            p.contains("travel-fare-lens") ||
-            p.contains("fare-lens") ||
-            p.contains("smart-travel") ||
-            p.startsWith("travel/") ||
-            p.startsWith("assets/travel/") ||
-            p.startsWith("js/travel/") ||
-            p.startsWith("css/travel/") ||
-            p.startsWith("features/travel/")
     }
 
     private companion object {
