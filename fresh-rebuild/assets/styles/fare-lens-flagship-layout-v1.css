@@ -1,4 +1,4 @@
-/* NexusNova Fare Lens — flagship layout support layer. Scoped to Travel only. */
+/* NexusNOVA Fare Lens — scoped mobile layout/touch support. */
 .nxf-travel { color-scheme: light !important; }
 .nxf-travel .nxf-main { min-width: 0 !important; }
 .nxf-travel .nxf-grid > * { min-width: 0 !important; box-sizing: border-box !important; }
@@ -30,5 +30,9 @@
   .nxf-travel { height: 100vh !important; max-height: 100vh !important; overflow: hidden !important; }
   .nxf-travel .nxf-main { overflow-x: hidden !important; overflow-y: auto !important; min-height: 0 !important; overscroll-behavior: contain !important; scrollbar-width: none !important; }
   .nxf-travel .nxf-main::-webkit-scrollbar { display: none; }
+  .nxf-travel .nxf-tabs button { flex: 1 1 0 !important; min-width: 0 !important; min-height: 44px !important; }
+  .nxf-travel .nxf-end { min-height: 44px !important; }
+  .nxf-travel .nxf-swap { width: 44px !important; height: 44px !important; }
+  .nxf-travel .nxf-primary, .nxf-travel .nxf-live-row button, .nxf-travel .nxf-tool .nxf-primary { min-height: 44px !important; }
 }
 /* Final QA trigger marker — no runtime behavior. */
