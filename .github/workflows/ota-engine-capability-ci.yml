@@ -153,26 +153,36 @@ jobs:
           set -euo pipefail
           apk='app/build/outputs/apk/release/app-release.apk'
           test -s "$apk"
-          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner -print | sort -V)"
-          APKSIGNER="$(printf '%s\n' "$APKSIGNER" | sed -n '$p')"
-          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt -print | sort -V)"
-          AAPT="$(printf '%s\n' "$AAPT" | sed -n '$p')"
-          test -n "$APKSIGNER"
-          test -n "$AAPT"
-          "$APKSIGNER" verify --verbose --print-certs "$apk"
-          aapt_out="$($AAPT dump badging "$apk")"
-          first_badging_line="$(printf '%s\n' "$aapt_out" | sed -n '1p')"
+
+          mapfile -t apksigner_candidates < <(find "$ANDROID_HOME/build-tools" -type f -name apksigner -print | sort -V)
+          mapfile -t aapt_candidates < <(find "$ANDROID_HOME/build-tools" -type f -name aapt -print | sort -V)
+          test "${#apksigner_candidates[@]}" -gt 0
+          test "${#aapt_candidates[@]}" -gt 0
+          APKSIGNER="${apksigner_candidates[${#apksigner_candidates[@]}-1]}"
+          AAPT="${aapt_candidates[${#aapt_candidates[@]}-1]}"
+          test -x "$APKSIGNER" || test -f "$APKSIGNER"
+          test -x "$AAPT" || test -f "$AAPT"
+
+          "$APKSIGNER" verify --verbose --print-certs "$apk" > /tmp/apksigner-verify.txt 2>&1
+          cat /tmp/apksigner-verify.txt
+
+          "$AAPT" dump badging "$apk" > /tmp/aapt-badging.txt
+          first_badging_line="$(sed -n '1p' /tmp/aapt-badging.txt)"
+          test -n "$first_badging_line"
           echo "$first_badging_line"
-          echo "$first_badging_line" | grep -q "name='com.nexusnova.app'"
-          echo "$first_badging_line" | grep -q "versionCode='26091501'"
-          echo "$first_badging_line" | grep -q "versionName='1.0.38-ota-engine-capability'"
+          grep -Fq "name='com.nexusnova.app'" <<<"$first_badging_line"
+          grep -Fq "versionCode='26091501'" <<<"$first_badging_line"
+          grep -Fq "versionName='1.0.38-ota-engine-capability'" <<<"$first_badging_line"
+
           sha256sum "$apk"
-          cert_output="$($APKSIGNER verify --verbose --print-certs "$apk" 2>&1)"
-          cert="$(printf '%s\n' "$cert_output" | sed -n 's/Signer #1 certificate SHA-256 digest: //p')"
+          cert="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' /tmp/apksigner-verify.txt | sed -n '1p')"
+          test -n "$cert"
           echo "CERT_SHA256=$cert"
           test "$cert" = '76fa4bc81be45ab1d53350ea996e85e61518379f82cb9a1ec0e2a19d2e303f25'
-          unzip -l "$apk" | grep -Fq 'assets/www/assets/icons/nova-hub/travel.webp'
-          ! unzip -l "$apk" | grep -Eq 'assets/www/src/features/apps/travel-[^ ]*\.js'
+
+          unzip -l "$apk" > /tmp/apk-contents.txt
+          grep -Fq 'assets/www/assets/icons/nova-hub/travel.webp' /tmp/apk-contents.txt
+          ! grep -Eq 'assets/www/src/features/apps/travel-[^ ]*\.js' /tmp/apk-contents.txt
           echo 'Signed OTA-engine-only APK verified.'
 
       - name: Upload verified APK
