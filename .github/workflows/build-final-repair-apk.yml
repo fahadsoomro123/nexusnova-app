@@ -1,5 +1,7 @@
 name: NexusNova Final Repair Signed APK
 
+# Final mobile Travel release build after Firebase/WebView QA contract repair.
+
 on:
   push:
     branches: [travel-fare-lens-final]
