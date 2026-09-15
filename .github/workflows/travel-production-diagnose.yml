@@ -29,7 +29,7 @@ jobs:
           set -euo pipefail
           echo "DEPLOYMENT_COMMIT=$(git rev-parse HEAD)"
           echo "WORKFLOW_RUN=${GITHUB_RUN_ID}"
-          echo "DIAGNOSE_REVISION=deploy-only-v2"
+          echo "DIAGNOSE_REVISION=deploy-only-v3"
       - name: Configure Firebase ADC
         shell: bash
         run: |
@@ -94,4 +94,4 @@ NODE
           set -euo pipefail
           if git grep -nE '(AIza[0-9A-Za-z_-]{20,}|sk-[A-Za-z0-9]{20,}|FLIGHTAPI_API_KEY\s*=|MAKCORPS_API_KEY\s*=)' -- ':!functions/.env*' ':!README*'; then echo 'SECURITY_SECRET_SCAN=REVIEW_REQUIRED'; exit 3; else echo 'SECURITY_SECRET_SCAN=CLEAN'; fi
           if git grep -nE '(^|[^[:alnum:]_])eval\s*\(|new Function\s*\(' -- ':!package-lock.json' ':!functions/package-lock.json'; then echo 'SECURITY_DYNAMIC_EXECUTION=FOUND'; exit 4; else echo 'SECURITY_DYNAMIC_EXECUTION=CLEAN'; fi
-# Trigger a fresh production deployment/verification run on the current blocker-fix HEAD.
+# Trigger fresh production deployment verification on the current branch HEAD.
