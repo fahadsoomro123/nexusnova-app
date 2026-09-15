@@ -32,12 +32,12 @@ export function authScreen({ onSignedIn } = {}) {
           <input type="password" name="password" autocomplete="current-password" minlength="6" placeholder="Minimum 6 characters" required>
         </label>
         <button class="nx-primary" type="submit" data-auth-submit>SIGN IN</button>
-        <p class="nx-form-status" data-auth-status role="status">QA sign-in ready.</p>
+        <p class="nx-form-status" data-auth-status role="status">Secure email/password sign-in.</p>
       </form>
     </article>
 
     <div class="nx-auth__trust">
-      ${icon('vault')}<span>QA local session • cloud-only actions remain protected</span>
+      ${icon('vault')}<span>Firebase authenticated • secure account actions remain protected by backend rules</span>
     </div>
   `;
 
@@ -56,8 +56,8 @@ export function authScreen({ onSignedIn } = {}) {
     const password = form.elements.password;
     password.autocomplete = mode === 'register' ? 'new-password' : 'current-password';
     status.textContent = mode === 'register'
-      ? 'Create a local QA session for this test build.'
-      : 'QA sign-in ready.';
+      ? 'A verification email will be sent after account creation.'
+      : 'Secure email/password sign-in.';
   };
 
   buttons.forEach(button => button.addEventListener('click', () => setMode(button.dataset.authMode)));
@@ -74,7 +74,7 @@ export function authScreen({ onSignedIn } = {}) {
       const user = mode === 'register'
         ? await authService.register({ name: data.get('name'), email, password })
         : await authService.signIn(email, password);
-      status.textContent = 'Signed in.';
+      status.textContent = user.emailVerified ? 'Signed in.' : 'Signed in. Verify your email before starting mining.';
       onSignedIn?.(user);
     } catch (error) {
       const message = String(error?.message || 'Authentication failed.').replace(/^Firebase:\s*/i, '');

@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">NexusNova</string>
+    <string name="caller_setup_title">Caller ID Setup</string>
+    <string name="caller_setup_body">Enable Caller ID access to use NexusNova caller features.</string>
+    <string name="enable_caller_id">Open Caller ID Settings</string>
+    <string name="unknown_caller">Unknown caller</string>
 </resources>

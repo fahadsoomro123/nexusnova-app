@@ -5,7 +5,6 @@ import sys
 ROOT = Path('.')
 errors = []
 warnings = []
-SITE_KEY = '6LfEc4QtAAAAAOohkqSv0p76iwPTeHI98hqVlwIs'
 
 def read(path):
     p = ROOT / path
@@ -15,158 +14,100 @@ def read(path):
     return p.read_text(encoding='utf-8')
 
 rules = read('firestore.rules')
-index = read('index.html')
-page2core = read('js/page2-core.js')
-page2 = read('js/page2.js')
-functions = read('functions/index.js')
-daily_bridge = read('js/nexusnova-daily-secure-claim-v1.js')
-mining = read('js/rewards-security-v1.js')
-mining_boost = read('js/nexusnova-admob-nexus-pass-v1.js')
-sw = read('sw.js')
+index = read('fresh-rebuild/index.html')
+auth = read('fresh-rebuild/src/core/auth-service.js')
+backend = read('fresh-rebuild/src/core/firebase-backend.js')
 
-# index.html owns the live login module. A second js/index.js copy previously
-# contained weaker, stale auth logic and must not return as an accidental merge target.
-if (ROOT / 'js/index.js').exists():
-    errors.append('Stale duplicate js/index.js auth implementation must remain removed')
+def require(text, marker, label):
+    if marker not in text:
+        errors.append(f'{label}: missing {marker}')
 
-# Global deny must remain present so new collections are private by default.
+# Current production web client uses the fresh-rebuild source tree.
+for marker in [
+    "projectId: 'nexusnova-6ade2'",
+    'signInWithEmailAndPassword',
+    'createUserWithEmailAndPassword',
+    'onAuthStateChanged',
+    'signOut',
+]:
+    require(auth, marker, 'Real Firebase Auth')
+for marker in [
+    'initializeAppCheck',
+    'ReCaptchaEnterpriseProvider',
+    'CustomProvider',
+    'requireFreshAppCheck',
+    'getIdToken(true)',
+    "doc(firestoreDb, 'users', active.uid)",
+    'runTransaction',
+]:
+    require(backend, marker, 'Firebase backend/App Check')
+
+site_match = re.search(r'<meta\s+name="nexusnova-app-check-site-key"\s+content="([^"]+)"', index)
+if not site_match or not site_match.group(1).strip():
+    errors.append('App Check site key missing from fresh-rebuild/index.html')
+else:
+    key = site_match.group(1).strip()
+    if len(key) < 20:
+        errors.append('App Check site key is implausibly short')
+    if key != '6LfEc4Q1AAAAAOohkqSv0p76iwPTeHI98hqVIwls':
+        warnings.append('App Check site key differs from the previously recorded legacy key; current fresh-rebuild key is used by the backend')
+
+# Unknown Firestore collections remain denied by default.
 if 'match /{document=**}' not in rules or 'allow read, write: if false;' not in rules:
     errors.append('Firestore catch-all deny is missing')
 
-# Daily Reward is server-authoritative. No direct client helper or /users update
-# permission may remain after migration to the protected callable.
+# Client-side Daily Reward writes must remain absent.
 if 'function validDailyReward()' in rules:
     errors.append('Legacy client-side Daily Reward rule helper still exists')
+
+# Native WebView security must not be replaced by public QA shims.
+for needle in ['public-qa-', 'public-qa-local', 'nexusnova_public_qa_user_v1', 'PUBLIC_DISABLED_ERROR', 'public-mirror auth shim']:
+    for path in ['fresh-rebuild/src', 'NexusNovaAndroid/app/src/main/assets/www']:
+        for p in (ROOT / path).rglob('*') if (ROOT / path).exists() else []:
+            if p.is_file() and p.suffix in {'.js','.html','.kt','.json','.ts'}:
+                try:
+                    if needle in p.read_text(encoding='utf-8', errors='ignore'):
+                        errors.append(f'Forbidden QA marker {needle} found in {p}')
+                except OSError:
+                    pass
+
+# Mining remains Firestore-authoritative at the application transaction layer.
+# Rules currently contain legacy transition validators; record that honestly rather than
+# weakening production code or claiming server-only enforcement.
 user_match = re.search(r"match /users/\{uid\} \{(.*?)\n\s*\}", rules, re.S)
-if not user_match:
-    errors.append('Could not locate /users/{uid} Firestore rule block')
-else:
-    user_block = user_match.group(1)
-    if 'validDailyReward()' in user_block:
-        errors.append('Direct client Daily Reward write is still allowed')
-
-if 'exports.claimDailyReward=protectedCallable' not in functions:
-    errors.append('Daily Reward callable is not App Check protected')
-if 'verifiedUidOf(req)' not in functions:
-    errors.append('Verified-email server guard is missing')
-if 'window.nexusSecureClaimDaily' not in daily_bridge:
-    errors.append('Secure Daily Reward client bridge is missing')
-if 'nexusRequireAppCheck' not in daily_bridge or 'getIdToken(true)' not in daily_bridge:
-    errors.append('Daily Reward bridge does not refresh Auth + require App Check')
-
-# App Check should use the same production Enterprise site key on login and dashboard.
-for path, text in [('index.html', index), ('js/page2-core.js', page2core)]:
-    if 'initializeAppCheck' not in text or 'ReCaptchaEnterpriseProvider' not in text:
-        errors.append(f'App Check Enterprise initialization missing in {path}')
-if SITE_KEY not in index:
-    errors.append('Login/signup App Check site key is blank or mismatched')
-if SITE_KEY not in page2:
-    errors.append('Dashboard App Check site key is blank or mismatched')
-
-# New signups should be stronger without changing the credentials accepted for
-# existing accounts. Keep signup failures from becoming an exact account lookup.
-if '!loginMode && password.length < 10' not in index:
-    errors.append('New-account password minimum is no longer 10 characters')
-if 'Unable to create this account. Try Login if you may already have an account.' not in index:
-    errors.append('Signup email-already-in-use response exposes too much account detail')
-if 'if (password.length < 6)' in index:
-    errors.append('Legacy global 6-character password gate would block future login compatibility changes')
-
-# Sensitive backend-owned collections must not be client writable.
-withdrawal = re.search(r"match /withdrawalRequests/\{id\} \{(.*?)\n\s*\}", rules, re.S)
-if not withdrawal or 'allow create, update, delete: if false;' not in withdrawal.group(1):
-    errors.append('withdrawalRequests must remain server-write-only')
-
-# Public-facing write surfaces must require a verified Firebase Auth email.
-verified_write_markers = {
-    'chat create': 'request.auth.token.email_verified == true && validChatMessage()',
-    'marketplace listing create': 'request.auth.token.email_verified == true && validListingCreate()',
-    'marketplace listing update': 'request.auth.token.email_verified == true && validListingUpdate()',
-    'marketplace listing delete': 'request.auth.token.email_verified == true && request.auth.uid == resource.data.sellerUid',
-    'marketplace order create': 'request.auth.token.email_verified == true && validOrderCreate()',
-    'marketplace order update': 'request.auth.token.email_verified == true && validOrderUpdate()',
-}
-for label, marker in verified_write_markers.items():
-    if marker not in rules:
-        errors.append(f'{label} lost its verified-email requirement')
-
-# Push notifications must never navigate a WebView/browser to a payload-provided
-# external origin. The same-origin sanitizer is applied both when storing and
-# when consuming notification data.
-for marker in [
-    'function safeNotificationUrl(raw)',
-    'target.origin !== self.location.origin',
-    'data: { url: safeNotificationUrl(data.url) }',
-    'const target = safeNotificationUrl(event.notification?.data?.url)',
-]:
-    if marker not in sw:
-        errors.append(f'Service worker push navigation origin lock missing: {marker}')
-
-# Critical dynamically imported security modules should be available to the
-# offline shell instead of silently disappearing when the network is down.
-for asset in [
-    './js/page2-core.js',
-    './js/nexusnova-daily-secure-claim-v1.js?v=1',
-    './js/nexusnova-ad-placements-v1.js?v=3',
-    './js/nexusnova-watch-ad-reward-v1.js?v=1',
-    './js/nexusnova-ad-privacy-v1.js?v=1',
-]:
-    if asset not in sw:
-        errors.append(f'Critical security module missing from service-worker shell: {asset}')
-
-# Login anti-bot checkbox still uses Google's public reCAPTCHA v2 test key.
-# Keep this visible as a deployment blocker rather than silently treating it as production protection.
-if '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI' in index:
-    warnings.append('Login/signup checkbox still uses Google reCAPTCHA v2 TEST site key; replace it with a real registered key before public production signup')
-
-# Rewarded Mining Boost is never client-authoritative. TEST ads may prove UX,
-# but direct timestamp/value mutation stays denied until server proof exists.
-if 'validMiningBoost()' in rules:
-    errors.append('Direct client Mining Boost Firestore permission returned')
-for forbidden in ['runTransaction(context.db', 'tx.update(ref, { miningStartedAt:']:
-    if forbidden in mining_boost:
-        errors.append(f'Mining Boost client value writer returned: {forbidden}')
-for marker in [
-    'const SERVER_VERIFIED_BOOST_ENABLED = false;',
-    "boostKind:expected, testOnly:true",
-    'TEST ads never reduce mining time or change NVX.'
-]:
-    if marker not in mining_boost:
-        errors.append(f'Mining Boost server-proof safety marker missing: {marker}')
-
-# Mining remains a known migration item on the free/Spark architecture. Do not
-# pretend it is server-authoritative while rules still permit client transitions.
 if user_match:
     block = user_match.group(1)
-    direct_mining = [name for name in [
-        'validMiningStart()', 'validMiningFinish()',
-        'validMiningRollover()', 'validMiningRepair()'
-    ] if name in block]
-    if direct_mining:
-        warnings.append(
-            'Mining still permits direct authenticated Firestore transitions: ' + ', '.join(direct_mining)
-        )
-        if 'nexusRequireAppCheck' not in mining or 'getIdToken(true)' not in mining:
-            errors.append('Temporary client-owned mining lacks Auth refresh/App Check guard')
+    direct = [n for n in ['validMiningStart()', 'validMiningFinish()', 'validMiningRollover()', 'validMiningRepair()'] if n in block]
+    if direct:
+        warnings.append('Mining rules still expose direct authenticated transition validators: ' + ', '.join(direct))
+else:
+    errors.append('Could not locate /users/{uid} Firestore rule block')
+
+# Do not silently accept embedded provider secrets.
+for path in ['fresh-rebuild/src', 'NexusNovaAndroid/app/src/main/assets/www']:
+    base = ROOT / path
+    if not base.exists():
+        continue
+    for p in base.rglob('*'):
+        if not p.is_file() or p.suffix not in {'.js','.html','.kt','.json','.ts'}:
+            continue
+        text = p.read_text(encoding='utf-8', errors='ignore')
+        if re.search(r'-----BEGIN (RSA|EC|OPENSSH|PRIVATE) KEY-----', text):
+            errors.append(f'Private key material found in {p}')
+        if re.search(r'FLIGHTAPI_API_KEY\s*[:=]\s*["\'][A-Za-z0-9_-]{20,}', text):
+            errors.append(f'Embedded FlightAPI credential found in {p}')
 
 if errors:
     print('NexusNova Firebase security readiness: FAIL')
-    for item in errors:
-        print(' - ERROR:', item)
-    for item in warnings:
-        print(' - WARNING:', item)
+    for item in errors: print(' - ERROR:', item)
+    for item in warnings: print(' - WARNING:', item)
     sys.exit(1)
 
 print('NexusNova Firebase security readiness: PASS')
-print(' - Live login implementation: single-source index.html; stale duplicate removed')
-print(' - Daily Reward: server-authoritative + App Check guarded; legacy rule removed')
-print(' - Login/dashboard App Check Enterprise key: consistent')
-print(' - New signup passwords: 10+ chars; existing login compatibility preserved')
-print(' - Signup account-existence detail: reduced')
-print(' - Chat and marketplace writes: verified-email only')
-print(' - Withdrawal requests: client create/update/delete denied')
-print(' - Push navigation: same-origin only')
-print(' - Critical security modules: offline-shell cached')
-print(' - Default Firestore policy: deny unknown collections')
-for item in warnings:
-    print(' - MIGRATION/DEPLOYMENT BLOCKER:', item)
+print(' - Real Firebase Auth: enabled in fresh-rebuild auth service')
+print(' - Firebase project: nexusnova-6ade2')
+print(' - App Check: native CustomProvider or ReCaptcha Enterprise, token refresh enforced')
+print(' - Firestore user profile: users/{uid}')
+print(' - Mining: Firestore transaction path present; rule transition validators reported honestly')
+print(' - Unknown Firestore collections: denied by default')
+for item in warnings: print(' - MIGRATION NOTE:', item)

@@ -1,3 +1,0 @@
-trigger signed restored NexusNova APK
-public_source_commit=5677f071d8c5af6b66a0b2ad89847854978c291d
-reason=exact restored tree build trigger
