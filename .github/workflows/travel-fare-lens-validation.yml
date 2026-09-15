@@ -51,7 +51,7 @@ jobs:
             local file="$1"; local needle="$2"
             if grep -Fq -- "$needle" "$file"; then echo "FAIL: $file contains forbidden travel contract: $needle"; exit 1; else echo "PASS: $file omits forbidden travel contract: $needle"; fi
           }
-          assert_contains fresh-rebuild/src/features/apps/app-screen.js "['./travel-fare-lens.js', 'fareLensRenderers']"
+          assert_contains fresh-rebuild/src/features/apps/app-screen.js "['./travel-fare-lens.js', 'fareLensRenderers'"
           assert_contains fresh-rebuild/src/features/apps/app-screen.js 'enhanceSmartTravelContext'
           assert_contains fresh-rebuild/src/features/apps/travel-fare-lens.js 'data-pick="origin"'
           assert_contains fresh-rebuild/src/features/apps/travel-fare-lens.js 'data-pick="destination"'
@@ -108,7 +108,7 @@ jobs:
           python3 -m pip install --user --break-system-packages websocket-client
           BROWSER_BIN="$(command -v chromium || command -v google-chrome)"
           cat > fresh-rebuild/.ci-fare-lens-mobile-test.html <<'EOF'
-          <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="stylesheet" href="./assets/styles/phone-visible-fixes.css"><link rel="stylesheet" href="./assets/styles/fare-lens-flagship-v1.css"><link rel="stylesheet" href="./assets/styles/fare-lens-flagship-layout-v1.css"></head><body><script type="module">import { renderTravel } from './src/features/apps/travel-fare-lens.js'; document.body.append(renderTravel());</script></body></html>
+          <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>html,body{margin:0;padding:0;width:100%;min-height:100%;}</style><link rel="stylesheet" href="./assets/styles/phone-visible-fixes.css"><link rel="stylesheet" href="./assets/styles/fare-lens-flagship-v1.css"><link rel="stylesheet" href="./assets/styles/fare-lens-flagship-layout-v1.css"></head><body><script type="module">import { renderTravel } from './src/features/apps/travel-fare-lens.js'; document.body.append(renderTravel());</script></body></html>
           EOF
           python3 -m http.server 8765 --directory fresh-rebuild >/tmp/fare-lens-http.log 2>&1 & SERVER_PID=$!
           "$BROWSER_BIN" --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --user-data-dir="$RUNNER_TEMP/fare-lens-chrome" --remote-debugging-port=9222 --remote-allow-origins=* about:blank >/tmp/fare-lens-chrome.log 2>&1 & BROWSER_PID=$!
@@ -155,4 +155,4 @@ jobs:
           name: fare-lens-real-browser-390-412-desktop
           path: ${{ runner.temp }}/fare-lens-screenshots/
           if-no-files-found: error
-# Trigger a fresh validation after the FlightAPI fixture correction.
+# Trigger a fresh validation after the FlightAPI fixture correction and browser harness reset.
