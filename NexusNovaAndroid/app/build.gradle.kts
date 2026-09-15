@@ -91,5 +91,7 @@ dependencies {
     implementation("com.google.android.libraries.ads.mobile.sdk:ads-mobile-sdk:1.3.0")
 
     // Google User Messaging Platform remains available for privacy testing.
-    implementation("com.google.android.ump:user-messaging-platform:4.0.0")
+    implementation("com.google.ump:user-messaging-platform:4.0.0")
+
+    testImplementation("junit:junit:4.13.2")
 }
