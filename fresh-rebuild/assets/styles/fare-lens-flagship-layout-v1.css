@@ -8,6 +8,14 @@
 .nxf-travel .nxf-grid > * { min-width: 0 !important; box-sizing: border-box !important; }
 
 @media (min-width: 701px) {
+  /* Keep the standalone browser validation surface bounded to the viewport.
+     The Fare Lens is a dashboard surface, not a document-length page. */
+  .nxf-travel {
+    height: 100vh !important;
+    max-height: 100vh !important;
+    overflow: hidden !important;
+  }
+
   .nxf-travel .nxf-main {
     overflow: hidden !important;
     padding: 8px 10px 6px !important;
