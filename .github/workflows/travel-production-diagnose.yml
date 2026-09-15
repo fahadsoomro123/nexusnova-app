@@ -72,7 +72,7 @@ NODE
         shell: bash
         run: |
           set -euo pipefail
-          code="$(curl -sS -o /tmp/hosting-cap.json -w '%{http_code}" 'https://nexusnova-6ade2.web.app/api/travel/capabilities')"
+          code="$(curl -sS -o /tmp/hosting-cap.json -w '%{http_code}' 'https://nexusnova-6ade2.web.app/api/travel/capabilities')"
           echo "HOSTING_CAPABILITIES_HTTP=$code"
           cat /tmp/hosting-cap.json
           test "$code" = 200
