@@ -8,13 +8,16 @@ import java.io.IOException
 
 class OtaPathPolicyTest {
     @Test fun normalizeRejectsTraversalAndMalformedPaths() {
-        assertEquals(null, OtaPathPolicy.normalize("../fresh-rebuild/src/features/apps/travel-fare-lens.js"))
-        assertEquals(null, OtaPathPolicy.normalize("fresh-rebuild/src/features/apps/../travel-fare-lens.js"))
-        assertEquals(null, OtaPathPolicy.normalize("/fresh-rebuild/src/features/apps/travel-fare-lens.js"))
-        assertEquals(null, OtaPathPolicy.normalize("\\fresh-rebuild/src/features/apps/travel-fare-lens.js"))
-        assertEquals(null, OtaPathPolicy.normalize("fresh-rebuild\\src\\features\\apps\\travel-fare-lens.js"))
-        assertEquals(null, OtaPathPolicy.normalize("fresh-rebuild/src/features/apps//travel-fare-lens.js"))
-        assertEquals(null, OtaPathPolicy.normalize("fresh-rebuild/src/features/apps/travel-fare-lens.js\u0000.js"))
+        val invalid = listOf(
+            "../fresh-rebuild/src/features/apps/travel-fare-lens.js",
+            "fresh-rebuild/src/features/apps/../travel-fare-lens.js",
+            "/fresh-rebuild/src/features/apps/travel-fare-lens.js",
+            "\\fresh-rebuild/src/features/apps/travel-fare-lens.js",
+            "fresh-rebuild\\src\\features\\apps\\travel-fare-lens.js",
+            "fresh-rebuild/src/features/apps//travel-fare-lens.js",
+            "fresh-rebuild/src/features/apps/travel-fare-lens.js\u0000.js"
+        )
+        invalid.forEach { assertEquals(null, OtaPathPolicy.normalize(it)) }
     }
 
     @Test fun normalizeAndScopeAcceptValidTravelPath() {
@@ -35,7 +38,5 @@ class OtaPathPolicyTest {
         assertTrue(rejected)
     }
 
-    private companion object {
-        const val TRAVEL_RENDERER = "fresh-rebuild/src/features/apps/travel-fare-lens.js"
-    }
+    private companion object { const val TRAVEL_RENDERER = "fresh-rebuild/src/features/apps/travel-fare-lens.js" }
 }
