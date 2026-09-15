@@ -99,18 +99,14 @@ jobs:
           ! grep -Fq 'nexusnova_public_qa_user_v1' build-src/fresh-rebuild/src/core/auth-service.js
 
       - name: Install Firestore smoke-test dependencies
+        working-directory: build-src
         shell: bash
         run: |
           set -euo pipefail
           npm install --no-save --no-package-lock @firebase/rules-unit-testing firebase
 
-      - name: Setup Java 17
-        uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: '17'
-
       - name: Run mining and Firestore security validation
+        working-directory: build-src
         shell: bash
         run: |
           set -euo pipefail
@@ -118,6 +114,12 @@ jobs:
           npx --yes firebase-tools@latest emulators:exec --project demo-nexusnova-rules --only firestore "node .github/scripts/firestore-rules-smoke.mjs"
           python3 .github/scripts/android-webview-security-readiness.py
           python3 .github/scripts/firebase-security-readiness.py
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
 
       - name: Setup Gradle 8.13
         uses: gradle/actions/setup-gradle@v4
