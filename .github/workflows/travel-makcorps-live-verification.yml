@@ -8,9 +8,32 @@ permissions:
 jobs:
   verify-live:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
+      - name: Diagnose deployed Travel API routing
+        shell: bash
+        run: |
+          set -u
+          departure="$(date -u -d '+30 days' +%F)"
+          payload="{\"origin\":\"KHI\",\"destination\":\"ISB\",\"departure\":\"${departure}\",\"tripType\":\"oneway\",\"adults\":1,\"children\":0,\"childrenAges\":[],\"cabin\":\"Economy\",\"currency\":\"USD\",\"region\":\"PK\"}"
+          echo '=== Hosting capabilities ==='
+          hcap="$(curl -sS -o /tmp/hcap.json -w '%{http_code}' 'https://nexusnova-6ade2.web.app/api/travel/capabilities' || true)"
+          echo "HOSTING_CAPABILITIES_HTTP=$hcap"
+          head -c 1000 /tmp/hcap.json || true; echo
+          echo '=== Direct us-central1 travelApi capabilities ==='
+          dcap="$(curl -sS -o /tmp/dcap.json -w '%{http_code}' 'https://us-central1-nexusnova-6ade2.cloudfunctions.net/travelApi/capabilities' || true)"
+          echo "DIRECT_US_CENTRAL1_CAPABILITIES_HTTP=$dcap"
+          head -c 1000 /tmp/dcap.json || true; echo
+          echo '=== Hosting flight search ==='
+          hf="$(curl -sS -o /tmp/hf.json -w '%{http_code}' -X POST 'https://nexusnova-6ade2.web.app/api/travel/flights/search' -H 'Content-Type: application/json' --data "$payload" || true)"
+          echo "HOSTING_FLIGHT_SEARCH_HTTP=$hf"
+          head -c 1600 /tmp/hf.json || true; echo
+          echo '=== Direct us-central1 travelApi flight search ==='
+          df="$(curl -sS -o /tmp/df.json -w '%{http_code}' -X POST 'https://us-central1-nexusnova-6ade2.cloudfunctions.net/travelApi/flights/search' -H 'Content-Type: application/json' --data "$payload" || true)"
+          echo "DIRECT_FLIGHT_SEARCH_HTTP=$df"
+          head -c 1600 /tmp/df.json || true; echo
+          echo "DIAGNOSIS_HOSTING=$hcap DIAGNOSIS_DIRECT_US_CENTRAL1=$dcap"
       - name: Real Makcorps hotel search
         env:
           MAKCORPS_API_KEY: ${{ secrets.MAKCORPS_API_KEY }}
