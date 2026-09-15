@@ -56,7 +56,7 @@ jobs:
               exit 1
             fi
           done
-          if grep -RInE --exclude-dir=.git --exclude='*.map' '-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----|gh[pousr]_[0-9A-Za-z]{20,}|AKIA[0-9A-Z]{16}' fresh-rebuild NexusNovaAndroid; then
+          if grep -RInE --exclude-dir=.git --exclude='*.map' -- '-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----|gh[pousr]_[0-9A-Za-z]{20,}|AKIA[0-9A-Z]{16}' fresh-rebuild NexusNovaAndroid; then
             echo 'Private credential material found in active build tree.' >&2
             exit 1
           fi
@@ -78,7 +78,6 @@ jobs:
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          from pathlib import Path
           import xml.etree.ElementTree as ET
           ET.parse('NexusNovaAndroid/app/src/main/AndroidManifest.xml')
           ET.parse('NexusNovaAndroid/app/src/main/res/xml/network_security_config.xml')
@@ -91,6 +90,12 @@ jobs:
           node --check fresh-rebuild/src/nova-vehicle-premium-ui.js
           node --check fresh-rebuild/src/nova-drive-gold-maptiler-v14-ui.js
           node --check fresh-rebuild/src/main.js
+
+      - name: Install smoke-test dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save --no-package-lock @firebase/rules-unit-testing firebase
 
       - name: Run existing static/runtime validation when present
         shell: bash
@@ -193,6 +198,7 @@ jobs:
           grep -q "versionCode='26091501'" /tmp/badging.txt
           grep -q "versionName='1.0.39-firebase-repair'" /tmp/badging.txt
 
+          mkdir -p /tmp/nx-apk
           unzip -q "$APK" 'assets/www/src/core/auth-service.js' 'assets/www/src/core/firebase-backend.js' 'assets/www/src/core/drive-cloud-store.js' -d /tmp/nx-apk
           grep -Fq 'signInWithEmailAndPassword' /tmp/nx-apk/assets/www/src/core/auth-service.js
           grep -Fq 'waitForFirebaseUser' /tmp/nx-apk/assets/www/src/core/firebase-backend.js
