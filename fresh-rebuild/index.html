@@ -76,8 +76,9 @@
   <script type="module" src="./src/nova57-stage-compat.js"></script>
   <script type="module" src="./src/nova57-human-response.js"></script>
   <script type="module" src="./src/mine-raster-skin-loader.js"></script>
-  <script type="module" src="./src/main.js?ota=nv16"></script>
+  <!-- Travel/Fare Lens shell repair MUST load before the application bootstrap. -->
   <script type="module" src="./src/travel-runtime-shell-bridge.js"></script>
+  <script type="module" src="./src/main.js?ota=nv16"></script>
   <script type="module" src="./src/features/apps/profile-fullscreen-v1.js?ota=profile-v1"></script>
   <script type="module" src="./src/features/apps/notes-fullscreen-v1.js?ota=notes-v1"></script>
   <script type="module" src="./src/features/apps/todo-fullscreen-v1.js?ota=todo-v1"></script>
