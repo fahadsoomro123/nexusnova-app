@@ -1,5 +1,7 @@
 name: One Shot NOVA57 OTA Bootstrap APK v3
 
+# Triggered by a workflow-file push on main so the signed OTA bootstrap APK is built.
+# The build source remains pinned to the proven NOVA57 source branch below.
 on:
   push:
     branches: [main]
