@@ -65,8 +65,8 @@ jobs:
           set +e
           set -u
           HOST='maven.google.com'
-          POM='https://maven.google.com/com/google/ump/user-messaging-platform/4.0.0/user-messaging-platform-4.0.0.pom'
-          AAR='https://maven.google.com/com/google/ump/user-messaging-platform/4.0.0/user-messaging-platform-4.0.0.aar'
+          POM='https://maven.google.com/com/google/android/ump/user-messaging-platform/4.0.0/user-messaging-platform-4.0.0.pom'
+          AAR='https://maven.google.com/com/google/android/ump/user-messaging-platform/4.0.0/user-messaging-platform-4.0.0.aar'
           echo '=== repository configuration ==='
           sed -n '1,200p' settings.gradle.kts
           echo '=== Gradle properties ==='
@@ -92,7 +92,7 @@ jobs:
           curl -sS -L -o /dev/null -w 'POM final=%{url_effective} status=%{http_code} type=%{content_type} redirects=%{num_redirects} remote_ip=%{remote_ip}\n' "$POM"
           curl -sS -L -o /dev/null -w 'AAR final=%{url_effective} status=%{http_code} type=%{content_type} redirects=%{num_redirects} remote_ip=%{remote_ip}\n' "$AAR"
           echo '=== Gradle dependencyInsight (with info/stacktrace) ==='
-          ./gradlew --no-daemon --refresh-dependencies --info --stacktrace :app:dependencyInsight --dependency com.google.ump:user-messaging-platform --configuration debugCompileClasspath
+          gradle --no-daemon --refresh-dependencies --info --stacktrace :app:dependencyInsight --dependency com.google.android.ump:user-messaging-platform --configuration debugCompileClasspath
           echo "dependencyInsight_exit=$?"
           echo '=== Gradle repository/resolution diagnostics captured above ==='
           exit 0
