@@ -8,9 +8,23 @@ permissions:
 jobs:
   verify-live:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
+      - name: Inspect deployed Travel API routing
+        shell: bash
+        run: |
+          set -u
+          echo '=== HOSTING CAPABILITIES ==='
+          hcode="$(curl -sS -o /tmp/hosting-cap.json -w '%{http_code}' 'https://nexusnova-6ade2.web.app/api/travel/capabilities' || true)"
+          echo "HOSTING_CAPABILITIES_HTTP=$hcode"
+          head -c 1200 /tmp/hosting-cap.json || true
+          echo
+          echo '=== DIRECT FUNCTION CAPABILITIES (us-central1) ==='
+          dcode="$(curl -sS -o /tmp/direct-cap.json -w '%{http_code}' 'https://us-central1-nexusnova-6ade2.cloudfunctions.net/travelApi/capabilities' || true)"
+          echo "DIRECT_TRAVELAPI_CAPABILITIES_HTTP=$dcode"
+          head -c 1200 /tmp/direct-cap.json || true
+          echo
       - name: Real FlightAPI request
         env:
           FLIGHTAPI_API_KEY: ${{ secrets.FLIGHTAPI_API_KEY }}
@@ -29,4 +43,29 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          node -e "const fs=require('fs');const {normalizeItineraryRows}=require('./functions/flightapi-provider');const x=normalizeItineraryRows(JSON.parse(fs.readFileSync('/tmp/flightapi.json','utf8')));const p=x.filter(r=>r.price!=null&&r.currency).length;if(!x.length)throw new Error('NORMALIZED_EMPTY');if(!p)throw new Error('NORMALIZED_NO_PRICED_INVENTORY');console.log('NORMALIZED_OK provider=FlightAPI normalized='+x.length+' priced='+p);"
+          node -e "const fs=require('fs');const {normalizeItineraryRows}=require('./functions/flightapi-provider');const input=JSON.parse(fs.readFileSync('/tmp/flightapi.json','utf8'));const x=normalizeItineraryRows(input,'USD');const p=x.filter(r=>r.price!=null&&r.currency).length;if(!x.length)throw new Error('NORMALIZED_EMPTY');if(!p)throw new Error('NORMALIZED_NO_PRICED_INVENTORY');console.log('REAL_NORMALIZATION_OK provider=FlightAPI raw_itineraries='+(input.itineraries||input.data?.itineraries||[]).length+' normalized='+x.length+' priced='+p+' currency='+x.find(r=>r.currency)?.currency);"
+      - name: Real production NexusNova Travel path
+        shell: bash
+        run: |
+          set -u
+          departure="$(date -u -d '+30 days' +%F)"
+          payload="{\"origin\":\"KHI\",\"destination\":\"ISB\",\"departure\":\"${departure}\",\"tripType\":\"oneway\",\"adults\":1,\"children\":0,\"childrenAges\":[],\"cabin\":\"Economy\",\"currency\":\"USD\",\"region\":\"PK\"}"
+          for url in \
+            'https://nexusnova-6ade2.web.app/api/travel/flights/search' \
+            'https://us-central1-nexusnova-6ade2.cloudfunctions.net/travelApi/flights/search'
+          do
+            echo "=== POST $url ==="
+            code="$(curl -sS -o /tmp/production-travel.json -w '%{http_code}' -X POST "$url" -H 'Content-Type: application/json' --data "$payload" || true)"
+            echo "PRODUCTION_PATH_HTTP=$code url=$url"
+            head -c 2200 /tmp/production-travel.json || true
+            echo
+            if [ "$code" = 200 ]; then
+              node - <<'NODE'
+const fs=require('fs');
+const x=JSON.parse(fs.readFileSync('/tmp/production-travel.json','utf8'));
+const rows=Array.isArray(x.results)?x.results:[];
+const priced=rows.filter(r=>r&&r.price!=null);
+console.log('PRODUCTION_TRAVEL_OK results='+rows.length+' priced='+priced.length+' firstProvider='+(priced[0]?.provider||'')+' firstCurrency='+(priced[0]?.currency||'')+' firstPrice='+(priced[0]?.price??''));
+NODE
+            fi
+          done
