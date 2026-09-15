@@ -36,3 +36,4 @@
   .nxf-travel .nxf-primary, .nxf-travel .nxf-live-row button, .nxf-travel .nxf-tool .nxf-primary { min-height: 44px !important; }
 }
 /* Final QA trigger marker — no runtime behavior. */
+/* Mobile acceptance reference: 390x844 + 412x915; desktop is intentionally non-gating. */
