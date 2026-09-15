@@ -44,7 +44,7 @@ jobs:
         with:
           gradle-version: '8.13'
 
-      - name: Prepare signing and Travel update version
+      - name: Prepare signing and repair Travel/Firebase assets
         working-directory: NexusNovaAndroid
         shell: bash
         run: |
@@ -56,21 +56,40 @@ jobs:
           import re
           p = Path('app/build.gradle.kts')
           s = p.read_text()
-          s = re.sub(r'versionCode\s*=\s*\d+', 'versionCode = 26091244', s, count=1)
-          s = re.sub(r'versionName\s*=\s*"[^"]+"', 'versionName = "1.0.44-travel-update"', s, count=1)
+          s = re.sub(r'versionCode\s*=\s*\d+', 'versionCode = 26091245', s, count=1)
+          s = re.sub(r'versionName\s*=\s*"[^"]+"', 'versionName = "1.0.45-master-repair"', s, count=1)
           signing = '''    signingConfigs {\n        create("release") {\n            storeFile = file("nexusnova-release.jks")\n            storePassword = System.getenv("KEYSTORE_PASSWORD")\n            keyAlias = System.getenv("KEY_ALIAS")\n            keyPassword = System.getenv("KEY_PASSWORD")\n        }\n    }\n\n'''
           if 'signingConfigs {' not in s:
               s = s.replace('    buildTypes {', signing + '    buildTypes {', 1)
           if 'signingConfig = signingConfigs.getByName("release")' not in s:
               s = s.replace('        release {\n', '        release {\n            signingConfig = signingConfigs.getByName("release")\n', 1)
           p.write_text(s)
+
+          web_root = Path('../fresh-rebuild')
+          firebase = web_root / 'src/core/firebase-backend.js'
+          if 'PUBLIC_BUILD_FIREBASE_DISABLED' in firebase.read_text():
+              raise SystemExit('Sanitized Firebase backend detected; expected live implementation to be committed before build')
+
+          travel_files = [
+              web_root / 'src/features/apps/travel-fare-lens.js',
+              web_root / 'src/features/apps/travel-master-enhancer.js',
+              web_root / 'src/features/apps/travel-flight-status-ui.js',
+          ]
+          for tp in travel_files:
+              t = tp.read_text()
+              t = re.sub(r"^const API_BASE=String\(globalThis\.NexusNovaTravelConfig\?\.apiBase\|\|'/api/travel'\)\.replace\(/\\\/$/,''\);", "const API_BASE='https://nexusnova-6ade2.web.app/api/travel';", t, count=1, flags=re.M)
+              t2 = re.sub(r'<style>.*?</style>', '<style></style>', t, count=1, flags=re.S) if tp.name == 'travel-fare-lens.js' else t
+              if tp.name == 'travel-fare-lens.js' and '#020611' in t2:
+                  raise SystemExit('Legacy dark Travel renderer still present after strip')
+              tp.write_text(t2)
+          print('APK preparation: live Firebase backend selected; Travel API base configured; legacy inline Travel CSS stripped.')
           PY
 
       - name: Build release
         working-directory: NexusNovaAndroid
         run: gradle --no-daemon clean assembleRelease
 
-      - name: Verify APK identity and signing
+      - name: Verify APK identity, signing and bundled runtime
         working-directory: NexusNovaAndroid
         shell: bash
         run: |
@@ -81,26 +100,35 @@ jobs:
           badging="$($ANDROID_HOME/build-tools/35.0.0/aapt dump badging "$apk" | head -n1)"
           echo "$badging"
           echo "$badging" | grep -q "name='com.nexusnova.app'"
-          echo "$badging" | grep -q "versionCode='26091244'"
-          echo "$badging" | grep -q "versionName='1.0.44-travel-update'"
+          echo "$badging" | grep -q "versionCode='26091245'"
+          echo "$badging" | grep -q "versionName='1.0.45-master-repair'"
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$apk" | tee cert.txt
           actual="$(sed -n 's/.*SHA-256 digest: //p' cert.txt | tr -d ':' | tr '[:upper:]' '[:lower:]' | head -n1)"
           expected='30052faf26f112d88d48061b88e6a698371ef0cdc4203122a9350529405a716c'
           test -n "$actual"
           test "$actual" = "$expected"
           echo "Signing certificate MATCH"
-          echo "Verified signed Travel APK: $apk"
+
+          tmp="$(mktemp -d)"
+          unzip -q "$apk" 'assets/www/*' -d "$tmp"
+          test -f "$tmp/assets/www/src/core/firebase-backend.js"
+          ! grep -q 'PUBLIC_BUILD_FIREBASE_DISABLED' "$tmp/assets/www/src/core/firebase-backend.js"
+          ! grep -q '#020611' "$tmp/assets/www/src/features/apps/travel-fare-lens.js"
+          ! grep -q '#07111f' "$tmp/assets/www/src/features/apps/travel-fare-lens.js"
+          grep -q 'https://nexusnova-6ade2.web.app/api/travel' "$tmp/assets/www/src/features/apps/travel-fare-lens.js"
+          grep -q '#087F5B' "$tmp/assets/www/assets/styles/fare-lens-flagship-v1.css"
+          echo "Bundled runtime verification PASSED"
 
       - name: Package artifact
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p signed-output
-          cp NexusNovaAndroid/app/build/outputs/apk/release/app-release.apk signed-output/NexusNova-v1.0.44-SIGNED-TRAVEL-UPDATE.apk
-          sha256sum signed-output/NexusNova-v1.0.44-SIGNED-TRAVEL-UPDATE.apk > signed-output/NexusNova-v1.0.44-SIGNED-TRAVEL-UPDATE.apk.sha256
+          cp NexusNovaAndroid/app/build/outputs/apk/release/app-release.apk signed-output/NexusNova-v1.0.45-MASTER-REPAIR.apk
+          sha256sum signed-output/NexusNova-v1.0.45-MASTER-REPAIR.apk > signed-output/NexusNova-v1.0.45-MASTER-REPAIR.apk.sha256
 
       - uses: actions/upload-artifact@v4
         with:
-          name: NexusNova-v1.0.44-SIGNED-TRAVEL-UPDATE
+          name: NexusNova-v1.0.45-MASTER-REPAIR
           path: signed-output/*
           retention-days: 14
