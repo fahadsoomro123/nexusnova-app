@@ -145,3 +145,5 @@ if(!priced.length)throw new Error('PRODUCTION_TRAVEL_NO_PRICED_RESULTS');
 if(!priced.some(r=>String(r.provider||'').toLowerCase()==='flightapi'))throw new Error('PRODUCTION_TRAVEL_NOT_FLIGHTAPI');
 console.log('LIVE_VERIFIED provider=FlightAPI normalized='+rows.length+' priced='+priced.length+' currency='+priced[0].currency+' firstProvider='+priced[0].provider+' firstPrice='+priced[0].price);
 NODE
+
+# Trigger authorized deployment after FIREBASE_SERVICE_ACCOUNT_NEXUSNOVA_6ADE2 was configured; no runtime/source behavior changed.
