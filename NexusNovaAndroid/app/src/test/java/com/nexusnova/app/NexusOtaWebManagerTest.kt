@@ -44,7 +44,7 @@ class NexusOtaWebManagerTest {
         assertTrue(rejected)
     }
 
-    @Test fun rollbackToBundled_doesNotLeaveBlockedOverlayState() {
+    @Test fun rollbackToBundled_clearsActiveOverlayAndBlockedState() {
         val rolledBack = State("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", setOf(TRAVEL_RENDERER)).rollback()
         assertEquals("", rolledBack.activeVersion)
         assertTrue(rolledBack.blocked.isEmpty())
@@ -55,7 +55,5 @@ class NexusOtaWebManagerTest {
         fun rollback(): State = State("", emptySet())
     }
 
-    private companion object {
-        const val TRAVEL_RENDERER = "fresh-rebuild/src/features/apps/travel-fare-lens.js"
-    }
+    private companion object { const val TRAVEL_RENDERER = "fresh-rebuild/src/features/apps/travel-fare-lens.js" }
 }
