@@ -16,9 +16,6 @@ internal object OtaPathPolicy {
         val p = path.lowercase()
         return p.startsWith("fresh-rebuild/src/features/apps/travel") ||
             p.startsWith("fresh-rebuild/src/features/travel") ||
-            p.contains("travel-fare-lens") ||
-            p.contains("fare-lens") ||
-            p.contains("smart-travel") ||
             p.startsWith("travel/") ||
             p.startsWith("assets/travel/") ||
             p.startsWith("js/travel/") ||
