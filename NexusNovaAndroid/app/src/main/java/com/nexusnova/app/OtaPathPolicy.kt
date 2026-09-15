@@ -14,11 +14,10 @@ internal object OtaPathPolicy {
 
     fun isTravelSpecific(path: String): Boolean {
         val p = path.lowercase()
-        return p.startsWith("fresh-rebuild/src/features/apps/travel") ||
-            p.startsWith("fresh-rebuild/src/features/travel") ||
-            p.contains("travel-fare-lens") ||
-            p.contains("fare-lens") ||
-            p.contains("smart-travel") ||
+        return p.startsWith("fresh-rebuild/src/features/apps/travel-") ||
+            p.startsWith("fresh-rebuild/src/features/apps/travel/") ||
+            p.startsWith("fresh-rebuild/src/features/travel/") ||
+            p == "fresh-rebuild/src/features/apps/smart-travel.js" ||
             p.startsWith("travel/") ||
             p.startsWith("assets/travel/") ||
             p.startsWith("js/travel/") ||
