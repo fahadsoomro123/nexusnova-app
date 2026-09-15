@@ -26,34 +26,49 @@ jobs:
           grep -Fq 'provider data only' fresh-rebuild/src/features/apps/travel-fare-lens.js
           ! grep -REiq '(AIza[0-9A-Za-z_-]{20,}|-----BEGIN (RSA|EC|OPENSSH|PRIVATE) KEY-----)' fresh-rebuild/src functions docs
           ! grep -REq '\b(eval|Function)\s*\(' fresh-rebuild/src functions
-      - name: Real Chromium mobile 390x844 412x915
+      - name: Real Chromium mobile 390x844 and 412x915
         shell: bash
         run: |
           set -euo pipefail
           sudo apt-get update -qq && sudo apt-get install -y -qq chromium
           python3 -m pip install --user --break-system-packages websocket-client
-          cat > fresh-rebuild/.ci-final-gate.html <<'EOF'
-          <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;padding:0;width:100%;min-height:100%;}</style><link rel="stylesheet" href="./assets/styles/phone-visible-fixes.css"><link rel="stylesheet" href="./assets/styles/fare-lens-flagship-v1.css"><link rel="stylesheet" href="./assets/styles/fare-lens-flagship-layout-v1.css"></head><body><script type="module">import {renderTravel} from './src/features/apps/travel-fare-lens.js';document.body.append(renderTravel());</script></body></html>
+          cat > fresh-rebuild/.ci-fare-lens-mobile.html <<'EOF'
+          <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>html,body{margin:0;padding:0;width:100%;min-height:100%;}</style><link rel="stylesheet" href="./assets/styles/phone-visible-fixes.css"><link rel="stylesheet" href="./assets/styles/fare-lens-flagship-v1.css"><link rel="stylesheet" href="./assets/styles/fare-lens-flagship-layout-v1.css"></head><body><script type="module">import {renderTravel} from './src/features/apps/travel-fare-lens.js';document.body.append(renderTravel());</script></body></html>
           EOF
           python3 -m http.server 8765 --directory fresh-rebuild >/tmp/nx-http.log 2>&1 & HP=$!
           chromium --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --user-data-dir="$RUNNER_TEMP/nx-chrome" --remote-debugging-port=9222 --remote-allow-origins=* about:blank >/tmp/nx-chrome.log 2>&1 & CP=$!
           trap 'kill "$HP" "$CP" >/dev/null 2>&1 || true' EXIT
-          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8765/.ci-final-gate.html >/dev/null 2>&1 && curl -fsS http://127.0.0.1:9222/json/version >/dev/null 2>&1 && break; sleep 1; done
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8765/.ci-fare-lens-mobile.html >/dev/null 2>&1 && curl -fsS http://127.0.0.1:9222/json/version >/dev/null 2>&1 && break; sleep 1; done
           python3 - <<'PY'
           import json,time,urllib.request,websocket
-          pages=json.load(urllib.request.urlopen('http://127.0.0.1:9222/json/list')); p=next(x for x in pages if x.get('type')=='page'); ws=websocket.create_connection(p['webSocketDebuggerUrl'],timeout=30); n=0
+          pages=json.load(urllib.request.urlopen('http://127.0.0.1:9222/json/list')); page=next(p for p in pages if p.get('type')=='page'); ws=websocket.create_connection(page['webSocketDebuggerUrl'],timeout=30); seq=0
           def call(method,params=None):
-            global n;n+=1;ws.send(json.dumps({'id':n,'method':method,'params':params or {}}))
-            while 1:
+            global seq; seq+=1; ws.send(json.dumps({'id':seq,'method':method,'params':params or {}}))
+            while True:
               m=json.loads(ws.recv())
-              if m.get('id')==n:return m.get('result',{})
+              if m.get('id')==seq:
+                if 'error' in m: raise RuntimeError(m['error'])
+                return m.get('result',{})
           call('Page.enable');call('Runtime.enable')
-          for w,h in ((390,844),(412,915)):
-            call('Emulation.setDeviceMetricsOverride',{'width':w,'height':h,'deviceScaleFactor':1,'mobile':True,'screenWidth':w,'screenHeight':h})
-            call('Page.navigate',{'url':'http://127.0.0.1:8765/.ci-final-gate.html'});time.sleep(1.5)
-            expr="""(()=>{const t=document.querySelector('.nxf-travel'),d=document.documentElement,text=document.body.innerText,keys=[...document.querySelectorAll('.nxf-tabs button,[data-pick],[data-search],[data-calendar],[data-rescue]')],inside=keys.every(e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return s.display!=='none'&&s.visibility!=='hidden'&&r.width>=44&&r.height>=40&&r.left>=0&&r.top>=0&&r.right<=innerWidth+.5&&r.bottom<=innerHeight+.5});window.scrollTo(0,100);const sy=scrollY,sx=scrollX;window.scrollTo(0,0);const cs=[getComputedStyle(t),getComputedStyle(t?.querySelector('.nxf-panel')),getComputedStyle(t?.querySelector('.nxf-primary'))].map(x=>[x.backgroundColor,x.color,x.borderTopColor]).flat();const rgb=cs.map(x=>x.match(/(\\d+)[^\\d]+(\\d+)[^\\d]+(\\d+)/)).filter(Boolean).map(m=>m.slice(1).map(Number));return{h:innerHeight,w:innerWidth,dh:d.scrollHeight,dw:d.scrollWidth,sy,sx,inside,textOK:['Compare before you book.','Fare Calendar','Disruption Rescue','Flight status','SEARCH FLIGHTS'].every(x=>text.includes(x)),dark:rgb.some(([r,g,bb])=>Math.max(r,g,bb)<80),blue:rgb.some(([r,g,bb])=>bb>r*1.12&&bb>g*1.08),emerald:cs.join('|').includes('rgb(8, 127, 91)')}})()"""
-            r=call('Runtime.evaluate',{'expression':expr,'returnByValue':True})['result']['value']
-            page_ok=r['dh']==h and r['dw']==w and r['sy']==0 and r['sx']==0 and r['inside'] and r['textOK'] and not r['dark'] and not r['blue'] and r['emerald']
-            print(f"BROWSER {w}x{h}: {'PASS' if page_ok else 'FAIL'}",json.dumps(r,sort_keys=True))
-            if not page_ok: raise SystemExit(1)
+          for width,height in ((390,844),(412,915)):
+            call('Emulation.setDeviceMetricsOverride',{'width':width,'height':height,'deviceScaleFactor':1,'mobile':True,'screenWidth':width,'screenHeight':height})
+            call('Page.navigate',{'url':'http://127.0.0.1:8765/.ci-fare-lens-mobile.html'});time.sleep(2)
+            expr="""(()=>{try{const d=document.documentElement,b=document.body,t=document.querySelector('.nxf-travel'),panel=t&&t.querySelector('.nxf-panel'),primary=t&&t.querySelector('.nxf-primary');if(!t)return{error:'TRAVEL_NOT_RENDERED'};const text=b.innerText;const pick=s=>{const e=document.querySelector(s);if(!e)return{s,ok:false,missing:true};const r=e.getBoundingClientRect();return{s,ok:r.width>0&&r.height>0&&r.left>=0&&r.right<=innerWidth+.5&&r.top>=0&&r.bottom<=innerHeight+.5,width:r.width,height:r.height}};const geom=[pick('.nxf-tabs button'),pick('.nxf-route [data-pick="origin"]'),pick('.nxf-route [data-pick="destination"]'),pick('[data-search]')];const bg=[getComputedStyle(t).backgroundColor,getComputedStyle(panel).backgroundColor,getComputedStyle(primary).backgroundColor];const rgb=c=>{const m=String(c).match(/(\\d+)[^\\d]+(\\d+)[^\\d]+(\\d+)/);return m?[+m[1],+m[2],+m[3]]:null};const vals=bg.map(rgb).filter(Boolean);const dark=vals.some(([r,g,b])=>Math.max(r,g,b)<80);const blue=vals.some(([r,g,b])=>b>r*1.12&&b>g*1.08);const emerald=bg.includes('rgb(8, 127, 91)')||bg.includes('rgb(5, 103, 71)');return{width:innerWidth,height:innerHeight,docW:d.scrollWidth,bodyW:b.scrollWidth,docH:d.scrollHeight,labels:['Compare before you book.','Fare Calendar','Disruption Rescue','Flight status','SEARCH FLIGHTS'].every(x=>text.includes(x)),geom,dark,blue,emerald}}catch(e){return{error:String(e&&e.stack||e)}}})()"""
+            out=call('Runtime.evaluate',{'expression':expr,'returnByValue':True}); r=out.get('result',{}).get('value')
+            if not r: raise RuntimeError('BROWSER_EVALUATION_RETURNED_NO_VALUE '+json.dumps(out))
+            ok=r.get('width')==width and r.get('height')==height and r['docW']<=width and r['bodyW']<=width and r['labels'] and all(x['ok'] for x in r['geom']) and r['geom'][1]['height']>=34 and r['geom'][2]['height']>=34 and r['geom'][3]['height']>=40 and not r['dark'] and not r['blue'] and r['emerald']
+            print(f'BROWSER {width}x{height}: {"PASS" if ok else "FAIL"}',json.dumps(r,sort_keys=True))
+            if not ok: raise SystemExit(1)
           PY
+      - name: Real FlightAPI KHI to ISB — single live request
+        env:
+          FLIGHTAPI_API_KEY: ${{ secrets.FLIGHTAPI_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${FLIGHTAPI_API_KEY:-}" || { echo 'LIVE_VERIFICATION_BLOCKED missing FLIGHTAPI_API_KEY'; exit 1; }
+          departure="$(date -u -d '+30 days' +%F)"
+          curl -sS --fail --get "https://api.flightapi.io/onewaytrip/${FLIGHTAPI_API_KEY}/KHI/ISB/${departure}/1/0/0/Economy/USD" --data-urlencode 'region=PK' -o /tmp/flightapi.json
+          node - <<'NODE'
+          const fs=require('fs'); const {normalizeItineraryRows}=require('./functions/flightapi-provider'); const input=JSON.parse(fs.readFileSync('/tmp/flightapi.json','utf8')); const raw=input.itineraries||input.data?.itineraries||[]; const normalized=normalizeItineraryRows(input,'USD'); const priced=normalized.filter(r=>r.price!=null&&r.currency); if(!raw.length||!normalized.length||!priced.length) process.exit(1); console.log('REAL_FLIGHTAPI_OK provider=FlightAPI raw_itineraries='+raw.length+' normalized='+normalized.length+' priced='+priced.length+' currency='+priced[0].currency+' firstPrice='+priced[0].price);
+          NODE
