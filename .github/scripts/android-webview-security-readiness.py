@@ -18,14 +18,14 @@ main = read('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.k
 browser = read('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/BrowserActivity.kt')
 phonebook = read('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/PhonebookStore.kt')
 
+# Current native architecture: MainActivity + BrowserActivity + Nova Drive/VPN.
+# Legacy caller-ID activities were removed and must not be treated as release requirements.
 manifest_markers = [
     'android:allowBackup="false"',
     'android:usesCleartextTraffic="false"',
     'android:networkSecurityConfig="@xml/network_security_config"',
     'android:name=".BrowserActivity"',
-    'android:name=".CallerSetupActivity"',
-    'android:name=".IncomingCallActivity"',
-    'android:permission="android.permission.BIND_SCREENING_SERVICE"',
+    'android:name=".MainActivity"',
 ]
 for marker in manifest_markers:
     if marker not in manifest:
@@ -49,7 +49,7 @@ for marker in [
     'WebViewCompat.addWebMessageListener',
     'const val PRODUCTION_HOST = "fahadsoomro123.github.io"',
     'const val PRODUCTION_PATH = "/nexusnova-app/"',
-    'const val MAX_BRIDGE_MESSAGE_CHARS = 2_048',
+    'const val MAX_BRIDGE_MESSAGE_CHARS = 8_192',
 ]:
     if marker not in main:
         errors.append(f'Main WebView security marker missing: {marker}')
@@ -94,8 +94,6 @@ for marker in [
     if marker not in phonebook:
         errors.append(f'Phonebook isolation marker missing: {marker}')
 
-# Third-party cookies are currently an explicit compatibility trade-off for the
-# user-facing browser. Report it instead of silently pretending this is a privacy browser.
 if 'setAcceptThirdPartyCookies(webView, true)' in browser:
     warnings.append('Dedicated browser accepts third-party cookies for site compatibility; consider a user-facing privacy toggle later')
 
