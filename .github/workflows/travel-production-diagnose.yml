@@ -13,9 +13,9 @@ on:
 permissions:
   contents: read
 jobs:
-  diagnose:
+  diagnose-and-deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     env:
       FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
       FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
@@ -36,48 +36,112 @@ jobs:
           echo "DEPLOYMENT_COMMIT=$(git rev-parse HEAD)"
           echo "WORKFLOW_EVENT=${GITHUB_EVENT_NAME}"
           echo "WORKFLOW_RUN=${GITHUB_RUN_ID}"
-      - name: Check deploy credential presence without exposing values
+      - name: Detect legitimate Firebase deployment credential
         shell: bash
         run: |
-          set -u
-          found=0
-          for name in FIREBASE_TOKEN FIREBASE_SERVICE_ACCOUNT FIREBASE_SERVICE_ACCOUNT_NEXUSNOVA_6ADE2 GOOGLE_APPLICATION_CREDENTIALS_JSON FIREBASE_SERVICE_ACCOUNT_JSON FIREBASE_SA_JSON GCP_SA_KEY GOOGLE_CREDENTIALS GCLOUD_SERVICE_KEY; do
-            value="${!name:-}"
-            if [ -n "$value" ]; then echo "SECRET_PRESENT=$name"; found=1; else echo "SECRET_ABSENT=$name"; fi
-          done
-          echo "FIREBASE_DEPLOY_CREDENTIAL_FOUND=$found"
-      - name: Test production Hosting and direct Cloud Function endpoints
+          set -euo pipefail
+          if [ -n "${FIREBASE_SERVICE_ACCOUNT_NEXUSNOVA_6ADE2:-}" ]; then
+            printf '%s' "$FIREBASE_SERVICE_ACCOUNT_NEXUSNOVA_6ADE2" > "$RUNNER_TEMP/firebase-service-account.json"
+            echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-service-account.json" >> "$GITHUB_ENV"
+            echo 'FIREBASE_AUTH_MODE=service_account_nexusnova_6ade2' >> "$GITHUB_ENV"
+          elif [ -n "${FIREBASE_SERVICE_ACCOUNT:-}" ]; then
+            printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-service-account.json"
+            echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-service-account.json" >> "$GITHUB_ENV"
+            echo 'FIREBASE_AUTH_MODE=service_account' >> "$GITHUB_ENV"
+          elif [ -n "${GOOGLE_APPLICATION_CREDENTIALS_JSON:-}" ]; then
+            printf '%s' "$GOOGLE_APPLICATION_CREDENTIALS_JSON" > "$RUNNER_TEMP/firebase-service-account.json"
+            echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-service-account.json" >> "$GITHUB_ENV"
+            echo 'FIREBASE_AUTH_MODE=google_application_credentials_json' >> "$GITHUB_ENV"
+          elif [ -n "${FIREBASE_SERVICE_ACCOUNT_JSON:-}" ]; then
+            printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/firebase-service-account.json"
+            echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-service-account.json" >> "$GITHUB_ENV"
+            echo 'FIREBASE_AUTH_MODE=firebase_service_account_json' >> "$GITHUB_ENV"
+          elif [ -n "${FIREBASE_SA_JSON:-}" ]; then
+            printf '%s' "$FIREBASE_SA_JSON" > "$RUNNER_TEMP/firebase-service-account.json"
+            echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-service-account.json" >> "$GITHUB_ENV"
+            echo 'FIREBASE_AUTH_MODE=firebase_sa_json' >> "$GITHUB_ENV"
+          elif [ -n "${GCP_SA_KEY:-}" ]; then
+            printf '%s' "$GCP_SA_KEY" > "$RUNNER_TEMP/firebase-service-account.json"
+            echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-service-account.json" >> "$GITHUB_ENV"
+            echo 'FIREBASE_AUTH_MODE=gcp_sa_key' >> "$GITHUB_ENV"
+          elif [ -n "${GOOGLE_CREDENTIALS:-}" ]; then
+            printf '%s' "$GOOGLE_CREDENTIALS" > "$RUNNER_TEMP/firebase-service-account.json"
+            echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-service-account.json" >> "$GITHUB_ENV"
+            echo 'FIREBASE_AUTH_MODE=google_credentials' >> "$GITHUB_ENV"
+          elif [ -n "${GCLOUD_SERVICE_KEY:-}" ]; then
+            printf '%s' "$GCLOUD_SERVICE_KEY" > "$RUNNER_TEMP/firebase-service-account.json"
+            echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-service-account.json" >> "$GITHUB_ENV"
+            echo 'FIREBASE_AUTH_MODE=gcloud_service_key' >> "$GITHUB_ENV"
+          elif [ -n "${FIREBASE_TOKEN:-}" ]; then
+            echo 'FIREBASE_AUTH_MODE=token' >> "$GITHUB_ENV"
+          else
+            echo 'FIREBASE_DEPLOYMENT_CREDENTIAL=ABSENT' >> "$GITHUB_STEP_SUMMARY"
+            echo 'No usable Firebase deployment credential is available to this GitHub Actions job.'
+            exit 2
+          fi
+          echo "FIREBASE_DEPLOYMENT_CREDENTIAL=AVAILABLE mode=$FIREBASE_AUTH_MODE"
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools@latest
+      - name: Deploy travelApi to the configured Firebase project
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${FIREBASE_AUTH_MODE:-}" = 'token' ]; then
+            firebase deploy --only functions:travelApi --project nexusnova-6ade2 --token "$FIREBASE_TOKEN" --non-interactive | tee /tmp/firebase-deploy.log
+          else
+            firebase deploy --only functions:travelApi --project nexusnova-6ade2 --non-interactive | tee /tmp/firebase-deploy.log
+          fi
+          echo 'TRAVELAPI_DEPLOYMENT=SUCCESS' >> "$GITHUB_STEP_SUMMARY"
+      - name: Verify direct and Hosting production routes
         shell: bash
         run: |
           set -u
           departure="$(date -u -d '+30 days' +%F)"
           payload="{\"origin\":\"KHI\",\"destination\":\"ISB\",\"departure\":\"${departure}\",\"tripType\":\"oneway\",\"adults\":1,\"children\":0,\"childrenAges\":[],\"cabin\":\"Economy\",\"currency\":\"USD\",\"region\":\"PK\"}"
-          for url in \
-            'https://nexusnova-6ade2.web.app/api/travel/capabilities' \
-            'https://us-central1-nexusnova-6ade2.cloudfunctions.net/travelApi/capabilities'
-          do
-            echo "=== $url ==="
-            code="$(curl -sS -o /tmp/diag.json -w '%{http_code}' "$url" || true)"
-            echo "HTTP=$code"
-            head -c 1600 /tmp/diag.json || true
-            echo
-          done
-          for url in \
-            'https://nexusnova-6ade2.web.app/api/travel/flights/search' \
-            'https://us-central1-nexusnova-6ade2.cloudfunctions.net/travelApi/flights/search'
-          do
-            echo "=== POST $url ==="
-            code="$(curl -sS -o /tmp/diag.json -w '%{http_code}' -X POST "$url" -H 'Content-Type: application/json' --data "$payload" || true)"
-            echo "HTTP=$code"
-            head -c 2000 /tmp/diag.json || true
-            echo
-            if [ "$code" = 200 ]; then
-              node - <<'NODE'
+          echo '=== DIRECT us-central1 travelApi ==='
+          dcap="$(curl -sS -o /tmp/dcap.json -w '%{http_code}' 'https://us-central1-nexusnova-6ade2.cloudfunctions.net/travelApi/capabilities' || true)"
+          echo "DIRECT_CAPABILITIES_HTTP=$dcap"
+          head -c 1200 /tmp/dcap.json || true; echo
+          df="$(curl -sS -o /tmp/df.json -w '%{http_code}' -X POST 'https://us-central1-nexusnova-6ade2.cloudfunctions.net/travelApi/flights/search' -H 'Content-Type: application/json' --data "$payload" || true)"
+          echo "DIRECT_FLIGHT_SEARCH_HTTP=$df"
+          head -c 2200 /tmp/df.json || true; echo
+          echo '=== HOSTING /api/travel ==='
+          hcap="$(curl -sS -o /tmp/hcap.json -w '%{http_code}' 'https://nexusnova-6ade2.web.app/api/travel/capabilities' || true)"
+          echo "HOSTING_CAPABILITIES_HTTP=$hcap"
+          head -c 1200 /tmp/hcap.json || true; echo
+          hf="$(curl -sS -o /tmp/hf.json -w '%{http_code}' -X POST 'https://nexusnova-6ade2.web.app/api/travel/flights/search' -H 'Content-Type: application/json' --data "$payload" || true)"
+          echo "HOSTING_FLIGHT_SEARCH_HTTP=$hf"
+          head -c 2200 /tmp/hf.json || true; echo
+          node - <<'NODE'
 const fs=require('fs');
-const x=JSON.parse(fs.readFileSync('/tmp/diag.json','utf8'));
-const rows=Array.isArray(x.results)?x.results:[];
-const priced=rows.filter(r=>r&&r.price!=null);
-console.log(JSON.stringify({results:rows.length,priced:priced.length,first:priced[0]||null},null,2));
+for(const [name,path] of [['direct','/tmp/df.json'],['hosting','/tmp/hf.json']]){
+  try{
+    const x=JSON.parse(fs.readFileSync(path,'utf8'));
+    const rows=Array.isArray(x.results)?x.results:[];
+    const priced=rows.filter(r=>r&&r.price!=null);
+    console.log(name+'_RESULTS='+rows.length+' priced='+priced.length+' firstProvider='+(priced[0]?.provider||'')+' firstCurrency='+(priced[0]?.currency||'')+' firstPrice='+(priced[0]?.price??''));
+  }catch(e){console.log(name+'_JSON_PARSE=NO')}
+}
 NODE
-            fi
-          done
+      - name: Real FlightAPI-through-production verification
+        env:
+          FLIGHTAPI_API_KEY: ${{ secrets.FLIGHTAPI_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${FLIGHTAPI_API_KEY:-}" || { echo 'FLIGHTAPI_DEPLOYED_APP_GATE=BLOCKED missing FLIGHTAPI_API_KEY'; exit 2; }
+          departure="$(date -u -d '+30 days' +%F)"
+          payload="{\"origin\":\"KHI\",\"destination\":\"ISB\",\"departure\":\"${departure}\",\"tripType\":\"oneway\",\"adults\":1,\"children\":0,\"childrenAges\":[],\"cabin\":\"Economy\",\"currency\":\"USD\",\"region\":\"PK\"}"
+          code="$(curl -sS -o /tmp/production-flightapi.json -w '%{http_code}' -X POST 'https://nexusnova-6ade2.web.app/api/travel/flights/search' -H 'Content-Type: application/json' --data "$payload")"
+          echo "DEPLOYED_NEXUSNOVA_TRAVEL_HTTP=$code"
+          test "$code" = 200
+          node - <<'NODE'
+const fs=require('fs');
+const x=JSON.parse(fs.readFileSync('/tmp/production-flightapi.json','utf8'));
+const rows=Array.isArray(x.results)?x.results:[];
+const priced=rows.filter(r=>r&&r.price!=null&&r.currency);
+if(!rows.length)throw new Error('PRODUCTION_TRAVEL_EMPTY');
+if(!priced.length)throw new Error('PRODUCTION_TRAVEL_NO_PRICED_RESULTS');
+if(!priced.some(r=>String(r.provider||'').toLowerCase()==='flightapi'))throw new Error('PRODUCTION_TRAVEL_NOT_FLIGHTAPI');
+console.log('LIVE_VERIFIED provider=FlightAPI normalized='+rows.length+' priced='+priced.length+' currency='+priced[0].currency+' firstProvider='+priced[0].provider+' firstPrice='+priced[0].price);
+NODE
