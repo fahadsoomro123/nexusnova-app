@@ -7,6 +7,13 @@ on:
       - 'fresh-rebuild/**'
       - 'NexusNovaAndroid/**'
       - '.github/workflows/build-final-repair-apk.yml'
+  pull_request:
+    branches: [main]
+    types: [synchronize]
+    paths:
+      - 'fresh-rebuild/**'
+      - 'NexusNovaAndroid/**'
+      - '.github/workflows/build-final-repair-apk.yml'
   workflow_dispatch:
 
 permissions:
