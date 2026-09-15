@@ -29,8 +29,6 @@
   <link rel="stylesheet" href="./assets/styles/premium-family.css">
   <link rel="stylesheet" href="./assets/styles/premium-splash.css">
   <link rel="stylesheet" href="./assets/styles/phone-visible-fixes.css">
-  <link rel="stylesheet" href="./assets/styles/fare-lens-flagship-v1.css">
-  <link rel="stylesheet" href="./assets/styles/fare-lens-flagship-layout-v1.css">
   <link rel="stylesheet" href="./assets/styles/nova-hub-compact-icons-v2.css">
   <link rel="stylesheet" href="./assets/styles/nova-drive-v3-shell.css">
   <link rel="stylesheet" href="./assets/styles/nova-drive-approved-viewport-v4.css?ota=drive-safe-edges-v3">
@@ -54,21 +52,66 @@
   <link rel="stylesheet" href="./assets/styles/batch3-tools-13-16-fullscreen.css?ota=batch3-13-16-v1">
   <link rel="stylesheet" href="./assets/styles/batch4-tools-17-20-fullscreen.css?review=batch4-17-20-v1">
   <link rel="stylesheet" href="./assets/styles/ai-photo-route-fullscreen.css?ota=ai-photo-structural-v1">
-  <link rel="stylesheet" href="./assets/styles/fare-lens-runtime-repair-v2.css">
   <style id="nx-vault-v14-shell-fix">
-    html.nx-vault-premium-active body,html.nx-vault-premium-active body .nx-app,html.nx-vault-premium-active body .nx-app .nx-stage,html.nx-vault-simple-active body,html.nx-vault-simple-active body .nx-app,html.nx-vault-simple-active body .nx-app .nx-stage,html.nx-vault-living-active body,html.nx-vault-living-active body .nx-app,html.nx-vault-living-active body .nx-app .nx-stage{background:#04111c!important}
-    html.nx-vault-premium-active body .nx-app .nx-stage,html.nx-vault-simple-active body .nx-app .nx-stage,html.nx-vault-living-active body .nx-app .nx-stage{min-height:100dvh!important;height:100dvh!important;padding:0!important;overflow:hidden!important}
-    html.nx-vault-premium-active body .nx-app .nx-stage .nx-screen.nx-vault-premium-screen,html.nx-vault-simple-active body .nx-app .nx-stage .nx-screen.nx-vault-simple-screen,html.nx-vault-living-active body .nx-app .nx-stage .nx-screen.nx-vault-living-screen{height:calc(100dvh - 82px)!important;min-height:calc(100dvh - 82px)!important;max-height:calc(100dvh - 82px)!important;margin:0!important;overflow:hidden!important;background:#04111c!important}
-    html.nx-vault-premium-active #nxEmergencySosButton,html.nx-vault-premium-active #nxEmergencySosEdit,html.nx-vault-simple-active #nxEmergencySosButton,html.nx-vault-simple-active #nxEmergencySosEdit,html.nx-vault-living-active #nxEmergencySosButton,html.nx-vault-living-active #nxEmergencySosEdit{display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important}
+    html.nx-vault-premium-active body,
+    html.nx-vault-premium-active body .nx-app,
+    html.nx-vault-premium-active body .nx-app .nx-stage,
+    html.nx-vault-simple-active body,
+    html.nx-vault-simple-active body .nx-app,
+    html.nx-vault-simple-active body .nx-app .nx-stage,
+    html.nx-vault-living-active body,
+    html.nx-vault-living-active body .nx-app,
+    html.nx-vault-living-active body .nx-app .nx-stage {
+      background:#04111c!important;
+    }
+    html.nx-vault-premium-active body .nx-app .nx-stage,
+    html.nx-vault-simple-active body .nx-app .nx-stage,
+    html.nx-vault-living-active body .nx-app .nx-stage {
+      min-height:100dvh!important;
+      height:100dvh!important;
+      padding:0!important;
+      overflow:hidden!important;
+    }
+    html.nx-vault-premium-active body .nx-app .nx-stage .nx-screen.nx-vault-premium-screen,
+    html.nx-vault-simple-active body .nx-app .nx-stage .nx-screen.nx-vault-simple-screen,
+    html.nx-vault-living-active body .nx-app .nx-stage .nx-screen.nx-vault-living-screen {
+      height:calc(100dvh - 82px)!important;
+      min-height:calc(100dvh - 82px)!important;
+      max-height:calc(100dvh - 82px)!important;
+      margin:0!important;
+      overflow:hidden!important;
+      background:#04111c!important;
+    }
+    html.nx-vault-premium-active #nxEmergencySosButton,
+    html.nx-vault-premium-active #nxEmergencySosEdit,
+    html.nx-vault-simple-active #nxEmergencySosButton,
+    html.nx-vault-simple-active #nxEmergencySosEdit,
+    html.nx-vault-living-active #nxEmergencySosButton,
+    html.nx-vault-living-active #nxEmergencySosEdit {
+      display:none!important;
+      visibility:hidden!important;
+      opacity:0!important;
+      pointer-events:none!important;
+    }
   </style>
 </head>
 <body>
   <div id="nx-app" class="nx-app" aria-live="polite">
     <main id="nx-stage" class="nx-stage" tabindex="-1"></main>
     <button id="nx-mine-brand-portal" type="button" aria-label="Open nexusnovatools.com in Nova Browser">
-      <span class="nx-mine-brand__lamp" aria-hidden="true"></span><span class="nx-mine-brand__mark" aria-hidden="true">N</span><span class="nx-mine-brand__copy"><small>NEXUSNOVA NETWORK / WEB PORTAL</small><strong>NEXUSNOVA <em>TOOLS</em></strong><span>nexusnovatools.com</span></span><span class="nx-mine-brand__cta">OPEN <b aria-hidden="true">›</b></span>
+      <span class="nx-mine-brand__lamp" aria-hidden="true"></span>
+      <span class="nx-mine-brand__mark" aria-hidden="true">N</span>
+      <span class="nx-mine-brand__copy">
+        <small>NEXUSNOVA NETWORK / WEB PORTAL</small>
+        <strong>NEXUSNOVA <em>TOOLS</em></strong>
+        <span>nexusnovatools.com</span>
+      </span>
+      <span class="nx-mine-brand__cta">OPEN <b aria-hidden="true">›</b></span>
     </button>
-    <nav class="nx-dock" aria-label="Primary navigation" hidden><button class="nx-dock__item" type="button" data-route="mine" aria-label="Open Mine"></button><button class="nx-dock__item" type="button" data-route="hub" aria-label="Open Nova Hub"></button></nav>
+    <nav class="nx-dock" aria-label="Primary navigation" hidden>
+      <button class="nx-dock__item" type="button" data-route="mine" aria-label="Open Mine"></button>
+      <button class="nx-dock__item" type="button" data-route="hub" aria-label="Open Nova Hub"></button>
+    </nav>
   </div>
   <noscript>NexusNova requires JavaScript.</noscript>
   <script type="module" src="./src/features/apps/security-lock-suite.js"></script>
@@ -76,8 +119,6 @@
   <script type="module" src="./src/nova57-stage-compat.js"></script>
   <script type="module" src="./src/nova57-human-response.js"></script>
   <script type="module" src="./src/mine-raster-skin-loader.js"></script>
-  <!-- Travel/Fare Lens shell repair MUST load before the application bootstrap. -->
-  <script type="module" src="./src/travel-runtime-shell-bridge.js"></script>
   <script type="module" src="./src/main.js?ota=nv16"></script>
   <script type="module" src="./src/features/apps/profile-fullscreen-v1.js?ota=profile-v1"></script>
   <script type="module" src="./src/features/apps/notes-fullscreen-v1.js?ota=notes-v1"></script>

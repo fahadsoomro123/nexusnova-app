@@ -1,3 +1,0 @@
-NexusNOVA final mobile APK gate trigger 2026-09-15
-Reference UI: 412x915 mobile Fare Lens flagship.
-Acceptance: 390x844, 412x915, physical Android runtime, Firebase Auth/Mining, real FlightAPI.
