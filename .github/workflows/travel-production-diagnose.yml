@@ -13,97 +13,24 @@ on:
 permissions:
   contents: read
 jobs:
-  diagnose-and-deploy:
+  diagnose-secret:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 10
     env:
       FIREBASE_SERVICE_ACCOUNT_NEXUSNOVA_6ADE2: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_NEXUSNOVA_6ADE2 }}
-      FLIGHTAPI_API_KEY: ${{ secrets.FLIGHTAPI_API_KEY }}
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.sha }}
-          fetch-depth: 1
-      - name: Identify exact source
-        run: |
-          set -euo pipefail
-          echo "DEPLOYMENT_COMMIT=$(git rev-parse HEAD)"
-          echo "WORKFLOW_RUN=${GITHUB_RUN_ID}"
-          echo "DIAGNOSE_REVISION=deploy-only-v4"
-      - name: Configure Firebase ADC
+      - name: Safely identify Firebase service account
         shell: bash
         run: |
           set -euo pipefail
           test -n "${FIREBASE_SERVICE_ACCOUNT_NEXUSNOVA_6ADE2:-}"
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT_NEXUSNOVA_6ADE2" > "$RUNNER_TEMP/firebase-service-account.json"
           chmod 600 "$RUNNER_TEMP/firebase-service-account.json"
-          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-service-account.json" >> "$GITHUB_ENV"
-          node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+'/firebase-service-account.json','utf8')); if(!x.client_email||!x.project_id)process.exit(2); if(x.project_id!=='nexusnova-6ade2')process.exit(3); console.log('FIREBASE_SERVICE_ACCOUNT_VALID=YES project='+x.project_id)"
-      - name: Install Firebase CLI
-        run: npm install --global firebase-tools@latest
-      - name: Deploy travelApi
-        shell: bash
-        run: |
-          set -euo pipefail
-          firebase deploy --only functions:travelApi --project nexusnova-6ade2 --non-interactive | tee /tmp/firebase-deploy.log
-          echo 'FIREBASE_DEPLOYMENT=SUCCESS'
-      - name: Verify deployed function metadata
-        shell: bash
-        run: |
-          set -euo pipefail
-          firebase functions:list --project nexusnova-6ade2 --json > /tmp/functions.json
           node - <<'NODE'
             const fs=require('fs');
-            const x=JSON.parse(fs.readFileSync('/tmp/functions.json','utf8'));
-            const rows=Array.isArray(x)?x:(x.result||x.functions||[]);
-            const matches=rows.filter(f=>f&&((f.id||f.name||f.displayName)==='travelApi'||String(f.name||'').endsWith('/travelApi')));
-            if(!matches.length) throw new Error('TRAVELAPI_NOT_LISTED');
-            for(const f of matches){
-              console.log('TRAVELAPI_FUNCTION_NAME='+(f.name||f.id||''));
-              console.log('TRAVELAPI_REGION='+(f.region||f.location||f.labels?.location||''));
-              console.log('TRAVELAPI_STATE='+(f.state||f.status||''));
-            }
+            const x=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+'/firebase-service-account.json','utf8'));
+            if(!x.client_email || !x.project_id) throw new Error('Missing client_email or project_id');
+            console.log('FIREBASE_SECRET_CLIENT_EMAIL='+x.client_email);
+            console.log('FIREBASE_SECRET_PROJECT_ID='+x.project_id);
           NODE
-      - name: Verify direct Cloud Function capabilities
-        shell: bash
-        run: |
-          set -euo pipefail
-          code="$(curl -sS -o /tmp/direct-cap.json -w '%{http_code}' 'https://us-central1-nexusnova-6ade2.cloudfunctions.net/travelApi/capabilities')"
-          echo "DIRECT_CAPABILITIES_HTTP=$code"
-          cat /tmp/direct-cap.json
-          test "$code" = 200
-      - name: Verify Hosting capabilities rewrite
-        shell: bash
-        run: |
-          set -euo pipefail
-          code="$(curl -sS -o /tmp/hosting-cap.json -w '%{http_code}' 'https://nexusnova-6ade2.web.app/api/travel/capabilities')"
-          echo "HOSTING_CAPABILITIES_HTTP=$code"
-          cat /tmp/hosting-cap.json
-          test "$code" = 200
-      - name: Real KHI to ISB through NexusNova Hosting
-        shell: bash
-        run: |
-          set -euo pipefail
-          departure="$(date -u -d '+30 days' +%F)"
-          payload="{\"origin\":\"KHI\",\"destination\":\"ISB\",\"departure\":\"${departure}\",\"tripType\":\"oneway\",\"adults\":1,\"children\":0,\"childrenAges\":[],\"cabin\":\"Economy\",\"currency\":\"USD\",\"region\":\"PK\"}"
-          code="$(curl -sS -o /tmp/production-flight.json -w '%{http_code}' -X POST 'https://nexusnova-6ade2.web.app/api/travel/flights/search' -H 'Content-Type: application/json' --data "$payload")"
-          echo "NEXUSNOVA_TRAVEL_HTTP=$code"
-          test "$code" = 200
-          node - <<'NODE'
-            const fs=require('fs');
-            const x=JSON.parse(fs.readFileSync('/tmp/production-flight.json','utf8'));
-            const rows=Array.isArray(x.results)?x.results:[];
-            const priced=rows.filter(r=>r&&r.price!=null&&r.currency);
-            const flightApi=priced.filter(r=>String(r.provider||'').toLowerCase()==='flightapi');
-            if(!rows.length)throw new Error('PRODUCTION_TRAVEL_EMPTY');
-            if(!priced.length)throw new Error('PRODUCTION_TRAVEL_NO_PRICED_RESULTS');
-            if(!flightApi.length)throw new Error('PRODUCTION_TRAVEL_NOT_FLIGHTAPI');
-            const o=flightApi[0];
-            console.log('PRODUCTION_FLIGHTAPI provider='+o.provider+' normalized='+rows.length+' priced='+priced.length+' currency='+o.currency+' offer='+JSON.stringify(o)+' requestId='+(x.requestId||x.request_id||''));
-          NODE
-      - name: Security source checks
-        shell: bash
-        run: |
-          set -euo pipefail
-          if git grep -nE '(AIza[0-9A-Za-z_-]{20,}|sk-[A-Za-z0-9]{20,}|FLIGHTAPI_API_KEY\s*=|MAKCORPS_API_KEY\s*=)' -- ':!functions/.env*' ':!README*'; then echo 'SECURITY_SECRET_SCAN=REVIEW_REQUIRED'; exit 3; else echo 'SECURITY_SECRET_SCAN=CLEAN'; fi
-          if git grep -nE '(^|[^[:alnum:]_])eval\s*\(|new Function\s*\(' -- ':!package-lock.json' ':!functions/package-lock.json'; then echo 'SECURITY_DYNAMIC_EXECUTION=FOUND'; exit 4; else echo 'SECURITY_DYNAMIC_EXECUTION=CLEAN'; fi
+          rm -f "$RUNNER_TEMP/firebase-service-account.json"
