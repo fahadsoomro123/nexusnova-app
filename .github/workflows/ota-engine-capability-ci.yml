@@ -159,7 +159,8 @@ jobs:
           test -n "$AAPT"
           "$APKSIGNER" verify --verbose --print-certs "$apk"
           aapt_out="$($AAPT dump badging "$apk" | head -n 1)"
-          version_code="$(apkanalyzer manifest version-code "$apk")"
+          version_code_hex="$("$AAPT" dump xmltree "$apk" AndroidManifest.xml | sed -n 's/.*versionCode(0x0101021b)=0x\([0-9a-fA-F]*\).*/\1/p' | head -1)"
+          version_code="$((16#$version_code_hex))"
           echo "$aapt_out"
           echo "versionCode=$version_code"
           echo "$aapt_out" | grep -q "name='com.nexusnova.app'"
@@ -168,7 +169,7 @@ jobs:
           sha256sum "$apk"
           cert="$($APKSIGNER verify --verbose --print-certs "$apk" 2>&1 | sed -n 's/Signer #1 certificate SHA-256 digest: //p' | head -1)"
           echo "CERT_SHA256=$cert"
-          test "$cert" = '76fa4bc81be45ab1d53350ea996e85e61518379f82cb9a1ec0e2a19d2e303f25'
+          test "$cert" = '30052faf26f112d88d48061b88e6a698371ef0cdc4203122a9350529405a716c'
           unzip -l "$apk" | grep -Fq 'assets/www/assets/icons/nova-hub/travel.webp'
           ! unzip -l "$apk" | grep -Eq 'assets/www/src/features/apps/travel-[^ ]*\.js'
           echo 'Signed OTA-engine-only APK verified.'
