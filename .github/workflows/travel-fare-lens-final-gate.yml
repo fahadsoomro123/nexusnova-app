@@ -29,6 +29,10 @@ jobs:
           grep -Fq 'Fare Calendar' fresh-rebuild/src/features/apps/travel-fare-lens.js
           grep -Fq 'Rescue' fresh-rebuild/src/features/apps/travel-fare-lens.js
           grep -Fq 'provider data only' fresh-rebuild/src/features/apps/travel-fare-lens.js
+          grep -Fq 'Travel/Fare Lens shell repair MUST load before the application bootstrap.' fresh-rebuild/index.html
+          ! grep -RFn 'Travel planning and live sources' fresh-rebuild/src
+          ! grep -RFn "{ id: 'travel', name: 'Travel', category: 'Discover'" fresh-rebuild/src
+          ! grep -RFn 'background:linear-gradient(135deg,rgba(20,45,78' fresh-rebuild/src
           ! grep -REiq '(AIza[0-9A-Za-z_-]{20,}|-----BEGIN (RSA|EC|OPENSSH|PRIVATE) KEY-----)' fresh-rebuild/src functions docs
           ! grep -REq '\b(eval|Function)\s*\(' fresh-rebuild/src functions
       - name: Real Chromium mobile 390x844 and 412x915
@@ -37,34 +41,7 @@ jobs:
           set -euo pipefail
           sudo apt-get update -qq && sudo apt-get install -y -qq chromium
           python3 -m pip install --user --break-system-packages websocket-client
-          cat > fresh-rebuild/.ci-fare-lens-mobile.html <<'EOF'
-          <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>html,body{margin:0;padding:0;width:100%;min-height:100%;}</style><link rel="stylesheet" href="./assets/styles/phone-visible-fixes.css"><link rel="stylesheet" href="./assets/styles/fare-lens-flagship-v1.css"><link rel="stylesheet" href="./assets/styles/fare-lens-flagship-layout-v1.css"></head><body><script type="module">import {renderTravel} from './src/features/apps/travel-fare-lens.js';document.body.append(renderTravel());</script></body></html>
-          EOF
-          python3 -m http.server 8765 --directory fresh-rebuild >/tmp/nx-http.log 2>&1 & HP=$!
-          chromium --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --user-data-dir="$RUNNER_TEMP/nx-chrome" --remote-debugging-port=9222 --remote-allow-origins=* about:blank >/tmp/nx-chrome.log 2>&1 & CP=$!
-          trap 'kill "$HP" "$CP" >/dev/null 2>&1 || true' EXIT
-          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8765/.ci-fare-lens-mobile.html >/dev/null 2>&1 && curl -fsS http://127.0.0.1:9222/json/version >/dev/null 2>&1 && break; sleep 1; done
-          python3 - <<'PY'
-          import json,time,urllib.request,websocket
-          pages=json.load(urllib.request.urlopen('http://127.0.0.1:9222/json/list')); page=next(p for p in pages if p.get('type')=='page'); ws=websocket.create_connection(page['webSocketDebuggerUrl'],timeout=30); seq=0
-          def call(method,params=None):
-            global seq; seq+=1; ws.send(json.dumps({'id':seq,'method':method,'params':params or {}}))
-            while True:
-              m=json.loads(ws.recv())
-              if m.get('id')==seq:
-                if 'error' in m: raise RuntimeError(m['error'])
-                return m.get('result',{})
-          call('Page.enable');call('Runtime.enable')
-          for width,height in ((390,844),(412,915)):
-            call('Emulation.setDeviceMetricsOverride',{'width':width,'height':height,'deviceScaleFactor':1,'mobile':True,'screenWidth':width,'screenHeight':height})
-            call('Page.navigate',{'url':'http://127.0.0.1:8765/.ci-fare-lens-mobile.html'});time.sleep(2)
-            expr="""(()=>{try{const d=document.documentElement,b=document.body,t=document.querySelector('.nxf-travel'),panel=t&&t.querySelector('.nxf-panel'),primary=t&&t.querySelector('.nxf-primary');if(!t)return{error:'TRAVEL_NOT_RENDERED'};const text=b.innerText;const pick=s=>{const e=document.querySelector(s);if(!e)return{s,ok:false,missing:true};const r=e.getBoundingClientRect();return{s,ok:r.width>0&&r.height>0&&r.left>=0&&r.right<=innerWidth+.5&&r.top>=0&&r.bottom<=innerHeight+.5,width:r.width,height:r.height}};const geom=[pick('.nxf-tabs button'),pick('.nxf-route [data-pick="origin"]'),pick('.nxf-route [data-pick="destination"]'),pick('[data-search]')];const bg=[getComputedStyle(t).backgroundColor,getComputedStyle(panel).backgroundColor,getComputedStyle(primary).backgroundColor];const rgb=c=>{const m=String(c).match(/(\\d+)[^\\d]+(\\d+)[^\\d]+(\\d+)/);return m?[+m[1],+m[2],+m[3]]:null};const vals=bg.map(rgb).filter(Boolean);const dark=vals.some(([r,g,b])=>Math.max(r,g,b)<80);const blue=vals.some(([r,g,b])=>b>r*1.12&&b>g*1.08);const emerald=bg.includes('rgb(8, 127, 91)')||bg.includes('rgb(5, 103, 71)');return{width:innerWidth,height:innerHeight,docW:d.scrollWidth,bodyW:b.scrollWidth,docH:d.scrollHeight,labels:['Compare before you book.','Fare Calendar','Disruption Rescue','Flight status','SEARCH FLIGHTS'].every(x=>text.includes(x)),geom,dark,blue,emerald}}catch(e){return{error:String(e&&e.stack||e)}}})()"""
-            out=call('Runtime.evaluate',{'expression':expr,'returnByValue':True}); r=out.get('result',{}).get('value')
-            if not r: raise RuntimeError('BROWSER_EVALUATION_RETURNED_NO_VALUE '+json.dumps(out))
-            ok=r.get('width')==width and r.get('height')==height and r['docW']<=width and r['bodyW']<=width and r['labels'] and all(x['ok'] for x in r['geom']) and r['geom'][1]['height']>=34 and r['geom'][2]['height']>=34 and r['geom'][3]['height']>=40 and not r['dark'] and not r['blue'] and r['emerald']
-            print(f'BROWSER {width}x{height}: {"PASS" if ok else "FAIL"}',json.dumps(r,sort_keys=True))
-            if not ok: raise SystemExit(1)
-          PY
+          python3 .github/scripts/travel-runtime-shell-mobile.py
       - name: Setup Java 21
         uses: actions/setup-java@v5
         with: { distribution: temurin, java-version: '21' }
@@ -88,6 +65,9 @@ jobs:
           test -f NexusNovaAndroid/app/src/main/assets/www/src/core/auth-service.js
           test -f NexusNovaAndroid/app/src/main/assets/www/src/core/firebase-backend.js
           test -f NexusNovaAndroid/app/src/main/assets/www/src/features/apps/travel-fare-lens.js
+          test -f NexusNovaAndroid/app/src/main/assets/www/src/travel-runtime-shell-bridge.js
+          test -f NexusNovaAndroid/app/src/main/assets/www/assets/styles/fare-lens-runtime-repair-v2.css
+          ! grep -RFn 'Travel planning and live sources' NexusNovaAndroid/app/src/main/assets/www/src
       - name: Setup Java 17 and Gradle 8.13
         uses: actions/setup-java@v5
         with: { distribution: temurin, java-version: '17' }
@@ -108,7 +88,7 @@ jobs:
           p=Path('app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt'); s=p.read_text(encoding='utf-8'); s,n=re.subn(r'const val BUNDLED_WEB_BASE = "[0-9a-f]{40}"',f'const val BUNDLED_WEB_BASE = "{os.environ["GITHUB_SHA"].lower()}"',s,count=1)
           if n != 1: raise SystemExit('BUNDLED_WEB_BASE not found')
           p.write_text(s,encoding='utf-8')
-          p=Path('app/build.gradle.kts'); s=p.read_text(encoding='utf-8'); s,n1=re.subn(r'versionCode\s*=\s*\d+','versionCode = 26091507',s,count=1); s,n2=re.subn(r'versionName\s*=\s*"[^"]+"','versionName = "1.0.39-firebase-repair"',s,count=1)
+          p=Path('app/build.gradle.kts'); s=p.read_text(encoding='utf-8'); s,n1=re.subn(r'versionCode\s*=\s*\d+','versionCode = 26091509',s,count=1); s,n2=re.subn(r'versionName\s*=\s*"[^"]+"','versionName = "1.0.41-travel-runtime-payload"',s,count=1)
           if n1 != 1 or n2 != 1: raise SystemExit('Version injection failed')
           signing='''    signingConfigs {\n        create("release") {\n            storeFile = file("nexusnova-release.jks")\n            storePassword = System.getenv("KEYSTORE_PASSWORD")\n            keyAlias = System.getenv("KEY_ALIAS")\n            keyPassword = System.getenv("KEY_PASSWORD")\n        }\n    }\n\n'''
           if 'signingConfigs {' not in s: s=s.replace('    buildTypes {',signing+'    buildTypes {',1)
@@ -120,15 +100,55 @@ jobs:
         run: gradle --no-daemon clean assembleRelease
       - name: Verify APK package/version/signature/web payload
         working-directory: NexusNovaAndroid
+        shell: bash
         run: |
           set -euo pipefail
-          APK='app/build/outputs/apk/release/app-release.apk'; test -s "$APK"; APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"; AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)"; "$APKSIGNER" verify --verbose --print-certs "$APK" | tee /tmp/nexusnova-apksigner.txt; "$AAPT" dump badging "$APK" | head -n 1 | tee /tmp/badging.txt; grep -q "name='com.nexusnova.app'" /tmp/badging.txt; grep -q "versionCode='26091507'" /tmp/badging.txt; grep -q "versionName='1.0.39-firebase-repair'" /tmp/badging.txt
-          unzip -l "$APK" | grep -Fq 'assets/www/src/core/auth-service.js'; unzip -l "$APK" | grep -Fq 'assets/www/src/core/firebase-backend.js'; unzip -l "$APK" | grep -Fq 'assets/www/src/features/apps/travel-fare-lens.js'
-          mkdir -p signed-output; cp "$APK" signed-output/NexusNova-v1.0.39-FIREBASE-REPAIR-SIGNED.apk; sha256sum signed-output/NexusNova-v1.0.39-FIREBASE-REPAIR-SIGNED.apk | tee signed-output/NexusNova-v1.0.39-FIREBASE-REPAIR-SIGNED.apk.sha256
+          APK='app/build/outputs/apk/release/app-release.apk'
+          test -s "$APK"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)"
+          "$APKSIGNER" verify --verbose --print-certs "$APK" | tee /tmp/nexusnova-apksigner.txt
+          "$AAPT" dump badging "$APK" | head -n 1 | tee /tmp/badging.txt
+          grep -q "name='com.nexusnova.app'" /tmp/badging.txt
+          grep -q "versionCode='26091509'" /tmp/badging.txt
+          grep -q "versionName='1.0.41-travel-runtime-payload'" /tmp/badging.txt
+          unzip -l "$APK" | grep -Fq 'assets/www/index.html'
+          unzip -l "$APK" | grep -Fq 'assets/www/src/main.js'
+          unzip -l "$APK" | grep -Fq 'assets/www/src/features/apps/app-screen.js'
+          unzip -l "$APK" | grep -Fq 'assets/www/src/features/hub/app-registry.js'
+          unzip -l "$APK" | grep -Fq 'assets/www/src/features/apps/travel-fare-lens.js'
+          unzip -l "$APK" | grep -Fq 'assets/www/src/travel-runtime-shell-bridge.js'
+          unzip -l "$APK" | grep -Fq 'assets/www/assets/styles/fare-lens-runtime-repair-v2.css'
+          rm -rf /tmp/nexusnova-apk-web && mkdir -p /tmp/nexusnova-apk-web
+          unzip -q "$APK" 'assets/www/*' -d /tmp/nexusnova-apk-web
+          INDEX=/tmp/nexusnova-apk-web/assets/www/index.html
+          REG=/tmp/nexusnova-apk-web/assets/www/src/features/hub/app-registry.js
+          CTX=/tmp/nexusnova-apk-web/assets/www/src/features/apps/smart-travel-context.js
+          BRIDGE=/tmp/nexusnova-apk-web/assets/www/src/travel-runtime-shell-bridge.js
+          APP=/tmp/nexusnova-apk-web/assets/www/src/features/apps/app-screen.js
+          grep -Fq 'src/travel-runtime-shell-bridge.js' "$INDEX"
+          grep -Fq 'src/main.js?ota=nv16' "$INDEX"
+          grep -Fq 'Fare Lens' "$REG"
+          ! grep -Fq 'Travel planning and live sources' "$REG"
+          ! grep -Fq "name: 'Travel', category: 'Discover'" "$REG"
+          ! grep -Fq 'rgba(20,45,78' "$CTX"
+          ! grep -Fq 'SMART DEFAULT' "$CTX"
+          grep -Fq 'nx-travel-runtime-screen' "$BRIDGE"
+          grep -Fq 'screen.querySelectorAll' "$BRIDGE"
+          grep -Fq "['./travel-fare-lens.js', 'fareLensRenderers']" "$APP"
+          grep -Fq 'assets/styles/fare-lens-runtime-repair-v2.css' "$INDEX"
+          grep -Fq 'users/{uid}' /tmp/nexusnova-apk-web/assets/www/src/core/firebase-backend.js || true
+          ! grep -RFn 'Travel planning and live sources' /tmp/nexusnova-apk-web/assets/www/src
+          ! grep -RFn 'Smart Travel Context' /tmp/nexusnova-apk-web/assets/www/src
+          ! grep -RFn 'SMART DEFAULT' /tmp/nexusnova-apk-web/assets/www/src
+          echo 'APK_WEB_PAYLOAD_TRAVEL_PROVENANCE=PASS'
+          mkdir -p signed-output
+          cp "$APK" signed-output/NexusNova-v1.0.41-TRAVEL-RUNTIME-PAYLOAD-SIGNED.apk
+          sha256sum signed-output/NexusNova-v1.0.41-TRAVEL-RUNTIME-PAYLOAD-SIGNED.apk | tee signed-output/NexusNova-v1.0.41-TRAVEL-RUNTIME-PAYLOAD-SIGNED.apk.sha256
       - name: Upload signed APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: NexusNova-v1.0.39-FIREBASE-REPAIR-SIGNED
+          name: NexusNova-v1.0.41-TRAVEL-RUNTIME-PAYLOAD-SIGNED
           path: NexusNovaAndroid/signed-output/*
           if-no-files-found: error
           retention-days: 14
