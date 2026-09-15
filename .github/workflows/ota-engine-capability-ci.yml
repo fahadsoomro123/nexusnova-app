@@ -157,18 +157,32 @@ jobs:
           AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)"
           test -n "$APKSIGNER"
           test -n "$AAPT"
+
+          echo '=== APK signature verification ==='
           "$APKSIGNER" verify --verbose --print-certs "$apk"
+
+          echo '=== APK badging ==='
           aapt_out="$($AAPT dump badging "$apk" | head -n 1)"
-          echo "$aapt_out"
-          echo "$aapt_out" | grep -q "name='com.nexusnova.app'"
-          echo "$aapt_out" | grep -q "versionCode='26091501'"
-          echo "$aapt_out" | grep -q "versionName='1.0.38-ota-engine-capability'"
+          printf 'BADGING=%s\n' "$aapt_out"
+          echo "$aapt_out" | grep -q "name='com.nexusnova.app'" || { echo 'VERIFY_FAIL=package'; exit 1; }
+          echo "$aapt_out" | grep -q "versionCode='26091501'" || { echo 'VERIFY_FAIL=versionCode'; exit 1; }
+          echo "$aapt_out" | grep -q "versionName='1.0.38-ota-engine-capability'" || { echo 'VERIFY_FAIL=versionName'; exit 1; }
+
+          echo '=== APK SHA-256 ==='
           sha256sum "$apk"
-          cert="$($APKSIGNER verify --verbose --print-certs "$apk" 2>&1 | sed -n 's/Signer #1 certificate SHA-256 digest: //p' | head -1)"
+
+          echo '=== Certificate digest extraction ==='
+          cert_output="$($APKSIGNER verify --verbose --print-certs "$apk" 2>&1)"
+          printf '%s\n' "$cert_output"
+          cert="$(printf '%s\n' "$cert_output" | sed -n 's/.*Signer #1 certificate SHA-256 digest: //p' | head -1 | tr -d '\r')"
           echo "CERT_SHA256=$cert"
-          test "$cert" = '76fa4bc81be45ab1d53350ea996e85e61518379f82cb9a1ec0e2a19d2e303f25'
-          unzip -l "$apk" | grep -Fq 'assets/www/assets/icons/nova-hub/travel.webp'
-          ! unzip -l "$apk" | grep -Eq 'assets/www/src/features/apps/travel-[^ ]*\.js'
+          test "$cert" = '76fa4bc81be45ab1d53350ea996e85e61518379f82cb9a1ec0e2a19d2e303f25' || { echo 'VERIFY_FAIL=certificate'; exit 1; }
+
+          echo '=== APK Travel invariants ==='
+          unzip -l "$apk" | grep -F 'assets/www/assets/icons/nova-hub/travel.webp' || { echo 'VERIFY_FAIL=travel_icon'; exit 1; }
+          travel_js="$(unzip -l "$apk" | grep -E 'assets/www/src/features/apps/travel-[^ ]*\.js' || true)"
+          printf 'TRAVEL_JS_MATCHES=%s\n' "$travel_js"
+          test -z "$travel_js" || { echo 'VERIFY_FAIL=travel_js_present'; exit 1; }
           echo 'Signed OTA-engine-only APK verified.'
 
       - name: Upload verified APK
