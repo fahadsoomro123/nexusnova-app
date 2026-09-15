@@ -1,0 +1,125 @@
+name: NexusNova Travel Android Runtime Gate
+on:
+  push:
+    branches: [travel-fare-lens-final]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    env:
+      KEYSTORE_B64: ${{ secrets.NEXUSNOVA_KEYSTORE_BASE64 }}
+      KEYSTORE_PASSWORD: ${{ secrets.NEXUSNOVA_KEYSTORE_PASSWORD }}
+      KEY_ALIAS: ${{ secrets.NEXUSNOVA_KEY_ALIAS }}
+      KEY_PASSWORD: ${{ secrets.NEXUSNOVA_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Travel provider and contract tests
+        working-directory: functions
+        run: node --test travel-provider.test.js travel-master-provider.test.js hotel-value.test.js travel-contracts.test.js travelport-provider.test.js
+      - name: Security and runtime-source gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq "['./travel-fare-lens.js', 'fareLensRenderers']" fresh-rebuild/src/features/apps/app-screen.js
+          grep -Fq 'data-pick="origin"' fresh-rebuild/src/features/apps/travel-fare-lens.js
+          grep -Fq 'data-pick="destination"' fresh-rebuild/src/features/apps/travel-fare-lens.js
+          grep -Fq 'fare-lens-runtime-repair-v2.css' fresh-rebuild/index.html
+          grep -Fq 'travel-runtime-shell-bridge.js' fresh-rebuild/index.html
+          grep -Fq 'window.NexusNovaFresh.openApp' .github/scripts/travel-runtime-shell-mobile.py
+          ! grep -REiq '(AIza[0-9A-Za-z_-]{20,}|-----BEGIN (RSA|EC|OPENSSH|PRIVATE) KEY-----)' fresh-rebuild/src functions docs
+          ! grep -REq '\b(eval|Function)\s*\(' fresh-rebuild/src functions
+      - name: REAL application-shell Chromium mobile gate 390x844 + 412x915
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq && sudo apt-get install -y -qq chromium
+          python3 -m pip install --user --break-system-packages websocket-client
+          python3 .github/scripts/travel-runtime-shell-mobile.py
+      - name: Setup Java 21
+        uses: actions/setup-java@v5
+        with: { distribution: temurin, java-version: '21' }
+      - name: Firebase Auth, Mining and Firestore smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save --no-package-lock @firebase/rules-unit-testing firebase
+          node .github/scripts/mining-architecture-smoke.mjs
+          npx --yes firebase-tools@latest emulators:exec --project demo-nexusnova-rules --only firestore "node .github/scripts/firestore-rules-smoke.mjs"
+          python3 .github/scripts/android-webview-security-readiness.py
+          python3 .github/scripts/firebase-security-readiness.py
+      - name: Sync fresh-rebuild into Android assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf NexusNovaAndroid/app/src/main/assets/www
+          mkdir -p NexusNovaAndroid/app/src/main/assets/www
+          cp -a fresh-rebuild/. NexusNovaAndroid/app/src/main/assets/www/
+          test -f NexusNovaAndroid/app/src/main/assets/www/src/core/auth-service.js
+          test -f NexusNovaAndroid/app/src/main/assets/www/src/core/firebase-backend.js
+          test -f NexusNovaAndroid/app/src/main/assets/www/src/features/apps/travel-fare-lens.js
+          test -f NexusNovaAndroid/app/src/main/assets/www/src/travel-runtime-shell-bridge.js
+          test -f NexusNovaAndroid/app/src/main/assets/www/assets/styles/fare-lens-runtime-repair-v2.css
+      - name: Setup Java 17 and Gradle 8.13
+        uses: actions/setup-java@v5
+        with: { distribution: temurin, java-version: '17' }
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: '8.13' }
+      - name: Signing prerequisites
+        run: test -n "$KEYSTORE_B64" && test -n "$KEYSTORE_PASSWORD" && test -n "$KEY_ALIAS" && test -n "$KEY_PASSWORD"
+      - name: Configure release signing and version
+        working-directory: NexusNovaAndroid
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s' "$KEYSTORE_B64" | base64 -d > app/nexusnova-release.jks
+          chmod 600 app/nexusnova-release.jks
+          keytool -list -keystore app/nexusnova-release.jks -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
+          python3 - <<'PY'
+          from pathlib import Path
+          import os,re
+          p=Path('app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt'); s=p.read_text(encoding='utf-8'); s,n=re.subn(r'const val BUNDLED_WEB_BASE = "[0-9a-f]{40}"',f'const val BUNDLED_WEB_BASE = "{os.environ["GITHUB_SHA"].lower()}"',s,count=1)
+          if n!=1: raise SystemExit('BUNDLED_WEB_BASE not found')
+          p.write_text(s,encoding='utf-8')
+          p=Path('app/build.gradle.kts'); s=p.read_text(encoding='utf-8'); s,n1=re.subn(r'versionCode\s*=\s*\d+','versionCode = 26091508',s,count=1); s,n2=re.subn(r'versionName\s*=\s*"[^"]+"','versionName = "1.0.40-travel-runtime"',s,count=1)
+          if n1!=1 or n2!=1: raise SystemExit('version injection failed')
+          if 'signingConfigs {' not in s:
+            s=s.replace('    buildTypes {','    signingConfigs {\n        create("release") {\n            storeFile = file("nexusnova-release.jks")\n            storePassword = System.getenv("KEYSTORE_PASSWORD")\n            keyAlias = System.getenv("KEY_ALIAS")\n            keyPassword = System.getenv("KEY_PASSWORD")\n        }\n    }\n\n    buildTypes {',1)
+          if 'signingConfig = signingConfigs.getByName("release")' not in s:
+            s=s.replace('        release {\n','        release {\n            signingConfig = signingConfigs.getByName("release")\n',1)
+          p.write_text(s,encoding='utf-8')
+          PY
+      - name: Build signed release APK
+        working-directory: NexusNovaAndroid
+        run: gradle --no-daemon clean assembleRelease
+      - name: Verify APK payload and signing
+        working-directory: NexusNovaAndroid
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK=app/build/outputs/apk/release/app-release.apk
+          test -s "$APK"
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)
+          AAPT=$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)
+          "$APKSIGNER" verify --verbose --print-certs "$APK" | tee /tmp/apksigner.txt
+          "$AAPT" dump badging "$APK" | head -n 1 | tee /tmp/badging.txt
+          grep -q "name='com.nexusnova.app'" /tmp/badging.txt
+          grep -q "versionCode='26091508'" /tmp/badging.txt
+          grep -q "versionName='1.0.40-travel-runtime'" /tmp/badging.txt
+          unzip -l "$APK" | grep -Fq 'assets/www/src/travel-runtime-shell-bridge.js'
+          unzip -l "$APK" | grep -Fq 'assets/www/assets/styles/fare-lens-runtime-repair-v2.css'
+          unzip -l "$APK" | grep -Fq 'assets/www/src/core/auth-service.js'
+          unzip -l "$APK" | grep -Fq 'assets/www/src/core/firebase-backend.js'
+          unzip -l "$APK" | grep -Fq 'assets/www/src/features/apps/travel-fare-lens.js'
+          mkdir -p signed-output
+          cp "$APK" signed-output/NexusNova-v1.0.40-TRAVEL-RUNTIME-SIGNED.apk
+          sha256sum signed-output/NexusNova-v1.0.40-TRAVEL-RUNTIME-SIGNED.apk | tee signed-output/NexusNova-v1.0.40-TRAVEL-RUNTIME-SIGNED.apk.sha256
+      - name: Upload final APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NexusNova-v1.0.40-TRAVEL-RUNTIME-SIGNED
+          path: NexusNovaAndroid/signed-output/*
+          if-no-files-found: error
+          retention-days: 14
