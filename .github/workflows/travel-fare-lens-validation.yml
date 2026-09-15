@@ -155,3 +155,4 @@ jobs:
           name: fare-lens-real-browser-390-412-desktop
           path: ${{ runner.temp }}/fare-lens-screenshots/
           if-no-files-found: error
+# Trigger a fresh validation after the FlightAPI fixture correction.
