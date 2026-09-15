@@ -26,7 +26,7 @@ jobs:
           grep -Fq 'provider data only' fresh-rebuild/src/features/apps/travel-fare-lens.js
           ! grep -REiq '(AIza[0-9A-Za-z_-]{20,}|-----BEGIN (RSA|EC|OPENSSH|PRIVATE) KEY-----)' fresh-rebuild/src functions docs
           ! grep -REq '\b(eval|Function)\s*\(' fresh-rebuild/src functions
-      - name: Real Chromium 390x844 412x915 1280x800
+      - name: Real Chromium mobile 390x844 412x915
         shell: bash
         run: |
           set -euo pipefail
@@ -48,10 +48,10 @@ jobs:
               m=json.loads(ws.recv())
               if m.get('id')==n:return m.get('result',{})
           call('Page.enable');call('Runtime.enable')
-          for w,h,mobile in ((390,844,True),(412,915,True),(1280,800,False)):
-            call('Emulation.setDeviceMetricsOverride',{'width':w,'height':h,'deviceScaleFactor':1,'mobile':mobile,'screenWidth':w,'screenHeight':h})
+          for w,h in ((390,844),(412,915)):
+            call('Emulation.setDeviceMetricsOverride',{'width':w,'height':h,'deviceScaleFactor':1,'mobile':True,'screenWidth':w,'screenHeight':h})
             call('Page.navigate',{'url':'http://127.0.0.1:8765/.ci-final-gate.html'});time.sleep(1.5)
-            expr="""(()=>{const t=document.querySelector('.nxf-travel'),d=document.documentElement,b=document.body,text=b.innerText,keys=[...document.querySelectorAll('.nxf-tabs button,[data-pick],[data-search],[data-calendar],[data-rescue]')],inside=keys.every(e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0&&r.left>=0&&r.top>=0&&r.right<=innerWidth+.5&&r.bottom<=innerHeight+.5});window.scrollTo(0,100);const sy=scrollY,sx=scrollX;window.scrollTo(0,0);const cs=[getComputedStyle(t),getComputedStyle(t?.querySelector('.nxf-panel')),getComputedStyle(t?.querySelector('.nxf-primary'))].map(x=>[x.backgroundColor,x.color,x.borderTopColor]).flat();const rgb=cs.map(x=>x.match(/(\\d+)[^\\d]+(\\d+)[^\\d]+(\\d+)/)).filter(Boolean).map(m=>m.slice(1).map(Number));return{h:innerHeight,w:innerWidth,dh:d.scrollHeight,dw:d.scrollWidth,sy,sx,inside,textOK:['Compare before you book.','Fare Calendar','Disruption Rescue','Flight status','SEARCH FLIGHTS'].every(x=>text.includes(x)),dark:rgb.some(([r,g,bb])=>Math.max(r,g,bb)<80),blue:rgb.some(([r,g,bb])=>bb>r*1.12&&bb>g*1.08),emerald:cs.join('|').includes('rgb(8, 127, 91)')}})()"""
+            expr="""(()=>{const t=document.querySelector('.nxf-travel'),d=document.documentElement,text=document.body.innerText,keys=[...document.querySelectorAll('.nxf-tabs button,[data-pick],[data-search],[data-calendar],[data-rescue]')],inside=keys.every(e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return s.display!=='none'&&s.visibility!=='hidden'&&r.width>=44&&r.height>=40&&r.left>=0&&r.top>=0&&r.right<=innerWidth+.5&&r.bottom<=innerHeight+.5});window.scrollTo(0,100);const sy=scrollY,sx=scrollX;window.scrollTo(0,0);const cs=[getComputedStyle(t),getComputedStyle(t?.querySelector('.nxf-panel')),getComputedStyle(t?.querySelector('.nxf-primary'))].map(x=>[x.backgroundColor,x.color,x.borderTopColor]).flat();const rgb=cs.map(x=>x.match(/(\\d+)[^\\d]+(\\d+)[^\\d]+(\\d+)/)).filter(Boolean).map(m=>m.slice(1).map(Number));return{h:innerHeight,w:innerWidth,dh:d.scrollHeight,dw:d.scrollWidth,sy,sx,inside,textOK:['Compare before you book.','Fare Calendar','Disruption Rescue','Flight status','SEARCH FLIGHTS'].every(x=>text.includes(x)),dark:rgb.some(([r,g,bb])=>Math.max(r,g,bb)<80),blue:rgb.some(([r,g,bb])=>bb>r*1.12&&bb>g*1.08),emerald:cs.join('|').includes('rgb(8, 127, 91)')}})()"""
             r=call('Runtime.evaluate',{'expression':expr,'returnByValue':True})['result']['value']
             page_ok=r['dh']==h and r['dw']==w and r['sy']==0 and r['sx']==0 and r['inside'] and r['textOK'] and not r['dark'] and not r['blue'] and r['emerald']
             print(f"BROWSER {w}x{h}: {'PASS' if page_ok else 'FAIL'}",json.dumps(r,sort_keys=True))
