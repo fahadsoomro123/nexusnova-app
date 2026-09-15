@@ -58,37 +58,19 @@ jobs:
           p.write_text(s,encoding='utf-8')
           PY
 
-      - name: Verify branch-specific Travel payload
+      - name: Verify Travel source integrity for this APK channel
         shell: bash
         run: |
           set -euo pipefail
           WEB='build-src/fresh-rebuild'
           test -s "$WEB/index.html"
+          test -s "$WEB/src/features/apps/travel-fare-lens.js"
+          grep -Fq "['./travel-fare-lens.js', 'fareLensRenderers']" "$WEB/src/features/apps/app-screen.js"
+          grep -Fq 'nexusnova-6ade2.web.app/api/travel' "$WEB/src/features/apps/travel-fare-lens.js"
           node --check "$WEB/src/main.js"
           node --check "$WEB/src/core/firebase-backend.js"
           node --check "$WEB/src/core/drive-cloud-store.js"
-          if [ "$GITHUB_REF_NAME" = "main" ]; then
-            test -s "$WEB/assets/icons/nova-hub/travel.webp"
-            grep -Eq "id: ['\"]travel['\"]" "$WEB/src/features/hub/app-registry.js"
-            grep -Fq "const ICON_ONLY_HUB_APP_IDS = new Set(['travel']);" "$WEB/src/features/hub/hub-screen.js"
-            grep -Fq 'if (ICON_ONLY_HUB_APP_IDS.has(appId)) return;' "$WEB/src/features/hub/hub-screen.js"
-            ! grep -Fq "./travel-suite.js" "$WEB/src/features/apps/app-screen.js"
-            ! grep -Fq "./travel-integrations.js" "$WEB/src/features/apps/app-screen.js"
-            ! grep -Fq 'src/features/apps/travel-' "$WEB/index.html"
-            if find "$WEB/src/features/apps" -maxdepth 1 -type f -name 'travel-*.js' -print | grep -q .; then
-              echo 'ERROR: Travel runtime JS still present on main build'
-              exit 1
-            fi
-            if find "$WEB/assets/travel" -type f -print 2>/dev/null | grep -q .; then
-              echo 'ERROR: Travel-only assets still present on main build'
-              exit 1
-            fi
-          else
-            grep -Fq 'fare-lens' "$WEB/index.html"
-            test -s "$WEB/src/features/apps/travel-phone-layout-v31.js"
-            grep -Fq 'nexusnova-travel' "$WEB/src/core/backend-adapter.js"
-            ! grep -RIn --exclude-dir=.git --exclude='*.map' -- '#020611' "$WEB" || true
-          fi
+          node --check "$WEB/src/features/apps/travel-fare-lens.js"
 
       - name: Restore proven production auth in build workspace
         uses: actions/checkout@v4
@@ -198,13 +180,6 @@ jobs:
           echo "$badging" | grep -q "name='com.nexusnova.app'"
           echo "$badging" | grep -q "versionCode='26091502'"
           echo "$badging" | grep -q "versionName='1.0.39-firebase-repair'"
-
-          if [ "$GITHUB_REF_NAME" = "travel-fare-lens-final" ]; then
-            unzip -l "$APK" > /tmp/apk-list.txt
-            grep -Fq 'assets/www/src/features/apps/travel-phone-layout-v31.js' /tmp/apk-list.txt
-            grep -Fq 'assets/www/src/features/apps/travel-phone-interaction-v28.js' /tmp/apk-list.txt
-          fi
-
           mkdir -p /tmp/nx-apk
           unzip -q "$APK" 'assets/www/src/core/auth-service.js' 'assets/www/src/core/firebase-backend.js' 'assets/www/src/core/drive-cloud-store.js' -d /tmp/nx-apk
           grep -Fq 'signInWithEmailAndPassword' /tmp/nx-apk/assets/www/src/core/auth-service.js
@@ -213,15 +188,11 @@ jobs:
           ! grep -Fq 'public-mirror auth shim' /tmp/nx-apk/assets/www/src/core/auth-service.js
           ! grep -Fq 'public-qa-' /tmp/nx-apk/assets/www/src/core/auth-service.js
           ! grep -Fq 'nexusnova_public_qa_user_v1' /tmp/nx-apk/assets/www/src/core/auth-service.js
-
+          unzip -l "$APK" | grep -Fq 'assets/www/src/features/apps/travel-fare-lens.js'
           mkdir -p signed-output
           cp "$APK" signed-output/NexusNova-v1.0.39-FIREBASE-REPAIR-SIGNED.apk
           sha256sum signed-output/NexusNova-v1.0.39-FIREBASE-REPAIR-SIGNED.apk | tee signed-output/NexusNova-v1.0.39-FIREBASE-REPAIR-SIGNED.apk.sha256
-
-          if [ "$GITHUB_REF_NAME" = "travel-fare-lens-final" ]; then
-            printf '%s\n' "$PUBLIC_SHA" > signed-output/PUBLIC-SOURCE-SHA.txt
-            printf '%s\n' 'BUILD_CHANNEL=travel-fare-lens-final' > signed-output/BUILD-CHANNEL.txt
-          fi
+          printf '%s\n' "$PUBLIC_SHA" > signed-output/PUBLIC-SOURCE-SHA.txt
 
       - name: Upload verified APK artifact
         uses: actions/upload-artifact@v4
