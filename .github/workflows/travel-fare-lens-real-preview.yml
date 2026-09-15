@@ -1,0 +1,163 @@
+name: Travel Fare Lens REAL Preview
+
+on:
+  push:
+    branches: [travel-fare-lens-final]
+    paths:
+      - '.github/workflows/travel-fare-lens-real-preview.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+  FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+  FIREBASE_SERVICE_ACCOUNT_NEXUSNOVA_6ADE2: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_NEXUSNOVA_6ADE2 }}
+  GOOGLE_APPLICATION_CREDENTIALS_JSON: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS_JSON }}
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact Travel/Fare Lens source
+        uses: actions/checkout@v4
+        with:
+          ref: travel-fare-lens-final
+          fetch-depth: 0
+
+      - name: Configure Firebase credentials without exposing secret values
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "$FIREBASE_SERVICE_ACCOUNT_NEXUSNOVA_6ADE2" ]; then
+            printf '%s' "$FIREBASE_SERVICE_ACCOUNT_NEXUSNOVA_6ADE2" > "$RUNNER_TEMP/firebase-service-account.json"
+            echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-service-account.json" >> "$GITHUB_ENV"
+          elif [ -n "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-service-account.json"
+            echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-service-account.json" >> "$GITHUB_ENV"
+          elif [ -n "$GOOGLE_APPLICATION_CREDENTIALS_JSON" ]; then
+            printf '%s' "$GOOGLE_APPLICATION_CREDENTIALS_JSON" > "$RUNNER_TEMP/firebase-service-account.json"
+            echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-service-account.json" >> "$GITHUB_ENV"
+          elif [ -n "$FIREBASE_TOKEN" ]; then
+            echo "FIREBASE_AUTH_MODE=token" >> "$GITHUB_ENV"
+          else
+            echo 'No Firebase deployment credential is configured in the repository secrets.' >&2
+            exit 1
+          fi
+
+      - name: Fix FlightAPI requested-currency propagation and remove Travel legacy renderer
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          provider = Path('functions/flightapi-provider.js')
+          s = provider.read_text()
+          s2 = s.replace('function normalizeItineraryRows(payload){', "function normalizeItineraryRows(payload,fallbackCurrency=''){")
+          s2 = s2.replace("const currency=cheapest?.price?.currency||cp?.currency||itinerary?.currency||root?.currency||'';", "const currency=cheapest?.price?.currency||cp?.currency||itinerary?.currency||root?.currency||fallbackCurrency||'';")
+          s2 = s2.replace('results:normalizeItineraryRows(payload)', 'results:normalizeItineraryRows(payload,input.currency)')
+          if s2 == s:
+              raise SystemExit('FlightAPI currency patch did not match expected source')
+          provider.write_text(s2)
+
+          travel = Path('fresh-rebuild/src/features/apps/travel-fare-lens.js')
+          t = travel.read_text()
+          t2 = t.replace("const API_BASE=String(globalThis.NexusNovaTravelConfig?.apiBase||'/api/travel').replace(/\\/$/,'');", "const API_BASE='https://nexusnova-6ade2.web.app/api/travel';", 1)
+          t2 = re.sub(r'<style>.*?</style>', '<style></style>', t2, count=1, flags=re.S)
+          if '#020611' in t2 or '#07111f' in t2:
+              raise SystemExit('Legacy dark Travel renderer remains after preview preparation')
+          if 'https://nexusnova-6ade2.web.app/api/travel' not in t2:
+              raise SystemExit('Absolute Travel API base was not installed')
+          travel.write_text(t2)
+          PY
+
+          git diff --check
+          grep -q "fallbackCurrency='')" functions/flightapi-provider.js
+          grep -q 'normalizeItineraryRows(payload,input.currency)' functions/flightapi-provider.js
+          ! grep -q '#020611' fresh-rebuild/src/features/apps/travel-fare-lens.js
+          ! grep -q '#07111f' fresh-rebuild/src/features/apps/travel-fare-lens.js
+          grep -q 'https://nexusnova-6ade2.web.app/api/travel' fresh-rebuild/src/features/apps/travel-fare-lens.js
+          grep -qi '#087f5b' fresh-rebuild/assets/styles/fare-lens-flagship-v1.css
+
+      - name: Commit verified source repair (no APK build)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- functions/flightapi-provider.js fresh-rebuild/src/features/apps/travel-fare-lens.js; then
+            echo 'Source repair already present.'
+          else
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add functions/flightapi-provider.js fresh-rebuild/src/features/apps/travel-fare-lens.js
+            git commit -m 'fix(travel): carry requested currency through FlightAPI normalization'
+            git push origin HEAD:travel-fare-lens-final
+          fi
+
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools@latest
+
+      - name: Deploy only the corrected Travel API function
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${FIREBASE_AUTH_MODE:-service-account}" = 'token' ]; then
+            firebase deploy --only functions:travelApi --project nexusnova-6ade2 --token "$FIREBASE_TOKEN" --non-interactive
+          else
+            firebase deploy --only functions:travelApi --project nexusnova-6ade2 --non-interactive
+          fi
+
+      - name: Prepare exact web preview from fresh-rebuild
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf preview-public
+          cp -a fresh-rebuild preview-public
+          test -f preview-public/index.html
+          test -f preview-public/src/core/firebase-backend.js
+          grep -q 'https://nexusnova-6ade2.web.app/api/travel' preview-public/src/features/apps/travel-fare-lens.js
+          ! grep -q '#020611' preview-public/src/features/apps/travel-fare-lens.js
+          ! grep -q '#07111f' preview-public/src/features/apps/travel-fare-lens.js
+          grep -qi '#087f5b' preview-public/assets/styles/fare-lens-flagship-v1.css
+          ! grep -q 'PUBLIC_BUILD_FIREBASE_DISABLED' preview-public/src/core/firebase-backend.js
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('firebase.json')
+          cfg=json.loads(p.read_text())
+          cfg['hosting']['public']='preview-public'
+          p.write_text(json.dumps(cfg,indent=2)+'\n')
+          PY
+
+      - name: Deploy sharable Firebase Hosting preview channel
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${FIREBASE_AUTH_MODE:-service-account}" = 'token' ]; then
+            firebase hosting:channel:deploy fare-lens-real-preview --expires 7d --project nexusnova-6ade2 --token "$FIREBASE_TOKEN" --non-interactive | tee preview-deploy.log
+          else
+            firebase hosting:channel:deploy fare-lens-real-preview --expires 7d --project nexusnova-6ade2 --non-interactive | tee preview-deploy.log
+          fi
+          url="$(grep -Eo 'https://[^ ]+\.web\.app' preview-deploy.log | tail -n1 || true)"
+          test -n "$url"
+          echo "PREVIEW_URL=$url" >> "$GITHUB_ENV"
+          echo "REAL_PREVIEW_URL=$url" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Preview evidence summary
+        shell: bash
+        run: |
+          {
+            echo '## NexusNova Travel/Fare Lens REAL Preview'
+            echo
+            echo "Source commit: $(git rev-parse HEAD)"
+            echo "Preview: ${PREVIEW_URL}"
+            echo 'Provider: FlightAPI via Firebase travelApi'
+            echo 'Currency fix: requested currency is now propagated when provider price object omits currency'
+            echo 'Travel renderer: legacy dark inline style removed; approved external emerald/ivory CSS retained'
+            echo 'Firebase/Auth backend: live implementation bundled; no PUBLIC_BUILD_FIREBASE_DISABLED marker'
+            echo 'APK: NOT BUILT by this workflow'
+          } >> "$GITHUB_STEP_SUMMARY"
