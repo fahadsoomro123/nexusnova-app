@@ -34,13 +34,10 @@ const baseProfile=(uid,email)=>({
 try {
   await assertFails(getDoc(doc(anon,'marketplaceListings/listing-1')));
   console.log('PASS unauthenticated marketplace read denied');
-
   await assertSucceeds(setDoc(listingRef,validListing));
   console.log('PASS verified seller valid listing create allowed');
-
   await assertFails(setDoc(doc(buyer,'marketplaceListings/forged'),{...validListing,sellerUid:'seller-1'}));
   console.log('PASS buyer cannot forge seller listing');
-
   await assertFails(updateDoc(doc(buyer,'marketplaceListings/listing-1'),{price:1,updatedAt:serverTimestamp()}));
   console.log('PASS non-owner listing edit denied');
 
@@ -48,31 +45,24 @@ try {
   const order={listingId:'listing-1',buyerUid:'buyer-1',sellerUid:'seller-1',title:'Runtime Bicycle',amount:25000,currency:'PKR',status:'requested',createdAt:serverTimestamp(),updatedAt:serverTimestamp()};
   await assertSucceeds(setDoc(orderRef,order));
   console.log('PASS verified buyer valid order request allowed');
-
   await assertFails(setDoc(doc(buyer,'marketplaceOrders/order-forged-price'),{...order,amount:1}));
   console.log('PASS forged order price denied');
-
   await assertFails(getDoc(doc(stranger,'marketplaceOrders/order-1')));
   await assertSucceeds(getDoc(doc(seller,'marketplaceOrders/order-1')));
   await assertSucceeds(getDoc(doc(buyer,'marketplaceOrders/order-1')));
   console.log('PASS order privacy limited to buyer/seller');
-
   await assertFails(updateDoc(doc(seller,'marketplaceOrders/order-1'),{status:'delivered',updatedAt:serverTimestamp()}));
   console.log('PASS seller cannot skip requested directly to delivered');
-
   await assertFails(updateDoc(doc(buyer,'marketplaceOrders/order-1'),{status:'return_requested',updatedAt:serverTimestamp()}));
   console.log('PASS buyer cannot request return before delivery');
-
   await assertSucceeds(updateDoc(doc(seller,'marketplaceOrders/order-1'),{status:'accepted',updatedAt:serverTimestamp()}));
   await assertSucceeds(updateDoc(doc(seller,'marketplaceOrders/order-1'),{status:'processing',updatedAt:serverTimestamp()}));
   await assertSucceeds(updateDoc(doc(seller,'marketplaceOrders/order-1'),{status:'shipped',updatedAt:serverTimestamp()}));
   await assertSucceeds(updateDoc(doc(seller,'marketplaceOrders/order-1'),{status:'out_for_delivery',updatedAt:serverTimestamp()}));
   await assertSucceeds(updateDoc(doc(seller,'marketplaceOrders/order-1'),{status:'delivered',updatedAt:serverTimestamp()}));
   console.log('PASS seller sequential order workflow allowed');
-
   await assertSucceeds(updateDoc(doc(buyer,'marketplaceOrders/order-1'),{status:'return_requested',updatedAt:serverTimestamp()}));
   console.log('PASS buyer return request allowed only after delivered');
-
   await assertFails(deleteDoc(doc(buyer,'marketplaceOrders/order-1')));
   console.log('PASS order deletion denied');
 
@@ -91,20 +81,15 @@ try {
   const leagueZero={name:'Miner',totalMined:0,tasksCompleted:0,dailyRewardStreak:0,updatedAt:serverTimestamp()};
   await assertSucceeds(setDoc(leagueRef,leagueZero));
   console.log('PASS verified miner can publish exact privacy-safe leaderboard mirror');
-
   await assertSucceeds(getDoc(doc(stranger,'leaderboardPublic/miner-1')));
   await assertFails(getDoc(doc(anon,'leaderboardPublic/miner-1')));
   console.log('PASS leaderboard readable to signed-in community but denied to anonymous users');
-
   await assertFails(setDoc(leagueRef,{...leagueZero,totalMined:999999}));
   console.log('PASS miner cannot forge leaderboard mining score');
-
   await assertFails(setDoc(leagueRef,{...leagueZero,email:'miner@example.com'}));
   console.log('PASS private email field cannot be published in leaderboard document');
-
   await assertFails(setDoc(doc(stranger,'leaderboardPublic/miner-1'),leagueZero));
   console.log('PASS another signed-in user cannot overwrite a miner leaderboard document');
-
   await assertFails(setDoc(doc(unverifiedMiner,'leaderboardPublic/miner-2'),leagueZero));
   console.log('PASS unverified miner cannot publish leaderboard position');
 
@@ -112,19 +97,16 @@ try {
   // mint +5 NVX by directly updating /users/{uid}; the protected callable uses
   // Firebase Admin after verified Auth + App Check instead.
   assert.match(functionsSource,/exports\.claimDailyReward=protectedCallable\(/,'protected claimDailyReward callable missing');
-  assert.match(functionsSource,/tx\.update\(r,\{balance,lastDailyReward:now,dailyRewardStreak:streak\}\)/,'server daily reward transaction missing');
+  assert.match(functionsSource,/tx\.update\(r,\{balance:nextBalance,lastDailyReward:now,dailyRewardStreak:FieldValue\.increment\(1\)\}\)/,'server daily reward transaction missing');
   assert.match(dailyBridge,/httpsCallable[\s\S]*claimDailyReward/,'client daily reward bridge must call the secure server');
   assert.doesNotMatch(dailyBridge,/updateDoc\s*\(|runTransaction\s*\(/,'client daily reward bridge must not write Firestore value directly');
 
   await assertFails(updateDoc(rewarderRef,{balance:15,lastDailyReward:Date.now(),dailyRewardStreak:1}));
   console.log('PASS verified client cannot mint +5 Daily Reward directly');
-
   await assertFails(updateDoc(rewarderRef,{balance:16,lastDailyReward:Date.now(),dailyRewardStreak:1}));
   console.log('PASS verified client cannot mint an arbitrary Daily Reward value');
-
   await assertFails(updateDoc(unverifiedRewarderRef,{balance:5,lastDailyReward:Date.now(),dailyRewardStreak:1}));
   console.log('PASS unverified client cannot mint Daily Reward directly');
-
   const rewardSnapshot=await getDoc(rewarderRef);
   assert.equal(Number(rewardSnapshot.data().balance),10);
   assert.equal(Number(rewardSnapshot.data().lastDailyReward),0);
@@ -134,19 +116,14 @@ try {
   const startNow=Date.now();
   await assertSucceeds(updateDoc(minerRef,{miningActive:true,miningStartedAt:startNow,miningLastUpdate:startNow}));
   console.log('PASS verified user can start a current mining session');
-
   await assertFails(updateDoc(minerRef,{balance:999}));
   console.log('PASS arbitrary balance mint denied');
-
   await assertFails(updateDoc(minerRef,{balance:24,totalMined:24,miningActive:false,miningStartedAt:0,miningLastUpdate:Date.now(),novaVaultPending:1}));
   console.log('PASS mining reward and Nova Vault cannot be claimed before 24 hours');
-
   const unverifiedNow=Date.now();
   await assertFails(updateDoc(unverifiedMinerRef,{miningActive:true,miningStartedAt:unverifiedNow,miningLastUpdate:unverifiedNow}));
   console.log('PASS unverified email cannot start value-bearing mining');
 
-  // Seed the exact kind of legacy expired state seen in production. Extra
-  // profile fields must not prevent a valid mining-only transition.
   await env.withSecurityRulesDisabled(async ctx=>{
     await updateDoc(doc(ctx.firestore(),'users/miner-1'),{
       miningActive:true,
@@ -159,8 +136,6 @@ try {
     });
   });
 
-  // Mirror the single-owner engine: natural 24h completion settles exactly +24
-  // NVX and earns exactly one pending Nova Vault in the same transaction.
   await assertSucceeds(runTransaction(miner,async tx=>{
     const snap=await tx.get(minerRef);
     const d=snap.data();
@@ -174,7 +149,6 @@ try {
       novaVaultPending:Number(d.novaVaultPending||0)+1
     });
   }));
-
   let finished=await getDoc(minerRef);
   assert.equal(finished.data().balance,87);
   assert.equal(finished.data().totalMined,72);
@@ -187,12 +161,9 @@ try {
   const leagueAfterMining=await getDoc(leagueRef);
   assert.equal(leagueAfterMining.data().totalMined,72);
   console.log('PASS leaderboard can sync only the newly verified 72 NVX mining total');
-
   await assertFails(setDoc(leagueRef,{name:'Miner',totalMined:96,tasksCompleted:0,dailyRewardStreak:0,updatedAt:serverTimestamp()}));
   console.log('PASS leaderboard cannot get ahead of authoritative mining total');
 
-  // Mirror transaction #2: immediately start the next 24h session. The earned
-  // Nova Vault remains pending and cannot be consumed by a mining-start write.
   await assertSucceeds(runTransaction(miner,async tx=>{
     const snap=await tx.get(minerRef);
     const d=snap.data();
@@ -202,7 +173,6 @@ try {
     const now=Date.now();
     tx.update(minerRef,{miningActive:true,miningStartedAt:now,miningLastUpdate:now});
   }));
-
   const restarted=await getDoc(minerRef);
   assert.equal(restarted.data().balance,87);
   assert.equal(restarted.data().totalMined,72);
@@ -210,10 +180,8 @@ try {
   assert.equal(restarted.data().miningActive,true);
   assert.ok(Number(restarted.data().miningStartedAt)>0);
   console.log('PASS settled legacy session can immediately start a fresh 24h session while preserving the pending Vault');
-
   await assertFails(updateDoc(minerRef,{balance:111,totalMined:96,miningLastUpdate:Date.now(),novaVaultPending:2}));
   console.log('PASS active new session cannot replay another +24 reward or Vault');
-
   console.log('\nFirestore rules smoke complete: leaderboard + server-authoritative daily reward boundary + mining/Vault + marketplace security passed.');
 } finally {
   await env.cleanup();
