@@ -29,7 +29,7 @@ jobs:
           set -euo pipefail
           echo "DEPLOYMENT_COMMIT=$(git rev-parse HEAD)"
           echo "WORKFLOW_RUN=${GITHUB_RUN_ID}"
-          echo "DIAGNOSE_REVISION=deploy-only-v3"
+          echo "DIAGNOSE_REVISION=deploy-only-v4"
       - name: Configure Firebase ADC
         shell: bash
         run: |
@@ -53,13 +53,17 @@ jobs:
           set -euo pipefail
           firebase functions:list --project nexusnova-6ade2 --json > /tmp/functions.json
           node - <<'NODE'
-const fs=require('fs');
-const x=JSON.parse(fs.readFileSync('/tmp/functions.json','utf8'));
-const rows=Array.isArray(x)?x:(x.result||x.functions||[]);
-const matches=rows.filter(f=>f&&((f.id||f.name||f.displayName)==='travelApi'||String(f.name||'').endsWith('/travelApi')));
-if(!matches.length) throw new Error('TRAVELAPI_NOT_LISTED');
-for(const f of matches){console.log('TRAVELAPI_FUNCTION_NAME='+(f.name||f.id||''));console.log('TRAVELAPI_REGION='+(f.region||f.location||f.labels?.location||''));console.log('TRAVELAPI_STATE='+(f.state||f.status||''));}
-NODE
+            const fs=require('fs');
+            const x=JSON.parse(fs.readFileSync('/tmp/functions.json','utf8'));
+            const rows=Array.isArray(x)?x:(x.result||x.functions||[]);
+            const matches=rows.filter(f=>f&&((f.id||f.name||f.displayName)==='travelApi'||String(f.name||'').endsWith('/travelApi')));
+            if(!matches.length) throw new Error('TRAVELAPI_NOT_LISTED');
+            for(const f of matches){
+              console.log('TRAVELAPI_FUNCTION_NAME='+(f.name||f.id||''));
+              console.log('TRAVELAPI_REGION='+(f.region||f.location||f.labels?.location||''));
+              console.log('TRAVELAPI_STATE='+(f.state||f.status||''));
+            }
+          NODE
       - name: Verify direct Cloud Function capabilities
         shell: bash
         run: |
@@ -86,12 +90,20 @@ NODE
           echo "NEXUSNOVA_TRAVEL_HTTP=$code"
           test "$code" = 200
           node - <<'NODE'
-const fs=require('fs');const x=JSON.parse(fs.readFileSync('/tmp/production-flight.json','utf8'));const rows=Array.isArray(x.results)?x.results:[];const priced=rows.filter(r=>r&&r.price!=null&&r.currency);const flightApi=priced.filter(r=>String(r.provider||'').toLowerCase()==='flightapi');if(!rows.length)throw new Error('PRODUCTION_TRAVEL_EMPTY');if(!priced.length)throw new Error('PRODUCTION_TRAVEL_NO_PRICED_RESULTS');if(!flightApi.length)throw new Error('PRODUCTION_TRAVEL_NOT_FLIGHTAPI');const o=flightApi[0];console.log('PRODUCTION_FLIGHTAPI provider='+o.provider+' normalized='+rows.length+' priced='+priced.length+' currency='+o.currency+' offer='+JSON.stringify(o)+' requestId='+(x.requestId||x.request_id||''));
-NODE
+            const fs=require('fs');
+            const x=JSON.parse(fs.readFileSync('/tmp/production-flight.json','utf8'));
+            const rows=Array.isArray(x.results)?x.results:[];
+            const priced=rows.filter(r=>r&&r.price!=null&&r.currency);
+            const flightApi=priced.filter(r=>String(r.provider||'').toLowerCase()==='flightapi');
+            if(!rows.length)throw new Error('PRODUCTION_TRAVEL_EMPTY');
+            if(!priced.length)throw new Error('PRODUCTION_TRAVEL_NO_PRICED_RESULTS');
+            if(!flightApi.length)throw new Error('PRODUCTION_TRAVEL_NOT_FLIGHTAPI');
+            const o=flightApi[0];
+            console.log('PRODUCTION_FLIGHTAPI provider='+o.provider+' normalized='+rows.length+' priced='+priced.length+' currency='+o.currency+' offer='+JSON.stringify(o)+' requestId='+(x.requestId||x.request_id||''));
+          NODE
       - name: Security source checks
         shell: bash
         run: |
           set -euo pipefail
           if git grep -nE '(AIza[0-9A-Za-z_-]{20,}|sk-[A-Za-z0-9]{20,}|FLIGHTAPI_API_KEY\s*=|MAKCORPS_API_KEY\s*=)' -- ':!functions/.env*' ':!README*'; then echo 'SECURITY_SECRET_SCAN=REVIEW_REQUIRED'; exit 3; else echo 'SECURITY_SECRET_SCAN=CLEAN'; fi
           if git grep -nE '(^|[^[:alnum:]_])eval\s*\(|new Function\s*\(' -- ':!package-lock.json' ':!functions/package-lock.json'; then echo 'SECURITY_DYNAMIC_EXECUTION=FOUND'; exit 4; else echo 'SECURITY_DYNAMIC_EXECUTION=CLEAN'; fi
-# Trigger fresh production deployment verification on the current branch HEAD.
