@@ -1,82 +1,122 @@
-// NexusNova public-mirror auth shim.
-// The public build has no live Firebase keys, so QA uses a local session only.
+import { getApps, initializeApp } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js';
+import {
+  getAuth,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  sendEmailVerification,
+  signOut,
+  updateProfile
+} from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js';
+import { getFirestore, doc, getDoc, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js';
 
-const SESSION_KEY = 'nexusnova_public_qa_user_v1';
-const DEFAULT_EMAIL = 'qa@nexusnova.local';
+const firebaseConfig = {
+  apiKey: 'AIzaSyBU75WYp5ioaMD1LrNcDyAvROFW2wrTil0',
+  authDomain: 'nexusnova-6ade2.firebaseapp.com',
+  projectId: 'nexusnova-6ade2',
+  storageBucket: 'nexusnova-6ade2.firebasestorage.app',
+  messagingSenderId: '49791194817',
+  appId: '1:49791194817:web:07f28326e0f15979536640',
+  measurementId: 'G-YLPFKWSS12'
+};
 
-let currentUser = readSession();
-const listeners = new Set();
+const app = getApps()[0] || initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
 
-function safeJson(raw) {
-  try { return raw ? JSON.parse(raw) : null; } catch { return null; }
+function cleanName(value) {
+  return String(value || '').replace(/\s+/g, ' ').trim().slice(0, 80);
 }
 
-function readSession() {
-  const saved = safeJson(localStorage.getItem(SESSION_KEY));
-  if (saved?.uid) return userFrom(saved);
-  return null;
-}
-
-function userFrom(raw = {}) {
-  const email = String(raw.email || DEFAULT_EMAIL).trim() || DEFAULT_EMAIL;
-  const name = String(raw.displayName || raw.name || email.split('@')[0] || 'NexusNova QA').trim();
-  return {
-    uid: String(raw.uid || `public-qa-${email.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`).slice(0, 96),
-    email,
-    displayName: name,
-    emailVerified: true,
-    isAnonymous: false,
-    providerId: 'public-qa-local',
-    async reload() { return undefined; },
-    toJSON() { return { uid:this.uid, email:this.email, displayName:this.displayName, emailVerified:true }; }
+async function ensureProfile(user, requestedName = '') {
+  const ref = doc(db, 'users', user.uid);
+  const snap = await getDoc(ref);
+  if (snap.exists()) return snap.data();
+  const name = cleanName(requestedName || user.displayName || user.email?.split('@')[0] || 'NexusNova User');
+  const profile = {
+    uid: user.uid,
+    name,
+    email: String(user.email || '').slice(0, 320),
+    balance: 0,
+    totalMined: 0,
+    tasksCompleted: 0,
+    completedTasks: {},
+    miningActive: false,
+    miningStartedAt: 0,
+    miningLastUpdate: 0,
+    sessionEarned: 0,
+    lastDailyReward: 0,
+    dailyRewardStreak: 0,
+    createdAt: serverTimestamp()
   };
+  await setDoc(ref, profile);
+  return profile;
 }
 
-function save(user) {
-  currentUser = user;
-  if (user) localStorage.setItem(SESSION_KEY, JSON.stringify(user.toJSON()));
-  else localStorage.removeItem(SESSION_KEY);
-  queueMicrotask(() => listeners.forEach(listener => {
-    try { listener(currentUser); } catch {}
-  }));
-  return user;
-}
-
-function credentialsUser(email, name) {
-  return userFrom({
-    email: String(email || DEFAULT_EMAIL).trim() || DEFAULT_EMAIL,
-    displayName: String(name || '').trim()
-  });
+async function resetPartialSession(message, cause) {
+  try { await signOut(auth); } catch (signOutError) { console.warn('[NexusNova Fresh] partial auth cleanup:', signOutError); }
+  const error = new Error(message);
+  error.cause = cause;
+  throw error;
 }
 
 export const authService = {
-  get currentUser() { return currentUser; },
+  get currentUser() { return auth.currentUser; },
 
-  waitForUser() {
-    return Promise.resolve(currentUser);
+  waitForUser(timeout = 5000) {
+    if (auth.currentUser) return Promise.resolve(auth.currentUser);
+    return new Promise(resolve => {
+      let done = false;
+      const off = onAuthStateChanged(auth, user => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        off();
+        resolve(user || null);
+      });
+      const timer = setTimeout(() => {
+        if (done) return;
+        done = true;
+        off();
+        resolve(auth.currentUser || null);
+      }, timeout);
+    });
   },
 
   onChange(listener) {
-    listeners.add(listener);
-    queueMicrotask(() => {
-      try { listener?.(currentUser); } catch {}
-    });
-    return () => listeners.delete(listener);
+    return onAuthStateChanged(auth, listener);
   },
 
-  async signIn(email) {
-    return save(credentialsUser(email));
+  async signIn(email, password) {
+    const credential = await signInWithEmailAndPassword(auth, String(email || '').trim(), String(password || ''));
+    try {
+      await ensureProfile(credential.user);
+      return credential.user;
+    } catch (error) {
+      return resetPartialSession('Sign-in succeeded, but the NexusNova profile could not be prepared. Please sign in again after checking the connection.', error);
+    }
   },
 
-  async register({ name, email } = {}) {
-    return save(credentialsUser(email, name));
+  async register({ name, email, password }) {
+    const safeName = cleanName(name);
+    if (!safeName) throw new Error('Enter your name.');
+    const credential = await createUserWithEmailAndPassword(auth, String(email || '').trim(), String(password || ''));
+    try {
+      await updateProfile(credential.user, { displayName: safeName });
+      await ensureProfile(credential.user, safeName);
+      await sendEmailVerification(credential.user);
+      return credential.user;
+    } catch (error) {
+      return resetPartialSession('Your account was created, but setup did not finish. Sign in with the same email, then resend verification if needed.', error);
+    }
   },
 
   async resendVerification() {
-    return undefined;
+    if (!auth.currentUser) throw new Error('Sign in first.');
+    await sendEmailVerification(auth.currentUser);
   },
 
   async logout() {
-    save(null);
+    await signOut(auth);
   }
 };
