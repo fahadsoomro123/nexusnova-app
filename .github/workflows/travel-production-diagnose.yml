@@ -11,11 +11,31 @@ jobs:
   diagnose:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+      FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+      FIREBASE_SERVICE_ACCOUNT_NEXUSNOVA_6ADE2: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_NEXUSNOVA_6ADE2 }}
+      GOOGLE_APPLICATION_CREDENTIALS_JSON: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS_JSON }}
+      FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+      FIREBASE_SA_JSON: ${{ secrets.FIREBASE_SA_JSON }}
+      GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+      GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+      GCLOUD_SERVICE_KEY: ${{ secrets.GCLOUD_SERVICE_KEY }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: travel-fare-lens-final
           fetch-depth: 1
+      - name: Check deploy credential presence without exposing values
+        shell: bash
+        run: |
+          set -u
+          found=0
+          for name in FIREBASE_TOKEN FIREBASE_SERVICE_ACCOUNT FIREBASE_SERVICE_ACCOUNT_NEXUSNOVA_6ADE2 GOOGLE_APPLICATION_CREDENTIALS_JSON FIREBASE_SERVICE_ACCOUNT_JSON FIREBASE_SA_JSON GCP_SA_KEY GOOGLE_CREDENTIALS GCLOUD_SERVICE_KEY; do
+            value="${!name:-}"
+            if [ -n "$value" ]; then echo "SECRET_PRESENT=$name"; found=1; else echo "SECRET_ABSENT=$name"; fi
+          done
+          echo "FIREBASE_DEPLOY_CREDENTIAL_FOUND=$found"
       - name: Test production Hosting and direct Cloud Function endpoints
         shell: bash
         run: |
