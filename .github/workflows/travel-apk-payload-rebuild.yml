@@ -1,4 +1,5 @@
 name: NexusNova Travel APK Payload Provenance Gate
+# AUTHORITATIVE APK CHECK: exact fresh-rebuild -> Android assets -> signed APK -> ZIP inspection.
 on:
   workflow_dispatch:
   push:
@@ -59,7 +60,7 @@ jobs:
           from pathlib import Path
           import os,re
           p=Path('app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt'); s=p.read_text(); s,n=re.subn(r'const val BUNDLED_WEB_BASE = "[0-9a-f]{40}"', f'const val BUNDLED_WEB_BASE = "{os.environ["GITHUB_SHA"].lower()}"', s, count=1); assert n == 1; p.write_text(s)
-          p=Path('app/build.gradle.kts'); s=p.read_text(); s,n1=re.subn(r'versionCode\s*=\s*\d+', 'versionCode = 26091510', s, count=1); s,n2=re.subn(r'versionName\s*=\s*"[^"]+"', 'versionName = "1.0.42-travel-apk-payload"', s, count=1); assert n1 == n2 == 1
+          p=Path('app/build.gradle.kts'); s=p.read_text(); s,n1=re.subn(r'versionCode\s*=\s*\d+', 'versionCode = 26091512', s, count=1); s,n2=re.subn(r'versionName\s*=\s*"[^"]+"', 'versionName = "1.0.44-travel-apk-payload"', s, count=1); assert n1 == n2 == 1
           if 'signingConfigs {' not in s:
               s=s.replace('    buildTypes {','    signingConfigs {\n        create("release") {\n            storeFile = file("nexusnova-release.jks")\n            storePassword = System.getenv("KEYSTORE_PASSWORD")\n            keyAlias = System.getenv("KEY_ALIAS")\n            keyPassword = System.getenv("KEY_PASSWORD")\n        }\n    }\n\n    buildTypes {',1)
           if 'signingConfig = signingConfigs.getByName("release")' not in s:
@@ -81,8 +82,8 @@ jobs:
           "$AAPT" dump badging "$APK" | head -n1 | tee /tmp/badging.txt
           "$APKSIGNER" verify --verbose --print-certs "$APK" | tee /tmp/apksigner.txt
           grep -q "name='com.nexusnova.app'" /tmp/badging.txt
-          grep -q "versionCode='26091510'" /tmp/badging.txt
-          grep -q "versionName='1.0.42-travel-apk-payload'" /tmp/badging.txt
+          grep -q "versionCode='26091512'" /tmp/badging.txt
+          grep -q "versionName='1.0.44-travel-apk-payload'" /tmp/badging.txt
           unzip -t "$APK" >/tmp/unzip-test.txt
           rm -rf /tmp/nxapk && mkdir -p /tmp/nxapk
           unzip -q "$APK" 'assets/www/*' -d /tmp/nxapk
@@ -93,7 +94,9 @@ jobs:
           CTX=/tmp/nxapk/assets/www/src/features/apps/smart-travel-context.js
           BRIDGE=/tmp/nxapk/assets/www/src/travel-runtime-shell-bridge.js
           CSS=/tmp/nxapk/assets/www/assets/styles/fare-lens-runtime-repair-v2.css
-          test -f "$INDEX" && test -f "$MAIN" && test -f "$APP" && test -f "$REG" && test -f "$CTX" && test -f "$BRIDGE" && test -f "$CSS"
+          AUTH=/tmp/nxapk/assets/www/src/core/auth-service.js
+          BACKEND=/tmp/nxapk/assets/www/src/core/firebase-backend.js
+          test -f "$INDEX" && test -f "$MAIN" && test -f "$APP" && test -f "$REG" && test -f "$CTX" && test -f "$BRIDGE" && test -f "$CSS" && test -f "$AUTH" && test -f "$BACKEND"
           grep -Fq 'src/travel-runtime-shell-bridge.js' "$INDEX"
           grep -Fq 'src/main.js?ota=nv16' "$INDEX"
           test "$(grep -n 'travel-runtime-shell-bridge.js' "$INDEX" | cut -d: -f1 | head -1)" -lt "$(grep -n 'src/main.js?ota=nv16' "$INDEX" | cut -d: -f1 | head -1)"
@@ -109,15 +112,15 @@ jobs:
           ! grep -RFn 'SMART DEFAULT' /tmp/nxapk/assets/www/src
           ! grep -RFn 'Smart Travel Context' /tmp/nxapk/assets/www/src
           sha256sum "$APK" | tee signed-output-sha.txt
-          cp "$APK" NexusNova-v1.0.42-TRAVEL-APK-PAYLOAD-SIGNED.apk
-          sha256sum NexusNova-v1.0.42-TRAVEL-APK-PAYLOAD-SIGNED.apk | tee NexusNova-v1.0.42-TRAVEL-APK-PAYLOAD-SIGNED.apk.sha256
+          cp "$APK" NexusNova-v1.0.44-TRAVEL-APK-PAYLOAD-SIGNED.apk
+          sha256sum NexusNova-v1.0.44-TRAVEL-APK-PAYLOAD-SIGNED.apk | tee NexusNova-v1.0.44-TRAVEL-APK-PAYLOAD-SIGNED.apk.sha256
       - name: Upload inspected APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: NexusNova-v1.0.42-TRAVEL-APK-PAYLOAD-SIGNED
+          name: NexusNova-v1.0.44-TRAVEL-APK-PAYLOAD-SIGNED
           path: |
-            NexusNovaAndroid/NexusNova-v1.0.42-TRAVEL-APK-PAYLOAD-SIGNED.apk
-            NexusNovaAndroid/NexusNova-v1.0.42-TRAVEL-APK-PAYLOAD-SIGNED.apk.sha256
+            NexusNovaAndroid/NexusNova-v1.0.44-TRAVEL-APK-PAYLOAD-SIGNED.apk
+            NexusNovaAndroid/NexusNova-v1.0.44-TRAVEL-APK-PAYLOAD-SIGNED.apk.sha256
             NexusNovaAndroid/signed-output-sha.txt
           if-no-files-found: error
           retention-days: 14
