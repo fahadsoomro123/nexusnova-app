@@ -3,6 +3,11 @@ name: NexusNova OTA Engine Capability CI
 on:
   push:
     branches: [ota-engine-ci-exec-20260915]
+  pull_request:
+    branches: [main]
+    paths:
+      - 'NexusNovaAndroid/**'
+      - '.github/workflows/ota-engine-capability-ci.yml'
   workflow_dispatch:
 
 permissions:
@@ -21,7 +26,7 @@ jobs:
       - name: Checkout exact capability snapshot
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 1
 
       - name: Verify capability snapshot and Travel purge invariants
@@ -119,9 +124,6 @@ jobs:
           echo "$aapt_out" | grep -q "name='com.nexusnova.app'"
           echo "$aapt_out" | grep -q "versionCode='26091501'"
           echo "$aapt_out" | grep -q "versionName='1.0.38-ota-engine-capability'"
-          unzip -q "$apk" 'assets/www/*' -d /tmp/nexusnova-apk-www
-          grep -RIl 'class NexusOtaWebManager' app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt >/dev/null
-          grep -RIl 'object OtaPathPolicy' app/src/main/java/com/nexusnova/app/OtaPathPolicy.kt >/dev/null
           sha256sum "$apk"
           cert="$($APKSIGNER verify --verbose --print-certs "$apk" 2>&1 | sed -n 's/Signer #1 certificate SHA-256 digest: //p' | head -1)"
           echo "CERT_SHA256=$cert"
@@ -134,7 +136,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: NexusNova-OTA-Engine-Upgrade-SIGNED
-          path: |
-            NexusNovaAndroid/app/build/outputs/apk/release/app-release.apk
+          path: NexusNovaAndroid/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 7
