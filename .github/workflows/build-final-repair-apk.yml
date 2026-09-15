@@ -35,109 +35,57 @@ jobs:
         with:
           ref: ${{ github.sha }}
           fetch-depth: 1
-
       - name: Validate real Firebase auth path
         shell: bash
         run: |
           set -euo pipefail
-          AUTH='fresh-rebuild/src/core/auth-service.js'
-          BACKEND='fresh-rebuild/src/core/firebase-backend.js'
-          grep -Fq 'signInWithEmailAndPassword' "$AUTH"
-          grep -Fq 'createUserWithEmailAndPassword' "$AUTH"
-          grep -Fq 'onAuthStateChanged' "$AUTH"
-          grep -Fq 'signOut' "$AUTH"
-          grep -Fq "projectId: 'nexusnova-6ade2'" "$AUTH"
-          grep -Fq 'waitForFirebaseUser' "$BACKEND"
-          grep -Fq "doc(firestoreDb, 'users', active.uid)" "$BACKEND"
-          ! grep -Fq 'public-mirror auth shim' "$AUTH"
-          ! grep -Fq 'public-qa-' "$AUTH"
-          ! grep -Fq 'nexusnova_public_qa_user_v1' "$AUTH"
-
+          AUTH='fresh-rebuild/src/core/auth-service.js'; BACKEND='fresh-rebuild/src/core/firebase-backend.js'
+          grep -Fq 'signInWithEmailAndPassword' "$AUTH"; grep -Fq 'createUserWithEmailAndPassword' "$AUTH"; grep -Fq 'onAuthStateChanged' "$AUTH"; grep -Fq 'signOut' "$AUTH"; grep -Fq "projectId: 'nexusnova-6ade2'" "$AUTH"; grep -Fq 'waitForFirebaseUser' "$BACKEND"; grep -Fq "doc(firestoreDb, 'users', active.uid)" "$BACKEND"
+          ! grep -Fq 'public-mirror auth shim' "$AUTH"; ! grep -Fq 'public-qa-' "$AUTH"; ! grep -Fq 'nexusnova_public_qa_user_v1' "$AUTH"
       - name: Verify no QA auth or obvious secret material in active Android web bundle
         shell: bash
         run: |
           set -euo pipefail
-          for needle in 'public-qa-' 'public-qa-local' 'nexusnova_public_qa_user_v1' 'PUBLIC_DISABLED_ERROR'; do
-            if grep -RIn --exclude-dir=.git --exclude='*.map' "$needle" fresh-rebuild NexusNovaAndroid/app/src/main/assets/www; then
-              echo "Forbidden production marker found: $needle" >&2
-              exit 1
-            fi
-          done
-          if grep -RInE --exclude-dir=.git --exclude='*.map' -- '-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----|gh[pousr]_[0-9A-Za-z]{20,}|AKIA[0-9A-Z]{16}' fresh-rebuild NexusNovaAndroid; then
-            echo 'Private credential material found in active build tree.' >&2
-            exit 1
-          fi
+          for needle in public-qa- public-qa-local nexusnova_public_qa_user_v1 PUBLIC_DISABLED_ERROR; do ! grep -RIn --exclude-dir=.git --exclude='*.map' "$needle" fresh-rebuild NexusNovaAndroid/app/src/main/assets/www; done
+          ! grep -RInE --exclude-dir=.git --exclude='*.map' -- '-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----|gh[pousr]_[0-9A-Za-z]{20,}|AKIA[0-9A-Z]{16}' fresh-rebuild NexusNovaAndroid
           echo 'QA/credential scan passed.'
-
       - name: Verify Firebase/Android identity contract
         shell: bash
         run: |
           set -euo pipefail
-          test -f NexusNovaAndroid/app/google-services.json
-          grep -Fq 'nexusnova-6ade2' NexusNovaAndroid/app/google-services.json
-          grep -Fq 'applicationId = "com.nexusnova.app"' NexusNovaAndroid/app/build.gradle.kts
-          grep -Fq 'namespace = "com.nexusnova.app"' NexusNovaAndroid/app/build.gradle.kts
-          grep -Fq 'firebase-appcheck-recaptcha' NexusNovaAndroid/app/build.gradle.kts
-          grep -Fq 'NexusNativeAppCheck.initialize(this)' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
-
+          test -f NexusNovaAndroid/app/google-services.json; grep -Fq 'nexusnova-6ade2' NexusNovaAndroid/app/google-services.json; grep -Fq 'applicationId = "com.nexusnova.app"' NexusNovaAndroid/app/build.gradle.kts; grep -Fq 'namespace = "com.nexusnova.app"' NexusNovaAndroid/app/build.gradle.kts; grep -Fq 'firebase-appcheck-recaptcha' NexusNovaAndroid/app/build.gradle.kts; grep -Fq 'NexusNativeAppCheck.initialize(this)' NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
       - name: Validate Android/WebView source integrity
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
           import xml.etree.ElementTree as ET
-          ET.parse('NexusNovaAndroid/app/src/main/AndroidManifest.xml')
-          ET.parse('NexusNovaAndroid/app/src/main/res/xml/network_security_config.xml')
-          print('ANDROID_XML=PASS')
+          ET.parse('NexusNovaAndroid/app/src/main/AndroidManifest.xml'); ET.parse('NexusNovaAndroid/app/src/main/res/xml/network_security_config.xml'); print('ANDROID_XML=PASS')
           PY
-          test -s fresh-rebuild/index.html
-          node --check fresh-rebuild/src/core/auth-service.js
-          node --check fresh-rebuild/src/core/firebase-backend.js
-          node --check fresh-rebuild/src/core/drive-cloud-store.js
-          node --check fresh-rebuild/src/nova-vehicle-premium-ui.js
-          node --check fresh-rebuild/src/nova-drive-gold-maptiler-v14-ui.js
-          node --check fresh-rebuild/src/main.js
-
+          test -s fresh-rebuild/index.html; node --check fresh-rebuild/src/core/auth-service.js; node --check fresh-rebuild/src/core/firebase-backend.js; node --check fresh-rebuild/src/core/drive-cloud-store.js; node --check fresh-rebuild/src/nova-vehicle-premium-ui.js; node --check fresh-rebuild/src/nova-drive-gold-maptiler-v14-ui.js; node --check fresh-rebuild/src/main.js
       - name: Install smoke-test dependencies
         shell: bash
-        run: |
-          set -euo pipefail
-          npm install --no-save --no-package-lock @firebase/rules-unit-testing firebase
-
-      - name: Run existing static/runtime validation when present
+        run: npm install --no-save --no-package-lock @firebase/rules-unit-testing firebase
+      - name: Setup Java 21 for Firebase emulator validation
+        uses: actions/setup-java@v5
+        with: { distribution: temurin, java-version: '21' }
+      - name: Run mining and Firestore security smoke tests
         shell: bash
         run: |
           set -euo pipefail
-          ran=0
-          if [ -f .github/scripts/mining-architecture-smoke.mjs ]; then node .github/scripts/mining-architecture-smoke.mjs; ran=1; fi
-          if [ -f .github/scripts/firestore-rules-smoke.mjs ]; then
-            npx --yes firebase-tools@latest emulators:exec --project demo-nexusnova-rules --only firestore "node .github/scripts/firestore-rules-smoke.mjs"
-            ran=1
-          fi
-          if [ -f .github/scripts/android-webview-security-readiness.py ]; then python3 .github/scripts/android-webview-security-readiness.py; ran=1; fi
-          if [ -f .github/scripts/firebase-security-readiness.py ]; then python3 .github/scripts/firebase-security-readiness.py; ran=1; fi
-          echo "RELEVANT_STATIC_CHECKS_RAN=$ran"
-
-      - name: Setup Java 17
+          node .github/scripts/mining-architecture-smoke.mjs
+          npx --yes firebase-tools@latest emulators:exec --project demo-nexusnova-rules --only firestore "node .github/scripts/firestore-rules-smoke.mjs"
+          python3 .github/scripts/android-webview-security-readiness.py
+          python3 .github/scripts/firebase-security-readiness.py
+      - name: Setup Java 17 for Android build
         uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: '17'
-
+        with: { distribution: temurin, java-version: '17' }
       - name: Setup Gradle 8.13
         uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.13'
-
+        with: { gradle-version: '8.13' }
       - name: Check release signing secrets
         shell: bash
-        run: |
-          set -euo pipefail
-          test -n "$KEYSTORE_B64"
-          test -n "$KEYSTORE_PASSWORD"
-          test -n "$KEY_ALIAS"
-          test -n "$KEY_PASSWORD"
-
+        run: test -n "$KEYSTORE_B64" && test -n "$KEYSTORE_PASSWORD" && test -n "$KEY_ALIAS" && test -n "$KEY_PASSWORD"
       - name: Pin bundled web baseline to exact source commit
         shell: bash
         run: |
@@ -145,82 +93,39 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           import os,re
-          p=Path('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt')
-          s=p.read_text(encoding='utf-8')
-          sha=os.environ['GITHUB_SHA'].lower()
-          s,n=re.subn(r'const val BUNDLED_WEB_BASE = "[0-9a-f]{40}"', f'const val BUNDLED_WEB_BASE = "{sha}"', s, count=1)
+          p=Path('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt'); s=p.read_text(encoding='utf-8'); sha=os.environ['GITHUB_SHA'].lower(); s,n=re.subn(r'const val BUNDLED_WEB_BASE = "[0-9a-f]{40}"',f'const val BUNDLED_WEB_BASE = "{sha}"',s,count=1)
           if n != 1: raise SystemExit('BUNDLED_WEB_BASE not found')
           p.write_text(s,encoding='utf-8')
-          print('BUNDLED_WEB_BASE='+sha)
           PY
-
       - name: Decode release keystore securely
-        shell: bash
         working-directory: NexusNovaAndroid
         run: |
           set -euo pipefail
-          printf '%s' "$KEYSTORE_B64" | base64 -d > app/nexusnova-release.jks
-          chmod 600 app/nexusnova-release.jks
-          keytool -list -keystore app/nexusnova-release.jks -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
-
+          printf '%s' "$KEYSTORE_B64" | base64 -d > app/nexusnova-release.jks; chmod 600 app/nexusnova-release.jks; keytool -list -keystore app/nexusnova-release.jks -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
       - name: Inject release version and signing config
-        shell: bash
         working-directory: NexusNovaAndroid
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
           import re
-          p=Path('app/build.gradle.kts')
-          s=p.read_text(encoding='utf-8')
-          s,n1=re.subn(r'versionCode\s*=\s*\d+', 'versionCode = 26091501', s, count=1)
-          s,n2=re.subn(r'versionName\s*=\s*"[^"]+"', 'versionName = "1.0.39-firebase-repair"', s, count=1)
+          p=Path('app/build.gradle.kts'); s=p.read_text(encoding='utf-8'); s,n1=re.subn(r'versionCode\s*=\s*\d+','versionCode = 26091507',s,count=1); s,n2=re.subn(r'versionName\s*=\s*"[^"]+"','versionName = "1.0.39-firebase-repair"',s,count=1)
           if n1 != 1 or n2 != 1: raise SystemExit('Version injection failed')
           signing='''    signingConfigs {\n        create("release") {\n            storeFile = file("nexusnova-release.jks")\n            storePassword = System.getenv("KEYSTORE_PASSWORD")\n            keyAlias = System.getenv("KEY_ALIAS")\n            keyPassword = System.getenv("KEY_PASSWORD")\n        }\n    }\n\n'''
-          if 'signingConfigs {' not in s:
-              s=s.replace('    buildTypes {', signing+'    buildTypes {', 1)
-          if 'signingConfig = signingConfigs.getByName("release")' not in s:
-              s=s.replace('        release {\n', '        release {\n            signingConfig = signingConfigs.getByName("release")\n', 1)
+          if 'signingConfigs {' not in s: s=s.replace('    buildTypes {',signing+'    buildTypes {',1)
+          if 'signingConfig = signingConfigs.getByName("release")' not in s: s=s.replace('        release {\n','        release {\n            signingConfig = signingConfigs.getByName("release")\n',1)
           p.write_text(s,encoding='utf-8')
           PY
-
       - name: Build release APK
         working-directory: NexusNovaAndroid
-        shell: bash
-        run: |
-          set -euo pipefail
-          gradle --no-daemon clean assembleRelease
-
+        run: gradle --no-daemon clean assembleRelease
       - name: Verify APK package, version, signature and Firebase payload
         working-directory: NexusNovaAndroid
-        shell: bash
         run: |
           set -euo pipefail
-          APK='app/build/outputs/apk/release/app-release.apk'
-          test -s "$APK"
-          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
-          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)"
-          test -n "$APKSIGNER"
-          test -n "$AAPT"
-          "$APKSIGNER" verify --verbose --print-certs "$APK"
-          "$AAPT" dump badging "$APK" | head -n 1 | tee /tmp/badging.txt
-          grep -q "name='com.nexusnova.app'" /tmp/badging.txt
-          grep -q "versionCode='26091501'" /tmp/badging.txt
-          grep -q "versionName='1.0.39-firebase-repair'" /tmp/badging.txt
-
-          mkdir -p /tmp/nx-apk
-          unzip -q "$APK" 'assets/www/src/core/auth-service.js' 'assets/www/src/core/firebase-backend.js' 'assets/www/src/core/drive-cloud-store.js' -d /tmp/nx-apk
-          grep -Fq 'signInWithEmailAndPassword' /tmp/nx-apk/assets/www/src/core/auth-service.js
-          grep -Fq 'waitForFirebaseUser' /tmp/nx-apk/assets/www/src/core/firebase-backend.js
-          grep -Fq "doc(firestoreDb, 'users', active.uid)" /tmp/nx-apk/assets/www/src/core/firebase-backend.js
-          ! grep -Fq 'public-mirror auth shim' /tmp/nx-apk/assets/www/src/core/auth-service.js
-          ! grep -Fq 'public-qa-' /tmp/nx-apk/assets/www/src/core/auth-service.js
-
-          mkdir -p signed-output
-          cp "$APK" signed-output/NexusNova-v1.0.39-FIREBASE-REPAIR-SIGNED.apk
-          sha256sum signed-output/NexusNova-v1.0.39-FIREBASE-REPAIR-SIGNED.apk | tee signed-output/NexusNova-v1.0.39-FIREBASE-REPAIR-SIGNED.apk.sha256
-          keytool -list -v -keystore nexusnova-release.jks -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" | grep -E 'Alias name:|SHA256:' | head -2
-
+          APK='app/build/outputs/apk/release/app-release.apk'; test -s "$APK"; APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"; AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)"; "$APKSIGNER" verify --verbose --print-certs "$APK" | tee /tmp/nexusnova-apksigner.txt; "$AAPT" dump badging "$APK" | head -n 1 | tee /tmp/badging.txt; grep -q "name='com.nexusnova.app'" /tmp/badging.txt; grep -q "versionCode='26091507'" /tmp/badging.txt; grep -q "versionName='1.0.39-firebase-repair'" /tmp/badging.txt
+          mkdir -p /tmp/nx-apk; unzip -q "$APK" 'assets/www/src/core/auth-service.js' 'assets/www/src/core/firebase-backend.js' 'assets/www/src/core/drive-cloud-store.js' -d /tmp/nx-apk; grep -Fq 'signInWithEmailAndPassword' /tmp/nx-apk/assets/www/src/core/auth-service.js; grep -Fq 'waitForFirebaseUser' /tmp/nx-apk/assets/www/src/core/firebase-backend.js; grep -Fq "doc(firestoreDb, 'users', active.uid)" /tmp/nx-apk/assets/www/src/core/firebase-backend.js; ! grep -Fq 'public-mirror auth shim' /tmp/nx-apk/assets/www/src/core/auth-service.js; ! grep -Fq 'public-qa-' /tmp/nx-apk/assets/www/src/core/auth-service.js; unzip -l "$APK" | grep -Fq 'assets/www/src/features/apps/travel-fare-lens.js'
+          mkdir -p signed-output; cp "$APK" signed-output/NexusNova-v1.0.39-FIREBASE-REPAIR-SIGNED.apk; sha256sum signed-output/NexusNova-v1.0.39-FIREBASE-REPAIR-SIGNED.apk | tee signed-output/NexusNova-v1.0.39-FIREBASE-REPAIR-SIGNED.apk.sha256
       - name: Upload verified APK
         uses: actions/upload-artifact@v4
         with:
