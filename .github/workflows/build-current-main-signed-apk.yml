@@ -105,6 +105,12 @@ jobs:
           set -euo pipefail
           npm install --no-save --no-package-lock @firebase/rules-unit-testing firebase
 
+      - name: Setup Java 21 for Firebase emulator validation
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
       - name: Run mining and Firestore security validation
         working-directory: build-src
         shell: bash
