@@ -1,0 +1,76 @@
+name: Travel Fare Lens Pages Preview
+
+on:
+  push:
+    branches: [travel-fare-lens-final]
+    paths:
+      - '.github/workflows/travel-fare-lens-pages-preview.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build-preview:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact current source
+        uses: actions/checkout@v4
+        with:
+          ref: travel-fare-lens-final
+          fetch-depth: 0
+
+      - name: Prepare exact web preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf preview-site
+          cp -a fresh-rebuild preview-site
+          test -f preview-site/index.html
+          ! grep -q '#020611' preview-site/src/features/apps/travel-fare-lens.js
+          ! grep -q '#07111f' preview-site/src/features/apps/travel-fare-lens.js
+          grep -q 'https://nexusnova-6ade2.web.app/api/travel' preview-site/src/features/apps/travel-fare-lens.js
+          grep -qi '#087f5b' preview-site/assets/styles/fare-lens-flagship-v1.css
+          ! grep -q 'PUBLIC_BUILD_FIREBASE_DISABLED' preview-site/src/core/firebase-backend.js
+
+      - name: REAL production Travel API smoke test
+        shell: bash
+        run: |
+          set -euo pipefail
+          departure="$(date -u -d '+30 days' +%F)"
+          payload="{\"origin\":\"KHI\",\"destination\":\"ISB\",\"departure\":\"${departure}\",\"tripType\":\"oneway\",\"adults\":1,\"children\":0,\"childrenAges\":[],\"cabin\":\"Economy\",\"currency\":\"USD\",\"region\":\"PK\"}"
+          code="$(curl -sS -o /tmp/travel.json -w '%{http_code}' -X POST 'https://nexusnova-6ade2.web.app/api/travel/flights/search' -H 'Content-Type: application/json' --data "$payload")"
+          echo "PRODUCTION_TRAVEL_HTTP=$code"
+          cat /tmp/travel.json | head -c 1200
+          echo
+          test "$code" = 200
+          node - <<'NODE'
+          const fs=require('fs');
+          const x=JSON.parse(fs.readFileSync('/tmp/travel.json','utf8'));
+          const rows=x.results||[];
+          if(!rows.length) throw new Error('PRODUCTION_TRAVEL_NO_RESULTS');
+          const priced=rows.filter(r=>r.price!=null);
+          if(!priced.length) throw new Error('PRODUCTION_TRAVEL_NO_PRICED_RESULTS');
+          console.log('PRODUCTION_TRAVEL_OK results='+rows.length+' priced='+priced.length+' firstCurrency='+priced[0].currency+' firstPrice='+priced[0].price);
+          NODE
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload exact preview artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: preview-site
+
+  deploy-preview:
+    needs: build-preview
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy exact preview
+        id: deployment
+        uses: actions/deploy-pages@v4
