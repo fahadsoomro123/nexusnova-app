@@ -1,5 +1,7 @@
 package com.nexusnova.app
 
+import java.io.IOException
+
 /** Pure path policy shared by OTA manifest validation and runtime interception. */
 internal object OtaPathPolicy {
     fun normalize(raw: String): String? {
@@ -23,5 +25,18 @@ internal object OtaPathPolicy {
             p.startsWith("js/travel/") ||
             p.startsWith("css/travel/") ||
             p.startsWith("features/travel/")
+    }
+
+    fun validateTravelBlocklist(rawPaths: List<String>): List<String> {
+        val seen = HashSet<String>(rawPaths.size)
+        val normalized = ArrayList<String>(rawPaths.size)
+        rawPaths.forEach { raw ->
+            val path = normalize(raw) ?: throw IOException("Malformed blocked path")
+            if (!isTravelSpecific(path)) throw IOException("Blocked path is not Travel-specific: $path")
+            if (!seen.add(path)) throw IOException("Duplicate blocked path")
+            normalized += path
+        }
+        normalized.sort()
+        return normalized
     }
 }

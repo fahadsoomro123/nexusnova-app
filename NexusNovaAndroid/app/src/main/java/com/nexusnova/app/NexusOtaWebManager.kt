@@ -28,19 +28,13 @@ class NexusOtaWebManager(context: Context) {
 
     init {
         runCatching {
-            appContext.getSharedPreferences("nexusnova_ota_web_v1", Context.MODE_PRIVATE)
-                .edit().clear().apply()
-            appContext.getSharedPreferences("nexusnova_ota_web_v2_stable", Context.MODE_PRIVATE)
-                .edit().clear().apply()
+            appContext.getSharedPreferences("nexusnova_ota_web_v1", Context.MODE_PRIVATE).edit().clear().apply()
+            appContext.getSharedPreferences("nexusnova_ota_web_v2_stable", Context.MODE_PRIVATE).edit().clear().apply()
         }
-
         val storedBase = prefs.getString(KEY_BUNDLED_BASE, "")?.trim()?.lowercase().orEmpty()
         if (storedBase != BUNDLED_WEB_BASE) {
             runCatching { versionsRoot.deleteRecursively() }
-            prefs.edit()
-                .clear()
-                .putString(KEY_BUNDLED_BASE, BUNDLED_WEB_BASE)
-                .apply()
+            prefs.edit().clear().putString(KEY_BUNDLED_BASE, BUNDLED_WEB_BASE).apply()
             android.util.Log.i(TAG, "Reset OTA overlay for bundled base $BUNDLED_WEB_BASE")
         }
     }
@@ -59,11 +53,7 @@ class NexusOtaWebManager(context: Context) {
         // OTA payload always wins when the exact file is present.
         if (file?.isFile == true) {
             return try {
-                WebResourceResponse(
-                    mimeTypeFor(relativePath),
-                    textEncodingFor(relativePath),
-                    FileInputStream(file)
-                )
+                WebResourceResponse(mimeTypeFor(relativePath), textEncodingFor(relativePath), FileInputStream(file))
             } catch (_: Exception) {
                 null
             }
@@ -90,20 +80,14 @@ class NexusOtaWebManager(context: Context) {
                     lastError = error
                     android.util.Log.w(TAG, "OTA check attempt $attempt/$UPDATE_CHECK_ATTEMPTS failed", error)
                 }
-
                 if (attempt < UPDATE_CHECK_ATTEMPTS) {
-                    try {
-                        Thread.sleep(UPDATE_RETRY_DELAY_MS)
-                    } catch (_: InterruptedException) {
+                    try { Thread.sleep(UPDATE_RETRY_DELAY_MS) } catch (_: InterruptedException) {
                         Thread.currentThread().interrupt()
                         break
                     }
                 }
             }
-
-            if (!updated && lastError != null) {
-                android.util.Log.w(TAG, "OTA update unavailable after retries", lastError)
-            }
+            if (!updated && lastError != null) android.util.Log.w(TAG, "OTA update unavailable after retries", lastError)
             onComplete(updated)
         }
     }
@@ -111,11 +95,7 @@ class NexusOtaWebManager(context: Context) {
     fun rollbackToBundled(): Boolean {
         val active = activeVersion()
         if (active.isBlank()) return false
-        prefs.edit()
-            .remove(KEY_ACTIVE_VERSION)
-            .putString(KEY_BLOCKED_VERSION, active)
-            .putString(KEY_BUNDLED_BASE, BUNDLED_WEB_BASE)
-            .apply()
+        prefs.edit().remove(KEY_ACTIVE_VERSION).putString(KEY_BLOCKED_VERSION, active).putString(KEY_BUNDLED_BASE, BUNDLED_WEB_BASE).apply()
         runCatching { File(versionsRoot, active).deleteRecursively() }
         android.util.Log.w(TAG, "Rolled back OTA version $active to bundled assets")
         return true
@@ -125,13 +105,9 @@ class NexusOtaWebManager(context: Context) {
 
     private fun checkForUpdateBlocking(attempt: Int): Boolean {
         val requestNonce = "${System.currentTimeMillis()}-$attempt"
-        val manifestText = downloadText(addQuery(MANIFEST_URL, "n", requestNonce), MAX_MANIFEST_BYTES)
-        val manifest = JSONObject(manifestText)
+        val manifest = JSONObject(downloadText(addQuery(MANIFEST_URL, "n", requestNonce), MAX_MANIFEST_BYTES))
         if (manifest.optInt("schema", 0) != MANIFEST_SCHEMA) throw IOException("Unsupported OTA manifest schema")
-
-        val base = manifest.optString("base").trim().lowercase()
-        if (base != BUNDLED_WEB_BASE) throw IOException("OTA base mismatch")
-
+        if (manifest.optString("base").trim().lowercase() != BUNDLED_WEB_BASE) throw IOException("OTA base mismatch")
         val version = manifest.optString("version").trim().lowercase()
         if (!VERSION_PATTERN.matches(version)) throw IOException("Invalid OTA version")
         if (version == activeVersion()) return false
@@ -139,7 +115,6 @@ class NexusOtaWebManager(context: Context) {
 
         val entries = parseFileEntries(manifest.optJSONArray("files"))
         if (entries.none { it.path == "index.html" }) throw IOException("OTA entry point missing")
-
         val blockedPaths = parseBlockedPaths(manifest)
         validateNoOverlap(entries, blockedPaths)
 
@@ -147,37 +122,24 @@ class NexusOtaWebManager(context: Context) {
         val staging = File(versionsRoot, ".staging-$version")
         if (staging.exists()) staging.deleteRecursively()
         if (!staging.mkdirs()) throw IOException("Could not create OTA staging directory")
-
         try {
             var actualTotal = 0L
             entries.forEach { entry ->
                 val output = safeChild(staging, entry.path) ?: throw IOException("Unsafe OTA output path")
                 output.parentFile?.mkdirs()
-                val versionedUrl = addQuery(FILE_BASE_URL + encodePath(entry.path), "v", version)
-                val url = addQuery(versionedUrl, "n", requestNonce)
+                val url = addQuery(addQuery(FILE_BASE_URL + encodePath(entry.path), "v", version), "n", requestNonce)
                 val written = downloadFile(url, output, entry.size)
                 actualTotal += written
                 if (actualTotal > MAX_TOTAL_BYTES) throw IOException("OTA package exceeded size limit")
                 if (written != entry.size) throw IOException("OTA size mismatch for ${entry.path}")
-                if (!sha256(output).equals(entry.sha256, ignoreCase = true)) {
-                    throw IOException("OTA hash mismatch for ${entry.path}")
-                }
+                if (!sha256(output).equals(entry.sha256, ignoreCase = true)) throw IOException("OTA hash mismatch for ${entry.path}")
             }
 
-            // Persist blocklist inside staging. The directory rename activates files
-            // and deletion metadata as one filesystem operation.
             writeBlockedPaths(staging, blockedPaths)
-
             val destination = File(versionsRoot, version)
             if (destination.exists()) destination.deleteRecursively()
             if (!staging.renameTo(destination)) throw IOException("Could not activate OTA package")
-
-            // Pointer is updated only after the fully validated staging tree is active.
-            prefs.edit()
-                .putString(KEY_ACTIVE_VERSION, version)
-                .putString(KEY_BUNDLED_BASE, BUNDLED_WEB_BASE)
-                .remove(KEY_BLOCKED_VERSION)
-                .apply()
+            prefs.edit().putString(KEY_ACTIVE_VERSION, version).putString(KEY_BUNDLED_BASE, BUNDLED_WEB_BASE).remove(KEY_BLOCKED_VERSION).apply()
             cleanupOldVersions(keep = version)
             android.util.Log.i(TAG, "Activated OTA web version $version with ${blockedPaths.size} blocked paths")
             return true
@@ -190,9 +152,7 @@ class NexusOtaWebManager(context: Context) {
     private data class FileEntry(val path: String, val sha256: String, val size: Long)
 
     private fun parseFileEntries(filesJson: JSONArray?): List<FileEntry> {
-        if (filesJson == null || filesJson.length() !in 1..MAX_FILE_COUNT) {
-            throw IOException("Invalid OTA file count")
-        }
+        if (filesJson == null || filesJson.length() !in 1..MAX_FILE_COUNT) throw IOException("Invalid OTA file count")
         val entries = ArrayList<FileEntry>(filesJson.length())
         val seen = HashSet<String>(filesJson.length())
         var declaredTotal = 0L
@@ -212,19 +172,11 @@ class NexusOtaWebManager(context: Context) {
     }
 
     private fun parseBlockedPaths(manifest: JSONObject): List<String> {
-        val array = manifest.optJSONArray("blockedPaths") ?: manifest.optJSONArray("deletedFiles")
-        if (array == null) return emptyList()
+        val array = manifest.optJSONArray("blockedPaths") ?: manifest.optJSONArray("deletedFiles") ?: return emptyList()
         if (array.length() > MAX_BLOCKED_PATH_COUNT) throw IOException("Too many blocked paths")
-        val seen = HashSet<String>(array.length())
-        val normalized = ArrayList<String>(array.length())
-        for (i in 0 until array.length()) {
-            val path = normalizeManifestPath(array.optString(i, ""))
-            if (!OtaPathPolicy.isTravelSpecific(path)) throw IOException("Blocked path is not Travel-specific: $path")
-            if (!seen.add(path)) throw IOException("Duplicate blocked path")
-            normalized += path
-        }
-        normalized.sort()
-        return normalized
+        val raw = ArrayList<String>(array.length())
+        for (i in 0 until array.length()) raw += array.optString(i, "")
+        return OtaPathPolicy.validateTravelBlocklist(raw)
     }
 
     private fun validateNoOverlap(entries: List<FileEntry>, blockedPaths: List<String>) {
@@ -233,8 +185,7 @@ class NexusOtaWebManager(context: Context) {
     }
 
     private fun writeBlockedPaths(staging: File, blockedPaths: List<String>) {
-        val metadata = File(staging, BLOCKLIST_FILE)
-        metadata.writeText(blockedPaths.joinToString("\n", postfix = if (blockedPaths.isEmpty()) "" else "\n"), Charsets.UTF_8)
+        File(staging, BLOCKLIST_FILE).writeText(blockedPaths.joinToString("\n", postfix = if (blockedPaths.isEmpty()) "" else "\n"), Charsets.UTF_8)
     }
 
     private fun blockedPathsForActive(): Set<String> {
@@ -242,39 +193,26 @@ class NexusOtaWebManager(context: Context) {
         val file = File(File(versionsRoot, active), BLOCKLIST_FILE)
         if (!file.isFile) return emptySet()
         return runCatching {
-            file.readLines(Charsets.UTF_8)
-                .filter { it.isNotBlank() }
-                .mapNotNull { OtaPathPolicy.normalize(it) }
-                .filter { OtaPathPolicy.isTravelSpecific(it) }
-                .toSet()
+            file.readLines(Charsets.UTF_8).filter { it.isNotBlank() }.mapNotNull { OtaPathPolicy.normalize(it) }
+                .filter { OtaPathPolicy.isTravelSpecific(it) }.toSet()
         }.getOrDefault(emptySet())
     }
 
     private fun isBlocked(path: String): Boolean = path in blockedPathsForActive()
-
-    private fun normalizeManifestPath(raw: String): String =
-        OtaPathPolicy.normalize(raw) ?: throw IOException("Malformed OTA path")
+    private fun normalizeManifestPath(raw: String): String = OtaPathPolicy.normalize(raw) ?: throw IOException("Malformed OTA path")
 
     private fun blockedResponse(): WebResourceResponse =
         WebResourceResponse("text/plain", "UTF-8", 404, "Not Found", emptyMap(), "NexusNova OTA blocked resource".byteInputStream())
 
-    private fun safeChild(root: File, relativePath: String): File? {
-        return try {
-            val canonicalRoot = root.canonicalFile
-            val candidate = File(canonicalRoot, relativePath).canonicalFile
-            val prefix = canonicalRoot.path + File.separator
-            candidate.takeIf { it.path.startsWith(prefix) }
-        } catch (_: IOException) {
-            null
-        }
-    }
+    private fun safeChild(root: File, relativePath: String): File? = try {
+        val canonicalRoot = root.canonicalFile
+        val candidate = File(canonicalRoot, relativePath).canonicalFile
+        val prefix = canonicalRoot.path + File.separator
+        candidate.takeIf { it.path.startsWith(prefix) }
+    } catch (_: IOException) { null }
 
-    private fun encodePath(path: String): String = path.split('/').joinToString("/") { segment ->
-        URLEncoder.encode(segment, Charsets.UTF_8.name()).replace("+", "%20")
-    }
-
-    private fun addQuery(url: String, key: String, value: String): String =
-        Uri.parse(url).buildUpon().appendQueryParameter(key, value).build().toString()
+    private fun encodePath(path: String): String = path.split('/').joinToString("/") { URLEncoder.encode(it, Charsets.UTF_8.name()).replace("+", "%20") }
+    private fun addQuery(url: String, key: String, value: String): String = Uri.parse(url).buildUpon().appendQueryParameter(key, value).build().toString()
 
     private fun sha256(file: File): String {
         val digest = MessageDigest.getInstance("SHA-256")
@@ -377,9 +315,7 @@ class NexusOtaWebManager(context: Context) {
     }
 
     private fun cleanupOldVersions(keep: String) {
-        versionsRoot.listFiles()?.forEach { file ->
-            if (file.name != keep && !file.name.startsWith(".staging-")) runCatching { file.deleteRecursively() }
-        }
+        versionsRoot.listFiles()?.forEach { file -> if (file.name != keep && !file.name.startsWith(".staging-")) runCatching { file.deleteRecursively() } }
     }
 
     private companion object {
@@ -406,8 +342,6 @@ class NexusOtaWebManager(context: Context) {
         const val MAX_FILE_COUNT = 2_000
         val VERSION_PATTERN = Regex("^[0-9a-f]{40}$")
         val SHA256_PATTERN = Regex("^[0-9a-f]{64}$")
-        val EXECUTOR = Executors.newSingleThreadExecutor { runnable ->
-            Thread(runnable, "NexusNovaOtaWeb").apply { isDaemon = true }
-        }
+        val EXECUTOR = Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "NexusNovaOtaWeb").apply { isDaemon = true } }
     }
 }
