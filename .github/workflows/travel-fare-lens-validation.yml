@@ -51,7 +51,7 @@ jobs:
             local file="$1"; local needle="$2"
             if grep -Fq -- "$needle" "$file"; then echo "FAIL: $file contains forbidden travel contract: $needle"; exit 1; else echo "PASS: $file omits forbidden travel contract: $needle"; fi
           }
-          assert_contains fresh-rebuild/src/features/apps/app-screen.js "['./travel-fare-lens.js', 'fareLensRenderers'"
+          assert_contains fresh-rebuild/src/features/apps/app-screen.js "['./travel-fare-lens.js', 'fareLensRenderers']"
           assert_contains fresh-rebuild/src/features/apps/app-screen.js 'enhanceSmartTravelContext'
           assert_contains fresh-rebuild/src/features/apps/travel-fare-lens.js 'data-pick="origin"'
           assert_contains fresh-rebuild/src/features/apps/travel-fare-lens.js 'data-pick="destination"'
