@@ -153,8 +153,10 @@ jobs:
           set -euo pipefail
           apk='app/build/outputs/apk/release/app-release.apk'
           test -s "$apk"
-          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
-          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner -print | sort -V)"
+          APKSIGNER="$(printf '%s\n' "$APKSIGNER" | sed -n '$p')"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt -print | sort -V)"
+          AAPT="$(printf '%s\n' "$AAPT" | sed -n '$p')"
           test -n "$APKSIGNER"
           test -n "$AAPT"
           "$APKSIGNER" verify --verbose --print-certs "$apk"
@@ -165,7 +167,8 @@ jobs:
           echo "$first_badging_line" | grep -q "versionCode='26091501'"
           echo "$first_badging_line" | grep -q "versionName='1.0.38-ota-engine-capability'"
           sha256sum "$apk"
-          cert="$($APKSIGNER verify --verbose --print-certs "$apk" 2>&1 | sed -n 's/Signer #1 certificate SHA-256 digest: //p' | head -1)"
+          cert_output="$($APKSIGNER verify --verbose --print-certs "$apk" 2>&1)"
+          cert="$(printf '%s\n' "$cert_output" | sed -n 's/Signer #1 certificate SHA-256 digest: //p')"
           echo "CERT_SHA256=$cert"
           test "$cert" = '76fa4bc81be45ab1d53350ea996e85e61518379f82cb9a1ec0e2a19d2e303f25'
           unzip -l "$apk" | grep -Fq 'assets/www/assets/icons/nova-hub/travel.webp'
