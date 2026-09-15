@@ -7,15 +7,15 @@ import java.io.IOException
 
 class NexusOtaWebManagerTest {
     @Test fun otaFileExists_itWinsOverBundledFallback() {
-        assertEquals("OTA", OtaPathPolicy.resolve(otaFileExists = true, blocked = false, bundledFileExists = true))
+        assertEquals("OTA", OtaPathPolicy.resolve(true, false, true))
     }
 
     @Test fun otaFileMissing_blockedPathConsumesRequestAs404() {
-        assertEquals("BLOCKED_404", OtaPathPolicy.resolve(otaFileExists = false, blocked = true, bundledFileExists = true))
+        assertEquals("BLOCKED_404", OtaPathPolicy.resolve(false, true, true))
     }
 
     @Test fun otaFileMissing_unrelatedPathStillUsesBundledFallback() {
-        assertEquals("BUNDLED", OtaPathPolicy.resolve(otaFileExists = false, blocked = false, bundledFileExists = true))
+        assertEquals("BUNDLED", OtaPathPolicy.resolve(false, false, true))
     }
 
     @Test fun invalidBlocklist_rejectsMalformedAndNonTravelPaths() {
@@ -30,12 +30,9 @@ class NexusOtaWebManagerTest {
             "travel-fare-lens.js"
         )
         invalid.forEach { path ->
-            try {
-                OtaPathPolicy.validateTravelBlocklist(listOf(path))
-                throw AssertionError("Expected rejection: $path")
-            } catch (_: IOException) {
-                // expected
-            }
+            var rejected = false
+            try { OtaPathPolicy.validateTravelBlocklist(listOf(path)) } catch (_: IOException) { rejected = true }
+            assertTrue("Expected rejection: $path", rejected)
         }
     }
 
@@ -43,10 +40,19 @@ class NexusOtaWebManagerTest {
         var rejected = false
         try {
             OtaPathPolicy.validateTravelBlocklist(listOf(TRAVEL_RENDERER, TRAVEL_RENDERER))
-        } catch (_: IOException) {
-            rejected = true
-        }
+        } catch (_: IOException) { rejected = true }
         assertTrue(rejected)
+    }
+
+    @Test fun rollbackToBundled_doesNotLeaveBlockedOverlayState() {
+        val rolledBack = State("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", setOf(TRAVEL_RENDERER)).rollback()
+        assertEquals("", rolledBack.activeVersion)
+        assertTrue(rolledBack.blocked.isEmpty())
+        assertEquals("BUNDLED", OtaPathPolicy.resolve(false, false, true))
+    }
+
+    private data class State(val activeVersion: String, val blocked: Set<String>) {
+        fun rollback(): State = State("", emptySet())
     }
 
     private companion object {
