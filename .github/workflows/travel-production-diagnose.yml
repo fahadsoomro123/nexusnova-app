@@ -4,6 +4,11 @@ on:
     branches: [travel-fare-lens-final]
     paths:
       - '.github/workflows/travel-production-diagnose.yml'
+  pull_request:
+    branches: [main]
+    types: [synchronize]
+    paths:
+      - '.github/workflows/travel-production-diagnose.yml'
   workflow_dispatch:
 permissions:
   contents: read
@@ -24,8 +29,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: travel-fare-lens-final
+          ref: ${{ github.sha }}
           fetch-depth: 1
+      - name: Identify exact source
+        run: |
+          echo "DEPLOYMENT_COMMIT=$(git rev-parse HEAD)"
+          echo "WORKFLOW_EVENT=${GITHUB_EVENT_NAME}"
+          echo "WORKFLOW_RUN=${GITHUB_RUN_ID}"
       - name: Check deploy credential presence without exposing values
         shell: bash
         run: |
