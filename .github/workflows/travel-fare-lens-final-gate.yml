@@ -1,0 +1,59 @@
+name: NexusNova Travel Fare Lens Final Gate
+on:
+  push:
+    branches: [travel-fare-lens-final]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: 19 provider and contract tests
+        working-directory: functions
+        run: node --test travel-provider.test.js travel-master-provider.test.js hotel-value.test.js travel-contracts.test.js travelport-provider.test.js
+      - name: Security and source gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq "['./travel-fare-lens.js', 'fareLensRenderers']" fresh-rebuild/src/features/apps/app-screen.js
+          grep -Fq 'data-pick="origin"' fresh-rebuild/src/features/apps/travel-fare-lens.js
+          grep -Fq 'data-pick="destination"' fresh-rebuild/src/features/apps/travel-fare-lens.js
+          grep -Fq 'Fare Calendar' fresh-rebuild/src/features/apps/travel-fare-lens.js
+          grep -Fq 'Rescue' fresh-rebuild/src/features/apps/travel-fare-lens.js
+          grep -Fq 'provider data only' fresh-rebuild/src/features/apps/travel-fare-lens.js
+          ! grep -REiq '(AIza[0-9A-Za-z_-]{20,}|-----BEGIN (RSA|EC|OPENSSH|PRIVATE) KEY-----)' fresh-rebuild/src functions docs
+          ! grep -REq '\b(eval|Function)\s*\(' fresh-rebuild/src functions
+      - name: Real Chromium 390x844 412x915 1280x800
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq && sudo apt-get install -y -qq chromium
+          python3 -m pip install --user --break-system-packages websocket-client
+          cat > fresh-rebuild/.ci-final-gate.html <<'EOF'
+          <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;padding:0;width:100%;min-height:100%;}</style><link rel="stylesheet" href="./assets/styles/phone-visible-fixes.css"><link rel="stylesheet" href="./assets/styles/fare-lens-flagship-v1.css"><link rel="stylesheet" href="./assets/styles/fare-lens-flagship-layout-v1.css"></head><body><script type="module">import {renderTravel} from './src/features/apps/travel-fare-lens.js';document.body.append(renderTravel());</script></body></html>
+          EOF
+          python3 -m http.server 8765 --directory fresh-rebuild >/tmp/nx-http.log 2>&1 & HP=$!
+          chromium --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --user-data-dir="$RUNNER_TEMP/nx-chrome" --remote-debugging-port=9222 --remote-allow-origins=* about:blank >/tmp/nx-chrome.log 2>&1 & CP=$!
+          trap 'kill "$HP" "$CP" >/dev/null 2>&1 || true' EXIT
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8765/.ci-final-gate.html >/dev/null 2>&1 && curl -fsS http://127.0.0.1:9222/json/version >/dev/null 2>&1 && break; sleep 1; done
+          python3 - <<'PY'
+          import json,time,urllib.request,websocket
+          pages=json.load(urllib.request.urlopen('http://127.0.0.1:9222/json/list')); p=next(x for x in pages if x.get('type')=='page'); ws=websocket.create_connection(p['webSocketDebuggerUrl'],timeout=30); n=0
+          def call(method,params=None):
+            global n;n+=1;ws.send(json.dumps({'id':n,'method':method,'params':params or {}}))
+            while 1:
+              m=json.loads(ws.recv())
+              if m.get('id')==n:return m.get('result',{})
+          call('Page.enable');call('Runtime.enable')
+          for w,h,mobile in ((390,844,True),(412,915,True),(1280,800,False)):
+            call('Emulation.setDeviceMetricsOverride',{'width':w,'height':h,'deviceScaleFactor':1,'mobile':mobile,'screenWidth':w,'screenHeight':h})
+            call('Page.navigate',{'url':'http://127.0.0.1:8765/.ci-final-gate.html'});time.sleep(1.5)
+            expr="""(()=>{const t=document.querySelector('.nxf-travel'),d=document.documentElement,b=document.body,text=b.innerText,keys=[...document.querySelectorAll('.nxf-tabs button,[data-pick],[data-search],[data-calendar],[data-rescue]')],inside=keys.every(e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0&&r.left>=0&&r.top>=0&&r.right<=innerWidth+.5&&r.bottom<=innerHeight+.5});window.scrollTo(0,100);const sy=scrollY,sx=scrollX;window.scrollTo(0,0);const cs=[getComputedStyle(t),getComputedStyle(t?.querySelector('.nxf-panel')),getComputedStyle(t?.querySelector('.nxf-primary'))].map(x=>[x.backgroundColor,x.color,x.borderTopColor]).flat();const rgb=cs.map(x=>x.match(/(\\d+)[^\\d]+(\\d+)[^\\d]+(\\d+)/)).filter(Boolean).map(m=>m.slice(1).map(Number));return{h:innerHeight,w:innerWidth,dh:d.scrollHeight,dw:d.scrollWidth,sy,sx,inside,textOK:['Compare before you book.','Fare Calendar','Disruption Rescue','Flight status','SEARCH FLIGHTS'].every(x=>text.includes(x)),dark:rgb.some(([r,g,bb])=>Math.max(r,g,bb)<80),blue:rgb.some(([r,g,bb])=>bb>r*1.12&&bb>g*1.08),emerald:cs.join('|').includes('rgb(8, 127, 91)')}})()"""
+            r=call('Runtime.evaluate',{'expression':expr,'returnByValue':True})['result']['value']
+            page_ok=r['dh']==h and r['dw']==w and r['sy']==0 and r['sx']==0 and r['inside'] and r['textOK'] and not r['dark'] and not r['blue'] and r['emerald']
+            print(f"BROWSER {w}x{h}: {'PASS' if page_ok else 'FAIL'}",json.dumps(r,sort_keys=True))
+            if not page_ok: raise SystemExit(1)
+          PY
