@@ -2,7 +2,6 @@ package com.nexusnova.app
 
 import java.io.IOException
 
-/** Pure path policy shared by OTA manifest validation and runtime interception. */
 internal object OtaPathPolicy {
     fun normalize(raw: String): String? {
         val path = raw.trim()
@@ -38,5 +37,12 @@ internal object OtaPathPolicy {
         }
         normalized.sort()
         return normalized
+    }
+
+    fun resolve(otaFileExists: Boolean, blocked: Boolean, bundledFileExists: Boolean): String = when {
+        otaFileExists -> "OTA"
+        blocked -> "BLOCKED_404"
+        bundledFileExists -> "BUNDLED"
+        else -> "MISS"
     }
 }

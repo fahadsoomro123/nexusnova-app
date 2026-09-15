@@ -8,18 +8,16 @@ import java.io.IOException
 
 class OtaPathPolicyTest {
     @Test fun normalizeRejectsTraversalAndMalformedPaths() {
-        listOf(
-            "../fresh-rebuild/src/features/apps/travel-fare-lens.js",
-            "fresh-rebuild/src/features/apps/../travel-fare-lens.js",
-            "/fresh-rebuild/src/features/apps/travel-fare-lens.js",
-            "\\fresh-rebuild/src/features/apps/travel-fare-lens.js",
-            "fresh-rebuild\\src\\features\\apps\\travel-fare-lens.js",
-            "fresh-rebuild/src/features/apps//travel-fare-lens.js",
-            "fresh-rebuild/src/features/apps/travel-fare-lens.js\u0000.js"
-        ).forEach { assertEquals(null, OtaPathPolicy.normalize(it)) }
+        assertEquals(null, OtaPathPolicy.normalize("../fresh-rebuild/src/features/apps/travel-fare-lens.js"))
+        assertEquals(null, OtaPathPolicy.normalize("fresh-rebuild/src/features/apps/../travel-fare-lens.js"))
+        assertEquals(null, OtaPathPolicy.normalize("/fresh-rebuild/src/features/apps/travel-fare-lens.js"))
+        assertEquals(null, OtaPathPolicy.normalize("\\fresh-rebuild/src/features/apps/travel-fare-lens.js"))
+        assertEquals(null, OtaPathPolicy.normalize("fresh-rebuild\\src\\features\\apps\\travel-fare-lens.js"))
+        assertEquals(null, OtaPathPolicy.normalize("fresh-rebuild/src/features/apps//travel-fare-lens.js"))
+        assertEquals(null, OtaPathPolicy.normalize("fresh-rebuild/src/features/apps/travel-fare-lens.js\u0000.js"))
     }
 
-    @Test fun normalizeIsStableForValidTravelPaths() {
+    @Test fun normalizeAndScopeAcceptValidTravelPath() {
         val path = "fresh-rebuild/src/features/apps/travel-fare-lens.js"
         assertEquals(path, OtaPathPolicy.normalize(path))
         assertTrue(OtaPathPolicy.isTravelSpecific(path))
@@ -28,20 +26,13 @@ class OtaPathPolicyTest {
     @Test fun unrelatedPathIsNotTravelSpecific() {
         assertFalse(OtaPathPolicy.isTravelSpecific("fresh-rebuild/src/core/app-shell.js"))
         assertFalse(OtaPathPolicy.isTravelSpecific("fresh-rebuild/src/features/apps/calendar.js"))
+        assertFalse(OtaPathPolicy.isTravelSpecific("fresh-rebuild/src/core/travel-timezone.js"))
     }
 
     @Test fun duplicateTravelBlocklistIsRejected() {
         var rejected = false
-        try {
-            OtaPathPolicy.validateTravelBlocklist(listOf(TRAVEL_RENDERER, TRAVEL_RENDERER))
-        } catch (_: IOException) {
-            rejected = true
-        }
+        try { OtaPathPolicy.validateTravelBlocklist(listOf(TRAVEL_RENDERER, TRAVEL_RENDERER)) } catch (_: IOException) { rejected = true }
         assertTrue(rejected)
-    }
-
-    @Test fun unrelatedTravelLikeNameDoesNotPassScopedPolicy() {
-        assertFalse(OtaPathPolicy.isTravelSpecific("fresh-rebuild/src/core/travel-timezone.js"))
     }
 
     private companion object {
