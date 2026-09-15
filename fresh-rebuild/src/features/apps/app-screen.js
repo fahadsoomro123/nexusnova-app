@@ -1,11 +1,9 @@
 import { icon } from '../../components/icons.js';
-import { enhanceSmartTravelContext } from './smart-travel-context.js';
 import { novaApps } from '../hub/app-registry.js';
 
 let cleanup = null;
 const AI_PHOTO_ID = 'ai-photo-studio';
 const rendererSources = [
-  ['./travel-fare-lens.js', 'fareLensRenderers'],
   ['./premium-studio-suite.js', 'premiumStudioRenderers'],
   ['./nova-sol57-fresh.js', 'novaSol57Renderers'],
   ['./nova-vault-safe.js', 'novaVaultSafeRenderers'],
@@ -252,7 +250,6 @@ export async function appScreen({ id, backToHub, backToMine } = {}) {
       if (!(body instanceof Node)) throw new Error('Renderer returned an invalid screen.');
       mount.appendChild(body);
       void enhanceAppSafely(id, body);
-      void enhanceSmartTravelContext(id, body).catch(error => console.warn('[NexusNova Fresh] smart travel context skipped:', error));
       if (aiPhotoRoute) document.body.classList.add('nx-ai-photo-route-active');
       const novaSidebarCleanup = id === 'ai' ? installNovaPremiumSidebar(root, body) : () => {};
       let cleaned = false;
