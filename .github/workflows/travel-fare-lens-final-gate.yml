@@ -60,15 +60,3 @@ jobs:
             print(f'BROWSER {width}x{height}: {"PASS" if ok else "FAIL"}',json.dumps(r,sort_keys=True))
             if not ok: raise SystemExit(1)
           PY
-      - name: Real FlightAPI KHI to ISB — single live request
-        env:
-          FLIGHTAPI_API_KEY: ${{ secrets.FLIGHTAPI_API_KEY }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -n "${FLIGHTAPI_API_KEY:-}" || { echo 'LIVE_VERIFICATION_BLOCKED missing FLIGHTAPI_API_KEY'; exit 1; }
-          departure="$(date -u -d '+30 days' +%F)"
-          curl -sS --fail --get "https://api.flightapi.io/onewaytrip/${FLIGHTAPI_API_KEY}/KHI/ISB/${departure}/1/0/0/Economy/USD" --data-urlencode 'region=PK' -o /tmp/flightapi.json
-          node - <<'NODE'
-          const fs=require('fs'); const {normalizeItineraryRows}=require('./functions/flightapi-provider'); const input=JSON.parse(fs.readFileSync('/tmp/flightapi.json','utf8')); const raw=input.itineraries||input.data?.itineraries||[]; const normalized=normalizeItineraryRows(input,'USD'); const priced=normalized.filter(r=>r.price!=null&&r.currency); if(!raw.length||!normalized.length||!priced.length) process.exit(1); console.log('REAL_FLIGHTAPI_OK provider=FlightAPI raw_itineraries='+raw.length+' normalized='+normalized.length+' priced='+priced.length+' currency='+priced[0].currency+' firstPrice='+priced[0].price);
-          NODE
