@@ -1,6 +1,6 @@
 name: NexusNova Final Repair Signed APK
 
-# Final mobile Travel release build after Firebase/WebView QA contract repair.
+# Final mobile Travel release build after current Firebase/WebView QA contract repair (a3e8b71).
 
 on:
   push:
@@ -34,9 +34,7 @@ jobs:
     steps:
       - name: Checkout exact repair source
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.sha }}
-          fetch-depth: 1
+        with: { ref: ${{ github.sha }}, fetch-depth: 1 }
       - name: Validate real Firebase auth path
         shell: bash
         run: |
@@ -50,7 +48,6 @@ jobs:
           set -euo pipefail
           for needle in public-qa- public-qa-local nexusnova_public_qa_user_v1 PUBLIC_DISABLED_ERROR; do ! grep -RIn --exclude-dir=.git --exclude='*.map' "$needle" fresh-rebuild NexusNovaAndroid/app/src/main/assets/www; done
           ! grep -RInE --exclude-dir=.git --exclude='*.map' -- '-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----|gh[pousr]_[0-9A-Za-z]{20,}|AKIA[0-9A-Z]{16}' fresh-rebuild NexusNovaAndroid
-          echo 'QA/credential scan passed.'
       - name: Verify Firebase/Android identity contract
         shell: bash
         run: |
@@ -66,7 +63,6 @@ jobs:
           PY
           test -s fresh-rebuild/index.html; node --check fresh-rebuild/src/core/auth-service.js; node --check fresh-rebuild/src/core/firebase-backend.js; node --check fresh-rebuild/src/core/drive-cloud-store.js; node --check fresh-rebuild/src/nova-vehicle-premium-ui.js; node --check fresh-rebuild/src/nova-drive-gold-maptiler-v14-ui.js; node --check fresh-rebuild/src/main.js
       - name: Install smoke-test dependencies
-        shell: bash
         run: npm install --no-save --no-package-lock @firebase/rules-unit-testing firebase
       - name: Setup Java 21 for Firebase emulator validation
         uses: actions/setup-java@v5
