@@ -58,12 +58,51 @@ jobs:
         with:
           gradle-version: '8.13'
 
+      - name: Diagnose Google Maven UMP resolution
+        working-directory: NexusNovaAndroid
+        shell: bash
+        run: |
+          set +e
+          set -u
+          HOST='maven.google.com'
+          POM='https://maven.google.com/com/google/ump/user-messaging-platform/4.0.0/user-messaging-platform-4.0.0.pom'
+          AAR='https://maven.google.com/com/google/ump/user-messaging-platform/4.0.0/user-messaging-platform-4.0.0.aar'
+          echo '=== repository configuration ==='
+          sed -n '1,200p' settings.gradle.kts
+          echo '=== Gradle properties ==='
+          sed -n '1,200p' gradle.properties
+          echo '=== DNS ==='
+          getent ahosts "$HOST"
+          echo "getent_exit=$?"
+          echo '=== HTTPS headers / redirects: POM ==='
+          curl -sS -D /tmp/ump-pom.headers -o /tmp/ump-pom "$POM"
+          echo "curl_pom_exit=$?"
+          cat /tmp/ump-pom.headers
+          echo '=== POM response metadata ==='
+          file /tmp/ump-pom
+          head -c 200 /tmp/ump-pom; echo
+          echo '=== HTTPS headers / redirects: AAR ==='
+          curl -sS -D /tmp/ump-aar.headers -o /tmp/ump-aar "$AAR"
+          echo "curl_aar_exit=$?"
+          cat /tmp/ump-aar.headers
+          echo '=== AAR response metadata ==='
+          file /tmp/ump-aar
+          ls -lh /tmp/ump-aar
+          echo '=== curl final/status/content-type/redirect diagnostics ==='
+          curl -sS -L -o /dev/null -w 'POM final=%{url_effective} status=%{http_code} type=%{content_type} redirects=%{num_redirects} remote_ip=%{remote_ip}\n' "$POM"
+          curl -sS -L -o /dev/null -w 'AAR final=%{url_effective} status=%{http_code} type=%{content_type} redirects=%{num_redirects} remote_ip=%{remote_ip}\n' "$AAR"
+          echo '=== Gradle dependencyInsight (with info/stacktrace) ==='
+          ./gradlew --no-daemon --refresh-dependencies --info --stacktrace :app:dependencyInsight --dependency com.google.ump:user-messaging-platform --configuration debugCompileClasspath
+          echo "dependencyInsight_exit=$?"
+          echo '=== Gradle repository/resolution diagnostics captured above ==='
+          exit 0
+
       - name: Run native OTA unit tests
         working-directory: NexusNovaAndroid
         shell: bash
         run: |
           set -euo pipefail
-          gradle --no-daemon --refresh-dependencies testDebugUnitTest --tests 'com.nexusnova.app.NexusOtaWebManagerTest' --tests 'com.nexusnova.app.OtaPathPolicyTest'
+          gradle --no-daemon --refresh-dependencies --info --stacktrace testDebugUnitTest --tests 'com.nexusnova.app.NexusOtaWebManagerTest' --tests 'com.nexusnova.app.OtaPathPolicyTest'
 
       - name: Check signing secrets
         shell: bash
