@@ -1,0 +1,53 @@
+name: Travel Production Diagnose
+on:
+  push:
+    branches: [travel-fare-lens-final]
+    paths:
+      - '.github/workflows/travel-production-diagnose.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: travel-fare-lens-final
+          fetch-depth: 1
+      - name: Test production Hosting and direct Cloud Function endpoints
+        shell: bash
+        run: |
+          set -u
+          departure="$(date -u -d '+30 days' +%F)"
+          payload="{\"origin\":\"KHI\",\"destination\":\"ISB\",\"departure\":\"${departure}\",\"tripType\":\"oneway\",\"adults\":1,\"children\":0,\"childrenAges\":[],\"cabin\":\"Economy\",\"currency\":\"USD\",\"region\":\"PK\"}"
+          for url in \
+            'https://nexusnova-6ade2.web.app/api/travel/capabilities' \
+            'https://us-central1-nexusnova-6ade2.cloudfunctions.net/travelApi/capabilities'
+          do
+            echo "=== $url ==="
+            code="$(curl -sS -o /tmp/diag.json -w '%{http_code}' "$url" || true)"
+            echo "HTTP=$code"
+            head -c 1600 /tmp/diag.json || true
+            echo
+          done
+          for url in \
+            'https://nexusnova-6ade2.web.app/api/travel/flights/search' \
+            'https://us-central1-nexusnova-6ade2.cloudfunctions.net/travelApi/flights/search'
+          do
+            echo "=== POST $url ==="
+            code="$(curl -sS -o /tmp/diag.json -w '%{http_code}' -X POST "$url" -H 'Content-Type: application/json' --data "$payload" || true)"
+            echo "HTTP=$code"
+            head -c 2000 /tmp/diag.json || true
+            echo
+            if [ "$code" = 200 ]; then
+              node - <<'NODE'
+const fs=require('fs');
+const x=JSON.parse(fs.readFileSync('/tmp/diag.json','utf8'));
+const rows=Array.isArray(x.results)?x.results:[];
+const priced=rows.filter(r=>r&&r.price!=null);
+console.log(JSON.stringify({results:rows.length,priced:priced.length,first:priced[0]||null},null,2));
+NODE
+            fi
+          done
