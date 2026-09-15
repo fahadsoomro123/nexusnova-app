@@ -63,7 +63,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          gradle --no-daemon testDebugUnitTest --tests 'com.nexusnova.app.NexusOtaWebManagerTest' --tests 'com.nexusnova.app.OtaPathPolicyTest'
+          gradle --no-daemon --refresh-dependencies testDebugUnitTest --tests 'com.nexusnova.app.NexusOtaWebManagerTest' --tests 'com.nexusnova.app.OtaPathPolicyTest'
 
       - name: Check signing secrets
         shell: bash
