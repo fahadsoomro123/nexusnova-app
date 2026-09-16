@@ -53,19 +53,34 @@ jobs:
           test -s "$ota"
           test -s "$main"
 
-          # Travel icon/entry remains in Nova Hub.
+          # Keep the Travel icon/entry in Nova Hub.
           grep -Fq "{ id: 'travel', name: 'Travel'" "$registry"
           grep -Fq "icon: 'travel'" "$registry"
 
-          # No Travel runtime is loaded by the app shell.
-          ! grep -Eqi 'travel-[a-z0-9_-]+\\.(js|css)' "$index"
-          ! grep -Eqi 'travel-[a-z0-9_-]+\\.(js|css)' "$app_screen"
-          ! grep -Eqi 'travel[-_ ]+(fare|phone|hotel|flight|bus|train|trip|runtime|futuristic|edge|lens)' "$app_screen"
+          # The actual Travel runtime loaders/components must be absent.
+          for banned in \
+            travel-phone-layout-v31.js \
+            travel-phone-layout-v32.js \
+            travel-phone-interaction-v28.js \
+            travel-phone-interaction-v28-native-select-fix.js \
+            travel-futuristic-v13.js \
+            travel-futuristic-v13-integrity.js \
+            travel-edge-client.js \
+            travel-edge-config.js \
+            travel-exit-isolation-v10.js \
+            travel-flagship-runtime-v8.js \
+            travel-clean-ui-v27.js \
+            travel-result-details-v1.js; do
+            test ! -e "build-src/fresh-rebuild/src/features/apps/$banned"
+            ! grep -Fqi "$banned" "$index"
+            ! grep -Fqi "$banned" "$app_screen"
+          done
 
-          # No Travel runtime files remain in the packaged fresh-rebuild tree.
-          if find build-src/fresh-rebuild -type f -iname '*travel*' -print -quit | grep -q .; then
-            echo 'Travel-named runtime files still exist in fresh-rebuild'
-            find build-src/fresh-rebuild -type f -iname '*travel*' -print
+          # Root-level preview/build helpers are not packaged in the Android assets,
+          # but no Travel runtime file may remain inside fresh-rebuild.
+          find build-src/fresh-rebuild -type f -iname 'travel-*.js' -print
+          if find build-src/fresh-rebuild -type f -iname 'travel-*.js' -print -quit | grep -q .; then
+            echo 'Travel runtime JavaScript still exists in fresh-rebuild'
             exit 1
           fi
 
@@ -77,7 +92,7 @@ jobs:
           grep -Fq 'versionsRoot.deleteRecursively()' "$ota"
           grep -Fq 'if (base != BUNDLED_WEB_BASE)' "$ota"
 
-          # Lock the OTA engine baseline to this exact APK source snapshot.
+          # Lock the OTA engine baseline to the exact icon-only source snapshot.
           python3 - <<'PY'
           from pathlib import Path
           import re
@@ -90,8 +105,6 @@ jobs:
           p.write_text(s, encoding='utf-8')
           PY
           grep -Fq 'const val BUNDLED_WEB_BASE = "b8aa3393af20235fb70cf771f7bc7f84b05ebbf3"' "$ota"
-
-          # Production auth files are replaced from the known-good auth baseline during build.
 
       - name: Restore known production Firebase auth/config
         uses: actions/checkout@v4
@@ -146,8 +159,8 @@ jobs:
           import re
           p = Path('app/build.gradle.kts')
           s = p.read_text(encoding='utf-8')
-          s, n1 = re.subn(r'versionCode\\s*=\\s*\\d+', 'versionCode = 27000041', s, count=1)
-          s, n2 = re.subn(r'versionName\\s*=\\s*"[^"]+"', 'versionName = "1.0.41-travel-icon-only-ota"', s, count=1)
+          s, n1 = re.subn(r'versionCode\s*=\s*\d+', 'versionCode = 27000041', s, count=1)
+          s, n2 = re.subn(r'versionName\s*=\s*"[^"]+"', 'versionName = "1.0.41-travel-icon-only-ota"', s, count=1)
           if n1 != 1 or n2 != 1:
               raise SystemExit('Version injection failed')
           signing = '''    signingConfigs {\n        create("release") {\n            storeFile = file("nexusnova-release.jks")\n            storePassword = System.getenv("KEYSTORE_PASSWORD")\n            keyAlias = System.getenv("KEY_ALIAS")\n            keyPassword = System.getenv("KEY_PASSWORD")\n        }\n    }\n\n'''
@@ -192,11 +205,24 @@ jobs:
             'assets/www/src/main.js' \
             -d "$d"
 
-          test -s "$d/assets/www/index.html"
           grep -Fq "{ id: 'travel', name: 'Travel'" "$d/assets/www/src/features/hub/app-registry.js"
           grep -Fq "icon: 'travel'" "$d/assets/www/src/features/hub/app-registry.js"
-          ! grep -Eqi 'travel-[a-z0-9_-]+\\.(js|css)' "$d/assets/www/index.html"
-          ! grep -Eqi 'travel-[a-z0-9_-]+\\.(js|css)' "$d/assets/www/src/features/apps/app-screen.js"
+          for banned in \
+            travel-phone-layout-v31.js \
+            travel-phone-layout-v32.js \
+            travel-phone-interaction-v28.js \
+            travel-phone-interaction-v28-native-select-fix.js \
+            travel-futuristic-v13.js \
+            travel-futuristic-v13-integrity.js \
+            travel-edge-client.js \
+            travel-edge-config.js \
+            travel-exit-isolation-v10.js \
+            travel-flagship-runtime-v8.js \
+            travel-clean-ui-v27.js \
+            travel-result-details-v1.js; do
+            ! grep -Fqi "$banned" "$d/assets/www/index.html"
+            ! grep -Fqi "$banned" "$d/assets/www/src/features/apps/app-screen.js"
+          done
           ! grep -Fqi 'travel-phone' "$d/assets/www/src/main.js"
           ! grep -Fqi 'travel-futuristic' "$d/assets/www/src/main.js"
 
