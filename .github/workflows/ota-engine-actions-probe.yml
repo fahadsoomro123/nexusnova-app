@@ -1,0 +1,16 @@
+name: NexusNova OTA Actions Probe
+
+on:
+  push:
+    branches:
+      - ota-engine-ci-exec-20260915
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe runner
+        run: |
+          echo "ACTIONS_PROBE_RUN=$GITHUB_RUN_ID"
+          echo "ACTIONS_PROBE_SHA=$GITHUB_SHA"
+          echo "RUNNER_OS=$RUNNER_OS"
