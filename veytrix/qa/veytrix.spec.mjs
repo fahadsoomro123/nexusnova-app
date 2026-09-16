@@ -1,4 +1,4 @@
-import {test,expect} from 'playwright/test';
+import {test,expect} from '@playwright/test';
 const routes=['home','mission','projects','build','selfheal','artifacts','history','verification','github','security'];
 const viewports=[{width:360,height:800},{width:360,height:900},{width:390,height:844},{width:412,height:915}];
 for(const viewport of viewports){
