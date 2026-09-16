@@ -32,12 +32,15 @@ jobs:
           node --check veytrix/js/app.js
           node --check veytrix/js/state.js
           node --check veytrix/js/data.js
-      - name: Install Playwright
+      - name: Install QA dependencies
         working-directory: veytrix/qa
-        run: npx --yes playwright@1.55.0 install --with-deps chromium
+        run: npm install --no-audit --no-fund
+      - name: Install Playwright browser
+        working-directory: veytrix/qa
+        run: npx playwright install --with-deps chromium
       - name: Browser QA and screenshots
         working-directory: veytrix/qa
-        run: npx --yes playwright@1.55.0 test --config=playwright.config.mjs
+        run: npx playwright test --config=playwright.config.mjs
       - name: Upload screenshots
         if: always()
         uses: actions/upload-artifact@v4
