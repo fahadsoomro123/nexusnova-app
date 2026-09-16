@@ -22,6 +22,9 @@ on:
           - auto
           - github-free
           - ai
+  push:
+    paths:
+      - '.autopilot-live-test'
   workflow_run:
     types: [completed]
 
@@ -32,7 +35,7 @@ permissions:
   issues: write
 
 concurrency:
-  group: nexusnova-autopilot-${{ github.event.workflow_run.id || github.run_id }}
+  group: nexusnova-autopilot-${{ github.event.workflow_run.id || github.run_id || github.sha }}
   cancel-in-progress: false
 
 env:
@@ -115,8 +118,6 @@ jobs:
             exit 1
           fi
 
-          # Inspect the failure without AI. Retry only when evidence strongly indicates
-          # a transient GitHub/runner/network/service failure rather than a source error.
           if grep -Eqi '(rate limit|timed out|timeout|503|502|504|connection reset|connection refused|temporary failure|network is unreachable|failed to download|could not resolve host|runner.*unavailable|service unavailable|no space left on device)' "$logs"; then
             echo "Transient infrastructure signature detected; rerunning failed jobs."
             gh run rerun "$RUN_ID" --failed
@@ -256,3 +257,79 @@ jobs:
           git add -A
           git diff --cached --quiet || git commit -m "autopilot: complete requested mission"
           git push origin "HEAD:${{ inputs.branch }}"
+
+  live-smoke-test:
+    if: github.event_name == 'push' && contains(github.event.head_commit.message, 'autopilot: live smoke test')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    steps:
+      - name: Checkout exact smoke-test revision
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Detect configured AI engine
+        id: detect
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "${OPENAI_API_KEY:-}" ]; then
+            echo "engine=ai" >> "$GITHUB_OUTPUT"
+            echo "AI engine configured: yes"
+          else
+            echo "engine=github-free" >> "$GITHUB_OUTPUT"
+            echo "AI engine configured: no"
+          fi
+
+      - name: Execute real Autopilot smoke mission with AI
+        if: steps.detect.outputs.engine == 'ai'
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          permission-profile: ":workspace"
+          prompt: |
+            You are running the NexusNova Autopilot live smoke test.
+
+            Mission:
+            1. Inspect the NexusNova Autopilot Android module and its GitHub workflow integration.
+            2. Run the smallest relevant Android build/check to verify the module is buildable on a GitHub-hosted runner.
+            3. If a real build error is found, diagnose it and make only the smallest safe correction required to make the verification pass.
+            4. Do not touch secrets, signing credentials, unrelated product code, or production configuration.
+            5. Create or update ONLY this test report file: .autopilot-live-result.md with a concise summary of the inspection, commands run, result, files changed, and any blocker.
+            6. Do NOT commit or push.
+
+            This is a real execution test, not a simulation. Stop after verification passes or a concrete blocker is documented.
+
+      - name: Execute GitHub-free smoke mission
+        if: steps.detect.outputs.engine == 'github-free'
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s\n' '# NexusNova Autopilot live smoke test' '' '- Engine: GitHub-free' '- Result: GitHub-hosted runner reached the smoke test successfully.' '- AI: Not configured, so no AI API was invoked.' > .autopilot-live-result.md
+
+      - name: Show smoke report
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s .autopilot-live-result.md
+          cat .autopilot-live-result.md
+
+      - name: Publish smoke report commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "NexusNova Autopilot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git add .autopilot-live-result.md
+          if git diff --cached --quiet; then
+            echo "Smoke report unchanged."
+            exit 0
+          fi
+          git commit -m "test(autopilot): publish live smoke result"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
