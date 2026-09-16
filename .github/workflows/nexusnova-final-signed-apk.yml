@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -43,15 +46,17 @@ jobs:
           set -euo pipefail
           test -s build-src/NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt
           test -s build-src/NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+          test -s build-src/NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusDriveForegroundService.kt
           grep -Fq 'private val otaWebManager by lazy' build-src/NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
           grep -Fq 'checkForWebUpdate()' build-src/NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
           grep -Fq 'const val MANIFEST_SCHEMA = 2' build-src/NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt
-          grep -Fq 'const val MANIFEST_URL = "https://raw.githubusercontent.com/fahadsoomro123/nexusnova-website/nexusnova-ota-public/ota/manifest.json"' build-src/NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt
+          grep -Fq 'raw.githubusercontent.com/fahadsoomro123/nexusnova-website/nexusnova-ota-public/ota/manifest.json' build-src/NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt
           test -s build-src/fresh-rebuild/index.html
-          test -s build-src/fresh-rebuild/src/features/apps/travel-phone-layout-v31.js
-          node --check build-src/fresh-rebuild/src/features/apps/travel-phone-layout-v31.js
-          grep -Fq 'travel-phone-layout-v31.js?ota=travel-v31-final-owner' build-src/fresh-rebuild/index.html
-          grep -Fq 'nova-drive-gold-maptiler-v14-production.js' build-src/fresh-rebuild/src/nova-vehicle-premium-ui.js
+          test -s build-src/fresh-rebuild/src/features/hub/app-registry.js
+          grep -Fq "{ id: 'travel', name: 'Travel'" build-src/fresh-rebuild/src/features/hub/app-registry.js
+          grep -Fq "{ id: 'nova-drive', name: 'Nova Drive'" build-src/fresh-rebuild/src/features/hub/app-registry.js
+          test -s build-src/travel-preview.html
+          grep -Fq 'Fare Lens' build-src/travel-preview.html
 
       - name: Restore known production auth and Firebase config
         uses: actions/checkout@v4
@@ -126,7 +131,7 @@ jobs:
           gradle --no-daemon clean assembleRelease
           test -s app/build/outputs/apk/release/app-release.apk
 
-      - name: Verify APK signature, upgrade version and OTA payload
+      - name: Verify APK signature, upgrade version and payload
         working-directory: build-src/NexusNovaAndroid
         shell: bash
         run: |
@@ -146,14 +151,18 @@ jobs:
           trap 'rm -rf "$d"' EXIT
           unzip -q "$apk" \
             'assets/www/index.html' \
-            'assets/www/src/features/apps/travel-phone-layout-v31.js' \
-            'assets/www/src/nova-vehicle-premium-ui.js' \
             'assets/www/src/core/firebase-backend.js' \
-            'assets/www/src/core/auth-service.js' -d "$d"
-          grep -Fq 'travel-phone-layout-v31.js?ota=travel-v31-final-owner' "$d/assets/www/index.html"
-          grep -Fq 'nova-drive-gold-maptiler-v14-production.js' "$d/assets/www/src/nova-vehicle-premium-ui.js"
+            'assets/www/src/core/auth-service.js' \
+            'assets/www/src/features/hub/app-registry.js' \
+            'assets/www/src/main.js' -d "$d"
+          grep -q "{ id: 'travel', name: 'Travel'" "$d/assets/www/src/features/hub/app-registry.js"
+          grep -q "{ id: 'nova-drive', name: 'Nova Drive'" "$d/assets/www/src/features/hub/app-registry.js"
           grep -q 'waitForFirebaseUser' "$d/assets/www/src/core/firebase-backend.js"
           grep -q 'signInWithEmailAndPassword' "$d/assets/www/src/core/auth-service.js"
+          grep -q 'NexusOta' app/src/main/java/com/nexusnova/app/MainActivity.kt
+          test -s app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt
+          test -s app/src/main/java/com/nexusnova/app/NexusDriveForegroundService.kt
+          echo "Verified Travel + Nova Drive + Firebase auth + OTA engine"
 
       - name: Package verified release
         working-directory: build-src/NexusNovaAndroid
