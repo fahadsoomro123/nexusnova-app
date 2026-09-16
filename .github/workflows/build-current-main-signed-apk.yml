@@ -5,6 +5,8 @@ on:
     branches:
       - main
       - ota-engine-ci-exec-20260915
+  pull_request:
+    types: [opened, synchronize, reopened]
   workflow_dispatch:
 
 permissions:
