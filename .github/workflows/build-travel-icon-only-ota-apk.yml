@@ -279,3 +279,5 @@ jobs:
           path: build-src/NexusNovaAndroid/signed-output/*
           if-no-files-found: error
           retention-days: 14
+
+# Re-triggered after correcting the Travel purge verification scope.
