@@ -258,7 +258,7 @@ jobs:
           ! grep -Fqi 'travel-phone' "$d/assets/www/src/main.js"
           ! grep -Fqi 'travel-futuristic' "$d/assets/www/src/main.js"
 
-          ota='src/main/java/com/nexusnova/app/NexusOtaWebManager.kt'
+          ota='app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt'
           grep -Fq 'const val BUNDLED_WEB_BASE = "b8aa3393af20235fb70cf771f7bc7f84b05ebbf3"' "$ota"
           grep -Fq 'const val MANIFEST_SCHEMA = 2' "$ota"
 
