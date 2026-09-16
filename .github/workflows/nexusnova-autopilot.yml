@@ -26,7 +26,8 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  MAX_AUTOPILOT_REPAIRS: "20"
+  # Cost-first safety: automatic AI repair is opt-in. Manual missions remain on-demand.
+  MAX_AUTOPILOT_REPAIRS: "3"
 
 jobs:
   auto-heal-failed-workflow:
@@ -34,9 +35,10 @@ jobs:
       github.event_name == 'workflow_run' &&
       github.event.workflow_run.conclusion == 'failure' &&
       github.event.workflow_run.name != 'NexusNova Autopilot' &&
-      github.event.workflow_run.head_repository.full_name == github.repository
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      vars.AUTOPILOT_AUTOHEAL == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 55
+    timeout-minutes: 45
     steps:
       - name: Checkout failed workflow source
         uses: actions/checkout@v5
@@ -83,6 +85,12 @@ jobs:
 
             A GitHub Actions workflow has FAILED. Your job is to diagnose the failure from the provided run metadata and logs, inspect the repository, implement the smallest correct fix, and VERIFY it locally.
 
+            COST + EXECUTION GUARD:
+            - This is a bounded repair run. Focus on the root cause instead of repeated exploratory attempts.
+            - Do not rerun a workflow merely because a transient command failed unless the error evidence supports it.
+            - Prefer one coherent patch and one complete verification pass.
+            - Stop when verification passes; do not perform unnecessary extra scans or builds.
+
             HARD RULES:
             1. Work only on the checked-out failed workflow commit/branch.
             2. Do not expose, print, copy, or modify secrets, signing keys, keystores, tokens, API credentials, or private credentials.
@@ -91,7 +99,7 @@ jobs:
             5. Prefer a root-cause fix over retry-only changes.
             6. Inspect the failed workflow and the files referenced by the failure before editing.
             7. Run the most relevant build/test/verification commands after the fix.
-            8. Continue iterating until the relevant verification passes, or until you have a concrete blocker that cannot be solved from the repository.
+            8. Continue iterating only when the actual verification evidence justifies another correction, or stop with a concrete blocker.
             9. Do NOT create git commits and do NOT push. Leave the correct changes in the working tree for the outer Autopilot workflow to commit and push.
 
             FAILED RUN METADATA:
@@ -167,6 +175,12 @@ jobs:
             Complete this mission end-to-end in the checked-out repository:
 
             ${{ inputs.mission }}
+
+            COST-AWARE EXECUTION:
+            - Work autonomously, but avoid unnecessary repeated repo scans, builds, and retries.
+            - Prefer the smallest robust solution that satisfies the mission.
+            - Verify the result once comprehensively and stop when it is genuinely complete.
+            - Never keep working just to produce more activity.
 
             Operate autonomously. Inspect the existing architecture first. Implement the smallest robust solution, run the relevant build/tests/verification, diagnose failures, fix them, and rerun verification until the requested mission is genuinely complete.
 
