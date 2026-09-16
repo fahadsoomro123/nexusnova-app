@@ -5,7 +5,7 @@ on:
     branches:
       - main
       - ota-engine-ci-exec-20260915
-    # Keep the workflow callable for manual verification and ensure branch pushes are not path-gated.
+    # CI build is intentionally path-independent so source changes cannot skip verification.
   workflow_dispatch:
 
 permissions:
@@ -30,10 +30,10 @@ jobs:
           test -n "$KEY_ALIAS"
           test -n "$KEY_PASSWORD"
 
-      - name: Checkout exact current source
+      - name: Checkout exact NexusNova execution branch
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.sha }}
+          ref: ota-engine-ci-exec-20260915
           path: build-src
           fetch-depth: 1
 
