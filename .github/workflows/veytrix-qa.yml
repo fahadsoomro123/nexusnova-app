@@ -32,6 +32,7 @@ jobs:
           node --check veytrix/js/app.js
           node --check veytrix/js/state.js
           node --check veytrix/js/data.js
+          node --check veytrix/js/preview.js
       - name: Install QA dependencies
         working-directory: veytrix/qa
         run: npm install --no-audit --no-fund
@@ -41,13 +42,13 @@ jobs:
       - name: Browser QA and screenshots
         working-directory: veytrix/qa
         run: npx playwright test --config=playwright.config.mjs
-      - name: Upload screenshots
+      - name: Upload rendered screenshots
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: veytrix-screenshots-${{ github.sha }}
+          name: veytrix-rendered-preview-${{ github.sha }}
           path: screenshots/*.png
-          if-no-files-found: warn
+          if-no-files-found: error
       - name: Upload Playwright report
         if: always()
         uses: actions/upload-artifact@v4
@@ -55,18 +56,19 @@ jobs:
           name: veytrix-playwright-report-${{ github.sha }}
           path: veytrix/qa/playwright-report
           if-no-files-found: warn
-      - name: Build preview ZIP
+      - name: Build complete preview ZIP
         if: always()
         run: |
+          rm -rf preview-package
           mkdir -p preview-package
           cp -R veytrix preview-package/veytrix
-          if [ -d screenshots ]; then cp -R screenshots preview-package/screenshots; fi
+          cp -R screenshots preview-package/screenshots
           cd preview-package
-          zip -r ../veytrix_preview_complete.zip veytrix screenshots >/dev/null 2>&1 || zip -r ../veytrix_preview_complete.zip veytrix >/dev/null 2>&1
+          zip -r ../veytrix_preview_complete.zip veytrix screenshots >/dev/null
       - name: Upload complete preview package
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: veytrix_preview_complete-${{ github.sha }}
+          name: veytrix-preview-complete-${{ github.sha }}
           path: veytrix_preview_complete.zip
           if-no-files-found: error
