@@ -1,0 +1,20 @@
+name: NexusNova OTA Top-Level Probe
+
+on:
+  push:
+    branches:
+      - ota-engine-ci-exec-20260915
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ota-engine-capability-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe runner
+        run: echo "TOP_LEVEL_PROBE_RUN=$GITHUB_RUN_ID"
