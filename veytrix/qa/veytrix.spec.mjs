@@ -1,7 +1,6 @@
 import {test,expect} from '@playwright/test';
 const routes=['home','mission','projects','build','selfheal','artifacts','history','verification','github','security'];
 const viewports=[{width:360,height:800},{width:360,height:900},{width:390,height:844},{width:412,height:915}];
-const interactive='button,a,input,select,textarea';
 for(const viewport of viewports){
   test(`responsive contract ${viewport.width}x${viewport.height}`,async({page})=>{
     await page.setViewportSize(viewport);
@@ -34,8 +33,7 @@ test('state machine reaches failure and recovery states without falsely verifyin
   await page.locator('[data-command-run]').click();
   for(let i=0;i<4;i++){await page.locator('[data-advance]').first().click()}
   await expect(page.locator('.status.error')).toContainText('Failed');
-  await page.locator('[data-advance]').first().click();
-  await page.locator('[data-advance]').first().click();
-  await page.locator('[data-advance]').first().click();
-  await expect(page.locator('text=VERIFIED is intentionally withheld')).toHaveCount(1);
+  for(let i=0;i<3;i++){await page.locator('[data-advance]').first().click()}
+  await page.locator('[data-nav="verification"]').click();
+  await expect(page.locator('.notice.danger-note')).toContainText('VERIFIED is intentionally withheld');
 });
