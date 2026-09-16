@@ -114,11 +114,11 @@ jobs:
           status=${PIPESTATUS[0]}
           exit "$status"
 
-      - name: Upload native-test diagnostics
-        if: ${{ always() }}
+      - name: Upload native test diagnostics
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: NexusNova-OTA-Diagnostics-${{ github.run_id }}
+          name: NexusNova-OTA-Native-Diagnostics-${{ github.run_id }}
           path: |
             ${{ runner.temp }}/ump-diagnostic.log
             ${{ runner.temp }}/native-tests.log
@@ -180,14 +180,19 @@ jobs:
           exec > >(tee "$REPORT") 2>&1
           apk='app/build/outputs/apk/release/app-release.apk'
           test -s "$apk"
+
           mapfile -t apksigner_candidates < <(find "$ANDROID_HOME/build-tools" -type f -name apksigner -print | sort -V)
           mapfile -t aapt_candidates < <(find "$ANDROID_HOME/build-tools" -type f -name aapt -print | sort -V)
           test "${#apksigner_candidates[@]}" -gt 0
           test "${#aapt_candidates[@]}" -gt 0
           APKSIGNER="${apksigner_candidates[${#apksigner_candidates[@]}-1]}"
           AAPT="${aapt_candidates[${#aapt_candidates[@]}-1]}"
+          test -x "$APKSIGNER" || test -f "$APKSIGNER"
+          test -x "$AAPT" || test -f "$AAPT"
+
           "$APKSIGNER" verify --verbose --print-certs "$apk" > /tmp/apksigner-verify.txt 2>&1
           cat /tmp/apksigner-verify.txt
+
           "$AAPT" dump badging "$apk" > /tmp/aapt-badging.txt
           first_badging_line="$(sed -n '1p' /tmp/aapt-badging.txt)"
           test -n "$first_badging_line"
@@ -195,10 +200,12 @@ jobs:
           grep -Fq "name='com.nexusnova.app'" <<<"$first_badging_line"
           grep -Fq "versionCode='26091501'" <<<"$first_badging_line"
           grep -Fq "versionName='1.0.38-ota-engine-capability'" <<<"$first_badging_line"
+
           sha256sum "$apk"
           cert="$(grep -Eio 'certificate SHA-256 digest: [0-9a-f]{64}' /tmp/apksigner-verify.txt | awk '{print $NF}' | head -n1 | tr '[:upper:]' '[:lower:]')"
           test "$cert" = '76fa4bc81be45ab1d53350ea996e85e61518379f82cb9a1ec0e2a19d2e303f25'
           echo "CERT_SHA256=$cert"
+
           unzip -l "$apk" > /tmp/apk-contents.txt
           grep -Fq 'assets/www/assets/icons/nova-hub/travel.webp' /tmp/apk-contents.txt
           ! grep -Eq 'assets/www/src/features/apps/travel(-[^ ]*)?\.js' /tmp/apk-contents.txt
@@ -262,23 +269,4 @@ EOF
           name: NexusNova-OTA-Engine-Upgrade-SIGNED
           path: NexusNovaAndroid/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
-          retention-days: 7
-
-      - name: Upload full CI evidence
-        if: ${{ always() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: NexusNova-OTA-Full-Evidence-${{ github.run_id }}
-          path: |
-            ${{ runner.temp }}/ump-diagnostic.log
-            ${{ runner.temp }}/native-tests.log
-            ${{ runner.temp }}/assemble-release.log
-            ${{ runner.temp }}/apk-inspection.log
-            /tmp/BUILD-STATUS.txt
-            /tmp/apk-sha256.txt
-            /tmp/apk-cert-sha256.txt
-            /tmp/apksigner-verify.txt
-            /tmp/aapt-badging.txt
-            /tmp/apk-contents.txt
-          if-no-files-found: warn
           retention-days: 7
