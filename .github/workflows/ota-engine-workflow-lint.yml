@@ -13,8 +13,10 @@ jobs:
       - name: Install actionlint
         run: |
           set -euo pipefail
-          curl -fsSL https://github.com/rhysd/actionlint/releases/latest/download/actionlint_1.7.7_linux_x86_64.tar.gz -o /tmp/actionlint.tgz
-          tar -xzf /tmp/actionlint.tgz -C /tmp
-          install -m 0755 /tmp/actionlint/actionlint /usr/local/bin/actionlint
+          go install github.com/rhysd/actionlint/cmd/actionlint@latest
+          export PATH="$(go env GOPATH)/bin:$PATH"
+          actionlint -version
       - name: Lint OTA workflow
-        run: actionlint .github/workflows/ota-engine-capability-ci.yml
+        run: |
+          export PATH="$(go env GOPATH)/bin:$PATH"
+          actionlint .github/workflows/ota-engine-capability-ci.yml
