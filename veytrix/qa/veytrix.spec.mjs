@@ -32,7 +32,7 @@ test('state machine reaches failure and recovery states without falsely verifyin
   await page.locator('#command').fill('Build APK');
   await page.locator('[data-command-run]').click();
   for(let i=0;i<4;i++){await page.locator('[data-advance]').first().click()}
-  await expect(page.locator('.status.error')).toContainText('Failed');
+  await expect(page.locator('.status.error').first()).toContainText('Failed');
   for(let i=0;i<3;i++){await page.locator('[data-advance]').first().click()}
   await page.locator('[data-nav="verification"]').click();
   await expect(page.locator('.notice.danger-note')).toContainText('VERIFIED is intentionally withheld');
