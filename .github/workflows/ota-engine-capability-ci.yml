@@ -13,6 +13,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: ota-engine-capability-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   verify-and-build:
     runs-on: ubuntu-latest
