@@ -169,4 +169,4 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-# Triggered by the current branch push so the APK build is executed here.
+# Final trigger marker.
