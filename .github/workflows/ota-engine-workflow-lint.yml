@@ -16,6 +16,9 @@ jobs:
           go install github.com/rhysd/actionlint/cmd/actionlint@latest
           export PATH="$(go env GOPATH)/bin:$PATH"
           actionlint -version
+      - name: Show failing YAML region
+        run: |
+          nl -ba .github/workflows/ota-engine-capability-ci.yml | sed -n '205,228p'
       - name: Lint OTA workflow
         run: |
           export PATH="$(go env GOPATH)/bin:$PATH"
