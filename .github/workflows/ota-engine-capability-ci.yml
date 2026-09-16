@@ -68,8 +68,6 @@ jobs:
         run: |
           set +e
           set -u
-          REPORT="$RUNNER_TEMP/ump-diagnostic.log"
-          exec > >(tee "$REPORT") 2>&1
           HOST='maven.google.com'
           POM='https://maven.google.com/com/google/android/ump/user-messaging-platform/4.0.0/user-messaging-platform-4.0.0.pom'
           AAR='https://maven.google.com/com/google/android/ump/user-messaging-platform/4.0.0/user-messaging-platform-4.0.0.aar'
@@ -108,22 +106,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          REPORT="$RUNNER_TEMP/native-tests.log"
-          set +e
-          gradle --no-daemon --refresh-dependencies --info --stacktrace testDebugUnitTest --tests 'com.nexusnova.app.NexusOtaWebManagerTest' --tests 'com.nexusnova.app.OtaPathPolicyTest' 2>&1 | tee "$REPORT"
-          status=${PIPESTATUS[0]}
-          exit "$status"
-
-      - name: Upload native test diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: NexusNova-OTA-Native-Diagnostics-${{ github.run_id }}
-          path: |
-            ${{ runner.temp }}/ump-diagnostic.log
-            ${{ runner.temp }}/native-tests.log
-          if-no-files-found: warn
-          retention-days: 7
+          gradle --no-daemon --refresh-dependencies --info --stacktrace testDebugUnitTest \
+            --tests 'com.nexusnova.app.NexusOtaWebManagerTest' \
+            --tests 'com.nexusnova.app.OtaPathPolicyTest'
 
       - name: Check signing secrets
         shell: bash
@@ -136,7 +121,6 @@ jobs:
 
       - name: Decode permanent release keystore
         working-directory: NexusNovaAndroid
-        shell: bash
         run: |
           set -euo pipefail
           printf '%s' "$KEYSTORE_B64" | base64 -d > app/nexusnova-release.jks
@@ -165,19 +149,13 @@ jobs:
       - name: Build signed release APK
         working-directory: NexusNovaAndroid
         shell: bash
-        run: |
-          set -euo pipefail
-          gradle --no-daemon clean assembleRelease 2>&1 | tee "$RUNNER_TEMP/assemble-release.log"
-          status=${PIPESTATUS[0]}
-          exit "$status"
+        run: gradle --no-daemon clean assembleRelease
 
       - name: Inspect signed APK
         working-directory: NexusNovaAndroid
         shell: bash
         run: |
           set -euo pipefail
-          REPORT="$RUNNER_TEMP/apk-inspection.log"
-          exec > >(tee "$REPORT") 2>&1
           apk='app/build/outputs/apk/release/app-release.apk'
           test -s "$apk"
 
