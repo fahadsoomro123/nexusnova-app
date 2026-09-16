@@ -1,0 +1,212 @@
+name: NexusNova Autopilot
+
+on:
+  workflow_dispatch:
+    inputs:
+      mission:
+        description: "What should Autopilot complete?"
+        required: true
+        type: string
+      branch:
+        description: "Branch to work on"
+        required: true
+        default: "main"
+        type: string
+  workflow_run:
+    types: [completed]
+
+permissions:
+  contents: write
+  actions: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: nexusnova-autopilot-${{ github.event.workflow_run.id || github.run_id }}
+  cancel-in-progress: false
+
+env:
+  MAX_AUTOPILOT_REPAIRS: "20"
+
+jobs:
+  auto-heal-failed-workflow:
+    if: >-
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'failure' &&
+      github.event.workflow_run.name != 'NexusNova Autopilot'
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - name: Checkout failed workflow source
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Collect failure context
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          WORKFLOW_ID: ${{ github.event.workflow_run.workflow_id }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh run view "$RUN_ID" --log-failed > /tmp/nexusnova-failure.log || true
+          gh run view "$RUN_ID" --json name,conclusion,headBranch,headSha,runAttempt,workflowName > /tmp/nexusnova-run.json
+          gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$WORKFLOW_ID" > /tmp/nexusnova-workflow.json
+          printf '%s\n' "$HEAD_BRANCH" > /tmp/nexusnova-branch.txt
+          test -s /tmp/nexusnova-run.json
+          test -s /tmp/nexusnova-workflow.json
+
+      - name: Run Codex repair agent
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          permission-profile: ":workspace"
+          output-file: /tmp/nexusnova-codex-result.txt
+          prompt: |
+            You are the NexusNova CI Autopilot repair engineer.
+
+            A GitHub Actions workflow has FAILED. Your job is to diagnose the failure from the provided run metadata and logs, inspect the repository, implement the smallest correct fix, and VERIFY it locally.
+
+            HARD RULES:
+            1. Work only on the checked-out failed workflow commit/branch.
+            2. Do not expose, print, copy, or modify secrets, signing keys, keystores, tokens, API credentials, or private credentials.
+            3. Do not disable tests, remove verification, weaken security checks, or make a failure disappear by hiding it.
+            4. Preserve the intended product behavior and existing architecture.
+            5. Prefer a root-cause fix over retry-only changes.
+            6. Inspect the failed workflow and the files referenced by the failure before editing.
+            7. Run the most relevant build/test/verification commands after the fix.
+            8. Continue iterating until the relevant verification passes, or until you have a concrete blocker that cannot be solved from the repository.
+            9. Make a clean git commit describing the repair. Do not push; the outer workflow handles the push.
+
+            FAILED RUN METADATA:
+            See /tmp/nexusnova-run.json
+
+            WORKFLOW METADATA:
+            See /tmp/nexusnova-workflow.json
+
+            FAILED LOGS:
+            See /tmp/nexusnova-failure.log
+
+            Branch:
+            See /tmp/nexusnova-branch.txt
+
+            At the end, summarize the root cause, exact files changed, verification performed, and whether the repository is ready for the workflow to be rerun.
+
+      - name: Push repair and rerun failed workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          WORKFLOW_ID: ${{ github.event.workflow_run.workflow_id }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          HEAD_REPO: ${{ github.event.workflow_run.head_repository.full_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if git diff --quiet && git diff --cached --quiet; then
+            echo "Autopilot made no source changes. Stopping to avoid an endless retry loop."
+            exit 1
+          fi
+
+          git config user.name "NexusNova Autopilot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${HEAD_REPO}.git"
+
+          if ! git diff --quiet || ! git diff --cached --quiet; then
+            git add -A
+            if git diff --cached --quiet; then
+              echo "No staged changes after Codex run."
+              exit 1
+            fi
+            git commit -m "autopilot: repair failed workflow ${RUN_ID}"
+          fi
+
+          git push origin "HEAD:${HEAD_BRANCH}"
+
+          # GITHUB_TOKEN pushes do not themselves start another workflow run.
+          # Ensure the repaired workflow accepts workflow_dispatch, then dispatch it.
+          WF_PATH="$(python3 - <<'PY'
+          import json
+          print(json.load(open('/tmp/nexusnova-workflow.json', encoding='utf-8'))['path'])
+          PY
+          )"
+
+          if [ -f "$WF_PATH" ] && ! grep -Eq '^\s*workflow_dispatch:\s*$' "$WF_PATH"; then
+            python3 - "$WF_PATH" <<'PY'
+          from pathlib import Path
+          import sys
+          p = Path(sys.argv[1])
+          s = p.read_text(encoding='utf-8')
+          lines = s.splitlines()
+          out = []
+          inserted = False
+          for line in lines:
+              out.append(line)
+              if line.strip() == 'on:':
+                  out.append('  workflow_dispatch:')
+                  inserted = True
+          if not inserted:
+              raise SystemExit('Could not locate top-level on: block in workflow')
+          p.write_text('\n'.join(out) + '\n', encoding='utf-8')
+          PY
+            git add "$WF_PATH"
+            git commit -m "autopilot: enable workflow dispatch for recovery"
+            git push origin "HEAD:${HEAD_BRANCH}"
+          fi
+
+          gh api --method POST \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/${WORKFLOW_ID}/dispatches" \
+            -f ref="${HEAD_BRANCH}"
+
+          echo "Recovery workflow dispatched on ${HEAD_BRANCH}."
+
+  manual-mission:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - name: Checkout mission branch
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.branch }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Run autonomous mission
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          permission-profile: ":workspace"
+          prompt: |
+            You are NexusNova Autopilot.
+
+            Complete this mission end-to-end in the checked-out repository:
+
+            ${{ inputs.mission }}
+
+            Operate autonomously. Inspect the existing architecture first. Implement the smallest robust solution, run the relevant build/tests/verification, diagnose failures, fix them, and rerun verification until the requested mission is genuinely complete.
+
+            Do not expose or modify secrets, credentials, signing keys, keystores, or tokens. Do not disable tests or weaken safety/security checks. Do not stop merely because the first build fails; reason from the actual error and continue fixing until verification passes or a concrete repository/external blocker remains.
+
+            At the end, commit all correct changes with a clear message and report exactly what was changed and what verification passed.
+
+      - name: Push mission result
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet && git diff --cached --quiet; then
+            echo 'Autopilot mission produced no changes.'
+            exit 0
+          fi
+          git config user.name "NexusNova Autopilot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git add -A
+          git diff --cached --quiet || git commit -m "autopilot: complete requested mission"
+          git push origin "HEAD:${{ inputs.branch }}"
