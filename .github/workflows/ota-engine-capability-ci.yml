@@ -121,6 +121,7 @@ jobs:
 
       - name: Decode permanent release keystore
         working-directory: NexusNovaAndroid
+        shell: bash
         run: |
           set -euo pipefail
           printf '%s' "$KEYSTORE_B64" | base64 -d > app/nexusnova-release.jks
@@ -158,7 +159,6 @@ jobs:
           set -euo pipefail
           apk='app/build/outputs/apk/release/app-release.apk'
           test -s "$apk"
-
           mapfile -t apksigner_candidates < <(find "$ANDROID_HOME/build-tools" -type f -name apksigner -print | sort -V)
           mapfile -t aapt_candidates < <(find "$ANDROID_HOME/build-tools" -type f -name aapt -print | sort -V)
           test "${#apksigner_candidates[@]}" -gt 0
@@ -167,10 +167,8 @@ jobs:
           AAPT="${aapt_candidates[${#aapt_candidates[@]}-1]}"
           test -x "$APKSIGNER" || test -f "$APKSIGNER"
           test -x "$AAPT" || test -f "$AAPT"
-
           "$APKSIGNER" verify --verbose --print-certs "$apk" > /tmp/apksigner-verify.txt 2>&1
           cat /tmp/apksigner-verify.txt
-
           "$AAPT" dump badging "$apk" > /tmp/aapt-badging.txt
           first_badging_line="$(sed -n '1p' /tmp/aapt-badging.txt)"
           test -n "$first_badging_line"
@@ -178,12 +176,10 @@ jobs:
           grep -Fq "name='com.nexusnova.app'" <<<"$first_badging_line"
           grep -Fq "versionCode='26091501'" <<<"$first_badging_line"
           grep -Fq "versionName='1.0.38-ota-engine-capability'" <<<"$first_badging_line"
-
           sha256sum "$apk"
           cert="$(grep -Eio 'certificate SHA-256 digest: [0-9a-f]{64}' /tmp/apksigner-verify.txt | awk '{print $NF}' | head -n1 | tr '[:upper:]' '[:lower:]')"
           test "$cert" = '76fa4bc81be45ab1d53350ea996e85e61518379f82cb9a1ec0e2a19d2e303f25'
           echo "CERT_SHA256=$cert"
-
           unzip -l "$apk" > /tmp/apk-contents.txt
           grep -Fq 'assets/www/assets/icons/nova-hub/travel.webp' /tmp/apk-contents.txt
           ! grep -Eq 'assets/www/src/features/apps/travel(-[^ ]*)?\.js' /tmp/apk-contents.txt
@@ -201,21 +197,20 @@ jobs:
           cert="$(grep -Eio 'certificate SHA-256 digest: [0-9a-f]{64}' /tmp/apksigner-verify.txt | awk '{print $NF}' | head -n1 | tr '[:upper:]' '[:lower:]')"
           test -n "$cert"
           printf '%s\n' "$cert" > /tmp/apk-cert-sha256.txt
-          cat > /tmp/BUILD-STATUS.txt <<EOF
-Source branch: ota-engine-ci-exec-20260915
-Source commit: $GITHUB_SHA
-Version code: 26091501
-Version name: 1.0.38-ota-engine-capability
-Permanent signed release: PASS
-APK signature verification: PASS
-APK certificate SHA-256: $cert
-AdMob TEST-only: PASS
-Travel baseline bundled: PASS
-Fare Lens content absent: PASS
-OTA Engine capability tests: PASS
-Publication: PASS
-Workflow run: $GITHUB_RUN_ID
-EOF
+          printf '%s\n' \
+            "Source branch: ota-engine-ci-exec-20260915" \
+            "Source commit: $GITHUB_SHA" \
+            "Version code: 26091501" \
+            "Version name: 1.0.38-ota-engine-capability" \
+            "Permanent signed release: PASS" \
+            "APK signature verification: PASS" \
+            "APK certificate SHA-256: $cert" \
+            "AdMob TEST-only: PASS" \
+            "Travel baseline bundled: PASS" \
+            "Fare Lens content absent: PASS" \
+            "OTA Engine capability tests: PASS" \
+            "Publication: PASS" \
+            "Workflow run: $GITHUB_RUN_ID" > /tmp/BUILD-STATUS.txt
 
       - name: Publish signed APK to apk-builds
         working-directory: NexusNovaAndroid
