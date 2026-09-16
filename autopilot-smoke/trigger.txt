@@ -1,0 +1,1 @@
+NexusNova Autopilot live recovery smoke test trigger.
