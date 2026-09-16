@@ -4,7 +4,9 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.graphics.Color;
 import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
@@ -35,7 +37,6 @@ import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -57,6 +58,20 @@ public class MainActivity extends Activity {
     private static final String PREF_IV = "token_iv";
     private static final String PREF_THEME = "theme";
     private static final String PREF_HISTORY = "mission_history";
+
+    // GitHub Primer-inspired palette: same semantic colors in light/dark modes.
+    private static final int GH_DARK_BG = 0xFF0D1117;
+    private static final int GH_DARK_PANEL = 0xFF161B22;
+    private static final int GH_DARK_BORDER = 0xFF30363D;
+    private static final int GH_DARK_TEXT = 0xFFC9D1D9;
+    private static final int GH_DARK_MUTED = 0xFF8B949E;
+    private static final int GH_DARK_GREEN = 0xFF3FB950;
+    private static final int GH_GREEN = 0xFF1F883D;
+    private static final int GH_LIGHT_BG = 0xFFFFFFFF;
+    private static final int GH_LIGHT_PANEL = 0xFFF6F8FA;
+    private static final int GH_LIGHT_BORDER = 0xFFD0D7DE;
+    private static final int GH_LIGHT_TEXT = 0xFF1F2328;
+    private static final int GH_LIGHT_MUTED = 0xFF59636E;
 
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -80,6 +95,12 @@ public class MainActivity extends Activity {
         return getPrefs().getBoolean(PREF_THEME, true);
     }
 
+    private int textColor() { return darkMode() ? GH_DARK_TEXT : GH_LIGHT_TEXT; }
+    private int mutedColor() { return darkMode() ? GH_DARK_MUTED : GH_LIGHT_MUTED; }
+    private int panelColor() { return darkMode() ? GH_DARK_PANEL : GH_LIGHT_PANEL; }
+    private int borderColor() { return darkMode() ? GH_DARK_BORDER : GH_LIGHT_BORDER; }
+    private int accentColor() { return darkMode() ? GH_DARK_GREEN : GH_GREEN; }
+
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         buildUi();
@@ -90,6 +111,7 @@ public class MainActivity extends Activity {
     private void buildUi() {
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true);
+        scroll.setBackgroundColor(darkMode() ? GH_DARK_BG : GH_LIGHT_BG);
         root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(18), dp(16), dp(18), dp(28));
@@ -113,7 +135,7 @@ public class MainActivity extends Activity {
         TextView logo = text("N", 23, true);
         logo.setGravity(Gravity.CENTER);
         logo.setTextColor(0xFFFFFFFF);
-        logo.setBackgroundColor(0xFF1F883D);
+        logo.setBackgroundColor(accentColor());
         brand.addView(logo, lp(dp(44), dp(44)));
 
         LinearLayout titles = new LinearLayout(this);
@@ -121,7 +143,7 @@ public class MainActivity extends Activity {
         titles.setPadding(dp(10), 0, 0, 0);
         titles.addView(text("NexusNova", 18, true), lp(-1, -2));
         TextView sub = text("Autopilot", 11, false);
-        sub.setTextColor(0xFF3FB950);
+        sub.setTextColor(darkMode() ? GH_DARK_GREEN : GH_GREEN);
         titles.addView(sub, lp(-1, -2));
         brand.addView(titles, lp(0, -2, 1f));
         header.addView(brand, lp(0, -2, 1f));
@@ -172,11 +194,11 @@ public class MainActivity extends Activity {
     private View buildMissionCard() {
         LinearLayout card = card();
         TextView title = text("YOUR MISSION / PROMPT", 12, true);
-        title.setTextColor(0xFF3FB950);
+        title.setTextColor(darkMode() ? GH_DARK_GREEN : GH_GREEN);
         card.addView(title, lp(-1, -2));
 
         TextView hint = text("Write the whole job once. Autopilot plans, executes, repairs and verifies.", 10, false);
-        hint.setTextColor(0xFF8B949E);
+        hint.setTextColor(mutedColor());
         hint.setPadding(0, dp(4), 0, dp(7));
         card.addView(hint, lp(-1, -2));
 
@@ -200,7 +222,7 @@ public class MainActivity extends Activity {
         card.addView(voiceRow, vr);
 
         TextView branchTitle = text("TARGET BRANCH", 10, true);
-        branchTitle.setTextColor(0xFF8B949E);
+        branchTitle.setTextColor(mutedColor());
         branchTitle.setPadding(0, dp(13), 0, dp(5));
         card.addView(branchTitle, lp(-1, -2));
         branchInput = field("main", false);
@@ -209,10 +231,10 @@ public class MainActivity extends Activity {
 
         LinearLayout execution = row();
         TextView mode = text("FULL AUTOPILOT", 11, true);
-        mode.setTextColor(0xFF3FB950);
+        mode.setTextColor(darkMode() ? GH_DARK_GREEN : GH_GREEN);
         execution.addView(mode, lp(0, -2, 1f));
         TextView modeHint = text("Build • Fix • Test • Verify", 10, false);
-        modeHint.setTextColor(0xFF8B949E);
+        modeHint.setTextColor(mutedColor());
         execution.addView(modeHint, lp(-2, -2));
         LinearLayout.LayoutParams ep = lp(-1, -2);
         ep.topMargin = dp(12);
@@ -231,7 +253,7 @@ public class MainActivity extends Activity {
         LinearLayout top = row();
         top.addView(text("Autonomous Engine", 14, true), lp(0, -2, 1f));
         TextView active = text("● ACTIVE", 10, false);
-        active.setTextColor(0xFF3FB950);
+        active.setTextColor(darkMode() ? GH_DARK_GREEN : GH_GREEN);
         top.addView(active, lp(-2, -2));
         card.addView(top, lp(-1, -2));
 
@@ -247,7 +269,7 @@ public class MainActivity extends Activity {
         LinearLayout top = row();
         top.addView(text("LIVE STATUS", 12, true), lp(0, -2, 1f));
         runMetaView = text("IDLE", 9, false);
-        runMetaView.setTextColor(0xFF3FB950);
+        runMetaView.setTextColor(darkMode() ? GH_DARK_GREEN : GH_GREEN);
         top.addView(runMetaView, lp(-2, -2));
         card.addView(top, lp(-1, -2));
         statusView = text("", 11, false);
@@ -282,7 +304,7 @@ public class MainActivity extends Activity {
         top.addView(clear, lp(dp(78), dp(38)));
         card.addView(top, lp(-1, -2));
         historyView = text("No missions yet.", 10, false);
-        historyView.setTextColor(0xFF8B949E);
+        historyView.setTextColor(mutedColor());
         historyView.setPadding(0, dp(8), 0, 0);
         card.addView(historyView, lp(-1, -2));
         return card;
@@ -299,7 +321,7 @@ public class MainActivity extends Activity {
 
     private View buildSecurityNote() {
         TextView note = text("Security: use a dedicated fine-grained GitHub token with only the permissions this workflow needs. Never paste passwords, signing keys, recovery codes or other secrets into a mission.", 10, false);
-        note.setTextColor(0xFF8B949E);
+        note.setTextColor(mutedColor());
         note.setPadding(0, dp(15), 0, 0);
         return note;
     }
@@ -307,13 +329,13 @@ public class MainActivity extends Activity {
     private void addStep(LinearLayout parent, String icon, String title, String subtitle) {
         LinearLayout r = row();
         TextView dot = text(icon, 12, true);
-        dot.setTextColor(0xFF3FB950);
+        dot.setTextColor(darkMode() ? GH_DARK_GREEN : GH_GREEN);
         r.addView(dot, lp(dp(24), -2));
         LinearLayout texts = new LinearLayout(this);
         texts.setOrientation(LinearLayout.VERTICAL);
         texts.addView(text(title, 11, true), lp(-1, -2));
         TextView s = text(subtitle, 9, false);
-        s.setTextColor(0xFF8B949E);
+        s.setTextColor(mutedColor());
         texts.addView(s, lp(-1, -2));
         r.addView(texts, lp(0, -2, 1f));
         LinearLayout.LayoutParams p = lp(-1, -2);
@@ -329,7 +351,7 @@ public class MainActivity extends Activity {
         texts.setOrientation(LinearLayout.VERTICAL);
         texts.addView(text(title, 11, true), lp(-1, -2));
         TextView s = text(subtitle, 9, false);
-        s.setTextColor(0xFF8B949E);
+        s.setTextColor(mutedColor());
         texts.addView(s, lp(-1, -2));
         r.addView(texts, lp(0, -2, 1f));
         Button go = compactButton("›");
@@ -359,23 +381,28 @@ public class MainActivity extends Activity {
     }
 
     private void refreshTheme() {
-        int bg = darkMode() ? 0xFF0D1117 : 0xFFFFFFFF;
-        int fg = darkMode() ? 0xFFC9D1D9 : 0xFF1F2328;
-        int muted = darkMode() ? 0xFF8B949E : 0xFF59636E;
-        int panel = darkMode() ? 0xFF161B22 : 0xFFF6F8FA;
-        root.setBackgroundColor(bg);
-        applyColors(root, fg, muted, panel);
+        root.setBackgroundColor(darkMode() ? GH_DARK_BG : GH_LIGHT_BG);
+        applyColors(root);
     }
 
-    private void applyColors(View view, int fg, int muted, int panel) {
+    private void applyColors(View view) {
+        int fg = textColor();
+        int muted = mutedColor();
+        int panel = panelColor();
         if (view instanceof EditText) {
             EditText e = (EditText) view;
             e.setTextColor(fg);
             e.setHintTextColor(muted);
-            e.setBackgroundColor(panel);
+            e.setBackground(background(panel, borderColor(), 8, 1));
         } else if (view instanceof Button) {
             Button b = (Button) view;
-            if (!isPrimaryButton(b)) b.setTextColor(fg);
+            if (isPrimaryButton(b)) {
+                b.setTextColor(Color.WHITE);
+                b.setBackground(background(accentColor(), accentColor(), 8, 0));
+            } else {
+                b.setTextColor(fg);
+                b.setBackground(background(panel, borderColor(), 8, 1));
+            }
         } else if (view instanceof TextView) {
             TextView t = (TextView) view;
             int current = t.getCurrentTextColor();
@@ -383,12 +410,21 @@ public class MainActivity extends Activity {
         }
         if (view instanceof android.view.ViewGroup) {
             android.view.ViewGroup g = (android.view.ViewGroup) view;
-            for (int i = 0; i < g.getChildCount(); i++) applyColors(g.getChildAt(i), fg, muted, panel);
+            for (int i = 0; i < g.getChildCount(); i++) applyColors(g.getChildAt(i));
         }
     }
 
     private boolean isPrimaryButton(Button b) {
-        return b.getText() != null && (b.getText().toString().contains("RUN") || b.getText().toString().contains("CONNECT"));
+        String s = b.getText() == null ? "" : b.getText().toString();
+        return s.contains("RUN") || s.contains("CONNECT");
+    }
+
+    private GradientDrawable background(int fill, int stroke, int radiusDp, int strokeDp) {
+        GradientDrawable d = new GradientDrawable();
+        d.setColor(fill);
+        d.setCornerRadius(dp(radiusDp));
+        if (strokeDp > 0) d.setStroke(dp(strokeDp), stroke);
+        return d;
     }
 
     private void connectGithub() {
@@ -598,9 +634,8 @@ public class MainActivity extends Activity {
 
     private void addHistory(String outcome, String mission, String branch) {
         try {
-            JSONArray arr;
             String raw = getPrefs().getString(PREF_HISTORY, "[]");
-            arr = new JSONArray(raw);
+            JSONArray arr = new JSONArray(raw);
             JSONObject item = new JSONObject();
             item.put("outcome", outcome);
             item.put("mission", mission.length() > 130 ? mission.substring(0, 130) + "…" : mission);
@@ -703,7 +738,8 @@ public class MainActivity extends Activity {
         TextView t = new TextView(this);
         t.setText(s);
         t.setTextSize(size);
-        t.setTypeface(null, bold ? Typeface.BOLD : Typeface.NORMAL);
+        t.setTypeface(Typeface.create("sans-serif", bold ? Typeface.BOLD : Typeface.NORMAL));
+        t.setTextColor(textColor());
         return t;
     }
 
@@ -711,9 +747,13 @@ public class MainActivity extends Activity {
         EditText e = new EditText(this);
         e.setHint(hint);
         e.setTextSize(14);
+        e.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
         e.setSingleLine(password);
         e.setInputType(password ? InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD : InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
         e.setPadding(dp(12), 0, dp(12), 0);
+        e.setTextColor(textColor());
+        e.setHintTextColor(mutedColor());
+        e.setBackground(background(panelColor(), borderColor(), 8, 1));
         return e;
     }
 
@@ -722,9 +762,11 @@ public class MainActivity extends Activity {
         b.setText(s);
         b.setAllCaps(false);
         b.setTextSize(13);
-        b.setTypeface(null, Typeface.BOLD);
-        b.setTextColor(0xFFFFFFFF);
-        b.setBackgroundColor(0xFF1F883D);
+        b.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        b.setTextColor(Color.WHITE);
+        b.setMinHeight(dp(44));
+        b.setPadding(dp(14), 0, dp(14), 0);
+        b.setBackground(background(accentColor(), accentColor(), 8, 0));
         return b;
     }
 
@@ -733,6 +775,11 @@ public class MainActivity extends Activity {
         b.setText(s);
         b.setAllCaps(false);
         b.setTextSize(11);
+        b.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        b.setMinHeight(dp(42));
+        b.setPadding(dp(12), 0, dp(12), 0);
+        b.setTextColor(textColor());
+        b.setBackground(background(panelColor(), borderColor(), 8, 1));
         return b;
     }
 
@@ -746,7 +793,7 @@ public class MainActivity extends Activity {
         LinearLayout c = new LinearLayout(this);
         c.setOrientation(LinearLayout.VERTICAL);
         c.setPadding(dp(14), dp(14), dp(14), dp(14));
-        c.setBackgroundColor(darkMode() ? 0xFF161B22 : 0xFFF6F8FA);
+        c.setBackground(background(panelColor(), borderColor(), 8, 1));
         LinearLayout.LayoutParams p = lp(-1, -2);
         p.bottomMargin = dp(10);
         c.setLayoutParams(p);
