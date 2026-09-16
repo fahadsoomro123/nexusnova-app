@@ -7,6 +7,12 @@ on:
       - 'server.js'
       - 'screenshots/**'
       - '.github/workflows/veytrix-qa.yml'
+  pull_request:
+    branches: [ai-photo-real-canva-ai-generator-correction]
+    paths:
+      - 'veytrix/**'
+      - 'server.js'
+      - '.github/workflows/veytrix-qa.yml'
   workflow_dispatch:
 permissions:
   contents: read
@@ -46,3 +52,18 @@ jobs:
           name: veytrix-playwright-report-${{ github.sha }}
           path: veytrix/qa/playwright-report
           if-no-files-found: warn
+      - name: Build preview ZIP
+        if: always()
+        run: |
+          mkdir -p preview-package
+          cp -R veytrix preview-package/veytrix
+          if [ -d screenshots ]; then cp -R screenshots preview-package/screenshots; fi
+          cd preview-package
+          zip -r ../veytrix_preview_complete.zip veytrix screenshots >/dev/null 2>&1 || zip -r ../veytrix_preview_complete.zip veytrix >/dev/null 2>&1
+      - name: Upload complete preview package
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: veytrix_preview_complete-${{ github.sha }}
+          path: veytrix_preview_complete.zip
+          if-no-files-found: error
