@@ -34,6 +34,6 @@ test('state machine reaches failure and recovery states without falsely verifyin
   for(let i=0;i<4;i++){await page.locator('[data-advance]').first().click()}
   await expect(page.locator('.status.error').first()).toContainText('Failed');
   for(let i=0;i<3;i++){await page.locator('[data-advance]').first().click()}
-  await page.locator('[data-nav="verification"]').click();
+  await page.goto('./#verification');
   await expect(page.locator('.notice.danger-note')).toContainText('VERIFIED is intentionally withheld');
 });
