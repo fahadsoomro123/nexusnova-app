@@ -29,6 +29,7 @@ on:
         type: string
 
   workflow_run:
+    workflows: [NexusNova Autopilot Self-Test]
     types: [completed]
 
 permissions:
