@@ -30,10 +30,10 @@ jobs:
           test -n "$KEY_ALIAS"
           test -n "$KEY_PASSWORD"
 
-      - name: Checkout exact NexusNova execution branch
+      - name: Checkout exact NexusNova execution snapshot
         uses: actions/checkout@v4
         with:
-          ref: ota-engine-ci-exec-20260915
+          ref: 7029a867822a0e3f1010a018891c1e37b6e4a916
           path: build-src
           fetch-depth: 1
 
