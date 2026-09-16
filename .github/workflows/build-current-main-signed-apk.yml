@@ -237,3 +237,5 @@ jobs:
           path: build-src/NexusNovaAndroid/signed-output/*
           if-no-files-found: error
           retention-days: 7
+
+# Re-run marker for the final signed APK build.
