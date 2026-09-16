@@ -85,7 +85,7 @@ jobs:
         run: |
           set -euo pipefail
           gh run view "$RUN_ID" --log-failed > /tmp/nexusnova-failure.log || true
-          gh run view "$RUN_ID" --json name,conclusion,headBranch,headSha,runAttempt,workflowName > /tmp/nexusnova-run.json
+          gh run view "$RUN_ID" --json name,conclusion,headBranch,headSha,attempt,workflowName > /tmp/nexusnova-run.json
           gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$WORKFLOW_ID" > /tmp/nexusnova-workflow.json
           printf '%s\n' "$HEAD_BRANCH" > /tmp/nexusnova-branch.txt
           test -s /tmp/nexusnova-run.json
@@ -95,7 +95,7 @@ jobs:
             echo "- Failed workflow: $(jq -r '.workflowName // .name' /tmp/nexusnova-run.json)"
             echo "- Run: $RUN_ID"
             echo "- Branch: $HEAD_BRANCH"
-            echo "- Attempt: $(jq -r '.runAttempt' /tmp/nexusnova-run.json)"
+            echo "- Attempt: $(jq -r '.attempt' /tmp/nexusnova-run.json)"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Smart engine detection
