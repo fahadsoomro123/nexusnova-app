@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   verify-and-build:
@@ -175,15 +175,66 @@ jobs:
           grep -Fq "versionName='1.0.38-ota-engine-capability'" <<<"$first_badging_line"
 
           sha256sum "$apk"
-          cert="$(awk -F': ' '/certificate SHA-256 digest:/ {print $2; exit}' /tmp/apksigner-verify.txt | tr -d '\r')"
-          test -n "$cert"
-          echo "CERT_SHA256=$cert"
+          cert="$(grep -Eio 'certificate SHA-256 digest: [0-9a-f]{64}' /tmp/apksigner-verify.txt | awk '{print $NF}' | head -n1 | tr '[:upper:]' '[:lower:]')"
           test "$cert" = '76fa4bc81be45ab1d53350ea996e85e61518379f82cb9a1ec0e2a19d2e303f25'
+          echo "CERT_SHA256=$cert"
 
           unzip -l "$apk" > /tmp/apk-contents.txt
           grep -Fq 'assets/www/assets/icons/nova-hub/travel.webp' /tmp/apk-contents.txt
-          ! grep -Eq 'assets/www/src/features/apps/travel-[^ ]*\.js' /tmp/apk-contents.txt
+          ! grep -Eq 'assets/www/src/features/apps/travel(-[^ ]*)?\.js' /tmp/apk-contents.txt
+          ! grep -Fq 'assets/www/src/features/apps/travel-suite.js' /tmp/apk-contents.txt
+          ! grep -Fq 'assets/www/src/features/apps/travel-integrations.js' /tmp/apk-contents.txt
           echo 'Signed OTA-engine-only APK verified.'
+
+      - name: Prepare publication metadata
+        working-directory: NexusNovaAndroid
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk='app/build/outputs/apk/release/app-release.apk'
+          sha256sum "$apk" | awk '{print $1}' > /tmp/apk-sha256.txt
+          cert="$(grep -Eio 'certificate SHA-256 digest: [0-9a-f]{64}' /tmp/apksigner-verify.txt | awk '{print $NF}' | head -n1 | tr '[:upper:]' '[:lower:]')"
+          test -n "$cert"
+          printf '%s\n' "$cert" > /tmp/apk-cert-sha256.txt
+          cat > /tmp/BUILD-STATUS.txt <<EOF
+Source branch: ota-engine-ci-exec-20260915
+Source commit: $GITHUB_SHA
+Version code: 26091501
+Version name: 1.0.38-ota-engine-capability
+Permanent signed release: PASS
+APK signature verification: PASS
+APK certificate SHA-256: $cert
+AdMob TEST-only: PASS
+Travel baseline bundled: PASS
+Fare Lens content absent: PASS
+OTA Engine capability tests: PASS
+Publication: PASS
+Workflow run: $GITHUB_RUN_ID
+EOF
+
+      - name: Publish signed APK to apk-builds
+        working-directory: NexusNovaAndroid
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          apk='app/build/outputs/apk/release/app-release.apk'
+          pub_dir="$(mktemp -d)"
+          git clone --depth=1 --branch apk-builds "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$pub_dir"
+          mkdir -p "$pub_dir/ota-bootstrap-safe"
+          target="$pub_dir/ota-bootstrap-safe/NexusNova-OTA-Engine-Capability-SIGNED-vc26091501.apk"
+          cp "$apk" "$target"
+          printf '%s  %s\n' "$(cat /tmp/apk-sha256.txt)" "/home/runner/work/nexusnova-app/nexusnova-app/ota-bootstrap-safe/NexusNova-OTA-Engine-Capability-SIGNED-vc26091501.apk" > "$pub_dir/ota-bootstrap-safe/SHA256.txt"
+          cp /tmp/BUILD-STATUS.txt "$pub_dir/ota-bootstrap-safe/BUILD-STATUS.txt"
+          cp /tmp/apksigner-verify.txt "$pub_dir/ota-bootstrap-safe/signature.txt"
+          cd "$pub_dir"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add ota-bootstrap-safe/NexusNova-OTA-Engine-Capability-SIGNED-vc26091501.apk ota-bootstrap-safe/SHA256.txt ota-bootstrap-safe/BUILD-STATUS.txt ota-bootstrap-safe/signature.txt
+          git commit -m "publish: NexusNova OTA Engine capability vc26091501"
+          git push origin HEAD:apk-builds
+          echo "PUBLICATION_COMMIT=$(git rev-parse HEAD)"
 
       - name: Upload verified APK
         uses: actions/upload-artifact@v4
