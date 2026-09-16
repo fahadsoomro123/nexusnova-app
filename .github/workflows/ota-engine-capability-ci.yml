@@ -175,7 +175,7 @@ jobs:
           grep -Fq "versionName='1.0.38-ota-engine-capability'" <<<"$first_badging_line"
 
           sha256sum "$apk"
-          cert="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' /tmp/apksigner-verify.txt | sed -n '1p')"
+          cert="$(awk -F': ' '/certificate SHA-256 digest:/ {print $2; exit}' /tmp/apksigner-verify.txt | tr -d '\r')"
           test -n "$cert"
           echo "CERT_SHA256=$cert"
           test "$cert" = '76fa4bc81be45ab1d53350ea996e85e61518379f82cb9a1ec0e2a19d2e303f25'
