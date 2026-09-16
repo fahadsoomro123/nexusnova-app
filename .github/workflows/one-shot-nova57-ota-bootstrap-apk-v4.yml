@@ -1,5 +1,7 @@
 name: One Shot NOVA57 OTA Bootstrap APK v4
 
+# Manual retrigger marker: workflow runs when this workflow file changes on main.
+
 on:
   push:
     branches: [main]
@@ -113,13 +115,11 @@ jobs:
           grep -Fq "versionCode='26091601'" "$GITHUB_WORKSPACE/badging.txt"
           grep -Fq "versionName='1.0.4-ota-travel-icon'" "$GITHUB_WORKSPACE/badging.txt"
           grep -Fq 'Verified using v2 scheme (APK Signature Scheme v2): true' "$GITHUB_WORKSPACE/signature.txt" || grep -Fq 'Verified using v3 scheme (APK Signature Scheme v3): true' "$GITHUB_WORKSPACE/signature.txt"
-
           tmp="$(mktemp -d)"
           unzip -q "$APK" 'assets/www/*' -d "$tmp"
           grep -Fq "{ id: 'travel', name: 'Travel'" "$tmp/assets/www/src/features/hub/app-registry.js"
           ! grep -Fq 'fare-lens' "$tmp/assets/www/src/features/hub/app-registry.js"
           ! grep -Fq 'fare-lens' "$tmp/assets/www/src/main.js"
-          grep -Fq 'MANIFEST_SCHEMA = 2' "$tmp/assets/www/../.." 2>/dev/null || true
           echo 'Bundled Travel-icon baseline + signed OTA bootstrap verification: PASS'
 
       - name: Prepare published APK
