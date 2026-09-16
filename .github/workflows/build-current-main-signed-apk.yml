@@ -2,9 +2,10 @@ name: Build Verified Current Main Signed APK
 
 on:
   push:
-    branches: [main]
-    paths:
-      - '.github/workflows/build-current-main-signed-apk.yml'
+    branches:
+      - main
+      - ota-engine-ci-exec-20260915
+    # Keep the workflow callable for manual verification and ensure branch pushes are not path-gated.
   workflow_dispatch:
 
 permissions:
@@ -29,7 +30,7 @@ jobs:
           test -n "$KEY_ALIAS"
           test -n "$KEY_PASSWORD"
 
-      - name: Checkout exact current main source
+      - name: Checkout exact current source
         uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
