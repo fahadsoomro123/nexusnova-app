@@ -1,0 +1,20 @@
+export const STATES = Object.freeze(['IDLE','PLANNING','IMPLEMENTING','BUILDING','TESTING','FAILED','REPAIRING','RETESTING','VERIFYING','VERIFIED','DELIVERED']);
+const FLOW=['PLANNING','IMPLEMENTING','BUILDING','TESTING','FAILED','REPAIRING','RETESTING','VERIFYING','VERIFIED','DELIVERED'];
+const listeners=new Set();
+const initial={state:'IDLE',mission:'Build APK → Test → Repair → Verify',startedAt:null,elapsed:0,command:'',logs:[],repairApplied:false,artifact:null,proof:{source:true,build:false,test:false,sign:false,hash:false,artifact:false},history:[],_paused:false};
+let model=structuredClone(initial);let timer=null;
+function emit(){listeners.forEach(fn=>fn(getState()))}function addLog(kind,text){const d=new Date();model.logs.unshift([d.toLocaleTimeString([], {hour12:false}),kind,text])}
+function setState(state){model.state=state;if(!model.startedAt&&state!=='IDLE')model.startedAt=Date.now();if(state==='IDLE')model.startedAt=null;emit()}
+function startClock(){clearInterval(timer);timer=setInterval(()=>{if(model.startedAt){model.elapsed=Math.floor((Date.now()-model.startedAt)/1000);emit()}},1000)}
+function finishRun(result){model.history.unshift({id:crypto.randomUUID(),time:new Date().toISOString(),mission:model.mission,result,duration:model.elapsed,artifact:Boolean(model.artifact)});model.history=model.history.slice(0,12)}
+export function getState(){return structuredClone(model)}
+export function subscribe(fn){listeners.add(fn);fn(getState());return()=>listeners.delete(fn)}
+export function reset(){model=structuredClone(initial);clearInterval(timer);timer=null;emit()}
+export function setCommand(value){model.command=value;emit()}
+export function executeCommand(command){const text=String(command||'').trim();if(!text)return false;model.command=text;model.logs=[];model.repairApplied=false;model.artifact=null;model.proof={source:true,build:false,test:false,sign:false,hash:false,artifact:false};addLog('CMD',`Accepted: ${text}`);setState('PLANNING');startClock();return true}
+export function advance(){const index=FLOW.indexOf(model.state);if(index<0){if(model.state==='IDLE')executeCommand(model.command||'Build APK');return}const next=FLOW[index+1];if(model.state==='TESTING'){model.proof.build=true;model.proof.test=true;setState('FAILED');addLog('FAIL','Fixture assertion failed; recovery is required.');return}if(model.state==='FAILED'){setState('REPAIRING');addLog('REPAIR','Root signal isolated; preparing corrective diff.');return}if(model.state==='REPAIRING'){model.repairApplied=true;setState('RETESTING');addLog('RETEST','Repair candidate applied; rerunning affected tests.');return}if(model.state==='RETESTING'){model.proof.test=true;setState('VERIFYING');addLog('VERIFY','Tests are green in the demonstration state; artifact evidence still required.');return}if(model.state==='VERIFYING'){addLog('WAIT','No external signed artifact evidence is connected; VERIFIED is intentionally withheld.');return}if(next){setState(next);addLog(next==='IMPLEMENTING'?'CODE':next==='BUILDING'?'BUILD':next==='TESTING'?'TEST':'STATE',`Stage entered: ${next}`);if(next==='DELIVERED')finishRun('Delivered')}}
+export function retry(){if(model.state==='FAILED'||model.state==='REPAIRING'||model.state==='RETESTING')advance()}
+export function pause(){if(model.state!=='IDLE'&&model.state!=='DELIVERED'){addLog('CTRL','Execution paused by operator.');clearInterval(timer);model._paused=true;emit()}}
+export function resume(){if(model._paused){model._paused=false;addLog('CTRL','Execution resumed.');startClock();emit()}}
+export function stop(){if(model.state!=='IDLE'&&model.state!=='DELIVERED'){addLog('CTRL','Execution stopped.');finishRun('Stopped');setState('IDLE');clearInterval(timer)}}
+export function applyVerificationEvidence(evidence={}){model.proof={...model.proof,...evidence};if(Object.values(model.proof).every(Boolean)){model.state='VERIFIED';model.artifact={name:'verified-external-artifact.apk',evidence:'External verification supplied'};addLog('VERIFY','All required evidence is present. VERIFIED may now be displayed.')}emit()}
