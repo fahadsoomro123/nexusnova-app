@@ -15,4 +15,3 @@ dependencyResolutionManagement {
 rootProject.name = "NexusNova"
 include(":app")
 include(":tracker")
-include(":autopilot")

@@ -1,2 +1,0 @@
-NexusNova Autopilot end-to-end self-healing probe trigger.
-retrigger=attempt-field-fix
