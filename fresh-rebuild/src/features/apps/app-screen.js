@@ -69,6 +69,16 @@ async function loadRendererBag(path, exportName) {
 }
 
 async function resolveRenderer(id) {
+  // Flagship video route loads directly so a broken/slow aggregate renderer
+  // bundle cannot fall back to the generic migration screen.
+  if (id === 'ai-video-studio') {
+    try {
+      const module = await import('./ai-video-studio-flagship.js');
+      if (typeof module?.renderAiVideoStudio === 'function') return module.renderAiVideoStudio;
+    } catch (error) {
+      console.warn('[NexusNova Fresh] direct AI Video Studio flagship load failed:', error);
+    }
+  }
   for (const [path, exportName] of rendererSources) {
     const bag = await loadRendererBag(path, exportName);
     const renderer = bag?.[id];
