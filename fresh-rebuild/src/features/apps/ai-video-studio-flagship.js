@@ -35,7 +35,7 @@ async function aiModel(systemInstruction){
   return core.aiModel(systemInstruction);
 }
 
-const STYLE_ID = 'nx-video-flagship-v1';
+const STYLE_ID = 'nx-video-flagship-v2';
 const DEFAULT_DUR = 3;
 
 function ensureVideoFlagshipStyles() {
@@ -82,6 +82,52 @@ function ensureVideoFlagshipStyles() {
     @media(max-width:390px){.nx-video-flagship{grid-template-rows:minmax(205px,37%) minmax(120px,23%) minmax(0,1fr) auto;gap:6px;padding:6px}.nx-video-tool{font-size:9px;flex-basis:68px;min-width:68px}.nx-video-tool b{font-size:15px}.nx-video-clip{height:61px}.nx-video-cliprow{grid-auto-columns:minmax(100px,1fr)}.nx-video-inspector{padding:6px}}
     @media(max-height:720px){.nx-video-flagship{grid-template-rows:minmax(170px,36%) minmax(108px,23%) minmax(0,1fr) auto}.nx-screen:has(.nx-video-flagship) .nx-app-head{height:58px!important;min-height:58px!important}.nx-screen:has(.nx-video-flagship)>[data-app-mount]{height:calc(100% - 62px)!important}.nx-video-clip{height:56px}.nx-video-tool{font-size:8px}.nx-video-tool b{font-size:14px}}
     @media(prefers-reduced-motion:reduce){.nx-video-play{transition:none}}
+    /* V2 flagship layout: fit the complete editor in a normal Android viewport. */
+    .nx-screen:has(.nx-video-flagship){height:calc(100dvh - 82px)!important;max-height:calc(100dvh - 82px)!important;overflow:hidden!important;background:#fff!important;padding:0!important}
+    .nx-screen:has(.nx-video-flagship)>.nx-app-head{height:62px!important;min-height:62px!important;margin:0 0 4px!important;padding:4px 12px 4px 10px!important;border-bottom:1px solid #eee9f5!important}
+    .nx-screen:has(.nx-video-flagship)>[data-app-mount]{height:calc(100% - 66px)!important;overflow:hidden!important;padding:0!important}
+    .nx-video-flagship{grid-template-rows:40% 18% minmax(0,1fr) 8% 8%!important;gap:6px!important;padding:6px!important;border:0!important;border-radius:18px!important;box-shadow:none!important;background:#fff!important}
+    .nx-video-preview{border-radius:18px!important;background:radial-gradient(circle at 50% 30%,#3e2c64 0,#191520 34%,#0e0b12 100%)!important}
+    .nx-video-empty{max-width:88%!important;padding:12px!important;gap:5px!important}
+    .nx-video-empty b{font-size:20px!important;letter-spacing:-.02em!important}
+    .nx-video-empty span{max-width:100%!important;white-space:normal!important;overflow-wrap:anywhere!important;line-height:1.35!important;font-size:11px!important}
+    .nx-video-play{width:58px!important;height:58px!important;background:#fff!important;box-shadow:0 15px 35px rgba(0,0,0,.3)!important}
+    .nx-video-status{left:10px!important;right:10px!important;bottom:9px!important;border-radius:12px!important;padding:7px 10px!important}
+    .nx-video-timeline{padding:7px!important;border-radius:14px!important;box-shadow:none!important;display:grid!important;grid-template-rows:42px minmax(0,1fr)!important;overflow:hidden!important}
+    .nx-video-timebar{gap:6px!important;margin:0!important}
+    .nx-video-timebar button{width:38px!important;height:38px!important;border-radius:10px!important}
+    .nx-video-timebar strong{min-width:38px!important;font-size:10px!important}
+    .nx-video-cliprow{grid-template-columns:repeat(4,minmax(0,1fr))!important;grid-auto-flow:unset!important;grid-auto-columns:unset!important;gap:5px!important;overflow:hidden!important}
+    .nx-video-clip{height:58px!important;border-radius:10px!important;padding:4px!important;grid-template-columns:minmax(0,1fr) auto!important}
+    .nx-video-clip:nth-child(n+5){display:none!important}
+    .nx-video-clip-meta b{font-size:9px!important}.nx-video-clip-meta span{font-size:7px!important}
+    .nx-video-reorder button{width:21px!important;height:21px!important;font-size:10px!important}
+    .nx-video-inspector{padding:7px!important;border-radius:14px!important;box-shadow:none!important;overflow:hidden!important}
+    .nx-video-inspector-head{margin-bottom:5px!important}.nx-video-inspector-head strong{font-size:11px!important}.nx-video-inspector-head span{font-size:8px!important}
+    .nx-video-panel{height:calc(100% - 23px)!important;overflow:hidden!important}
+    .nx-video-grid2{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:5px!important}
+    .nx-video-actions{gap:5px!important}
+    .nx-video-actions button{height:34px!important;border-radius:9px!important;font-size:9px!important;padding:0 6px!important}
+    .nx-video-field{gap:2px!important}.nx-video-field span{font-size:8px!important}.nx-video-field input,.nx-video-field select,.nx-video-field textarea{padding:5px 7px!important;font-size:9px!important;border-radius:8px!important}
+    .nx-video-field input,.nx-video-field select{height:31px!important}.nx-video-field textarea{height:44px!important}
+    .nx-video-note{padding:5px 7px!important;font-size:8px!important;line-height:1.25!important;border-radius:8px!important}
+    .nx-video-range{grid-template-columns:64px 1fr 38px!important;gap:5px!important}.nx-video-range span{font-size:8px!important}.nx-video-range output{font-size:8px!important}
+    .nx-video-preset-row{gap:4px!important}.nx-video-preset-row button{height:31px!important;font-size:8px!important}
+    .nx-video-transform-row{gap:5px!important}.nx-video-transform-row button{height:31px!important;font-size:8px!important}
+    .nx-video-toolbar{display:grid!important;grid-template-columns:repeat(5,minmax(0,1fr))!important;grid-template-rows:repeat(2,minmax(0,1fr))!important;gap:5px!important;overflow:hidden!important;padding:0!important}
+    .nx-video-tool{min-width:0!important;width:auto!important;height:100%!important;flex:none!important;border-radius:10px!important;font-size:8px!important;box-shadow:0 3px 10px rgba(72,48,109,.05)!important}
+    .nx-video-tool b{font-size:14px!important}
+    .nx-video-bottom{grid-template-columns:1fr 1fr!important;gap:6px!important}
+    .nx-video-add,.nx-video-export{height:100%!important;min-height:0!important;border-radius:12px!important}
+    .nx-screen:has(.nx-video-flagship) .nx-app-head h1{font-size:19px!important;line-height:1.05!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+    .nx-screen:has(.nx-video-flagship) .nx-app-head>div{min-width:0!important}
+    @media(max-width:390px){
+      .nx-video-flagship{grid-template-rows:39% 18% minmax(0,1fr) 9% 9%!important}
+      .nx-video-tool{font-size:7.5px!important}
+      .nx-video-tool b{font-size:13px!important}
+      .nx-video-clip{height:54px!important}
+      .nx-video-inspector{padding:6px!important}
+    }
   `;
   document.head.appendChild(style);
 }
