@@ -1,6 +1,7 @@
 name: Video Runtime Syntax Check
 on:
-  workflow_dispatch:
+  push:
+    branches: [main]
 permissions:
   contents: read
 jobs:
