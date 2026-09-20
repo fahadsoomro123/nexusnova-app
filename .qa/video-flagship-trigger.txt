@@ -1,1 +1,1 @@
-QA trigger 5: validate motion controls and full export matrix.
+QA trigger 6: validate readiness-safe playback and isolated split state.
