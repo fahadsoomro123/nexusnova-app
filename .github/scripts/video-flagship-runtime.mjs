@@ -30,24 +30,8 @@ await input.setInputFiles([{name:'photo.png',mimeType:'image/png',buffer:png}]);
 await page.waitForFunction(()=>document.querySelectorAll('.nx-video-clip').length===1);
 if(await page.locator('[data-main-image]').evaluate(el=>el.classList.contains('nx-video-hidden'))) throw new Error('PHOTO PREVIEW FAIL');
 
-const videoBytes=await page.evaluate(async()=>{
-  if(!window.MediaRecorder||!HTMLCanvasElement.prototype.captureStream) throw new Error('Chromium video fixture APIs unavailable');
-  const canvas=document.createElement('canvas');canvas.width=160;canvas.height=90;
-  const ctx=canvas.getContext('2d');const stream=canvas.captureStream(8);
-  const mime=['video/webm;codecs=vp8','video/webm'].find(x=>MediaRecorder.isTypeSupported(x))||'video/webm';
-  const recorder=new MediaRecorder(stream,{mimeType:mime});
-  const chunks=[];
-  return await new Promise((resolve,reject)=>{
-    recorder.ondataavailable=e=>{if(e.data?.size)chunks.push(e.data);};
-    recorder.onerror=e=>reject(e.error||new Error('fixture recorder failed'));
-    recorder.onstop=async()=>{try{const blob=new Blob(chunks,{type:mime});resolve(Array.from(new Uint8Array(await blob.arrayBuffer())))}catch(e){reject(e)}};
-    recorder.start();
-    let frame=0;
-    const tick=()=>{frame++;ctx.fillStyle=frame%2?'#e8d9ff':'#ffb8df';ctx.fillRect(0,0,160,90);ctx.fillStyle='#241b35';ctx.fillRect(20+frame%50,30,28,22);if(frame<8)requestAnimationFrame(tick);else setTimeout(()=>{try{recorder.stop()}catch(e){reject(e)}},120)};
-    tick();
-  });
-});
-if(!videoBytes?.length) throw new Error('VIDEO FIXTURE EMPTY');
+const videoBytes=fs.readFileSync('fixtures/flower.mp4');
+if(videoBytes.length<1000) throw new Error('VIDEO FIXTURE EMPTY');
 
 await input.setInputFiles([{name:'sample.webm',mimeType:'video/webm',buffer:Buffer.from(videoBytes)}]);
 await page.waitForFunction(()=>document.querySelectorAll('.nx-video-clip').length===2);
@@ -77,6 +61,10 @@ await page.locator('[data-tool="transitions"]').click();
 await page.locator('[data-transition]').selectOption('fade');
 await page.locator('[data-transition-duration]').fill('0.35');
 if(await page.locator('[data-transition]').inputValue()!=='fade') throw new Error('TRANSITION FAIL');
+
+await page.locator('[data-play]').click();
+await page.waitForFunction(()=>document.querySelector('[data-current-time]').textContent!=='00:00',{timeout:5000});
+await page.locator('[data-play]').click();
 
 await page.locator('[data-tool="captions"]').click();
 await page.locator('[data-caption-start]').fill('0');
