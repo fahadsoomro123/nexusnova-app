@@ -1,1 +1,1 @@
-QA trigger 4: run deterministic picker-safe browser matrix.
+QA trigger 5: validate motion controls and full export matrix.
