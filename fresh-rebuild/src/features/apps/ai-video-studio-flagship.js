@@ -137,6 +137,7 @@ function uid(prefix='v'){ return prefix + Math.random().toString(36).slice(2,9);
 function escapeHtml(value){ return String(value??'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 function clamp(n,a,b){ return Math.min(b,Math.max(a,n)); }
 
+function clipDuration(c){ return Math.max(.05,(Number(c.out)-Number(c.in))/Math.max(.05,Number(c.speed)||1)); }
 function normalizeImportKind(file){
   const type=String(file?.type||'').toLowerCase();
   if(type.startsWith('image/')) return 'image';
