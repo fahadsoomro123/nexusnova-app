@@ -553,8 +553,7 @@ export function renderAiVideoStudio(){
       try{
         const meta=await probeMedia(url,kind,8000);
         const clip={id,name:String(file.name||'Media').replace(/\.[^.]+$/,'').slice(0,40)||'Media',kind,file:null,sourceUrl:url,sourceKey:id,
-          in:0,out:kind==='image'?DEFAULT_DUR:meta.duration,speed:1,volume:1,muted:false,brightness:1,contrast:1,saturate:1,effect:'none',textOverlay:'',scale:1,rotation:0,flipX:false,flipY:false,motionStartScale:1,motionEndScale:1.08,motionStartRotation:0,motionEndRotation:0,transition:'cut',transitionDuration:.25,captions:[],
-          motionStartScale:1,motionEndScale:1.08,motionStartRotation:0,motionEndRotation:0,transition:'cut',transitionDuration:.25,captions:[]};
+          in:0,out:kind==='image'?DEFAULT_DUR:meta.duration,speed:1,volume:1,muted:false,brightness:1,contrast:1,saturate:1,effect:'none',textOverlay:'',scale:1,rotation:0,flipX:false,flipY:false,motionStartScale:1,motionEndScale:1.08,motionStartRotation:0,motionEndRotation:0,transition:'cut',transitionDuration:.25,captions:[]};
         state.sources.set(id,file);state.urls.set(id,url);imported.push(clip);
       }catch(e){try{URL.revokeObjectURL(url)}catch{};els.meta.textContent='Import failed: '+String(e?.message||e).slice(0,100);}
     }
@@ -604,7 +603,7 @@ export function renderAiVideoStudio(){
   function duplicateSelected(){
     const c=selected(); if(!c)return;
     pushUndo();
-    const copy={...c,id:uid('clip'),name:c.name+' copy'};
+    const copy={...c,id:uid('clip'),name:c.name+' copy',captions:Array.isArray(c.captions)?c.captions.map(x=>({...x})):[]};
     copy.sourceKey=c.sourceKey||c.id;
     const source=state.sources.get(copy.sourceKey);
     if(source){
@@ -746,7 +745,7 @@ export function renderAiVideoStudio(){
   root.querySelector('[data-redo]').addEventListener('click',redo);
   els.play.addEventListener('click',()=>{const c=selected();if(!c)return;if(c.kind==='image'){setSelectedLocalTime(state.playhead>=clipDuration(c)-.02?0:state.playhead+.25);render();return;}if(els.video.paused){els.video.play().catch(()=>{})}else els.video.pause();});
   els.video.addEventListener('loadedmetadata',()=>{if(selected())applyPreview()});
-  els.video.addEventListener('timeupdate',()=>{const c=selected();if(!c||c.kind!=='video')return;state.playhead=clamp((els.video.currentTime-(Number(c.in)||0))/(Number(c.speed)||1),0,clipDuration(c));state.timelinePosition=clipStartTime(c.id)+state.playhead;els.current.textContent=fmt(state.timelinePosition);els.scrub.value=String(state.timelinePosition);if(els.video.currentTime>=(Number(c.out)||0)-.01)els.video.pause();});
+  els.video.addEventListener('timeupdate',()=>{const c=selected();if(!c||c.kind!=='video')return;state.playhead=clamp((els.video.currentTime-(Number(c.in)||0))/(Number(c.speed)||1),0,clipDuration(c));state.timelinePosition=clipStartTime(c.id)+state.playhead;els.current.textContent=fmt(state.timelinePosition);els.scrub.value=String(state.timelinePosition);applyPreview();if(els.video.currentTime>=(Number(c.out)||0)-.01)els.video.pause();});
   els.video.addEventListener('error',()=>{els.exportNote.textContent='Preview could not decode this video in the current Android WebView.';});
   els.video.addEventListener('play',()=>els.play.textContent='Ⅱ');els.video.addEventListener('pause',()=>els.play.textContent='▶');
   els.scrub.addEventListener('input',()=>{const pos=clamp(Number(els.scrub.value)||0,0,totalDuration());const target=mapTimeline(state.clips,pos);if(target.clipId)selectClip(target.clipId,target.local);});
