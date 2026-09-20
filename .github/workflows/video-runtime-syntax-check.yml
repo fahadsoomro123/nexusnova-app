@@ -15,6 +15,7 @@ jobs:
         run: |
           set -euo pipefail
           node --check fresh-rebuild/src/features/apps/ai-video-studio-flagship.js
+          node --input-type=module -e "import('./fresh-rebuild/src/features/apps/ai-video-studio-flagship.js').then(m=>{if(typeof m.renderAiVideoStudio!=='function')process.exit(2);console.log('FLAGSHIP MODULE IMPORT PASS')})"
           node --check fresh-rebuild/src/features/apps/app-screen.js
           node --check fresh-rebuild/src/features/apps/premium-studio-suite.js
           echo "VIDEO RUNTIME SYNTAX PASS"
