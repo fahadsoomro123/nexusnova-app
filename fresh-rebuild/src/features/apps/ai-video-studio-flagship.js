@@ -643,7 +643,8 @@ export function renderAiVideoStudio(){
     const u=state.urls.get(c.id);
     const shared=state.clips.some(x=>x.id!==c.id&&state.urls.get(x.id)===u);
     if(u&&!shared)try{URL.revokeObjectURL(u)}catch{}
-    state.urls.delete(c.id);state.sources.delete(c.id);
+    state.urls.delete(c.id);
+    // Keep the source reference alive for Undo/Redo restoration.
     state.selectedId=state.clips[Math.max(0,state.clips.length-1)]?.id||null;
     state.playhead=0;state.timelinePosition=state.selectedId?clipStartTime(state.selectedId):0;render();
   }
