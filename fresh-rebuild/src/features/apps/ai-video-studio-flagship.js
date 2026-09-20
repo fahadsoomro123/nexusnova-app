@@ -78,7 +78,8 @@ function ensureVideoFlagshipStyles() {
     .nx-video-note{padding:7px 8px;border-radius:10px;background:#f7f4fb;color:#6f667b;font-size:9px;line-height:1.35}
     .nx-video-transform-row{display:grid;grid-template-columns:1fr 1fr;gap:7px}.nx-video-transform-row button{height:38px}.nx-video-chipset{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
     .nx-video-bottom{display:grid;grid-template-columns:1fr auto;gap:7px;align-items:center}.nx-video-export{height:46px}.nx-video-add{height:46px;padding:0 14px;border-radius:13px}
-    .nx-video-hidden{display:none!important}
+    .nx-video-hidden{position:absolute!important;left:-10000px!important;top:auto!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important;border:0!important;padding:0!important}
+    .nx-video-caption-list{display:grid;gap:3px;max-height:48px;overflow:hidden;margin-top:5px}.nx-video-caption-row{display:grid;grid-template-columns:36px 36px minmax(0,1fr);gap:4px;font-size:7px;color:#766d80}.nx-video-caption-row span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     @media(max-width:390px){.nx-video-flagship{grid-template-rows:minmax(205px,37%) minmax(120px,23%) minmax(0,1fr) auto;gap:6px;padding:6px}.nx-video-tool{font-size:9px;flex-basis:68px;min-width:68px}.nx-video-tool b{font-size:15px}.nx-video-clip{height:61px}.nx-video-cliprow{grid-auto-columns:minmax(100px,1fr)}.nx-video-inspector{padding:6px}}
     @media(max-height:720px){.nx-video-flagship{grid-template-rows:minmax(170px,36%) minmax(108px,23%) minmax(0,1fr) auto}.nx-screen:has(.nx-video-flagship) .nx-app-head{height:58px!important;min-height:58px!important}.nx-screen:has(.nx-video-flagship)>[data-app-mount]{height:calc(100% - 62px)!important}.nx-video-clip{height:56px}.nx-video-tool{font-size:8px}.nx-video-tool b{font-size:14px}}
     @media(prefers-reduced-motion:reduce){.nx-video-play{transition:none}}
@@ -114,7 +115,7 @@ function ensureVideoFlagshipStyles() {
     .nx-video-range{grid-template-columns:64px 1fr 38px!important;gap:5px!important}.nx-video-range span{font-size:8px!important}.nx-video-range output{font-size:8px!important}
     .nx-video-preset-row{gap:4px!important}.nx-video-preset-row button{height:31px!important;font-size:8px!important}
     .nx-video-transform-row{gap:5px!important}.nx-video-transform-row button{height:31px!important;font-size:8px!important}
-    .nx-video-toolbar{display:grid!important;grid-template-columns:repeat(5,minmax(0,1fr))!important;grid-template-rows:repeat(2,minmax(0,1fr))!important;gap:5px!important;overflow:hidden!important;padding:0!important}
+    .nx-video-toolbar{display:grid!important;grid-template-columns:repeat(6,minmax(0,1fr))!important;grid-template-rows:repeat(2,minmax(0,1fr))!important;gap:5px!important;overflow:hidden!important;padding:0!important}
     .nx-video-tool{min-width:0!important;width:auto!important;height:100%!important;flex:none!important;border-radius:10px!important;font-size:8px!important;box-shadow:0 3px 10px rgba(72,48,109,.05)!important}
     .nx-video-tool b{font-size:14px!important}
     .nx-video-bottom{grid-template-columns:1fr 1fr!important;gap:6px!important}
@@ -217,6 +218,29 @@ export function renderAiVideoStudio(){
         <div class="nx-video-note" style="margin-top:7px">Transform and crop-style framing are previewed locally and included in local export.</div>
       </div>
 
+      <div class="nx-video-panel" data-panel="motion">
+        <div class="nx-video-grid2">
+          <label class="nx-video-field"><span>START ZOOM</span><input type="range" min=".5" max="2" step=".01" value="1" data-motion-start-scale></label>
+          <label class="nx-video-field"><span>END ZOOM</span><input type="range" min=".5" max="2" step=".01" value="1.08" data-motion-end-scale></label>
+          <label class="nx-video-field"><span>START ROTATION</span><input type="number" min="-180" max="180" step="1" value="0" data-motion-start-rotation></label>
+          <label class="nx-video-field"><span>END ROTATION</span><input type="number" min="-180" max="180" step="1" value="0" data-motion-end-rotation></label>
+        </div><div class="nx-video-note">Local keyframe motion interpolates zoom and rotation and is included in export.</div>
+      </div>
+      <div class="nx-video-panel" data-panel="transitions">
+        <div class="nx-video-grid2">
+          <label class="nx-video-field"><span>TRANSITION</span><select data-transition><option value="cut">CUT</option><option value="fade">FADE</option><option value="flash">FLASH</option></select></label>
+          <label class="nx-video-field"><span>DURATION</span><input type="range" min=".1" max=".8" step=".05" value=".25" data-transition-duration><output data-transition-duration-out>0.25s</output></label>
+        </div><div class="nx-video-note">Transition choice is stored with the clip and is ready for local composition.</div>
+      </div>
+      <div class="nx-video-panel" data-panel="captions">
+        <div class="nx-video-grid2">
+          <label class="nx-video-field"><span>START</span><input type="number" min="0" step=".1" value="0" data-caption-start></label>
+          <label class="nx-video-field"><span>END</span><input type="number" min=".1" step=".1" value="1.5" data-caption-end></label>
+        </div>
+        <label class="nx-video-field" style="margin-top:5px"><span>CAPTION TEXT</span><textarea maxlength="180" data-caption-text placeholder="Timed caption…"></textarea></label>
+        <div class="nx-video-actions" style="margin-top:5px"><button class="nx-video-primary" data-add-caption>ADD CAPTION</button><button class="nx-video-button" data-clear-captions>CLEAR ALL</button></div>
+        <div class="nx-video-caption-list" data-caption-list></div>
+      </div>
       <div class="nx-video-panel" data-panel="canvas">
         <div class="nx-video-grid2">
           <label class="nx-video-field"><span>FORMAT</span><select data-ratio><option value="16:9">16:9 LANDSCAPE</option><option value="9:16">9:16 SHORTS</option><option value="1:1">1:1 SQUARE</option><option value="4:5">4:5 SOCIAL</option></select></label>
@@ -249,6 +273,9 @@ export function renderAiVideoStudio(){
       <button type="button" class="nx-video-tool" data-tool="effects"><b>✦</b><span>Effects</span></button>
       <button type="button" class="nx-video-tool" data-tool="transform"><b>↗</b><span>Transform</span></button>
       <button type="button" class="nx-video-tool" data-tool="canvas"><b>▣</b><span>Canvas</span></button>
+      <button type="button" class="nx-video-tool" data-tool="motion"><b>◇</b><span>Motion</span></button>
+      <button type="button" class="nx-video-tool" data-tool="transitions"><b>⇄</b><span>Trans</span></button>
+      <button type="button" class="nx-video-tool" data-tool="captions"><b>CC</b><span>Captions</span></button>
       <button type="button" class="nx-video-tool" data-tool="ai"><b>AI</b><span>AI Lab</span></button>
     </div>
 
@@ -297,6 +324,17 @@ export function renderAiVideoStudio(){
     fps:root.querySelector('[data-fps]'),
     quality:root.querySelector('[data-quality]'),
     exportNote:root.querySelector('[data-export-note]'),
+    motionStartScale:root.querySelector('[data-motion-start-scale]'),
+    motionEndScale:root.querySelector('[data-motion-end-scale]'),
+    motionStartRotation:root.querySelector('[data-motion-start-rotation]'),
+    motionEndRotation:root.querySelector('[data-motion-end-rotation]'),
+    transition:root.querySelector('[data-transition]'),
+    transitionDuration:root.querySelector('[data-transition-duration]'),
+    transitionDurationOut:root.querySelector('[data-transition-duration-out]'),
+    captionStart:root.querySelector('[data-caption-start]'),
+    captionEnd:root.querySelector('[data-caption-end]'),
+    captionText:root.querySelector('[data-caption-text]'),
+    captionList:root.querySelector('[data-caption-list]'),
     file:root.querySelector('[data-file]')
   };
 
@@ -309,6 +347,7 @@ export function renderAiVideoStudio(){
     redo:[],
     panel:'edit',
     playhead:0,
+    timelinePosition:0,
     projectName:'Untitled project',
     exportBusy:false,
     stopExport:null
@@ -320,7 +359,8 @@ export function renderAiVideoStudio(){
         ...c, file:null, sourceUrl:null
       })))),
       selectedId:state.selectedId,
-      playhead:state.playhead
+      playhead:state.playhead,
+      timelinePosition:state.timelinePosition
     };
   }
   function pushUndo(){
@@ -342,7 +382,8 @@ export function renderAiVideoStudio(){
       }
     }
     state.selectedId=keep.has(snap.selectedId)?snap.selectedId:(state.clips[0]?.id||null);
-    state.playhead=clamp(snap.playhead||0,0,totalDuration());
+    state.playhead=clamp(snap.playhead||0,0,clipDuration(selected()||{in:0,out:0,speed:1}));
+    state.timelinePosition=clamp(Number(snap.timelinePosition)||0,0,totalDuration());
     render();
   }
   function fmt(sec){
@@ -352,6 +393,16 @@ export function renderAiVideoStudio(){
   }
   function clipDuration(c){ return Math.max(.05,(Number(c.out)-Number(c.in))/Math.max(.05,Number(c.speed)||1)); }
   function totalDuration(){ return state.clips.reduce((sum,c)=>sum+clipDuration(c),0); }
+  function clipStartTime(id){
+    let sum=0;
+    for(const c of state.clips){ if(c.id===id) return sum; sum+=clipDuration(c); }
+    return 0;
+  }
+  function setSelectedLocalTime(local){
+    const c=selected();
+    state.playhead=clamp(Number(local)||0,c?0:0,c?clipDuration(c):0);
+    state.timelinePosition=clamp(clipStartTime(c?.id)+state.playhead,0,totalDuration());
+  }
   function selected(){ return state.clips.find(c=>c.id===state.selectedId)||null; }
   function cssFilter(c){
     return [
@@ -363,117 +414,156 @@ export function renderAiVideoStudio(){
       c.effect==='soft'?'blur(.35px)':''
     ].join(' ');
   }
+  function normalizeImportKind(file){
+    const type=String(file?.type||'').toLowerCase();
+    if(type.startsWith('image/')) return 'image';
+    if(type.startsWith('video/')) return 'video';
+    return null;
+  }
+  function probeMedia(url,kind,timeout=8000){
+    if(kind==='image'){
+      return new Promise((resolve,reject)=>{
+        const img=new Image();
+        const timer=setTimeout(()=>{img.src='';reject(new Error('Image load timed out.'));},timeout);
+        img.onload=()=>{clearTimeout(timer);resolve({duration:DEFAULT_DUR,width:img.naturalWidth,height:img.naturalHeight});};
+        img.onerror=()=>{clearTimeout(timer);reject(new Error('Image could not be loaded.'));};
+        img.src=url;
+      });
+    }
+    return new Promise((resolve,reject)=>{
+      const probe=document.createElement('video');
+      let settled=false;
+      const finish=(error,data)=>{if(settled)return;settled=true;clearTimeout(timer);probe.removeAttribute('src');probe.load();error?reject(error):resolve(data);};
+      const timer=setTimeout(()=>finish(new Error('Video metadata timed out.')),timeout);
+      probe.preload='metadata';
+      probe.onloadedmetadata=()=>finish(null,{duration:Math.max(.1,Number(probe.duration)||DEFAULT_DUR),width:probe.videoWidth||0,height:probe.videoHeight||0});
+      probe.onerror=()=>finish(new Error('Video could not be loaded.'));
+      probe.src=url;
+    });
+  }
+  function mapTimeline(clips,time){
+    let remaining=Math.max(0,Number(time)||0);
+    for(let i=0;i<clips.length;i++){
+      const c=clips[i],d=clipDuration(c);
+      if(remaining<=d || i===clips.length-1) return {clipId:c.id,local:clamp(remaining,0,d),index:i};
+      remaining-=d;
+    }
+    return {clipId:null,local:0,index:-1};
+  }
+  function interpolateMotion(c,local){
+    const d=Math.max(.05,clipDuration(c)),p=clamp((Number(local)||0)/d,0,1);
+    return {
+      scale:(Number(c.motionStartScale)||1)+((Number(c.motionEndScale)||1)-(Number(c.motionStartScale)||1))*p,
+      rotation:(Number(c.motionStartRotation)||0)+((Number(c.motionEndRotation)||0)-(Number(c.motionStartRotation)||0))*p
+    };
+  }
+  function currentCaption(c,local){
+    return (Array.isArray(c?.captions)?c.captions:[]).find(x=>local>=Number(x.start||0)&&local<=Number(x.end||0))?.text||'';
+  }
+  function parseSrt(text){
+    return String(text||'').replace(/\r/g,'').split(/\n\s*\n/).map(block=>{
+      const lines=block.split('\n').map(x=>x.trim()).filter(Boolean);
+      const idx=lines.findIndex(x=>x.includes('-->')); if(idx<0)return null;
+      const [a,b]=lines[idx].split('-->').map(x=>x.trim());
+      const parse=t=>{const m=String(t).match(/(\d+):(\d{2}):(\d{2})[,.](\d{1,3})/);return m?Number(m[1])*3600+Number(m[2])*60+Number(m[3])+Number(m[4].padEnd(3,'0'))/1000:null;};
+      const start=parse(a),end=parse(b); if(start==null||end==null)return null;
+      const caption=lines.slice(idx+1).join(' ').slice(0,180); return caption?{start,end,text:caption}:null;
+    }).filter(Boolean).slice(0,120);
+  }
+  const __videoFlagshipTestUtils={clipDuration,mapTimeline,interpolateMotion,parseSrt,normalizeImportKind};
+
   function applyPreview(){
     const c=selected();
-    if(!c){ els.video.classList.add('nx-video-hidden'); els.image.classList.add('nx-video-hidden'); els.empty.classList.remove('nx-video-hidden'); els.play.classList.add('nx-video-hidden'); return; }
+    if(!c){els.video.classList.add('nx-video-hidden');els.image.classList.add('nx-video-hidden');els.empty.classList.remove('nx-video-hidden');els.play.classList.add('nx-video-hidden');return;}
     els.empty.classList.add('nx-video-hidden');
     els.play.classList.remove('nx-video-hidden');
     const url=state.urls.get(c.id);
+    const motion=interpolateMotion(c,state.playhead);
     if(c.kind==='image'){
-      els.video.classList.add('nx-video-hidden');
-      els.image.classList.remove('nx-video-hidden');
-      els.image.src=url||'';
+      els.video.classList.add('nx-video-hidden');els.image.classList.remove('nx-video-hidden');
+      if(els.image.src!==url)els.image.src=url||'';
       els.image.style.filter=cssFilter(c);
-      els.image.style.transform=`scale(${(Number(c.scale)||1)*(c.flipX?-1:1)},${(Number(c.scale)||1)*(c.flipY?-1:1)}) rotate(${Number(c.rotation)||0}deg)`;
+      els.image.style.transform=`scale(${motion.scale*(c.flipX?-1:1)},${motion.scale*(c.flipY?-1:1)}) rotate(${motion.rotation}deg)`;
       els.image.style.background=els.bg.value;
+      els.play.textContent='▶';
       return;
     }
-    els.image.classList.add('nx-video-hidden');
-    els.video.classList.remove('nx-video-hidden');
-    if(url && els.video.src!==url)els.video.src=url;
-    els.video.currentTime=clamp(Number(c.in)||0,0,Math.max(0,(Number(c.out)||DEFAULT_DUR)-.001));
+    els.image.classList.add('nx-video-hidden');els.video.classList.remove('nx-video-hidden');
+    if(url&&els.video.src!==url){els.video.src=url;els.video.load();}
+    if(Number.isFinite(els.video.duration)){
+      const srcTime=clamp((Number(c.in)||0)+state.playhead*(Number(c.speed)||1),Number(c.in)||0,Math.max(Number(c.in)||0,(Number(c.out)||DEFAULT_DUR)-.001));
+      if(Math.abs((els.video.currentTime||0)-srcTime)>.05){try{els.video.currentTime=srcTime}catch{}}
+    }
     els.video.playbackRate=Number(c.speed)||1;
-    els.video.volume=clamp(Number(c.volume)||0,0,1);
-    els.video.muted=c.muted===true;
+    els.video.volume=clamp(Number(c.volume)||0,0,1);els.video.muted=c.muted===true;
     els.video.style.filter=cssFilter(c);
-    els.video.style.transform=`scale(${(Number(c.scale)||1)*(c.flipX?-1:1)},${(Number(c.scale)||1)*(c.flipY?-1:1)}) rotate(${Number(c.rotation)||0}deg)`;
+    els.video.style.transform=`scale(${motion.scale*(c.flipX?-1:1)},${motion.scale*(c.flipY?-1:1)}) rotate(${motion.rotation}deg)`;
     els.video.style.background=els.bg.value;
   }
+  function renderCaptionList(c){
+    els.captionList.innerHTML=(c?.captions||[]).slice(-4).map(x=>`<div class="nx-video-caption-row"><b>${fmt(x.start)}</b><b>${fmt(x.end)}</b><span>${escapeHtml(x.text)}</span></div>`).join('');
+  }
   function render(){
-    els.clipRow.innerHTML=state.clips.length?state.clips.map((c,i)=>`
+    els.clipRow.innerHTML=state.clips.length?state.clips.map(c=>`
       <article class="nx-video-clip${c.id===state.selectedId?' is-active':''}" data-id="${c.id}">
         <div class="nx-video-thumb" data-select="${c.id}" role="button" tabindex="0" aria-label="Select ${escapeHtml(c.name)}">
-          ${state.urls.get(c.id)?(c.kind==='image'
-            ?`<img src="${escapeHtml(state.urls.get(c.id))}" alt="">`
-            :`<video src="${escapeHtml(state.urls.get(c.id))}" muted playsinline preload="metadata"></video>`)
-            :(c.kind==='image'?'<span>PHOTO</span>':'<span>VIDEO</span>')}
+          ${state.urls.get(c.id)?(c.kind==='image'?`<img src="${escapeHtml(state.urls.get(c.id))}" alt="">`:`<video src="${escapeHtml(state.urls.get(c.id))}" muted playsinline preload="metadata"></video>`):(c.kind==='image'?'<span>PHOTO</span>':'<span>VIDEO</span>')}
         </div>
-        <div class="nx-video-clip-meta"><b>${escapeHtml(c.name)}</b><span>${fmt(clipDuration(c))} • ${c.speed.toFixed(2)}×</span></div>
+        <div class="nx-video-clip-meta"><b>${escapeHtml(c.name)}</b><span>${fmt(clipDuration(c))} • ${Number(c.speed||1).toFixed(2)}×</span></div>
         <div class="nx-video-reorder"><button type="button" data-up="${c.id}" aria-label="Move clip left">‹</button><button type="button" data-down="${c.id}" aria-label="Move clip right">›</button></div>
       </article>`).join(''):'<div class="nx-video-note">Add your first video or photo to start editing.</div>';
     els.project.textContent=state.projectName;
     els.total.textContent=fmt(totalDuration());
     els.meta.textContent=`${state.clips.length} clip${state.clips.length===1?'':'s'} • ${fmt(totalDuration())}`;
+    els.selection.textContent=selected()?.name||'Nothing selected';
+    els.current.textContent=fmt(state.timelinePosition);
+    els.scrub.max=String(totalDuration());els.scrub.value=String(clamp(state.timelinePosition,0,totalDuration()));
     const c=selected();
-    els.selection.textContent=c?c.name:'Nothing selected';
-    els.scrub.max=String(totalDuration());
-    els.scrub.value=String(clamp(state.playhead,0,totalDuration()));
     if(c){
-      els.in.value=Number(c.in).toFixed(1);
-      els.out.value=Number(c.out).toFixed(1);
-      els.volume.value=String(Number(c.volume)||1);
-      els.volumeOut.textContent=Math.round((Number(c.volume)||1)*100)+'%';
-      els.speed.value=String(Number(c.speed)||1);
-      els.speedOut.textContent=(Number(c.speed)||1).toFixed(2)+'×';
-      els.bright.value=String(Number(c.brightness)||1);
-      els.brightOut.textContent=Math.round((Number(c.brightness)||1)*100)+'%';
-      els.contrast.value=String(Number(c.contrast)||1);
-      els.contrastOut.textContent=Math.round((Number(c.contrast)||1)*100)+'%';
-      els.saturate.value=String(Number(c.saturate)||1);
-      els.saturateOut.textContent=Math.round((Number(c.saturate)||1)*100)+'%';
-      els.scale.value=String(Number(c.scale)||1);
-      els.scaleOut.textContent=Math.round((Number(c.scale)||1)*100)+'%';
-      els.rotation.value=String(Number(c.rotation)||0);
-      els.rotationOut.textContent=(Number(c.rotation)||0)+'°';
-      els.audioMode.value=c.muted?'mute':'on';
-      els.text.value=c.textOverlay||'';
-    }
+      els.in.value=Number(c.in||0).toFixed(1);els.out.value=Number(c.out||DEFAULT_DUR).toFixed(1);
+      els.volume.value=String(Number(c.volume)||1);els.volumeOut.textContent=Math.round((Number(c.volume)||1)*100)+'%';
+      els.speed.value=String(Number(c.speed)||1);els.speedOut.textContent=(Number(c.speed)||1).toFixed(2)+'×';
+      els.bright.value=String(Number(c.brightness)||1);els.brightOut.textContent=Math.round((Number(c.brightness)||1)*100)+'%';
+      els.contrast.value=String(Number(c.contrast)||1);els.contrastOut.textContent=Math.round((Number(c.contrast)||1)*100)+'%';
+      els.saturate.value=String(Number(c.saturate)||1);els.saturateOut.textContent=Math.round((Number(c.saturate)||1)*100)+'%';
+      els.scale.value=String(Number(c.scale)||1);els.scaleOut.textContent=Math.round((Number(c.scale)||1)*100)+'%';
+      els.rotation.value=String(Number(c.rotation)||0);els.rotationOut.textContent=(Number(c.rotation)||0)+'°';
+      els.audioMode.value=c.muted?'mute':'on';els.text.value=c.textOverlay||'';
+      els.motionStartScale.value=String(Number(c.motionStartScale)||1);els.motionEndScale.value=String(Number(c.motionEndScale)||1.08);
+      els.motionStartRotation.value=String(Number(c.motionStartRotation)||0);els.motionEndRotation.value=String(Number(c.motionEndRotation)||0);
+      els.transition.value=c.transition||'cut';els.transitionDuration.value=String(Number(c.transitionDuration)||.25);els.transitionDurationOut.textContent=(Number(c.transitionDuration)||.25).toFixed(2)+'s';
+      els.captionStart.value=String(Number(c.captionDraftStart)||0);els.captionEnd.value=String(Number(c.captionDraftEnd)||Math.min(1.5,clipDuration(c)));renderCaptionList(c);
+    }else renderCaptionList(null);
     applyPreview();
   }
-
-  function selectClip(id){
+  function selectClip(id,local=0){
     if(!id)return;
-    state.selectedId=id;
-    state.playhead=0;
-    const c=selected();
-    if(c) state.playhead=0;
-    render();
+    state.selectedId=id;setSelectedLocalTime(local);render();
   }
 
   async function addFiles(fileList){
-    const files=[...fileList||[]];
-    if(!files.length)return;
-    pushUndo();
-    for(const file of files){
-      const isImage=/^image\//i.test(file.type);
-      const id=uid('clip');
-      const clip={
-        id,name:file.name.replace(/\.[^.]+$/,'').slice(0,40)||'Media',
-        kind:isImage?'image':'video',file:null,sourceUrl:null,sourceKey:id,
-        in:0,out:isImage?DEFAULT_DUR:0,speed:1,volume:1,muted:false,
-        brightness:1,contrast:1,saturate:1,effect:'none',textOverlay:'',scale:1,rotation:0,flipX:false,flipY:false
-      };
-      state.clips.push(clip);
-      state.sources.set(id,file);
-      const url=URL.createObjectURL(file);
-      state.urls.set(id,url);
-      if(!isImage){
-        await new Promise(resolve=>{
-          const probe=document.createElement('video');
-          probe.preload='metadata';probe.src=url;
-          probe.onloadedmetadata=()=>{clip.out=Math.max(.1,Number(probe.duration)||DEFAULT_DUR);clip.sourceDuration=clip.out;resolve();};
-          probe.onerror=()=>{clip.out=DEFAULT_DUR;resolve();};
-        });
-      }
+    const files=[...fileList||[]],accepted=files.filter(f=>normalizeImportKind(f));
+    if(!accepted.length){els.meta.textContent='Choose a supported photo or video file.';return;}
+    const imported=[];
+    els.meta.textContent='Importing media…';
+    for(const file of accepted){
+      const kind=normalizeImportKind(file),id=uid('clip'),url=URL.createObjectURL(file);
+      try{
+        const meta=await probeMedia(url,kind,8000);
+        const clip={id,name:String(file.name||'Media').replace(/\.[^.]+$/,'').slice(0,40)||'Media',kind,file:null,sourceUrl:url,sourceKey:id,
+          in:0,out:kind==='image'?DEFAULT_DUR:meta.duration,speed:1,volume:1,muted:false,brightness:1,contrast:1,saturate:1,effect:'none',textOverlay:'',scale:1,rotation:0,flipX:false,flipY:false,motionStartScale:1,motionEndScale:1.08,motionStartRotation:0,motionEndRotation:0,transition:'cut',transitionDuration:.25,captions:[],
+          motionStartScale:1,motionEndScale:1.08,motionStartRotation:0,motionEndRotation:0,transition:'cut',transitionDuration:.25,captions:[]};
+        state.sources.set(id,file);state.urls.set(id,url);imported.push(clip);
+      }catch(e){try{URL.revokeObjectURL(url)}catch{};els.meta.textContent='Import failed: '+String(e?.message||e).slice(0,100);}
     }
-    state.selectedId=state.clips[state.clips.length-1]?.id||state.selectedId;
-    render();
+    if(imported.length){pushUndo();state.clips.push(...imported);state.selectedId=imported[imported.length-1].id;state.playhead=0;state.timelinePosition=clipStartTime(state.selectedId);render();}
+    else{els.meta.textContent='No media was imported.';}
   }
 
   function splitSelected(){
     const c=selected(); if(!c)return;
     const d=Math.max(.05,Number(c.out)-Number(c.in));
-    const play=Math.max(.05,Math.min(d-.05,state.playhead||d/2));
+    const play=Math.max(.05,Math.min(d-.05,Number(state.playhead)||d/2));
     if(d<.11)return;
     pushUndo();
     const cut=Number(c.in)+play*(Number(c.speed)||1);
@@ -481,13 +571,10 @@ export function renderAiVideoStudio(){
     const b={...c,id:uid('clip'),name:c.name+' B',in:cut};
     const source=state.sources.get(c.sourceKey||c.id);
     if(source){
-      state.sources.set(a.id,source);
-      state.sources.set(b.id,source);
-      state.urls.set(a.id,URL.createObjectURL(source));
-      state.urls.set(b.id,URL.createObjectURL(source));
+      state.sources.set(a.id,source);state.sources.set(b.id,source);
+      state.urls.set(a.id,URL.createObjectURL(source));state.urls.set(b.id,URL.createObjectURL(source));
     }else{
-      state.urls.set(a.id,state.urls.get(c.id));
-      state.urls.set(b.id,state.urls.get(c.id));
+      const sourceUrl=state.urls.get(c.id);state.urls.set(a.id,sourceUrl);state.urls.set(b.id,sourceUrl);
     }
     a.sourceKey=c.sourceKey||c.id;
     b.sourceKey=c.sourceKey||c.id;
@@ -496,6 +583,7 @@ export function renderAiVideoStudio(){
     state.urls.delete(c.id);
     state.selectedId=b.id;
     state.playhead=0;
+    state.timelinePosition=clipStartTime(b.id);
     render();
   }
 
@@ -503,9 +591,12 @@ export function renderAiVideoStudio(){
     const c=selected(); if(!c)return;
     pushUndo();
     state.clips=state.clips.filter(x=>x.id!==c.id);
-    const u=state.urls.get(c.id); if(u)URL.revokeObjectURL(u); state.urls.delete(c.id);
+    const u=state.urls.get(c.id);
+    const shared=state.clips.some(x=>x.id!==c.id&&state.urls.get(x.id)===u);
+    if(u&&!shared)try{URL.revokeObjectURL(u)}catch{}
+    state.urls.delete(c.id);state.sources.delete(c.id);
     state.selectedId=state.clips[Math.max(0,state.clips.length-1)]?.id||null;
-    state.playhead=0;render();
+    state.playhead=0;state.timelinePosition=state.selectedId?clipStartTime(state.selectedId):0;render();
   }
 
   function duplicateSelected(){
@@ -522,13 +613,13 @@ export function renderAiVideoStudio(){
     }
     const idx=state.clips.findIndex(x=>x.id===c.id);
     state.clips.splice(idx+1,0,copy);
-    state.selectedId=copy.id;render();
+    state.selectedId=copy.id;state.playhead=0;state.timelinePosition=clipStartTime(copy.id);render();
   }
 
   function moveSelected(delta){
     const idx=state.clips.findIndex(x=>x.id===state.selectedId);
     const next=idx+delta;if(idx<0||next<0||next>=state.clips.length)return;
-    pushUndo();[state.clips[idx],state.clips[next]]=[state.clips[next],state.clips[idx]];render();
+    pushUndo();[state.clips[idx],state.clips[next]]=[state.clips[next],state.clips[idx]];state.timelinePosition=clipStartTime(state.selectedId)+state.playhead;render();
   }
 
   function applyLook(name){
@@ -570,92 +661,62 @@ export function renderAiVideoStudio(){
   }
 
   async function exportVideo(){
-    if(state.exportBusy||!state.clips.length)return;
-    state.exportBusy=true;
-    setPanel('export');
-    els.exportNote.textContent='Rendering locally… keep this screen open until export finishes.';
-    const canvas=makeCanvas(),ctx=canvas.getContext('2d');
-    const fps=Number(els.fps.value)||30;
-    const stream=canvas.captureStream(fps);
-    let audioTrackAdded=false;
-    const mime=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'].find(x=>MediaRecorder.isTypeSupported(x))||'video/webm';
-    const recorder=new MediaRecorder(stream,{mimeType:mime});
-    const chunks=[];
+    if(state.exportBusy){els.exportNote.textContent='Export is already running.';return;}
+    if(!state.clips.length){els.exportNote.textContent='Add media before exporting.';return;}
+    if(!window.MediaRecorder||!HTMLCanvasElement.prototype.captureStream){els.exportNote.textContent='This Android WebView cannot export video locally.';return;}
+    state.exportBusy=true;setPanel('export');els.exportNote.textContent='Rendering locally…';
+    const canvas=makeCanvas(),ctx=canvas.getContext('2d',{alpha:false});if(!ctx){state.exportBusy=false;els.exportNote.textContent='Canvas export is unavailable.';return;}
+    const fps=Number(els.fps.value)||30,stream=canvas.captureStream(fps);
+    const mime=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'].find(x=>MediaRecorder.isTypeSupported?.(x))||'video/webm';
+    const recorder=new MediaRecorder(stream,{mimeType:mime}),chunks=[];let aborted=false,audioCtx=null,audioDest=null,audioSource=null;
     recorder.ondataavailable=e=>{if(e.data?.size)chunks.push(e.data);};
-    const mediaVideo=document.createElement('video');
-    mediaVideo.playsInline=true;mediaVideo.preload='auto';
-    let aborted=false;
-    state.stopExport=()=>{aborted=true;try{mediaVideo.pause();}catch{}try{recorder.state!=='inactive'&&recorder.stop();}catch{}};
+    const mediaVideo=document.createElement('video');mediaVideo.playsInline=true;mediaVideo.preload='auto';
+    state.stopExport=()=>{aborted=true;try{mediaVideo.pause()}catch{};try{recorder.state!=='inactive'&&recorder.stop()}catch{}};
+    try{
+      const AC=window.AudioContext||window.webkitAudioContext;
+      if(AC){audioCtx=new AC();audioDest=audioCtx.createMediaStreamDestination();audioSource=audioCtx.createMediaElementSource(mediaVideo);audioSource.connect(audioDest);audioDest.stream.getAudioTracks().forEach(t=>stream.addTrack(t));await audioCtx.resume?.();}
+    }catch{audioCtx=null;audioDest=null;audioSource=null;}
     const drawBackground=()=>{ctx.fillStyle=els.bg.value;ctx.fillRect(0,0,canvas.width,canvas.height);};
-    const drawClipText=(text)=>{if(!text)return;ctx.save();ctx.fillStyle='rgba(0,0,0,.55)';ctx.fillRect(18,canvas.height-78,canvas.width-36,52);ctx.fillStyle='#fff';ctx.font=`700 ${Math.max(18,Math.round(canvas.width/28))}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(String(text).slice(0,120),canvas.width/2,canvas.height-52,canvas.width-54);ctx.restore();};
-    const playChunk=async(c)=>{
-      const url=state.urls.get(c.id);
-      if(!url)return;
-      drawBackground();
-      if(c.kind==='image'){
-        const img=new Image();
-        img.src=url;
-        await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;});
-        const dur=clipDuration(c),start=performance.now();
-        while(performance.now()-start<dur*1000 && !aborted){
-          ctx.save();ctx.filter=cssFilter(c);fitDraw(ctx,img,canvas.width,canvas.height,c);ctx.restore();drawClipText(c.textOverlay);
-          await new Promise(requestAnimationFrame);
+    const drawText=(text,y=canvas.height-52,size=Math.max(18,Math.round(canvas.width/28)))=>{
+      if(!text)return;ctx.save();ctx.fillStyle='rgba(12,9,20,.72)';ctx.fillRect(18,y-27,canvas.width-36,54);ctx.fillStyle='#fff';ctx.font=`700 ${size}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(String(text).slice(0,180),canvas.width/2,y,canvas.width-52);ctx.restore();
+    };
+    const waitMeta=()=>new Promise((resolve,reject)=>{let done=false;const finish=e=>{if(done)return;done=true;clearTimeout(timer);mediaVideo.onloadedmetadata=null;mediaVideo.onerror=null;e?reject(e):resolve();};const timer=setTimeout(()=>finish(new Error('Video metadata timed out.')),8000);mediaVideo.onloadedmetadata=()=>finish();mediaVideo.onerror=()=>finish(new Error('Video could not be decoded.'));});
+    const waitSeek=t=>new Promise((resolve,reject)=>{if(Math.abs((mediaVideo.currentTime||0)-t)<.05)return resolve();let done=false;const finish=e=>{if(done)return;done=true;clearTimeout(timer);mediaVideo.removeEventListener('seeked',onSeek);e?reject(e):resolve();};const onSeek=()=>finish();const timer=setTimeout(()=>finish(new Error('Seek timed out.')),5000);mediaVideo.addEventListener('seeked',onSeek,{once:true});try{mediaVideo.currentTime=t}catch(e){finish(e);}});
+    const renderClip=async clip=>{
+      const url=state.urls.get(clip.id);if(!url)return;
+      const duration=clipDuration(clip);
+      if(clip.kind==='image'){
+        const img=new Image();img.src=url;await new Promise((res,rej)=>{img.onload=res;img.onerror=()=>rej(new Error('Image export load failed.'));});
+        const start=performance.now();
+        while(!aborted&&performance.now()-start<duration*1000){
+          const local=(performance.now()-start)/1000;drawBackground();ctx.save();ctx.filter=cssFilter(clip);fitDraw(ctx,img,canvas.width,canvas.height,clip,local);ctx.restore();
+          drawText(clip.textOverlay);drawText(currentCaption(clip,local),canvas.height-112,Math.max(16,Math.round(canvas.width/34)));await new Promise(requestAnimationFrame);
         }
         return;
       }
-      mediaVideo.src=url;
-      mediaVideo.playbackRate=Number(c.speed)||1;
-      mediaVideo.volume=clamp(Number(c.volume)||1,0,1);mediaVideo.muted=c.muted===true;
-      await new Promise((resolve,reject)=>{mediaVideo.onloadedmetadata=()=>resolve();mediaVideo.onerror=()=>reject(new Error('Media could not be loaded.'));});
-      await loadSeek(mediaVideo,Math.max(0,Number(c.in)||0));
-      const end=Math.min(Number(c.out)||mediaVideo.duration,mediaVideo.duration);
-      try{
-        if(!audioTrackAdded){
-          const capture=mediaVideo.captureStream?.()||mediaVideo.mozCaptureStream?.();
-          const track=capture?.getAudioTracks?.()?.[0];
-          if(track){stream.addTrack(track);audioTrackAdded=true;}
-        }
-      }catch{}
-      await mediaVideo.play().catch(()=>{});
-      while(mediaVideo.currentTime<end && !mediaVideo.ended && !aborted){
-        drawBackground();
-        ctx.save();ctx.filter=cssFilter(c);fitDraw(ctx,mediaVideo,canvas.width,canvas.height,c);ctx.restore();drawClipText(c.textOverlay);
-        await new Promise(requestAnimationFrame);
+      mediaVideo.src=url;mediaVideo.load();mediaVideo.playbackRate=Number(clip.speed)||1;mediaVideo.volume=clamp(Number(clip.volume)||1,0,1);mediaVideo.muted=clip.muted===true;
+      await waitMeta();await waitSeek(clamp(Number(clip.in)||0,0,Math.max(0,(Number(clip.out)||mediaVideo.duration)-.001)));await mediaVideo.play();
+      const end=Math.min(Number(clip.out)||mediaVideo.duration,mediaVideo.duration),guardStart=performance.now();
+      while(!aborted&&mediaVideo.currentTime<end&&!mediaVideo.ended){
+        const local=Math.max(0,(mediaVideo.currentTime-(Number(clip.in)||0))/(Number(clip.speed)||1));drawBackground();ctx.save();ctx.filter=cssFilter(clip);fitDraw(ctx,mediaVideo,canvas.width,canvas.height,clip,local);ctx.restore();
+        drawText(clip.textOverlay);drawText(currentCaption(clip,local),canvas.height-112,Math.max(16,Math.round(canvas.width/34)));await new Promise(requestAnimationFrame);
+        if(performance.now()-guardStart>(duration+3)*1000)throw new Error('Playback stalled during export.');
       }
       mediaVideo.pause();
     };
     recorder.onstop=()=>{
-      state.exportBusy=false;state.stopExport=null;stream.getTracks().forEach(t=>t.stop());
-      if(!aborted&&chunks.length){
-        const blob=new Blob(chunks,{type:recorder.mimeType||'video/webm'});
-        downloadBlob(blob,`${safeName(state.projectName,'nexusnova-video')}.webm`);
-        els.exportNote.textContent='Export complete. Your WebM video was saved locally.';
-      }else if(aborted){
-        els.exportNote.textContent='Export cancelled.';
-      }else{
-        els.exportNote.textContent='No output was produced by this browser.';
-      }
+      state.exportBusy=false;state.stopExport=null;stream.getTracks().forEach(t=>t.stop());audioCtx?.close?.();
+      if(aborted){els.exportNote.textContent='Export cancelled.';return;}
+      if(!chunks.length){els.exportNote.textContent='No output was produced.';return;}
+      const blob=new Blob(chunks,{type:recorder.mimeType||'video/webm'});downloadBlob(blob,`${safeName(state.projectName,'nexusnova-video')}.webm`);els.exportNote.textContent='Export complete. WebM saved locally.';
     };
-    try{
-      recorder.start(200);
-      for(const c of state.clips){if(aborted)break;await playChunk(c);}
-      if(!aborted){await new Promise(r=>setTimeout(r,120));recorder.stop();}else{try{recorder.stop();}catch{}}
-    }catch(e){
-      els.exportNote.textContent='Export stopped: '+String(e?.message||e).slice(0,150);
-      state.exportBusy=false;state.stopExport=null;try{recorder.state!=='inactive'&&recorder.stop();}catch{}
-    }
+    try{recorder.start(200);for(const clip of state.clips){if(aborted)break;await renderClip(clip);}if(recorder.state!=='inactive')recorder.stop();}
+    catch(error){aborted=true;els.exportNote.textContent='Export failed: '+String(error?.message||error).slice(0,180);try{recorder.state!=='inactive'&&recorder.stop()}catch{};state.exportBusy=false;state.stopExport=null;audioCtx?.close?.();}
   }
-
-  function fitDraw(ctx,source,w,h,c={}){
-    const sw=source.videoWidth||source.naturalWidth||w, sh=source.videoHeight||source.naturalHeight||h;
-    const fitScale=Math.min(w/sw,h/sh)*(Number(c.scale)||1),dw=sw*fitScale,dh=sh*fitScale;
-    const sx=c.flipX?-1:1,sy=c.flipY?-1:1;
-    ctx.save();
-    ctx.translate(w/2,h/2);
-    ctx.rotate((Number(c.rotation)||0)*Math.PI/180);
-    ctx.scale(sx,sy);
-    ctx.drawImage(source,-dw/2,-dh/2,dw,dh);
-    ctx.restore();
+  function fitDraw(ctx,source,w,h,c={},local=0){
+    const sw=source.videoWidth||source.naturalWidth||w,sh=source.videoHeight||source.naturalHeight||h,motion=interpolateMotion(c,local);
+    const fitScale=Math.min(w/sw,h/sh)*(Number(c.scale)||1)*motion.scale,dw=sw*fitScale,dh=sh*fitScale,sx=c.flipX?-1:1,sy=c.flipY?-1:1;
+    ctx.save();ctx.translate(w/2,h/2);ctx.rotate((Number(c.rotation||0)+motion.rotation)*Math.PI/180);ctx.scale(sx,sy);ctx.drawImage(source,-dw/2,-dh/2,dw,dh);ctx.restore();
   }
 
   function undo(){
@@ -669,39 +730,47 @@ export function renderAiVideoStudio(){
     const snap=state.redo.pop();restoreSnap(snap);
   }
 
-  els.file.addEventListener('change',()=>{void addFiles(els.file.files);els.file.value='';});
-  root.querySelector('[data-add]').addEventListener('click',()=>els.file.click());
+  const openPicker=()=>{
+    try{if(typeof els.file.showPicker==='function'){els.file.showPicker();return;}}catch{}
+    try{els.file.click()}catch{els.meta.textContent='Media picker could not be opened.';}
+  };
+  els.file.addEventListener('change',async()=>{await addFiles(els.file.files);els.file.value='';});
+  root.querySelector('[data-add]').addEventListener('click',openPicker);
   root.querySelector('[data-split]').addEventListener('click',splitSelected);
   root.querySelector('[data-delete]').addEventListener('click',deleteSelected);
   root.querySelector('[data-duplicate]').addEventListener('click',duplicateSelected);
-  root.querySelector('[data-reset]').addEventListener('click',()=>{const c=selected();if(!c)return;pushUndo();Object.assign(c,{in:0,out:c.kind==='image'?DEFAULT_DUR:c.sourceDuration||c.out,speed:1,volume:1,muted:false,brightness:1,contrast:1,saturate:1,effect:'none',textOverlay:''});render();});
+  root.querySelector('[data-reset]').addEventListener('click',()=>{const c=selected();if(!c)return;pushUndo();Object.assign(c,{in:0,out:c.kind==='image'?DEFAULT_DUR:c.sourceDuration||c.out,speed:1,volume:1,muted:false,brightness:1,contrast:1,saturate:1,effect:'none',textOverlay:'',scale:1,rotation:0,flipX:false,flipY:false,motionStartScale:1,motionEndScale:1.08,motionStartRotation:0,motionEndRotation:0,transition:'cut',transitionDuration:.25,captions:[]});state.playhead=0;state.timelinePosition=clipStartTime(c.id);render();});
   root.querySelector('[data-undo]').addEventListener('click',undo);
   root.querySelector('[data-redo]').addEventListener('click',redo);
-  els.play.addEventListener('click',()=>{if(els.video.classList.contains('nx-video-hidden'))return;if(els.video.paused)els.video.play();else els.video.pause();});
-  els.video.addEventListener('timeupdate',()=>{const c=selected();if(!c)return;const local=Math.max(0,els.video.currentTime-(Number(c.in)||0))/(Number(c.speed)||1);state.playhead=local;els.current.textContent=fmt(local);els.scrub.value=String(local);if(els.video.currentTime>=(Number(c.out)||0)){els.video.pause();}});
-  els.video.addEventListener('play',()=>els.play.textContent='Ⅱ');
-  els.video.addEventListener('pause',()=>els.play.textContent='▶');
-  els.scrub.addEventListener('input',()=>{const c=selected();if(!c)return;const local=Number(els.scrub.value)||0;state.playhead=local;els.current.textContent=fmt(local);if(c.kind==='video')els.video.currentTime=clamp((Number(c.in)||0)+local*(Number(c.speed)||1),0,Number(c.out)||DEFAULT_DUR);});
-  root.querySelector('[data-in]').addEventListener('change',()=>{const c=selected();if(!c)return;pushUndo();c.in=clamp(Number(els.in.value)||0,0,Math.max(0,Number(c.out)-.05));state.playhead=0;render();});
-  root.querySelector('[data-out]').addEventListener('change',()=>{const c=selected();if(!c)return;pushUndo();c.out=Math.max(Number(c.in)+.05,Number(els.out.value)||Number(c.out));state.playhead=0;render();});
+  els.play.addEventListener('click',()=>{const c=selected();if(!c)return;if(c.kind==='image'){setSelectedLocalTime(state.playhead>=clipDuration(c)-.02?0:state.playhead+.25);render();return;}if(els.video.paused){els.video.play().catch(()=>{})}else els.video.pause();});
+  els.video.addEventListener('loadedmetadata',()=>{if(selected())applyPreview()});
+  els.video.addEventListener('timeupdate',()=>{const c=selected();if(!c||c.kind!=='video')return;state.playhead=clamp((els.video.currentTime-(Number(c.in)||0))/(Number(c.speed)||1),0,clipDuration(c));state.timelinePosition=clipStartTime(c.id)+state.playhead;els.current.textContent=fmt(state.timelinePosition);els.scrub.value=String(state.timelinePosition);if(els.video.currentTime>=(Number(c.out)||0)-.01)els.video.pause();});
+  els.video.addEventListener('error',()=>{els.exportNote.textContent='Preview could not decode this video in the current Android WebView.';});
+  els.video.addEventListener('play',()=>els.play.textContent='Ⅱ');els.video.addEventListener('pause',()=>els.play.textContent='▶');
+  els.scrub.addEventListener('input',()=>{const pos=clamp(Number(els.scrub.value)||0,0,totalDuration());const target=mapTimeline(state.clips,pos);if(target.clipId)selectClip(target.clipId,target.local);});
+  root.querySelector('[data-in]').addEventListener('change',()=>{const c=selected();if(!c)return;pushUndo();c.in=clamp(Number(els.in.value)||0,0,Math.max(0,(Number(c.out)||DEFAULT_DUR)-.05));setSelectedLocalTime(0);render();});
+  root.querySelector('[data-out]').addEventListener('change',()=>{const c=selected();if(!c)return;pushUndo();c.out=Math.max(Number(c.in)+.05,Number(els.out.value)||Number(c.out));setSelectedLocalTime(clamp(state.playhead,0,clipDuration(c)));render();});
   els.volume.addEventListener('input',()=>{const c=selected();if(!c)return;c.volume=Number(els.volume.value);els.volumeOut.textContent=Math.round(c.volume*100)+'%';applyPreview();});
   els.audioMode.addEventListener('change',()=>{const c=selected();if(!c)return;pushUndo();c.muted=els.audioMode.value==='mute';applyPreview();});
-  els.speed.addEventListener('input',()=>{const c=selected();if(!c)return;c.speed=Number(els.speed.value);els.speedOut.textContent=c.speed.toFixed(2)+'×';if(c.kind==='video')els.video.playbackRate=c.speed;render();});
+  els.speed.addEventListener('input',()=>{const c=selected();if(!c)return;pushUndo();const local=state.playhead;c.speed=Number(els.speed.value)||1;state.playhead=clamp(local,0,clipDuration(c));state.timelinePosition=clipStartTime(c.id)+state.playhead;els.speedOut.textContent=c.speed.toFixed(2)+'×';applyPreview();});
   root.querySelectorAll('[data-speed-preset]').forEach(b=>b.addEventListener('click',()=>{els.speed.value=b.dataset.speedPreset;els.speed.dispatchEvent(new Event('input'));}));
-  els.bright.addEventListener('input',()=>{const c=selected();if(!c)return;c.brightness=Number(els.bright.value);els.brightOut.textContent=Math.round(c.brightness*100)+'%';applyPreview();});
-  els.contrast.addEventListener('input',()=>{const c=selected();if(!c)return;c.contrast=Number(els.contrast.value);els.contrastOut.textContent=Math.round(c.contrast*100)+'%';applyPreview();});
-  els.saturate.addEventListener('input',()=>{const c=selected();if(!c)return;c.saturate=Number(els.saturate.value);els.saturateOut.textContent=Math.round(c.saturate*100)+'%';applyPreview();});
-  els.scale.addEventListener('input',()=>{const c=selected();if(!c)return;c.scale=Number(els.scale.value);els.scaleOut.textContent=Math.round(c.scale*100)+'%';applyPreview();});
-  els.rotation.addEventListener('input',()=>{const c=selected();if(!c)return;c.rotation=Number(els.rotation.value);els.rotationOut.textContent=c.rotation+'°';applyPreview();});
+  const bindRange=(input,output,field,format)=>input.addEventListener('input',()=>{const c=selected();if(!c)return;c[field]=Number(input.value);output.textContent=format(c[field]);applyPreview();});
+  bindRange(els.bright,els.brightOut,'brightness',v=>Math.round(v*100)+'%');bindRange(els.contrast,els.contrastOut,'contrast',v=>Math.round(v*100)+'%');bindRange(els.saturate,els.saturateOut,'saturate',v=>Math.round(v*100)+'%');bindRange(els.scale,els.scaleOut,'scale',v=>Math.round(v*100)+'%');bindRange(els.rotation,els.rotationOut,'rotation',v=>v+'°');
   root.querySelectorAll('[data-flip]').forEach(b=>b.addEventListener('click',()=>{const c=selected();if(!c)return;pushUndo();if(b.dataset.flip==='x')c.flipX=!c.flipX;else c.flipY=!c.flipY;render();}));
   root.querySelectorAll('[data-look]').forEach(b=>b.addEventListener('click',()=>applyLook(b.dataset.look)));
   root.querySelectorAll('[data-effect]').forEach(b=>b.addEventListener('click',()=>{const c=selected();if(!c)return;pushUndo();c.effect=b.dataset.effect;render();}));
   root.querySelector('[data-apply-text]').addEventListener('click',()=>{const c=selected();if(!c)return;pushUndo();c.textOverlay=els.text.value.trim();render();});
   root.querySelector('[data-clear-text]').addEventListener('click',()=>{const c=selected();if(!c)return;pushUndo();c.textOverlay='';els.text.value='';render();});
-  root.querySelector('[data-ratio]').addEventListener('change',()=>{});
-  root.querySelector('[data-bg]').addEventListener('change',()=>{applyPreview();});
+  els.ratio.addEventListener('change',()=>render());els.bg.addEventListener('change',()=>applyPreview());
+  els.motionStartScale.addEventListener('input',()=>{const c=selected();if(!c)return;c.motionStartScale=Number(els.motionStartScale.value)||1;applyPreview();});
+  els.motionEndScale.addEventListener('input',()=>{const c=selected();if(!c)return;c.motionEndScale=Number(els.motionEndScale.value)||1;applyPreview();});
+  els.motionStartRotation.addEventListener('change',()=>{const c=selected();if(!c)return;pushUndo();c.motionStartRotation=clamp(Number(els.motionStartRotation.value)||0,-180,180);render();});
+  els.motionEndRotation.addEventListener('change',()=>{const c=selected();if(!c)return;pushUndo();c.motionEndRotation=clamp(Number(els.motionEndRotation.value)||0,-180,180);render();});
+  els.transition.addEventListener('change',()=>{const c=selected();if(!c)return;pushUndo();c.transition=els.transition.value;render();});
+  els.transitionDuration.addEventListener('input',()=>{const c=selected();if(!c)return;c.transitionDuration=Number(els.transitionDuration.value)||.25;els.transitionDurationOut.textContent=c.transitionDuration.toFixed(2)+'s';});
+  root.querySelector('[data-add-caption]').addEventListener('click',()=>{const c=selected();if(!c)return;const text=els.captionText.value.trim();if(!text)return;const start=Math.max(0,Number(els.captionStart.value)||0),end=Math.max(start+.1,Number(els.captionEnd.value)||start+.1);pushUndo();c.captions=Array.isArray(c.captions)?c.captions:[];c.captions.push({start,end,text:text.slice(0,180)});c.captions.sort((a,b)=>a.start-b.start);render();});
+  root.querySelector('[data-clear-captions]').addEventListener('click',()=>{const c=selected();if(!c)return;pushUndo();c.captions=[];render();});
   root.querySelector('[data-open-export]').addEventListener('click',()=>exportVideo());
-
   root.querySelectorAll('[data-tool]').forEach(b=>b.addEventListener('click',()=>setPanel(b.dataset.tool)));
 
   root.querySelector('[data-ai-director]').addEventListener('click',async()=>{
@@ -725,11 +794,11 @@ export function renderAiVideoStudio(){
   root.querySelector('[data-ai-captions]').addEventListener('click',async()=>{
     const c=selected();if(!c||c.kind==='image')return;
     try{
-      const blob=await fetch(state.urls.get(c.id)).then(r=>r.blob());
-      const data=await fileToInline(blob,8);
+      const blob=await fetch(state.urls.get(c.id)).then(r=>r.blob()),data=await fileToInline(blob,8);
       const model=await aiModel('Transcribe only what is spoken in the supplied media. Return concise caption lines with approximate timestamps in SRT format. If speech is unclear, mark [inaudible] rather than inventing words.');
       const res=await model.generateContent([{inlineData:data},{text:'Generate an SRT caption draft for this clip.'}]);
-      els.aiOut.value=String(res?.response?.text?.()||'').trim().slice(0,5000);
+      const draft=String(res?.response?.text?.()||'').trim().slice(0,5000);els.aiOut.value=draft;
+      const parsed=parseSrt(draft);if(parsed.length){pushUndo();c.captions=parsed;render();}
     }catch(e){els.aiOut.value='Auto captions unavailable: '+String(e?.message||e).slice(0,220);}
   });
 
@@ -759,5 +828,7 @@ export function renderAiVideoStudio(){
     state.sources.clear();
     window.removeEventListener('keydown',keydown);
   };
+  root.__videoTestUtils=__videoFlagshipTestUtils;
   return root;
 }
+export { __videoFlagshipTestUtils };
