@@ -34,7 +34,7 @@ jobs:
 
       - name: Start fresh rebuild harness
         run: |
-          npx servor fresh-rebuild 4173 --browse=false > /tmp/servor.log 2>&1 &
+          npx servor . 4173 --browse=false > /tmp/servor.log 2>&1 &
           for i in $(seq 1 20); do
             if curl -fsS http://127.0.0.1:4173/qa/video-flagship-harness.html >/dev/null 2>&1; then exit 0; fi
             sleep 1
@@ -135,6 +135,7 @@ jobs:
             recorder.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
             recorder.start();
             const started = performance.now();
+            const stopped = new Promise(resolve => { recorder.onstop = resolve; });
             await new Promise(resolve => {
               const tick = () => {
                 const t = (performance.now()-started)/250;
@@ -145,7 +146,7 @@ jobs:
               };
               requestAnimationFrame(tick);
             });
-            await new Promise(resolve => recorder.onstop = resolve);
+            await stopped;
             stream.getTracks().forEach(track => track.stop());
             const blob = new Blob(chunks, { type: 'video/webm' });
             const bytes = new Uint8Array(await blob.arrayBuffer());
