@@ -109,6 +109,11 @@ jobs:
           assert.equal(await page.locator('[data-speed-out]').textContent(), '2.00×');
           assert.match(await page.locator('[data-id]').textContent(), /2.00×/);
 
+          // Mask is applied to the live preview.
+          await page.locator('[data-tool="transform"]').click();
+          await page.locator('[data-mask="circle"]').click();
+          assert.equal(await page.locator('[data-main-image]').evaluate(el => el.style.clipPath), 'circle(38% at 50% 50%)', 'circle mask not applied');
+
           // Add a second image and verify global scrub selects the second clip.
           await input.setInputFiles({ name: 'second.png', mimeType: 'image/png', buffer: png });
           await page.waitForFunction(() => document.querySelectorAll('[data-id]').length === 2);
