@@ -18,7 +18,7 @@ const util=await page.evaluate(()=>{
     bad:u.normalizeImportKind({type:'application/pdf'})===null,
     timeline:(()=>{const x=u.mapTimeline([{id:'a',in:0,out:2,speed:1},{id:'b',in:0,out:1,speed:1}],2.2);return x.clipId==='b'&&Math.abs(x.local-.2)<.001;})(),
     motion:(()=>{const x=u.interpolateMotion({in:0,out:2,speed:1,motionStartScale:1,motionEndScale:1.5,motionStartRotation:0,motionEndRotation:20},1);return Math.abs(x.scale-1.25)<.001&&Math.abs(x.rotation-10)<.001;})(),
-    srt:u.parseSrt('1\\n00:00:00,000 --> 00:00:01,000\\nHello')[0]?.text==='Hello'
+    srt:u.parseSrt('1\n00:00:00,000 --> 00:00:01,000\nHello')[0]?.text==='Hello'
   };
 });
 if(!Object.values(util).every(Boolean)) throw new Error('UTILITY QA FAIL');
