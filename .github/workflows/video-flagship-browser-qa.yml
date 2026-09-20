@@ -175,9 +175,8 @@ jobs:
           await page.locator('[data-id]').first().click();
           await page.locator('[data-out]').fill('0.3');
           await page.locator('[data-out]').dispatchEvent('change');
-          await page.locator('[data-tool="export"]').count().then(() => {});
-          await page.locator('[data-open-export]').click();
           const downloadPromise = page.waitForEvent('download', { timeout: 15000 });
+          await page.locator('[data-open-export]').click();
           await downloadPromise.then(async download => {
             assert.match(download.suggestedFilename(), /\.webm$/i, 'unexpected export extension');
             const filePath = await download.path();
