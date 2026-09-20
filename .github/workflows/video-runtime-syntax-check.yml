@@ -5,6 +5,9 @@ on:
       - agent/video-flagship-complete-20260921
   pull_request:
     branches: [main]
+concurrency:
+  group: video-runtime-qa-{{ github.ref } }
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
