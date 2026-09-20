@@ -2,7 +2,6 @@ name: Video Runtime Syntax Check
 on:
   push:
     branches:
-      - main
       - agent/video-flagship-complete-20260921
   pull_request:
     branches: [main]
@@ -25,12 +24,10 @@ jobs:
           node --check fresh-rebuild/src/features/apps/premium-studio-suite.js
           node --input-type=module -e "import('./fresh-rebuild/src/features/apps/ai-video-studio-flagship.js').then(m=>{if(typeof m.renderAiVideoStudio!=='function'||typeof m.__videoFlagshipTestUtils!=='object')process.exit(2);console.log('FLAGSHIP MODULE IMPORT PASS')})"
       - name: Install Playwright for candidate runtime
-        if: github.ref == 'refs/heads/agent/video-flagship-complete-20260921'
         run: |
           npm install --no-save playwright@1.55.0
           npx playwright install --with-deps chromium
       - name: Serve candidate harness
-        if: github.ref == 'refs/heads/agent/video-flagship-complete-20260921'
         run: |
           python3 -m http.server 4173 --directory fresh-rebuild >/tmp/video-http.log 2>&1 &
           for i in {1..20}; do
@@ -40,8 +37,6 @@ jobs:
           cat /tmp/video-http.log
           exit 1
       - name: Run candidate browser runtime QA
-        if: github.ref == 'refs/heads/agent/video-flagship-complete-20260921'
         run: node .github/scripts/video-flagship-runtime.mjs
       - name: Candidate QA marker
-        if: github.ref == 'refs/heads/agent/video-flagship-complete-20260921'
         run: echo "VIDEO FLAGSHIP CANDIDATE QA PASS"
