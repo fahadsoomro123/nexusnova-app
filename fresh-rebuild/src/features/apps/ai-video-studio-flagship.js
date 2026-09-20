@@ -53,6 +53,10 @@ function ensureVideoFlagshipStyles() {
     .nx-video-preview video,.nx-video-preview img{display:block;max-width:100%;max-height:100%;width:100%;height:100%;object-fit:contain;background:#16131c}
     .nx-video-empty{display:grid;place-items:center;gap:7px;color:#fff;text-align:center;padding:20px}.nx-video-empty b{font-size:18px}.nx-video-empty span{font-size:12px;opacity:.78}
     .nx-video-status{position:absolute;left:8px;right:8px;bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 9px;border-radius:11px;background:rgba(18,14,28,.78);backdrop-filter:blur(8px);color:#fff;font-size:11px}
+    .nx-video-overlay-text,.nx-video-overlay-caption{position:absolute;left:12px;right:12px;z-index:3;text-align:center;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,.65);pointer-events:none;overflow:hidden;text-overflow:ellipsis;display:none}
+    .nx-video-overlay-text.is-visible,.nx-video-overlay-caption.is-visible{display:block}
+    .nx-video-overlay-text{top:18px;font-size:clamp(16px,4vw,24px);font-weight:900;letter-spacing:-.02em}
+    .nx-video-overlay-caption{bottom:48px;padding:7px 10px;border-radius:10px;background:rgba(12,9,20,.72);font-size:clamp(14px,3.6vw,18px);font-weight:800}
     .nx-video-status strong{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.nx-video-status span{opacity:.74;white-space:nowrap}
     .nx-video-play{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:56px;height:56px;border:0;border-radius:50%;display:grid;place-items:center;background:linear-gradient(145deg,#fff,#eae4ff);color:#4f39b8;box-shadow:0 12px 32px rgba(0,0,0,.28);font-size:21px;font-weight:900}
     .nx-video-timeline{min-height:0;padding:8px;border:1px solid #e9e3f2;border-radius:15px;background:#fff;box-shadow:0 5px 18px rgba(84,55,124,.06)}
@@ -207,6 +211,8 @@ export function renderAiVideoStudio(){
       <div class="nx-video-empty" data-empty><b>CREATE YOUR VIDEO</b><span>Add videos or photos. Everything here is designed for fast, touch-first editing.</span></div>
       <video playsinline preload="metadata" class="nx-video-hidden" data-main-video></video>
       <img class="nx-video-hidden" data-main-image alt="">
+      <div class="nx-video-overlay-text" data-preview-text></div>
+      <div class="nx-video-overlay-caption" data-preview-caption></div>
       <button type="button" class="nx-video-play nx-video-hidden" data-play aria-label="Play or pause">▶</button>
       <div class="nx-video-status"><strong data-project>Untitled project</strong><span data-meta>0 clips • 00:00</span></div>
     </section>
@@ -354,6 +360,8 @@ export function renderAiVideoStudio(){
     play:root.querySelector('[data-play]'),
     project:root.querySelector('[data-project]'),
     meta:root.querySelector('[data-meta]'),
+    previewText:root.querySelector('[data-preview-text]'),
+    previewCaption:root.querySelector('[data-preview-caption]'),
     current:root.querySelector('[data-current-time]'),
     total:root.querySelector('[data-total-time]'),
     scrub:root.querySelector('[data-scrub]'),
@@ -478,11 +486,16 @@ export function renderAiVideoStudio(){
   }
   function applyPreview(){
     const c=selected();
-    if(!c){els.video.classList.add('nx-video-hidden');els.image.classList.add('nx-video-hidden');els.empty.classList.remove('nx-video-hidden');els.play.classList.add('nx-video-hidden');return;}
+    if(!c){els.video.classList.add('nx-video-hidden');els.image.classList.add('nx-video-hidden');els.empty.classList.remove('nx-video-hidden');els.play.classList.add('nx-video-hidden');els.previewText.classList.remove('is-visible');els.previewCaption.classList.remove('is-visible');return;}
     els.empty.classList.add('nx-video-hidden');
     els.play.classList.remove('nx-video-hidden');
     const url=state.urls.get(c.id);
     const motion=interpolateMotion(c,state.playhead);
+    els.previewText.textContent=c.textOverlay||'';
+    els.previewText.classList.toggle('is-visible',Boolean(c.textOverlay));
+    const liveCaption=currentCaption(c,state.playhead);
+    els.previewCaption.textContent=liveCaption;
+    els.previewCaption.classList.toggle('is-visible',Boolean(liveCaption));
     if(c.kind==='image'){
       els.video.classList.add('nx-video-hidden');els.image.classList.remove('nx-video-hidden');
       if(els.image.src!==url)els.image.src=url||'';
@@ -746,7 +759,7 @@ export function renderAiVideoStudio(){
       ctx.save();
       if(clip.transition==='fade'){
         ctx.globalAlpha=1-progress;ctx.drawImage(previousFrame,0,0,canvas.width,canvas.height);
-        ctx.globalAlpha=1;paint();
+        ctx.globalAlpha=progress;paint();
       }else if(clip.transition==='flash'){
         paint();ctx.fillStyle='rgba(255,255,255,'+String((1-progress)*.72)+')';ctx.fillRect(0,0,canvas.width,canvas.height);
       }else{
