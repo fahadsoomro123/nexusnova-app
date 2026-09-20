@@ -435,7 +435,28 @@ export function renderAiVideoStudio(){
   function advanceProject(){const hit=clipAtProjectTime(state.playhead);if(!hit)return stopPlayback();const next=state.clips[hit.index+1];if(!next){stopPlayback();state.playhead=totalDuration();updateTimelineUI();return;}previewAtProjectTime(clipStartTime(next.id));}
   function updateTimelineUI(){const total=totalDuration();els.total.textContent=fmt(total);els.meta.textContent=`${state.clips.length} clip${state.clips.length===1?'':'s'} • ${fmt(total)}`;els.scrub.max=String(total);els.scrub.value=String(clamp(state.playhead,0,total));els.current.textContent=fmt(state.playhead);const hit=clipAtProjectTime(state.playhead);if(hit)updateCaption(hit.local);}
   function playbackTick(now){if(!state.playing)return;const hit=clipAtProjectTime(state.playhead);if(!hit){stopPlayback();return;}if(!state.playTickAt)state.playTickAt=now;const c=hit.clip;if(c.kind==='video'){const local=Math.max(0,els.video.currentTime-(Number(c.in)||0))/(Number(c.speed)||1);state.playhead=clipStartTime(c.id)+local;updateTimelineUI();if(state.playing&&els.video.currentTime>=(Number(c.out)||0)-.02)advanceProject();}else{state.playhead+=Math.max(0,(now-state.playTickAt)/1000);state.playTickAt=now;updateTimelineUI();if(state.playhead>=clipStartTime(c.id)+clipDuration(c))advanceProject();}state.rafId=requestAnimationFrame(playbackTick);}
-  function togglePlayback(){if(!state.clips.length)return;if(state.playing){stopPlayback();return;}if(state.playhead>=totalDuration()-.01)state.playhead=0;const hit=clipAtProjectTime(state.playhead);if(!hit)return;state.selectedId=hit.clip.id;state.playing=true;state.playTickAt=performance.now();render();if(hit.clip.kind==='video')void els.video.play().catch(()=>{});state.rafId=requestAnimationFrame(playbackTick);}
+  async function playSelectedVideo(hit){
+    if(hit?.clip?.kind!=='video')return;
+    if(els.video.readyState<2){
+      await new Promise(resolve=>{
+        let done=false;
+        const finish=()=>{if(done)return;done=true;clearTimeout(timer);resolve();};
+        const timer=setTimeout(finish,3000);
+        els.video.addEventListener('loadeddata',finish,{once:true});
+        els.video.addEventListener('canplay',finish,{once:true});
+      });
+    }
+    await els.video.play();
+  }
+  async function togglePlayback(){
+    if(!state.clips.length)return;
+    if(state.playing){stopPlayback();return;}
+    if(state.playhead>=totalDuration()-.01)state.playhead=0;
+    const hit=clipAtProjectTime(state.playhead);if(!hit)return;
+    state.selectedId=hit.clip.id;state.playing=true;state.playTickAt=performance.now();render();
+    try{await playSelectedVideo(hit);}catch(error){state.playing=false;state.rafId=0;els.play.textContent='▶';setStatus('Playback could not start: '+String(error?.message||error).slice(0,150),'error');return;}
+    state.rafId=requestAnimationFrame(playbackTick);
+  }
   function applyPreview(){
     const c=selected();
     if(!c){els.video.classList.add('nx-video-hidden');els.image.classList.add('nx-video-hidden');els.empty.classList.remove('nx-video-hidden');els.play.classList.add('nx-video-hidden');els.caption.classList.add('nx-video-hidden');state.previewClipId=null;return;}
@@ -519,8 +540,9 @@ export function renderAiVideoStudio(){
     if(d<.11)return;
     pushUndo();
     const cut=Number(c.in)+play*(Number(c.speed)||1);
-    const a={...c,id:uid('clip'),name:c.name+' A',out:cut};
-    const b={...c,id:uid('clip'),name:c.name+' B',in:cut};
+    const cloneClip=src=>({...src,motion:{...src.motion,start:{...src.motion?.start},end:{...src.motion?.end}},captions:(src.captions||[]).map(v=>({...v}))});
+    const a=cloneClip(c);a.id=uid('clip');a.name=c.name+' A';a.out=cut;
+    const b=cloneClip(c);b.id=uid('clip');b.name=c.name+' B';b.in=cut;
     const source=state.sources.get(c.sourceKey||c.id);
     if(source){
       state.sources.set(a.id,source);
@@ -553,7 +575,7 @@ export function renderAiVideoStudio(){
   function duplicateSelected(){
     const c=selected(); if(!c)return;
     pushUndo();
-    const copy={...c,id:uid('clip'),name:c.name+' copy'};
+    const copy={...c,id:uid('clip'),name:c.name+' copy',motion:{...c.motion,start:{...c.motion?.start},end:{...c.motion?.end}},captions:(c.captions||[]).map(v=>({...v}))};
     copy.sourceKey=c.sourceKey||c.id;
     const source=state.sources.get(copy.sourceKey);
     if(source){
