@@ -63,9 +63,14 @@ jobs:
 
           assert(await page.locator('[data-tool]').count()===12,'Expected 12 flagship tools');
 
-          const chooser1=page.waitForEvent('filechooser');
-          await page.locator('[data-add]').click();
-          await (await chooser1).setFiles('/tmp/nx-image.png');
+          const pickerShape=await page.evaluate(()=>{
+            const a=document.querySelector('[data-add]'),i=document.querySelector('[data-file]');
+            if(!a||!i)return null; const ar=a.getBoundingClientRect(),ir=i.getBoundingClientRect();
+            return {inputDisplay:getComputedStyle(i).display,inputOpacity:getComputedStyle(i).opacity,hit:ir.left<=ar.right&&ir.right>=ar.left&&ir.top<=ar.bottom&&ir.bottom>=ar.top};
+          });
+          assert(pickerShape?.inputDisplay!=='none','File input is still display:none');
+          assert(pickerShape?.hit===true,'File input does not cover the Add Media touch target');
+          await page.locator('[data-file]').setInputFiles('/tmp/nx-image.png');
           await page.locator('[data-id]').first().waitFor();
           assert(await page.locator('[data-id]').count()===1,'Image did not enter timeline');
           assert((await page.locator('[data-main-image]').getAttribute('src'))?.startsWith('blob:'),'Image preview source missing');
@@ -129,9 +134,7 @@ jobs:
           const dlPath=await download.path();
           assert(dlPath&&fs.statSync(dlPath).size>100,'Export did not produce a non-empty file');
 
-          const chooser2=page.waitForEvent('filechooser');
-          await page.locator('[data-add]').click();
-          await (await chooser2).setFiles('/tmp/nx-video-fixture.webm');
+          await page.locator('[data-file]').setInputFiles('/tmp/nx-video-fixture.webm');
           await page.waitForFunction(()=>document.querySelectorAll('[data-id]').length===2,null,{timeout:10000});
           await page.waitForFunction(()=>{const v=document.querySelector('[data-main-video]');return v&&Number.isFinite(v.duration)&&v.duration>0},null,{timeout:10000});
           assert((await page.locator('[data-main-video]').getAttribute('src'))?.startsWith('blob:'),'Video preview source missing');
