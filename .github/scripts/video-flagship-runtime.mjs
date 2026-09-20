@@ -30,9 +30,7 @@ await input.setInputFiles([{name:'photo.png',mimeType:'image/png',buffer:png}]);
 await page.waitForFunction(()=>document.querySelectorAll('.nx-video-clip').length===1);
 if(await page.locator('[data-main-image]').evaluate(el=>el.classList.contains('nx-video-hidden'))) throw new Error('PHOTO PREVIEW FAIL');
 
-const fixtureResponse=await fetch('https://github.com/mdn/learning-area/raw/refs/heads/main/html/multimedia-and-embedding/tasks/media-embed/media/video.mp4');
-if(!fixtureResponse.ok) throw new Error('VIDEO FIXTURE FETCH FAIL: '+fixtureResponse.status);
-const videoBytes=Buffer.from(await fixtureResponse.arrayBuffer());
+const videoBytes=fs.readFileSync('fresh-rebuild/fixtures/sample.mp4');
 if(videoBytes.length<1000) throw new Error('VIDEO FIXTURE EMPTY');
 
 await input.setInputFiles([{name:'sample.webm',mimeType:'video/webm',buffer:Buffer.from(videoBytes)}]);
