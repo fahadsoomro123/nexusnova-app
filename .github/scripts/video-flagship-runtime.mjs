@@ -112,6 +112,8 @@ const download=await dlPromise;
 const path=await download.path();
 if(!path||!fs.existsSync(path)||fs.statSync(path).size<100) throw new Error('EXPORT OUTPUT FAIL');
 if(!download.suggestedFilename().endsWith('.webm')) throw new Error('EXPORT TYPE FAIL');
+if(await page.locator('[data-export-result]').getAttribute('hidden')!==null) throw new Error('EXPORT PREVIEW FAIL');
+if(!(await page.locator('[data-export-preview]').getAttribute('src'))?.startsWith('blob:')) throw new Error('EXPORT PREVIEW URL FAIL');
 
 if(errors.length) throw new Error('BROWSER ERRORS: '+errors.join(' | '));
 console.log('VIDEO FLAGSHIP BROWSER RUNTIME QA PASS');
