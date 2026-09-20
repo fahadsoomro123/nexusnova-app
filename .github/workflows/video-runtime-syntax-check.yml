@@ -1,0 +1,19 @@
+name: Video Runtime Syntax Check
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Check
+        run: |
+          set -euo pipefail
+          node --check fresh-rebuild/src/features/apps/ai-video-studio-flagship.js
+          node --check fresh-rebuild/src/features/apps/app-screen.js
+          node --check fresh-rebuild/src/features/apps/premium-studio-suite.js
+          echo "VIDEO RUNTIME SYNTAX PASS"
