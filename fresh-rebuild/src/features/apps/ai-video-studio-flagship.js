@@ -414,7 +414,7 @@ export function renderAiVideoStudio(){
     if(c.kind==='image'){els.video.pause();els.video.classList.add('nx-video-hidden');els.image.classList.remove('nx-video-hidden');if(els.image.src!==url)els.image.src=url;els.image.style.filter=cssFilter(c);els.image.style.transform=previewTransform(c);els.image.style.background=els.bg.value;els.current.textContent=fmt(state.playhead);return;}
     els.image.classList.add('nx-video-hidden');els.video.classList.remove('nx-video-hidden');if(els.video.src!==url){els.video.src=url;els.video.load();}
     if(els.video.readyState>=1){const desired=clamp((Number(c.in)||0)+(Number(state.playhead)||0)*(Number(c.speed)||1),0,Math.max((Number(c.out)||DEFAULT_DUR)-.001,0));if(Math.abs((els.video.currentTime||0)-desired)>.08){try{els.video.currentTime=desired}catch{}}}
-    els.video.playbackRate=Number(c.speed)||1;els.video.volume=clamp(Number(c.volume)||1,0,1);els.video.muted=c.muted===true;els.video.style.filter=cssFilter(c);els.video.style.transform=previewTransform(c);els.video.style.background=els.bg.value;
+    els.video.playbackRate=Number(c.speed)||1;els.video.volume=clamp(Number(c.volume ?? 1),0,1);els.video.muted=c.muted===true;els.video.style.filter=cssFilter(c);els.video.style.transform=previewTransform(c);els.video.style.background=els.bg.value;
   }
   function render(){
     els.clipRow.innerHTML=state.clips.length?state.clips.map((c,i)=>`
@@ -438,8 +438,8 @@ export function renderAiVideoStudio(){
     if(c){
       els.in.value=Number(c.in).toFixed(1);
       els.out.value=Number(c.out).toFixed(1);
-      els.volume.value=String(Number(c.volume)||1);
-      els.volumeOut.textContent=Math.round((Number(c.volume)||1)*100)+'%';
+      els.volume.value=String(Number.isFinite(Number(c.volume))?Number(c.volume):1);
+      els.volumeOut.textContent=Math.round((Number.isFinite(Number(c.volume))?Number(c.volume):1)*100)+'%';
       els.speed.value=String(Number(c.speed)||1);
       els.speedOut.textContent=(Number(c.speed)||1).toFixed(2)+'×';
       els.bright.value=String(Number(c.brightness)||1);
@@ -620,7 +620,7 @@ export function renderAiVideoStudio(){
       }
       await waitForVideoMetadata(mediaVideo,url,8000);
       mediaVideo.playbackRate=Number(c.speed)||1;
-      mediaVideo.volume=clamp(Number(c.volume)||1,0,1);mediaVideo.muted=c.muted===true;
+      mediaVideo.volume=clamp(Number(c.volume ?? 1),0,1);mediaVideo.muted=c.muted===true;
       await loadSeek(mediaVideo,Math.max(0,Number(c.in)||0));
       const end=Math.min(Number(c.out)||mediaVideo.duration,mediaVideo.duration);
       try{
