@@ -29,6 +29,12 @@ jobs:
         run: |
           npm install --no-save playwright@1.55.0
           npx playwright install --with-deps chromium
+      - name: Download real video fixture
+        run: |
+          set -euo pipefail
+          mkdir -p fixtures
+          curl -L --fail --retry 3 --retry-all-errors https://github.com/mdn/learning-area/raw/refs/heads/main/html/multimedia-and-embedding/tasks/media-embed/media/video.mp4 -o fixtures/flower.mp4
+          test -s fixtures/flower.mp4
       - name: Serve candidate harness
         if: github.ref == 'refs/heads/agent/video-flagship-complete-20260921'
         run: |
