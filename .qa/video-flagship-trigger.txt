@@ -1,1 +1,1 @@
-QA trigger 3: execute current harness revision.
+QA trigger 4: run deterministic picker-safe browser matrix.
