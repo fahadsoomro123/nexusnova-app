@@ -184,7 +184,7 @@ export function renderAiVideoStudio(){
 
       <div class="nx-video-panel" data-panel="audio">
         <div class="nx-video-grid2">
-          <label class="nx-video-field"><span>VOLUME</span><input type="range" min="0" max="2" step=".01" value="1" data-volume><output data-volume-out>100%</output></label>
+          <label class="nx-video-field"><span>VOLUME</span><input type="range" min="0" max="1" step=".01" value="1" data-volume><output data-volume-out>100%</output></label>
           <label class="nx-video-field"><span>AUDIO</span><select data-audio-mode><option value="on">ORIGINAL AUDIO</option><option value="mute">MUTE THIS CLIP</option></select></label>
         </div>
         <div class="nx-video-note">Original audio is preserved where the browser exposes the source media stream. Mute is applied directly to the selected clip.</div>
@@ -488,8 +488,9 @@ export function renderAiVideoStudio(){
   function splitSelected(){
     const c=selected(); if(!c)return;
     const d=Math.max(.05,Number(c.out)-Number(c.in));
-    const play=Math.max(.05,Math.min(d-.05,state.playhead||d/2));
-    if(d<.11)return;
+    const timelineDur=clipDuration(c);
+    const play=Math.max(.05,Math.min(timelineDur-.05,state.playhead||timelineDur/2));
+    if(timelineDur<.11)return;
     pushUndo();
     const cut=Number(c.in)+play*(Number(c.speed)||1);
     const a={...c,id:uid('clip'),name:c.name+' A',out:cut};
@@ -567,10 +568,16 @@ export function renderAiVideoStudio(){
 
   async function loadSeek(video,time){
     return new Promise((resolve,reject)=>{
-      const t=setTimeout(()=>reject(new Error('Seek timed out.')),4000);
-      const done=()=>{clearTimeout(t);resolve();};
-      video.addEventListener('seeked',done,{once:true});
-      try{video.currentTime=time;}catch(e){clearTimeout(t);reject(e);}
+      const target=Math.max(0,Number(time)||0);
+      let settled=false;
+      const finish=(error)=>{if(settled)return;settled=true;clearTimeout(timer);video.removeEventListener('seeked',onSeeked);video.removeEventListener('loadeddata',onLoadedData);error?reject(error):resolve();};
+      const onSeeked=()=>finish();
+      const onLoadedData=()=>{try{if(Math.abs((Number(video.currentTime)||0)-target)<.02)finish();}catch{}};
+      const timer=setTimeout(()=>finish(new Error('Seek timed out.')),4000);
+      if(Math.abs((Number(video.currentTime)||0)-target)<.02){finish();return;}
+      video.addEventListener('seeked',onSeeked,{once:true});
+      video.addEventListener('loadeddata',onLoadedData);
+      try{video.currentTime=target;onLoadedData();}catch(e){finish(e);}
     });
   }
 
