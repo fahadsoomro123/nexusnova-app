@@ -1,0 +1,190 @@
+name: Video Flagship Browser QA
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'fresh-rebuild/src/features/apps/ai-video-studio-flagship.js'
+      - 'qa/video-flagship-harness.html'
+      - '.github/workflows/video-flagship-browser-qa.yml'
+  pull_request:
+    paths:
+      - 'fresh-rebuild/src/features/apps/ai-video-studio-flagship.js'
+      - 'qa/video-flagship-harness.html'
+      - '.github/workflows/video-flagship-browser-qa.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  browser-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install browser test runner
+        run: |
+          npm install --no-save --no-package-lock playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Start fresh rebuild harness
+        run: |
+          npx servor fresh-rebuild 4173 --browse=false > /tmp/servor.log 2>&1 &
+          for i in $(seq 1 20); do
+            if curl -fsS http://127.0.0.1:4173/qa/video-flagship-harness.html >/dev/null 2>&1; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/servor.log
+          exit 1
+
+      - name: Run flagship interaction QA
+        env:
+          BASE_URL: http://127.0.0.1:4173/qa/video-flagship-harness.html
+        run: |
+          node --input-type=module <<'NODE'
+          import { chromium } from 'playwright';
+          import fs from 'node:fs';
+          import assert from 'node:assert/strict';
+
+          const browser = await chromium.launch({ headless: true });
+          const context = await browser.newContext({ viewport: { width: 390, height: 844 }, acceptDownloads: true });
+          const page = await context.newPage();
+          const url = process.env.BASE_URL;
+
+          async function assertNoScroll(label) {
+            const metrics = await page.evaluate(() => ({
+              cw: document.documentElement.clientWidth,
+              sw: document.documentElement.scrollWidth,
+              ch: document.documentElement.clientHeight,
+              sh: document.documentElement.scrollHeight,
+              bodySw: document.body.scrollWidth,
+              bodySh: document.body.scrollHeight
+            }));
+            assert.ok(metrics.sw <= metrics.cw + 1, label + ' horizontal overflow: ' + JSON.stringify(metrics));
+            assert.ok(metrics.sh <= metrics.ch + 1, label + ' vertical overflow: ' + JSON.stringify(metrics));
+            assert.ok(metrics.bodySw <= metrics.cw + 1, label + ' body horizontal overflow');
+            assert.ok(metrics.bodySh <= metrics.ch + 1, label + ' body vertical overflow');
+          }
+
+          await page.goto(url, { waitUntil: 'domcontentloaded' });
+          await page.waitForSelector('[data-file]');
+          await assertNoScroll('390x844 initial');
+
+          for (const tool of ['edit','audio','speed','adjust','text','effects','transform','canvas','ai','motion']) {
+            assert.equal(await page.locator('[data-tool="'+tool+'"]').count(), 1, 'missing tool '+tool);
+          }
+          assert.equal(await page.locator('[data-tool]').count(), 10, 'tool rail count');
+
+          // Valid 1x1 PNG.
+          const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64');
+          const input = page.locator('[data-file]');
+
+          await input.setInputFiles({ name: 'cover.png', mimeType: 'image/png', buffer: png });
+          await page.waitForFunction(() => document.querySelectorAll('[data-id]').length === 1);
+          assert.match(await page.locator('[data-selection]').textContent(), /cover/i);
+
+          // Text is visible in the actual preview.
+          await page.locator('[data-tool="text"]').click();
+          await page.locator('[data-text]').fill('Flagship QA title');
+          await page.locator('[data-apply-text]').click();
+          await page.waitForFunction(() => document.querySelector('[data-preview-text-value]')?.textContent === 'Flagship QA title');
+          assert.equal(await page.locator('[data-preview-text]').isHidden(), false, 'preview text hidden');
+
+          // Motion changes the actual transform, not just UI state.
+          await page.locator('[data-tool="motion"]').click();
+          await page.locator('[data-motion="push"]').click();
+          assert.equal(await page.locator('[data-motion="push"]').evaluate(el => el.classList.contains('is-active')), true);
+          await page.locator('[data-scrub]').evaluate((el) => { el.value = '1.5'; el.dispatchEvent(new Event('input', { bubbles: true })); });
+          const transform = await page.locator('[data-main-image]').evaluate(el => el.style.transform);
+          assert.match(transform, /scale\(/);
+
+          // Speed actually mutates the clip model.
+          await page.locator('[data-tool="speed"]').click();
+          await page.locator('[data-speed]').evaluate((el) => { el.value = '2'; el.dispatchEvent(new Event('input', { bubbles: true })); });
+          assert.equal(await page.locator('[data-speed-out]').textContent(), '2.00×');
+          assert.match(await page.locator('[data-id]').textContent(), /2.00×/);
+
+          // Add a second image and verify global scrub selects the second clip.
+          await input.setInputFiles({ name: 'second.png', mimeType: 'image/png', buffer: png });
+          await page.waitForFunction(() => document.querySelectorAll('[data-id]').length === 2);
+          await page.locator('[data-scrub]').evaluate((el) => { el.value = '3.2'; el.dispatchEvent(new Event('input', { bubbles: true })); });
+          await page.waitForFunction(() => /second/i.test(document.querySelector('[data-selection]')?.textContent || ''));
+
+          // Split + undo + redo.
+          await page.locator('[data-tool="edit"]').click();
+          await page.locator('[data-scrub]').evaluate((el) => { el.value = '3.8'; el.dispatchEvent(new Event('input', { bubbles: true })); });
+          await page.locator('[data-split]').click();
+          await page.waitForFunction(() => document.querySelectorAll('[data-id]').length === 3);
+          await page.locator('[data-undo]').click();
+          await page.waitForFunction(() => document.querySelectorAll('[data-id]').length === 2);
+          await page.locator('[data-redo]').click();
+          await page.waitForFunction(() => document.querySelectorAll('[data-id]').length === 3);
+
+          // Generated WebM: this exercises the real video metadata/import path without shipping a binary fixture.
+          const videoBase64 = await page.evaluate(async () => {
+            const canvas = document.createElement('canvas'); canvas.width = 160; canvas.height = 90;
+            const ctx = canvas.getContext('2d');
+            const stream = canvas.captureStream(15);
+            const recorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp8' });
+            const chunks = [];
+            recorder.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+            recorder.start();
+            const started = performance.now();
+            await new Promise(resolve => {
+              const tick = () => {
+                const t = (performance.now()-started)/250;
+                ctx.fillStyle = '#ef4fb4'; ctx.fillRect(0,0,160,90);
+                ctx.fillStyle = '#fff'; ctx.fillRect((t%1)*130,30,30,30);
+                if (performance.now()-started >= 450) { recorder.stop(); return; }
+                requestAnimationFrame(tick);
+              };
+              requestAnimationFrame(tick);
+            });
+            await new Promise(resolve => recorder.onstop = resolve);
+            stream.getTracks().forEach(track => track.stop());
+            const blob = new Blob(chunks, { type: 'video/webm' });
+            const bytes = new Uint8Array(await blob.arrayBuffer());
+            let binary = ''; for (const byte of bytes) binary += String.fromCharCode(byte);
+            return btoa(binary);
+          });
+          const webm = Buffer.from(videoBase64, 'base64');
+          assert.ok(webm.length > 1000, 'generated WebM is too small');
+          await input.setInputFiles([
+            { name: 'generated.webm', mimeType: 'video/webm', buffer: webm },
+            { name: 'cover-again.png', mimeType: 'image/png', buffer: png }
+          ]);
+          await page.waitForFunction(() => document.querySelectorAll('[data-id]').length >= 5);
+          assert.ok(await page.locator('[data-id]').allTextContents().then(xs => xs.some(x => /generated/i.test(x))), 'generated video not imported');
+
+          await assertNoScroll('390x844 final');
+
+          // Re-check the flagship viewport on 360x800 and 412x915.
+          for (const viewport of [{ width: 360, height: 800 }, { width: 412, height: 915 }]) {
+            await page.setViewportSize(viewport);
+            await page.waitForTimeout(100);
+            await assertNoScroll(viewport.width+'x'+viewport.height);
+          }
+
+          // Export one short image clip to verify browser-native output wiring.
+          await page.locator('[data-id]').first().click();
+          await page.locator('[data-out]').fill('0.3');
+          await page.locator('[data-out]').dispatchEvent('change');
+          await page.locator('[data-tool="export"]').count().then(() => {});
+          await page.locator('[data-open-export]').click();
+          const downloadPromise = page.waitForEvent('download', { timeout: 15000 });
+          await downloadPromise.then(async download => {
+            assert.match(download.suggestedFilename(), /\.webm$/i, 'unexpected export extension');
+            const filePath = await download.path();
+            assert.ok(filePath && fs.statSync(filePath).size > 0, 'empty export');
+          }).catch(async error => {
+            throw new Error('Export QA failed: '+error.message);
+          });
+
+          await browser.close();
+          console.log('VIDEO FLAGSHIP BROWSER QA PASS');
+          NODE
