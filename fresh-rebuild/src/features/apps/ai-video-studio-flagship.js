@@ -4,13 +4,17 @@ async function getCore(){
   try { return await import(CORE_MODULE); }
   catch (error) { console.warn('[NexusNova Video] optional studio core unavailable:', error); return null; }
 }
-function downloadBlob(blob,name){
+async function deliverExport(blob,name){
+  const safe=String(name||'nexusnova-export').replace(/[^a-z0-9._-]+/gi,'-');
+  const file=new File([blob],safe,{type:blob.type||'video/webm'});
+  if(navigator.share&&navigator.canShare?.({files:[file]})){
+    try{await navigator.share({files:[file],title:'NexusNova Video Export',text:'Exported locally from NexusNova AI Video Studio.'});return 'shared';}
+    catch(error){if(error?.name==='AbortError')return 'cancelled';}
+  }
   const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');
-  a.href=url;
-  a.download=String(name||'nexusnova-export').replace(/[^a-z0-9._-]+/gi,'-');
-  document.body.appendChild(a);a.click();a.remove();
+  const a=document.createElement('a');a.href=url;a.download=safe;document.body.appendChild(a);a.click();a.remove();
   setTimeout(()=>{try{URL.revokeObjectURL(url)}catch{}},1800);
+  return 'download';
 }
 function safeName(value,fallback='nexusnova'){
   return (String(value||fallback).replace(/\.[^.]+$/,'').replace(/[^a-z0-9._-]+/gi,'-').replace(/^-+|-+$/g,'')||fallback).slice(0,80);
@@ -83,7 +87,8 @@ function ensureVideoFlagshipStyles() {
     .nx-video-transform-row{display:grid;grid-template-columns:1fr 1fr;gap:7px}.nx-video-transform-row button{height:38px}.nx-video-chipset{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
     .nx-video-bottom{display:grid;grid-template-columns:1fr auto;gap:7px;align-items:center}.nx-video-export{height:46px}.nx-video-add{height:46px;padding:0 14px;border-radius:13px}
     .nx-video-hidden{position:absolute!important;left:-10000px!important;top:auto!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important;border:0!important;padding:0!important}
-    .nx-video-caption-list{display:grid;gap:3px;max-height:48px;overflow:hidden;margin-top:5px}.nx-video-caption-row{display:grid;grid-template-columns:36px 36px minmax(0,1fr);gap:4px;font-size:7px;color:#766d80}.nx-video-caption-row span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .nx-video-caption-list{display:grid;gap:3px;max-height:48px;overflow:hidden;margin-top:5px}
+    .nx-video-export-result{display:grid;grid-template-columns:96px minmax(0,1fr);gap:7px;align-items:center;margin-bottom:6px}.nx-video-export-result[hidden]{display:none!important}.nx-video-export-result video{width:96px;height:54px;object-fit:contain;border-radius:8px;background:#15121c}.nx-video-caption-row{display:grid;grid-template-columns:36px 36px minmax(0,1fr);gap:4px;font-size:7px;color:#766d80}.nx-video-caption-row span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     @media(max-width:390px){.nx-video-flagship{grid-template-rows:minmax(205px,37%) minmax(120px,23%) minmax(0,1fr) auto;gap:6px;padding:6px}.nx-video-tool{font-size:9px;flex-basis:68px;min-width:68px}.nx-video-tool b{font-size:15px}.nx-video-clip{height:61px}.nx-video-cliprow{grid-auto-columns:minmax(100px,1fr)}.nx-video-inspector{padding:6px}}
     @media(max-height:720px){.nx-video-flagship{grid-template-rows:minmax(170px,36%) minmax(108px,23%) minmax(0,1fr) auto}.nx-screen:has(.nx-video-flagship) .nx-app-head{height:58px!important;min-height:58px!important}.nx-screen:has(.nx-video-flagship)>[data-app-mount]{height:calc(100% - 62px)!important}.nx-video-clip{height:56px}.nx-video-tool{font-size:8px}.nx-video-tool b{font-size:14px}}
     @media(prefers-reduced-motion:reduce){.nx-video-play{transition:none}}
@@ -322,6 +327,10 @@ export function renderAiVideoStudio(){
       </div>
 
       <div class="nx-video-panel" data-panel="export">
+        <div class="nx-video-export-result" data-export-result hidden>
+          <video data-export-preview playsinline controls></video>
+          <button type="button" class="nx-video-primary" data-share-export>SHARE / SAVE EXPORT</button>
+        </div>
         <div class="nx-video-grid2">
           <label class="nx-video-field"><span>FPS</span><select data-fps><option>24</option><option selected>30</option><option>60</option></select></label>
           <label class="nx-video-field"><span>QUALITY</span><select data-quality><option value="540">540p FAST</option><option value="720" selected>720p</option><option value="1080">1080p</option></select></label>
@@ -392,6 +401,9 @@ export function renderAiVideoStudio(){
     fps:root.querySelector('[data-fps]'),
     quality:root.querySelector('[data-quality]'),
     exportNote:root.querySelector('[data-export-note]'),
+    exportResult:root.querySelector('[data-export-result]'),
+    exportPreview:root.querySelector('[data-export-preview]'),
+    shareExport:root.querySelector('[data-share-export]'),
     motionStartScale:root.querySelector('[data-motion-start-scale]'),
     motionEndScale:root.querySelector('[data-motion-end-scale]'),
     motionStartRotation:root.querySelector('[data-motion-start-rotation]'),
@@ -801,11 +813,18 @@ export function renderAiVideoStudio(){
       }
       mediaVideo.pause();capturePreviousFrame();
     };
-    recorder.onstop=()=>{
+    recorder.onstop=async()=>{
       state.exportBusy=false;state.stopExport=null;stream.getTracks().forEach(t=>t.stop());audioCtx?.close?.();
       if(aborted){els.exportNote.textContent='Export cancelled.';return;}
       if(!chunks.length){els.exportNote.textContent='No output was produced.';return;}
-      const blob=new Blob(chunks,{type:recorder.mimeType||'video/webm'});downloadBlob(blob,`${safeName(state.projectName,'nexusnova-video')}.webm`);els.exportNote.textContent='Export complete. WebM saved locally.';
+      const blob=new Blob(chunks,{type:recorder.mimeType||'video/webm'});
+      const filename=`${safeName(state.projectName,'nexusnova-video')}.webm`;
+      const previewUrl=URL.createObjectURL(blob);els.exportPreview.src=previewUrl;els.exportPreview.load();els.exportResult.hidden=false;
+      els.shareExport.onclick=async()=>{const result=await deliverExport(blob,filename);els.exportNote.textContent=result==='shared'?'Export shared successfully.':result==='cancelled'?'Share cancelled.':'Export download requested.';};
+      const result=await deliverExport(blob,filename);
+      if(result==='shared')els.exportNote.textContent='Export shared successfully.';
+      else if(result==='cancelled')els.exportNote.textContent='Export ready. Use SHARE / SAVE EXPORT when you are ready.';
+      else els.exportNote.textContent='Export complete. WebM download requested.';
     };
     try{
       recorder.start(200);
