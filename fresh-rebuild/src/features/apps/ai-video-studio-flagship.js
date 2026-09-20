@@ -434,7 +434,7 @@ export function renderAiVideoStudio(){
     const c=selected();
     els.selection.textContent=c?c.name:'Nothing selected';
     els.scrub.max=String(totalDuration());
-    els.scrub.value=String(clamp(state.playhead,0,totalDuration()));
+    els.scrub.value=String(clamp((c?clipStartTime(c.id):0)+state.playhead,0,totalDuration()));
     if(c){
       els.in.value=Number(c.in).toFixed(1);
       els.out.value=Number(c.out).toFixed(1);
@@ -701,10 +701,11 @@ export function renderAiVideoStudio(){
   });
   els.video.addEventListener('timeupdate',()=>{const c=selected();if(!c)return;const local=Math.max(0,els.video.currentTime-(Number(c.in)||0))/(Number(c.speed)||1);state.playhead=local;els.current.textContent=fmt(local);els.scrub.value=String(clamp(clipStartTime(c.id)+local,0,totalDuration()));els.video.style.transform=previewTransform(c);if(els.video.currentTime>=(Number(c.out)||0)-.02)els.video.pause();});
   els.video.addEventListener('loadeddata',()=>{if(selected())applyPreview()});
+  els.image.addEventListener('error',()=>setRuntime('This image cannot be previewed by the Android WebView.',true));
   els.video.addEventListener('error',()=>setRuntime('This video cannot be previewed by the Android WebView.',true));
   els.video.addEventListener('play',()=>els.play.textContent='Ⅱ');
   els.video.addEventListener('pause',()=>els.play.textContent='▶');
-  els.scrub.addEventListener('input',()=>{const located=locateGlobalTime(Number(els.scrub.value)||0);if(!located.clip)return;state.selectedId=located.clip.id;state.playhead=located.local;els.current.textContent=fmt(state.playhead);root.querySelectorAll('[data-id]').forEach(el=>el.classList.toggle('is-active',el.dataset.id===state.selectedId));applyPreview();});
+  els.scrub.addEventListener('input',()=>{const located=locateGlobalTime(Number(els.scrub.value)||0);if(!located.clip)return;state.selectedId=located.clip.id;state.playhead=located.local;render();});
   root.querySelector('[data-in]').addEventListener('change',()=>{const c=selected();if(!c)return;pushUndo();c.in=clamp(Number(els.in.value)||0,0,Math.max(0,Number(c.out)-.05));state.playhead=0;render();});
   root.querySelector('[data-out]').addEventListener('change',()=>{const c=selected();if(!c)return;pushUndo();c.out=Math.max(Number(c.in)+.05,Number(els.out.value)||Number(c.out));state.playhead=0;render();});
   els.volume.addEventListener('input',()=>{const c=selected();if(!c)return;c.volume=Number(els.volume.value);els.volumeOut.textContent=Math.round(c.volume*100)+'%';applyPreview();});
