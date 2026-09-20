@@ -1,6 +1,6 @@
 // OTA release marker: NexusNova Premium Studio six-tool production publish.
 import { renderAiPhotoStudio } from './ai-photo-studio-review.js';
-import { renderAiVideoStudio } from './ai-video-studio.js';
+import { renderAiVideoStudio } from './ai-video-studio-flagship.js';
 import { renderPdfProStudio } from './pdf-pro-studio.js';
 import { renderAiTranscribeStudio } from './ai-transcribe-studio.js';
 import { renderAiWritingStudio } from './ai-writing-studio.js';
