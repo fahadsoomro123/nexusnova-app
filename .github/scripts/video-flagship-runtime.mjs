@@ -95,6 +95,12 @@ if(await page.locator('.nx-video-clip').count()!==before) throw new Error('UNDO 
 await page.locator('[data-redo]').click();
 if(await page.locator('.nx-video-clip').count()!==before+1) throw new Error('REDO FAIL');
 
+const beforeDelete=await page.locator('.nx-video-clip').count();
+await page.locator('[data-delete]').click();
+if(await page.locator('.nx-video-clip').count()!==beforeDelete-1) throw new Error('DELETE FAIL');
+await page.locator('[data-undo]').click();
+if(await page.locator('.nx-video-clip').count()!==beforeDelete) throw new Error('UNDO DELETE RESTORE FAIL');
+
 const noScroll=await page.evaluate(()=>document.documentElement.scrollHeight<=innerHeight+2&&document.body.scrollHeight<=innerHeight+2);
 if(!noScroll) throw new Error('NO SCROLL FAIL');
 
