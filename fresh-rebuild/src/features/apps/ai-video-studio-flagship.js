@@ -35,7 +35,7 @@ async function aiModel(systemInstruction){
   return core.aiModel(systemInstruction);
 }
 
-const STYLE_ID = 'nx-video-flagship-v2';
+const STYLE_ID = 'nx-video-flagship-v3';
 const DEFAULT_DUR = 3;
 
 function ensureVideoFlagshipStyles() {
@@ -86,7 +86,7 @@ function ensureVideoFlagshipStyles() {
     .nx-screen:has(.nx-video-flagship){height:calc(100dvh - 82px)!important;max-height:calc(100dvh - 82px)!important;overflow:hidden!important;background:#fff!important;padding:0!important}
     .nx-screen:has(.nx-video-flagship)>.nx-app-head{height:62px!important;min-height:62px!important;margin:0 0 4px!important;padding:4px 12px 4px 10px!important;border-bottom:1px solid #eee9f5!important}
     .nx-screen:has(.nx-video-flagship)>[data-app-mount]{height:calc(100% - 66px)!important;overflow:hidden!important;padding:0!important}
-    .nx-video-flagship{grid-template-rows:40% 18% minmax(0,1fr) 8% 8%!important;gap:6px!important;padding:6px!important;border:0!important;border-radius:18px!important;box-shadow:none!important;background:#fff!important}
+    .nx-video-flagship{grid-template-rows:minmax(0,1.28fr) minmax(0,.56fr) minmax(0,1fr) minmax(0,.56fr) minmax(0,.56fr)!important;gap:6px!important;padding:6px!important;border:0!important;border-radius:18px!important;box-shadow:none!important;background:#fff!important}
     .nx-video-preview{border-radius:18px!important;background:radial-gradient(circle at 50% 30%,#3e2c64 0,#191520 34%,#0e0b12 100%)!important}
     .nx-video-empty{max-width:88%!important;padding:12px!important;gap:5px!important}
     .nx-video-empty b{font-size:20px!important;letter-spacing:-.02em!important}
@@ -122,7 +122,7 @@ function ensureVideoFlagshipStyles() {
     .nx-screen:has(.nx-video-flagship) .nx-app-head h1{font-size:19px!important;line-height:1.05!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
     .nx-screen:has(.nx-video-flagship) .nx-app-head>div{min-width:0!important}
     @media(max-width:390px){
-      .nx-video-flagship{grid-template-rows:39% 18% minmax(0,1fr) 9% 9%!important}
+      .nx-video-flagship{grid-template-rows:minmax(0,1.15fr) minmax(0,.52fr) minmax(0,1fr) minmax(0,.58fr) minmax(0,.58fr)!important}
       .nx-video-tool{font-size:7.5px!important}
       .nx-video-tool b{font-size:13px!important}
       .nx-video-clip{height:54px!important}
