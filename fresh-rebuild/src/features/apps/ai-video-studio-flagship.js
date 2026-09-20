@@ -849,6 +849,7 @@ export function renderAiVideoStudio(){
   els.play.addEventListener('click',()=>{if(state.playing)stopPlayback();else startPlayback();});
   els.video.addEventListener('loadedmetadata',()=>{if(selected())applyPreview()});
   els.video.addEventListener('timeupdate',()=>{const c=selected();if(!c||c.kind!=='video')return;state.playhead=clamp((els.video.currentTime-(Number(c.in)||0))/(Number(c.speed)||1),0,clipDuration(c));state.timelinePosition=clipStartTime(c.id)+state.playhead;els.current.textContent=fmt(state.timelinePosition);els.scrub.value=String(state.timelinePosition);applyPreview();if(state.playing&&els.video.currentTime>=(Number(c.out)||0)-.01){els.video.pause();advancePlayback();}});
+  els.video.addEventListener('ended',()=>{if(state.playing&&selected()?.kind==='video')advancePlayback();});
   els.video.addEventListener('error',()=>{els.exportNote.textContent='Preview could not decode this video in the current Android WebView.';});
   els.video.addEventListener('play',()=>els.play.textContent='Ⅱ');els.video.addEventListener('pause',()=>els.play.textContent='▶');
   els.scrub.addEventListener('input',()=>{const pos=clamp(Number(els.scrub.value)||0,0,totalDuration());const target=mapTimeline(state.clips,pos);if(target.clipId)selectClip(target.clipId,target.local);});
