@@ -79,6 +79,21 @@ function ensureVideoFlagshipStyles() {
     .nx-video-transform-row{display:grid;grid-template-columns:1fr 1fr;gap:7px}.nx-video-transform-row button{height:38px}.nx-video-chipset{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
     .nx-video-bottom{display:grid;grid-template-columns:1fr auto;gap:7px;align-items:center}.nx-video-export{height:46px}.nx-video-add{height:46px;padding:0 14px;border-radius:13px}
     .nx-video-hidden{display:none!important}
+    .nx-video-file-shell{position:relative;min-width:0;height:100%}
+    .nx-video-file-shell .nx-video-add{position:relative;z-index:1}
+    .nx-video-file-input{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;display:block!important;opacity:0!important;z-index:4!important;cursor:pointer!important}
+    .nx-video-file-input:focus-visible{outline:3px solid #8c73ff;outline-offset:2px;border-radius:12px}
+    .nx-video-caption{position:absolute;left:12%;right:12%;bottom:17%;z-index:4;padding:7px 10px;border-radius:10px;background:rgba(10,8,16,.72);color:#fff;text-align:center;font-size:clamp(12px,3.2vw,18px);font-weight:800;line-height:1.25;backdrop-filter:blur(8px);box-shadow:0 8px 22px rgba(0,0,0,.18)}
+    .nx-video-toast{position:absolute;left:10px;right:10px;top:10px;z-index:8;padding:8px 10px;border-radius:10px;background:rgba(255,255,255,.96);border:1px solid #e8def9;color:#3a3148;font-size:10px;font-weight:800;box-shadow:0 8px 24px rgba(61,38,100,.14);pointer-events:none}
+    .nx-video-toast.is-error{border-color:#f0caca;color:#8a2e2e}
+    .nx-video-toast.is-ok{border-color:#d7ebdc;color:#22663a}
+    .nx-video-kf-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
+    .nx-video-kf-row button{height:34px;font-size:8px}
+    .nx-video-toggle{display:flex;align-items:center;gap:6px;padding:6px 8px;border:1px solid #e2dbea;border-radius:9px;background:#faf8ff;color:#3c3546;font-size:9px;font-weight:800}
+    .nx-video-toggle input{accent-color:#6c4cff}
+    .nx-video-srt{height:74px!important;font-family:ui-monospace,SFMono-Regular,Menlo,monospace!important;font-size:8.5px!important}
+    .nx-video-mini-state{display:flex;align-items:center;justify-content:space-between;gap:7px;font-size:8px;color:#756d82}
+    .nx-video-mini-state b{color:#3c3447}
     @media(max-width:390px){.nx-video-flagship{grid-template-rows:minmax(205px,37%) minmax(120px,23%) minmax(0,1fr) auto;gap:6px;padding:6px}.nx-video-tool{font-size:9px;flex-basis:68px;min-width:68px}.nx-video-tool b{font-size:15px}.nx-video-clip{height:61px}.nx-video-cliprow{grid-auto-columns:minmax(100px,1fr)}.nx-video-inspector{padding:6px}}
     @media(max-height:720px){.nx-video-flagship{grid-template-rows:minmax(170px,36%) minmax(108px,23%) minmax(0,1fr) auto}.nx-screen:has(.nx-video-flagship) .nx-app-head{height:58px!important;min-height:58px!important}.nx-screen:has(.nx-video-flagship)>[data-app-mount]{height:calc(100% - 62px)!important}.nx-video-clip{height:56px}.nx-video-tool{font-size:8px}.nx-video-tool b{font-size:14px}}
     @media(prefers-reduced-motion:reduce){.nx-video-play{transition:none}}
@@ -114,7 +129,7 @@ function ensureVideoFlagshipStyles() {
     .nx-video-range{grid-template-columns:64px 1fr 38px!important;gap:5px!important}.nx-video-range span{font-size:8px!important}.nx-video-range output{font-size:8px!important}
     .nx-video-preset-row{gap:4px!important}.nx-video-preset-row button{height:31px!important;font-size:8px!important}
     .nx-video-transform-row{gap:5px!important}.nx-video-transform-row button{height:31px!important;font-size:8px!important}
-    .nx-video-toolbar{display:grid!important;grid-template-columns:repeat(5,minmax(0,1fr))!important;grid-template-rows:repeat(2,minmax(0,1fr))!important;gap:5px!important;overflow:hidden!important;padding:0!important}
+    .nx-video-toolbar{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;grid-template-rows:repeat(3,minmax(0,1fr))!important;gap:5px!important;overflow:hidden!important;padding:0!important}
     .nx-video-tool{min-width:0!important;width:auto!important;height:100%!important;flex:none!important;border-radius:10px!important;font-size:8px!important;box-shadow:0 3px 10px rgba(72,48,109,.05)!important}
     .nx-video-tool b{font-size:14px!important}
     .nx-video-bottom{grid-template-columns:1fr 1fr!important;gap:6px!important}
@@ -147,6 +162,7 @@ export function renderAiVideoStudio(){
       <video playsinline preload="metadata" class="nx-video-hidden" data-main-video></video>
       <img class="nx-video-hidden" data-main-image alt="">
       <button type="button" class="nx-video-play nx-video-hidden" data-play aria-label="Play or pause">▶</button>
+      <div class="nx-video-caption nx-video-hidden" data-caption aria-live="polite"></div>
       <div class="nx-video-status"><strong data-project>Untitled project</strong><span data-meta>0 clips • 00:00</span></div>
     </section>
 
@@ -210,11 +226,24 @@ export function renderAiVideoStudio(){
         <div class="nx-video-note" style="margin-top:7px">Effects are preview-safe CSS filters. They are also applied during local canvas export.</div>
       </div>
 
+      <div class="nx-video-panel" data-panel="motion">
+        <div class="nx-video-mini-state"><span>KEYFRAME MOTION</span><b data-motion-state>OFF</b></div>
+        <label class="nx-video-toggle" style="margin-top:6px"><input type="checkbox" data-motion-enabled> Enable scale + rotation keyframes</label>
+        <div class="nx-video-kf-row" style="margin-top:6px"><button class="nx-video-button" data-kf-start>SET START</button><button class="nx-video-button" data-kf-end>SET END</button><button class="nx-video-button" data-kf-clear>CLEAR</button></div>
+        <div class="nx-video-note" style="margin-top:6px">Set two points. Scale and rotation interpolate automatically across the selected clip.</div>
+      </div>
+
       <div class="nx-video-panel" data-panel="transform">
         <div class="nx-video-range"><span>SCALE</span><input type="range" min=".5" max="2" step=".01" value="1" data-scale><output data-scale-out>100%</output></div>
         <div class="nx-video-range"><span>ROTATE</span><input type="range" min="-180" max="180" step="1" value="0" data-rotation><output data-rotation-out>0°</output></div>
         <div class="nx-video-transform-row" style="margin-top:7px"><button class="nx-video-button" data-flip="x">FLIP H</button><button class="nx-video-button" data-flip="y">FLIP V</button></div>
         <div class="nx-video-note" style="margin-top:7px">Transform and crop-style framing are previewed locally and included in local export.</div>
+      </div>
+
+      <div class="nx-video-panel" data-panel="transitions">
+        <label class="nx-video-field"><span>CLIP TRANSITION</span><select data-transition><option value="none">HARD CUT</option><option value="fade">FADE THROUGH</option><option value="flash">FLASH</option></select></label>
+        <div class="nx-video-range" style="margin-top:6px"><span>DURATION</span><input type="range" min=".15" max="1" step=".05" value=".35" data-transition-duration><output data-transition-duration-out>0.35s</output></div>
+        <div class="nx-video-note" style="margin-top:6px">Transitions are rendered locally as real opacity/flash changes at clip boundaries.</div>
       </div>
 
       <div class="nx-video-panel" data-panel="canvas">
@@ -223,6 +252,12 @@ export function renderAiVideoStudio(){
           <label class="nx-video-field"><span>BACKGROUND</span><select data-bg><option value="#16131c">DARK</option><option value="#ffffff">WHITE</option><option value="#efe9ff">LAVENDER</option></select></label>
         </div>
         <div class="nx-video-note">Designed for Shorts, Reels, TikTok-style vertical video, square posts and landscape exports.</div>
+      </div>
+
+      <div class="nx-video-panel" data-panel="captions">
+        <label class="nx-video-field"><span>SRT CAPTIONS</span><textarea class="nx-video-srt" data-caption-srt placeholder="00:00:00,000 --> 00:00:02,000\nYour caption here…"></textarea></label>
+        <div class="nx-video-actions" style="margin-top:6px"><button class="nx-video-primary" data-apply-captions>APPLY CAPTIONS</button><button class="nx-video-button" data-clear-captions>CLEAR</button></div>
+        <div class="nx-video-note" style="margin-top:6px">Captions are stored on the selected clip, preview with the playhead, and are burned into local WebM export.</div>
       </div>
 
       <div class="nx-video-panel" data-panel="ai">
@@ -248,14 +283,19 @@ export function renderAiVideoStudio(){
       <button type="button" class="nx-video-tool" data-tool="text"><b>T</b><span>Text</span></button>
       <button type="button" class="nx-video-tool" data-tool="effects"><b>✦</b><span>Effects</span></button>
       <button type="button" class="nx-video-tool" data-tool="transform"><b>↗</b><span>Transform</span></button>
+      <button type="button" class="nx-video-tool" data-tool="motion"><b>◇</b><span>Motion</span></button>
+      <button type="button" class="nx-video-tool" data-tool="transitions"><b>⇢</b><span>Transitions</span></button>
       <button type="button" class="nx-video-tool" data-tool="canvas"><b>▣</b><span>Canvas</span></button>
+      <button type="button" class="nx-video-tool" data-tool="captions"><b>CC</b><span>Captions</span></button>
       <button type="button" class="nx-video-tool" data-tool="ai"><b>AI</b><span>AI Lab</span></button>
     </div>
 
     <div class="nx-video-bottom">
-      <button type="button" class="nx-video-primary nx-video-add" data-add>＋ ADD MEDIA</button>
+      <div class="nx-video-file-shell">
+        <button type="button" class="nx-video-primary nx-video-add" data-add>＋ ADD MEDIA</button>
+        <input class="nx-video-file-input" type="file" accept="video/*,image/*" multiple data-file aria-label="Add videos or photos">
+      </div>
       <button type="button" class="nx-video-primary nx-video-export" data-open-export>EXPORT VIDEO</button>
-      <input class="nx-video-hidden" type="file" accept="video/*,image/*" multiple data-file>
     </div>
   `;
 
@@ -265,6 +305,7 @@ export function renderAiVideoStudio(){
     video:root.querySelector('[data-main-video]'),
     image:root.querySelector('[data-main-image]'),
     play:root.querySelector('[data-play]'),
+    caption:root.querySelector('[data-caption]'),
     project:root.querySelector('[data-project]'),
     meta:root.querySelector('[data-meta]'),
     current:root.querySelector('[data-current-time]'),
@@ -292,6 +333,12 @@ export function renderAiVideoStudio(){
     rotationOut:root.querySelector('[data-rotation-out]'),
     text:root.querySelector('[data-text]'),
     aiOut:root.querySelector('[data-ai-output]'),
+    captionSrt:root.querySelector('[data-caption-srt]'),
+    motionEnabled:root.querySelector('[data-motion-enabled]'),
+    motionState:root.querySelector('[data-motion-state]'),
+    transition:root.querySelector('[data-transition]'),
+    transitionDuration:root.querySelector('[data-transition-duration]'),
+    transitionDurationOut:root.querySelector('[data-transition-duration-out]'),
     ratio:root.querySelector('[data-ratio]'),
     bg:root.querySelector('[data-bg]'),
     fps:root.querySelector('[data-fps]'),
@@ -311,7 +358,11 @@ export function renderAiVideoStudio(){
     playhead:0,
     projectName:'Untitled project',
     exportBusy:false,
-    stopExport:null
+    stopExport:null,
+    playing:false,
+    rafId:0,
+    previewClipId:null,
+    playTickAt:0
   };
 
   function snapshot(){
@@ -363,31 +414,34 @@ export function renderAiVideoStudio(){
       c.effect==='soft'?'blur(.35px)':''
     ].join(' ');
   }
+  function clipStartTime(id){let total=0;for(const c of state.clips){if(c.id===id)break;total+=clipDuration(c);}return total;}
+  function clipAtProjectTime(time){const t=Math.max(0,Number(time)||0);let cursor=0;for(let i=0;i<state.clips.length;i++){const c=state.clips[i],d=clipDuration(c);if(t<=cursor+d||i===state.clips.length-1)return{clip:c,index:i,local:clamp(t-cursor,0,d)};cursor+=d;}return null;}
+  function motionAt(c,local){const m=c.motion;if(!m?.enabled)return{scale:Number(c.scale)||1,rotation:Number(c.rotation)||0};const p=clamp((Number(local)||0)/Math.max(.05,clipDuration(c)),0,1),s0=Number(m.start?.scale)||1,s1=Number(m.end?.scale)||Number(c.scale)||1,r0=Number(m.start?.rotation)||0,r1=Number(m.end?.rotation)||Number(c.rotation)||0;return{scale:s0+(s1-s0)*p,rotation:r0+(r1-r0)*p};}
+  function parseSrt(text){const out=[];const blocks=String(text||'').replace(/\r/g,'').split(/\n\s*\n/);for(const block of blocks){const lines=block.split('\n').map(v=>v.trim()).filter(Boolean),timing=lines.find(v=>v.includes('-->'));if(!timing)continue;const parts=timing.split('-->').map(v=>v.trim()),toSec=v=>{const m=v.match(/(?:(\d+):)?(\d{2}):(\d{2})[,.](\d{3})/);if(!m)return null;return((Number(m[1]||0)*3600+Number(m[2])*60+Number(m[3]))*1000+Number(m[4]))/1000;};const start=toSec(parts[0]),end=toSec(parts[1]),at=lines.indexOf(timing),caption=lines.slice(at+1).join(' ').trim();if(Number.isFinite(start)&&Number.isFinite(end)&&end>start&&caption)out.push({start,end,text:caption.slice(0,220)});}return out;}
+  function fmtSrt(sec){const ms=Math.max(0,Math.round((Number(sec)||0)*1000)),h=Math.floor(ms/3600000),m=Math.floor((ms%3600000)/60000),ss=Math.floor((ms%60000)/1000),x=ms%1000;return[h,m,ss].map(v=>String(v).padStart(2,'0')).join(':')+','+String(x).padStart(3,'0');}
+  function captionAt(c,local){return(c.captions||[]).find(v=>local>=v.start&&local<=v.end)?.text||'';}
+  function transitionOpacity(c,local){if(c.transition==='none')return{opacity:1,flash:false};const d=clamp(Number(c.transitionDuration)||.35,.15,1),t=Math.max(0,Number(local)||0),dur=clipDuration(c);return{opacity:Math.min(clamp(t/d,0,1),clamp((dur-t)/d,0,1)),flash:c.transition==='flash'&&(t<d||dur-t<d)};}
+  function setStatus(message,type='info'){let toast=root.querySelector('[data-video-toast]');if(!toast){toast=document.createElement('div');toast.className='nx-video-toast';toast.dataset.videoToast='true';els.preview.appendChild(toast);}toast.textContent=String(message||'');toast.className='nx-video-toast'+(type==='error'?' is-error':type==='ok'?' is-ok':'');clearTimeout(toast._hideTimer);if(type!=='error')toast._hideTimer=setTimeout(()=>toast.remove(),2600);}
+  function updateCaption(local){const c=selected();if(!c||!c.captions?.length){els.caption.classList.add('nx-video-hidden');els.caption.textContent='';return;}const t=captionAt(c,local);els.caption.textContent=t;els.caption.classList.toggle('nx-video-hidden',!t);}
+  function updateInspectorState(c){els.motionEnabled.checked=!!c?.motion?.enabled;els.motionState.textContent=c?.motion?.enabled?'ON':'OFF';els.transition.value=c?.transition||'none';els.transitionDuration.value=String(Number(c?.transitionDuration)||.35);els.transitionDurationOut.textContent=(Number(c?.transitionDuration)||.35).toFixed(2)+'s';els.captionSrt.value=(c?.captions||[]).map((v,i)=>`${i+1}\n${fmtSrt(v.start)} --> ${fmtSrt(v.end)}\n${v.text}`).join('\n\n');}
+  function stopPlayback(){state.playing=false;if(state.rafId)cancelAnimationFrame(state.rafId);state.rafId=0;state.playTickAt=0;try{els.video.pause();}catch{}}
+  function previewAtProjectTime(time){const hit=clipAtProjectTime(time);if(!hit)return;state.playhead=clamp(time,0,totalDuration());state.selectedId=hit.clip.id;render();if(hit.clip.kind==='video')try{els.video.currentTime=clamp((Number(hit.clip.in)||0)+hit.local*(Number(hit.clip.speed)||1),0,Number(hit.clip.out)||DEFAULT_DUR);}catch{}updateCaption(hit.local);if(state.playing&&hit.clip.kind==='video')void els.video.play().catch(()=>{});}
+  function advanceProject(){const hit=clipAtProjectTime(state.playhead);if(!hit)return stopPlayback();const next=state.clips[hit.index+1];if(!next){stopPlayback();state.playhead=totalDuration();updateTimelineUI();return;}previewAtProjectTime(clipStartTime(next.id));}
+  function updateTimelineUI(){const total=totalDuration();els.total.textContent=fmt(total);els.meta.textContent=`${state.clips.length} clip${state.clips.length===1?'':'s'} • ${fmt(total)}`;els.scrub.max=String(total);els.scrub.value=String(clamp(state.playhead,0,total));els.current.textContent=fmt(state.playhead);const hit=clipAtProjectTime(state.playhead);if(hit)updateCaption(hit.local);}
+  function playbackTick(now){if(!state.playing)return;const hit=clipAtProjectTime(state.playhead);if(!hit){stopPlayback();return;}if(!state.playTickAt)state.playTickAt=now;const c=hit.clip;if(c.kind==='video'){const local=Math.max(0,els.video.currentTime-(Number(c.in)||0))/(Number(c.speed)||1);state.playhead=clipStartTime(c.id)+local;updateTimelineUI();if(state.playing&&els.video.currentTime>=(Number(c.out)||0)-.02)advanceProject();}else{state.playhead+=Math.max(0,(now-state.playTickAt)/1000);state.playTickAt=now;updateTimelineUI();if(state.playhead>=clipStartTime(c.id)+clipDuration(c))advanceProject();}state.rafId=requestAnimationFrame(playbackTick);}
+  function togglePlayback(){if(!state.clips.length)return;if(state.playing){stopPlayback();return;}if(state.playhead>=totalDuration()-.01)state.playhead=0;const hit=clipAtProjectTime(state.playhead);if(!hit)return;state.selectedId=hit.clip.id;state.playing=true;state.playTickAt=performance.now();render();if(hit.clip.kind==='video')void els.video.play().catch(()=>{});state.rafId=requestAnimationFrame(playbackTick);}
   function applyPreview(){
     const c=selected();
-    if(!c){ els.video.classList.add('nx-video-hidden'); els.image.classList.add('nx-video-hidden'); els.empty.classList.remove('nx-video-hidden'); els.play.classList.add('nx-video-hidden'); return; }
-    els.empty.classList.add('nx-video-hidden');
-    els.play.classList.remove('nx-video-hidden');
-    const url=state.urls.get(c.id);
+    if(!c){els.video.classList.add('nx-video-hidden');els.image.classList.add('nx-video-hidden');els.empty.classList.remove('nx-video-hidden');els.play.classList.add('nx-video-hidden');els.caption.classList.add('nx-video-hidden');state.previewClipId=null;return;}
+    els.empty.classList.add('nx-video-hidden');const local=Math.max(0,state.playhead-clipStartTime(c.id)),motion=motionAt(c,local),tr=transitionOpacity(c,local);updateCaption(local);
     if(c.kind==='image'){
-      els.video.classList.add('nx-video-hidden');
-      els.image.classList.remove('nx-video-hidden');
-      els.image.src=url||'';
-      els.image.style.filter=cssFilter(c);
-      els.image.style.transform=`scale(${(Number(c.scale)||1)*(c.flipX?-1:1)},${(Number(c.scale)||1)*(c.flipY?-1:1)}) rotate(${Number(c.rotation)||0}deg)`;
-      els.image.style.background=els.bg.value;
-      return;
+      els.video.classList.add('nx-video-hidden');els.image.classList.remove('nx-video-hidden');els.play.classList.remove('nx-video-hidden');
+      const url=state.urls.get(c.id)||'';if(els.image.src!==url)els.image.src=url;els.image.style.filter=cssFilter(c);els.image.style.transform=`scale(${motion.scale*(c.flipX?-1:1)},${motion.scale*(c.flipY?-1:1)}) rotate(${motion.rotation}deg)`;els.image.style.opacity=String(tr.opacity);els.preview.style.background=tr.flash?'#fff':els.bg.value;state.previewClipId=c.id;return;
     }
-    els.image.classList.add('nx-video-hidden');
-    els.video.classList.remove('nx-video-hidden');
-    if(url && els.video.src!==url)els.video.src=url;
-    els.video.currentTime=clamp(Number(c.in)||0,0,Math.max(0,(Number(c.out)||DEFAULT_DUR)-.001));
-    els.video.playbackRate=Number(c.speed)||1;
-    els.video.volume=clamp(Number(c.volume)||0,0,1);
-    els.video.muted=c.muted===true;
-    els.video.style.filter=cssFilter(c);
-    els.video.style.transform=`scale(${(Number(c.scale)||1)*(c.flipX?-1:1)},${(Number(c.scale)||1)*(c.flipY?-1:1)}) rotate(${Number(c.rotation)||0}deg)`;
-    els.video.style.background=els.bg.value;
+    els.image.classList.add('nx-video-hidden');els.video.classList.remove('nx-video-hidden');els.play.classList.remove('nx-video-hidden');const url=state.urls.get(c.id)||'',changed=state.previewClipId!==c.id||els.video.src!==url;
+    if(changed){els.video.src=url;els.video.load();state.previewClipId=c.id;}
+    els.video.playbackRate=Number(c.speed)||1;els.video.volume=clamp(Number(c.volume)||0,0,1);els.video.muted=c.muted===true;els.video.style.filter=cssFilter(c);els.video.style.transform=`scale(${motion.scale*(c.flipX?-1:1)},${motion.scale*(c.flipY?-1:1)}) rotate(${motion.rotation}deg)`;els.video.style.opacity=String(tr.opacity);els.preview.style.background=tr.flash?'#fff':els.bg.value;
+    if(!state.playing&&changed)try{els.video.currentTime=clamp((Number(c.in)||0)+local*(Number(c.speed)||1),0,Math.max((Number(c.out)||DEFAULT_DUR)-.001,0));}catch{}
   }
   function render(){
     els.clipRow.innerHTML=state.clips.length?state.clips.map((c,i)=>`
@@ -427,53 +481,35 @@ export function renderAiVideoStudio(){
       els.rotationOut.textContent=(Number(c.rotation)||0)+'°';
       els.audioMode.value=c.muted?'mute':'on';
       els.text.value=c.textOverlay||'';
+      updateInspectorState(c);
+    } else {
+      els.motionEnabled.checked=false;els.motionState.textContent='OFF';els.captionSrt.value='';
     }
-    applyPreview();
+    updateTimelineUI();applyPreview();
   }
 
-  function selectClip(id){
-    if(!id)return;
-    state.selectedId=id;
-    state.playhead=0;
-    const c=selected();
-    if(c) state.playhead=0;
-    render();
-  }
+  function selectClip(id){if(!id)return;const c=state.clips.find(x=>x.id===id);if(!c)return;stopPlayback();state.selectedId=id;state.playhead=clipStartTime(id);render();}
 
   async function addFiles(fileList){
-    const files=[...fileList||[]];
-    if(!files.length)return;
+    const files=[...fileList||[]];if(!files.length)return;
+    const accepted=files.filter(file=>{const type=String(file.type||'').toLowerCase(),name=String(file.name||'').toLowerCase();return/^image\//.test(type)||/^video\//.test(type)||/\.(jpg|jpeg|png|webp|gif|heic|heif|mp4|mov|m4v|webm|avi|mkv)$/i.test(name);}).slice(0,20);
+    if(!accepted.length){setStatus('No supported photo/video files were selected.','error');return;}
+    if(accepted.length<files.length)setStatus('Some files were skipped because they are not supported photos/videos.','error');
     pushUndo();
-    for(const file of files){
-      const isImage=/^image\//i.test(file.type);
-      const id=uid('clip');
-      const clip={
-        id,name:file.name.replace(/\.[^.]+$/,'').slice(0,40)||'Media',
-        kind:isImage?'image':'video',file:null,sourceUrl:null,sourceKey:id,
-        in:0,out:isImage?DEFAULT_DUR:0,speed:1,volume:1,muted:false,
-        brightness:1,contrast:1,saturate:1,effect:'none',textOverlay:'',scale:1,rotation:0,flipX:false,flipY:false
-      };
-      state.clips.push(clip);
-      state.sources.set(id,file);
-      const url=URL.createObjectURL(file);
-      state.urls.set(id,url);
-      if(!isImage){
-        await new Promise(resolve=>{
-          const probe=document.createElement('video');
-          probe.preload='metadata';probe.src=url;
-          probe.onloadedmetadata=()=>{clip.out=Math.max(.1,Number(probe.duration)||DEFAULT_DUR);clip.sourceDuration=clip.out;resolve();};
-          probe.onerror=()=>{clip.out=DEFAULT_DUR;resolve();};
-        });
-      }
+    for(const file of accepted){
+      const type=String(file.type||'').toLowerCase(),name=String(file.name||'Media'),isImage=/^image\//.test(type)||/\.(jpg|jpeg|png|webp|gif|heic|heif)$/i.test(name),id=uid('clip'),url=URL.createObjectURL(file);
+      const clip={id,name:name.replace(/\.[^.]+$/,'').slice(0,40)||'Media',kind:isImage?'image':'video',file:null,sourceUrl:null,sourceKey:id,in:0,out:DEFAULT_DUR,speed:1,volume:1,muted:false,brightness:1,contrast:1,saturate:1,effect:'none',textOverlay:'',scale:1,rotation:0,flipX:false,flipY:false,motion:{enabled:false,start:{scale:1,rotation:0},end:{scale:1,rotation:0}},transition:'none',transitionDuration:.35,captions:[]};
+      state.clips.push(clip);state.sources.set(id,file);state.urls.set(id,url);state.selectedId=id;state.playhead=clipStartTime(id);render();setStatus(`Loading ${clip.name}…`,'info');
+      if(!isImage)await new Promise(resolve=>{const probe=document.createElement('video');let settled=false;const finish=duration=>{if(settled)return;settled=true;clearTimeout(timer);probe.removeAttribute('src');try{probe.load();}catch{}clip.out=Number.isFinite(duration)&&duration>0?Math.max(.1,duration):DEFAULT_DUR;clip.sourceDuration=clip.out;resolve();};const timer=setTimeout(()=>finish(DEFAULT_DUR),4500);probe.preload='metadata';probe.onloadedmetadata=()=>finish(Number(probe.duration));probe.onerror=()=>finish(DEFAULT_DUR);probe.src=url;});
+      if(state.clips.some(c=>c.id===id))render();
     }
-    state.selectedId=state.clips[state.clips.length-1]?.id||state.selectedId;
-    render();
+    setStatus(`${accepted.length} media item${accepted.length===1?'':'s'} added.`,'ok');
   }
 
   function splitSelected(){
     const c=selected(); if(!c)return;
-    const d=Math.max(.05,Number(c.out)-Number(c.in));
-    const play=Math.max(.05,Math.min(d-.05,state.playhead||d/2));
+    const d=Math.max(.05,Number(c.out)-Number(c.in)),local=state.playhead-clipStartTime(c.id);
+    const play=Math.max(.05,Math.min(clipDuration(c)-.05,Number.isFinite(local)&&local>0?local:d/(2*Math.max(.05,Number(c.speed)||1))));
     if(d<.11)return;
     pushUndo();
     const cut=Number(c.in)+play*(Number(c.speed)||1);
@@ -571,7 +607,8 @@ export function renderAiVideoStudio(){
 
   async function exportVideo(){
     if(state.exportBusy||!state.clips.length)return;
-    state.exportBusy=true;
+    if(typeof HTMLCanvasElement==='undefined'||!document.createElement('canvas').captureStream||typeof MediaRecorder==='undefined'){setPanel('export');els.exportNote.textContent='This Android WebView cannot export video locally. Your edits remain intact.';setStatus('Local export is unavailable on this device/WebView.','error');return;}
+    state.exportBusy=true;stopPlayback();
     setPanel('export');
     els.exportNote.textContent='Rendering locally… keep this screen open until export finishes.';
     const canvas=makeCanvas(),ctx=canvas.getContext('2d');
@@ -598,7 +635,9 @@ export function renderAiVideoStudio(){
         await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;});
         const dur=clipDuration(c),start=performance.now();
         while(performance.now()-start<dur*1000 && !aborted){
-          ctx.save();ctx.filter=cssFilter(c);fitDraw(ctx,img,canvas.width,canvas.height,c);ctx.restore();drawClipText(c.textOverlay);
+          const local=Math.min(d,(performance.now()-start)/1000),tr=transitionDrawAlpha(c,local);
+          ctx.save();ctx.globalAlpha=tr.opacity;ctx.filter=cssFilter(c);fitDraw(ctx,img,canvas.width,canvas.height,c,local);ctx.restore();
+          if(tr.flash){ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);}drawClipText(c.textOverlay);burnCaption(ctx,captionAt(c,local),canvas.width,canvas.height);
           await new Promise(requestAnimationFrame);
         }
         return;
@@ -618,8 +657,10 @@ export function renderAiVideoStudio(){
       }catch{}
       await mediaVideo.play().catch(()=>{});
       while(mediaVideo.currentTime<end && !mediaVideo.ended && !aborted){
+        const local=Math.max(0,mediaVideo.currentTime-(Number(c.in)||0))/(Number(c.speed)||1),tr=transitionDrawAlpha(c,local);
         drawBackground();
-        ctx.save();ctx.filter=cssFilter(c);fitDraw(ctx,mediaVideo,canvas.width,canvas.height,c);ctx.restore();drawClipText(c.textOverlay);
+        ctx.save();ctx.globalAlpha=tr.opacity;ctx.filter=cssFilter(c);fitDraw(ctx,mediaVideo,canvas.width,canvas.height,c,local);ctx.restore();
+        if(tr.flash){ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);}drawClipText(c.textOverlay);burnCaption(ctx,captionAt(c,local),canvas.width,canvas.height);
         await new Promise(requestAnimationFrame);
       }
       mediaVideo.pause();
@@ -646,18 +687,20 @@ export function renderAiVideoStudio(){
     }
   }
 
-  function fitDraw(ctx,source,w,h,c={}){
+  function fitDraw(ctx,source,w,h,c={},local=0){
     const sw=source.videoWidth||source.naturalWidth||w, sh=source.videoHeight||source.naturalHeight||h;
-    const fitScale=Math.min(w/sw,h/sh)*(Number(c.scale)||1),dw=sw*fitScale,dh=sh*fitScale;
+    const motion=motionAt(c,local),fitScale=Math.min(w/sw,h/sh)*(Number(motion.scale)||1),dw=sw*fitScale,dh=sh*fitScale;
     const sx=c.flipX?-1:1,sy=c.flipY?-1:1;
     ctx.save();
     ctx.translate(w/2,h/2);
-    ctx.rotate((Number(c.rotation)||0)*Math.PI/180);
+    ctx.rotate((Number(motion.rotation)||0)*Math.PI/180);
     ctx.scale(sx,sy);
     ctx.drawImage(source,-dw/2,-dh/2,dw,dh);
     ctx.restore();
   }
 
+  function burnCaption(ctx,text,w,h){if(!text)return;ctx.save();const size=Math.max(18,Math.round(w/30));ctx.font=`800 ${size}px sans-serif`;const maxW=w-48,words=String(text).split(/\s+/),lines=[];let line='';for(const word of words){const test=line?line+' '+word:word;if(ctx.measureText(test).width>maxW&&line){lines.push(line);line=word;}else line=test;}if(line)lines.push(line);const lineH=size*1.15,boxH=lineH*lines.length+22,y=h*.84-boxH/2;ctx.fillStyle='rgba(8,6,13,.74)';ctx.fillRect(24,y,w-48,boxH);ctx.fillStyle='#fff';ctx.textAlign='center';ctx.textBaseline='middle';lines.forEach((v,i)=>ctx.fillText(v,w/2,y+11+lineH*(i+.5),maxW));ctx.restore();}
+  function transitionDrawAlpha(c,local){return transitionOpacity(c,local);}
   function undo(){
     if(!state.undo.length)return;
     state.redo.push(snapshot());
@@ -669,19 +712,21 @@ export function renderAiVideoStudio(){
     const snap=state.redo.pop();restoreSnap(snap);
   }
 
-  els.file.addEventListener('change',()=>{void addFiles(els.file.files);els.file.value='';});
-  root.querySelector('[data-add]').addEventListener('click',()=>els.file.click());
+  els.file.addEventListener('change',()=>{const files=[...els.file.files||[]];els.file.value='';if(files.length)void addFiles(files).catch(error=>setStatus('Import failed: '+String(error?.message||error).slice(0,160),'error'));});
+  root.querySelector('[data-add]').addEventListener('click',()=>{try{if(typeof els.file.showPicker==='function')els.file.showPicker();else els.file.click();}catch{try{els.file.click();}catch{}}});
   root.querySelector('[data-split]').addEventListener('click',splitSelected);
   root.querySelector('[data-delete]').addEventListener('click',deleteSelected);
   root.querySelector('[data-duplicate]').addEventListener('click',duplicateSelected);
   root.querySelector('[data-reset]').addEventListener('click',()=>{const c=selected();if(!c)return;pushUndo();Object.assign(c,{in:0,out:c.kind==='image'?DEFAULT_DUR:c.sourceDuration||c.out,speed:1,volume:1,muted:false,brightness:1,contrast:1,saturate:1,effect:'none',textOverlay:''});render();});
   root.querySelector('[data-undo]').addEventListener('click',undo);
   root.querySelector('[data-redo]').addEventListener('click',redo);
-  els.play.addEventListener('click',()=>{if(els.video.classList.contains('nx-video-hidden'))return;if(els.video.paused)els.video.play();else els.video.pause();});
-  els.video.addEventListener('timeupdate',()=>{const c=selected();if(!c)return;const local=Math.max(0,els.video.currentTime-(Number(c.in)||0))/(Number(c.speed)||1);state.playhead=local;els.current.textContent=fmt(local);els.scrub.value=String(local);if(els.video.currentTime>=(Number(c.out)||0)){els.video.pause();}});
+  els.play.addEventListener('click',togglePlayback);
+  els.video.addEventListener('error',()=>setStatus('The selected video could not be decoded by this WebView. Try MP4/H.264 or another supported video.','error'));
+  els.video.addEventListener('loadedmetadata',()=>{const c=selected();if(!c||c.kind!=='video'||state.previewClipId!==c.id)return;const local=Math.max(0,state.playhead-clipStartTime(c.id));try{els.video.currentTime=clamp((Number(c.in)||0)+local*(Number(c.speed)||1),0,Math.max((Number(c.out)||DEFAULT_DUR)-.001,0));}catch{}});
+  els.video.addEventListener('timeupdate',()=>{const c=selected();if(!c||c.kind!=='video')return;const local=Math.max(0,els.video.currentTime-(Number(c.in)||0))/(Number(c.speed)||1);state.playhead=clipStartTime(c.id)+local;updateTimelineUI();if(state.playing&&els.video.currentTime>=(Number(c.out)||0)-.02)advanceProject();});
   els.video.addEventListener('play',()=>els.play.textContent='Ⅱ');
-  els.video.addEventListener('pause',()=>els.play.textContent='▶');
-  els.scrub.addEventListener('input',()=>{const c=selected();if(!c)return;const local=Number(els.scrub.value)||0;state.playhead=local;els.current.textContent=fmt(local);if(c.kind==='video')els.video.currentTime=clamp((Number(c.in)||0)+local*(Number(c.speed)||1),0,Number(c.out)||DEFAULT_DUR);});
+  els.video.addEventListener('pause',()=>{els.play.textContent='▶';if(!state.playing)state.playTickAt=0;});
+  els.scrub.addEventListener('input',()=>{const time=clamp(Number(els.scrub.value)||0,0,totalDuration()),hit=clipAtProjectTime(time);if(!hit)return;state.selectedId=hit.clip.id;state.playhead=time;render();if(hit.clip.kind==='video')try{els.video.currentTime=clamp((Number(hit.clip.in)||0)+hit.local*(Number(hit.clip.speed)||1),0,Number(hit.clip.out)||DEFAULT_DUR);}catch{}});
   root.querySelector('[data-in]').addEventListener('change',()=>{const c=selected();if(!c)return;pushUndo();c.in=clamp(Number(els.in.value)||0,0,Math.max(0,Number(c.out)-.05));state.playhead=0;render();});
   root.querySelector('[data-out]').addEventListener('change',()=>{const c=selected();if(!c)return;pushUndo();c.out=Math.max(Number(c.in)+.05,Number(els.out.value)||Number(c.out));state.playhead=0;render();});
   els.volume.addEventListener('input',()=>{const c=selected();if(!c)return;c.volume=Number(els.volume.value);els.volumeOut.textContent=Math.round(c.volume*100)+'%';applyPreview();});
@@ -700,6 +745,14 @@ export function renderAiVideoStudio(){
   root.querySelector('[data-clear-text]').addEventListener('click',()=>{const c=selected();if(!c)return;pushUndo();c.textOverlay='';els.text.value='';render();});
   root.querySelector('[data-ratio]').addEventListener('change',()=>{});
   root.querySelector('[data-bg]').addEventListener('change',()=>{applyPreview();});
+  root.querySelector('[data-motion-enabled]').addEventListener('change',()=>{const c=selected();if(!c)return;pushUndo();c.motion.enabled=els.motionEnabled.checked;render();});
+  root.querySelector('[data-kf-start]').addEventListener('click',()=>{const c=selected();if(!c)return;pushUndo();c.motion.enabled=true;c.motion.start={scale:Number(c.scale)||1,rotation:Number(c.rotation)||0};render();setStatus('Motion start keyframe saved.','ok');});
+  root.querySelector('[data-kf-end]').addEventListener('click',()=>{const c=selected();if(!c)return;pushUndo();c.motion.enabled=true;c.motion.end={scale:Number(c.scale)||1,rotation:Number(c.rotation)||0};render();setStatus('Motion end keyframe saved.','ok');});
+  root.querySelector('[data-kf-clear]').addEventListener('click',()=>{const c=selected();if(!c)return;pushUndo();c.motion={enabled:false,start:{scale:1,rotation:0},end:{scale:1,rotation:0}};render();});
+  root.querySelector('[data-transition]').addEventListener('change',()=>{const c=selected();if(!c)return;pushUndo();c.transition=els.transition.value;render();});
+  root.querySelector('[data-transition-duration]').addEventListener('input',()=>{const c=selected();if(!c)return;c.transitionDuration=Number(els.transitionDuration.value)||.35;els.transitionDurationOut.textContent=c.transitionDuration.toFixed(2)+'s';applyPreview();});
+  root.querySelector('[data-apply-captions]').addEventListener('click',()=>{const c=selected();if(!c)return;const parsed=parseSrt(els.captionSrt.value);pushUndo();c.captions=parsed;render();setStatus(parsed.length?parsed.length+' caption block'+(parsed.length===1?'':'s')+' applied.':'No valid SRT blocks found.','ok');});
+  root.querySelector('[data-clear-captions]').addEventListener('click',()=>{const c=selected();if(!c)return;pushUndo();c.captions=[];els.captionSrt.value='';render();});
   root.querySelector('[data-open-export]').addEventListener('click',()=>exportVideo());
 
   root.querySelectorAll('[data-tool]').forEach(b=>b.addEventListener('click',()=>setPanel(b.dataset.tool)));
@@ -729,7 +782,7 @@ export function renderAiVideoStudio(){
       const data=await fileToInline(blob,8);
       const model=await aiModel('Transcribe only what is spoken in the supplied media. Return concise caption lines with approximate timestamps in SRT format. If speech is unclear, mark [inaudible] rather than inventing words.');
       const res=await model.generateContent([{inlineData:data},{text:'Generate an SRT caption draft for this clip.'}]);
-      els.aiOut.value=String(res?.response?.text?.()||'').trim().slice(0,5000);
+      const aiText=String(res?.response?.text?.()||'').trim().slice(0,5000);els.aiOut.value=aiText;els.captionSrt.value=aiText;
     }catch(e){els.aiOut.value='Auto captions unavailable: '+String(e?.message||e).slice(0,220);}
   });
 
@@ -753,7 +806,7 @@ export function renderAiVideoStudio(){
 
   render();
   root.__cleanup=()=>{
-    state.stopExport?.();
+    stopPlayback();state.stopExport?.();
     state.urls.forEach(u=>{try{URL.revokeObjectURL(u)}catch{}});
     state.urls.clear();
     state.sources.clear();
