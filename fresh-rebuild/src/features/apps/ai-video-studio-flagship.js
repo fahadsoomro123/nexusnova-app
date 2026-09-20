@@ -92,6 +92,12 @@ function ensureVideoFlagshipStyles() {
     @media(max-width:390px){.nx-video-flagship{grid-template-rows:minmax(205px,37%) minmax(120px,23%) minmax(0,1fr) auto;gap:6px;padding:6px}.nx-video-tool{font-size:9px;flex-basis:68px;min-width:68px}.nx-video-tool b{font-size:15px}.nx-video-clip{height:61px}.nx-video-cliprow{grid-auto-columns:minmax(100px,1fr)}.nx-video-inspector{padding:6px}}
     @media(max-height:720px){.nx-video-flagship{grid-template-rows:minmax(170px,36%) minmax(108px,23%) minmax(0,1fr) auto}.nx-screen:has(.nx-video-flagship) .nx-app-head{height:58px!important;min-height:58px!important}.nx-screen:has(.nx-video-flagship)>[data-app-mount]{height:calc(100% - 62px)!important}.nx-video-clip{height:56px}.nx-video-tool{font-size:8px}.nx-video-tool b{font-size:14px}}
     @media(prefers-reduced-motion:reduce){.nx-video-play{transition:none}}
+    /* Touch target hardening: icon glyphs stay small, hit areas stay >=44px. */
+    .nx-video-timebar button{width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important}
+    .nx-video-reorder{grid-auto-flow:column!important;grid-template-columns:repeat(2,22px)!important;gap:0!important;align-items:center}
+    .nx-video-reorder button{width:22px!important;height:44px!important;min-width:22px!important;min-height:44px!important}
+    .nx-video-actions button{height:44px!important;min-height:44px!important}
+    .nx-video-field input,.nx-video-field select{height:44px!important;min-height:44px!important}
     /* V2 flagship layout: fit the complete editor in a normal Android viewport. */
     .nx-screen:has(.nx-video-flagship){height:calc(100dvh - 82px)!important;max-height:calc(100dvh - 82px)!important;overflow:hidden!important;background:#fff!important;padding:0!important}
     .nx-screen:has(.nx-video-flagship)>.nx-app-head{height:62px!important;min-height:62px!important;margin:0 0 4px!important;padding:4px 12px 4px 10px!important;border-bottom:1px solid #eee9f5!important}
