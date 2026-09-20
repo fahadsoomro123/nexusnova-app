@@ -1,12 +1,15 @@
 name: Video Runtime Syntax Check
 on:
   push:
+    branches: [main, agent/video-flagship-qa8]
+  pull_request:
     branches: [main]
 permissions:
   contents: read
 jobs:
   check:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -19,4 +22,142 @@ jobs:
           node --check fresh-rebuild/src/features/apps/app-screen.js
           node --check fresh-rebuild/src/features/apps/premium-studio-suite.js
           node --input-type=module -e "import('./fresh-rebuild/src/features/apps/ai-video-studio-flagship.js').then(m=>{if(typeof m.renderAiVideoStudio!=='function')process.exit(2);console.log('FLAGSHIP MODULE IMPORT PASS')})"
-          echo "VIDEO FLAGSHIP V2 PASS"
+      - name: Install browser test stack
+        run: |
+          set -euo pipefail
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Install media fixture dependency
+        run: |
+          set -euo pipefail
+          sudo apt-get update >/dev/null
+          sudo apt-get install -y ffmpeg >/dev/null
+      - name: Build deterministic media fixture
+        run: |
+          set -euo pipefail
+          ffmpeg -hide_banner -loglevel error -f lavfi -i color=c=red:s=160x90:d=1 -c:v libvpx-vp9 -an -y /tmp/nx-video-fixture.webm
+          test -s /tmp/nx-video-fixture.webm
+      - name: Browser runtime matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > __nx_video_qa__.html <<'EOF'
+          <!doctype html><meta charset="utf-8"><title>NexusNova Video QA</title>
+          EOF
+          cat > ./__nx-video-qa.mjs <<'EOF'
+          import { chromium } from 'playwright';
+          import fs from 'node:fs';
+
+          const pngBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+          fs.writeFileSync('/tmp/nx-image.png', Buffer.from(pngBase64, 'base64'));
+          const browser = await chromium.launch({headless:true,args:['--autoplay-policy=no-user-gesture-required']});
+          const page = await browser.newPage({viewport:{width:390,height:844}});
+          const assert = (ok,msg)=>{if(!ok)throw new Error(msg)};
+
+          await page.goto('http://127.0.0.1:4173/__nx_video_qa__.html',{waitUntil:'domcontentloaded'});
+          await page.evaluate(async()=>{
+            document.body.innerHTML='<section class="nx-screen"><header class="nx-app-head" style="height:62px"><h1>AI Video Studio</h1></header><div data-app-mount></div></section>';
+            const m=await import('/fresh-rebuild/src/features/apps/ai-video-studio-flagship.js');
+            document.querySelector('[data-app-mount]').appendChild(m.renderAiVideoStudio());
+          });
+
+          assert(await page.locator('[data-tool]').count()===12,'Expected 12 flagship tools');
+
+          const pickerShape=await page.evaluate(()=>{
+            const a=document.querySelector('[data-add]'),i=document.querySelector('[data-file]');
+            if(!a||!i)return null; const ar=a.getBoundingClientRect(),ir=i.getBoundingClientRect();
+            return {inputDisplay:getComputedStyle(i).display,inputOpacity:getComputedStyle(i).opacity,hit:ir.left<=ar.right&&ir.right>=ar.left&&ir.top<=ar.bottom&&ir.bottom>=ar.top};
+          });
+          assert(pickerShape?.inputDisplay!=='none','File input is still display:none');
+          assert(pickerShape?.hit===true,'File input does not cover the Add Media touch target');
+          await page.locator('[data-file]').setInputFiles('/tmp/nx-image.png');
+          await page.locator('[data-id]').first().waitFor();
+          assert(await page.locator('[data-id]').count()===1,'Image did not enter timeline');
+          assert((await page.locator('[data-main-image]').getAttribute('src'))?.startsWith('blob:'),'Image preview source missing');
+          assert((await page.locator('[data-selection]').textContent()).trim()!=='Nothing selected','Selection did not activate');
+
+          await page.locator('[data-tool="speed"]').click();
+          await page.locator('[data-speed]').fill('1.75');
+          await page.locator('[data-speed]').dispatchEvent('input');
+          assert((await page.locator('[data-speed-out]').textContent()).includes('1.75'),'Speed tool failed');
+
+          await page.locator('[data-tool="adjust"]').click();
+          await page.locator('[data-bright]').fill('1.25');
+          await page.locator('[data-bright]').dispatchEvent('input');
+          assert((await page.locator('[data-main-image]').evaluate(el=>el.style.filter)).includes('brightness(1.25)'),'Adjust failed');
+
+          await page.locator('[data-tool="effects"]').click();
+          await page.locator('[data-effect="mono"]').click();
+          assert((await page.locator('[data-main-image]').evaluate(el=>el.style.filter)).includes('grayscale(1)'),'Effect failed');
+
+          await page.locator('[data-tool="transform"]').click();
+          await page.locator('[data-scale]').fill('1.25');
+          await page.locator('[data-scale]').dispatchEvent('input');
+          assert((await page.locator('[data-main-image]').evaluate(el=>el.style.transform)).includes('scale(1.25'),'Transform failed');
+
+          await page.locator('[data-tool="text"]').click();
+          await page.locator('[data-text]').fill('QA CAPTION');
+          await page.locator('[data-apply-text]').click();
+          assert(await page.locator('[data-text]').inputValue()==='QA CAPTION','Text state failed');
+
+          await page.locator('[data-tool="motion"]').click();
+          await page.locator('[data-kf-start]').click();
+          await page.locator('[data-motion-scale]').fill('1.5');
+          await page.locator('[data-motion-scale]').dispatchEvent('input');
+          await page.locator('[data-motion-rotation]').fill('12');
+          await page.locator('[data-motion-rotation]').dispatchEvent('input');
+          await page.locator('[data-kf-end]').click();
+          assert((await page.locator('[data-motion-state]').textContent()).trim()==='ON','Keyframe motion failed');
+          assert((await page.locator('[data-motion-scale]').inputValue())==='1.5','Motion scale control failed');
+          assert((await page.locator('[data-motion-rotation]').inputValue())==='12','Motion rotation control failed');
+
+          await page.locator('[data-tool="transitions"]').click();
+          await page.locator('[data-transition]').selectOption('fade');
+          assert(await page.locator('[data-transition]').inputValue()==='fade','Transition failed');
+
+          await page.locator('[data-tool="captions"]').click();
+          await page.locator('[data-caption-srt]').fill('1\n00:00:00,000 --> 00:00:00,400\nQA CAPTION');
+          await page.locator('[data-apply-captions]').click();
+          assert(await page.locator('[data-caption]').isVisible(),'Caption preview failed');
+
+          await page.locator('[data-tool="edit"]').click();
+          await page.locator('[data-out]').fill('0.8');
+          await page.locator('[data-out]').dispatchEvent('change');
+          await page.locator('[data-scrub]').fill('0.4');
+          await page.locator('[data-scrub]').dispatchEvent('input');
+          await page.locator('[data-split]').click();
+          assert(await page.locator('[data-id]').count()===2,'Split failed');
+          await page.locator('[data-undo]').click();
+          assert(await page.locator('[data-id]').count()===1,'Undo failed');
+
+          const downloadPromise=page.waitForEvent('download',{timeout:20000});
+          await page.locator('[data-open-export]').click();
+          const download=await downloadPromise;
+          const dlPath=await download.path();
+          assert(dlPath&&fs.statSync(dlPath).size>100,'Export did not produce a non-empty file');
+
+          await page.locator('[data-file]').setInputFiles('/tmp/nx-video-fixture.webm');
+          await page.waitForFunction(()=>document.querySelectorAll('[data-id]').length===2,null,{timeout:10000});
+          await page.waitForFunction(()=>{const v=document.querySelector('[data-main-video]');return v&&Number.isFinite(v.duration)&&v.duration>0},null,{timeout:10000});
+          assert((await page.locator('[data-main-video]').getAttribute('src'))?.startsWith('blob:'),'Video preview source missing');
+
+          const playback=page.locator('[data-play]');
+          await playback.click();
+          await page.waitForTimeout(500);
+          const playing=await page.evaluate(()=>document.querySelector('[data-main-video]')?.currentTime>0);
+          assert(playing,'Video playback did not advance');
+
+          const layout=await page.evaluate(()=>{
+            const tb=document.querySelector('.nx-video-toolbar'),root=document.querySelector('.nx-video-flagship'),screen=document.querySelector('.nx-screen');
+            return {toolbarOverflow:tb.scrollWidth-tb.clientWidth,rootBottom:root.getBoundingClientRect().bottom,screenBottom:screen.getBoundingClientRect().bottom,viewportHeight:innerHeight};
+          });
+          assert(layout.toolbarOverflow<=1,'Toolbar horizontally scrolls');
+          assert(layout.rootBottom<=layout.screenBottom+1,'Editor exceeds viewport');
+          console.log('VIDEO FLAGSHIP QA PASS',JSON.stringify(layout));
+          await browser.close();
+          EOF
+          nohup python3 -m http.server 4173 >/tmp/nx-video-http.log 2>&1 &
+          server=$!
+          trap 'kill $server || true; rm -f __nx_video_qa__.html __nx-video-qa.mjs' EXIT
+          sleep 2
+          node ./__nx-video-qa.mjs

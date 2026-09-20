@@ -1,0 +1,1 @@
+QA trigger 6: validate readiness-safe playback and isolated split state.
