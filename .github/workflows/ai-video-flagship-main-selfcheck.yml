@@ -1,0 +1,31 @@
+name: AI Video Flagship Main Self Check
+
+on:
+  push:
+    branches:
+      - agent/ai-video-flagship-main
+    paths:
+      - 'fresh-rebuild/src/features/apps/ai-video-studio-flagship.js'
+      - 'fresh-rebuild/src/features/apps/premium-studio-suite.js'
+      - '.github/workflows/ai-video-flagship-main-selfcheck.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax and wiring
+        run: |
+          set -euo pipefail
+          node --input-type=module --check < fresh-rebuild/src/features/apps/ai-video-studio-flagship.js
+          node --input-type=module --check < fresh-rebuild/src/features/apps/premium-studio-suite.js
+          grep -F "from './ai-video-studio-flagship.js'" fresh-rebuild/src/features/apps/premium-studio-suite.js
+          grep -F "'ai-video-studio': renderAiVideoStudio" fresh-rebuild/src/features/apps/premium-studio-suite.js
+          echo "AI Video flagship self-check: PASS"
