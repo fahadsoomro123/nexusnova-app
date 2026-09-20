@@ -223,6 +223,7 @@ export function renderAiVideoStudio(){
     clips:[],
     selectedId:null,
     urls:new Map(),
+    sources:new Map(),
     undo:[],
     redo:[],
     panel:'edit',
@@ -233,9 +234,13 @@ export function renderAiVideoStudio(){
   };
 
   function snapshot(){
-    return JSON.parse(JSON.stringify(state.clips.map(c=>({
-      ...c, file:null, sourceUrl:null
-    }))));
+    return {
+      clips:JSON.parse(JSON.stringify(state.clips.map(c=>({
+        ...c, file:null, sourceUrl:null
+      }))),
+      selectedId:state.selectedId,
+      playhead:state.playhead
+    };
   }
   function pushUndo(){
     state.undo.push(snapshot());
@@ -243,11 +248,21 @@ export function renderAiVideoStudio(){
     state.redo.length=0;
   }
   function restoreSnap(snap){
-    if(!Array.isArray(snap))return;
-    state.clips=snap.map(c=>({...c}));
-    state.selectedId=state.clips[0]?.id||null;
+    if(!snap || !Array.isArray(snap.clips))return;
+    const keep=new Set(snap.clips.map(c=>c.id));
+    for(const [id,url] of state.urls){
+      if(!keep.has(id)){try{URL.revokeObjectURL(url)}catch{};state.urls.delete(id);}
+    }
+    state.clips=snap.clips.map(c=>({...c}));
+    for(const c of state.clips){
+      const source=state.sources.get(c.sourceKey||c.id);
+      if(source && !state.urls.has(c.id)){
+        state.urls.set(c.id,URL.createObjectURL(source));
+      }
+    }
+    state.selectedId=keep.has(snap.selectedId)?snap.selectedId:(state.clips[0]?.id||null);
+    state.playhead=clamp(snap.playhead||0,0,totalDuration());
     render();
-    selectClip(state.selectedId);
   }
   function fmt(sec){
     sec=Math.max(0,Number(sec)||0);
@@ -350,18 +365,19 @@ export function renderAiVideoStudio(){
       const id=uid('clip');
       const clip={
         id,name:file.name.replace(/\.[^.]+$/,'').slice(0,40)||'Media',
-        kind:isImage?'image':'video',file:null,sourceUrl:null,
+        kind:isImage?'image':'video',file:null,sourceUrl:null,sourceKey:id,
         in:0,out:isImage?DEFAULT_DUR:0,speed:1,volume:1,muted:false,
         brightness:1,contrast:1,saturate:1,effect:'none',textOverlay:'',scale:1,rotation:0,flipX:false,flipY:false
       };
       state.clips.push(clip);
+      state.sources.set(id,file);
       const url=URL.createObjectURL(file);
       state.urls.set(id,url);
       if(!isImage){
         await new Promise(resolve=>{
           const probe=document.createElement('video');
           probe.preload='metadata';probe.src=url;
-          probe.onloadedmetadata=()=>{clip.out=Math.max(.1,Number(probe.duration)||DEFAULT_DUR);resolve();};
+          probe.onloadedmetadata=()=>{clip.out=Math.max(.1,Number(probe.duration)||DEFAULT_DUR);clip.sourceDuration=clip.out;resolve();};
           probe.onerror=()=>{clip.out=DEFAULT_DUR;resolve();};
         });
       }
@@ -379,8 +395,12 @@ export function renderAiVideoStudio(){
     const cut=Number(c.in)+play*(Number(c.speed)||1);
     const a={...c,id:uid('clip'),name:c.name+' A',out:cut};
     const b={...c,id:uid('clip'),name:c.name+' B',in:cut};
+    const source=state.sources.get(c.sourceKey||c.id);
+    if(source){state.sources.set(a.id,source);state.sources.set(b.id,source);}
     state.urls.set(a.id,state.urls.get(c.id));
     state.urls.set(b.id,state.urls.get(c.id));
+    a.sourceKey=c.sourceKey||c.id;
+    b.sourceKey=c.sourceKey||c.id;
     const idx=state.clips.findIndex(x=>x.id===c.id);
     state.clips.splice(idx,1,a,b);
     state.urls.delete(c.id);
@@ -402,6 +422,8 @@ export function renderAiVideoStudio(){
     const c=selected(); if(!c)return;
     pushUndo();
     const copy={...c,id:uid('clip'),name:c.name+' copy'};
+    copy.sourceKey=c.sourceKey||c.id;
+    if(state.sources.has(c.sourceKey||c.id)) state.sources.set(copy.id,state.sources.get(c.sourceKey||c.id));
     state.urls.set(copy.id,state.urls.get(c.id));
     const idx=state.clips.findIndex(x=>x.id===c.id);
     state.clips.splice(idx+1,0,copy);
@@ -636,6 +658,8 @@ export function renderAiVideoStudio(){
   root.__cleanup=()=>{
     state.stopExport?.();
     state.urls.forEach(u=>{try{URL.revokeObjectURL(u)}catch{}});
+    state.urls.clear();
+    state.sources.clear();
     window.removeEventListener('keydown',keydown);
   };
   return root;
