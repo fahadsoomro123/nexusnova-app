@@ -731,6 +731,7 @@ export function renderAiVideoStudio(){
   els.rotation.addEventListener('input',()=>{const c=selected();if(!c)return;c.rotation=Number(els.rotation.value);els.rotationOut.textContent=c.rotation+'°';applyPreview();});
   root.querySelectorAll('[data-flip]').forEach(b=>b.addEventListener('click',()=>{const c=selected();if(!c)return;pushUndo();if(b.dataset.flip==='x')c.flipX=!c.flipX;else c.flipY=!c.flipY;render();}));
   root.querySelectorAll('[data-mask]').forEach(b=>b.addEventListener('click',()=>{const c=selected();if(!c)return;pushUndo();c.mask=b.dataset.mask;render();}));
+  root.querySelectorAll('[data-motion]').forEach(b=>b.addEventListener('click',()=>{const c=selected();if(!c)return;pushUndo();c.motion=b.dataset.motion||'none';render();}));
   root.querySelectorAll('[data-look]').forEach(b=>b.addEventListener('click',()=>applyLook(b.dataset.look)));
   root.querySelectorAll('[data-effect]').forEach(b=>b.addEventListener('click',()=>{const c=selected();if(!c)return;pushUndo();c.effect=b.dataset.effect;render();}));
   root.querySelector('[data-apply-text]').addEventListener('click',()=>{const c=selected();if(!c)return;pushUndo();c.textOverlay=els.text.value.trim();render();});
