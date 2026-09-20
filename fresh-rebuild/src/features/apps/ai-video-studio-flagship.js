@@ -410,7 +410,9 @@ export function renderAiVideoStudio(){
     timelinePosition:0,
     projectName:'Untitled project',
     exportBusy:false,
-    stopExport:null
+    stopExport:null,
+    playing:false,
+    imageTimer:null
   };
 
   function snapshot(){
@@ -538,8 +540,54 @@ export function renderAiVideoStudio(){
     }else renderCaptionList(null);
     applyPreview();
   }
+  function stopPlayback(){
+    state.playing=false;
+    if(state.imageTimer){clearInterval(state.imageTimer);state.imageTimer=null;}
+    try{els.video.pause()}catch{}
+    els.play.textContent='▶';
+  }
+  function advancePlayback(){
+    const idx=state.clips.findIndex(x=>x.id===state.selectedId);
+    const next=state.clips[idx+1];
+    if(!next){stopPlayback();setSelectedLocalTime(clipDuration(selected())||0);render();return false;}
+    state.selectedId=next.id;state.playhead=0;state.timelinePosition=clipStartTime(next.id);render();
+    if(next.kind==='image'){
+      if(state.imageTimer)clearInterval(state.imageTimer);
+      state.imageTimer=setInterval(()=>{
+        if(!state.playing)return;
+        const c=selected();if(!c){stopPlayback();return;}
+        state.playhead=Math.min(clipDuration(c),state.playhead+.05);
+        state.timelinePosition=clipStartTime(c.id)+state.playhead;
+        els.current.textContent=fmt(state.timelinePosition);els.scrub.value=String(state.timelinePosition);applyPreview();
+        if(state.playhead>=clipDuration(c)-.001)advancePlayback();
+      },50);
+    }else{
+      state.playing=true;applyPreview();els.video.play().catch(()=>stopPlayback());
+    }
+    return true;
+  }
+  function startPlayback(){
+    const c=selected();if(!c)return;
+    state.playing=true;
+    if(c.kind==='image'){
+      if(state.imageTimer)clearInterval(state.imageTimer);
+      state.imageTimer=setInterval(()=>{
+        if(!state.playing)return;
+        const current=selected();if(!current){stopPlayback();return;}
+        state.playhead=Math.min(clipDuration(current),state.playhead+.05);
+        state.timelinePosition=clipStartTime(current.id)+state.playhead;
+        els.current.textContent=fmt(state.timelinePosition);els.scrub.value=String(state.timelinePosition);applyPreview();
+        if(state.playhead>=clipDuration(current)-.001)advancePlayback();
+      },50);
+    }else{
+      applyPreview();
+      els.video.play().catch(()=>stopPlayback());
+    }
+  }
+
   function selectClip(id,local=0){
     if(!id)return;
+    if(state.playing)stopPlayback();
     state.selectedId=id;setSelectedLocalTime(local);render();
   }
 
@@ -673,6 +721,7 @@ export function renderAiVideoStudio(){
     const recorder=new MediaRecorder(stream,{mimeType:mime}),chunks=[];let aborted=false,audioCtx=null,audioDest=null,audioSource=null,previousFrame=null;
     recorder.ondataavailable=e=>{if(e.data?.size)chunks.push(e.data);};
     const mediaVideo=document.createElement('video');mediaVideo.playsInline=true;mediaVideo.preload='auto';
+    stopPlayback();
     state.stopExport=()=>{aborted=true;try{mediaVideo.pause()}catch{}try{recorder.state!=='inactive'&&recorder.stop()}catch{}};
     try{
       const AC=window.AudioContext||window.webkitAudioContext;
@@ -783,9 +832,9 @@ export function renderAiVideoStudio(){
   root.querySelector('[data-reset]').addEventListener('click',()=>{const c=selected();if(!c)return;pushUndo();Object.assign(c,{in:0,out:c.kind==='image'?DEFAULT_DUR:c.sourceDuration||c.out,speed:1,volume:1,muted:false,brightness:1,contrast:1,saturate:1,effect:'none',textOverlay:'',scale:1,rotation:0,flipX:false,flipY:false,motionStartScale:1,motionEndScale:1.08,motionStartRotation:0,motionEndRotation:0,transition:'cut',transitionDuration:.25,captions:[]});state.playhead=0;state.timelinePosition=clipStartTime(c.id);render();});
   root.querySelector('[data-undo]').addEventListener('click',undo);
   root.querySelector('[data-redo]').addEventListener('click',redo);
-  els.play.addEventListener('click',()=>{const c=selected();if(!c)return;if(c.kind==='image'){setSelectedLocalTime(state.playhead>=clipDuration(c)-.02?0:state.playhead+.25);render();return;}if(els.video.paused){els.video.play().catch(()=>{})}else els.video.pause();});
+  els.play.addEventListener('click',()=>{if(state.playing)stopPlayback();else startPlayback();});
   els.video.addEventListener('loadedmetadata',()=>{if(selected())applyPreview()});
-  els.video.addEventListener('timeupdate',()=>{const c=selected();if(!c||c.kind!=='video')return;state.playhead=clamp((els.video.currentTime-(Number(c.in)||0))/(Number(c.speed)||1),0,clipDuration(c));state.timelinePosition=clipStartTime(c.id)+state.playhead;els.current.textContent=fmt(state.timelinePosition);els.scrub.value=String(state.timelinePosition);applyPreview();if(els.video.currentTime>=(Number(c.out)||0)-.01)els.video.pause();});
+  els.video.addEventListener('timeupdate',()=>{const c=selected();if(!c||c.kind!=='video')return;state.playhead=clamp((els.video.currentTime-(Number(c.in)||0))/(Number(c.speed)||1),0,clipDuration(c));state.timelinePosition=clipStartTime(c.id)+state.playhead;els.current.textContent=fmt(state.timelinePosition);els.scrub.value=String(state.timelinePosition);applyPreview();if(state.playing&&els.video.currentTime>=(Number(c.out)||0)-.01){els.video.pause();advancePlayback();}});
   els.video.addEventListener('error',()=>{els.exportNote.textContent='Preview could not decode this video in the current Android WebView.';});
   els.video.addEventListener('play',()=>els.play.textContent='Ⅱ');els.video.addEventListener('pause',()=>els.play.textContent='▶');
   els.scrub.addEventListener('input',()=>{const pos=clamp(Number(els.scrub.value)||0,0,totalDuration());const target=mapTimeline(state.clips,pos);if(target.clipId)selectClip(target.clipId,target.local);});
@@ -863,6 +912,7 @@ export function renderAiVideoStudio(){
 
   render();
   root.__cleanup=()=>{
+    stopPlayback();
     state.stopExport?.();
     state.urls.forEach(u=>{try{URL.revokeObjectURL(u)}catch{}});
     state.urls.clear();
