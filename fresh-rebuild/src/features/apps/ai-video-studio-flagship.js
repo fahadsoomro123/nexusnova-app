@@ -78,7 +78,7 @@ function ensureVideoFlagshipStyles() {
     .nx-video-note{padding:7px 8px;border-radius:10px;background:#f7f4fb;color:#6f667b;font-size:9px;line-height:1.35}
     .nx-video-transform-row{display:grid;grid-template-columns:1fr 1fr;gap:7px}.nx-video-transform-row button{height:38px}.nx-video-chipset{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
     .nx-video-bottom{display:grid;grid-template-columns:1fr auto;gap:7px;align-items:center}.nx-video-export{height:46px}.nx-video-add{height:46px;padding:0 14px;border-radius:13px}
-    .nx-video-hidden{display:none!important}.nx-video-file-input{position:absolute!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important;clip:rect(0 0 0 0)!important}.nx-video-runtime-status{position:absolute;left:10px;right:10px;top:10px;z-index:4;min-height:28px;display:flex;align-items:center;justify-content:center;padding:6px 9px;border-radius:10px;background:rgba(18,14,28,.78);backdrop-filter:blur(8px);color:#fff;font-size:10px;font-weight:750;text-align:center;pointer-events:none}.nx-video-runtime-status.is-error{background:rgba(116,24,60,.88)}.nx-video-preview-text{position:absolute;left:12px;right:12px;bottom:54px;z-index:3;display:flex;justify-content:center;pointer-events:none}.nx-video-preview-text span{max-width:92%;padding:8px 12px;border-radius:12px;background:rgba(12,9,18,.72);backdrop-filter:blur(6px);color:#fff;font-size:14px;font-weight:850;line-height:1.2;text-align:center;box-shadow:0 10px 24px rgba(0,0,0,.2)}.nx-video-motion-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}.nx-video-motion-grid button{height:32px;font-size:8px}
+    .nx-video-hidden{display:none!important}.nx-video-file-input{position:absolute!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important;clip:rect(0 0 0 0)!important}.nx-video-runtime-status{position:absolute;left:10px;right:10px;top:10px;z-index:4;min-height:28px;display:flex;align-items:center;justify-content:center;padding:6px 9px;border-radius:10px;background:rgba(18,14,28,.78);backdrop-filter:blur(8px);color:#fff;font-size:10px;font-weight:750;text-align:center;pointer-events:none}.nx-video-runtime-status.is-error{background:rgba(116,24,60,.88)}.nx-video-preview-text{position:absolute;left:12px;right:12px;bottom:54px;z-index:3;display:flex;justify-content:center;pointer-events:none}.nx-video-preview-text span{max-width:92%;padding:8px 12px;border-radius:12px;background:rgba(12,9,18,.72);backdrop-filter:blur(6px);color:#fff;font-size:14px;font-weight:850;line-height:1.2;text-align:center;box-shadow:0 10px 24px rgba(0,0,0,.2)}.nx-video-motion-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}.nx-video-motion-grid button{height:32px;font-size:8px}.nx-video-mask-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}.nx-video-mask-grid button{height:32px;font-size:8px}
     @media(max-width:390px){.nx-video-flagship{grid-template-rows:minmax(205px,37%) minmax(120px,23%) minmax(0,1fr) auto;gap:6px;padding:6px}.nx-video-tool{font-size:9px;flex-basis:68px;min-width:68px}.nx-video-tool b{font-size:15px}.nx-video-clip{height:61px}.nx-video-cliprow{grid-auto-columns:minmax(100px,1fr)}.nx-video-inspector{padding:6px}}
     @media(max-height:720px){.nx-video-flagship{grid-template-rows:minmax(170px,36%) minmax(108px,23%) minmax(0,1fr) auto}.nx-screen:has(.nx-video-flagship) .nx-app-head{height:58px!important;min-height:58px!important}.nx-screen:has(.nx-video-flagship)>[data-app-mount]{height:calc(100% - 62px)!important}.nx-video-clip{height:56px}.nx-video-tool{font-size:8px}.nx-video-tool b{font-size:14px}}
     @media(prefers-reduced-motion:reduce){.nx-video-play{transition:none}}
@@ -216,7 +216,8 @@ export function renderAiVideoStudio(){
         <div class="nx-video-range"><span>SCALE</span><input type="range" min=".5" max="2" step=".01" value="1" data-scale><output data-scale-out>100%</output></div>
         <div class="nx-video-range"><span>ROTATE</span><input type="range" min="-180" max="180" step="1" value="0" data-rotation><output data-rotation-out>0°</output></div>
         <div class="nx-video-transform-row" style="margin-top:7px"><button class="nx-video-button" data-flip="x">FLIP H</button><button class="nx-video-button" data-flip="y">FLIP V</button></div>
-        <div class="nx-video-note" style="margin-top:7px">Transform and crop-style framing are previewed locally and included in local export.</div>
+        <div class="nx-video-mask-grid" style="margin-top:7px"><button class="nx-video-button" data-mask="none">NO MASK</button><button class="nx-video-button" data-mask="circle">CIRCLE</button><button class="nx-video-button" data-mask="round">ROUND</button></div>
+        <div class="nx-video-note" style="margin-top:7px">Transform and mask framing are applied in the live preview and local export.</div>
       </div>
 
       <div class="nx-video-panel" data-panel="motion">
@@ -357,6 +358,7 @@ export function renderAiVideoStudio(){
   function motionProgress(c){return clamp((Number(state.playhead)||0)/Math.max(.05,clipDuration(c)),0,1);}
   function motionValues(c,progress){const p=clamp(Number(progress)||0,0,1),base=Number(c.scale)||1;switch(c.motion){case 'push':return {scale:base*(1+.12*p),x:0,y:0};case 'pull':return {scale:base*(1.12-.12*p),x:0,y:0};case 'left':return {scale:base*1.06,x:-7+14*p,y:0};case 'right':return {scale:base*1.06,x:7-14*p,y:0};case 'drift':return {scale:base*1.08,x:-5+10*p,y:-2+4*p};default:return {scale:base,x:0,y:0};}}
   function previewTransform(c){const motion=motionValues(c,motionProgress(c)),sx=c.flipX?-1:1,sy=c.flipY?-1:1;return 'translate3d('+motion.x+'%,'+motion.y+'%,0) scale('+motion.scale*sx+','+motion.scale*sy+') rotate('+(Number(c.rotation)||0)+'deg)';}
+  function previewMask(c){return c.mask==='circle'?'circle(38% at 50% 50%)':c.mask==='round'?'inset(2% 2% 2% 2% round 14%)':'none';}
   function snapshot(){
     return {
       clips:JSON.parse(JSON.stringify(state.clips.map(c=>({
@@ -411,10 +413,10 @@ export function renderAiVideoStudio(){
     if(!c){els.video.pause();els.video.classList.add('nx-video-hidden');els.image.classList.add('nx-video-hidden');els.empty.classList.remove('nx-video-hidden');els.play.classList.add('nx-video-hidden');els.previewText.classList.add('nx-video-hidden');return;}
     els.empty.classList.add('nx-video-hidden');els.play.classList.remove('nx-video-hidden');els.previewText.classList.toggle('nx-video-hidden',!c.textOverlay);els.previewTextValue.textContent=c.textOverlay||'';
     const url=state.urls.get(c.id);if(!url){setRuntime('Media source is unavailable. Re-import this clip.',true);return;}els.runtimeStatus.classList.add('nx-video-hidden');
-    if(c.kind==='image'){els.video.pause();els.video.classList.add('nx-video-hidden');els.image.classList.remove('nx-video-hidden');if(els.image.src!==url)els.image.src=url;els.image.style.filter=cssFilter(c);els.image.style.transform=previewTransform(c);els.image.style.background=els.bg.value;els.current.textContent=fmt(state.playhead);return;}
+    if(c.kind==='image'){els.video.pause();els.video.classList.add('nx-video-hidden');els.image.classList.remove('nx-video-hidden');if(els.image.src!==url)els.image.src=url;els.image.style.filter=cssFilter(c);els.image.style.transform=previewTransform(c);els.image.style.clipPath=previewMask(c);els.image.style.background=els.bg.value;els.current.textContent=fmt(state.playhead);return;}
     els.image.classList.add('nx-video-hidden');els.video.classList.remove('nx-video-hidden');if(els.video.src!==url){els.video.src=url;els.video.load();}
     if(els.video.readyState>=1){const desired=clamp((Number(c.in)||0)+(Number(state.playhead)||0)*(Number(c.speed)||1),0,Math.max((Number(c.out)||DEFAULT_DUR)-.001,0));if(Math.abs((els.video.currentTime||0)-desired)>.08){try{els.video.currentTime=desired}catch{}}}
-    els.video.playbackRate=Number(c.speed)||1;els.video.volume=clamp(Number(c.volume ?? 1),0,1);els.video.muted=c.muted===true;els.video.style.filter=cssFilter(c);els.video.style.transform=previewTransform(c);els.video.style.background=els.bg.value;
+    els.video.playbackRate=Number(c.speed)||1;els.video.volume=clamp(Number(c.volume ?? 1),0,1);els.video.muted=c.muted===true;els.video.style.filter=cssFilter(c);els.video.style.transform=previewTransform(c);els.video.style.clipPath=previewMask(c);els.video.style.background=els.bg.value;
   }
   function render(){
     els.clipRow.innerHTML=state.clips.length?state.clips.map((c,i)=>`
@@ -455,6 +457,7 @@ export function renderAiVideoStudio(){
       els.audioMode.value=c.muted?'mute':'on';
       els.text.value=c.textOverlay||'';
       root.querySelectorAll('[data-motion]').forEach(b=>b.classList.toggle('is-active',b.dataset.motion===(c.motion||'none')));
+      root.querySelectorAll('[data-mask]').forEach(b=>b.classList.toggle('is-active',b.dataset.mask===(c.mask||'none')));
     }
     applyPreview();
   }
@@ -474,7 +477,7 @@ export function renderAiVideoStudio(){
     for(const file of files){
       const kind=mediaKind(file);if(!kind||file.size>20*1024*1024){rejected++;continue;}
       const id=uid('clip'),url=URL.createObjectURL(file);
-      const clip={id,name:file.name.replace(/\.[^.]+$/,'').slice(0,40)||'Media',kind,file:null,sourceUrl:null,sourceKey:id,in:0,out:kind==='image'?DEFAULT_DUR:0,speed:1,volume:1,muted:false,brightness:1,contrast:1,saturate:1,effect:'none',textOverlay:'',scale:1,rotation:0,flipX:false,flipY:false,motion:'none'};
+      const clip={id,name:file.name.replace(/\.[^.]+$/,'').slice(0,40)||'Media',kind,file:null,sourceUrl:null,sourceKey:id,in:0,out:kind==='image'?DEFAULT_DUR:0,speed:1,volume:1,muted:false,brightness:1,contrast:1,saturate:1,effect:'none',textOverlay:'',scale:1,rotation:0,flipX:false,flipY:false,motion:'none',mask:'none'};
       try{
         if(kind==='video'){const probe=document.createElement('video');const duration=await waitForVideoMetadata(probe,url,8000);probe.removeAttribute('src');probe.load();clip.out=Math.max(.1,duration);clip.sourceDuration=clip.out;}
         else{await new Promise((resolve,reject)=>{const img=new Image();const timer=setTimeout(()=>reject(new Error('Image load timed out.')),6000);img.onload=()=>{clearTimeout(timer);resolve()};img.onerror=()=>{clearTimeout(timer);reject(new Error('This image could not be decoded on this device.'))};img.src=url;});}
@@ -672,7 +675,9 @@ export function renderAiVideoStudio(){
     const fitScale=Math.min(w/sw,h/sh)*(Number(c.scale)||1),dw=sw*fitScale,dh=sh*fitScale;
     const motion=motionValues(c,clamp(Number(c.__exportProgress)||0,0,1)),baseScale=Math.max(.001,Number(c.scale)||1);
     const sx=c.flipX?-1:1,sy=c.flipY?-1:1;
-    ctx.save();ctx.translate(w/2+(motion.x/100)*w,h/2+(motion.y/100)*h);ctx.rotate((Number(c.rotation)||0)*Math.PI/180);ctx.scale((motion.scale/baseScale)*sx,(motion.scale/baseScale)*sy);
+    ctx.save();
+    if(c.mask==='circle'){ctx.beginPath();ctx.arc(w/2,h/2,Math.min(w,h)*.38,0,Math.PI*2);ctx.clip();}
+    else if(c.mask==='round'){ctx.beginPath();if(typeof ctx.roundRect==='function'){ctx.roundRect(w*.02,h*.02,w*.96,h*.96,Math.min(w,h)*.14);}else{ctx.rect(w*.02,h*.02,w*.96,h*.96);}ctx.clip();}ctx.translate(w/2+(motion.x/100)*w,h/2+(motion.y/100)*h);ctx.rotate((Number(c.rotation)||0)*Math.PI/180);ctx.scale((motion.scale/baseScale)*sx,(motion.scale/baseScale)*sy);
     ctx.drawImage(source,-dw/2,-dh/2,dw,dh);
     ctx.restore();
   }
@@ -693,7 +698,7 @@ export function renderAiVideoStudio(){
   root.querySelector('[data-split]').addEventListener('click',splitSelected);
   root.querySelector('[data-delete]').addEventListener('click',deleteSelected);
   root.querySelector('[data-duplicate]').addEventListener('click',duplicateSelected);
-  root.querySelector('[data-reset]').addEventListener('click',()=>{const c=selected();if(!c)return;pushUndo();Object.assign(c,{in:0,out:c.kind==='image'?DEFAULT_DUR:c.sourceDuration||c.out,speed:1,volume:1,muted:false,brightness:1,contrast:1,saturate:1,effect:'none',textOverlay:'',motion:'none',scale:1,rotation:0,flipX:false,flipY:false});render();});
+  root.querySelector('[data-reset]').addEventListener('click',()=>{const c=selected();if(!c)return;pushUndo();Object.assign(c,{in:0,out:c.kind==='image'?DEFAULT_DUR:c.sourceDuration||c.out,speed:1,volume:1,muted:false,brightness:1,contrast:1,saturate:1,effect:'none',textOverlay:'',motion:'none',mask:'none',scale:1,rotation:0,flipX:false,flipY:false});render();});
   root.querySelector('[data-undo]').addEventListener('click',undo);
   root.querySelector('[data-redo]').addEventListener('click',redo);
   els.play.addEventListener('click',()=>{
@@ -725,6 +730,7 @@ export function renderAiVideoStudio(){
   els.scale.addEventListener('input',()=>{const c=selected();if(!c)return;c.scale=Number(els.scale.value);els.scaleOut.textContent=Math.round(c.scale*100)+'%';applyPreview();});
   els.rotation.addEventListener('input',()=>{const c=selected();if(!c)return;c.rotation=Number(els.rotation.value);els.rotationOut.textContent=c.rotation+'°';applyPreview();});
   root.querySelectorAll('[data-flip]').forEach(b=>b.addEventListener('click',()=>{const c=selected();if(!c)return;pushUndo();if(b.dataset.flip==='x')c.flipX=!c.flipX;else c.flipY=!c.flipY;render();}));
+  root.querySelectorAll('[data-mask]').forEach(b=>b.addEventListener('click',()=>{const c=selected();if(!c)return;pushUndo();c.mask=b.dataset.mask;render();}));
   root.querySelectorAll('[data-look]').forEach(b=>b.addEventListener('click',()=>applyLook(b.dataset.look)));
   root.querySelectorAll('[data-effect]').forEach(b=>b.addEventListener('click',()=>{const c=selected();if(!c)return;pushUndo();c.effect=b.dataset.effect;render();}));
   root.querySelector('[data-apply-text]').addEventListener('click',()=>{const c=selected();if(!c)return;pushUndo();c.textOverlay=els.text.value.trim();render();});
