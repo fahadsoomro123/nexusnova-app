@@ -34,11 +34,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p fixtures
-          python3 - <<'PY'
-import base64
-png=base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=')
-open('fixtures/tiny.png','wb').write(png)
-PY
+          echo 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=' | base64 -d > fixtures/tiny.png
           ffmpeg -hide_banner -loglevel error -f lavfi -i color=c=red:s=320x180:r=24 -t 1 -c:v libvpx -b:v 400k fixtures/sample.webm
       - name: Serve candidate harness
         if: github.ref == 'refs/heads/agent/video-flagship-complete-20260921'
