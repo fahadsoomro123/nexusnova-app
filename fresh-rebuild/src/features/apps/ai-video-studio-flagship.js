@@ -635,7 +635,7 @@ export function renderAiVideoStudio(){
         await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;});
         const dur=clipDuration(c),start=performance.now();
         while(performance.now()-start<dur*1000 && !aborted){
-          const local=Math.min(d,(performance.now()-start)/1000),tr=transitionDrawAlpha(c,local);
+          const local=Math.min(dur,(performance.now()-start)/1000),tr=transitionDrawAlpha(c,local);
           ctx.save();ctx.globalAlpha=tr.opacity;ctx.filter=cssFilter(c);fitDraw(ctx,img,canvas.width,canvas.height,c,local);ctx.restore();
           if(tr.flash){ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);}drawClipText(c.textOverlay);burnCaption(ctx,captionAt(c,local),canvas.width,canvas.height);
           await new Promise(requestAnimationFrame);
@@ -645,7 +645,14 @@ export function renderAiVideoStudio(){
       mediaVideo.src=url;
       mediaVideo.playbackRate=Number(c.speed)||1;
       mediaVideo.volume=clamp(Number(c.volume)||1,0,1);mediaVideo.muted=c.muted===true;
-      await new Promise((resolve,reject)=>{mediaVideo.onloadedmetadata=()=>resolve();mediaVideo.onerror=()=>reject(new Error('Media could not be loaded.'));});
+      await new Promise((resolve,reject)=>{
+        let settled=false;
+        const finish=(error)=>{if(settled)return;settled=true;clearTimeout(timer);mediaVideo.onloadedmetadata=null;mediaVideo.onerror=null;error?reject(error):resolve();};
+        const timer=setTimeout(()=>finish(new Error('Media metadata timed out.')),5000);
+        mediaVideo.onloadedmetadata=()=>finish();
+        mediaVideo.onerror=()=>finish(new Error('Media could not be loaded.'));
+        try{mediaVideo.load();}catch(e){finish(e);}
+      });
       await loadSeek(mediaVideo,Math.max(0,Number(c.in)||0));
       const end=Math.min(Number(c.out)||mediaVideo.duration,mediaVideo.duration);
       try{
@@ -717,7 +724,7 @@ export function renderAiVideoStudio(){
   root.querySelector('[data-split]').addEventListener('click',splitSelected);
   root.querySelector('[data-delete]').addEventListener('click',deleteSelected);
   root.querySelector('[data-duplicate]').addEventListener('click',duplicateSelected);
-  root.querySelector('[data-reset]').addEventListener('click',()=>{const c=selected();if(!c)return;pushUndo();Object.assign(c,{in:0,out:c.kind==='image'?DEFAULT_DUR:c.sourceDuration||c.out,speed:1,volume:1,muted:false,brightness:1,contrast:1,saturate:1,effect:'none',textOverlay:''});render();});
+  root.querySelector('[data-reset]').addEventListener('click',()=>{const c=selected();if(!c)return;pushUndo();Object.assign(c,{in:0,out:c.kind==='image'?DEFAULT_DUR:c.sourceDuration||c.out,speed:1,volume:1,muted:false,brightness:1,contrast:1,saturate:1,effect:'none',textOverlay:'',scale:1,rotation:0,flipX:false,flipY:false,motion:{enabled:false,start:{scale:1,rotation:0},end:{scale:1,rotation:0}},transition:'none',transitionDuration:.35,captions:[]});state.playhead=clipStartTime(c.id);render();});
   root.querySelector('[data-undo]').addEventListener('click',undo);
   root.querySelector('[data-redo]').addEventListener('click',redo);
   els.play.addEventListener('click',togglePlayback);
@@ -727,8 +734,8 @@ export function renderAiVideoStudio(){
   els.video.addEventListener('play',()=>els.play.textContent='Ⅱ');
   els.video.addEventListener('pause',()=>{els.play.textContent='▶';if(!state.playing)state.playTickAt=0;});
   els.scrub.addEventListener('input',()=>{const time=clamp(Number(els.scrub.value)||0,0,totalDuration()),hit=clipAtProjectTime(time);if(!hit)return;state.selectedId=hit.clip.id;state.playhead=time;render();if(hit.clip.kind==='video')try{els.video.currentTime=clamp((Number(hit.clip.in)||0)+hit.local*(Number(hit.clip.speed)||1),0,Number(hit.clip.out)||DEFAULT_DUR);}catch{}});
-  root.querySelector('[data-in]').addEventListener('change',()=>{const c=selected();if(!c)return;pushUndo();c.in=clamp(Number(els.in.value)||0,0,Math.max(0,Number(c.out)-.05));state.playhead=0;render();});
-  root.querySelector('[data-out]').addEventListener('change',()=>{const c=selected();if(!c)return;pushUndo();c.out=Math.max(Number(c.in)+.05,Number(els.out.value)||Number(c.out));state.playhead=0;render();});
+  root.querySelector('[data-in]').addEventListener('change',()=>{const c=selected();if(!c)return;pushUndo();c.in=clamp(Number(els.in.value)||0,0,Math.max(0,Number(c.out)-.05));state.playhead=clipStartTime(c.id);render();});
+  root.querySelector('[data-out]').addEventListener('change',()=>{const c=selected();if(!c)return;pushUndo();c.out=Math.max(Number(c.in)+.05,Number(els.out.value)||Number(c.out));state.playhead=clipStartTime(c.id);render();});
   els.volume.addEventListener('input',()=>{const c=selected();if(!c)return;c.volume=Number(els.volume.value);els.volumeOut.textContent=Math.round(c.volume*100)+'%';applyPreview();});
   els.audioMode.addEventListener('change',()=>{const c=selected();if(!c)return;pushUndo();c.muted=els.audioMode.value==='mute';applyPreview();});
   els.speed.addEventListener('input',()=>{const c=selected();if(!c)return;c.speed=Number(els.speed.value);els.speedOut.textContent=c.speed.toFixed(2)+'×';if(c.kind==='video')els.video.playbackRate=c.speed;render();});
@@ -743,7 +750,7 @@ export function renderAiVideoStudio(){
   root.querySelectorAll('[data-effect]').forEach(b=>b.addEventListener('click',()=>{const c=selected();if(!c)return;pushUndo();c.effect=b.dataset.effect;render();}));
   root.querySelector('[data-apply-text]').addEventListener('click',()=>{const c=selected();if(!c)return;pushUndo();c.textOverlay=els.text.value.trim();render();});
   root.querySelector('[data-clear-text]').addEventListener('click',()=>{const c=selected();if(!c)return;pushUndo();c.textOverlay='';els.text.value='';render();});
-  root.querySelector('[data-ratio]').addEventListener('change',()=>{});
+  root.querySelector('[data-ratio]').addEventListener('change',()=>{applyPreview();});
   root.querySelector('[data-bg]').addEventListener('change',()=>{applyPreview();});
   root.querySelector('[data-motion-enabled]').addEventListener('change',()=>{const c=selected();if(!c)return;pushUndo();c.motion.enabled=els.motionEnabled.checked;render();});
   root.querySelector('[data-kf-start]').addEventListener('click',()=>{const c=selected();if(!c)return;pushUndo();c.motion.enabled=true;c.motion.start={scale:Number(c.scale)||1,rotation:Number(c.rotation)||0};render();setStatus('Motion start keyframe saved.','ok');});
