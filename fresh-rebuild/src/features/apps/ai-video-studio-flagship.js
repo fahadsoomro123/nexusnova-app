@@ -399,9 +399,15 @@ export function renderAiVideoStudio(){
     const a={...c,id:uid('clip'),name:c.name+' A',out:cut};
     const b={...c,id:uid('clip'),name:c.name+' B',in:cut};
     const source=state.sources.get(c.sourceKey||c.id);
-    if(source){state.sources.set(a.id,source);state.sources.set(b.id,source);}
-    state.urls.set(a.id,state.urls.get(c.id));
-    state.urls.set(b.id,state.urls.get(c.id));
+    if(source){
+      state.sources.set(a.id,source);
+      state.sources.set(b.id,source);
+      state.urls.set(a.id,URL.createObjectURL(source));
+      state.urls.set(b.id,URL.createObjectURL(source));
+    }else{
+      state.urls.set(a.id,state.urls.get(c.id));
+      state.urls.set(b.id,state.urls.get(c.id));
+    }
     a.sourceKey=c.sourceKey||c.id;
     b.sourceKey=c.sourceKey||c.id;
     const idx=state.clips.findIndex(x=>x.id===c.id);
@@ -426,8 +432,13 @@ export function renderAiVideoStudio(){
     pushUndo();
     const copy={...c,id:uid('clip'),name:c.name+' copy'};
     copy.sourceKey=c.sourceKey||c.id;
-    if(state.sources.has(c.sourceKey||c.id)) state.sources.set(copy.id,state.sources.get(c.sourceKey||c.id));
-    state.urls.set(copy.id,state.urls.get(c.id));
+    const source=state.sources.get(copy.sourceKey);
+    if(source){
+      state.sources.set(copy.id,source);
+      state.urls.set(copy.id,URL.createObjectURL(source));
+    }else{
+      state.urls.set(copy.id,state.urls.get(c.id));
+    }
     const idx=state.clips.findIndex(x=>x.id===c.id);
     state.clips.splice(idx+1,0,copy);
     state.selectedId=copy.id;render();
