@@ -102,12 +102,14 @@ jobs:
 
           await page.locator('[data-tool="motion"]').click();
           await page.locator('[data-kf-start]').click();
-          await page.locator('[data-scale]').fill('1.5');
-          await page.locator('[data-scale]').dispatchEvent('input');
-          await page.locator('[data-rotation]').fill('12');
-          await page.locator('[data-rotation]').dispatchEvent('input');
+          await page.locator('[data-motion-scale]').fill('1.5');
+          await page.locator('[data-motion-scale]').dispatchEvent('input');
+          await page.locator('[data-motion-rotation]').fill('12');
+          await page.locator('[data-motion-rotation]').dispatchEvent('input');
           await page.locator('[data-kf-end]').click();
           assert((await page.locator('[data-motion-state]').textContent()).trim()==='ON','Keyframe motion failed');
+          assert((await page.locator('[data-motion-scale]').inputValue())==='1.5','Motion scale control failed');
+          assert((await page.locator('[data-motion-rotation]').inputValue())==='12','Motion rotation control failed');
 
           await page.locator('[data-tool="transitions"]').click();
           await page.locator('[data-transition]').selectOption('fade');
