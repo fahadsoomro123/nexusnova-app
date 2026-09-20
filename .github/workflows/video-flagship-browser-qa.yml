@@ -34,7 +34,7 @@ jobs:
 
       - name: Start fresh rebuild harness
         run: |
-          npx servor . 4173 --browse=false > /tmp/servor.log 2>&1 &
+          python3 -m http.server 4173 --directory . > /tmp/servor.log 2>&1 &
           for i in $(seq 1 20); do
             if curl -fsS http://127.0.0.1:4173/qa/video-flagship-harness.html >/dev/null 2>&1; then exit 0; fi
             sleep 1
