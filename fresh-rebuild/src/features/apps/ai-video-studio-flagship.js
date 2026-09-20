@@ -313,7 +313,7 @@ export function renderAiVideoStudio(){
       <article class="nx-video-clip${c.id===state.selectedId?' is-active':''}" data-id="${c.id}">
         <div class="nx-video-thumb" data-select="${c.id}" role="button" tabindex="0" aria-label="Select ${escapeHtml(c.name)}">
           ${state.urls.get(c.id)?(c.kind==='image'
-            ?`<img src="${escapeHtml(state.urls.get(c.id))}" alt="">"
+            ?`<img src="${escapeHtml(state.urls.get(c.id))}" alt="">`
             :`<video src="${escapeHtml(state.urls.get(c.id))}" muted playsinline preload="metadata"></video>`)
             :(c.kind==='image'?'<span>PHOTO</span>':'<span>VIDEO</span>')}
         </div>
