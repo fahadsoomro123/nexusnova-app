@@ -29,8 +29,8 @@ function ensureVideoFlagshipStyles() {
     .nx-video-thumb img,.nx-video-thumb video{width:100%;height:100%;object-fit:cover}
     .nx-video-clip-meta{min-width:0;display:grid;align-content:center;gap:2px}.nx-video-clip-meta b{font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.nx-video-clip-meta span{font-size:8px;color:#847d91}
     .nx-video-reorder{display:grid;gap:3px}.nx-video-reorder button{width:25px;height:25px;font-size:11px}
-    .nx-video-toolbar{min-height:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:minmax(46px,1fr);gap:6px;overflow:hidden}
-    .nx-video-tool{min-width:0;display:grid;place-items:center;gap:2px;padding:4px;border:1px solid #e8e1f0;border-radius:12px;background:#fff;color:#403949;box-shadow:0 4px 13px rgba(72,48,109,.05);font-size:10px;font-weight:800}
+    .nx-video-toolbar{min-height:0;display:flex;align-items:stretch;gap:7px;overflow-x:auto;overflow-y:hidden;padding:1px 1px 3px;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch}
+    .nx-video-tool{flex:0 0 74px;min-width:74px;height:58px;display:grid;place-items:center;gap:2px;padding:4px;border:1px solid #e8e1f0;border-radius:13px;background:#fff;color:#403949;box-shadow:0 4px 13px rgba(72,48,109,.05);font-size:10px;font-weight:800;scroll-snap-align:start}
     .nx-video-tool b{font-size:17px;line-height:1}.nx-video-tool.is-active{border-color:#a28cff;background:linear-gradient(145deg,#f7f3ff,#efe9ff);color:#5b42c7}
     .nx-video-inspector{min-height:0;overflow:hidden;padding:8px;border:1px solid #e7e0f0;border-radius:15px;background:#fff}
     .nx-video-inspector-head{display:flex;align-items:center;justify-content:space-between;gap:7px;margin-bottom:7px}.nx-video-inspector-head strong{font-size:12px;color:#292431}.nx-video-inspector-head span{font-size:9px;color:#7f778d}
@@ -44,7 +44,7 @@ function ensureVideoFlagshipStyles() {
     .nx-video-transform-row{display:grid;grid-template-columns:1fr 1fr;gap:7px}.nx-video-transform-row button{height:38px}.nx-video-chipset{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
     .nx-video-bottom{display:grid;grid-template-columns:1fr auto;gap:7px;align-items:center}.nx-video-export{height:46px}.nx-video-add{height:46px;padding:0 14px;border-radius:13px}
     .nx-video-hidden{display:none!important}
-    @media(max-width:390px){.nx-video-flagship{grid-template-rows:minmax(205px,37%) minmax(120px,23%) minmax(0,1fr) auto;gap:6px;padding:6px}.nx-video-tool{font-size:9px}.nx-video-tool b{font-size:15px}.nx-video-clip{height:61px}.nx-video-cliprow{grid-auto-columns:minmax(100px,1fr)}.nx-video-inspector{padding:6px}}
+    @media(max-width:390px){.nx-video-flagship{grid-template-rows:minmax(205px,37%) minmax(120px,23%) minmax(0,1fr) auto;gap:6px;padding:6px}.nx-video-tool{font-size:9px;flex-basis:68px;min-width:68px}.nx-video-tool b{font-size:15px}.nx-video-clip{height:61px}.nx-video-cliprow{grid-auto-columns:minmax(100px,1fr)}.nx-video-inspector{padding:6px}}
     @media(max-height:720px){.nx-video-flagship{grid-template-rows:minmax(170px,36%) minmax(108px,23%) minmax(0,1fr) auto}.nx-screen:has(.nx-video-flagship) .nx-app-head{height:58px!important;min-height:58px!important}.nx-screen:has(.nx-video-flagship)>[data-app-mount]{height:calc(100% - 62px)!important}.nx-video-clip{height:56px}.nx-video-tool{font-size:8px}.nx-video-tool b{font-size:14px}}
     @media(prefers-reduced-motion:reduce){.nx-video-play{transition:none}}
   `;
@@ -311,9 +311,12 @@ export function renderAiVideoStudio(){
   function render(){
     els.clipRow.innerHTML=state.clips.length?state.clips.map((c,i)=>`
       <article class="nx-video-clip${c.id===state.selectedId?' is-active':''}" data-id="${c.id}">
-        <button type="button" class="nx-video-thumb" data-select="${c.id}">
-          ${c.kind==='image'?'<span>PHOTO</span>':'<span>VIDEO</span>'}
-        </button>
+        <div class="nx-video-thumb" data-select="${c.id}" role="button" tabindex="0" aria-label="Select ${escapeHtml(c.name)}">
+          ${state.urls.get(c.id)?(c.kind==='image'
+            ?`<img src="${escapeHtml(state.urls.get(c.id))}" alt="">"
+            :`<video src="${escapeHtml(state.urls.get(c.id))}" muted playsinline preload="metadata"></video>`)
+            :(c.kind==='image'?'<span>PHOTO</span>':'<span>VIDEO</span>')}
+        </div>
         <div class="nx-video-clip-meta"><b>${escapeHtml(c.name)}</b><span>${fmt(clipDuration(c))} • ${c.speed.toFixed(2)}×</span></div>
         <div class="nx-video-reorder"><button type="button" data-up="${c.id}" aria-label="Move clip left">‹</button><button type="button" data-down="${c.id}" aria-label="Move clip right">›</button></div>
       </article>`).join(''):'<div class="nx-video-note">Add your first video or photo to start editing.</div>';
@@ -645,6 +648,10 @@ export function renderAiVideoStudio(){
     const up=event.target.closest('[data-up]');if(up){state.selectedId=up.dataset.up;moveSelected(-1);return;}
     const down=event.target.closest('[data-down]');if(down){state.selectedId=down.dataset.down;moveSelected(1);return;}
     const card=event.target.closest('[data-id]');if(card)selectClip(card.dataset.id);
+  });
+  els.clipRow.addEventListener('keydown',event=>{
+    const s=event.target.closest('[data-select]');
+    if(s&&(event.key==='Enter'||event.key===' ')){event.preventDefault();selectClip(s.dataset.select);}
   });
 
   const keydown=event=>{
