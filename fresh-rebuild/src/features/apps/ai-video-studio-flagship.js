@@ -272,7 +272,7 @@ export function renderAiVideoStudio(){
     return {
       clips:JSON.parse(JSON.stringify(state.clips.map(c=>({
         ...c, file:null, sourceUrl:null
-      }))),
+      })))),
       selectedId:state.selectedId,
       playhead:state.playhead
     };
