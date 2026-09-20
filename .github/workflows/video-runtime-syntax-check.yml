@@ -2,6 +2,8 @@ name: Video Runtime Syntax Check
 on:
   push:
     branches: [main, agent/video-flagship-qa8]
+  pull_request:
+    branches: [main]
 permissions:
   contents: read
 jobs:
