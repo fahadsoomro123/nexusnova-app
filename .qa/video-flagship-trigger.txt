@@ -1,1 +1,1 @@
-QA trigger 2: rerun browser matrix after harness-path fix.
+QA trigger 3: execute current harness revision.
