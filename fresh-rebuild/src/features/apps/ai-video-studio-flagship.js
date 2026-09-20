@@ -229,8 +229,10 @@ export function renderAiVideoStudio(){
       <div class="nx-video-panel" data-panel="motion">
         <div class="nx-video-mini-state"><span>KEYFRAME MOTION</span><b data-motion-state>OFF</b></div>
         <label class="nx-video-toggle" style="margin-top:6px"><input type="checkbox" data-motion-enabled> Enable scale + rotation keyframes</label>
+        <div class="nx-video-range" style="margin-top:6px"><span>SCALE</span><input type="range" min=".5" max="2" step=".01" value="1" data-motion-scale><output data-motion-scale-out>100%</output></div>
+        <div class="nx-video-range" style="margin-top:5px"><span>ROTATE</span><input type="range" min="-180" max="180" step="1" value="0" data-motion-rotation><output data-motion-rotation-out>0°</output></div>
         <div class="nx-video-kf-row" style="margin-top:6px"><button class="nx-video-button" data-kf-start>SET START</button><button class="nx-video-button" data-kf-end>SET END</button><button class="nx-video-button" data-kf-clear>CLEAR</button></div>
-        <div class="nx-video-note" style="margin-top:6px">Set two points. Scale and rotation interpolate automatically across the selected clip.</div>
+        <div class="nx-video-note" style="margin-top:6px">Set START, change scale/rotation, then set END. Motion interpolates between the two points.</div>
       </div>
 
       <div class="nx-video-panel" data-panel="transform">
@@ -336,6 +338,10 @@ export function renderAiVideoStudio(){
     captionSrt:root.querySelector('[data-caption-srt]'),
     motionEnabled:root.querySelector('[data-motion-enabled]'),
     motionState:root.querySelector('[data-motion-state]'),
+    motionScale:root.querySelector('[data-motion-scale]'),
+    motionScaleOut:root.querySelector('[data-motion-scale-out]'),
+    motionRotation:root.querySelector('[data-motion-rotation]'),
+    motionRotationOut:root.querySelector('[data-motion-rotation-out]'),
     transition:root.querySelector('[data-transition]'),
     transitionDuration:root.querySelector('[data-transition-duration]'),
     transitionDurationOut:root.querySelector('[data-transition-duration-out]'),
@@ -423,7 +429,7 @@ export function renderAiVideoStudio(){
   function transitionOpacity(c,local){if(c.transition==='none')return{opacity:1,flash:false};const d=clamp(Number(c.transitionDuration)||.35,.15,1),t=Math.max(0,Number(local)||0),dur=clipDuration(c);return{opacity:Math.min(clamp(t/d,0,1),clamp((dur-t)/d,0,1)),flash:c.transition==='flash'&&(t<d||dur-t<d)};}
   function setStatus(message,type='info'){let toast=root.querySelector('[data-video-toast]');if(!toast){toast=document.createElement('div');toast.className='nx-video-toast';toast.dataset.videoToast='true';els.preview.appendChild(toast);}toast.textContent=String(message||'');toast.className='nx-video-toast'+(type==='error'?' is-error':type==='ok'?' is-ok':'');clearTimeout(toast._hideTimer);if(type!=='error')toast._hideTimer=setTimeout(()=>toast.remove(),2600);}
   function updateCaption(local){const c=selected();if(!c||!c.captions?.length){els.caption.classList.add('nx-video-hidden');els.caption.textContent='';return;}const t=captionAt(c,local);els.caption.textContent=t;els.caption.classList.toggle('nx-video-hidden',!t);}
-  function updateInspectorState(c){els.motionEnabled.checked=!!c?.motion?.enabled;els.motionState.textContent=c?.motion?.enabled?'ON':'OFF';els.transition.value=c?.transition||'none';els.transitionDuration.value=String(Number(c?.transitionDuration)||.35);els.transitionDurationOut.textContent=(Number(c?.transitionDuration)||.35).toFixed(2)+'s';els.captionSrt.value=(c?.captions||[]).map((v,i)=>`${i+1}\n${fmtSrt(v.start)} --> ${fmtSrt(v.end)}\n${v.text}`).join('\n\n');}
+  function updateInspectorState(c){els.motionEnabled.checked=!!c?.motion?.enabled;els.motionState.textContent=c?.motion?.enabled?'ON':'OFF';els.motionScale.value=String(Number(c?.scale)||1);els.motionScaleOut.textContent=Math.round((Number(c?.scale)||1)*100)+'%';els.motionRotation.value=String(Number(c?.rotation)||0);els.motionRotationOut.textContent=(Number(c?.rotation)||0)+'°';els.transition.value=c?.transition||'none';els.transitionDuration.value=String(Number(c?.transitionDuration)||.35);els.transitionDurationOut.textContent=(Number(c?.transitionDuration)||.35).toFixed(2)+'s';els.captionSrt.value=(c?.captions||[]).map((v,i)=>`${i+1}\n${fmtSrt(v.start)} --> ${fmtSrt(v.end)}\n${v.text}`).join('\n\n');}
   function stopPlayback(){state.playing=false;if(state.rafId)cancelAnimationFrame(state.rafId);state.rafId=0;state.playTickAt=0;try{els.video.pause();}catch{}}
   function previewAtProjectTime(time){const hit=clipAtProjectTime(time);if(!hit)return;state.playhead=clamp(time,0,totalDuration());state.selectedId=hit.clip.id;render();if(hit.clip.kind==='video')try{els.video.currentTime=clamp((Number(hit.clip.in)||0)+hit.local*(Number(hit.clip.speed)||1),0,Number(hit.clip.out)||DEFAULT_DUR);}catch{}updateCaption(hit.local);if(state.playing&&hit.clip.kind==='video')void els.video.play().catch(()=>{});}
   function advanceProject(){const hit=clipAtProjectTime(state.playhead);if(!hit)return stopPlayback();const next=state.clips[hit.index+1];if(!next){stopPlayback();state.playhead=totalDuration();updateTimelineUI();return;}previewAtProjectTime(clipStartTime(next.id));}
@@ -753,6 +759,8 @@ export function renderAiVideoStudio(){
   root.querySelector('[data-ratio]').addEventListener('change',()=>{applyPreview();});
   root.querySelector('[data-bg]').addEventListener('change',()=>{applyPreview();});
   root.querySelector('[data-motion-enabled]').addEventListener('change',()=>{const c=selected();if(!c)return;pushUndo();c.motion.enabled=els.motionEnabled.checked;render();});
+  els.motionScale.addEventListener('input',()=>{const c=selected();if(!c)return;c.scale=Number(els.motionScale.value);els.motionScaleOut.textContent=Math.round(c.scale*100)+'%';els.scale.value=String(c.scale);els.scaleOut.textContent=Math.round(c.scale*100)+'%';applyPreview();});
+  els.motionRotation.addEventListener('input',()=>{const c=selected();if(!c)return;c.rotation=Number(els.motionRotation.value);els.motionRotationOut.textContent=c.rotation+'°';els.rotation.value=String(c.rotation);els.rotationOut.textContent=c.rotation+'°';applyPreview();});
   root.querySelector('[data-kf-start]').addEventListener('click',()=>{const c=selected();if(!c)return;pushUndo();c.motion.enabled=true;c.motion.start={scale:Number(c.scale)||1,rotation:Number(c.rotation)||0};render();setStatus('Motion start keyframe saved.','ok');});
   root.querySelector('[data-kf-end]').addEventListener('click',()=>{const c=selected();if(!c)return;pushUndo();c.motion.enabled=true;c.motion.end={scale:Number(c.scale)||1,rotation:Number(c.rotation)||0};render();setStatus('Motion end keyframe saved.','ok');});
   root.querySelector('[data-kf-clear]').addEventListener('click',()=>{const c=selected();if(!c)return;pushUndo();c.motion={enabled:false,start:{scale:1,rotation:0},end:{scale:1,rotation:0}};render();});
