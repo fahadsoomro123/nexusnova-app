@@ -1,1 +1,1 @@
-QA trigger only; safe to remove after runtime validation.
+QA trigger 2: rerun browser matrix after harness-path fix.

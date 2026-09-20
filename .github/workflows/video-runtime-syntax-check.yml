@@ -44,7 +44,7 @@ jobs:
           cat > __nx_video_qa__.html <<'EOF'
           <!doctype html><meta charset="utf-8"><title>NexusNova Video QA</title>
           EOF
-          cat > /tmp/nx-video-qa.mjs <<'EOF'
+          cat > ./__nx-video-qa.mjs <<'EOF'
           import { chromium } from 'playwright';
           import fs from 'node:fs';
 
@@ -153,6 +153,6 @@ jobs:
           EOF
           nohup python3 -m http.server 4173 >/tmp/nx-video-http.log 2>&1 &
           server=$!
-          trap 'kill $server || true; rm -f __nx_video_qa__.html' EXIT
+          trap 'kill $server || true; rm -f __nx_video_qa__.html __nx-video-qa.mjs' EXIT
           sleep 2
-          node /tmp/nx-video-qa.mjs
+          node ./__nx-video-qa.mjs
