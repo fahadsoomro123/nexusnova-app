@@ -281,7 +281,7 @@ export function renderAiVideoStudio(){
         <div class="nx-video-range"><span>SCALE</span><input type="range" min=".5" max="2" step=".01" value="1" data-scale><output data-scale-out>100%</output></div>
         <div class="nx-video-range"><span>ROTATE</span><input type="range" min="-180" max="180" step="1" value="0" data-rotation><output data-rotation-out>0°</output></div>
         <div class="nx-video-transform-row" style="margin-top:7px"><button class="nx-video-button" data-flip="x">FLIP H</button><button class="nx-video-button" data-flip="y">FLIP V</button></div>
-        <div class="nx-video-note" style="margin-top:7px">Transform and crop-style framing are previewed locally and included in local export.</div>
+        <div class="nx-video-note" style="margin-top:7px">Transform, flips and animated motion framing are previewed locally and included in local export.</div>
       </div>
 
       <div class="nx-video-panel" data-panel="motion">
