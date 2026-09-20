@@ -66,12 +66,20 @@ await page.locator('[data-play]').click();
 await page.waitForFunction(()=>document.querySelector('[data-current-time]').textContent!=='00:00',{timeout:5000});
 await page.locator('[data-play]').click();
 
+await page.locator('[data-tool="text"]').click();
+await page.locator('[data-text]').fill('TEST TITLE');
+await page.locator('[data-apply-text]').click();
+if(await page.locator('[data-preview-text]').textContent()!=='TEST TITLE') throw new Error('TEXT OVERLAY FAIL');
+
 await page.locator('[data-tool="captions"]').click();
 await page.locator('[data-caption-start]').fill('0');
 await page.locator('[data-caption-end]').fill('0.5');
 await page.locator('[data-caption-text]').fill('Hello world');
 await page.locator('[data-add-caption]').click();
 if(await page.locator('.nx-video-caption-row').count()!==1) throw new Error('CAPTION FAIL');
+await page.locator('[data-scrub]').fill('3.05');
+if(!await page.locator('[data-preview-caption]').evaluate(el=>el.classList.contains('is-visible'))) throw new Error('LIVE CAPTION PREVIEW FAIL');
+await page.locator('[data-scrub]').fill('3.01');
 
 await page.locator('[data-scrub]').fill('0.5');
 await page.locator('[data-tool="edit"]').click();
