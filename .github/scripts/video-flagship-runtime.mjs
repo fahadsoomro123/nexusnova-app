@@ -33,7 +33,7 @@ if(await page.locator('[data-main-image]').evaluate(el=>el.classList.contains('n
 const videoBytes=fs.readFileSync('fresh-rebuild/fixtures/sample.mp4');
 if(videoBytes.length<1000) throw new Error('VIDEO FIXTURE EMPTY');
 
-await input.setInputFiles([{name:'sample.webm',mimeType:'video/webm',buffer:Buffer.from(videoBytes)}]);
+await input.setInputFiles([{name:'sample.mp4',mimeType:'video/mp4',buffer:videoBytes}]);
 await page.waitForFunction(()=>document.querySelectorAll('.nx-video-clip').length===2);
 if(await page.locator('[data-main-video]').evaluate(el=>el.classList.contains('nx-video-hidden'))) throw new Error('VIDEO PREVIEW FAIL');
 
