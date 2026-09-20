@@ -137,6 +137,65 @@ function uid(prefix='v'){ return prefix + Math.random().toString(36).slice(2,9);
 function escapeHtml(value){ return String(value??'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 function clamp(n,a,b){ return Math.min(b,Math.max(a,n)); }
 
+function normalizeImportKind(file){
+  const type=String(file?.type||'').toLowerCase();
+  if(type.startsWith('image/')) return 'image';
+  if(type.startsWith('video/')) return 'video';
+  return null;
+}
+function probeMedia(url,kind,timeout=8000){
+  if(kind==='image'){
+    return new Promise((resolve,reject)=>{
+      const img=new Image();
+      const timer=setTimeout(()=>{img.src='';reject(new Error('Image load timed out.'));},timeout);
+      img.onload=()=>{clearTimeout(timer);resolve({duration:DEFAULT_DUR,width:img.naturalWidth,height:img.naturalHeight});};
+      img.onerror=()=>{clearTimeout(timer);reject(new Error('Image could not be loaded.'));};
+      img.src=url;
+    });
+  }
+  return new Promise((resolve,reject)=>{
+    const probe=document.createElement('video');
+    let settled=false;
+    const finish=(error,data)=>{if(settled)return;settled=true;clearTimeout(timer);probe.removeAttribute('src');probe.load();error?reject(error):resolve(data);};
+    const timer=setTimeout(()=>finish(new Error('Video metadata timed out.')),timeout);
+    probe.preload='metadata';
+    probe.onloadedmetadata=()=>finish(null,{duration:Math.max(.1,Number(probe.duration)||DEFAULT_DUR),width:probe.videoWidth||0,height:probe.videoHeight||0});
+    probe.onerror=()=>finish(new Error('Video could not be loaded.'));
+    probe.src=url;
+  });
+}
+function mapTimeline(clips,time){
+  let remaining=Math.max(0,Number(time)||0);
+  for(let i=0;i<clips.length;i++){
+    const c=clips[i],d=clipDuration(c);
+    if(remaining<=d || i===clips.length-1) return {clipId:c.id,local:clamp(remaining,0,d),index:i};
+    remaining-=d;
+  }
+  return {clipId:null,local:0,index:-1};
+}
+function interpolateMotion(c,local){
+  const d=Math.max(.05,clipDuration(c)),p=clamp((Number(local)||0)/d,0,1);
+  return {
+    scale:(Number(c.motionStartScale)||1)+((Number(c.motionEndScale)||1)-(Number(c.motionStartScale)||1))*p,
+    rotation:(Number(c.motionStartRotation)||0)+((Number(c.motionEndRotation)||0)-(Number(c.motionStartRotation)||0))*p
+  };
+}
+function currentCaption(c,local){
+  return (Array.isArray(c?.captions)?c.captions:[]).find(x=>local>=Number(x.start||0)&&local<=Number(x.end||0))?.text||'';
+}
+function parseSrt(text){
+  return String(text||'').replace(/\r/g,'').split(/\n\s*\n/).map(block=>{
+    const lines=block.split('\n').map(x=>x.trim()).filter(Boolean);
+    const idx=lines.findIndex(x=>x.includes('-->')); if(idx<0)return null;
+    const [a,b]=lines[idx].split('-->').map(x=>x.trim());
+    const parse=t=>{const m=String(t).match(/(\d+):(\d{2}):(\d{2})[,.](\d{1,3})/);return m?Number(m[1])*3600+Number(m[2])*60+Number(m[3])+Number(m[4].padEnd(3,'0'))/1000:null;};
+    const start=parse(a),end=parse(b); if(start==null||end==null)return null;
+    const caption=lines.slice(idx+1).join(' ').slice(0,180); return caption?{start,end,text:caption}:null;
+  }).filter(Boolean).slice(0,120);
+}
+const __videoFlagshipTestUtils={clipDuration,mapTimeline,interpolateMotion,parseSrt,normalizeImportKind};
+
+
 export function renderAiVideoStudio(){
   ensureVideoFlagshipStyles();
 
@@ -414,64 +473,6 @@ export function renderAiVideoStudio(){
       c.effect==='soft'?'blur(.35px)':''
     ].join(' ');
   }
-  function normalizeImportKind(file){
-    const type=String(file?.type||'').toLowerCase();
-    if(type.startsWith('image/')) return 'image';
-    if(type.startsWith('video/')) return 'video';
-    return null;
-  }
-  function probeMedia(url,kind,timeout=8000){
-    if(kind==='image'){
-      return new Promise((resolve,reject)=>{
-        const img=new Image();
-        const timer=setTimeout(()=>{img.src='';reject(new Error('Image load timed out.'));},timeout);
-        img.onload=()=>{clearTimeout(timer);resolve({duration:DEFAULT_DUR,width:img.naturalWidth,height:img.naturalHeight});};
-        img.onerror=()=>{clearTimeout(timer);reject(new Error('Image could not be loaded.'));};
-        img.src=url;
-      });
-    }
-    return new Promise((resolve,reject)=>{
-      const probe=document.createElement('video');
-      let settled=false;
-      const finish=(error,data)=>{if(settled)return;settled=true;clearTimeout(timer);probe.removeAttribute('src');probe.load();error?reject(error):resolve(data);};
-      const timer=setTimeout(()=>finish(new Error('Video metadata timed out.')),timeout);
-      probe.preload='metadata';
-      probe.onloadedmetadata=()=>finish(null,{duration:Math.max(.1,Number(probe.duration)||DEFAULT_DUR),width:probe.videoWidth||0,height:probe.videoHeight||0});
-      probe.onerror=()=>finish(new Error('Video could not be loaded.'));
-      probe.src=url;
-    });
-  }
-  function mapTimeline(clips,time){
-    let remaining=Math.max(0,Number(time)||0);
-    for(let i=0;i<clips.length;i++){
-      const c=clips[i],d=clipDuration(c);
-      if(remaining<=d || i===clips.length-1) return {clipId:c.id,local:clamp(remaining,0,d),index:i};
-      remaining-=d;
-    }
-    return {clipId:null,local:0,index:-1};
-  }
-  function interpolateMotion(c,local){
-    const d=Math.max(.05,clipDuration(c)),p=clamp((Number(local)||0)/d,0,1);
-    return {
-      scale:(Number(c.motionStartScale)||1)+((Number(c.motionEndScale)||1)-(Number(c.motionStartScale)||1))*p,
-      rotation:(Number(c.motionStartRotation)||0)+((Number(c.motionEndRotation)||0)-(Number(c.motionStartRotation)||0))*p
-    };
-  }
-  function currentCaption(c,local){
-    return (Array.isArray(c?.captions)?c.captions:[]).find(x=>local>=Number(x.start||0)&&local<=Number(x.end||0))?.text||'';
-  }
-  function parseSrt(text){
-    return String(text||'').replace(/\r/g,'').split(/\n\s*\n/).map(block=>{
-      const lines=block.split('\n').map(x=>x.trim()).filter(Boolean);
-      const idx=lines.findIndex(x=>x.includes('-->')); if(idx<0)return null;
-      const [a,b]=lines[idx].split('-->').map(x=>x.trim());
-      const parse=t=>{const m=String(t).match(/(\d+):(\d{2}):(\d{2})[,.](\d{1,3})/);return m?Number(m[1])*3600+Number(m[2])*60+Number(m[3])+Number(m[4].padEnd(3,'0'))/1000:null;};
-      const start=parse(a),end=parse(b); if(start==null||end==null)return null;
-      const caption=lines.slice(idx+1).join(' ').slice(0,180); return caption?{start,end,text:caption}:null;
-    }).filter(Boolean).slice(0,120);
-  }
-  const __videoFlagshipTestUtils={clipDuration,mapTimeline,interpolateMotion,parseSrt,normalizeImportKind};
-
   function applyPreview(){
     const c=selected();
     if(!c){els.video.classList.add('nx-video-hidden');els.image.classList.add('nx-video-hidden');els.empty.classList.remove('nx-video-hidden');els.play.classList.add('nx-video-hidden');return;}
