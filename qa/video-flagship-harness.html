@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>NexusNova Video Flagship QA</title>
+  <style>
+    html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#fff}
+    .nx-screen{height:calc(100dvh - 82px);overflow:hidden;background:#fff}
+    .nx-app-head{height:62px;box-sizing:border-box;display:flex;align-items:center;gap:8px;padding:4px 12px;border-bottom:1px solid #eee9f5}
+    .nx-app-head h1{font:700 19px/1 Arial;margin:0}.nx-app-head p{margin:0;font:10px/1.2 Arial}
+    [data-app-mount]{height:calc(100% - 62px);overflow:hidden}
+  </style>
+</head>
+<body>
+  <section class="nx-screen">
+    <header class="nx-app-head"><strong>‹</strong><div><p>MEDIA</p><h1>AI Video Studio</h1></div></header>
+    <div data-app-mount></div>
+  </section>
+  <script type="module">
+    import { renderAiVideoStudio } from '../fresh-rebuild/src/features/apps/ai-video-studio-flagship.js';
+    document.querySelector('[data-app-mount]').appendChild(renderAiVideoStudio());
+  </script>
+</body>
+</html>
