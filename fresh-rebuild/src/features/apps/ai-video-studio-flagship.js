@@ -41,6 +41,7 @@ function ensureVideoFlagshipStyles() {
     .nx-video-range{display:grid;grid-template-columns:76px 1fr 45px;align-items:center;gap:7px}.nx-video-range span{font-size:10px;font-weight:800;color:#756d82}.nx-video-range output{text-align:right;font-size:10px;color:#5b5365}
     .nx-video-preset-row{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}.nx-video-preset-row button{height:38px;font-size:10px}
     .nx-video-note{padding:7px 8px;border-radius:10px;background:#f7f4fb;color:#6f667b;font-size:9px;line-height:1.35}
+    .nx-video-transform-row{display:grid;grid-template-columns:1fr 1fr;gap:7px}.nx-video-transform-row button{height:38px}.nx-video-chipset{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
     .nx-video-bottom{display:grid;grid-template-columns:1fr auto;gap:7px;align-items:center}.nx-video-export{height:46px}.nx-video-add{height:46px;padding:0 14px;border-radius:13px}
     .nx-video-hidden{display:none!important}
     @media(max-width:390px){.nx-video-flagship{grid-template-rows:minmax(205px,37%) minmax(120px,23%) minmax(0,1fr) auto;gap:6px;padding:6px}.nx-video-tool{font-size:9px}.nx-video-tool b{font-size:15px}.nx-video-clip{height:61px}.nx-video-cliprow{grid-auto-columns:minmax(100px,1fr)}.nx-video-inspector{padding:6px}}
@@ -128,6 +129,13 @@ export function renderAiVideoStudio(){
         <div class="nx-video-note" style="margin-top:7px">Effects are preview-safe CSS filters. They are also applied during local canvas export.</div>
       </div>
 
+      <div class="nx-video-panel" data-panel="transform">
+        <div class="nx-video-range"><span>SCALE</span><input type="range" min=".5" max="2" step=".01" value="1" data-scale><output data-scale-out>100%</output></div>
+        <div class="nx-video-range"><span>ROTATE</span><input type="range" min="-180" max="180" step="1" value="0" data-rotation><output data-rotation-out>0°</output></div>
+        <div class="nx-video-transform-row" style="margin-top:7px"><button class="nx-video-button" data-flip="x">FLIP H</button><button class="nx-video-button" data-flip="y">FLIP V</button></div>
+        <div class="nx-video-note" style="margin-top:7px">Transform and crop-style framing are previewed locally and included in local export.</div>
+      </div>
+
       <div class="nx-video-panel" data-panel="canvas">
         <div class="nx-video-grid2">
           <label class="nx-video-field"><span>FORMAT</span><select data-ratio><option value="16:9">16:9 LANDSCAPE</option><option value="9:16">9:16 SHORTS</option><option value="1:1">1:1 SQUARE</option><option value="4:5">4:5 SOCIAL</option></select></label>
@@ -158,6 +166,7 @@ export function renderAiVideoStudio(){
       <button type="button" class="nx-video-tool" data-tool="adjust"><b>◒</b><span>Adjust</span></button>
       <button type="button" class="nx-video-tool" data-tool="text"><b>T</b><span>Text</span></button>
       <button type="button" class="nx-video-tool" data-tool="effects"><b>✦</b><span>Effects</span></button>
+      <button type="button" class="nx-video-tool" data-tool="transform"><b>↗</b><span>Transform</span></button>
       <button type="button" class="nx-video-tool" data-tool="canvas"><b>▣</b><span>Canvas</span></button>
       <button type="button" class="nx-video-tool" data-tool="ai"><b>AI</b><span>AI Lab</span></button>
     </div>
@@ -196,6 +205,10 @@ export function renderAiVideoStudio(){
     contrastOut:root.querySelector('[data-contrast-out]'),
     saturate:root.querySelector('[data-saturate]'),
     saturateOut:root.querySelector('[data-saturate-out]'),
+    scale:root.querySelector('[data-scale]'),
+    scaleOut:root.querySelector('[data-scale-out]'),
+    rotation:root.querySelector('[data-rotation]'),
+    rotationOut:root.querySelector('[data-rotation-out]'),
     text:root.querySelector('[data-text]'),
     aiOut:root.querySelector('[data-ai-output]'),
     ratio:root.querySelector('[data-ratio]'),
@@ -265,6 +278,7 @@ export function renderAiVideoStudio(){
       els.image.classList.remove('nx-video-hidden');
       els.image.src=url||'';
       els.image.style.filter=cssFilter(c);
+      els.image.style.transform=`scale(${(Number(c.scale)||1)*(c.flipX?-1:1)},${(Number(c.scale)||1)*(c.flipY?-1:1)}) rotate(${Number(c.rotation)||0}deg)`;
       els.image.style.background=els.bg.value;
       return;
     }
@@ -276,6 +290,7 @@ export function renderAiVideoStudio(){
     els.video.volume=clamp(Number(c.volume)||0,0,1);
     els.video.muted=c.muted===true;
     els.video.style.filter=cssFilter(c);
+    els.video.style.transform=`scale(${(Number(c.scale)||1)*(c.flipX?-1:1)},${(Number(c.scale)||1)*(c.flipY?-1:1)}) rotate(${Number(c.rotation)||0}deg)`;
     els.video.style.background=els.bg.value;
   }
   function render(){
@@ -307,6 +322,10 @@ export function renderAiVideoStudio(){
       els.contrastOut.textContent=Math.round((Number(c.contrast)||1)*100)+'%';
       els.saturate.value=String(Number(c.saturate)||1);
       els.saturateOut.textContent=Math.round((Number(c.saturate)||1)*100)+'%';
+      els.scale.value=String(Number(c.scale)||1);
+      els.scaleOut.textContent=Math.round((Number(c.scale)||1)*100)+'%';
+      els.rotation.value=String(Number(c.rotation)||0);
+      els.rotationOut.textContent=(Number(c.rotation)||0)+'°';
       els.audioMode.value=c.muted?'mute':'on';
       els.text.value=c.textOverlay||'';
     }
@@ -333,7 +352,7 @@ export function renderAiVideoStudio(){
         id,name:file.name.replace(/\.[^.]+$/,'').slice(0,40)||'Media',
         kind:isImage?'image':'video',file:null,sourceUrl:null,
         in:0,out:isImage?DEFAULT_DUR:0,speed:1,volume:1,muted:false,
-        brightness:1,contrast:1,saturate:1,effect:'none',textOverlay:''
+        brightness:1,contrast:1,saturate:1,effect:'none',textOverlay:'',scale:1,rotation:0,flipX:false,flipY:false
       };
       state.clips.push(clip);
       const url=URL.createObjectURL(file);
@@ -441,6 +460,7 @@ export function renderAiVideoStudio(){
     const canvas=makeCanvas(),ctx=canvas.getContext('2d');
     const fps=Number(els.fps.value)||30;
     const stream=canvas.captureStream(fps);
+    let audioTrackAdded=false;
     const mime=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'].find(x=>MediaRecorder.isTypeSupported(x))||'video/webm';
     const recorder=new MediaRecorder(stream,{mimeType:mime});
     const chunks=[];
@@ -461,7 +481,7 @@ export function renderAiVideoStudio(){
         await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;});
         const dur=clipDuration(c),start=performance.now();
         while(performance.now()-start<dur*1000 && !aborted){
-          ctx.save();ctx.filter=cssFilter(c);fitDraw(ctx,img,canvas.width,canvas.height);ctx.restore();drawClipText(c.textOverlay);
+          ctx.save();ctx.filter=cssFilter(c);fitDraw(ctx,img,canvas.width,canvas.height,c);ctx.restore();drawClipText(c.textOverlay);
           await new Promise(requestAnimationFrame);
         }
         return;
@@ -472,10 +492,17 @@ export function renderAiVideoStudio(){
       await new Promise((resolve,reject)=>{mediaVideo.onloadedmetadata=()=>resolve();mediaVideo.onerror=()=>reject(new Error('Media could not be loaded.'));});
       await loadSeek(mediaVideo,Math.max(0,Number(c.in)||0));
       const end=Math.min(Number(c.out)||mediaVideo.duration,mediaVideo.duration);
+      try{
+        if(!audioTrackAdded){
+          const capture=mediaVideo.captureStream?.()||mediaVideo.mozCaptureStream?.();
+          const track=capture?.getAudioTracks?.()?.[0];
+          if(track){stream.addTrack(track);audioTrackAdded=true;}
+        }
+      }catch{}
       await mediaVideo.play().catch(()=>{});
       while(mediaVideo.currentTime<end && !mediaVideo.ended && !aborted){
         drawBackground();
-        ctx.save();ctx.filter=cssFilter(c);fitDraw(ctx,mediaVideo,canvas.width,canvas.height);ctx.restore();drawClipText(c.textOverlay);
+        ctx.save();ctx.filter=cssFilter(c);fitDraw(ctx,mediaVideo,canvas.width,canvas.height,c);ctx.restore();drawClipText(c.textOverlay);
         await new Promise(requestAnimationFrame);
       }
       mediaVideo.pause();
@@ -502,10 +529,16 @@ export function renderAiVideoStudio(){
     }
   }
 
-  function fitDraw(ctx,source,w,h){
+  function fitDraw(ctx,source,w,h,c={}){
     const sw=source.videoWidth||source.naturalWidth||w, sh=source.videoHeight||source.naturalHeight||h;
-    const scale=Math.min(w/sw,h/sh),dw=sw*scale,dh=sh*scale,x=(w-dw)/2,y=(h-dh)/2;
-    ctx.drawImage(source,x,y,dw,dh);
+    const fitScale=Math.min(w/sw,h/sh)*(Number(c.scale)||1),dw=sw*fitScale,dh=sh*fitScale;
+    const sx=c.flipX?-1:1,sy=c.flipY?-1:1;
+    ctx.save();
+    ctx.translate(w/2,h/2);
+    ctx.rotate((Number(c.rotation)||0)*Math.PI/180);
+    ctx.scale(sx,sy);
+    ctx.drawImage(source,-dw/2,-dh/2,dw,dh);
+    ctx.restore();
   }
 
   function undo(){
@@ -543,6 +576,9 @@ export function renderAiVideoStudio(){
   els.bright.addEventListener('input',()=>{const c=selected();if(!c)return;c.brightness=Number(els.bright.value);els.brightOut.textContent=Math.round(c.brightness*100)+'%';applyPreview();});
   els.contrast.addEventListener('input',()=>{const c=selected();if(!c)return;c.contrast=Number(els.contrast.value);els.contrastOut.textContent=Math.round(c.contrast*100)+'%';applyPreview();});
   els.saturate.addEventListener('input',()=>{const c=selected();if(!c)return;c.saturate=Number(els.saturate.value);els.saturateOut.textContent=Math.round(c.saturate*100)+'%';applyPreview();});
+  els.scale.addEventListener('input',()=>{const c=selected();if(!c)return;c.scale=Number(els.scale.value);els.scaleOut.textContent=Math.round(c.scale*100)+'%';applyPreview();});
+  els.rotation.addEventListener('input',()=>{const c=selected();if(!c)return;c.rotation=Number(els.rotation.value);els.rotationOut.textContent=c.rotation+'°';applyPreview();});
+  root.querySelectorAll('[data-flip]').forEach(b=>b.addEventListener('click',()=>{const c=selected();if(!c)return;pushUndo();if(b.dataset.flip==='x')c.flipX=!c.flipX;else c.flipY=!c.flipY;render();}));
   root.querySelectorAll('[data-look]').forEach(b=>b.addEventListener('click',()=>applyLook(b.dataset.look)));
   root.querySelectorAll('[data-effect]').forEach(b=>b.addEventListener('click',()=>{const c=selected();if(!c)return;pushUndo();c.effect=b.dataset.effect;render();}));
   root.querySelector('[data-apply-text]').addEventListener('click',()=>{const c=selected();if(!c)return;pushUndo();c.textOverlay=els.text.value.trim();render();});
