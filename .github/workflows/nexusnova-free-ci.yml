@@ -121,7 +121,7 @@ jobs:
 
 
   video-flagship-runtime:
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'agent/video-flagship-complete-20260921'
+    if: github.event_name == 'pull_request' && github.event.pull_request.number == 78
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
