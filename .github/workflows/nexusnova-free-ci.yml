@@ -118,3 +118,41 @@ jobs:
             node --version
             node -e "JSON.parse(require('fs').readFileSync('package.json','utf8')); console.log('package.json: PASS')"
           fi
+
+
+  video-flagship-runtime:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'agent/video-flagship-complete-20260921'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser runtime
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Prepare media fixtures
+        run: |
+          set -euo pipefail
+          mkdir -p fixtures
+          python3 - <<'PY'
+import base64
+png=base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=')
+open('fixtures/tiny.png','wb').write(png)
+PY
+          ffmpeg -hide_banner -loglevel error -f lavfi -i color=c=red:s=320x180:r=24 -t 1 -c:v libvpx -b:v 400k fixtures/sample.webm
+      - name: Serve candidate harness
+        run: |
+          python3 -m http.server 4173 --directory fresh-rebuild >/tmp/video-http.log 2>&1 &
+          for i in {1..20}; do
+            curl -fsS http://127.0.0.1:4173/video-runtime-harness.html >/dev/null 2>&1 && exit 0
+            sleep 1
+          done
+          cat /tmp/video-http.log
+          exit 1
+      - name: Run video flagship browser QA
+        run: node .github/scripts/video-flagship-runtime.mjs
