@@ -110,15 +110,18 @@ class VideoStudioEmulatorQaTest {
 
     private fun clickSignInSubmit() {
         // WebView aria-labels are not consistently exposed as UiAutomator content
-        // descriptions. Use the actual visible SIGN IN controls and choose the
-        // lowest visible match when a tab and submit button coexist.
+        // descriptions. Select the lowest visible SIGN IN control and tap its
+        // actual screen coordinates so this remains a genuine user-style Android tap.
         val deadline = System.currentTimeMillis() + 30_000L
         while (System.currentTimeMillis() < deadline) {
             val matches = device.findObjects(By.text("SIGN IN"))
                 .filter { it.visibleBounds.width() > 0 && it.visibleBounds.height() > 0 }
+                .sortedBy { it.visibleBounds.bottom }
             if (matches.isNotEmpty()) {
-                val target = matches.maxByOrNull { it.visibleBounds.bottom } ?: matches.last()
-                target.click()
+                val target = matches.last()
+                val rect = target.visibleBounds
+                android.util.Log.i("VideoStudioQA", "SIGN IN visible bounds: $rect; matches=${matches.size}")
+                device.click(rect.centerX(), rect.centerY())
                 return
             }
             Thread.sleep(250)
