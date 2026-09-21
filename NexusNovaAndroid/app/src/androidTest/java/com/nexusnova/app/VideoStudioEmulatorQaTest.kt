@@ -237,5 +237,6 @@ class VideoStudioEmulatorQaTest {
             ?: error("External pictures directory unavailable")
         dir.mkdirs()
         assertTrue("Screenshot failed: $name", device.takeScreenshot(File(dir, name)))
+        device.executeShellCommand("screencap -p /sdcard/Download/nxqa-${name}")
     }
 }
