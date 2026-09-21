@@ -58,7 +58,10 @@ class VideoStudioEmulatorQaTest {
         authFields[0].text = "qa-emulator@nexusnova.local"
         authFields[1].text = "NexusNova123"
 
+        capture("auth-before-submit.png")
         clickSignInSubmit()
+        Thread.sleep(1_500L)
+        capture("auth-after-submit.png")
         waitText("Mine")
         openNovaHubDock()
 
