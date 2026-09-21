@@ -12,6 +12,7 @@ on:
       - 'NexusNovaAndroid/build.gradle.kts'
       - 'NexusNovaAndroid/settings.gradle.kts'
       - '.github/workflows/video-android-emulator-gate.yml'
+      - '.github/scripts/video-flagship-runtime.mjs'
 
 concurrency:
   group: video-qa-${{ github.workflow }}-${{ github.ref }}
