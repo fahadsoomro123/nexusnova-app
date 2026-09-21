@@ -88,6 +88,12 @@ class VideoStudioEmulatorQaTest {
         waitTextContains("2 clips")
         capture("video-studio-after-import.png")
 
+        // Android export gate: render the imported timeline and require the real
+        // result panel before leaving the editor. Save/share stays explicit.
+        device.findObject(By.textContains("EXPORT VIDEO")).click()
+        waitText("SHARE / SAVE EXPORT", 60_000L)
+        capture("video-studio-after-export.png")
+
         // Leave Video Studio. The normal global dock must return immediately.
         device.pressBack()
         waitText("NOVA HUB")
