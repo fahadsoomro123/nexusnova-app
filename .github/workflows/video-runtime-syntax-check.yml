@@ -37,5 +37,13 @@ jobs:
           exit 1
       - name: Run candidate browser runtime QA
         run: node .github/scripts/video-flagship-runtime.mjs
+      - name: Upload browser QA proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NexusNova-Video-Browser-QA-Proof
+          path: artifacts/video-browser
+          if-no-files-found: warn
+          retention-days: 7
       - name: Candidate QA marker
         run: echo "VIDEO FLAGSHIP CANDIDATE QA PASS"
