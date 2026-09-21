@@ -94,6 +94,7 @@ function ensureVideoFlagshipStyles() {
     @media(prefers-reduced-motion:reduce){.nx-video-play{transition:none}}
     /* Touch target hardening: icon glyphs stay small, hit areas stay >=44px. */
     .nx-video-timebar button{width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important}
+    .nx-video-timebar input[type="range"]{height:44px!important;min-height:44px!important;min-width:44px!important}
     .nx-video-reorder{grid-auto-flow:column!important;grid-template-columns:repeat(2,22px)!important;gap:0!important;align-items:center}
     .nx-video-reorder button{width:22px!important;height:44px!important;min-width:22px!important;min-height:44px!important}
     .nx-video-actions button{height:44px!important;min-height:44px!important}
