@@ -59,7 +59,8 @@ class VideoStudioEmulatorQaTest {
         authFields[1].text = "NexusNova123"
 
         waitText("SIGN IN").click()
-        waitDescription("Open Nova Hub").click()
+        waitText("Mine")
+        openNovaHubDock()
 
         val search = device.wait(
             Until.findObject(By.desc("Search Nova Hub")),
@@ -121,6 +122,20 @@ class VideoStudioEmulatorQaTest {
     private fun waitDescription(value: String, timeout: Long = 30_000L) =
         device.wait(Until.findObject(By.desc(value)), timeout)
             ?: error("Timed out waiting for description: $value")
+
+    private fun openNovaHubDock() {
+        val accessible = device.wait(Until.findObject(By.desc("Open Nova Hub")), 2_000L)
+        if (accessible != null) {
+            accessible.click()
+            return
+        }
+        // WebView accessibility trees can omit fixed-position DOM controls on some
+        // emulator/WebView combinations. Use the actual fixed two-item dock geometry
+        // as a fallback, then still require Hub content to appear.
+        val x = (device.displayWidth * 0.62f).toInt()
+        val y = (device.displayHeight * 0.93f).toInt()
+        device.click(x, y)
+    }
 
     private fun waitForDocumentsUi() {
         assertTrue(
