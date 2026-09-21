@@ -110,13 +110,17 @@ for(const [width,height] of [[360,800],[360,900],[390,844],[412,915]]){
   await page.setViewportSize({width,height});
   await page.waitForTimeout(50);
   const layout=await page.evaluate(()=>{
-    const all=[...document.querySelectorAll('.nx-video-flagship *')];
+    const root=document.querySelector('.nx-video-flagship');
+    const all=[...root.querySelectorAll('*')];
     const viewportOk=document.documentElement.scrollHeight<=innerHeight+2&&document.body.scrollHeight<=innerHeight+2;
-    const panels=[...document.querySelectorAll('.nx-video-panel.is-active')].every(el=>el.scrollHeight<=el.clientHeight+2);
-    const interactive=all.filter(el=>el.matches('button,input,select,textarea,[role="button"]')).every(el=>{const r=el.getBoundingClientRect();return r.width>=44&&r.height>=44;});
-    return {viewportOk,panels,interactive};
+    const rootNoScroll=root.scrollWidth<=root.clientWidth+2&&root.scrollHeight<=root.clientHeight+2;
+    const toolbar=document.querySelector('.nx-video-toolbar');
+    const toolbarNoScroll=!toolbar||toolbar.scrollWidth<=toolbar.clientWidth+2;
+    const panels=[...document.querySelectorAll('.nx-video-panel.is-active')].every(el=>el.scrollHeight<=el.clientHeight+2&&el.scrollWidth<=el.clientWidth+2);
+    const interactive=all.filter(el=>el.matches('button,input,select,textarea,[role="button"]')&&!el.matches('[data-file]')).every(el=>{const r=el.getBoundingClientRect();return r.width>=44&&r.height>=44;});
+    return {viewportOk,rootNoScroll,toolbarNoScroll,panels,interactive};
   });
-  if(!layout.viewportOk||!layout.panels||!layout.interactive) throw new Error('RESPONSIVE/TAP TARGET FAIL '+width+'x'+height+' '+JSON.stringify(layout));
+  if(!layout.viewportOk||!layout.rootNoScroll||!layout.toolbarNoScroll||!layout.panels||!layout.interactive) throw new Error('RESPONSIVE/TAP TARGET FAIL '+width+'x'+height+' '+JSON.stringify(layout));
   await page.screenshot({path:`artifacts/video-browser/video-studio-${width}x${height}.png`,fullPage:false});
 }
 await page.setViewportSize({width:390,height:844});
