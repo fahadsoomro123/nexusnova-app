@@ -3,6 +3,7 @@ import fs from 'node:fs';
 
 const browser=await chromium.launch({headless:true});
 const page=await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:1});
+fs.mkdirSync('artifacts/video-browser',{recursive:true});
 const errors=[];
 page.on('pageerror',e=>errors.push(e.message));
 page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
@@ -29,6 +30,7 @@ const input=page.locator('[data-file]');
 await input.setInputFiles([{name:'photo.png',mimeType:'image/png',buffer:png}]);
 await page.waitForFunction(()=>document.querySelectorAll('.nx-video-clip').length===1);
 if(await page.locator('[data-main-image]').evaluate(el=>el.classList.contains('nx-video-hidden'))) throw new Error('PHOTO PREVIEW FAIL');
+await page.waitForFunction(()=>document.querySelector('[data-main-image]')?.naturalWidth>0,{timeout:5000});
 
 const videoBytes=fs.readFileSync('fresh-rebuild/fixtures/sample.mp4');
 if(videoBytes.length<1000) throw new Error('VIDEO FIXTURE EMPTY');
@@ -36,6 +38,7 @@ if(videoBytes.length<1000) throw new Error('VIDEO FIXTURE EMPTY');
 await input.setInputFiles([{name:'sample.mp4',mimeType:'video/mp4',buffer:videoBytes}]);
 await page.waitForFunction(()=>document.querySelectorAll('.nx-video-clip').length===2);
 if(await page.locator('[data-main-video]').evaluate(el=>el.classList.contains('nx-video-hidden'))) throw new Error('VIDEO PREVIEW FAIL');
+await page.waitForFunction(()=>{const v=document.querySelector('[data-main-video]');return Boolean(v&&v.readyState>=1&&Number.isFinite(v.duration)&&v.duration>0);},{timeout:8000});
 
 await page.locator('.nx-video-clip').nth(1).locator('[data-select]').click();
 
@@ -83,6 +86,12 @@ await page.locator('[data-scrub]').fill('3.01');
 
 await page.locator('[data-scrub]').fill('0.5');
 await page.locator('[data-tool="edit"]').click();
+const beforeDuplicate=await page.locator('.nx-video-clip').count();
+await page.locator('[data-duplicate]').click();
+if(await page.locator('.nx-video-clip').count()!==beforeDuplicate+1) throw new Error('DUPLICATE FAIL');
+await page.locator('[data-undo]').click();
+if(await page.locator('.nx-video-clip').count()!==beforeDuplicate) throw new Error('UNDO DUPLICATE FAIL');
+await page.locator('[data-reset]').click();
 const before=await page.locator('.nx-video-clip').count();
 await page.locator('[data-split]').click();
 if(await page.locator('.nx-video-clip').count()!==before+1) throw new Error('SPLIT FAIL');
@@ -104,10 +113,11 @@ for(const [width,height] of [[360,800],[360,900],[390,844],[412,915]]){
     const all=[...document.querySelectorAll('.nx-video-flagship *')];
     const viewportOk=document.documentElement.scrollHeight<=innerHeight+2&&document.body.scrollHeight<=innerHeight+2;
     const panels=[...document.querySelectorAll('.nx-video-panel.is-active')].every(el=>el.scrollHeight<=el.clientHeight+2);
-    const interactive=all.filter(el=>el.matches('button,input,select,textarea,[role="button"]')).every(el=>{const r=el.getBoundingClientRect();return r.width>=40&&r.height>=40;});
+    const interactive=all.filter(el=>el.matches('button,input,select,textarea,[role="button"]')).every(el=>{const r=el.getBoundingClientRect();return r.width>=44&&r.height>=44;});
     return {viewportOk,panels,interactive};
   });
   if(!layout.viewportOk||!layout.panels||!layout.interactive) throw new Error('RESPONSIVE/TAP TARGET FAIL '+width+'x'+height+' '+JSON.stringify(layout));
+  await page.screenshot({path:`artifacts/video-browser/video-studio-${width}x${height}.png`,fullPage:false});
 }
 await page.setViewportSize({width:390,height:844});
 
