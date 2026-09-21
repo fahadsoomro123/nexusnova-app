@@ -21,11 +21,16 @@ class VideoStudioEmulatorQaTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private val device = UiDevice.getInstance(instrumentation)
     private val context = instrumentation.targetContext
+    private val testContext = instrumentation.context
 
     @Test
     fun videoStudioFullscreenScopedDockAndNativeMediaPicker() {
         require(Build.VERSION.SDK_INT >= 29)
 
+        cleanupDownload("video-studio-video-qa.webm")
+        cleanupDownload("video-studio-photo-qa.png")
+
+        publishAssetDownload("video-studio-video-qa.webm", "video/webm")
         publishDownload(
             "video-studio-photo-qa.png",
             "image/png",
@@ -126,6 +131,34 @@ class VideoStudioEmulatorQaTest {
             "NexusNova did not regain focus",
             device.wait(Until.hasObject(By.pkg("com.nexusnova.app")), 15_000L)
         )
+    }
+
+    private fun publishAssetDownload(name: String, mime: String) {
+        val values = ContentValues().apply {
+            put(MediaStore.Downloads.DISPLAY_NAME, name)
+            put(MediaStore.Downloads.MIME_TYPE, mime)
+            put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+            put(MediaStore.Downloads.IS_PENDING, 1)
+        }
+        val uri = context.contentResolver.insert(
+            MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+            values
+        ) ?: error("Could not create MediaStore asset fixture: $name")
+
+        try {
+            testContext.assets.open(name).use { input ->
+                context.contentResolver.openOutputStream(uri)?.use { output ->
+                    input.copyTo(output)
+                } ?: error("Could not write MediaStore asset fixture: $name")
+            }
+        } catch (error: Throwable) {
+            context.contentResolver.delete(uri, null, null)
+            throw error
+        }
+
+        values.clear()
+        values.put(MediaStore.Downloads.IS_PENDING, 0)
+        context.contentResolver.update(uri, values, null, null)
     }
 
     private fun publishDownload(name: String, mime: String, bytes: ByteArray) {
