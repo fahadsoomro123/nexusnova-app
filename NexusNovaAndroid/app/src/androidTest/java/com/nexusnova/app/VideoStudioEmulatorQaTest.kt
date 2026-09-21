@@ -25,7 +25,7 @@ class VideoStudioEmulatorQaTest {
     @Test
     fun videoStudioFullscreenScopedDockAndNativeMediaPicker() {
         require(Build.VERSION.SDK_INT >= 29)
-        publishDownload("video-studio-photo-qa.png", "image/png", Base64.getDecoder().decode("$b64"))
+        publishDownload("video-studio-photo-qa.png", "image/png", Base64.getDecoder().decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="))
 
         context.startActivity(
             Intent(context, MainActivity::class.java)
