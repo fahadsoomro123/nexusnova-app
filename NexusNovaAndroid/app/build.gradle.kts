@@ -13,10 +13,11 @@ android {
 
     defaultConfig {
         applicationId = "com.nexusnova.app"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         minSdk = 26
         targetSdk = 35
         versionCode = 12021
-        versionName = "1.0.21-drive-history"
+        versionName = "1.0.22-video-emulator-qa"
     }
 
     buildTypes {
@@ -92,4 +93,7 @@ dependencies {
 
     // Google User Messaging Platform remains available for privacy testing.
     implementation("com.google.android.ump:user-messaging-platform:4.0.0")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.uiautomator:uiautomator:2.3.0")
 }
