@@ -243,6 +243,8 @@ export async function appScreen({ id, backToHub, backToMine } = {}) {
   const parentName = miningOwned ? 'Mine' : 'Nova Hub';
   const goBack = miningOwned ? backToMine : backToHub;
   const aiPhotoRoute = id === AI_PHOTO_ID;
+  const aiVideoRoute = id === 'ai-video-studio';
+  if (aiVideoRoute) root.classList.add('nx-video-route-screen');
 
   if (aiPhotoRoute) {
     root.classList.add('nx-ai-photo-route-screen');
