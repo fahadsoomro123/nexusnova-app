@@ -50,8 +50,11 @@ class VideoStudioEmulatorQaTest {
         val authFields = device.wait(
             Until.findObjects(By.clazz("android.widget.EditText")),
             30_000L
-        ) ?: emptyList()
-        assertTrue("auth fields missing", authFields.size >= 2)
+        )?.filter { bounds ->
+            val rect = bounds.visibleBounds
+            rect.width() > 0 && rect.height() > 0
+        } ?: emptyList()
+        assertTrue("visible auth fields missing", authFields.size >= 2)
         authFields[0].text = "qa-emulator@nexusnova.local"
         authFields[1].text = "NexusNova123"
 
