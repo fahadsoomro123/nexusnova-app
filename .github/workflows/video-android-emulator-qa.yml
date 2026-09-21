@@ -38,21 +38,53 @@ jobs:
           test -s qa/fixtures/video-studio-video-qa.webm
           stat -c "%n %s bytes" qa/fixtures/video-studio-video-qa.webm
 
+      - name: Set up Gradle caching
+        uses: gradle/actions/setup-gradle@v5
+
+      - name: Build app and Android test APKs
+        working-directory: NexusNovaAndroid
+        run: |
+          set -euo pipefail
+          ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest
+
+      - name: Cache Android emulator
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: nexusnova-video-avd-api35
+
+      - name: Prepare KVM when available
+        run: |
+          set -euo pipefail
+          if [ -e /dev/kvm ]; then
+            sudo chmod 666 /dev/kvm || true
+            echo "KVM available"
+          else
+            echo "KVM unavailable; emulator runner will use software acceleration"
+          fi
+
       - name: Run real Android emulator QA
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
           target: google_apis
           arch: x86_64
+          profile: Nexus 6
+          force-avd-creation: false
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
           disable-animations: true
+          emulator-boot-timeout: 300
           working-directory: NexusNovaAndroid
           script: |
             set -u
+            adb install -r app/build/outputs/apk/debug/app-debug.apk
+            adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
             adb push "$GITHUB_WORKSPACE/qa/fixtures/video-studio-video-qa.webm" /sdcard/Download/video-studio-video-qa.webm
             test -s "$GITHUB_WORKSPACE/qa/fixtures/video-studio-video-qa.webm"
 
-            ./gradlew :app:connectedAndroidTest               --tests com.nexusnova.app.VideoStudioEmulatorQaTest.videoStudioFullscreenScopedDockAndNativeMediaPicker
+            adb shell am instrument -w -r -e class com.nexusnova.app.VideoStudioEmulatorQaTest#videoStudioFullscreenScopedDockAndNativeMediaPicker com.nexusnova.app.test/androidx.test.runner.AndroidJUnitRunner
             status=$?
 
             mkdir -p "$GITHUB_WORKSPACE/qa/android-emulator-results"
@@ -61,6 +93,7 @@ jobs:
             adb pull /sdcard/Android/data/com.nexusnova.app/files/Pictures "$GITHUB_WORKSPACE/qa/android-emulator-results/" || true
 
             exit $status
+
 
       - name: Upload Android emulator evidence
         if: always()
