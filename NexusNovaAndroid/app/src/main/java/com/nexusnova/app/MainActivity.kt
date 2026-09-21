@@ -88,9 +88,11 @@ class MainActivity : AppCompatActivity() {
                 .parseResult(result.resultCode, result.data)
                 ?.forEach { uri ->
                     if (acceptedUris.size >= MAX_PICKED_FILES) return@forEach
-                    val size = validatePickedUri(uri, acceptedTypes) ?: return@forEach
-                    if (size > MAX_PICKED_TOTAL_BYTES - totalBytes) return@forEach
-                    totalBytes += size
+                    if (!validatePickedUri(uri, acceptedTypes)) return@forEach
+                    val size = pickedUriSize(uri)
+                    if (size != null && size > MAX_PICKED_FILE_BYTES) return@forEach
+                    if (size != null && size > MAX_PICKED_TOTAL_BYTES - totalBytes) return@forEach
+                    if (size != null) totalBytes += size
                     acceptedUris.add(uri)
                 }
             acceptedUris.toTypedArray().takeIf { it.isNotEmpty() }
@@ -722,18 +724,17 @@ class MainActivity : AppCompatActivity() {
         else request.grant(approvedResources)
     }
 
-    private fun validatePickedUri(uri: Uri, acceptedTypes: Set<String>): Long? {
-        if (uri.scheme != ContentResolver.SCHEME_CONTENT) return null
-        val size = pickedUriSize(uri) ?: return null
-        if (size > MAX_PICKED_FILE_BYTES) return null
-        if (acceptedTypes.isEmpty()) return size
+    private fun validatePickedUri(uri: Uri, acceptedTypes: Set<String>): Boolean {
+        if (uri.scheme != ContentResolver.SCHEME_CONTENT) return false
+        if (acceptedTypes.isEmpty()) return true
 
         val mimeType = try {
             contentResolver.getType(uri)?.lowercase(Locale.ROOT)
         } catch (_: Exception) {
             null
-        } ?: return null
-        val accepted = acceptedTypes
+        } ?: return false
+
+        return acceptedTypes
             .asSequence()
             .flatMap { value -> value.split(',').asSequence() }
             .map { value -> value.substringBefore(';').trim().lowercase(Locale.ROOT) }
@@ -744,7 +745,6 @@ class MainActivity : AppCompatActivity() {
                         mimeType.startsWith(acceptedType.removeSuffix("*"))) ||
                     (acceptedType == ".pdf" && mimeType == "application/pdf")
             }
-        return size.takeIf { accepted }
     }
 
     private fun pickedUriSize(uri: Uri): Long? {
