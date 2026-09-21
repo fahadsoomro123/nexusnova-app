@@ -58,7 +58,7 @@ class VideoStudioEmulatorQaTest {
         authFields[0].text = "qa-emulator@nexusnova.local"
         authFields[1].text = "NexusNova123"
 
-        waitText("SIGN IN").click()
+        waitDescription("Submit authentication form").click()
         waitText("Mine")
         openNovaHubDock()
 
