@@ -3,6 +3,10 @@ on:
   push:
     branches:
       - agent/video-flagship-complete-20260921
+concurrency:
+  group: video-android-integration-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 jobs:
