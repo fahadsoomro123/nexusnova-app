@@ -4,4 +4,5 @@
     <string name="caller_setup_title">Caller ID setup</string>
     <string name="caller_setup_body">Enable NexusNova caller identification from Android settings, or continue later.</string>
     <string name="enable_caller_id">ENABLE CALLER ID</string>
+    <string name="unknown_caller">Unknown caller</string>
 </resources>
