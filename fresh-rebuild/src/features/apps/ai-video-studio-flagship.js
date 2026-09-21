@@ -82,6 +82,28 @@ function ensureVideoFlagshipStyles() {
     @media(max-width:390px){.nx-video-flagship{grid-template-rows:minmax(205px,37%) minmax(120px,23%) minmax(0,1fr) auto;gap:6px;padding:6px}.nx-video-tool{font-size:9px;flex-basis:68px;min-width:68px}.nx-video-tool b{font-size:15px}.nx-video-clip{height:61px}.nx-video-cliprow{grid-auto-columns:minmax(100px,1fr)}.nx-video-inspector{padding:6px}}
     @media(max-height:720px){.nx-video-flagship{grid-template-rows:minmax(170px,36%) minmax(108px,23%) minmax(0,1fr) auto}.nx-screen:has(.nx-video-flagship) .nx-app-head{height:58px!important;min-height:58px!important}.nx-screen:has(.nx-video-flagship)>[data-app-mount]{height:calc(100% - 62px)!important}.nx-video-clip{height:56px}.nx-video-tool{font-size:8px}.nx-video-tool b{font-size:14px}}
     @media(prefers-reduced-motion:reduce){.nx-video-play{transition:none}}
+    /* V4 full-screen editor + native picker reliability correction. */
+    body:has(.nx-video-flagship) .nx-dock,
+    body:has(.nx-video-flagship) #nx-mine-brand-portal{display:none!important}
+    body:has(.nx-video-flagship) #nx-stage{height:100dvh!important;min-height:100dvh!important;max-height:100dvh!important;padding-bottom:0!important;overflow:hidden!important}
+    .nx-screen:has(.nx-video-flagship){height:100dvh!important;min-height:0!important;max-height:100dvh!important;margin:0!important;padding:0!important;overflow:hidden!important;background:#fff!important}
+    .nx-screen:has(.nx-video-flagship)>.nx-app-head{height:54px!important;min-height:54px!important;margin:0!important;padding:4px 12px 4px 10px!important;box-sizing:border-box!important}
+    .nx-screen:has(.nx-video-flagship)>[data-app-mount]{height:calc(100% - 54px)!important;min-height:0!important;max-height:calc(100% - 54px)!important;padding:0!important;overflow:hidden!important}
+    .nx-screen:has(.nx-video-flagship) .nx-app-head .nx-back{width:44px!important;height:44px!important}
+    .nx-video-flagship{grid-template-rows:minmax(0,1.42fr) minmax(0,.58fr) minmax(0,.92fr) minmax(0,.52fr) minmax(0,.50fr)!important;gap:6px!important;padding:6px!important}
+    .nx-video-preview{min-height:0!important}
+    .nx-video-inspector{min-height:0!important}
+    .nx-video-toolbar{min-height:0!important}
+    .nx-video-bottom{min-height:0!important;position:relative!important}
+    .nx-video-file-input{
+      position:absolute!important;left:0!important;top:0!important;width:calc(50% - 3px)!important;height:100%!important;
+      z-index:20!important;opacity:0!important;pointer-events:auto!important;clip:auto!important;cursor:pointer!important;
+    }
+    .nx-video-bottom>[data-add]{position:relative!important;z-index:1!important}
+    .nx-video-bottom>[data-open-export]{position:relative!important;z-index:1!important}
+    @media(max-width:390px){
+      .nx-video-flagship{grid-template-rows:minmax(0,1.34fr) minmax(0,.58fr) minmax(0,.94fr) minmax(0,.54fr) minmax(0,.50fr)!important}
+    }
     /* V2 flagship layout: fit the complete editor in a normal Android viewport. */
     .nx-screen:has(.nx-video-flagship){height:calc(100dvh - 82px)!important;max-height:calc(100dvh - 82px)!important;overflow:hidden!important;background:#fff!important;padding:0!important}
     .nx-screen:has(.nx-video-flagship)>.nx-app-head{height:62px!important;min-height:62px!important;margin:0 0 4px!important;padding:4px 12px 4px 10px!important;border-bottom:1px solid #eee9f5!important}
@@ -350,8 +372,18 @@ export function renderAiVideoStudio(){
     });
   }
   function openFilePicker(){
-    try{const picker=els.file;if(typeof picker.showPicker==='function'){picker.showPicker();return true;}picker.click();return true;}
-    catch(error){setRuntime('Media picker could not open. Tap ADD MEDIA again.',true);console.warn('[NexusNova Video] file picker:',error);return false;}
+    try{
+      const picker=els.file;
+      if(!picker){setRuntime('Media picker is unavailable in this editor.',true);return false;}
+      picker.value='';
+      picker.focus({preventScroll:true});
+      picker.click();
+      return true;
+    }catch(error){
+      setRuntime('Media picker could not open. Tap ADD MEDIA again.',true);
+      console.warn('[NexusNova Video] file picker:',error);
+      return false;
+    }
   }
   function clipStartTime(id){let total=0;for(const c of state.clips){if(c.id===id)break;total+=clipDuration(c);}return total;}
   function locateGlobalTime(position){const target=clamp(Number(position)||0,0,totalDuration());let offset=0;for(const c of state.clips){const dur=clipDuration(c);if(target<=offset+dur||c===state.clips[state.clips.length-1])return {clip:c,local:clamp(target-offset,0,dur)};offset+=dur;}return {clip:null,local:0};}
