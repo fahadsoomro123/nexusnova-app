@@ -68,7 +68,7 @@ function ensureVideoFlagshipStyles() {
     .nx-video-cliprow{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(116px,1fr);gap:6px;overflow:hidden}
     .nx-video-clip{position:relative;min-width:0;height:66px;border:1px solid #e7e0f1;border-radius:11px;background:linear-gradient(180deg,#faf8ff,#f1edf9);display:grid;grid-template-columns:1fr auto;gap:4px;padding:6px;color:#302b3b;text-align:left}
     .nx-video-clip.is-active{border-color:#7d61ff;box-shadow:0 0 0 2px rgba(108,76,255,.14),0 8px 18px rgba(108,76,255,.1)}
-    .nx-video-thumb{display:grid;place-items:center;overflow:hidden;border-radius:7px;background:linear-gradient(145deg,#2a2340,#5f48ad);color:#fff;font-weight:900;font-size:12px}
+    .nx-video-thumb{display:grid;place-items:center;overflow:hidden;min-width:0;min-height:44px;width:100%;align-self:stretch;border:0;padding:0;border-radius:7px;background:linear-gradient(145deg,#2a2340,#5f48ad);color:#fff;font:inherit;font-weight:900;font-size:12px;cursor:pointer}
     .nx-video-thumb img,.nx-video-thumb video{width:100%;height:100%;object-fit:cover}
     .nx-video-clip-meta{min-width:0;display:grid;align-content:center;gap:2px}.nx-video-clip-meta b{font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.nx-video-clip-meta span{font-size:8px;color:#847d91}
     .nx-video-reorder{display:grid;gap:3px}.nx-video-reorder button{width:25px;height:25px;font-size:11px}
@@ -651,9 +651,9 @@ export function renderAiVideoStudio(){
   function render(){
     els.clipRow.innerHTML=state.clips.length?state.clips.map(c=>`
       <article class="nx-video-clip${c.id===state.selectedId?' is-active':''}" data-id="${c.id}">
-        <div class="nx-video-thumb" data-select="${c.id}" role="button" tabindex="0" aria-label="Select ${escapeHtml(c.name)}">
+        <button class="nx-video-thumb" type="button" data-select="${c.id}" aria-label="Select ${escapeHtml(c.name)}">
           ${state.urls.get(c.id)?(c.kind==='image'?`<img src="${escapeHtml(state.urls.get(c.id))}" alt="">`:`<video src="${escapeHtml(state.urls.get(c.id))}" muted playsinline preload="metadata"></video>`):(c.kind==='image'?'<span>PHOTO</span>':'<span>VIDEO</span>')}
-        </div>
+        </button>
         <div class="nx-video-clip-meta"><b>${escapeHtml(c.name)}</b><span>${fmt(clipDuration(c))} • ${Number(c.speed||1).toFixed(2)}×</span></div>
         <div class="nx-video-reorder"><button type="button" data-up="${c.id}" aria-label="Move clip left">‹</button><button type="button" data-down="${c.id}" aria-label="Move clip right">›</button></div>
       </article>`).join(''):'<div class="nx-video-note">Add your first video or photo to start editing.</div>';
