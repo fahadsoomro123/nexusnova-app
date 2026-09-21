@@ -140,10 +140,10 @@ jobs:
 
           // Generate a deterministic real WebM fixture outside the browser page.
           // This avoids Chromium execution-context resets while still exercising the media metadata/import path.
-          const webm = fs.readFileSync('qa/fixtures/generated.webm');
-          assert.ok(webm.length > 1000, 'generated WebM is too small');
+          const videoFixture = fs.readFileSync('qa/fixtures/generated.mp4');
+          assert.ok(videoFixture.length > 1000, 'generated MP4 is too small');
           await input.setInputFiles([
-            { name: 'generated.webm', mimeType: 'video/webm', buffer: webm },
+            { name: 'generated.mp4', mimeType: 'video/mp4', buffer: videoFixture },
             { name: 'cover-again.png', mimeType: 'image/png', buffer: png }
           ]);
           await page.waitForFunction(() => document.querySelectorAll('[data-id]').length >= 5);
