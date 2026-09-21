@@ -58,7 +58,7 @@ class VideoStudioEmulatorQaTest {
         authFields[0].text = "qa-emulator@nexusnova.local"
         authFields[1].text = "NexusNova123"
 
-        waitDescription("Submit authentication form").click()
+        clickSignInSubmit()
         waitText("Mine")
         openNovaHubDock()
 
@@ -75,8 +75,6 @@ class VideoStudioEmulatorQaTest {
         assertTrue("MINE dock leaked into Video Studio", !device.hasObject(By.text("MINE")))
         assertTrue("NOVA HUB dock leaked into Video Studio", !device.hasObject(By.text("NOVA HUB")))
 
-        // Native video import: the workflow generates the fixture into the test APK,
-        // this test publishes it to MediaStore/Downloads, and DocumentsUI must expose it.
         device.findObject(By.textContains("ADD MEDIA")).click()
         waitForDocumentsUi()
         selectDocument("video-studio-video-qa.webm")
@@ -87,7 +85,6 @@ class VideoStudioEmulatorQaTest {
             !device.hasObject(By.text("CREATE YOUR VIDEO"))
         )
 
-        // Native photo import: second DocumentsUI selection must append to the same timeline.
         device.findObject(By.textContains("ADD MEDIA")).click()
         waitForDocumentsUi()
         selectDocument("video-studio-photo-qa.png")
@@ -95,13 +92,10 @@ class VideoStudioEmulatorQaTest {
         waitTextContains("2 clips")
         capture("video-studio-after-import.png")
 
-        // Android export gate: render the imported timeline and require the real
-        // result panel before leaving the editor. Save/share stays explicit.
         device.findObject(By.textContains("EXPORT VIDEO")).click()
         waitText("SHARE / SAVE EXPORT", 60_000L)
         capture("video-studio-after-export.png")
 
-        // Leave Video Studio. The normal global dock must return immediately.
         device.pressBack()
         waitDescription("Open Nova Hub")
         assertTrue("dock was not restored after leaving Video Studio", device.hasObject(By.desc("Open Mine")))
@@ -109,6 +103,24 @@ class VideoStudioEmulatorQaTest {
 
         cleanupDownload("video-studio-photo-qa.png")
         cleanupDownload("video-studio-video-qa.webm")
+    }
+
+    private fun clickSignInSubmit() {
+        // WebView aria-labels are not consistently exposed as UiAutomator content
+        // descriptions. Use the actual visible SIGN IN controls and choose the
+        // lowest visible match when a tab and submit button coexist.
+        val deadline = System.currentTimeMillis() + 30_000L
+        while (System.currentTimeMillis() < deadline) {
+            val matches = device.findObjects(By.text("SIGN IN"))
+                .filter { it.visibleBounds.width() > 0 && it.visibleBounds.height() > 0 }
+            if (matches.isNotEmpty()) {
+                val target = matches.maxByOrNull { it.visibleBounds.bottom } ?: matches.last()
+                target.click()
+                return
+            }
+            Thread.sleep(250)
+        }
+        error("Timed out waiting for visible SIGN IN submit control")
     }
 
     private fun waitText(value: String, timeout: Long = 30_000L) =
@@ -129,9 +141,6 @@ class VideoStudioEmulatorQaTest {
             accessible.click()
             return
         }
-        // WebView accessibility trees can omit fixed-position DOM controls on some
-        // emulator/WebView combinations. Use the actual fixed two-item dock geometry
-        // as a fallback, then still require Hub content to appear.
         val x = (device.displayWidth * 0.62f).toInt()
         val y = (device.displayHeight * 0.93f).toInt()
         device.click(x, y)
