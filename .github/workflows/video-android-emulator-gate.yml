@@ -1,0 +1,104 @@
+name: NexusNova Video Android Emulator Gate
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'fresh-rebuild/src/features/apps/ai-video-studio-flagship.js'
+      - 'NexusNovaAndroid/app/**'
+      - 'NexusNovaAndroid/build.gradle.kts'
+      - 'NexusNovaAndroid/settings.gradle.kts'
+      - '.github/workflows/video-android-emulator-gate.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  android-emulator-video:
+    name: Video Studio Android Emulator
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle 8.13
+        uses: gradle/actions/setup-gradle@v5
+        with:
+          gradle-version: '8.13'
+
+      - name: Build debug APK and test APK
+        working-directory: NexusNovaAndroid
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon :app:assembleDebug :app:assembleDebugAndroidTest
+          test -s app/build/outputs/apk/debug/app-debug.apk
+          test -s app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+
+      - name: Create deterministic VP8 WebM fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq gstreamer1.0-tools gstreamer1.0-plugins-good
+          mkdir -p qa/fixtures
+          gst-launch-1.0 -q             videotestsrc num-buffers=30 pattern=ball !             video/x-raw,width=160,height=90,framerate=15/1 !             videoconvert ! vp8enc ! webmmux !             filesink location=qa/fixtures/generated.webm
+          test -s qa/fixtures/generated.webm
+
+      - name: Enable KVM
+        shell: bash
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run Video Studio on real Android Emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_7_pro
+          cores: 4
+          ram-size: 4096M
+          heap-size: 512M
+          disk-size: 8192M
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
+          disable-animations: true
+          working-directory: NexusNovaAndroid
+          script: |
+            set -euo pipefail
+            adb push ../qa/fixtures/generated.webm /sdcard/Download/video-studio-video-qa.webm
+            adb shell am force-stop com.nexusnova.app
+            gradle --no-daemon :app:connectedDebugAndroidTest
+            mkdir -p ../artifacts/video-emulator
+            adb exec-out screencap -p > ../artifacts/video-emulator/final-screen.png
+            adb logcat -d -t 2500 > ../artifacts/video-emulator/logcat.txt
+
+      - name: Collect emulator test results
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/video-emulator
+          cp -R NexusNovaAndroid/app/build/outputs/androidTest-results artifacts/video-emulator/ || true
+          cp -R NexusNovaAndroid/app/build/outputs/logs artifacts/video-emulator/ || true
+          find artifacts/video-emulator -maxdepth 4 -type f -print | sort || true
+
+      - name: Upload emulator proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NexusNova-Video-Android-Emulator-Proof
+          path: artifacts/video-emulator
+          if-no-files-found: warn
+          retention-days: 7
