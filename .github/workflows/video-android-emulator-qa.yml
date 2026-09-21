@@ -1,0 +1,66 @@
+name: Video Android Emulator QA
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "fresh-rebuild/src/features/apps/ai-video-studio-flagship.js"
+      - "NexusNovaAndroid/app/**"
+      - ".github/workflows/video-android-emulator-qa.yml"
+      - "NexusNovaAndroid/gradle/**"
+
+jobs:
+  android-emulator-video-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Create deterministic Android video fixture
+        run: |
+          set -euo pipefail
+          mkdir -p qa/fixtures
+          ffmpeg -hide_banner -loglevel error             -f lavfi -i color=c=white:s=160x90:r=12:d=1             -c:v libvpx -b:v 200k -an             qa/fixtures/video-studio-video-qa.webm
+          test -s qa/fixtures/video-studio-video-qa.webm
+          stat -c "%n %s bytes" qa/fixtures/video-studio-video-qa.webm
+
+      - name: Run real Android emulator QA
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: Pixel 2
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+          disable-animations: true
+          working-directory: NexusNovaAndroid
+          script: |
+            set -u
+            adb push "$GITHUB_WORKSPACE/qa/fixtures/video-studio-video-qa.webm" /sdcard/Download/video-studio-video-qa.webm
+            test -s "$GITHUB_WORKSPACE/qa/fixtures/video-studio-video-qa.webm"
+
+            ./gradlew :app:connectedAndroidTest               --tests com.nexusnova.app.VideoStudioEmulatorQaTest.videoStudioFullscreenScopedDockAndNativeMediaPicker
+            status=$?
+
+            mkdir -p "$GITHUB_WORKSPACE/qa/android-emulator-results"
+            adb logcat -d -v threadtime > "$GITHUB_WORKSPACE/qa/android-emulator-results/logcat.txt" || true
+            adb shell ls -la /sdcard/Android/data/com.nexusnova.app/files/Pictures/ || true
+            adb pull /sdcard/Android/data/com.nexusnova.app/files/Pictures "$GITHUB_WORKSPACE/qa/android-emulator-results/" || true
+
+            exit $status
+
+      - name: Upload Android emulator evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: video-studio-android-emulator-evidence
+          path: qa/android-emulator-results/
+          if-no-files-found: warn
