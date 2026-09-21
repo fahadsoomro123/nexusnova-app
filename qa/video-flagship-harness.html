@@ -23,11 +23,12 @@
     import { renderAiVideoStudio } from '../fresh-rebuild/src/features/apps/ai-video-studio-flagship.js';
     const mount=document.querySelector('[data-app-mount]');
     const dock=document.querySelector('.nx-dock');
-    const editor=renderAiVideoStudio();
-    mount.appendChild(editor);
+    const proofEditor=renderAiVideoStudio();
+    mount.appendChild(proofEditor);
     if(!dock.hidden) throw new Error('Video Studio did not disable the global dock.');
-    editor.__cleanup?.();
+    proofEditor.__cleanup?.();
     if(dock.hidden) throw new Error('Video Studio did not restore the global dock after exit.');
+    const editor=renderAiVideoStudio();
     mount.appendChild(editor);
   </script>
 </body>
