@@ -80,7 +80,7 @@ jobs:
           }
 
           await page.goto(url, { waitUntil: 'domcontentloaded' });
-          await page.waitForSelector('[data-file]');
+          await page.waitForSelector('[data-file]', { state: 'attached' });
           await assertNoScroll('390x844 initial');
 
           for (const tool of ['edit','audio','speed','adjust','text','effects','transform','canvas','ai','motion']) {
