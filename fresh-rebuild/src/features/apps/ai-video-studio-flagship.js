@@ -182,6 +182,68 @@ function ensureVideoFlagshipStyles() {
       .nx-video-clip{height:58px!important;grid-template-columns:minmax(0,1fr) 88px!important}
       .nx-video-inspector{padding:6px!important}
     }
+
+    /* FINAL structural/touch hardening — must remain last in the style sheet. */
+    .nx-stage.nx-video-stage-active{
+      min-height:100dvh!important;height:100dvh!important;max-height:100dvh!important;
+      padding:0!important;scroll-padding-bottom:0!important;overflow:hidden!important;
+    }
+    .nx-stage.nx-video-stage-active .nx-video-route-screen{
+      width:100%!important;height:100dvh!important;min-height:0!important;max-height:100dvh!important;
+      margin:0!important;padding:0!important;overflow:hidden!important;animation:none!important;background:#fff!important;
+    }
+    .nx-stage.nx-video-stage-active .nx-video-route-screen>.nx-app-head{
+      height:62px!important;min-height:62px!important;margin:0!important;padding:4px 12px 4px 10px!important;
+      box-sizing:border-box!important;overflow:hidden!important;background:#fff!important;border-bottom:1px solid #eee9f5!important;
+    }
+    .nx-stage.nx-video-stage-active .nx-video-route-screen>[data-app-mount]{
+      height:calc(100% - 62px)!important;min-height:0!important;max-height:calc(100% - 62px)!important;
+      padding:0!important;overflow:hidden!important;display:grid!important;
+    }
+    html.nx-video-studio-route-active,
+    body.nx-video-studio-route-active{overflow:hidden!important;overscroll-behavior:none!important}
+    .nx-video-flagship{height:100%!important;min-height:0!important;max-height:100%!important}
+    .nx-video-flagship .nx-video-toolbar{overflow:hidden!important}
+    .nx-video-flagship .nx-video-actions button,
+    .nx-video-flagship .nx-video-preset-row button,
+    .nx-video-flagship .nx-video-transform-row button,
+    .nx-video-flagship .nx-video-bottom button{
+      min-height:44px!important;height:44px!important;
+    }
+    .nx-video-flagship .nx-video-field input,
+    .nx-video-flagship .nx-video-field select{
+      min-height:44px!important;height:44px!important;
+    }
+    .nx-video-flagship .nx-video-timebar button{
+      min-width:44px!important;width:44px!important;min-height:44px!important;height:44px!important;
+    }
+    .nx-video-flagship .nx-video-cliprow{
+      grid-template-columns:repeat(2,minmax(0,1fr))!important;
+      grid-auto-flow:unset!important;grid-auto-columns:unset!important;
+      overflow:hidden!important;
+    }
+    .nx-video-flagship .nx-video-clip{
+      height:58px!important;
+      grid-template-columns:minmax(0,1fr) 88px!important;
+    }
+    .nx-video-flagship .nx-video-reorder{
+      grid-auto-flow:column!important;
+      grid-template-columns:repeat(2,44px)!important;
+      align-items:center!important;
+    }
+    .nx-video-flagship .nx-video-reorder button{
+      width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important;
+      padding:0!important;
+    }
+    .nx-video-flagship .nx-video-file-input{
+      position:absolute!important;left:-10000px!important;top:auto!important;
+      width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important;
+      clip:rect(0 0 0 0)!important;
+    }
+    @media(max-width:390px){
+      .nx-video-flagship{grid-template-rows:minmax(0,1.15fr) minmax(0,.52fr) minmax(0,1fr) minmax(0,.58fr) minmax(0,.58fr)!important}
+      .nx-video-flagship .nx-video-clip{height:58px!important}
+    }
   `;
   document.head.appendChild(style);
 }
