@@ -14,13 +14,21 @@
   </style>
 </head>
 <body>
+  <nav class="nx-dock" aria-label="Primary navigation"></nav>
   <section class="nx-screen">
     <header class="nx-app-head"><strong>‹</strong><div><p>MEDIA</p><h1>AI Video Studio</h1></div></header>
     <div data-app-mount></div>
   </section>
   <script type="module">
     import { renderAiVideoStudio } from '../fresh-rebuild/src/features/apps/ai-video-studio-flagship.js';
-    document.querySelector('[data-app-mount]').appendChild(renderAiVideoStudio());
+    const mount=document.querySelector('[data-app-mount]');
+    const dock=document.querySelector('.nx-dock');
+    const editor=renderAiVideoStudio();
+    mount.appendChild(editor);
+    if(!dock.hidden) throw new Error('Video Studio did not disable the global dock.');
+    editor.__cleanup?.();
+    if(dock.hidden) throw new Error('Video Studio did not restore the global dock after exit.');
+    mount.appendChild(editor);
   </script>
 </body>
 </html>
