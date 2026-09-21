@@ -27,6 +27,7 @@ class VideoStudioEmulatorQaTest {
     fun videoStudioFullscreenScopedDockAndNativeMediaPicker() {
         require(Build.VERSION.SDK_INT >= 29)
 
+        instrumentation.uiAutomation.executeShellCommand("pm clear com.nexusnova.app").close()
         cleanupDownload("video-studio-video-qa.webm")
         cleanupDownload("video-studio-photo-qa.png")
 
