@@ -156,6 +156,22 @@ function uid(prefix='v'){ return prefix + Math.random().toString(36).slice(2,9);
 function escapeHtml(value){ return String(value??'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 function clamp(n,a,b){ return Math.min(b,Math.max(a,n)); }
 
+function takeVideoDockOwnership(){
+  const dock=document.querySelector('.nx-dock');
+  if(!dock) return () => {};
+  const wasHidden=dock.hidden;
+  const keepHidden=()=>{
+    if(document.body.contains(dock)) dock.hidden=true;
+  };
+  keepHidden();
+  const observer=new MutationObserver(keepHidden);
+  observer.observe(dock,{attributes:true,attributeFilter:['hidden']});
+  return ()=>{
+    observer.disconnect();
+    dock.hidden=wasHidden;
+  };
+}
+
 export function renderAiVideoStudio(){
   ensureVideoFlagshipStyles();
 
