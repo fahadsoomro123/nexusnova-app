@@ -98,6 +98,44 @@ function ensureVideoFlagshipStyles() {
     .nx-video-reorder button{width:22px!important;height:44px!important;min-width:22px!important;min-height:44px!important}
     .nx-video-actions button{height:44px!important;min-height:44px!important}
     .nx-video-field input,.nx-video-field select{height:44px!important;min-height:44px!important}
+    /* V3 structural Android route: router owns the dock, so the editor owns the full stage. */
+    .nx-stage.nx-video-stage-active{
+      min-height:100dvh!important;height:100dvh!important;max-height:100dvh!important;
+      padding:0!important;scroll-padding-bottom:0!important;overflow:hidden!important;
+    }
+    .nx-stage.nx-video-stage-active .nx-video-route-screen{
+      width:100%!important;height:100dvh!important;min-height:0!important;max-height:100dvh!important;
+      margin:0!important;padding:0!important;overflow:hidden!important;animation:none!important;background:#fff!important;
+    }
+    .nx-stage.nx-video-stage-active .nx-video-route-screen>.nx-app-head{
+      height:62px!important;min-height:62px!important;margin:0!important;padding:4px 12px 4px 10px!important;
+      box-sizing:border-box!important;overflow:hidden!important;background:#fff!important;border-bottom:1px solid #eee9f5!important;
+    }
+    .nx-stage.nx-video-stage-active .nx-video-route-screen>[data-app-mount]{
+      height:calc(100% - 62px)!important;min-height:0!important;max-height:calc(100% - 62px)!important;
+      padding:0!important;overflow:hidden!important;display:grid!important;
+    }
+    .nx-stage.nx-video-stage-active .nx-video-route-screen>.nx-app-head .nx-back{
+      width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important;
+    }
+    html.nx-video-studio-route-active,
+    body.nx-video-studio-route-active{overflow:hidden!important;overscroll-behavior:none!important}
+    /* Native route state makes the global dock absent; no overlay or negative-margin hiding. */
+    .nx-video-flagship{height:100%!important;min-height:0!important;max-height:100%!important}
+    .nx-video-flagship .nx-video-tool,
+    .nx-video-flagship .nx-video-actions button,
+    .nx-video-flagship .nx-video-preset-row button,
+    .nx-video-flagship .nx-video-transform-row button,
+    .nx-video-flagship .nx-video-bottom button{
+      min-height:44px!important;height:44px!important;
+    }
+    .nx-video-flagship .nx-video-field input,
+    .nx-video-flagship .nx-video-field select{
+      min-height:44px!important;height:44px!important;
+    }
+    .nx-video-flagship .nx-video-timebar button{
+      min-width:44px!important;width:44px!important;min-height:44px!important;height:44px!important;
+    }
     /* V2 flagship layout: fit the complete editor in a normal Android viewport. */
     .nx-screen:has(.nx-video-flagship){height:calc(100dvh - 82px)!important;max-height:calc(100dvh - 82px)!important;overflow:hidden!important;background:#fff!important;padding:0!important}
     .nx-screen:has(.nx-video-flagship)>.nx-app-head{height:62px!important;min-height:62px!important;margin:0 0 4px!important;padding:4px 12px 4px 10px!important;border-bottom:1px solid #eee9f5!important}
@@ -113,11 +151,11 @@ function ensureVideoFlagshipStyles() {
     .nx-video-timebar{gap:6px!important;margin:0!important}
     .nx-video-timebar button{width:38px!important;height:38px!important;border-radius:10px!important}
     .nx-video-timebar strong{min-width:38px!important;font-size:10px!important}
-    .nx-video-cliprow{grid-template-columns:repeat(4,minmax(0,1fr))!important;grid-auto-flow:unset!important;grid-auto-columns:unset!important;gap:5px!important;overflow:hidden!important}
-    .nx-video-clip{height:58px!important;border-radius:10px!important;padding:4px!important;grid-template-columns:minmax(0,1fr) auto!important}
+    .nx-video-cliprow{grid-template-columns:repeat(2,minmax(0,1fr))!important;grid-auto-flow:unset!important;grid-auto-columns:unset!important;gap:5px!important;overflow:hidden!important}
+    .nx-video-clip{height:58px!important;border-radius:10px!important;padding:4px!important;grid-template-columns:minmax(0,1fr) 88px!important}
     .nx-video-clip:nth-child(n+5){display:none!important}
     .nx-video-clip-meta b{font-size:9px!important}.nx-video-clip-meta span{font-size:7px!important}
-    .nx-video-reorder button{width:21px!important;height:21px!important;font-size:10px!important}
+    .nx-video-reorder button{width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important;font-size:13px!important}
     .nx-video-inspector{padding:7px!important;border-radius:14px!important;box-shadow:none!important;overflow:hidden!important}
     .nx-video-inspector-head{margin-bottom:5px!important}.nx-video-inspector-head strong{font-size:11px!important}.nx-video-inspector-head span{font-size:8px!important}
     .nx-video-panel{height:calc(100% - 23px)!important;overflow:hidden!important}
@@ -141,7 +179,7 @@ function ensureVideoFlagshipStyles() {
       .nx-video-flagship{grid-template-rows:minmax(0,1.15fr) minmax(0,.52fr) minmax(0,1fr) minmax(0,.58fr) minmax(0,.58fr)!important}
       .nx-video-tool{font-size:7.5px!important}
       .nx-video-tool b{font-size:13px!important}
-      .nx-video-clip{height:54px!important}
+      .nx-video-clip{height:58px!important;grid-template-columns:minmax(0,1fr) 88px!important}
       .nx-video-inspector{padding:6px!important}
     }
   `;
