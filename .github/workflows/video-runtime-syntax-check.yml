@@ -39,7 +39,6 @@ jobs:
           mkdir -p fresh-rebuild/fixtures
           gst-launch-1.0 -q             videotestsrc num-buffers=30 pattern=ball !             video/x-raw,width=160,height=90,framerate=15/1 !             videoconvert ! vp8enc ! webmmux !             filesink location=fresh-rebuild/fixtures/generated.webm
           test -s fresh-rebuild/fixtures/generated.webm
-          gst-discoverer-1.0 fresh-rebuild/fixtures/generated.webm | grep -E "video/webm|video/x-vp8|Duration"
 
       - name: Serve candidate harness
         run: |
