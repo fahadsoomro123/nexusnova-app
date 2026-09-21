@@ -31,7 +31,7 @@ export function authScreen({ onSignedIn } = {}) {
           <span>Password</span>
           <input type="password" name="password" autocomplete="current-password" minlength="6" placeholder="Minimum 6 characters" required>
         </label>
-        <button class="nx-primary" type="submit" data-auth-submit>SIGN IN</button>
+        <button class="nx-primary" type="submit" data-auth-submit aria-label="Submit authentication form">SIGN IN</button>
         <p class="nx-form-status" data-auth-status role="status">QA sign-in ready.</p>
       </form>
     </article>
