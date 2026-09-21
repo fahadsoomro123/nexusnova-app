@@ -88,7 +88,7 @@ jobs:
           script: |
             set -eu
             mkdir -p ../artifacts/video-emulator
-            trap 'adb exec-out screencap -p > ../artifacts/video-emulator/final-screen.png || true; adb logcat -d -t 5000 > ../artifacts/video-emulator/logcat.txt || true; adb pull /sdcard/Android/data/com.nexusnova.app/files/Pictures ../artifacts/video-emulator/pictures >/dev/null 2>&1 || true; adb pull /sdcard/Download/nxqa-*.png ../artifacts/video-emulator/shell-screens >/dev/null 2>&1 || true' EXIT
+            trap 'adb exec-out screencap -p > ../artifacts/video-emulator/final-screen.png || true; adb logcat -d -t 5000 > ../artifacts/video-emulator/logcat.txt || true; adb pull /sdcard/Android/data/com.nexusnova.app/files/Pictures ../artifacts/video-emulator/pictures >/dev/null 2>&1 || true; mkdir -p ../artifacts/video-emulator/shell-screens; for f in auth-before-submit auth-after-submit video-studio-before-picker video-studio-after-import video-studio-after-export; do adb pull /sdcard/Download/nxqa-${f}.png ../artifacts/video-emulator/shell-screens/${f}.png >/dev/null 2>&1 || true; done' EXIT
             adb wait-for-device
             adb shell am force-stop com.nexusnova.app
             gradle --no-daemon :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.nexusnova.app.VideoStudioEmulatorQaTest
