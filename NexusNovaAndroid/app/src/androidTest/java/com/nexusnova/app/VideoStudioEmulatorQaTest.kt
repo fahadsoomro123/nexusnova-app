@@ -68,8 +68,8 @@ class VideoStudioEmulatorQaTest {
         assertTrue("MINE dock leaked into Video Studio", !device.hasObject(By.text("MINE")))
         assertTrue("NOVA HUB dock leaked into Video Studio", !device.hasObject(By.text("NOVA HUB")))
 
-        // Native video import: fixture is pushed by the workflow into Downloads,
-        // DocumentsUI must expose it, and returning to NexusNova must create a clip.
+        // Native video import: the workflow generates the fixture into the test APK,
+        // this test publishes it to MediaStore/Downloads, and DocumentsUI must expose it.
         device.findObject(By.textContains("ADD MEDIA")).click()
         waitForDocumentsUi()
         selectDocument("video-studio-video-qa.webm")
