@@ -103,7 +103,7 @@ function ensureVideoFlagshipStyles() {
       .nx-video-flagship{grid-template-rows:minmax(0,1.34fr) minmax(0,.58fr) minmax(0,.94fr) minmax(0,.54fr) minmax(0,.50fr)!important}
     }
     /* V2 flagship layout: fit the complete editor in a normal Android viewport. */
-    .nx-screen:has(.nx-video-flagship){height:calc(100dvh - 82px)!important;max-height:calc(100dvh - 82px)!important;overflow:hidden!important;background:#fff!important;padding:0!important}
+    .nx-screen:has(.nx-video-flagship){height:100dvh!important;max-height:100dvh!important;overflow:hidden!important;background:#fff!important;padding:0!important}
     .nx-screen:has(.nx-video-flagship)>.nx-app-head{height:62px!important;min-height:62px!important;margin:0 0 4px!important;padding:4px 12px 4px 10px!important;border-bottom:1px solid #eee9f5!important}
     .nx-screen:has(.nx-video-flagship)>[data-app-mount]{height:calc(100% - 66px)!important;overflow:hidden!important;padding:0!important}
     .nx-video-flagship{grid-template-rows:minmax(0,1.28fr) minmax(0,.56fr) minmax(0,1fr) minmax(0,.56fr) minmax(0,.56fr)!important;gap:6px!important;padding:6px!important;border:0!important;border-radius:18px!important;box-shadow:none!important;background:#fff!important}
