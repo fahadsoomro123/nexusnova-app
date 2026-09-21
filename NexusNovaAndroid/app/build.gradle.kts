@@ -14,6 +14,7 @@ android {
     defaultConfig {
         applicationId = "com.nexusnova.app"
         minSdk = 26
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         targetSdk = 35
         versionCode = 12021
         versionName = "1.0.21-drive-history"
