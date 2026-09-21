@@ -42,6 +42,14 @@ jobs:
           cat /tmp/servor.log
           exit 1
 
+      - name: Create deterministic WebM fixture
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          mkdir -p qa/fixtures
+          ffmpeg -hide_banner -loglevel error -y -f lavfi -i color=c=magenta:s=160x90:r=15 -t 0.5 -an -c:v libvpx-vp8 -deadline realtime -b:v 250k qa/fixtures/generated.webm
+          test -s qa/fixtures/generated.webm
+
       - name: Run flagship interaction QA
         env:
           BASE_URL: http://127.0.0.1:4173/qa/video-flagship-harness.html
@@ -130,35 +138,9 @@ jobs:
           await page.locator('[data-redo]').click();
           await page.waitForFunction(() => document.querySelectorAll('[data-id]').length === 3);
 
-          // Generated WebM: this exercises the real video metadata/import path without shipping a binary fixture.
-          const videoBase64 = await page.evaluate(async () => {
-            const canvas = document.createElement('canvas'); canvas.width = 160; canvas.height = 90;
-            const ctx = canvas.getContext('2d');
-            const stream = canvas.captureStream(15);
-            const recorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp8' });
-            const chunks = [];
-            recorder.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
-            recorder.start();
-            const started = performance.now();
-            const stopped = new Promise(resolve => { recorder.onstop = resolve; });
-            await new Promise(resolve => {
-              const tick = () => {
-                const t = (performance.now()-started)/250;
-                ctx.fillStyle = '#ef4fb4'; ctx.fillRect(0,0,160,90);
-                ctx.fillStyle = '#fff'; ctx.fillRect((t%1)*130,30,30,30);
-                if (performance.now()-started >= 450) { recorder.stop(); return; }
-                requestAnimationFrame(tick);
-              };
-              requestAnimationFrame(tick);
-            });
-            await stopped;
-            stream.getTracks().forEach(track => track.stop());
-            const blob = new Blob(chunks, { type: 'video/webm' });
-            const bytes = new Uint8Array(await blob.arrayBuffer());
-            let binary = ''; for (const byte of bytes) binary += String.fromCharCode(byte);
-            return btoa(binary);
-          });
-          const webm = Buffer.from(videoBase64, 'base64');
+          // Generate a deterministic real WebM fixture outside the browser page.
+          // This avoids Chromium execution-context resets while still exercising the media metadata/import path.
+          const webm = fs.readFileSync('qa/fixtures/generated.webm');
           assert.ok(webm.length > 1000, 'generated WebM is too small');
           await input.setInputFiles([
             { name: 'generated.webm', mimeType: 'video/webm', buffer: webm },
