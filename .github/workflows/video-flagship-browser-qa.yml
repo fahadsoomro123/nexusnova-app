@@ -45,10 +45,10 @@ jobs:
       - name: Create deterministic MP4 fixture
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ffmpeg
+          sudo apt-get install -y -qq gstreamer1.0-tools gstreamer1.0-plugins-good
           mkdir -p qa/fixtures
-          ffmpeg -hide_banner -loglevel error -y -f lavfi -i color=c=magenta:s=160x90:r=15 -t 0.5 -an -c:v libx264 -pix_fmt yuv420p -movflags +faststart qa/fixtures/generated.mp4
-          test -s qa/fixtures/generated.mp4
+          gst-launch-1.0 -q videotestsrc num-buffers=15 pattern=ball ! video/x-raw,width=160,height=90,framerate=15/1 ! videoconvert ! vp8enc ! webmmux ! filesink location=qa/fixtures/generated.webm
+          test -s qa/fixtures/generated.webm
 
       - name: Run flagship interaction QA
         env:
@@ -140,10 +140,10 @@ jobs:
 
           // Generate a deterministic real WebM fixture outside the browser page.
           // This avoids Chromium execution-context resets while still exercising the media metadata/import path.
-          const videoFixture = fs.readFileSync('qa/fixtures/generated.mp4');
-          assert.ok(videoFixture.length > 1000, 'generated MP4 is too small');
+          const videoFixture = fs.readFileSync('qa/fixtures/generated.webm');
+          assert.ok(videoFixture.length > 1000, 'generated WebM is too small');
           await input.setInputFiles([
-            { name: 'generated.mp4', mimeType: 'video/mp4', buffer: videoFixture },
+            { name: 'generated.webm', mimeType: 'video/webm', buffer: videoFixture },
             { name: 'cover-again.png', mimeType: 'image/png', buffer: png }
           ]);
           await page.waitForFunction(() => document.querySelectorAll('[data-id]').length >= 5);
