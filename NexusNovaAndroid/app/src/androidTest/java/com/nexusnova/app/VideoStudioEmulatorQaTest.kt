@@ -59,14 +59,14 @@ class VideoStudioEmulatorQaTest {
         authFields[1].text = "NexusNova123"
 
         waitText("SIGN IN").click()
-        waitText("NOVA HUB").click()
+        waitDescription("Open Nova Hub").click()
 
         val search = device.wait(
             Until.findObject(By.desc("Search Nova Hub")),
             15_000L
         ) ?: error("Nova Hub search field not found")
         search.text = "AI Video Studio"
-        waitText("AI Video Studio").click()
+        waitDescription("Open AI Video Studio").click()
 
         waitText("CREATE YOUR VIDEO")
         capture("video-studio-before-picker.png")
@@ -102,9 +102,9 @@ class VideoStudioEmulatorQaTest {
 
         // Leave Video Studio. The normal global dock must return immediately.
         device.pressBack()
-        waitText("NOVA HUB")
-        assertTrue("dock was not restored after leaving Video Studio", device.hasObject(By.text("MINE")))
-        assertTrue("dock was not restored after leaving Video Studio", device.hasObject(By.text("NOVA HUB")))
+        waitDescription("Open Nova Hub")
+        assertTrue("dock was not restored after leaving Video Studio", device.hasObject(By.desc("Open Mine")))
+        assertTrue("dock was not restored after leaving Video Studio", device.hasObject(By.desc("Open Nova Hub")))
 
         cleanupDownload("video-studio-photo-qa.png")
         cleanupDownload("video-studio-video-qa.webm")
@@ -117,6 +117,10 @@ class VideoStudioEmulatorQaTest {
     private fun waitTextContains(value: String, timeout: Long = 30_000L) =
         device.wait(Until.findObject(By.textContains(value)), timeout)
             ?: error("Timed out waiting for text containing: $value")
+
+    private fun waitDescription(value: String, timeout: Long = 30_000L) =
+        device.wait(Until.findObject(By.desc(value)), timeout)
+            ?: error("Timed out waiting for description: $value")
 
     private fun waitForDocumentsUi() {
         assertTrue(
