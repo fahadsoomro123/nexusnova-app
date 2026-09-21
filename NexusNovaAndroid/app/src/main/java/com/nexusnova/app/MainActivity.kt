@@ -10,6 +10,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.webkit.GeolocationPermissions
+import android.webkit.MimeTypeMap
 import android.webkit.PermissionRequest
 import android.webkit.RenderProcessGoneDetail
 import android.webkit.ValueCallback
@@ -728,10 +729,41 @@ class MainActivity : AppCompatActivity() {
         if (uri.scheme != ContentResolver.SCHEME_CONTENT) return false
         if (acceptedTypes.isEmpty()) return true
 
-        val mimeType = try {
+        val rawMimeType = try {
             contentResolver.getType(uri)?.lowercase(Locale.ROOT)
         } catch (_: Exception) {
             null
+        }
+
+        val displayName = try {
+            contentResolver.query(
+                uri,
+                arrayOf(OpenableColumns.DISPLAY_NAME),
+                null,
+                null,
+                null
+            )?.use { cursor ->
+                val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (index >= 0 && cursor.moveToFirst()) cursor.getString(index) else null
+            }
+        } catch (_: Exception) {
+            null
+        }
+
+        val extension = displayName
+            ?.substringAfterLast('.', "")
+            ?.trim()
+            ?.lowercase(Locale.ROOT)
+            ?.takeIf { it.isNotBlank() }
+
+        val inferredMimeType = extension?.let {
+            MimeTypeMap.getSingleton().getMimeTypeFromExtension(it)?.lowercase(Locale.ROOT)
+        }
+
+        val mimeType = when {
+            rawMimeType.isNullOrBlank() -> inferredMimeType
+            rawMimeType == "application/octet-stream" && inferredMimeType != null -> inferredMimeType
+            else -> rawMimeType
         } ?: return false
 
         return acceptedTypes
@@ -743,7 +775,7 @@ class MainActivity : AppCompatActivity() {
                     acceptedType == mimeType ||
                     (acceptedType.endsWith("/*") &&
                         mimeType.startsWith(acceptedType.removeSuffix("*"))) ||
-                    (acceptedType == ".pdf" && mimeType == "application/pdf")
+                    (acceptedType.startsWith(".") && inferredMimeType == mimeType)
             }
     }
 
