@@ -90,6 +90,7 @@ class VideoStudioEmulatorQaTest {
         assertTrue("dock was not restored after leaving Video Studio", device.hasObject(By.text("NOVA HUB")))
 
         cleanupDownload("video-studio-photo-qa.png")
+        cleanupDownload("video-studio-video-qa.webm")
     }
 
     private fun waitText(value: String, timeout: Long = 30_000L) =
@@ -150,7 +151,7 @@ class VideoStudioEmulatorQaTest {
     private fun cleanupDownload(name: String) {
         context.contentResolver.delete(
             MediaStore.Downloads.EXTERNAL_CONTENT_URI,
-            "\${MediaStore.Downloads.DISPLAY_NAME}=?",
+            "${MediaStore.Downloads.DISPLAY_NAME}=?",
             arrayOf(name)
         )
     }
