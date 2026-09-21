@@ -28,6 +28,7 @@
     if(!dock.hidden) throw new Error('Video Studio did not disable the global dock.');
     proofEditor.__cleanup?.();
     if(dock.hidden) throw new Error('Video Studio did not restore the global dock after exit.');
+    mount.replaceChildren();
     const editor=renderAiVideoStudio();
     mount.appendChild(editor);
   </script>
