@@ -130,6 +130,11 @@ function showDock(show) {
   document.body.classList.toggle('nx-auth-mode', !show);
 }
 
+function setVideoStudioRouteMode(active) {
+  document.body.classList.toggle('nx-video-studio-route-active', Boolean(active));
+  stage.classList.toggle('nx-video-stage-active', Boolean(active));
+}
+
 function setSplashMode(enabled) {
   document.body.classList.toggle('nx-splash-mode', Boolean(enabled));
 }
@@ -258,9 +263,11 @@ router = createRouter({
   },
   onRoute(route, payload = {}) {
     setSplashMode(false);
+    const videoStudioActive = route === 'app' && payload.id === 'ai-video-studio';
     if (route === 'app') currentAppParent = parentRouteForApp(payload.id);
+    setVideoStudioRouteMode(videoStudioActive);
     syncDock(route, payload);
-    showDock(route !== 'auth');
+    showDock(route !== 'auth' && !videoStudioActive);
     if (route !== 'app' && appScreenModulePromise) appScreenModulePromise.then(module => module.cleanupAppScreen()).catch(() => {});
     if (route !== 'app' && novaVaultModulePromise) novaVaultModulePromise.then(module => module.cleanupNovaVaultScreen()).catch(() => {});
   }
