@@ -42,7 +42,6 @@ jobs:
         uses: gradle/actions/setup-gradle@v5
 
       - name: Build app and Android test APKs
-        working-directory: NexusNovaAndroid
         run: |
           set -euo pipefail
           gradle -p NexusNovaAndroid :app:assembleDebug :app:assembleDebugAndroidTest --stacktrace --no-daemon
