@@ -72,8 +72,8 @@ function ensureVideoFlagshipStyles() {
     .nx-video-thumb img,.nx-video-thumb video{width:100%;height:100%;object-fit:cover}
     .nx-video-clip-meta{min-width:0;display:grid;align-content:center;gap:2px}.nx-video-clip-meta b{font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.nx-video-clip-meta span{font-size:8px;color:#847d91}
     .nx-video-reorder{display:grid;gap:3px}.nx-video-reorder button{width:25px;height:25px;font-size:11px}
-    .nx-video-toolbar{min-height:0;display:flex;align-items:stretch;gap:7px;overflow-x:auto;overflow-y:hidden;padding:1px 1px 3px;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch}
-    .nx-video-tool{flex:0 0 74px;min-width:74px;height:58px;display:grid;place-items:center;gap:2px;padding:4px;border:1px solid #e8e1f0;border-radius:13px;background:#fff;color:#403949;box-shadow:0 4px 13px rgba(72,48,109,.05);font-size:10px;font-weight:800;scroll-snap-align:start}
+    .nx-video-toolbar{min-height:0;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));grid-auto-rows:minmax(44px,1fr);gap:4px;overflow:hidden;padding:1px 1px 3px}
+    .nx-video-tool{min-width:0;width:100%;height:100%;min-height:44px;display:grid;place-items:center;gap:1px;padding:3px 2px;border:1px solid #e8e1f0;border-radius:11px;background:#fff;color:#403949;box-shadow:0 4px 13px rgba(72,48,109,.05);font-size:9px;font-weight:800;overflow:hidden}
     .nx-video-tool b{font-size:17px;line-height:1}.nx-video-tool.is-active{border-color:#a28cff;background:linear-gradient(145deg,#f7f3ff,#efe9ff);color:#5b42c7}
     .nx-video-inspector{min-height:0;overflow:hidden;padding:8px;border:1px solid #e7e0f0;border-radius:15px;background:#fff}
     .nx-video-inspector-head{display:flex;align-items:center;justify-content:space-between;gap:7px;margin-bottom:7px}.nx-video-inspector-head strong{font-size:12px;color:#292431}.nx-video-inspector-head span{font-size:9px;color:#7f778d}
@@ -234,6 +234,15 @@ function ensureVideoFlagshipStyles() {
     .nx-video-flagship .nx-video-reorder button{
       width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important;
       padding:0!important;
+    }
+    .nx-video-flagship .nx-video-toolbar{
+      display:grid!important;grid-template-columns:repeat(6,minmax(0,1fr))!important;
+      grid-auto-rows:minmax(44px,1fr)!important;gap:4px!important;
+      overflow:hidden!important;overflow-x:hidden!important;overflow-y:hidden!important;
+    }
+    .nx-video-flagship .nx-video-tool{
+      flex:none!important;width:100%!important;min-width:0!important;min-height:44px!important;height:100%!important;
+      scroll-snap-align:none!important;padding:3px 2px!important;
     }
     .nx-video-flagship .nx-video-file-input{
       position:absolute!important;left:-10000px!important;top:auto!important;
