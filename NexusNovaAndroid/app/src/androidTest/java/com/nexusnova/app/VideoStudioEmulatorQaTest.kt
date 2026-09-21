@@ -27,7 +27,9 @@ class VideoStudioEmulatorQaTest {
     fun videoStudioFullscreenScopedDockAndNativeMediaPicker() {
         require(Build.VERSION.SDK_INT >= 29)
 
-        instrumentation.uiAutomation.executeShellCommand("pm clear com.nexusnova.app").close()
+        // The dedicated gate installs the debug build onto a fresh emulator.
+        // Do not clear the target package from inside its own instrumentation run:
+        // that can terminate UiAutomation/instrumentation before the test body begins.
         cleanupDownload("video-studio-video-qa.webm")
         cleanupDownload("video-studio-photo-qa.png")
 
