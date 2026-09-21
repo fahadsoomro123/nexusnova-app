@@ -4,4 +4,5 @@
     <string name="caller_setup_title">Caller ID &amp; call screening</string>
     <string name="caller_setup_body">Android requires the call-screening role to be enabled before NexusNova can handle caller-identification features. You can enable the role in the system prompt or choose Later.</string>
     <string name="enable_caller_id">Enable Caller ID</string>
+    <string name="unknown_caller">Unknown caller</string>
 </resources>
