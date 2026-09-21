@@ -117,7 +117,7 @@ for(const [width,height] of [[360,800],[360,900],[390,844],[412,915]]){
     const toolbar=document.querySelector('.nx-video-toolbar');
     const toolbarNoScroll=!toolbar||toolbar.scrollWidth<=toolbar.clientWidth+2;
     const panels=[...document.querySelectorAll('.nx-video-panel.is-active')].every(el=>el.scrollHeight<=el.clientHeight+2&&el.scrollWidth<=el.clientWidth+2);
-    const interactive=all.filter(el=>el.matches('button,input,select,textarea,[role="button"]')&&!el.matches('[data-file]')).every(el=>{const r=el.getBoundingClientRect();return r.width>=44&&r.height>=44;});
+    const interactive=all.filter(el=>el.matches('button,input,select,textarea,[role="button"]')&&!el.matches('[data-file]')).every(el=>{const r=el.getBoundingClientRect();if(r.width<=0||r.height<=0)return true;return r.width>=44&&r.height>=44;});
     return {viewportOk,rootNoScroll,toolbarNoScroll,panels,interactive};
   });
   if(!layout.viewportOk||!layout.rootNoScroll||!layout.toolbarNoScroll||!layout.panels||!layout.interactive) throw new Error('RESPONSIVE/TAP TARGET FAIL '+width+'x'+height+' '+JSON.stringify(layout));
