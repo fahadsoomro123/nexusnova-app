@@ -30,6 +30,16 @@ jobs:
         run: |
           npm install --no-save playwright@1.55.0
           npx playwright install --with-deps chromium
+      - name: Generate deterministic browser MP4 fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v ffmpeg
+          mkdir -p fresh-rebuild/fixtures
+          ffmpeg -hide_banner -loglevel error -y             -f lavfi -i "testsrc=size=160x90:rate=15"             -t 2 -an -c:v libx264 -pix_fmt yuv420p -movflags +faststart             fresh-rebuild/fixtures/sample.mp4
+          test -s fresh-rebuild/fixtures/sample.mp4
+          ffprobe -v error -select_streams v:0 -show_entries stream=codec_name,duration,width,height             -of default=noprint_wrappers=1 fresh-rebuild/fixtures/sample.mp4
+
       - name: Serve candidate harness
         run: |
           python3 -m http.server 4173 --directory fresh-rebuild >/tmp/video-http.log 2>&1 &
