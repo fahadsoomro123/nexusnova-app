@@ -4,6 +4,10 @@ on:
     branches:
       - agent/video-flagship-complete-20260921
 
+concurrency:
+  group: video-qa-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 jobs:
