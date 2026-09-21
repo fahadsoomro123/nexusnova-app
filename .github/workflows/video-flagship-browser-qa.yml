@@ -42,13 +42,13 @@ jobs:
           cat /tmp/servor.log
           exit 1
 
-      - name: Create deterministic WebM fixture
+      - name: Create deterministic MP4 fixture
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg
           mkdir -p qa/fixtures
           ffmpeg -hide_banner -loglevel error -y -f lavfi -i color=c=magenta:s=160x90:r=15 -t 0.5 -an -c:v libx264 -pix_fmt yuv420p -movflags +faststart qa/fixtures/generated.mp4
-          test -s qa/fixtures/generated.webm
+          test -s qa/fixtures/generated.mp4
 
       - name: Run flagship interaction QA
         env:
