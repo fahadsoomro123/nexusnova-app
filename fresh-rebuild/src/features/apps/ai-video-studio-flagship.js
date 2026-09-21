@@ -35,7 +35,7 @@ async function aiModel(systemInstruction){
   return core.aiModel(systemInstruction);
 }
 
-const STYLE_ID = 'nx-video-flagship-v3';
+const STYLE_ID = 'nx-video-flagship-v4';
 const DEFAULT_DUR = 3;
 
 function ensureVideoFlagshipStyles() {
@@ -83,8 +83,6 @@ function ensureVideoFlagshipStyles() {
     @media(max-height:720px){.nx-video-flagship{grid-template-rows:minmax(170px,36%) minmax(108px,23%) minmax(0,1fr) auto}.nx-screen:has(.nx-video-flagship) .nx-app-head{height:58px!important;min-height:58px!important}.nx-screen:has(.nx-video-flagship)>[data-app-mount]{height:calc(100% - 62px)!important}.nx-video-clip{height:56px}.nx-video-tool{font-size:8px}.nx-video-tool b{font-size:14px}}
     @media(prefers-reduced-motion:reduce){.nx-video-play{transition:none}}
     /* V4 full-screen editor + native picker reliability correction. */
-    body:has(.nx-video-flagship) .nx-dock,
-    body:has(.nx-video-flagship) #nx-mine-brand-portal{display:none!important}
     body:has(.nx-video-flagship) #nx-stage{height:100dvh!important;min-height:100dvh!important;max-height:100dvh!important;padding-bottom:0!important;overflow:hidden!important}
     .nx-screen:has(.nx-video-flagship){height:100dvh!important;min-height:0!important;max-height:100dvh!important;margin:0!important;padding:0!important;overflow:hidden!important;background:#fff!important}
     .nx-screen:has(.nx-video-flagship)>.nx-app-head{height:54px!important;min-height:54px!important;margin:0!important;padding:4px 12px 4px 10px!important;box-sizing:border-box!important}
@@ -161,6 +159,7 @@ function clamp(n,a,b){ return Math.min(b,Math.max(a,n)); }
 export function renderAiVideoStudio(){
   ensureVideoFlagshipStyles();
 
+  const releaseDock=takeVideoDockOwnership();
   const root=document.createElement('div');
   root.className='nx-app-body nx-video-flagship';
   root.innerHTML=`
@@ -823,6 +822,7 @@ export function renderAiVideoStudio(){
 
   render();
   root.__cleanup=()=>{
+    releaseDock();
     state.stopExport?.();
     if(state.imagePlayFrame){cancelAnimationFrame(state.imagePlayFrame);state.imagePlayFrame=0;}
     try{els.video.pause();}catch{}
