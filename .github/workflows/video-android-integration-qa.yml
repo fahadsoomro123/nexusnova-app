@@ -29,6 +29,6 @@ jobs:
         working-directory: NexusNovaAndroid
         run: |
           set -euo pipefail
-          gradle --no-daemon :app:assembleDebug :autopilot:assembleDebug :tracker:assembleDebug
+          gradle --no-daemon :app:assembleDebug :app:assembleDebugAndroidTest :tracker:assembleDebug
           gradle --no-daemon test
           echo "ANDROID VIDEO CANDIDATE INTEGRATION PASS"
