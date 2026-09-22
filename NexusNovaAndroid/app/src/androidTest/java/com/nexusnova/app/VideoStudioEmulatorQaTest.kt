@@ -73,6 +73,24 @@ class VideoStudioEmulatorQaTest {
         waitTextContains("2 clips •")
         capture("video-studio-after-import.png")
 
+        // Restart the real app process, then prove media can be imported again.
+        device.executeShellCommand("am force-stop com.nexusnova.app")
+        context.startActivity(
+            Intent(context, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        )
+        waitText("NOVA HUB")
+        device.findObject(By.text("NOVA HUB")).click()
+        val searchAgain = device.wait(Until.findObject(By.desc("Search Nova Hub")), 15_000L)
+            ?: error("Nova Hub search field missing after restart")
+        searchAgain.text = "AI Video Studio"
+        waitText("AI Video Studio").click()
+        waitText("CREATE YOUR VIDEO")
+        device.findObject(By.textContains("ADD MEDIA")).click()
+        waitForDocumentsUi()
+        selectDocument("video-studio-photo-qa.png")
+        waitTextContains("photo-qa")
+        waitTextContains("1 clip •")
         device.pressBack()
         waitText("NOVA HUB")
         assertTrue("dock was not restored after leaving Video Studio", device.hasObject(By.text("MINE")))
