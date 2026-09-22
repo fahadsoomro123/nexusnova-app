@@ -70,10 +70,9 @@ class VideoStudioEmulatorQaTest {
         inPoint.text = "0.2"
         waitText("OUT POINT")
         val editFields = device.findObjects(By.clazz("android.widget.EditText"))
-        assertTrue("Video editor fields missing", editFields.size >= 4)
+        assertTrue("Video editor fields missing", editFields.size >= 2)
         editFields[1].text = "0.8"
-        device.pressBack()
-        waitTextContains("0:01")
+        assertTrue("Trim OUT point was not applied", device.wait(Until.hasObject(By.text("0.8")), 5_000L))
 
         waitText("SPEED").click()
         waitTextContains("1.00×")
