@@ -103,8 +103,8 @@ jobs:
           import re
           p = Path("NexusNovaAndroid/app/build.gradle.kts")
           s = p.read_text(encoding="utf-8")
-          s, a = re.subn(r"versionCode\\s*=\\s*\\d+", "versionCode = 26092250", s, count=1)
-          s, b = re.subn(r'versionName\\s*=\\s*"[^"]+"', 'versionName = "1.0.50-video-flagship"', s, count=1)
+          s, a = re.subn(r"versionCode\s*=\s*\d+", "versionCode = 26092250", s, count=1)
+          s, b = re.subn(r'versionName\s*=\s*"[^"]+"', 'versionName = "1.0.50-video-flagship"', s, count=1)
           if a != 1 or b != 1:
               raise SystemExit("version anchors missing")
           signing = """    signingConfigs {
