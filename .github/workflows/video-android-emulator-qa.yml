@@ -24,24 +24,6 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Install media fixture tool
-        run: |
-          set -euo pipefail
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq ffmpeg
-
-      - name: Create deterministic Android media fixtures
-        run: |
-          set -euo pipefail
-          mkdir -p qa/fixtures
-          ffmpeg -hide_banner -loglevel error -f lavfi -i color=c=white:s=160x90:r=12:d=1 -c:v libvpx -b:v 200k -an qa/fixtures/video-picker.webm
-          cp qa/fixtures/video-picker.webm qa/fixtures/video-import.webm
-          cp qa/fixtures/video-picker.webm qa/fixtures/video-preview.webm
-          cp qa/fixtures/video-picker.webm qa/fixtures/format-webm.webm
-          ffmpeg -hide_banner -loglevel error -f lavfi -i color=c=black:s=160x90:r=24:d=1 -c:v libx264 -pix_fmt yuv420p -preset ultrafast -crf 30 -an qa/fixtures/format-mp4.mp4
-          ffmpeg -hide_banner -loglevel error -f lavfi -i testsrc2=size=1280x720:rate=30 -t 8 -c:v libx264 -pix_fmt yuv420p -preset ultrafast -b:v 8M -maxrate 8M -bufsize 16M -an qa/fixtures/large-video.mp4
-          for f in qa/fixtures/video-picker.webm qa/fixtures/format-mp4.mp4 qa/fixtures/large-video.mp4; do test -s "$f"; stat -c "%n %s bytes" "$f"; done
-
       - name: Set up Gradle caching
         uses: gradle/actions/setup-gradle@v5
         with:
@@ -104,9 +86,6 @@ jobs:
             set -u
             adb install -r app/build/outputs/apk/debug/app-debug.apk
             adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
-            adb push "$GITHUB_WORKSPACE/qa/fixtures/format-mp4.mp4" /data/local/tmp/format-mp4.mp4
-            adb push "$GITHUB_WORKSPACE/qa/fixtures/large-video.mp4" /data/local/tmp/large-video.mp4
-            adb shell run-as com.nexusnova.app sh -c 'mkdir -p files/qa && cp /data/local/tmp/video-picker.webm files/qa/video-picker.webm && cp /data/local/tmp/format-mp4.mp4 files/qa/format-mp4.mp4 && cp /data/local/tmp/large-video.mp4 files/qa/large-video.mp4'
 
             adb shell am instrument -w -r -e class com.nexusnova.app.VideoStudioEmulatorQaTest com.nexusnova.app.test/androidx.test.runner.AndroidJUnitRunner
             status=$?
