@@ -1,4 +1,5 @@
 name: NexusNova OTA Activation Android Emulator
+# fresh-current-ota-gate
 
 on:
   push:
@@ -36,7 +37,7 @@ jobs:
         working-directory: NexusNovaAndroid
         shell: bash
         run: gradle --no-daemon clean :app:assembleDebug :app:assembleDebugAndroidTest
-      - name: Boot Android 34 emulator
+      - name: Boot Android 30 emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 30
