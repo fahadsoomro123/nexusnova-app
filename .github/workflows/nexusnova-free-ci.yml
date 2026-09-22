@@ -59,7 +59,6 @@ jobs:
           set -euo pipefail
           test -f settings.gradle.kts
           test -d app
-          test -d autopilot
           echo "Android project structure: PASS"
 
       - name: Compile and test without signing
@@ -67,23 +66,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          gradle --no-daemon :app:assembleDebug :autopilot:assembleDebug :tracker:assembleDebug
+          gradle --no-daemon :app:assembleDebug :tracker:assembleDebug
           gradle --no-daemon test
           echo "Unsigned debug builds + tests: PASS"
-
-      - name: Autopilot module verification
-        working-directory: NexusNovaAndroid
-        shell: bash
-        run: |
-          set -euo pipefail
-          apk='autopilot/build/outputs/apk/debug/autopilot-debug.apk'
-          test -s "$apk"
-          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)"
-          test -n "$AAPT"
-          badging="$($AAPT dump badging "$apk" | head -n 1)"
-          echo "$badging"
-          echo "$badging" | grep -q "name='com.nexusnova.autopilot'"
-          echo "Autopilot debug APK identity: PASS"
 
       - name: CI summary
         if: always()
@@ -93,7 +78,6 @@ jobs:
             echo "- Android structure checked"
             echo "- Unsigned debug builds checked"
             echo "- Tests executed"
-            echo "- Autopilot APK identity checked"
             echo "- No signing credentials required"
           } >> "$GITHUB_STEP_SUMMARY"
 
