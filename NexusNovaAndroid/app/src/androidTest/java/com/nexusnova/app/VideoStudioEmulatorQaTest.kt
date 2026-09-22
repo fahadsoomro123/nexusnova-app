@@ -121,34 +121,28 @@ class VideoStudioEmulatorQaTest {
     }
 
     private fun clickSignInSubmit() {
-        // WebView can expose both the auth-mode tab and the form submit button as
-        // the same text. Try every visible SIGN IN control from the lowest one up,
-        // confirming the real navigation result after each tap.
-        val deadline = System.currentTimeMillis() + 30_000L
+        // WebView accessibility may omit the submit button entirely. Tap the
+        // real form button from the geometry immediately below the password field.
+        val deadline = System.currentTimeMillis() + 12_000L
         while (System.currentTimeMillis() < deadline) {
-            val matches = device.findObjects(By.text("SIGN IN"))
-                .filter { it.visibleBounds.width() > 0 && it.visibleBounds.height() > 0 }
-                .sortedByDescending { it.visibleBounds.bottom }
-
-            if (matches.isNotEmpty()) {
-                for (target in matches) {
-                    val rect = target.visibleBounds
-                    android.util.Log.i("VideoStudioQA", "Trying SIGN IN bounds: $rect; matches=${matches.size}")
-                    device.click(rect.centerX(), rect.centerY())
-                    if (waitForMineScreen(4_000L)) return
+            val fields = device.findObjects(By.clazz("android.widget.EditText"))
+                .filter {
+                    val r = it.visibleBounds
+                    r.width() > 120 && r.height() > 25
                 }
+            val password = fields.lastOrNull()
+            if (password != null) {
+                val r = password.visibleBounds
+                val xTap = r.centerX()
+                val yTap = (r.bottom + r.height() * 0.95f).toInt()
+                android.util.Log.i("VideoStudioQA", "Tapping auth submit geometry x=$xTap y=$yTap below password=$r")
+                device.click(xTap, yTap)
+                if (waitForMineScreen(5_000L)) return
             }
             Thread.sleep(250)
         }
-
-        // Final real touch fallback: tap the lower auth-card action region, never
-        // synthesize a form submission. This is equivalent to a user's finger tap.
-        device.click((device.displayWidth * 0.5f).toInt(), (device.displayHeight * 0.79f).toInt())
-        if (!waitForMineScreen(5_000L)) {
-            error("Timed out after trying visible SIGN IN controls")
-        }
+        error("Timed out after tapping real auth submit geometry")
     }
-
     private fun waitForMineScreen(timeout: Long = 30_000L): Boolean {
         val end = System.currentTimeMillis() + timeout
         while (System.currentTimeMillis() < end) {
