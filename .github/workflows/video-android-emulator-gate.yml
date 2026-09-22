@@ -3,7 +3,7 @@ name: NexusNova Video Android Emulator Gate
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, flagship-video-studio-20260922]
     paths:
       - 'fresh-rebuild/src/features/apps/ai-video-studio-flagship.js'
       - 'NexusNovaAndroid/app/**'
