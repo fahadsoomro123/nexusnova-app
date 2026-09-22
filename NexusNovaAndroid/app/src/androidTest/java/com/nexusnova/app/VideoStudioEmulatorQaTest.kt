@@ -39,7 +39,7 @@ class VideoStudioEmulatorQaTest {
         authFields[1].text = "NexusNova123"
         waitText("SIGN IN").click()
 
-        waitText("NOVA HUB").click()
+        openNovaHub()
         val search = device.wait(Until.findObject(By.desc("Search Nova Hub")), 15_000L)
             ?: error("Nova Hub search field not found")
         search.text = "AI Video Studio"
@@ -79,8 +79,7 @@ class VideoStudioEmulatorQaTest {
             Intent(context, MainActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
         )
-        waitText("NOVA HUB")
-        device.findObject(By.text("NOVA HUB")).click()
+        openNovaHub()
         val searchAgain = device.wait(Until.findObject(By.desc("Search Nova Hub")), 15_000L)
             ?: error("Nova Hub search field missing after restart")
         searchAgain.text = "AI Video Studio"
@@ -92,9 +91,25 @@ class VideoStudioEmulatorQaTest {
         waitTextContains("photo-qa")
         waitTextContains("1 clip •")
         device.pressBack()
-        waitText("NOVA HUB")
-        assertTrue("dock was not restored after leaving Video Studio", device.hasObject(By.text("MINE")))
+        waitForNovaHubVisible()
+        assertTrue("dock was not restored after leaving Video Studio", device.hasObject(By.desc("Open Mine")))
         cleanupDownload("video-studio-photo-qa.png")
+    }
+
+    private fun openNovaHub(timeout: Long = 30_000L) {
+        val search = device.wait(Until.findObject(By.desc("Search Nova Hub")), 4_000L)
+        if (search != null) return
+        val hub = device.wait(Until.findObject(By.desc("Open Nova Hub")), timeout)
+            ?: error("Nova Hub navigation control not found after sign-in")
+        hub.click()
+    }
+
+    private fun waitForNovaHubVisible(timeout: Long = 15_000L) {
+        assertTrue(
+            "Nova Hub did not become visible after leaving Video Studio",
+            device.wait(Until.hasObject(By.desc("Search Nova Hub")), timeout)
+                || device.wait(Until.hasObject(By.desc("Open Nova Hub")), 1_000L)
+        )
     }
 
     private fun waitText(value: String, timeout: Long = 30_000L) =
