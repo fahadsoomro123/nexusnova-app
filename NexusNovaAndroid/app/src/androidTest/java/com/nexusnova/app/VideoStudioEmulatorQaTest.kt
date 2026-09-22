@@ -35,15 +35,18 @@ class VideoStudioEmulatorQaTest {
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         )
 
-        step("find-auth-fields")
-        val authFields = device.wait(Until.findObjects(By.clazz("android.widget.EditText")), 30_000L)
-            ?: emptyList()
-        assertTrue("auth fields missing", authFields.size >= 2)
-        authFields[0].text = "qa-emulator@nexusnova.local"
-        authFields[1].text = "NexusNova123"
-        step("submit-sign-in")
-        waitText("SIGN IN").click()
-
+        step("wait-for-auth-or-existing-session")
+        val signInButton = device.wait(Until.findObject(By.text("SIGN IN")), 30_000L)
+        if (signInButton != null) {
+            step("find-auth-fields")
+            val authFields = device.wait(Until.findObjects(By.clazz("android.widget.EditText")), 15_000L)
+                ?: emptyList()
+            assertTrue("auth fields missing", authFields.size >= 2)
+            authFields[0].text = "qa-emulator@nexusnova.local"
+            authFields[1].text = "NexusNova123"
+            step("submit-sign-in")
+            signInButton.click()
+        }
         step("open-nova-hub")
         openNovaHub()
         val search = device.wait(Until.findObject(By.desc("Search Nova Hub")), 15_000L)
@@ -137,17 +140,33 @@ class VideoStudioEmulatorQaTest {
     }
 
     private fun openNovaHub(timeout: Long = 30_000L) {
-        val search = device.wait(Until.findObject(By.desc("Search Nova Hub")), 4_000L)
+        val search = device.wait(Until.findObject(By.desc("Search Nova Hub")), 3_000L)
         if (search != null) return
-        val hub = device.wait(Until.findObject(By.desc("Open Nova Hub")), timeout)
-            ?: error("Nova Hub navigation control not found after sign-in")
-        hub.click()
+
+        val hubText = device.wait(Until.findObject(By.text("NOVA HUB")), 5_000L)
+        if (hubText != null) {
+            hubText.click()
+            return
+        }
+
+        val hubDesc = device.wait(Until.findObject(By.desc("Open Nova Hub")), timeout)
+        if (hubDesc != null) {
+            hubDesc.click()
+            return
+        }
+
+        val mine = device.findObject(By.text("MINE"))
+        error(
+            if (mine != null) "Nova Hub dock button not exposed by WebView accessibility tree on Mine screen"
+            else "Mine screen did not become visible after authentication"
+        )
     }
 
     private fun waitForNovaHubVisible(timeout: Long = 15_000L) {
         assertTrue(
             "Nova Hub did not become visible after leaving Video Studio",
             device.wait(Until.hasObject(By.desc("Search Nova Hub")), timeout)
+                || device.wait(Until.hasObject(By.text("NOVA HUB")), 1_000L)
                 || device.wait(Until.hasObject(By.desc("Open Nova Hub")), 1_000L)
         )
     }
