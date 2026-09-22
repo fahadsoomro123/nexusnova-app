@@ -16,8 +16,8 @@ android {
         minSdk = 26
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         targetSdk = 35
-        versionCode = 12021
-        versionName = "1.0.21-drive-history"
+        versionCode = 12042
+        versionName = "1.0.42-video-flagship"
     }
 
     buildTypes {
