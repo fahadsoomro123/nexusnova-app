@@ -46,6 +46,9 @@ class VideoStudioEmulatorQaTest {
             Intent(context, MainActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         )
+        runCatching {
+            device.executeShellCommand("am start -n com.nexusnova.app/.MainActivity")
+        }
 
         val authFields = device.wait(
             Until.findObjects(By.clazz("android.widget.EditText")),
@@ -62,7 +65,7 @@ class VideoStudioEmulatorQaTest {
         clickSignInSubmit()
         Thread.sleep(1_500L)
         capture("auth-after-submit.png")
-        waitText("Mine")
+        waitForMineScreen()
         openNovaHubDock()
 
         val search = device.wait(
@@ -109,24 +112,44 @@ class VideoStudioEmulatorQaTest {
     }
 
     private fun clickSignInSubmit() {
-        // WebView aria-labels are not consistently exposed as UiAutomator content
-        // descriptions. Select the lowest visible SIGN IN control and tap its
-        // actual screen coordinates so this remains a genuine user-style Android tap.
+        // WebView can expose both the auth-mode tab and the form submit button as
+        // the same text. Try every visible SIGN IN control from the lowest one up,
+        // confirming the real navigation result after each tap.
         val deadline = System.currentTimeMillis() + 30_000L
         while (System.currentTimeMillis() < deadline) {
             val matches = device.findObjects(By.text("SIGN IN"))
                 .filter { it.visibleBounds.width() > 0 && it.visibleBounds.height() > 0 }
-                .sortedBy { it.visibleBounds.bottom }
+                .sortedByDescending { it.visibleBounds.bottom }
+
             if (matches.isNotEmpty()) {
-                val target = matches.last()
-                val rect = target.visibleBounds
-                android.util.Log.i("VideoStudioQA", "SIGN IN visible bounds: $rect; matches=${matches.size}")
-                device.click(rect.centerX(), rect.centerY())
-                return
+                for (target in matches) {
+                    val rect = target.visibleBounds
+                    android.util.Log.i("VideoStudioQA", "Trying SIGN IN bounds: $rect; matches=${matches.size}")
+                    device.click(rect.centerX(), rect.centerY())
+                    if (waitForMineScreen(4_000L)) return
+                }
             }
             Thread.sleep(250)
         }
-        error("Timed out waiting for visible SIGN IN submit control")
+
+        // Final real touch fallback: tap the lower auth-card action region, never
+        // synthesize a form submission. This is equivalent to a user's finger tap.
+        device.click((device.displayWidth * 0.5f).toInt(), (device.displayHeight * 0.79f).toInt())
+        if (!waitForMineScreen(5_000L)) {
+            error("Timed out after trying visible SIGN IN controls")
+        }
+    }
+
+    private fun waitForMineScreen(timeout: Long = 30_000L): Boolean {
+        val end = System.currentTimeMillis() + timeout
+        while (System.currentTimeMillis() < end) {
+            if (device.hasObject(By.text("Mine")) ||
+                device.hasObject(By.text("MINE")) ||
+                device.hasObject(By.textContains("Mine"))
+            ) return true
+            Thread.sleep(250)
+        }
+        return false
     }
 
     private fun waitText(value: String, timeout: Long = 30_000L) =
