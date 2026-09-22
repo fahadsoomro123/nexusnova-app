@@ -23,7 +23,7 @@ class OtaActivationEmulatorQaTest {
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         )
 
-        val expected = "93b8c067dd12e5adbaeee4a8c9a2449dc7de70c7"
+        val expected = "5240b0ac87cc764b9865cbcfd3259a79b3ed9bb9"
         val deadline = System.currentTimeMillis() + 60_000L
         var activated = false
         var evidence = ""
