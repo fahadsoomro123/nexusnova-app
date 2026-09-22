@@ -44,15 +44,20 @@ jobs:
           test -s app/build/outputs/apk/debug/app-debug.apk
           test -s app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
 
-      - name: Create deterministic VP8 WebM fixture
+      - name: Create deterministic Android media fixtures
         shell: bash
         run: |
           set -euo pipefail
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg
           mkdir -p qa/fixtures
-          gst-launch-1.0 -q             videotestsrc num-buffers=30 pattern=ball !             video/x-raw,width=160,height=90,framerate=15/1 !             videoconvert ! vp8enc ! webmmux !             filesink location=qa/fixtures/generated.webm
-          test -s qa/fixtures/generated.webm
+          ffmpeg -hide_banner -loglevel error -f lavfi -i color=c=white:s=160x90:r=12:d=1 -c:v libvpx -b:v 200k -an qa/fixtures/video-picker.webm
+          cp qa/fixtures/video-picker.webm qa/fixtures/video-import.webm
+          cp qa/fixtures/video-picker.webm qa/fixtures/video-preview.webm
+          cp qa/fixtures/video-picker.webm qa/fixtures/format-webm.webm
+          ffmpeg -hide_banner -loglevel error -f lavfi -i color=c=black:s=160x90:r=24:d=1 -c:v libx264 -pix_fmt yuv420p -preset ultrafast -crf 30 -an qa/fixtures/format-mp4.mp4
+          ffmpeg -hide_banner -loglevel error -f lavfi -i testsrc2=size=1280x720:rate=30 -t 8 -c:v libx264 -pix_fmt yuv420p -preset ultrafast -b:v 8M -maxrate 8M -bufsize 16M -an qa/fixtures/large-video.mp4
+          for f in qa/fixtures/video-picker.webm qa/fixtures/format-mp4.mp4 qa/fixtures/large-video.mp4; do test -s "$f"; stat -c "%n %s bytes" "$f"; done
 
       - name: Enable KVM
         shell: bash
@@ -80,7 +85,10 @@ jobs:
             mkdir -p ../artifacts/video-emulator
             trap 'adb exec-out screencap -p > ../artifacts/video-emulator/final-screen.png || true; adb logcat -d -t 4000 > ../artifacts/video-emulator/logcat.txt || true; adb pull /sdcard/Android/data/com.nexusnova.app/files/Pictures ../artifacts/video-emulator/pictures >/dev/null 2>&1 || true' EXIT
             adb wait-for-device
-            adb push ../qa/fixtures/generated.webm /sdcard/Download/video-studio-video-qa.webm
+            adb push ../qa/fixtures/video-picker.webm /data/local/tmp/video-picker.webm
+            adb push ../qa/fixtures/format-mp4.mp4 /data/local/tmp/format-mp4.mp4
+            adb push ../qa/fixtures/large-video.mp4 /data/local/tmp/large-video.mp4
+            adb shell run-as com.nexusnova.app sh -c 'mkdir -p files/qa && cp /data/local/tmp/video-picker.webm files/qa/video-picker.webm && cp /data/local/tmp/format-mp4.mp4 files/qa/format-mp4.mp4 && cp /data/local/tmp/large-video.mp4 files/qa/large-video.mp4'
             adb shell am force-stop com.nexusnova.app
             gradle --no-daemon :app:connectedDebugAndroidTest
 
