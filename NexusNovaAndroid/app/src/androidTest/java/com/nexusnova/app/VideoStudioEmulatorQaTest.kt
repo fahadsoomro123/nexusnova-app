@@ -1,7 +1,6 @@
 package com.nexusnova.app
 
 import android.content.ContentValues
-import android.content.Intent
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
@@ -30,10 +29,7 @@ class VideoStudioEmulatorQaTest {
         publishDownload("video-studio-photo-qa.png", "image/png", Base64.getDecoder().decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="))
 
         step("launch-main-activity")
-        context.startActivity(
-            Intent(context, MainActivity::class.java)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-        )
+        device.executeShellCommand("am start -W -n com.nexusnova.app/.MainActivity")
 
         step("wait-for-auth-or-existing-session")
         val signInButton = device.wait(Until.findObject(By.text("SIGN IN")), 30_000L)
@@ -113,10 +109,7 @@ class VideoStudioEmulatorQaTest {
         // Restart the real app process, then prove media can be imported again.
         step("restart-app")
         device.executeShellCommand("am force-stop com.nexusnova.app")
-        context.startActivity(
-            Intent(context, MainActivity::class.java)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-        )
+        device.executeShellCommand("am start -W -n com.nexusnova.app/.MainActivity")
         step("reenter-hub")
         openNovaHub()
         val searchAgain = device.wait(Until.findObject(By.desc("Search Nova Hub")), 15_000L)
