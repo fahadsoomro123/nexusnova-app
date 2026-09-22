@@ -87,15 +87,32 @@ jobs:
             adb install -r app/build/outputs/apk/debug/app-debug.apk
             adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
 
-            adb shell am instrument -w -r -e class com.nexusnova.app.VideoStudioEmulatorQaTest com.nexusnova.app.test/androidx.test.runner.AndroidJUnitRunner
-            status=$?
-
             mkdir -p "$GITHUB_WORKSPACE/qa/android-emulator-results"
+            runner_output="$GITHUB_WORKSPACE/qa/android-emulator-results/instrumentation.txt"
+
+            set +e
+            adb shell am instrument -w -r -e class com.nexusnova.app.VideoStudioEmulatorQaTest com.nexusnova.app.test/androidx.test.runner.AndroidJUnitRunner 2>&1 | tee "$runner_output"
+            status=$? 
+            set -e
+
             adb logcat -d -v threadtime > "$GITHUB_WORKSPACE/qa/android-emulator-results/logcat.txt" || true
             adb shell ls -la /sdcard/Android/data/com.nexusnova.app/files/Pictures/ || true
             adb pull /sdcard/Android/data/com.nexusnova.app/files/Pictures "$GITHUB_WORKSPACE/qa/android-emulator-results/" || true
 
-            exit $status
+            if [ "$status" -ne 0 ]; then
+              echo "Instrumentation command failed with exit code $status"
+              exit "$status"
+            fi
+
+            if grep -Eq 'Process crashed\.|FAILURES!!!|INSTRUMENTATION_STATUS_CODE: -2|There were [0-9]+ failures' "$runner_output"; then
+              echo "Video Studio QA reported a crash/failure; refusing to mark the run green."
+              exit 1
+            fi
+
+            if ! grep -q 'OK (15 tests)' "$runner_output"; then
+              echo "Expected successful completion signal OK (15 tests) not found."
+              exit 1
+            fi
 
 
       - name: Upload Android emulator evidence
