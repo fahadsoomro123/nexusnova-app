@@ -168,7 +168,10 @@ class MainActivity : AppCompatActivity() {
         settings.setSupportMultipleWindows(true)
         settings.javaScriptCanOpenWindowsAutomatically = true
         settings.allowFileAccess = false
-        settings.allowContentAccess = false
+        // Android's native file chooser returns readable content:// URIs. The
+        // trusted NexusNova page must be able to consume those selected bytes;
+        // file:// access remains disabled below.
+        settings.allowContentAccess = true
         settings.allowFileAccessFromFileURLs = false
         settings.allowUniversalAccessFromFileURLs = false
         settings.mediaPlaybackRequiresUserGesture = true
@@ -384,7 +387,11 @@ class MainActivity : AppCompatActivity() {
                     .toSet()
 
                 return try {
-                    fileChooserLauncher.launch(params.createIntent())
+                    fileChooserLauncher.launch(
+                        params.createIntent().apply {
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                    )
                     true
                 } catch (_: Exception) {
                     fileChooserCallback = null
@@ -729,22 +736,51 @@ class MainActivity : AppCompatActivity() {
         if (acceptedTypes.isEmpty()) return size
 
         val mimeType = try {
-            contentResolver.getType(uri)?.lowercase(Locale.ROOT)
+            contentResolver.getType(uri)?.lowercase(Locale.ROOT).orEmpty()
         } catch (_: Exception) {
-            null
-        } ?: return null
+            ""
+        }
+        val displayName = pickedUriName(uri)?.lowercase(Locale.ROOT).orEmpty()
+        val extension = displayName.substringAfterLast('.', "")
         val accepted = acceptedTypes
             .asSequence()
             .flatMap { value -> value.split(',').asSequence() }
             .map { value -> value.substringBefore(';').trim().lowercase(Locale.ROOT) }
+            .filter { it.isNotBlank() }
             .any { acceptedType ->
                 acceptedType == "*/*" ||
                     acceptedType == mimeType ||
-                    (acceptedType.endsWith("/*") &&
-                        mimeType.startsWith(acceptedType.removeSuffix("*"))) ||
-                    (acceptedType == ".pdf" && mimeType == "application/pdf")
+                    (acceptedType.endsWith("/*") && mimeType.startsWith(acceptedType.removeSuffix("*"))) ||
+                    acceptedExtensionMatches(acceptedType, extension, mimeType)
             }
         return size.takeIf { accepted }
+    }
+
+    private fun acceptedExtensionMatches(acceptedType: String, extension: String, mimeType: String): Boolean {
+        if (!acceptedType.startsWith(".")) return false
+        return when (acceptedType) {
+            ".jpg", ".jpeg" -> extension == "jpg" || extension == "jpeg" || mimeType == "image/jpeg"
+            ".png" -> extension == "png" || mimeType == "image/png"
+            ".webp" -> extension == "webp" || mimeType == "image/webp"
+            ".gif" -> extension == "gif" || mimeType == "image/gif"
+            ".heic", ".heif" -> extension == "heic" || extension == "heif"
+            ".mp4" -> extension == "mp4" || mimeType == "video/mp4"
+            ".mov", ".m4v" -> extension == "mov" || extension == "m4v" || mimeType == "video/quicktime"
+            ".webm" -> extension == "webm" || mimeType == "video/webm"
+            ".pdf" -> extension == "pdf" || mimeType == "application/pdf"
+            else -> extension == acceptedType.removePrefix(".")
+        }
+    }
+
+    private fun pickedUriName(uri: Uri): String? {
+        return try {
+            contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (index >= 0 && cursor.moveToFirst() && !cursor.isNull(index)) cursor.getString(index) else null
+            }
+        } catch (_: Exception) {
+            null
+        }
     }
 
     private fun pickedUriSize(uri: Uri): Long? {
