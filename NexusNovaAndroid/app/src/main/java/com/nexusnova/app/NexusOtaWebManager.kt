@@ -33,9 +33,6 @@ class NexusOtaWebManager(context: Context) {
                 .edit().clear().apply()
         }
 
-        // APK updates preserve SharedPreferences and files. If a newly installed APK
-        // contains a newer bundled web baseline, an old active differential package
-        // must never keep overriding that newer bundle. Reset the overlay atomically.
         val storedBase = prefs.getString(KEY_BUNDLED_BASE, "")?.trim()?.lowercase().orEmpty()
         if (storedBase != BUNDLED_WEB_BASE) {
             runCatching { versionsRoot.deleteRecursively() }
@@ -232,11 +229,11 @@ class NexusOtaWebManager(context: Context) {
     private fun downloadFile(url: String, output: File, expectedSize: Long): Long {
         val connection = open(url)
         try {
+            // Do not trust HTTP Content-Length for OTA validation. Proxies/CDNs can
+            // transform the transfer encoding. The actual byte count and SHA-256
+            // below are the authoritative integrity checks from the manifest.
             val length = connection.contentLengthLong
             if (length > MAX_SINGLE_FILE_BYTES) throw IOException("OTA file too large")
-            if (length >= 0L && length != expectedSize) {
-                throw IOException("OTA declared size mismatch")
-            }
             var total = 0L
             connection.inputStream.use { input ->
                 output.outputStream().buffered().use { out ->
@@ -265,7 +262,8 @@ class NexusOtaWebManager(context: Context) {
         connection.instanceFollowRedirects = true
         connection.useCaches = false
         connection.defaultUseCaches = false
-        connection.setRequestProperty("User-Agent", "NexusNova-Android-OTA/5")
+        connection.setRequestProperty("User-Agent", "NexusNova-Android-OTA/6")
+        connection.setRequestProperty("Accept-Encoding", "identity")
         connection.setRequestProperty("Cache-Control", "no-cache, no-store, max-age=0")
         connection.setRequestProperty("Pragma", "no-cache")
         connection.connect()
