@@ -42,5 +42,4 @@ jobs:
           emulator-options: -no-window -no-audio -no-boot-anim
           disable-animations: true
           script: |
-            cd NexusNovaAndroid
-            gradle --no-daemon :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.nexusnova.app.OtaActivationEmulatorQaTest
+            cd NexusNovaAndroid && gradle --no-daemon :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.nexusnova.app.OtaActivationEmulatorQaTest
