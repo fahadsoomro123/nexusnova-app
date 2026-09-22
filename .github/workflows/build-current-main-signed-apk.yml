@@ -12,6 +12,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: nexusnova-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   signed-apk:
     runs-on: ubuntu-latest
