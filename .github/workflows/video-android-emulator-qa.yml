@@ -91,9 +91,10 @@ jobs:
             runner_output="$GITHUB_WORKSPACE/qa/android-emulator-results/instrumentation.txt"
 
             set +e
-            adb shell am instrument -w -r -e class com.nexusnova.app.VideoStudioEmulatorQaTest com.nexusnova.app.test/androidx.test.runner.AndroidJUnitRunner 2>&1 | tee "$runner_output"
-            status=$? 
+            adb shell am instrument -w -r -e class com.nexusnova.app.VideoStudioEmulatorQaTest com.nexusnova.app.test/androidx.test.runner.AndroidJUnitRunner > "$runner_output" 2>&1
+            status=$?
             set -e
+            cat "$runner_output"
 
             adb logcat -d -v threadtime > "$GITHUB_WORKSPACE/qa/android-emulator-results/logcat.txt" || true
             adb shell ls -la /sdcard/Android/data/com.nexusnova.app/files/Pictures/ || true
@@ -109,10 +110,18 @@ jobs:
               exit 1
             fi
 
-            if ! grep -q 'OK (15 tests)' "$runner_output"; then
-              echo "Expected successful completion signal OK (15 tests) not found."
+            test_count=$(grep -c 'INSTRUMENTATION_STATUS_CODE: 0' "$runner_output" || true)
+            if [ "$test_count" -ne 15 ]; then
+              echo "Expected 15 completed tests, observed $test_count."
               exit 1
             fi
+
+            if grep -Eq 'Process crashed\.|FAILURES!!!|INSTRUMENTATION_STATUS_CODE: -2|There were [0-9]+ failures' "$runner_output"; then
+              echo "Video Studio QA reported a crash/failure; refusing to mark the run green."
+              exit 1
+            fi
+
+            echo "15/15 instrumentation tests completed successfully."
 
 
       - name: Upload Android emulator evidence
