@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ota-activation-branch
+  group: ota-activation-v2
   cancel-in-progress: true
 
 permissions:
