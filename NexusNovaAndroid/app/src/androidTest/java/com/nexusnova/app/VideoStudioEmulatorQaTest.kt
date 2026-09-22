@@ -189,7 +189,6 @@ class VideoStudioEmulatorQaTest {
 
     private fun freshEditor() {
         runCatching { device.pressBack() }
-        device.executeShellCommand("am force-stop com.nexusnova.app")
         context.startActivity(
             Intent(context, MainActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
