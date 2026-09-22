@@ -62,7 +62,12 @@ class VideoStudioEmulatorQaTest {
         authFields[1].text = "NexusNova123"
 
         capture("auth-before-submit.png")
-        clickSignInSubmit()
+        // Submit through the focused password field first. This is a genuine
+        // Android keyboard interaction and avoids WebView accessibility gaps.
+        device.pressEnter()
+        if (!waitForMineScreen(5_000L)) {
+            clickSignInSubmit()
+        }
         Thread.sleep(1_500L)
         capture("auth-after-submit.png")
         waitForMineScreen()
