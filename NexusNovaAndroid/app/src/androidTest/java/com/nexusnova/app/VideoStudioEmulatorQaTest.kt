@@ -10,6 +10,7 @@ import android.graphics.Paint
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import android.util.Base64
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
@@ -21,6 +22,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
+import java.io.OutputStream
 import java.io.OutputStream
 
 @RunWith(AndroidJUnit4::class)
@@ -60,7 +62,7 @@ class VideoStudioEmulatorQaTest {
     @Test
     fun test04VideoPicker() {
         freshEditor()
-        publishFixtureToDownloads("video-picker.webm", "video/webm")
+        publishVideoFixture("video-picker.webm", "video/webm", VIDEO_WEBM_B64)
         tapAddMedia()
         assertDocumentsUi()
         assertTrue("Video fixture not visible in picker", device.wait(Until.hasObject(By.textContains("video-picker.webm")), 15_000L))
@@ -70,7 +72,7 @@ class VideoStudioEmulatorQaTest {
     @Test
     fun test05VideoImport() {
         freshEditor()
-        publishFixtureToDownloads("video-import.webm", "video/webm")
+        publishVideoFixture("video-import.webm", "video/webm", VIDEO_WEBM_B64)
         importNamed("video-import.webm")
         assertTrue("Video clip missing after import", device.hasObject(By.textContains("video-import")))
     }
@@ -78,7 +80,7 @@ class VideoStudioEmulatorQaTest {
     @Test
     fun test06VideoPreview() {
         freshEditor()
-        publishFixtureToDownloads("video-preview.webm", "video/webm")
+        publishVideoFixture("video-preview.webm", "video/webm", VIDEO_WEBM_B64)
         importNamed("video-preview.webm")
         waitTextContains("video-preview")
         assertTrue("Video preview play control missing", device.hasObject(By.desc("Play or pause")))
@@ -88,7 +90,7 @@ class VideoStudioEmulatorQaTest {
     @Test
     fun test07LargeVideoHandling() {
         freshEditor()
-        publishFixtureToDownloads("large-video.mp4", "video/mp4")
+        publishLargeMp4("large-video.mp4", "video/mp4")
         importNamed("large-video.mp4", 30_000L)
         assertTrue("Large video did not import", device.hasObject(By.textContains("large-video")))
     }
@@ -110,8 +112,8 @@ class VideoStudioEmulatorQaTest {
     @Test
     fun test09VideoFormatCoverage() {
         freshEditor()
-        publishFixtureToDownloads("format-webm.webm", "video/webm")
-        publishFixtureToDownloads("format-mp4.mp4", "video/mp4")
+        publishVideoFixture("format-webm.webm", "video/webm", VIDEO_WEBM_B64)
+        publishVideoFixture("format-mp4.mp4", "video/mp4", VIDEO_MP4_B64)
         importNamed("format-webm.webm")
         importNamed("format-mp4.mp4")
         assertTrue("WebM missing", device.hasObject(By.textContains("format-webm")))
@@ -246,11 +248,34 @@ class VideoStudioEmulatorQaTest {
         )
     }
 
-    private fun publishFixtureToDownloads(name: String, mime: String) {
-        val source = File(context.filesDir, "qa/$name")
-        assertTrue("Fixture missing from test app: $name", source.isFile && source.length() > 0)
+    private fun publishVideoFixture(name: String, mime: String, base64: String) {
+        val bytes = Base64.decode(base64, Base64.DEFAULT)
+        assertTrue("Video fixture decode failed: $name", bytes.isNotEmpty())
+        publishDownload(name, mime) { out -> out.write(bytes) }
+    }
+
+    private fun publishLargeMp4(name: String, mime: String) {
+        val bytes = Base64.decode(VIDEO_MP4_B64, Base64.DEFAULT)
+        val paddingBytes = 12_000_000
         publishDownload(name, mime) { out ->
-            source.inputStream().use { input -> input.copyTo(out) }
+            out.write(bytes)
+            writeFreeAtomPadding(out, paddingBytes)
+        }
+    }
+
+    private fun writeFreeAtomPadding(out: OutputStream, payloadBytes: Int) {
+        val totalSize = payloadBytes + 8
+        out.write((totalSize ushr 24) and 0xff)
+        out.write((totalSize ushr 16) and 0xff)
+        out.write((totalSize ushr 8) and 0xff)
+        out.write(totalSize and 0xff)
+        out.write(byteArrayOf('f'.code.toByte(), 'r'.code.toByte(), 'e'.code.toByte(), 'e'.code.toByte()))
+        val chunk = ByteArray(64 * 1024)
+        var remaining = payloadBytes
+        while (remaining > 0) {
+            val count = minOf(remaining, chunk.size)
+            out.write(chunk, 0, count)
+            remaining -= count
         }
     }
 
@@ -304,6 +329,11 @@ class VideoStudioEmulatorQaTest {
             MediaStore.Downloads.DISPLAY_NAME + "=?",
             arrayOf(name)
         )
+    }
+
+    private companion object {
+        const val VIDEO_MP4_B64 = "AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAAIZnJlZQAAAsNtZGF0AAACUwYF//9P3EXpvebZSLeWLNgg2SPu73gyNjQgLSBjb3JlIDE2NCByMzEwOCAzMWUxOWY5IC0gSC4yNjQvTVBFRy00IEFWQyBjb2RlYyAtIENvcHlsZWZ0IDIwMDMtMjAyMyAtIGh0dHA6Ly93d3cudmlkZW9sYW4ub3JnL3gyNjQuaHRtbCAtIG9wdGlvbnM6IGNhYmFjPTAgcmVmPTEgZGVibG9jaz0wOjA6MCBhbmFseXNlPTA6MCBtZT1kaWEgc3VibWU9MCBwc3k9MSBwc3lfcmQ9MS4wMDowLjAwIG1peGVkX3JlZj0wIG1lX3JhbmdlPTE2IGNocm9tYV9tZT0xIHRyZWxsaXM9MCA4eDhkY3Q9MCBjcW09MCBkZWFkem9uZT0yMSwxMSBmYXN0X3Bza2lwPTEgY2hyb21hX3FwX29mZnNldD0wIHRocmVhZHM9MyBsb29rYWhlYWRfdGhyZWFkcz0xIHNsaWNlZF90aHJlYWRzPTAgbnI9MCBkZWNpbWF0ZT0xIGludGVybGFjZWQ9MCBibHVyYXlfY29tcGF0PTAgY29uc3RyYWluZWRfaW50cmE9MCBiZnJhbWVzPTAgd2VpZ2h0cD0wIGtleWludD0yNTAga2V5aW50X21pbj01IHNjZW5lY3V0PTAgaW50cmFfcmVmcmVzaD0wIHJjPWNyZiBtYnRyZWU9MCBjcmY9MjMuMCBxY29tcD0wLjYwIHFwbWluPTAgcXBtYXg9NjkgcXBzdGVwPTQgaXBfcmF0aW89MS40MCBxcG1heD02OSBxcHN0ZXA9NCBpcF9yYXRpbz0xLjQwIGFxPTA AIAAAAA4ZYiEOiYoAAkCycnJycnJycnJ111111111111111111111111111111111111111111111111114AAAAGQZogEaB7AAAABkGaQBKgewAAAAZBmmASoHsAAAAGQZqAEqB7AAADN21vb3YAAABsbXZoZAAAAAAAAAAAAAAAAAAAA+gAAAPoAAEAAAEAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIAAAJidHJhawAAAFx0a2hkAAAAAwAAAAAAAAAAAAAAAQAAAAAAAAPoAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAQAAAAACgAAAAWgAAAAAAJGVkdHMAAAAcZWxzdAAAAAAAAAABAAAD6AAAAAAAAQAAAAAB2m1kaWEAAAAgbWRoZAAAAAAAAAAAAAAAAAAAKAAAACgAVcQAAAAAAC1oZGxyAAAAAAAAAAB2aWRlAAAAAAAAAAAAAAAAVmlkZW9IYW5kbGVyAAAAAYVtaW5mAAAAFHZtaGQAAAABAAAAAAAAAAAAAAAkZGluZgAAABxkcmVmAAAAAAAAAAEAAAAMdXJsIAAAAAEAAAFFc3RibAAAALlzdHNkAAAAAAAAAAEAAACpYXZjMQAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAACgAFoASAAAAEgAAAAAAAAAARVMYXZjNjEuMTkuMTAxIGxpYngyNjQAAAAAAAAAAAAAABj//wAAAC9hdmNDAULACv/hABhnQsAK2go35MBEAAADAAQAAAMAKDxImoABAARozg/IAAAAEHBhc3AAAAABAAAAAQAAABRidHJtAAAAAAAAFdgAAAAAAAAAGHN0dHMAAAAAAAAAAQAAAAUAAAgAAAAAFHN0c3MAAAAAAAAAAQAAAAEAAAAcc3RzYwAAAAAAAAABAAAAAQAAAAUAAAABAAAAKHN0c3oAAAAAAAAAAAAAAAUAAAKTAAAACgAAAAoAAAAKAAAACgAAABRzdGNvAAAAAAAAAAEAAAAwAAAAYXVkdGEAAABZbWV0YQAAAAAAAAAhaGRscgAAAAAAAAAAbWRpcmFwcGwAAAAAAAAAAAAAAAAsaWxzdAAAACSpdG9vAAAAHGRhdGEAAAABAAAAAExhdmY2MS43LjEwMw==";
+        const val VIDEO_WEBM_B64 = "GkXfo59ChoEBQveBAULygQRC84EIQoKEd2VibUKHgQJChYECGFOAZwEAAAAAAAJpEU2bdLpNu4tTq4QVSalmU6yBoU27i1OrhBZUrmtTrIHWTbuMU6uEElTDZ1OsggEjTbuMU6uEHFO7a1OsggJT7AEAAAAAAABZAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAVSalmsCrXsYMPQkBNgIxMYXZmNjEuNy4xMDNXQYxMYXZmNjEuNy4xMDNEiYhAj0AAAAAAABZUrmvIrgEAAAAAAAA/14EBc8WIAl10ddlcDmWcgQAitZyDdW5kiIEAhoVWX1ZQOIOBASPjg4QL68IA4JCwgaC6gVqagQJVsIRVuYEBElTDZ/tzc59jwIBnyJlFo4dFTkNPREVSRIeMTGF2ZjYxLjcuMTAzc3PWY8CLY8WIAl10ddlcDmVnyKFFo4dFTkNPREVSRIeUTGF2YzYxLjE5LjEwMSBsaWJ2cHhnyKFFo4hEVVJBVElPTkSHkzAwOjAwOjAxLjAwMDAwMDAwMAAfQ7Z1QKrngQCjvYEAAIBQBQCdASqgAFoAAEcIhYWIhYSIAgIABigPCHVUmu4h1VJruIdVSa7iHVUmu4h1VJruIbwA/v+j3gCjmIEAyAARAgABEBAAGAAYWC/0AAiAgQAAAKOYgQGQABECAAEQEAAYABhYL/QACICBAAAAo5iBAlgAEQIAARAQABgAGFgv9AAIgIEAAACjmIEDIAARAgABEBAAGAAYWC/0AAiAgQAAABxTu2uRu4+zgQC3iveBAfGCAaPwgQM=";
     }
 
     private fun waitForAnyText(timeout: Long, vararg values: String): Boolean {
