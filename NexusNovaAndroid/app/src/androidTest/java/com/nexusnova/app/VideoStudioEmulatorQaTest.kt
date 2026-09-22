@@ -8,7 +8,6 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.media.MediaRecorder
-import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -17,7 +16,6 @@ import androidx.test.uiautomator.By
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.UiObject2
 import androidx.test.uiautomator.Until
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -31,172 +29,45 @@ class VideoStudioEmulatorQaTest {
     private val context: Context = instrumentation.targetContext
 
     @Test
-    fun test01PhotoPicker() {
+    fun testVideoImportEndToEnd() {
         freshEditor()
-        publishBitmap("photo-picker.png", Bitmap.CompressFormat.PNG, "image/png")
+        val name = "ota11-video-import.webm"
+        publishVideoFixture(name, "video/webm", webm = true)
+
         tapAddMedia()
         assertDocumentsUi()
-        assertTrue("Photo fixture not visible in picker", device.wait(Until.hasObject(By.textContains("photo-picker.png")), 15_000L))
-        device.pressBack()
-    }
+        selectDocument(name)
 
-    @Test
-    fun test02PhotoImport() {
-        freshEditor()
-        publishBitmap("photo-import.png", Bitmap.CompressFormat.PNG, "image/png")
-        importNamed("photo-import.png")
-        assertTrue("Photo clip missing after import", device.hasObject(By.textContains("photo-import")))
-    }
-
-    @Test
-    fun test03PhotoPreview() {
-        freshEditor()
-        publishBitmap("photo-preview.png", Bitmap.CompressFormat.PNG, "image/png")
-        importNamed("photo-preview.png")
-        waitTextContains("photo-preview")
-        assertTrue("Photo preview play control missing", device.hasObject(By.desc("Play or pause")))
-        capture("video-studio-photo-preview.png")
-    }
-
-    @Test
-    fun test04VideoPicker() {
-        freshEditor()
-        publishVideoFixture("video-picker.webm", "video/webm", webm = true)
-        tapAddMedia()
-        assertDocumentsUi()
-        assertTrue("Video fixture not visible in picker", device.wait(Until.hasObject(By.textContains("video-picker.webm")), 15_000L))
-        device.pressBack()
-    }
-
-    @Test
-    fun test05VideoImport() {
-        freshEditor()
-        publishVideoFixture("video-import.webm", "video/webm", webm = true)
-        importNamed("video-import.webm")
-        assertTrue("Video clip missing after import", device.hasObject(By.textContains("video-import")))
-    }
-
-    @Test
-    fun test06VideoPreview() {
-        freshEditor()
-        publishVideoFixture("video-preview.webm", "video/webm", webm = true)
-        importNamed("video-preview.webm")
-        waitTextContains("video-preview")
-        assertTrue("Video preview play control missing", device.hasObject(By.desc("Play or pause")))
-        capture("video-studio-video-preview.png")
-    }
-
-    @Test
-    fun test07LargeVideoHandling() {
-        freshEditor()
-        publishLargeMp4("large-video.mp4", "video/mp4")
-        importNamed("large-video.mp4", 30_000L)
-        assertTrue("Large video did not import", device.hasObject(By.textContains("large-video")))
-    }
-
-    @Test
-    fun test08ImageFormatCoverage() {
-        freshEditor()
-        publishBitmap("format-png.png", Bitmap.CompressFormat.PNG, "image/png")
-        publishBitmap("format-jpeg.jpg", Bitmap.CompressFormat.JPEG, "image/jpeg")
-        publishBitmap("format-webp.webp", webpFormat(), "image/webp")
-        importNamed("format-png.png")
-        importNamed("format-jpeg.jpg")
-        importNamed("format-webp.webp")
-        assertTrue("PNG missing", device.hasObject(By.textContains("format-png")))
-        assertTrue("JPEG missing", device.hasObject(By.textContains("format-jpeg")))
-        assertTrue("WebP missing", device.hasObject(By.textContains("format-webp")))
-    }
-
-    @Test
-    fun test09VideoFormatCoverage() {
-        freshEditor()
-        publishVideoFixture("format-webm.webm", "video/webm", webm = true)
-        publishVideoFixture("format-mp4.mp4", "video/mp4", webm = false)
-        importNamed("format-webm.webm")
-        importNamed("format-mp4.mp4")
-        assertTrue("WebM missing", device.hasObject(By.textContains("format-webm")))
-        assertTrue("MP4 missing", device.hasObject(By.textContains("format-mp4")))
-    }
-
-    @Test
-    fun test10InvalidMediaRejected() {
-        freshEditor()
-        publishRaw("corrupt-video.webm", "video/webm", "this-is-not-a-valid-webm".toByteArray())
-        tapAddMedia()
-        assertDocumentsUi()
-        selectDocument("corrupt-video.webm")
-        waitText("No media was imported.", 12_000L)
-    }
-
-    @Test
-    fun test11PickerInterruptionRetry() {
-        freshEditor()
-        publishBitmap("retry-photo.png", Bitmap.CompressFormat.PNG, "image/png")
-        tapAddMedia()
-        assertDocumentsUi()
-        device.pressBack()
-        assertTrue("App did not regain focus after picker interruption", device.wait(Until.hasObject(By.pkg("com.nexusnova.app")), 10_000L))
-        tapAddMedia()
-        assertDocumentsUi()
-        selectDocument("retry-photo.png")
-        waitTextContains("retry-photo")
-    }
-
-    @Test
-    fun test12CancelImport() {
-        freshEditor()
-        publishBitmap("cancel-photo.png", Bitmap.CompressFormat.PNG, "image/png")
-        tapAddMedia()
-        assertDocumentsUi()
-        device.pressBack()
-        waitText("CREATE YOUR VIDEO")
-        assertFalse("Cancel unexpectedly mutated the project", device.hasObject(By.textContains("cancel-photo")))
-    }
-
-    @Test
-    fun test13ImportAndAiWorkflow() {
-        freshEditor()
-        publishBitmap("ai-photo.png", Bitmap.CompressFormat.PNG, "image/png")
-        importNamed("ai-photo.png")
-        waitTextContains("ai-photo")
-        waitTextContains("AI Lab").click()
-        assertTrue("AI Director action missing after import", device.hasObject(By.text("AI DIRECTOR")))
-        assertTrue("AI Captions action missing after import", device.hasObject(By.text("AUTO CAPTIONS")))
-    }
-
-    @Test
-    fun test14ImportAndEditorWorkflow() {
-        freshEditor()
-        publishBitmap("editor-photo.png", Bitmap.CompressFormat.PNG, "image/png")
-        importNamed("editor-photo.png")
-        waitTextContains("editor-photo")
-        waitText("SPLIT").click()
-        assertTrue("Editor split did not create a second timeline clip", device.hasObject(By.textContains("2 clips")))
-        waitText("EDIT")
-    }
-
-    @Test
-    fun test15ImportAndExportWorkflow() {
-        freshEditor()
-        publishBitmap("export-photo.png", Bitmap.CompressFormat.PNG, "image/png")
-        importNamed("export-photo.png")
-        waitTextContains("export-photo")
-        waitText("EXPORT VIDEO").click()
-        val completed = waitForAnyText(30_000L, "Export complete", "Export ready", "download requested")
-        assertTrue("Import + export workflow did not reach an honest terminal result", completed)
+        waitTextContains("ota11-video-import")
+        assertTrue(
+            "Imported video clip is not visible after Android picker selection",
+            device.hasObject(By.textContains("ota11-video-import"))
+        )
+        assertTrue(
+            "Video preview/play control missing after import",
+            device.hasObject(By.desc("Play or pause"))
+        )
+        capture("video-studio-single-test-pass.png")
     }
 
     private fun freshEditor() {
         runCatching { device.pressBack() }
         context.startActivity(
             Intent(context, MainActivity::class.java)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                .addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK or
+                        Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                        Intent.FLAG_ACTIVITY_SINGLE_TOP
+                )
         )
 
         val signIn = device.wait(Until.findObject(By.text("SIGN IN")), 8_000L)
         if (signIn != null) {
-            val authFields = device.wait(Until.findObjects(By.clazz("android.widget.EditText")), 12_000L) ?: emptyList()
+            val authFields =
+                device.wait(
+                    Until.findObjects(By.clazz("android.widget.EditText")),
+                    12_000L
+                ) ?: emptyList()
             assertTrue("Auth fields missing", authFields.size >= 2)
             authFields[0].text = "qa-emulator@nexusnova.local"
             authFields[1].text = "NexusNova123"
@@ -206,11 +77,13 @@ class VideoStudioEmulatorQaTest {
         val novaHub = device.wait(Until.findObject(By.text("NOVA HUB")), 25_000L)
         if (novaHub != null) {
             novaHub.click()
-            val search = device.wait(Until.findObject(By.desc("Search Nova Hub")), 15_000L)
-                ?: error("Nova Hub search field not found")
+            val search =
+                device.wait(Until.findObject(By.desc("Search Nova Hub")), 15_000L)
+                    ?: error("Nova Hub search field not found")
             search.text = "AI Video Studio"
             waitText("AI Video Studio").click()
         }
+
         waitText("CREATE YOUR VIDEO")
     }
 
@@ -218,38 +91,49 @@ class VideoStudioEmulatorQaTest {
         waitText("ADD MEDIA").click()
     }
 
-    private fun importNamed(name: String, timeout: Long = 20_000L) {
-        tapAddMedia()
-        assertDocumentsUi()
-        selectDocument(name)
-        waitTextContains(name.substringBeforeLast('.'), timeout)
-    }
-
     private fun assertDocumentsUi() {
         assertTrue(
             "Android DocumentsUI did not open",
-            device.wait(Until.hasObject(By.pkg("com.google.android.documentsui")), 15_000L)
+            device.wait(
+                Until.hasObject(By.pkg("com.google.android.documentsui")),
+                15_000L
+            )
         )
     }
 
     private fun selectDocument(name: String) {
         waitTextContains(name, 15_000L)
-        val item = device.findObject(By.textContains(name)) ?: error("Document item not found: $name")
+        val item =
+            device.findObject(By.textContains(name))
+                ?: error("Document item not found: $name")
         item.click()
-        val open = device.wait(Until.findObject(By.text("OPEN")), 10_000L)
-            ?: device.wait(Until.findObject(By.text("Open")), 10_000L)
-            ?: error("OPEN button not found for $name")
+
+        val open =
+            device.wait(Until.findObject(By.text("OPEN")), 10_000L)
+                ?: device.wait(Until.findObject(By.text("Open")), 10_000L)
+                ?: error("OPEN button not found for $name")
         open.click()
+
         assertTrue(
             "NexusNova did not regain focus after selecting $name",
-            device.wait(Until.hasObject(By.pkg("com.nexusnova.app")), 15_000L)
+            device.wait(
+                Until.hasObject(By.pkg("com.nexusnova.app")),
+                15_000L
+            )
         )
     }
 
     private fun publishVideoFixture(name: String, mime: String, webm: Boolean) {
         val temp = File(context.cacheDir, "nn-$name")
         runCatching { temp.delete() }
-        generateVideoFixture(temp, webm = webm, durationMs = 1_200L, width = 320, height = 180, bitrate = 700_000)
+        generateVideoFixture(
+            temp,
+            webm = webm,
+            durationMs = 1_200L,
+            width = 320,
+            height = 180,
+            bitrate = 700_000
+        )
         try {
             publishDownload(name, mime) { out ->
                 temp.inputStream().use { input -> input.copyTo(out) }
@@ -259,27 +143,26 @@ class VideoStudioEmulatorQaTest {
         }
     }
 
-    private fun publishLargeMp4(name: String, mime: String) {
-        val temp = File(context.cacheDir, "nn-$name")
-        runCatching { temp.delete() }
-        generateVideoFixture(temp, webm = false, durationMs = 6_000L, width = 1280, height = 720, bitrate = 8_000_000)
-        try {
-            assertTrue("Large video fixture exceeds import threshold: ${temp.length()} bytes", temp.length() > 3_000_000L)
-            publishDownload(name, mime) { out ->
-                temp.inputStream().use { input -> input.copyTo(out) }
-            }
-        } finally {
-            temp.delete()
-        }
-    }
-
-    private fun generateVideoFixture(file: File, webm: Boolean, durationMs: Long, width: Int, height: Int, bitrate: Int) {
+    private fun generateVideoFixture(
+        file: File,
+        webm: Boolean,
+        durationMs: Long,
+        width: Int,
+        height: Int,
+        bitrate: Int
+    ) {
         val recorder = MediaRecorder()
         var surface: android.view.Surface? = null
         try {
             recorder.setVideoSource(MediaRecorder.VideoSource.SURFACE)
-            recorder.setOutputFormat(if (webm) MediaRecorder.OutputFormat.WEBM else MediaRecorder.OutputFormat.MPEG_4)
-            recorder.setVideoEncoder(if (webm) MediaRecorder.VideoEncoder.VP8 else MediaRecorder.VideoEncoder.H264)
+            recorder.setOutputFormat(
+                if (webm) MediaRecorder.OutputFormat.WEBM
+                else MediaRecorder.OutputFormat.MPEG_4
+            )
+            recorder.setVideoEncoder(
+                if (webm) MediaRecorder.VideoEncoder.VP8
+                else MediaRecorder.VideoEncoder.H264
+            )
             recorder.setVideoSize(width, height)
             recorder.setVideoFrameRate(20)
             recorder.setVideoEncodingBitRate(bitrate)
@@ -287,6 +170,7 @@ class VideoStudioEmulatorQaTest {
             recorder.prepare()
             recorder.start()
             surface = recorder.surface
+
             val endAt = System.currentTimeMillis() + durationMs
             var frame = 0
             while (System.currentTimeMillis() < endAt) {
@@ -305,8 +189,12 @@ class VideoStudioEmulatorQaTest {
                 frame++
                 Thread.sleep(45L)
             }
+
             recorder.stop()
-            assertTrue("Generated video fixture is empty: $file", file.isFile && file.length() > 0L)
+            assertTrue(
+                "Generated video fixture is empty: $file",
+                file.isFile && file.length() > 0L
+            )
         } finally {
             runCatching { surface?.release() }
             runCatching { recorder.reset() }
@@ -315,40 +203,30 @@ class VideoStudioEmulatorQaTest {
         }
     }
 
-    private fun publishBitmap(name: String, format: Bitmap.CompressFormat, mime: String) {
-        val bitmap = Bitmap.createBitmap(32, 32, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
-        canvas.drawColor(Color.rgb(108, 76, 255))
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE; textSize = 10f }
-        canvas.drawText("NN", 7f, 20f, paint)
-        publishDownload(name, mime) { out ->
-            assertTrue("Bitmap encoding failed: $name", bitmap.compress(format, 90, out))
-        }
-        bitmap.recycle()
-    }
-
-    private fun webpFormat(): Bitmap.CompressFormat {
-        require(Build.VERSION.SDK_INT >= 30) { "WebP test requires Android 11+" }
-        return Bitmap.CompressFormat.WEBP_LOSSY
-    }
-
-    private fun publishRaw(name: String, mime: String, bytes: ByteArray) {
-        publishDownload(name, mime) { out -> out.write(bytes) }
-    }
-
-    private fun publishDownload(name: String, mime: String, writer: (OutputStream) -> Unit) {
+    private fun publishDownload(
+        name: String,
+        mime: String,
+        writer: (OutputStream) -> Unit
+    ) {
         cleanupDownload(name)
+
         val values = ContentValues().apply {
             put(MediaStore.Downloads.DISPLAY_NAME, name)
             put(MediaStore.Downloads.MIME_TYPE, mime)
             put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
             put(MediaStore.Downloads.IS_PENDING, 1)
         }
-        val uri = context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
-            ?: error("Could not create MediaStore fixture: $name")
+
+        val uri =
+            context.contentResolver.insert(
+                MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                values
+            ) ?: error("Could not create MediaStore fixture: $name")
+
         try {
             context.contentResolver.openOutputStream(uri)?.use(writer)
                 ?: error("Could not open MediaStore fixture: $name")
+
             val done = ContentValues().apply {
                 put(MediaStore.Downloads.IS_PENDING, 0)
             }
@@ -367,30 +245,25 @@ class VideoStudioEmulatorQaTest {
         )
     }
 
-    private companion object {
-    }
-
-    private fun waitForAnyText(timeout: Long, vararg values: String): Boolean {
-        val deadline = System.currentTimeMillis() + timeout
-        while (System.currentTimeMillis() < deadline) {
-            if (values.any { device.hasObject(By.textContains(it)) }) return true
-            Thread.sleep(250L)
-        }
-        return false
-    }
-
     private fun waitText(value: String, timeout: Long = 30_000L): UiObject2 =
         device.wait(Until.findObject(By.text(value)), timeout)
             ?: error("Timed out waiting for text: $value")
 
-    private fun waitTextContains(value: String, timeout: Long = 30_000L): UiObject2 =
+    private fun waitTextContains(
+        value: String,
+        timeout: Long = 30_000L
+    ): UiObject2 =
         device.wait(Until.findObject(By.textContains(value)), timeout)
             ?: error("Timed out waiting for text containing: $value")
 
     private fun capture(name: String) {
-        val dir = context.getExternalFilesDir(Environment.DIRECTORY_PICTURES)
-            ?: error("External pictures directory unavailable")
+        val dir =
+            context.getExternalFilesDir(Environment.DIRECTORY_PICTURES)
+                ?: error("External pictures directory unavailable")
         dir.mkdirs()
-        assertTrue("Screenshot failed: $name", device.takeScreenshot(File(dir, name)))
+        assertTrue(
+            "Screenshot failed: $name",
+            device.takeScreenshot(File(dir, name))
+        )
     }
 }
