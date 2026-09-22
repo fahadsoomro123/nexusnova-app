@@ -147,10 +147,18 @@ class VideoStudioEmulatorQaTest {
     private fun waitForMineScreen(timeout: Long = 30_000L): Boolean {
         val end = System.currentTimeMillis() + timeout
         while (System.currentTimeMillis() < end) {
-            if (device.hasObject(By.text("Mine")) ||
-                device.hasObject(By.text("MINE")) ||
-                device.hasObject(By.textContains("Mine"))
-            ) return true
+            val visibleMine = sequenceOf(
+                device.findObjects(By.text("Mine")),
+                device.findObjects(By.text("MINE")),
+                device.findObjects(By.textContains("Mine"))
+            ).flatten().firstOrNull {
+                val rect = it.visibleBounds
+                rect.width() > 40 && rect.height() > 20
+            }
+            if (visibleMine != null) {
+                android.util.Log.i("VideoStudioQA", "Visible Mine confirmation bounds: ${visibleMine.visibleBounds}")
+                return true
+            }
             Thread.sleep(250)
         }
         return false
