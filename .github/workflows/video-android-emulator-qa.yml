@@ -9,6 +9,10 @@ on:
       - ".github/workflows/video-android-emulator-qa.yml"
       - "NexusNovaAndroid/gradle/**"
 
+concurrency:
+  group: nexusnova-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   android-emulator-video-qa:
     runs-on: ubuntu-latest
