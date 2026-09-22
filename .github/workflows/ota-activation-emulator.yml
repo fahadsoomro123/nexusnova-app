@@ -39,7 +39,7 @@ jobs:
       - name: Boot Android 34 emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 34
+          api-level: 30
           target: google_apis
           arch: x86_64
           profile: pixel_2
@@ -49,6 +49,6 @@ jobs:
           disk-size: 8192M
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
           disable-animations: true
-          emulator-boot-timeout: 1200
+          emulator-boot-timeout: 600
           script: >-
             set -eu; adb wait-for-device; adb shell service check package 2>/dev/null | grep -q 'found'; adb shell pm list packages >/dev/null; cd NexusNovaAndroid; gradle --no-daemon :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.nexusnova.app.OtaActivationEmulatorQaTest
