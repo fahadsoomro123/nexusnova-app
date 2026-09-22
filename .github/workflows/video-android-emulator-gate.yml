@@ -49,7 +49,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update -qq
-          sudo apt-get install -y -qq gstreamer1.0-tools gstreamer1.0-plugins-good
+          sudo apt-get install -y -qq ffmpeg
           mkdir -p qa/fixtures
           gst-launch-1.0 -q             videotestsrc num-buffers=30 pattern=ball !             video/x-raw,width=160,height=90,framerate=15/1 !             videoconvert ! vp8enc ! webmmux !             filesink location=qa/fixtures/generated.webm
           test -s qa/fixtures/generated.webm
