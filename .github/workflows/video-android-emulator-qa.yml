@@ -55,7 +55,7 @@ jobs:
               <string name="caller_setup_body">Enable Caller ID to use the Android call-screening feature.</string>
               <string name="enable_caller_id">ENABLE CALLER ID</string>
           '''
-          if "name="caller_setup_title"" not in text:
+          if 'name="caller_setup_title"' not in text:
               text = text.replace("</resources>", additions + "\n</resources>")
               p.write_text(text, encoding="utf-8")
           PY
