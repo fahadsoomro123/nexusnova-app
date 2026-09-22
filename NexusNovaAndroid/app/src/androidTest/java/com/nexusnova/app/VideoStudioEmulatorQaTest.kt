@@ -68,12 +68,16 @@ class VideoStudioEmulatorQaTest {
         waitForMineScreen()
         openNovaHubDock()
 
-        val search = device.wait(
-            Until.findObject(By.desc("Search Nova Hub")),
-            15_000L
-        ) ?: error("Nova Hub search field not found")
+        val search = findNovaHubSearch()
         search.text = "AI Video Studio"
-        waitDescription("Open AI Video Studio").click()
+        val openVideo = device.wait(
+            Until.findObject(By.desc("Open AI Video Studio")),
+            15_000L
+        ) ?: device.wait(
+            Until.findObject(By.textContains("AI Video Studio")),
+            15_000L
+        ) ?: error("AI Video Studio launch control not found")
+        openVideo.click()
 
         waitText("CREATE YOUR VIDEO")
         capture("video-studio-before-picker.png")
@@ -150,6 +154,22 @@ class VideoStudioEmulatorQaTest {
             Thread.sleep(250)
         }
         return false
+    }
+
+    private fun findNovaHubSearch() : androidx.test.uiautomator.UiObject2 {
+        val deadline = System.currentTimeMillis() + 15_000L
+        while (System.currentTimeMillis() < deadline) {
+            device.findObject(By.desc("Search Nova Hub"))?.let { return it }
+            device.findObject(By.text("Search Nova Hub"))?.let { return it }
+            val edit = device.findObjects(By.clazz("android.widget.EditText"))
+                .firstOrNull { it.visibleBounds.width() > 80 && it.visibleBounds.height() > 30 }
+            if (edit != null) {
+                android.util.Log.i("VideoStudioQA", "Using visible Nova Hub EditText bounds: ${edit.visibleBounds}")
+                return edit
+            }
+            Thread.sleep(250)
+        }
+        error("Nova Hub search field not found")
     }
 
     private fun waitText(value: String, timeout: Long = 30_000L) =
