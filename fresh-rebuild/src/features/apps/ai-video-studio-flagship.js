@@ -4,13 +4,68 @@ async function getCore(){
   try { return await import(CORE_MODULE); }
   catch (error) { console.warn('[NexusNova Video] optional studio core unavailable:', error); return null; }
 }
-function downloadBlob(blob,name){
+function browserDownloadBlob(blob,name){
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
   a.href=url;
   a.download=String(name||'nexusnova-export').replace(/[^a-z0-9._-]+/gi,'-');
   document.body.appendChild(a);a.click();a.remove();
   setTimeout(()=>{try{URL.revokeObjectURL(url)}catch{}},1800);
+}
+
+function bytesToBase64(bytes){
+  let binary='';
+  const step=0x8000;
+  for(let i=0;i<bytes.length;i+=step){
+    binary+=String.fromCharCode(...bytes.subarray(i,Math.min(i+step,bytes.length)));
+  }
+  return btoa(binary);
+}
+
+async function nativeSaveVideoBlob(blob,name){
+  if(typeof window.NexusAndroid?.postMessage!=='function') return null;
+  const id='exp_'+Math.random().toString(36).slice(2,14);
+  const chunkBytes=4800;
+  const total=Math.max(1,Math.ceil(blob.size/chunkBytes));
+  return new Promise((resolve,reject)=>{
+    let settled=false;
+    const cleanup=()=>{
+      window.removeEventListener('nexusnova:native-export-result',onResult);
+      clearTimeout(timeout);
+    };
+    const finish=(fn,value)=>{
+      if(settled)return;
+      settled=true;cleanup();fn(value);
+    };
+    const onResult=event=>{
+      const detail=event?.detail;
+      if(!detail||detail.id!==id)return;
+      if(detail.success) finish(resolve,{location:String(detail.location||'Downloads/NexusNova'),name:String(detail.name||name),size:Number(detail.size||blob.size)});
+      else finish(reject,new Error(String(detail.error||'Android export failed.')));
+    };
+    const timeout=setTimeout(()=>finish(reject,new Error('Android export timed out.')),Math.max(45_000,total*180));
+    window.addEventListener('nexusnova:native-export-result',onResult);
+    (async()=>{
+      try{
+        window.NexusAndroid.postMessage(JSON.stringify({action:'nativeVideoExportStart',id,name,mimeType:blob.type||'video/webm',size:blob.size,total}));
+        for(let index=0;index<total;index++){
+          const bytes=new Uint8Array(await blob.slice(index*chunkBytes,Math.min(blob.size,(index+1)*chunkBytes)).arrayBuffer());
+          window.NexusAndroid.postMessage(JSON.stringify({action:'nativeVideoExportChunk',id,index,total,data:bytesToBase64(bytes)}));
+          if(index%20===19) await new Promise(r=>setTimeout(r,0));
+        }
+        window.NexusAndroid.postMessage(JSON.stringify({action:'nativeVideoExportFinish',id}));
+      }catch(error){
+        finish(reject,error instanceof Error?error:new Error(String(error||'Android export failed.')));
+      }
+    })();
+  });
+}
+
+async function downloadBlob(blob,name){
+  const nativeResult=await nativeSaveVideoBlob(blob,name);
+  if(nativeResult)return nativeResult;
+  browserDownloadBlob(blob,name);
+  return {location:'Browser download',name,size:blob.size};
 }
 function safeName(value,fallback='nexusnova'){
   return (String(value||fallback).replace(/\.[^.]+$/,'').replace(/[^a-z0-9._-]+/gi,'-').replace(/^-+|-+$/g,'')||fallback).slice(0,80);
@@ -694,18 +749,26 @@ export function renderAiVideoStudio(){
       }
       mediaVideo.pause();
     };
-    recorder.onstop=()=>{
-      state.exportBusy=false;state.stopExport=null;stream.getTracks().forEach(t=>t.stop());
+    recorder.onstop=async()=>{
+      stream.getTracks().forEach(t=>t.stop());
       if(!aborted&&chunks.length){
         state.clips.forEach(clip=>{delete clip.__exportProgress;});
         const blob=new Blob(chunks,{type:recorder.mimeType||'video/webm'});
-        downloadBlob(blob,`${safeName(state.projectName,'nexusnova-video')}.webm`);
-        els.exportNote.textContent='Export complete. Your WebM video was saved locally.';
+        try{
+          const name=String(safeName(state.projectName,'nexusnova-video'))+'.webm';
+          const saved=await downloadBlob(blob,name);
+          els.exportNote.textContent=saved.location==='Browser download'
+            ? 'Export complete. Browser download started.'
+            : 'Export complete. Saved to '+saved.location+'/'+saved.name+'.';
+        }catch(error){
+          els.exportNote.textContent='Export failed: '+String(error?.message||error).slice(0,150);
+        }
       }else if(aborted){
         els.exportNote.textContent='Export cancelled.';
       }else{
         els.exportNote.textContent='No output was produced by this browser.';
       }
+      state.exportBusy=false;state.stopExport=null;
     };
     try{
       recorder.start(200);
