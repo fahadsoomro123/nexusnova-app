@@ -159,7 +159,7 @@ class VideoStudioEmulatorQaTest {
         publishBitmap("ai-photo.png", Bitmap.CompressFormat.PNG, "image/png")
         importNamed("ai-photo.png")
         waitTextContains("ai-photo")
-        waitText("AI").click()
+        waitTextContains("AI Lab").click()
         assertTrue("AI Director action missing after import", device.hasObject(By.text("AI DIRECTOR")))
         assertTrue("AI Captions action missing after import", device.hasObject(By.text("AUTO CAPTIONS")))
     }
@@ -182,12 +182,7 @@ class VideoStudioEmulatorQaTest {
         importNamed("export-photo.png")
         waitTextContains("export-photo")
         waitText("EXPORT VIDEO").click()
-        val completed = device.wait(
-            Until.hasObject(By.textContains("Export complete"))
-                .or(Until.hasObject(By.textContains("Export ready")))
-                .or(Until.hasObject(By.textContains("download requested"))),
-            30_000L
-        )
+        val completed = waitForAnyText(30_000L, "Export complete", "Export ready", "download requested")
         assertTrue("Import + export workflow did not reach an honest terminal result", completed)
     }
 
@@ -309,6 +304,15 @@ class VideoStudioEmulatorQaTest {
             MediaStore.Downloads.DISPLAY_NAME + "=?",
             arrayOf(name)
         )
+    }
+
+    private fun waitForAnyText(timeout: Long, vararg values: String): Boolean {
+        val deadline = System.currentTimeMillis() + timeout
+        while (System.currentTimeMillis() < deadline) {
+            if (values.any { device.hasObject(By.textContains(it)) }) return true
+            Thread.sleep(250L)
+        }
+        return false
     }
 
     private fun waitText(value: String, timeout: Long = 30_000L): UiObject2 =
