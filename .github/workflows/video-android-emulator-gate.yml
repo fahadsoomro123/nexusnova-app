@@ -87,7 +87,14 @@ jobs:
             adb uninstall com.nexusnova.app >/dev/null 2>&1 || true
             adb push ../qa/fixtures/generated.webm /sdcard/Download/video-studio-video-qa.webm
             adb shell am force-stop com.nexusnova.app
-            gradle --no-daemon :app:connectedDebugAndroidTest
+             set +e
+                         gradle --no-daemon :app:connectedDebugAndroidTest
+             status=$?
+             echo "===== NexusNova runtime crash evidence ====="
+             adb shell pidof com.nexusnova.app || true
+             adb logcat -d -v threadtime | grep -E "FATAL EXCEPTION|AndroidRuntime|NexusNova|NexusNovaVideoQA" | tail -n 240 || true
+             echo "===== End crash evidence ====="
+             exit "$status"
 
       - name: Collect emulator test results
         if: always()
