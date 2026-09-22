@@ -54,11 +54,23 @@ class VideoStudioEmulatorQaTest {
         waitForDocumentsUi()
         selectDocument("video-studio-video-qa.webm")
         waitTextContains("video-qa")
+        waitTextContains("1 clip •")
+        assertTrue("timeline scrubber missing after video import", device.hasObject(By.desc("Timeline position")))
+
+        // Verify real editor state changes, not only import UI.
+        waitText("DUPLICATE").click()
+        waitTextContains("2 clips •")
+        waitText("DELETE").click()
+        waitText("1 clip •")
+        waitText("SPEED").click()
+        waitTextContains("1.00×")
+        waitText("EDIT").click()
 
         device.findObject(By.textContains("ADD MEDIA")).click()
         waitForDocumentsUi()
         selectDocument("video-studio-photo-qa.png")
         waitTextContains("photo-qa")
+        waitTextContains("2 clips •")
         capture("video-studio-after-import.png")
 
         device.pressBack()
