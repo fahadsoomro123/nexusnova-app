@@ -79,10 +79,16 @@ class VideoStudioEmulatorQaTest {
             Until.findObject(By.desc("Open AI Video Studio")),
             15_000L
         ) ?: device.wait(
-            Until.findObject(By.textContains("AI Video Studio")),
+            Until.findObject(By.clazz("android.widget.Button").text("AI Video Studio")),
             15_000L
-        ) ?: error("AI Video Studio launch control not found")
-        android.util.Log.i("VideoStudioQA", "Opening AI Video Studio bounds=${openVideo.visibleBounds}")
+        ) ?: device.findObjects(By.text("AI Video Studio"))
+            .firstOrNull {
+                val r = it.visibleBounds
+                r.width() > 120 && r.height() > 40 &&
+                    !it.contentDescription.orEmpty().contains("Search Nova Hub", ignoreCase = true)
+            }
+        if (openVideo == null) error("AI Video Studio launch control not found")
+        android.util.Log.i("VideoStudioQA", "Opening AI Video Studio bounds=${openVideo.visibleBounds} class=${openVideo.className}")
         openVideo.click()
 
         // Video Studio is an eligible hub app, so a native test interstitial can
