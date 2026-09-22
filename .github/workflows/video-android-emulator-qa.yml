@@ -107,6 +107,9 @@ jobs:
             status=$?
 
             mkdir -p "$GITHUB_WORKSPACE/qa/android-emulator-results"
+            adb shell uiautomator dump /sdcard/window.xml >/dev/null 2>&1 || true
+            adb pull /sdcard/window.xml "$GITHUB_WORKSPACE/qa/android-emulator-results/ui.xml" >/dev/null 2>&1 || true
+            adb exec-out screencap -p > "$GITHUB_WORKSPACE/qa/android-emulator-results/final-screen.png" || true
             adb logcat -d -v threadtime > "$GITHUB_WORKSPACE/qa/android-emulator-results/logcat.txt" || true
             adb shell ls -la /sdcard/Android/data/com.nexusnova.app/files/Pictures/ || true
             adb pull /sdcard/Android/data/com.nexusnova.app/files/Pictures "$GITHUB_WORKSPACE/qa/android-emulator-results/" || true
