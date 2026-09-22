@@ -346,7 +346,7 @@ class NexusOtaWebManager(context: Context) {
         const val MANIFEST_SCHEMA = 2
         const val ASSET_HOST = "appassets.androidplatform.net"
         const val ASSET_PATH = "/assets/www/"
-        const val BUNDLED_WEB_BASE = "28ad58de566e42621dad6198aa01be885ccc9769"
+        const val BUNDLED_WEB_BASE = "b8aa3393af20235fb70cf771f7bc7f84b05ebbf3"
         const val MANIFEST_URL = "https://raw.githubusercontent.com/fahadsoomro123/nexusnova-website/nexusnova-ota-public/ota/manifest.json"
         const val FILE_BASE_URL = "https://raw.githubusercontent.com/fahadsoomro123/nexusnova-website/nexusnova-ota-public/ota/files/"
         const val CONNECT_TIMEOUT_MS = 8_000
