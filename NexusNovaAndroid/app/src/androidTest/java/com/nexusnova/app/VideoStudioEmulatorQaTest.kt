@@ -11,7 +11,6 @@ import android.media.MediaRecorder
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
-import android.util.Base64
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
@@ -62,7 +61,7 @@ class VideoStudioEmulatorQaTest {
     @Test
     fun test04VideoPicker() {
         freshEditor()
-        publishVideoFixture("video-picker.webm", "video/webm", VIDEO_WEBM_B64)
+        publishVideoFixture("video-picker.webm", "video/webm", webm = true)
         tapAddMedia()
         assertDocumentsUi()
         assertTrue("Video fixture not visible in picker", device.wait(Until.hasObject(By.textContains("video-picker.webm")), 15_000L))
@@ -72,7 +71,7 @@ class VideoStudioEmulatorQaTest {
     @Test
     fun test05VideoImport() {
         freshEditor()
-        publishVideoFixture("video-import.webm", "video/webm", VIDEO_WEBM_B64)
+        publishVideoFixture("video-import.webm", "video/webm", webm = true)
         importNamed("video-import.webm")
         assertTrue("Video clip missing after import", device.hasObject(By.textContains("video-import")))
     }
@@ -80,7 +79,7 @@ class VideoStudioEmulatorQaTest {
     @Test
     fun test06VideoPreview() {
         freshEditor()
-        publishVideoFixture("video-preview.webm", "video/webm", VIDEO_WEBM_B64)
+        publishVideoFixture("video-preview.webm", "video/webm", webm = true)
         importNamed("video-preview.webm")
         waitTextContains("video-preview")
         assertTrue("Video preview play control missing", device.hasObject(By.desc("Play or pause")))
@@ -112,8 +111,8 @@ class VideoStudioEmulatorQaTest {
     @Test
     fun test09VideoFormatCoverage() {
         freshEditor()
-        publishVideoFixture("format-webm.webm", "video/webm", VIDEO_WEBM_B64)
-        publishVideoFixture("format-mp4.mp4", "video/mp4", VIDEO_MP4_B64)
+        publishVideoFixture("format-webm.webm", "video/webm", webm = true)
+        publishVideoFixture("format-mp4.mp4", "video/mp4", webm = false)
         importNamed("format-webm.webm")
         importNamed("format-mp4.mp4")
         assertTrue("WebM missing", device.hasObject(By.textContains("format-webm")))
@@ -248,81 +247,72 @@ class VideoStudioEmulatorQaTest {
         )
     }
 
-    private fun publishVideoFixture(name: String, mime: String, base64: String) {
-        val bytes = Base64.decode(base64, Base64.DEFAULT)
-        assertTrue("Video fixture decode failed: $name", bytes.isNotEmpty())
-        publishDownload(name, mime) { out -> out.write(bytes) }
-    }
-
-    private fun publishLargeMp4(name: String, mime: String) {
-        publishGeneratedMp4(name, mime, large = true)
-    }
-
-    private fun publishGeneratedMp4(name: String, mime: String, large: Boolean = false) {
+    private fun publishVideoFixture(name: String, mime: String, webm: Boolean) {
         val temp = File(context.cacheDir, "nn-$name")
         runCatching { temp.delete() }
-        generateMp4WithSurface(temp, if (large) 30 else 10, if (large) 8_000_000 else 500_000)
+        generateVideoFixture(temp, webm = webm, durationMs = 1_200L, width = 320, height = 180, bitrate = 700_000)
         try {
             publishDownload(name, mime) { out ->
                 temp.inputStream().use { input -> input.copyTo(out) }
-                if (large) writeFreeAtomPadding(out, 12_000_000)
             }
         } finally {
             temp.delete()
         }
     }
 
-    private fun generateMp4WithSurface(file: File, frames: Int, bitrate: Int) {
+    private fun publishLargeMp4(name: String, mime: String) {
+        val temp = File(context.cacheDir, "nn-$name")
+        runCatching { temp.delete() }
+        generateVideoFixture(temp, webm = false, durationMs = 6_000L, width = 1280, height = 720, bitrate = 8_000_000)
+        try {
+            assertTrue("Large video fixture exceeds import threshold: ${temp.length()} bytes", temp.length() > 3_000_000L)
+            publishDownload(name, mime) { out ->
+                temp.inputStream().use { input -> input.copyTo(out) }
+            }
+        } finally {
+            temp.delete()
+        }
+    }
+
+    private fun generateVideoFixture(file: File, webm: Boolean, durationMs: Long, width: Int, height: Int, bitrate: Int) {
         val recorder = MediaRecorder()
         var surface: android.view.Surface? = null
         try {
             recorder.setVideoSource(MediaRecorder.VideoSource.SURFACE)
-            recorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-            recorder.setVideoEncoder(MediaRecorder.VideoEncoder.H264)
-            recorder.setVideoSize(320, 180)
-            recorder.setVideoFrameRate(10)
+            recorder.setOutputFormat(if (webm) MediaRecorder.OutputFormat.WEBM else MediaRecorder.OutputFormat.MPEG_4)
+            recorder.setVideoEncoder(if (webm) MediaRecorder.VideoEncoder.VP8 else MediaRecorder.VideoEncoder.H264)
+            recorder.setVideoSize(width, height)
+            recorder.setVideoFrameRate(20)
             recorder.setVideoEncodingBitRate(bitrate)
             recorder.setOutputFile(file.absolutePath)
             recorder.prepare()
             recorder.start()
             surface = recorder.surface
-            repeat(frames) { index ->
-                val canvas = surface!!.lockCanvas(null)
+            val endAt = System.currentTimeMillis() + durationMs
+            var frame = 0
+            while (System.currentTimeMillis() < endAt) {
+                val canvas = surface.lockCanvas(null)
                 try {
                     canvas.drawColor(
-                        when {
-                            index % 3 == 0 -> Color.rgb(30, 30, 40)
-                            index % 3 == 1 -> Color.rgb(108, 76, 255)
-                            else -> Color.rgb(40, 180, 160)
+                        when (frame % 3) {
+                            0 -> Color.rgb(22, 18, 30)
+                            1 -> Color.rgb(108, 76, 255)
+                            else -> Color.rgb(38, 180, 160)
                         }
                     )
                 } finally {
                     surface.unlockCanvasAndPost(canvas)
                 }
-                Thread.sleep(100L)
+                frame++
+                Thread.sleep(45L)
             }
             recorder.stop()
-            assertTrue("Generated MP4 fixture is empty: $file", file.isFile && file.length() > 0)
+            assertTrue("Generated video fixture is empty: $file", file.isFile && file.length() > 0L)
         } finally {
             runCatching { surface?.release() }
             runCatching { recorder.reset() }
             runCatching { recorder.release() }
-        }
-    }
-
-    private fun writeFreeAtomPadding(out: OutputStream, payloadBytes: Int) {
-        val totalSize = payloadBytes + 8
-        out.write((totalSize ushr 24) and 0xff)
-        out.write((totalSize ushr 16) and 0xff)
-        out.write((totalSize ushr 8) and 0xff)
-        out.write(totalSize and 0xff)
-        out.write(byteArrayOf('f'.code.toByte(), 'r'.code.toByte(), 'e'.code.toByte(), 'e'.code.toByte()))
-        val chunk = ByteArray(64 * 1024)
-        var remaining = payloadBytes
-        while (remaining > 0) {
-            val count = minOf(remaining, chunk.size)
-            out.write(chunk, 0, count)
-            remaining -= count
+            runCatching { file.deleteOnExit() }
         }
     }
 
@@ -379,7 +369,6 @@ class VideoStudioEmulatorQaTest {
     }
 
     private companion object {
-        const val VIDEO_WEBM_B64 = "GkXfo59ChoEBQveBAULygQRC84EIQoKEd2VibUKHgQJChYECGFOAZwEAAAAAAAJpEU2bdLpNu4tTq4QVSalmU6yBoU27i1OrhBZUrmtTrIHWTbuMU6uEElTDZ1OsggEjTbuMU6uEHFO7a1OsggJT7AEAAAAAAABZAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAVSalmsCrXsYMPQkBNgIxMYXZmNjEuNy4xMDNXQYxMYXZmNjEuNy4xMDNEiYhAj0AAAAAAABZUrmvIrgEAAAAAAAA/14EBc8WIAl10ddlcDmWcgQAitZyDdW5kiIEAhoVWX1ZQOIOBASPjg4QL68IA4JCwgaC6gVqagQJVsIRVuYEBElTDZ/tzc59jwIBnyJlFo4dFTkNPREVSRIeMTGF2ZjYxLjcuMTAzc3PWY8CLY8WIAl10ddlcDmVnyKFFo4dFTkNPREVSRIeUTGF2YzYxLjE5LjEwMSBsaWJ2cHhnyKFFo4hEVVJBVElPTkSHkzAwOjAwOjAxLjAwMDAwMDAwMAAfQ7Z1QKrngQCjvYEAAIBQBQCdASqgAFoAAEcIhYWIhYSIAgIABigPCHVUmu4h1VJruIdVSa7iHVUmu4h1VJruIbwA/v+j3gCjmIEAyAARAgABEBAAGAAYWC/0AAiAgQAAAKOYgQGQABECAAEQEAAYABhYL/QACICBAAAAo5iBAlgAEQIAARAQABgAGFgv9AAIgIEAAACjmIEDIAARAgABEBAAGAAYWC/0AAiAgQAAABxTu2uRu4+zgQC3iveBAfGCAaPwgQM="
     }
 
     private fun waitForAnyText(timeout: Long, vararg values: String): Boolean {
