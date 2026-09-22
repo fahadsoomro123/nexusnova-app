@@ -33,7 +33,7 @@ jobs:
       - name: Checkout exact NexusNova execution snapshot
         uses: actions/checkout@v4
         with:
-          ref: 7029a867822a0e3f1010a018891c1e37b6e4a916
+          ref: ${{ github.sha }}
           path: build-src
           fetch-depth: 1
 
@@ -159,7 +159,7 @@ jobs:
           p=Path('app/build.gradle.kts')
           s=p.read_text(encoding='utf-8')
           s,n1=re.subn(r'versionCode\s*=\s*\d+','versionCode = 26091214',s,count=1)
-          s,n2=re.subn(r'versionName\s*=\s*"[^"]+"','versionName = "1.0.38-icon-reset"',s,count=1)
+          s,n2=re.subn(r'versionName\s*=\s*"[^"]+"','versionName = "1.0.50-video-flagship"',s,count=1)
           if n1 != 1 or n2 != 1:
               raise SystemExit('Version injection failed')
           signing='''    signingConfigs {\n        create("release") {\n            storeFile = file("nexusnova-release.jks")\n            storePassword = System.getenv("KEYSTORE_PASSWORD")\n            keyAlias = System.getenv("KEY_ALIAS")\n            keyPassword = System.getenv("KEY_PASSWORD")\n        }\n    }\n\n'''
@@ -217,7 +217,7 @@ jobs:
           ! grep -Fq 'src/features/apps/travel-' "$d/assets/www/index.html"
           grep -q 'waitForFirebaseUser' "$d/assets/www/src/core/firebase-backend.js"
           grep -q 'signInWithEmailAndPassword' "$d/assets/www/src/core/auth-service.js"
-          echo "SIGNED ICON-ONLY RESET APK VERIFIED from $PUBLIC_SHA"
+          echo "SIGNED VIDEO FLAGSHIP APK VERIFIED from $PUBLIC_SHA"
 
       - name: Package verified APK
         shell: bash
@@ -225,8 +225,8 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p signed-output
-          cp app/build/outputs/apk/release/app-release.apk signed-output/NexusNova-v1.0.38-SIGNED-ICON-ONLY-RESET.apk
-          sha256sum signed-output/NexusNova-v1.0.38-SIGNED-ICON-ONLY-RESET.apk > signed-output/NexusNova-v1.0.38-SIGNED-ICON-ONLY-RESET.apk.sha256
+          cp app/build/outputs/apk/release/app-release.apk signed-output/NexusNova-v1.0.50-SIGNED-VIDEO-FLAGSHIP.apk
+          sha256sum signed-output/NexusNova-v1.0.50-SIGNED-VIDEO-FLAGSHIP.apk > signed-output/NexusNova-v1.0.38-SIGNED-ICON-ONLY-RESET.apk.sha256
           printf '%s\n' "$PUBLIC_SHA" > signed-output/PUBLIC-SOURCE-SHA.txt
 
       - name: Upload verified APK artifact
