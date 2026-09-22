@@ -82,9 +82,20 @@ class VideoStudioEmulatorQaTest {
             Until.findObject(By.textContains("AI Video Studio")),
             15_000L
         ) ?: error("AI Video Studio launch control not found")
+        android.util.Log.i("VideoStudioQA", "Opening AI Video Studio bounds=${openVideo.visibleBounds}")
         openVideo.click()
 
-        waitText("CREATE YOUR VIDEO")
+        // Video Studio is an eligible hub app, so a native test interstitial can
+        // temporarily move focus to Chrome Custom Tabs. Dismiss that real overlay
+        // exactly as a user would, then wait for the app route continuation.
+        if (device.wait(Until.hasObject(By.pkg("com.android.chrome")), 5_000L)) {
+            android.util.Log.i("VideoStudioQA", "Chrome Custom Tab detected after Video Studio launch; pressing Back.")
+            device.pressBack()
+            device.wait(Until.hasObject(By.pkg("com.nexusnova.app")), 10_000L)
+        }
+
+        capture("video-studio-before-editor-check.png")
+        waitText("CREATE YOUR VIDEO", 30_000L)
         capture("video-studio-before-picker.png")
 
         assertTrue("MINE dock leaked into Video Studio", !device.hasObject(By.text("MINE")))
