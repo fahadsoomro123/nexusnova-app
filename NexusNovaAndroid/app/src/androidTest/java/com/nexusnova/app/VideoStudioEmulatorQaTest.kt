@@ -23,7 +23,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
 import java.io.OutputStream
-import java.io.OutputStream
 
 @RunWith(AndroidJUnit4::class)
 class VideoStudioEmulatorQaTest {
