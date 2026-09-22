@@ -62,15 +62,37 @@ class VideoStudioEmulatorQaTest {
         waitTextContains("2 clips •")
         waitText("DELETE").click()
         waitText("1 clip •")
+
+        // Verify real trim state changes on the imported video.
+        waitText("EDIT").click()
+        waitText("IN POINT")
+        val inPoint = device.findObject(By.clazz("android.widget.EditText"))
+        inPoint.text = "0.2"
+        waitText("OUT POINT")
+        val editFields = device.findObjects(By.clazz("android.widget.EditText"))
+        assertTrue("Video editor fields missing", editFields.size >= 4)
+        editFields[1].text = "0.8"
+        device.pressBack()
+        waitTextContains("0:01")
+
         waitText("SPEED").click()
         waitTextContains("1.00×")
-        waitText("EDIT").click()
 
         device.findObject(By.textContains("ADD MEDIA")).click()
         waitForDocumentsUi()
         selectDocument("video-studio-photo-qa.png")
         waitTextContains("photo-qa")
         waitTextContains("2 clips •")
+
+        // Verify a real local video export, including an output file on Android.
+        waitText("EXPORT VIDEO").click()
+        waitTextContains("Rendering locally", 10_000L)
+        waitTextContains("Export complete", 30_000L)
+        val exported = device.executeShellCommand(
+            "find /sdcard/Download -maxdepth 1 -type f -name 'nexusnova-video*.webm' -print"
+        ).trim()
+        assertTrue("Export UI completed but no WebM file was found in Downloads", exported.isNotEmpty())
+
         capture("video-studio-after-import.png")
 
         // Restart the real app process, then prove media can be imported again.
