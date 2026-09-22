@@ -93,9 +93,7 @@ jobs:
             runner_output="$GITHUB_WORKSPACE/qa/android-emulator-results/connected-test.txt"
 
             set +e
-            gradle --no-daemon :app:connectedDebugAndroidTest \
-              -Pandroid.testInstrumentationRunnerArguments.class=com.nexusnova.app.VideoStudioEmulatorQaTest \
-              --stacktrace > "$runner_output" 2>&1
+            gradle --no-daemon :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.nexusnova.app.VideoStudioEmulatorQaTest --stacktrace > "$runner_output" 2>&1
             status=$?
             set -e
 
