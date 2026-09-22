@@ -30,7 +30,7 @@ class OtaActivationEmulatorQaTest {
 
         while (System.currentTimeMillis() < deadline) {
             evidence = runCatching {
-                device.executeShellCommand("logcat -d -s NexusNovaOTA:I")
+                device.executeShellCommand("logcat -d -s NexusNovaOTA:V")
             }.getOrDefault("")
             if (evidence.contains("Activated OTA web version $expected")) {
                 activated = true
