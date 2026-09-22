@@ -159,7 +159,7 @@ jobs:
           import re
           p=Path('app/build.gradle.kts')
           s=p.read_text(encoding='utf-8')
-          s,n1=re.subn(r'versionCode\s*=\s*\d+','versionCode = 26091214',s,count=1)
+          s,n1=re.subn(r'versionCode\s*=\s*\d+','versionCode = 26092250',s,count=1)
           s,n2=re.subn(r'versionName\s*=\s*"[^"]+"','versionName = "1.0.50-video-flagship"',s,count=1)
           if n1 != 1 or n2 != 1:
               raise SystemExit('Version injection failed')
@@ -178,7 +178,7 @@ jobs:
           set -euo pipefail
           gradle --no-daemon clean assembleRelease
 
-      - name: Verify signature package version and icon-only Travel payload
+      - name: Verify signed flagship package and bundled source
         shell: bash
         working-directory: build-src/NexusNovaAndroid
         run: |
@@ -193,7 +193,7 @@ jobs:
           badging="$($AAPT dump badging "$apk" | head -n 1)"
           echo "$badging"
           echo "$badging" | grep -q "name='com.nexusnova.app'"
-          echo "$badging" | grep -q "versionCode='26091214'"
+          echo "$badging" | grep -q "versionCode='26092250'"
           echo "$badging" | grep -q "versionName='1.0.50-video-flagship'"
 
           unzip -l "$apk" > /tmp/apk-list.txt
@@ -220,6 +220,64 @@ jobs:
           grep -q 'signInWithEmailAndPassword' "$d/assets/www/src/core/auth-service.js"
           echo "SIGNED VIDEO FLAGSHIP APK VERIFIED from $PUBLIC_SHA"
 
+
+
+      - name: Build Android test APK for signed release QA
+        shell: bash
+        working-directory: build-src/NexusNovaAndroid
+        run: |
+          set -euo pipefail
+          gradle --no-daemon assembleDebugAndroidTest
+
+      - name: Create deterministic signed-release video fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          mkdir -p qa/fixtures
+          ffmpeg -hide_banner -loglevel error \
+            -f lavfi -i color=c=white:s=160x90:r=12:d=1 \
+            -c:v libvpx -b:v 200k -an \
+            qa/fixtures/video-studio-video-qa.webm
+          test -s qa/fixtures/video-studio-video-qa.webm
+
+      - name: Run signed flagship APK on Android Emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          cores: 4
+          ram-size: 4096M
+          heap-size: 512M
+          disk-size: 8192M
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
+          disable-animations: true
+          emulator-boot-timeout: 300
+          working-directory: build-src/NexusNovaAndroid
+          script: |
+            set -u
+            mkdir -p "$GITHUB_WORKSPACE/qa/signed-release-evidence"
+            trap 'adb shell uiautomator dump /sdcard/window.xml >/dev/null 2>&1 || true; adb pull /sdcard/window.xml "$GITHUB_WORKSPACE/qa/signed-release-evidence/ui.xml" >/dev/null 2>&1 || true; adb exec-out screencap -p > "$GITHUB_WORKSPACE/qa/signed-release-evidence/final-screen.png" || true; adb logcat -d -v threadtime > "$GITHUB_WORKSPACE/qa/signed-release-evidence/logcat.txt" || true' EXIT
+            adb install -r app/build/outputs/apk/release/app-release.apk
+            adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+            adb push "$GITHUB_WORKSPACE/qa/fixtures/video-studio-video-qa.webm" /sdcard/Download/video-studio-video-qa.webm
+            adb shell am force-stop com.nexusnova.app
+            adb shell am instrument -w -r -e class com.nexusnova.app.VideoStudioEmulatorQaTest#videoStudioFullscreenScopedDockAndNativeMediaPicker com.nexusnova.app.test/androidx.test.runner.AndroidJUnitRunner
+            status=$?
+            exit "$status"
+
+      - name: Upload signed emulator proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NexusNova-v1.0.50-signed-emulator-proof
+          path: qa/signed-release-evidence
+          if-no-files-found: warn
+          retention-days: 7
+
       - name: Package verified APK
         shell: bash
         working-directory: build-src/NexusNovaAndroid
@@ -238,8 +296,5 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-# Flagship gate refresh: 2026-09-22 / build-current-main-signed-apk.yml / QA commit 55fdc5cbb3b5d1347b45c7a9c43f7c7025127b8e
 
-# Flagship trigger refresh: trim/export assertion fix 2026-09-22
 
-# QA trigger refresh: exact export filename validation 2026-09-22
