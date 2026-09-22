@@ -84,42 +84,49 @@ jobs:
           working-directory: NexusNovaAndroid
           script: |
             set -u
+            adb wait-for-device
+            adb shell getprop sys.boot_completed
             adb uninstall com.nexusnova.app || true
             adb uninstall com.nexusnova.app.test || true
-            adb install -r app/build/outputs/apk/debug/app-debug.apk
-            adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
 
             mkdir -p "$GITHUB_WORKSPACE/qa/android-emulator-results"
-            runner_output="$GITHUB_WORKSPACE/qa/android-emulator-results/instrumentation.txt"
+            runner_output="$GITHUB_WORKSPACE/qa/android-emulator-results/connected-test.txt"
 
             set +e
-            adb shell am instrument -w -r -e class com.nexusnova.app.VideoStudioEmulatorQaTest com.nexusnova.app.test/androidx.test.runner.AndroidJUnitRunner > "$runner_output" 2>&1
+            gradle --no-daemon :app:connectedDebugAndroidTest \
+              -Pandroid.testInstrumentationRunnerArguments.class=com.nexusnova.app.VideoStudioEmulatorQaTest \
+              --stacktrace > "$runner_output" 2>&1
             status=$?
             set -e
-            cat "$runner_output"
 
+            cat "$runner_output"
+            cp -R app/build/outputs/androidTest-results "$GITHUB_WORKSPACE/qa/android-emulator-results/" || true
+            cp -R app/build/outputs/logs "$GITHUB_WORKSPACE/qa/android-emulator-results/" || true
             adb logcat -d -v threadtime > "$GITHUB_WORKSPACE/qa/android-emulator-results/logcat.txt" || true
-            adb shell ls -la /sdcard/Android/data/com.nexusnova.app/files/Pictures/ || true
-            adb pull /sdcard/Android/data/com.nexusnova.app/files/Pictures "$GITHUB_WORKSPACE/qa/android-emulator-results/" || true
 
             if [ "$status" -ne 0 ]; then
-              echo "Instrumentation command failed with exit code $status"
+              echo "Connected Android test task failed with exit code $status"
               exit "$status"
             fi
 
-            if grep -Eq 'Process crashed\.|FAILURES!!!|INSTRUMENTATION_STATUS_CODE: -2|There were [0-9]+ failures' "$runner_output"; then
-              echo "Video Studio QA reported a crash/failure; refusing to mark the run green."
+            result_xml_count=$(find app/build/outputs/androidTest-results -type f -name '*.xml' 2>/dev/null | wc -l | tr -d ' ')
+            if [ "$result_xml_count" -lt 1 ]; then
+              echo "No Android instrumentation result XML was produced."
               exit 1
             fi
 
-            test_count=$(grep -c 'INSTRUMENTATION_STATUS_CODE: 0' "$runner_output" || true)
-            if [ "$test_count" -ne 15 ]; then
-              echo "Expected 15 completed tests, observed $test_count."
+            completed_tests=$(grep -Roh 'tests="[0-9]*"' app/build/outputs/androidTest-results 2>/dev/null | sed 's/[^0-9]//g' | awk '{s+=$1} END{print s+0}')
+            failures=$(grep -Roh 'failures="[0-9]*"' app/build/outputs/androidTest-results 2>/dev/null | sed 's/[^0-9]//g' | awk '{s+=$1} END{print s+0}')
+            errors=$(grep -Roh 'errors="[0-9]*"' app/build/outputs/androidTest-results 2>/dev/null | sed 's/[^0-9]//g' | awk '{s+=$1} END{print s+0}')
+
+            echo "RESULTS: tests=$completed_tests failures=$failures errors=$errors"
+
+            if [ "$completed_tests" -ne 15 ] || [ "$failures" -ne 0 ] || [ "$errors" -ne 0 ]; then
+              echo "Expected exactly 15 passing tests."
               exit 1
             fi
 
-
-            echo "15/15 instrumentation tests completed successfully."
+            echo "15/15 Video Studio emulator tests PASS."
 
 
       - name: Upload Android emulator evidence
