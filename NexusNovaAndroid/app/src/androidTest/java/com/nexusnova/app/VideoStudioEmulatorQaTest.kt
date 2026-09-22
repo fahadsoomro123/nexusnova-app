@@ -254,6 +254,10 @@ class VideoStudioEmulatorQaTest {
         publishDownload(name, mime) { out -> out.write(bytes) }
     }
 
+    private fun publishLargeMp4(name: String, mime: String) {
+        publishGeneratedMp4(name, mime, large = true)
+    }
+
     private fun publishGeneratedMp4(name: String, mime: String, large: Boolean = false) {
         val temp = File(context.cacheDir, "nn-$name")
         runCatching { temp.delete() }
