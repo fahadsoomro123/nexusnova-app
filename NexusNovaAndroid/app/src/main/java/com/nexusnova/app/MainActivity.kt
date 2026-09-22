@@ -1,6 +1,7 @@
 package com.nexusnova.app
 
 import android.Manifest
+import android.content.ContentValues
 import android.annotation.SuppressLint
 import android.content.ContentResolver
 import android.content.Intent
@@ -8,6 +9,7 @@ import android.content.pm.PackageManager
 import android.provider.OpenableColumns
 import android.net.Uri
 import android.os.Build
+import android.os.Environment
 import android.os.Bundle
 import android.webkit.GeolocationPermissions
 import android.webkit.PermissionRequest
@@ -28,7 +30,14 @@ import androidx.webkit.WebViewAssetLoader
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import org.json.JSONObject
+import java.io.BufferedInputStream
+import java.io.BufferedOutputStream
+import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executors
 
 class MainActivity : AppCompatActivity() {
 
@@ -51,6 +60,18 @@ class MainActivity : AppCompatActivity() {
     private var finishedWatchdogToken = -1
     private var webRecoveryAttempts = 0
     private var rendererCrashRecoveries = 0
+
+    private data class PendingVideoExport(
+        val id: String,
+        val displayName: String,
+        val mimeType: String,
+        val tempFile: File,
+        val expectedBytes: Long,
+        var receivedBytes: Long = 0L,
+    )
+
+    private val videoExportSessions = ConcurrentHashMap<String, PendingVideoExport>()
+    private val videoExportExecutor = Executors.newSingleThreadExecutor()
 
     private data class PendingGeolocation(
         val origin: String,
@@ -630,6 +651,10 @@ class MainActivity : AppCompatActivity() {
                     testOnly = message.optBoolean("testOnly", false)
                 )
             }
+            ACTION_NATIVE_VIDEO_EXPORT_START -> startNativeVideoExport(message)
+            ACTION_NATIVE_VIDEO_EXPORT_CHUNK -> appendNativeVideoExportChunk(message)
+            ACTION_NATIVE_VIDEO_EXPORT_FINISH -> finishNativeVideoExport(message)
+
             ACTION_AD_STATUS -> {
                 initializeAdsSafely()
                 adManager?.publishStatus()
@@ -678,6 +703,177 @@ class MainActivity : AppCompatActivity() {
                 if (isHttpUri(uri)) openExternalUri(uri)
             }
         }
+    }
+
+    private fun startNativeVideoExport(message: JSONObject) {
+        if (!isLocalOnlyNativeActionPage()) return
+        val id = message.optString("id").trim()
+        val displayName = sanitizeExportName(message.optString("name").trim())
+        val mimeType = message.optString("mimeType").trim().lowercase(Locale.ROOT)
+        val expectedBytes = message.optLong("size", -1L)
+        if (!EXPORT_ID_PATTERN.matches(id)) return
+        if (displayName.isBlank() || displayName.length > MAX_EXPORT_NAME_CHARS) return
+        if (mimeType !in SUPPORTED_EXPORT_MIME_TYPES) {
+            publishNativeVideoExportResult(id, false, null, "Unsupported export format.")
+            return
+        }
+        if (expectedBytes !in 1..MAX_VIDEO_EXPORT_BYTES) {
+            publishNativeVideoExportResult(id, false, null, "Export is too large.")
+            return
+        }
+        videoExportSessions.remove(id)?.let { runCatching { it.tempFile.delete() } }
+        val root = File(cacheDir, "nexusnova-video-exports").apply { mkdirs() }
+        val temp = File(root, id + ".part")
+        runCatching {
+            FileOutputStream(temp, false).use { }
+            videoExportSessions[id] = PendingVideoExport(id, displayName, mimeType, temp, expectedBytes)
+        }.onFailure {
+            publishNativeVideoExportResult(id, false, null, "Could not start export.")
+        }
+    }
+
+    private fun appendNativeVideoExportChunk(message: JSONObject) {
+        if (!isLocalOnlyNativeActionPage()) return
+        val id = message.optString("id").trim()
+        val chunkIndex = message.optInt("index", -1)
+        val totalChunks = message.optInt("total", -1)
+        val data = message.optString("data")
+        if (!EXPORT_ID_PATTERN.matches(id) ||
+            chunkIndex < 0 ||
+            totalChunks < 1 ||
+            chunkIndex >= totalChunks ||
+            data.isBlank() ||
+            data.length > MAX_EXPORT_CHUNK_BASE64_CHARS
+        ) return
+
+        val session = videoExportSessions[id] ?: return
+        videoExportExecutor.execute {
+            try {
+                val bytes = android.util.Base64.decode(data, android.util.Base64.DEFAULT)
+                if (bytes.isEmpty() || session.receivedBytes + bytes.size > session.expectedBytes) {
+                    throw IllegalArgumentException("Invalid export chunk size.")
+                }
+                BufferedOutputStream(FileOutputStream(session.tempFile, true), 32 * 1024).use { output ->
+                    output.write(bytes)
+                }
+                session.receivedBytes += bytes.size.toLong()
+            } catch (error: Throwable) {
+                videoExportSessions.remove(id)
+                runCatching { session.tempFile.delete() }
+                publishNativeVideoExportResult(id, false, null, error.message ?: "Export write failed.")
+            }
+        }
+    }
+
+    private fun finishNativeVideoExport(message: JSONObject) {
+        if (!isLocalOnlyNativeActionPage()) return
+        val id = message.optString("id").trim()
+        if (!EXPORT_ID_PATTERN.matches(id)) return
+        val session = videoExportSessions[id] ?: return
+        videoExportExecutor.execute {
+            try {
+                if (session.receivedBytes != session.expectedBytes) {
+                    throw IllegalArgumentException("Export payload was incomplete.")
+                }
+                val savedName = saveVideoExportToDownloads(session)
+                videoExportSessions.remove(id)
+                runCatching { session.tempFile.delete() }
+                publishNativeVideoExportResult(id, true, savedName, null, session.receivedBytes)
+            } catch (error: Throwable) {
+                videoExportSessions.remove(id)
+                runCatching { session.tempFile.delete() }
+                publishNativeVideoExportResult(id, false, null, error.message ?: "Could not save exported video.")
+            }
+        }
+    }
+
+    private fun saveVideoExportToDownloads(session: PendingVideoExport): String {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            val root = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+                ?: throw IllegalStateException("Downloads storage unavailable.")
+            val dir = File(root, "NexusNova").apply { mkdirs() }
+            val target = uniqueExportFile(dir, session.displayName)
+            copyFile(session.tempFile, target)
+            return target.name
+        }
+
+        val resolver = contentResolver
+        val values = ContentValues().apply {
+            put(MediaStore.Downloads.DISPLAY_NAME, session.displayName)
+            put(MediaStore.Downloads.MIME_TYPE, session.mimeType)
+            put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/NexusNova")
+            put(MediaStore.Downloads.IS_PENDING, 1)
+        }
+        val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+            ?: throw IllegalStateException("Could not create Android download entry.")
+        try {
+            resolver.openOutputStream(uri)?.use { output ->
+                BufferedInputStream(FileInputStream(session.tempFile), 32 * 1024).use { input ->
+                    input.copyTo(output, 32 * 1024)
+                }
+            } ?: throw IllegalStateException("Could not open Android download entry.")
+            values.clear()
+            values.put(MediaStore.Downloads.IS_PENDING, 0)
+            resolver.update(uri, values, null, null)
+            return session.displayName
+        } catch (error: Throwable) {
+            runCatching { resolver.delete(uri, null, null) }
+            throw error
+        }
+    }
+
+    private fun copyFile(source: File, target: File) {
+        BufferedInputStream(FileInputStream(source), 32 * 1024).use { input ->
+            BufferedOutputStream(FileOutputStream(target, false), 32 * 1024).use { output ->
+                input.copyTo(output, 32 * 1024)
+            }
+        }
+    }
+
+    private fun uniqueExportFile(directory: File, requestedName: String): File {
+        val base = requestedName.substringBeforeLast('.', requestedName)
+        val ext = requestedName.substringAfterLast('.', "")
+        var index = 0
+        var candidate = File(directory, requestedName)
+        while (candidate.exists()) {
+            index += 1
+            candidate = File(directory, if (ext.isBlank()) base + "-" + index else base + "-" + index + "." + ext)
+        }
+        return candidate
+    }
+
+    private fun sanitizeExportName(value: String): String {
+        val cleaned = value.replace(Regex("[^A-Za-z0-9._-]+"), "-").trim('-')
+        return cleaned.take(MAX_EXPORT_NAME_CHARS).ifBlank { "nexusnova-export.webm" }
+    }
+
+    private fun publishNativeVideoExportResult(
+        id: String,
+        success: Boolean,
+        name: String?,
+        error: String?,
+        size: Long = 0L,
+    ) {
+        if (!::webView.isInitialized || isFinishing || isDestroyed) return
+        val detail = JSONObject()
+            .put("id", id)
+            .put("success", success)
+            .put("name", name ?: "")
+            .put("location", if (success) "Downloads/NexusNova" else "")
+            .put("size", size)
+            .put("error", error ?: "")
+            .toString()
+        val script = "window.dispatchEvent(new CustomEvent('nexusnova:native-export-result',{detail:" + detail + "}));"
+        webView.post {
+            if (!isFinishing && !isDestroyed && ::webView.isInitialized) {
+                runCatching { webView.evaluateJavascript(script, null) }
+            }
+        }
+    }
+
+    private fun isLocalOnlyNativeActionPage(): Boolean {
+        val url = try { Uri.parse(webView.url ?: "") } catch (_: Exception) { return false }
+        return isLocalOrigin(url)
     }
 
     private fun publishNativeDriveSnapshot(error: String? = null) {
@@ -833,6 +1029,9 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         clearPendingWebCallbacks()
+        videoExportSessions.values.forEach { runCatching { it.tempFile.delete() } }
+        videoExportSessions.clear()
+        videoExportExecutor.shutdownNow()
         super.onDestroy()
     }
 
@@ -885,6 +1084,9 @@ class MainActivity : AppCompatActivity() {
         const val ACTION_SHOW_REWARDED_AD = "showRewardedAd"
         const val ACTION_SHOW_INTERSTITIAL_AD = "showInterstitialAd"
         const val ACTION_AD_STATUS = "adStatus"
+        const val ACTION_NATIVE_VIDEO_EXPORT_START = "nativeVideoExportStart"
+        const val ACTION_NATIVE_VIDEO_EXPORT_CHUNK = "nativeVideoExportChunk"
+        const val ACTION_NATIVE_VIDEO_EXPORT_FINISH = "nativeVideoExportFinish"
         const val ACTION_NATIVE_DRIVE_START = "nativeDriveStart"
         const val ACTION_NATIVE_DRIVE_PAUSE = "nativeDrivePause"
         const val ACTION_NATIVE_DRIVE_RESUME = "nativeDriveResume"
@@ -895,6 +1097,11 @@ class MainActivity : AppCompatActivity() {
         const val MAX_BRIDGE_MESSAGE_CHARS = 8_192
         const val MAX_VPN_AUTH_TOKEN_CHARS = 7_000
         const val MAX_EXTERNAL_URL_CHARS = 2_000
+        const val MAX_EXPORT_NAME_CHARS = 120
+        const val MAX_VIDEO_EXPORT_BYTES = 150L * 1024L * 1024L
+        const val MAX_EXPORT_CHUNK_BASE64_CHARS = 6_800
+        val SUPPORTED_EXPORT_MIME_TYPES = setOf("video/webm", "video/mp4")
+        val EXPORT_ID_PATTERN = Regex("^[A-Za-z0-9_-]{6,64}$")
         const val MAX_PICKED_FILES = 5
         const val MAX_PICKED_FILE_BYTES = 20L * 1024L * 1024L
         const val MAX_PICKED_TOTAL_BYTES = 20L * 1024L * 1024L
