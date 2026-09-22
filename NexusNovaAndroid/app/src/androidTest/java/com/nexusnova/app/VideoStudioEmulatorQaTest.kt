@@ -24,24 +24,31 @@ class VideoStudioEmulatorQaTest {
 
     @Test
     fun videoStudioFullscreenScopedDockAndNativeMediaPicker() {
+        step("test-start")
         require(Build.VERSION.SDK_INT >= 29)
+        step("fixture-publish")
         publishDownload("video-studio-photo-qa.png", "image/png", Base64.getDecoder().decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="))
 
+        step("launch-main-activity")
         context.startActivity(
             Intent(context, MainActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         )
 
+        step("find-auth-fields")
         val authFields = device.wait(Until.findObjects(By.clazz("android.widget.EditText")), 30_000L)
             ?: emptyList()
         assertTrue("auth fields missing", authFields.size >= 2)
         authFields[0].text = "qa-emulator@nexusnova.local"
         authFields[1].text = "NexusNova123"
+        step("submit-sign-in")
         waitText("SIGN IN").click()
 
+        step("open-nova-hub")
         openNovaHub()
         val search = device.wait(Until.findObject(By.desc("Search Nova Hub")), 15_000L)
             ?: error("Nova Hub search field not found")
+        step("search-video-studio")
         search.text = "AI Video Studio"
         waitText("AI Video Studio").click()
 
@@ -50,6 +57,8 @@ class VideoStudioEmulatorQaTest {
         assertTrue("MINE dock leaked into Video Studio", !device.hasObject(By.text("MINE")))
         assertTrue("NOVA HUB dock leaked into Video Studio", !device.hasObject(By.text("NOVA HUB")))
 
+        step("open-native-picker-video")
+        step("open-native-picker-photo")
         device.findObject(By.textContains("ADD MEDIA")).click()
         waitForDocumentsUi()
         selectDocument("video-studio-video-qa.webm")
@@ -58,12 +67,14 @@ class VideoStudioEmulatorQaTest {
         assertTrue("timeline scrubber missing after video import", device.hasObject(By.desc("Timeline position")))
 
         // Verify real editor state changes, not only import UI.
+        step("duplicate-delete")
         waitText("DUPLICATE").click()
         waitTextContains("2 clips •")
         waitText("DELETE").click()
         waitText("1 clip •")
 
         // Verify real trim state changes on the imported video.
+        step("trim")
         waitText("EDIT").click()
         waitText("IN POINT")
         val inPoint = device.findObject(By.clazz("android.widget.EditText"))
@@ -74,6 +85,7 @@ class VideoStudioEmulatorQaTest {
         editFields[1].text = "0.8"
         assertTrue("Trim OUT point was not applied", device.wait(Until.hasObject(By.text("0.8")), 5_000L))
 
+        step("speed")
         waitText("SPEED").click()
         waitTextContains("1.00×")
 
@@ -84,6 +96,7 @@ class VideoStudioEmulatorQaTest {
         waitTextContains("2 clips •")
 
         // Verify a real local video export, including an output file on Android.
+        step("export")
         waitText("EXPORT VIDEO").click()
         waitTextContains("Rendering locally", 10_000L)
         waitTextContains("Export complete", 30_000L)
@@ -95,11 +108,13 @@ class VideoStudioEmulatorQaTest {
         capture("video-studio-after-import.png")
 
         // Restart the real app process, then prove media can be imported again.
+        step("restart-app")
         device.executeShellCommand("am force-stop com.nexusnova.app")
         context.startActivity(
             Intent(context, MainActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
         )
+        step("reenter-hub")
         openNovaHub()
         val searchAgain = device.wait(Until.findObject(By.desc("Search Nova Hub")), 15_000L)
             ?: error("Nova Hub search field missing after restart")
@@ -115,6 +130,10 @@ class VideoStudioEmulatorQaTest {
         waitForNovaHubVisible()
         assertTrue("dock was not restored after leaving Video Studio", device.hasObject(By.desc("Open Mine")))
         cleanupDownload("video-studio-photo-qa.png")
+    }
+
+    private fun step(name: String) {
+        android.util.Log.i("NexusNovaVideoQA", "STEP: $name")
     }
 
     private fun openNovaHub(timeout: Long = 30_000L) {
