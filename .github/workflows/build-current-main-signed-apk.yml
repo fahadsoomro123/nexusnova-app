@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - ota-engine-ci-exec-20260915
+      - flagship-video-studio-20260922
     # CI build is intentionally path-independent so source changes cannot skip verification.
   workflow_dispatch:
 
