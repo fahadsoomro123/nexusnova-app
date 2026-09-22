@@ -109,7 +109,7 @@ jobs:
             adb push "$GITHUB_WORKSPACE/qa/fixtures/large-video.mp4" /data/local/tmp/large-video.mp4
             adb shell run-as com.nexusnova.app sh -c 'mkdir -p files/qa && cp /data/local/tmp/video-picker.webm files/qa/video-picker.webm && cp /data/local/tmp/format-mp4.mp4 files/qa/format-mp4.mp4 && cp /data/local/tmp/large-video.mp4 files/qa/large-video.mp4'
 
-            adb shell am instrument -w -r -e class com.nexusnova.app.VideoStudioEmulatorQaTest#videoStudioFullscreenScopedDockAndNativeMediaPicker com.nexusnova.app.test/androidx.test.runner.AndroidJUnitRunner
+            adb shell am instrument -w -r -e class com.nexusnova.app.VideoStudioEmulatorQaTest com.nexusnova.app.test/androidx.test.runner.AndroidJUnitRunner
             status=$?
 
             mkdir -p "$GITHUB_WORKSPACE/qa/android-emulator-results"
