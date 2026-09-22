@@ -12,6 +12,10 @@ on:
       - '.github/workflows/ota-activation-emulator.yml'
   workflow_dispatch:
 
+concurrency:
+  group: ota-activation-branch
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -42,4 +46,14 @@ jobs:
           emulator-options: -no-window -no-audio -no-boot-anim
           disable-animations: true
           script: |
+            set -euo pipefail
+            adb wait-for-device
+            for i in $(seq 1 60); do
+              if adb shell service check package 2>/dev/null | grep -q 'found'; then
+                break
+              fi
+              sleep 2
+            done
+            adb shell service check package 2>/dev/null | grep -q 'found'
+            adb shell pm list packages >/dev/null
             cd NexusNovaAndroid && gradle --no-daemon :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.nexusnova.app.OtaActivationEmulatorQaTest
