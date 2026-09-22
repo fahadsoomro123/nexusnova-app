@@ -270,7 +270,14 @@ jobs:
             adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
             adb push "$GITHUB_WORKSPACE/qa/fixtures/video-studio-video-qa.webm" /sdcard/Download/video-studio-video-qa.webm
             adb shell am force-stop com.nexusnova.app
+            set +e
             adb shell am instrument -w -r -e class com.nexusnova.app.VideoStudioEmulatorQaTest#videoStudioFullscreenScopedDockAndNativeMediaPicker com.nexusnova.app.test/androidx.test.runner.AndroidJUnitRunner
+            status=$?
+            echo "===== NexusNova runtime crash evidence ====="
+            adb shell pidof com.nexusnova.app || true
+            adb logcat -d -v threadtime | grep -E "FATAL EXCEPTION|AndroidRuntime|NexusNova|NexusNovaVideoQA" | tail -n 240 || true
+            echo "===== End crash evidence ====="
+            exit "$status"
             status=$?
             exit "$status"
 
