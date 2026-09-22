@@ -104,7 +104,6 @@ jobs:
             set -u
             adb install -r app/build/outputs/apk/debug/app-debug.apk
             adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
-            adb push "$GITHUB_WORKSPACE/qa/fixtures/video-picker.webm" /data/local/tmp/video-picker.webm
             adb push "$GITHUB_WORKSPACE/qa/fixtures/format-mp4.mp4" /data/local/tmp/format-mp4.mp4
             adb push "$GITHUB_WORKSPACE/qa/fixtures/large-video.mp4" /data/local/tmp/large-video.mp4
             adb shell run-as com.nexusnova.app sh -c 'mkdir -p files/qa && cp /data/local/tmp/video-picker.webm files/qa/video-picker.webm && cp /data/local/tmp/format-mp4.mp4 files/qa/format-mp4.mp4 && cp /data/local/tmp/large-video.mp4 files/qa/large-video.mp4'
