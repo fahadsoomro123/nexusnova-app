@@ -387,11 +387,26 @@ class MainActivity : AppCompatActivity() {
                     .toSet()
 
                 return try {
-                    fileChooserLauncher.launch(
-                        params.createIntent().apply {
-                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    val acceptedMimeTypes = fileChooserAcceptTypes
+                        .asSequence()
+                        .flatMap { value -> value.split(',').asSequence() }
+                        .map { value -> value.substringBefore(';').trim().lowercase(Locale.ROOT) }
+                        .filter { it.isNotBlank() && it != "*/*" }
+                        .distinct()
+                        .toList()
+
+                    val pickerIntent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                        addCategory(Intent.CATEGORY_OPENABLE)
+                        type = if (acceptedMimeTypes.isEmpty()) "*/*" else acceptedMimeTypes.first()
+                        if (acceptedMimeTypes.size > 1 || acceptedMimeTypes.any { it.endsWith("/*") }) {
+                            putExtra(Intent.EXTRA_MIME_TYPES, acceptedMimeTypes.toTypedArray())
+                            type = "*/*"
                         }
-                    )
+                        putExtra(Intent.EXTRA_ALLOW_MULTIPLE, params.mode == WebChromeClient.FileChooserParams.MODE_OPEN_MULTIPLE)
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+                    }
+                    fileChooserLauncher.launch(pickerIntent)
                     true
                 } catch (_: Exception) {
                     fileChooserCallback = null
@@ -731,7 +746,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun validatePickedUri(uri: Uri, acceptedTypes: Set<String>): Long? {
         if (uri.scheme != ContentResolver.SCHEME_CONTENT) return null
-        val size = pickedUriSize(uri) ?: return null
+        // Some Android document providers do not expose SIZE. Unknown size is
+        // still a valid readable URI; the WebView receives the actual File size
+        // and applies the editor's own 20 MB limit. Reject only a known oversized file.
+        val size = pickedUriSize(uri) ?: 0L
         if (size > MAX_PICKED_FILE_BYTES) return null
         if (acceptedTypes.isEmpty()) return size
 
