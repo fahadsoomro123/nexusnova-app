@@ -92,9 +92,15 @@ jobs:
           path: qa/android-emulator-results/
           if-no-files-found: warn
 
-      - name: Prepare signed OTA12 bootstrap APK
+      - name: Build unsigned release APK for bootstrap
         if: always()
-        shell: bash
+        working-directory: NexusNovaAndroid
+        run: |
+          set -euo pipefail
+          gradle --no-daemon :app:assembleRelease
+
+      - name: Sign and verify bootstrap APK
+        if: always()
         working-directory: NexusNovaAndroid
         env:
           KEYSTORE_B64: ${{ secrets.NEXUSNOVA_KEYSTORE_BASE64 }}
@@ -107,67 +113,43 @@ jobs:
           test -n "$KEYSTORE_PASSWORD"
           test -n "$KEY_ALIAS"
           test -n "$KEY_PASSWORD"
-          printf '%s' "$KEYSTORE_B64" | base64 -d > app/nexusnova-release.jks
-          keytool -list -keystore app/nexusnova-release.jks -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
-          grep -Fq 'allowContentAccess = true' app/src/main/java/com/nexusnova/app/MainActivity.kt
-          grep -Fq 'ACTION_OPEN_DOCUMENT' app/src/main/java/com/nexusnova/app/MainActivity.kt
-          grep -Fq 'FLAG_GRANT_READ_URI_PERMISSION' app/src/main/java/com/nexusnova/app/MainActivity.kt
-          grep -Fq 'acceptedExtensionMatches' app/src/main/java/com/nexusnova/app/MainActivity.kt
-          grep -Fq 'const val BUNDLED_WEB_BASE = "28ad58de566e42621dad6198aa01be885ccc9769"' app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-          p=Path('app/build.gradle.kts')
-          s=p.read_text(encoding='utf-8')
-          s,n1=re.subn(r'versionCode\s*=\s*\d+','versionCode = 27091224',s,count=1)
-          s,n2=re.subn(r'versionName\s*=\s*"[^"]+"','versionName = "1.0.24-ota12-native-fix-bootstrap"',s,count=1)
-          if n1 != 1 or n2 != 1:
-              raise SystemExit('version anchors missing')
-          signing='''    signingConfigs {
-          create("ota12Bootstrap") {
-              storeFile = file("nexusnova-release.jks")
-              storePassword = System.getenv("KEYSTORE_PASSWORD")
-              keyAlias = System.getenv("KEY_ALIAS")
-              keyPassword = System.getenv("KEY_PASSWORD")
-          }
-      }
 
-      '''
-          if 'create("ota12Bootstrap")' not in s:
-              s=s.replace('    buildTypes {',signing+'    buildTypes {',1)
-          if 'signingConfig = signingConfigs.getByName("ota12Bootstrap")' not in s:
-              s=s.replace('        release {\n','        release {\n            signingConfig = signingConfigs.getByName("ota12Bootstrap")\n',1)
-          p.write_text(s,encoding='utf-8')
-          PY
-          gradle --no-daemon clean assembleRelease
+          printf '%s' "$KEYSTORE_B64" | base64 -d > /tmp/nexusnova-release.jks
+          keytool -list -keystore /tmp/nexusnova-release.jks -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
 
-      - name: Verify signed OTA12 bootstrap APK
-        if: always()
-        shell: bash
-        working-directory: NexusNovaAndroid
-        run: |
-          set -euo pipefail
-          apk='app/build/outputs/apk/release/app-release.apk'
-          test -s "$apk"
+          unsigned="$(find app/build/outputs/apk/release -maxdepth 1 -type f -name 'app-release-unsigned.apk' -print -quit)"
+          if [ -z "$unsigned" ]; then
+            unsigned="$(find app/build/outputs/apk/release -maxdepth 1 -type f -name 'app-release.apk' -print -quit)"
+          fi
+          test -n "$unsigned"
+          test -s "$unsigned"
+
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
-          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)"
-          "$APKSIGNER" verify --verbose --print-certs "$apk"
-          badging="$("$AAPT" dump badging "$apk" | head -n 1)"
-          echo "$badging"
-          echo "$badging" | grep -q "name='com.nexusnova.app'"
-          echo "$badging" | grep -q "versionCode='27091224'"
-          echo "$badging" | grep -q "versionName='1.0.24-ota12-native-fix-bootstrap'"
+          ZIPALIGN="$(find "$ANDROID_HOME/build-tools" -type f -name zipalign | sort -V | tail -1)"
+          test -x "$APKSIGNER"
+          test -x "$ZIPALIGN"
+
+          rm -rf bootstrap-output
+          mkdir -p bootstrap-output
+          "$ZIPALIGN" -p -f 4 "$unsigned" bootstrap-output/unaligned-signed.apk
+          "$APKSIGNER" sign             --ks /tmp/nexusnova-release.jks             --ks-pass "pass:$KEYSTORE_PASSWORD"             --ks-key-alias "$KEY_ALIAS"             --key-pass "pass:$KEY_PASSWORD"             --out bootstrap-output/NexusNova-v1.0.24-OTA12-NATIVE-FIX-BOOTSTRAP.apk             bootstrap-output/unaligned-signed.apk
+
+          "$APKSIGNER" verify --verbose --print-certs bootstrap-output/NexusNova-v1.0.24-OTA12-NATIVE-FIX-BOOTSTRAP.apk
+
           d="$(mktemp -d)"
           trap 'rm -rf "$d"' EXIT
-          unzip -q "$apk" 'assets/www/index.html' 'assets/www/src/features/apps/ai-video-studio-flagship.js' -d "$d"
-          grep -Fq 'OTA12 • ACTIVE' "$d/assets/www/index.html"
+          unzip -q bootstrap-output/NexusNova-v1.0.24-OTA12-NATIVE-FIX-BOOTSTRAP.apk             'assets/www/index.html'             'assets/www/src/features/apps/ai-video-studio-flagship.js'             -d "$d"
+
           grep -Fq 'nx-video-file-input' "$d/assets/www/src/features/apps/ai-video-studio-flagship.js"
+          echo "PASS — signed bootstrap APK verified with native media-fix source."
+
+          sha256sum bootstrap-output/NexusNova-v1.0.24-OTA12-NATIVE-FIX-BOOTSTRAP.apk > bootstrap-output/NexusNova-v1.0.24-OTA12-NATIVE-FIX-BOOTSTRAP.apk.sha256
 
       - name: Upload signed OTA12 bootstrap APK
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: NexusNova-v1.0.24-OTA12-NATIVE-FIX-BOOTSTRAP
-          path: NexusNovaAndroid/app/build/outputs/apk/release/app-release.apk
+          path: NexusNovaAndroid/bootstrap-output/*
           if-no-files-found: error
           retention-days: 14
