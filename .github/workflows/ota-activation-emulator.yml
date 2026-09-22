@@ -43,7 +43,11 @@ jobs:
           target: google_apis
           arch: x86_64
           profile: pixel_2
-          emulator-options: -no-window -no-audio -no-boot-anim
+          cores: 4
+          ram-size: 4096M
+          heap-size: 512M
+          disk-size: 8192M
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
           disable-animations: true
           script: >-
             set -eu; adb wait-for-device; adb shell service check package 2>/dev/null | grep -q 'found'; adb shell pm list packages >/dev/null; cd NexusNovaAndroid; gradle --no-daemon :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.nexusnova.app.OtaActivationEmulatorQaTest
