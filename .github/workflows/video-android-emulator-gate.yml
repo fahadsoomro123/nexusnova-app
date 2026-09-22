@@ -85,7 +85,6 @@ jobs:
             mkdir -p ../artifacts/video-emulator
             trap 'adb exec-out screencap -p > ../artifacts/video-emulator/final-screen.png || true; adb logcat -d -t 4000 > ../artifacts/video-emulator/logcat.txt || true; adb pull /sdcard/Android/data/com.nexusnova.app/files/Pictures ../artifacts/video-emulator/pictures >/dev/null 2>&1 || true' EXIT
             adb wait-for-device
-            adb push ../qa/fixtures/video-picker.webm /data/local/tmp/video-picker.webm
             adb push ../qa/fixtures/format-mp4.mp4 /data/local/tmp/format-mp4.mp4
             adb push ../qa/fixtures/large-video.mp4 /data/local/tmp/large-video.mp4
             adb shell run-as com.nexusnova.app sh -c 'mkdir -p files/qa && cp /data/local/tmp/video-picker.webm files/qa/video-picker.webm && cp /data/local/tmp/format-mp4.mp4 files/qa/format-mp4.mp4 && cp /data/local/tmp/large-video.mp4 files/qa/large-video.mp4'
