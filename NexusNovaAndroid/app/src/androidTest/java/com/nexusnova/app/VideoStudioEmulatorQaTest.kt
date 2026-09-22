@@ -88,7 +88,7 @@ class VideoStudioEmulatorQaTest {
         waitTextContains("Rendering locally", 10_000L)
         waitTextContains("Export complete", 30_000L)
         val exported = device.executeShellCommand(
-            "find /sdcard/Download -maxdepth 1 -type f -name 'Untitled-project.webm' -size +0c -print"
+            "find /sdcard/Download/NexusNova -maxdepth 1 -type f -name 'Untitled-project.webm' -size +0c -print"
         ).trim()
         assertTrue("Export UI completed but no WebM file was found in Downloads", exported.isNotEmpty())
 
