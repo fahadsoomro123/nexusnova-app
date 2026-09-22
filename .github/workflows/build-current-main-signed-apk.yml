@@ -193,7 +193,7 @@ jobs:
           echo "$badging"
           echo "$badging" | grep -q "name='com.nexusnova.app'"
           echo "$badging" | grep -q "versionCode='26091214'"
-          echo "$badging" | grep -q "versionName='1.0.38-icon-reset'"
+          echo "$badging" | grep -q "versionName='1.0.50-video-flagship'"
 
           unzip -l "$apk" > /tmp/apk-list.txt
           grep -Fq 'assets/www/assets/icons/nova-hub/travel.webp' /tmp/apk-list.txt
@@ -226,13 +226,13 @@ jobs:
           set -euo pipefail
           mkdir -p signed-output
           cp app/build/outputs/apk/release/app-release.apk signed-output/NexusNova-v1.0.50-SIGNED-VIDEO-FLAGSHIP.apk
-          sha256sum signed-output/NexusNova-v1.0.50-SIGNED-VIDEO-FLAGSHIP.apk > signed-output/NexusNova-v1.0.38-SIGNED-ICON-ONLY-RESET.apk.sha256
+          sha256sum signed-output/NexusNova-v1.0.50-SIGNED-VIDEO-FLAGSHIP.apk > signed-output/NexusNova-v1.0.50-SIGNED-VIDEO-FLAGSHIP.apk.sha256
           printf '%s\n' "$PUBLIC_SHA" > signed-output/PUBLIC-SOURCE-SHA.txt
 
       - name: Upload verified APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: NexusNova-v1.0.38-SIGNED-ICON-ONLY-RESET
+          name: NexusNova-v1.0.50-SIGNED-VIDEO-FLAGSHIP
           path: build-src/NexusNovaAndroid/signed-output/*
           if-no-files-found: error
           retention-days: 7
