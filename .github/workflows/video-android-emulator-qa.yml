@@ -126,3 +126,5 @@ jobs:
           if-no-files-found: warn
 
 # Flagship gate refresh: 2026-09-22 / video-android-emulator-qa.yml / QA commit 55fdc5cbb3b5d1347b45c7a9c43f7c7025127b8e
+
+# Flagship trigger refresh: trim/export assertion fix 2026-09-22
