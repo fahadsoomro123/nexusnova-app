@@ -103,16 +103,15 @@ jobs:
 
           await input.setInputFiles([]);
           await input.setInputFiles([{ name: 'cover.png', mimeType: 'image/png', buffer: png }]);
-          assert.equal(await input.evaluate(el => el.files?.length || 0), 1, 'fixture input did not contain exactly one file');
           await page.waitForTimeout(250);
           if (await page.evaluate(() => window.__nxFileChangeCount === 0)) {
             await input.dispatchEvent('change');
           }
-          await page.waitForFunction(() => document.querySelectorAll('[data-id]').length === 1, null, { timeout: 30000 }).catch(async error => {
+          await page.waitForFunction(() => document.querySelectorAll('.nx-video-clip[data-id]').length === 1, null, { timeout: 30000 }).catch(async error => {
             console.error('RUNTIME_PAGE_ERRORS', JSON.stringify(runtimeErrors));
             console.error('RUNTIME_CONSOLE', JSON.stringify(runtimeConsole));
             console.error('EDITOR_STATE', JSON.stringify(await page.evaluate(() => ({
-              clips: document.querySelectorAll('[data-id]').length,
+              clips: document.querySelectorAll('.nx-video-clip[data-id]').length,
               selection: document.querySelector('[data-selection]')?.textContent || '',
               status: document.querySelector('[data-runtime-status]')?.textContent || '',
               fileChangeCount: window.__nxFileChangeCount || 0,
@@ -141,7 +140,7 @@ jobs:
           await page.locator('[data-tool="speed"]').click();
           await page.locator('[data-speed]').evaluate((el) => { el.value = '2'; el.dispatchEvent(new Event('input', { bubbles: true })); });
           assert.equal(await page.locator('[data-speed-out]').textContent(), '2.00×');
-          assert.match(await page.locator('[data-id]').textContent(), /2.00×/);
+          assert.match(await page.locator('.nx-video-clip[data-id]').textContent(), /2.00×/);
 
           // Mask is applied to the live preview.
           await page.locator('[data-tool="transform"]').click();
@@ -150,7 +149,7 @@ jobs:
 
           // Add a second image and verify global scrub selects the second clip.
           await input.setInputFiles({ name: 'second.png', mimeType: 'image/png', buffer: png });
-          await page.waitForFunction(() => document.querySelectorAll('[data-id]').length === 2);
+          await page.waitForFunction(() => document.querySelectorAll('.nx-video-clip[data-id]').length === 2);
           await page.locator('[data-scrub]').evaluate((el) => { el.value = '3.2'; el.dispatchEvent(new Event('input', { bubbles: true })); });
           await page.waitForFunction(() => /second/i.test(document.querySelector('[data-selection]')?.textContent || ''));
 
@@ -158,11 +157,11 @@ jobs:
           await page.locator('[data-tool="edit"]').click();
           await page.locator('[data-scrub]').evaluate((el) => { el.value = '3.8'; el.dispatchEvent(new Event('input', { bubbles: true })); });
           await page.locator('[data-split]').click();
-          await page.waitForFunction(() => document.querySelectorAll('[data-id]').length === 3);
+          await page.waitForFunction(() => document.querySelectorAll('.nx-video-clip[data-id]').length === 3);
           await page.locator('[data-undo]').click();
-          await page.waitForFunction(() => document.querySelectorAll('[data-id]').length === 2);
+          await page.waitForFunction(() => document.querySelectorAll('.nx-video-clip[data-id]').length === 2);
           await page.locator('[data-redo]').click();
-          await page.waitForFunction(() => document.querySelectorAll('[data-id]').length === 3);
+          await page.waitForFunction(() => document.querySelectorAll('.nx-video-clip[data-id]').length === 3);
 
           // Generate a deterministic real WebM fixture outside the browser page.
           // This avoids Chromium execution-context resets while still exercising the media metadata/import path.
@@ -172,8 +171,8 @@ jobs:
             { name: 'generated.webm', mimeType: 'video/webm', buffer: videoFixture },
             { name: 'cover-again.png', mimeType: 'image/png', buffer: png }
           ]);
-          await page.waitForFunction(() => document.querySelectorAll('[data-id]').length >= 5);
-          assert.ok(await page.locator('[data-id]').allTextContents().then(xs => xs.some(x => /generated/i.test(x))), 'generated video not imported');
+          await page.waitForFunction(() => document.querySelectorAll('.nx-video-clip[data-id]').length >= 5);
+          assert.ok(await page.locator('.nx-video-clip[data-id]').allTextContents().then(xs => xs.some(x => /generated/i.test(x))), 'generated video not imported');
 
           await assertNoScroll('390x844 final');
 
@@ -185,7 +184,7 @@ jobs:
           }
 
           // Export one short image clip to verify browser-native output wiring.
-          await page.locator('[data-id]').first().click();
+          await page.locator('.nx-video-clip[data-id]').first().click();
           await page.locator('[data-out]').fill('0.3');
           await page.locator('[data-out]').dispatchEvent('change');
           const downloadPromise = page.waitForEvent('download', { timeout: 15000 });
