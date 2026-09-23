@@ -2,7 +2,7 @@ name: Video Flagship Browser QA
 
 on:
   push:
-    branches: [main]
+    branches: [main, video-studio-flagship-v2]
     paths:
       - 'fresh-rebuild/src/features/apps/ai-video-studio-flagship.js'
       - 'qa/video-flagship-harness.html'
