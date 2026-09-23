@@ -769,10 +769,15 @@ class MainActivity : AppCompatActivity() {
                 acceptedType == "*/*" ||
                     acceptedType == mimeType ||
                     (acceptedType.endsWith("/*") && mimeType.startsWith(acceptedType.removeSuffix("*"))) ||
+                    (acceptedType == "video/*" && extension in VIDEO_EXTENSIONS) ||
+                    (acceptedType == "image/*" && extension in IMAGE_EXTENSIONS) ||
                     acceptedExtensionMatches(acceptedType, extension, mimeType)
             }
         return size.takeIf { accepted }
     }
+
+    private val VIDEO_EXTENSIONS = setOf("mp4","mov","m4v","webm","mkv","avi","3gp")
+    private val IMAGE_EXTENSIONS = setOf("jpg","jpeg","png","webp","gif","bmp","heic","heif")
 
     private fun acceptedExtensionMatches(acceptedType: String, extension: String, mimeType: String): Boolean {
         if (!acceptedType.startsWith(".")) return false
