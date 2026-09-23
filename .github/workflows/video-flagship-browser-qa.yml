@@ -62,6 +62,14 @@ jobs:
           const browser = await chromium.launch({ headless: true });
           const context = await browser.newContext({ viewport: { width: 390, height: 844 }, acceptDownloads: true });
           const page = await context.newPage();
+          const runtimeErrors = [];
+          const runtimeConsole = [];
+          page.on('pageerror', error => runtimeErrors.push(String(error?.stack || error)));
+          page.on('console', message => {
+            if (message.type() === 'error' || message.type() === 'warning') {
+              runtimeConsole.push(message.type() + ': ' + message.text());
+            }
+          });
           const url = process.env.BASE_URL;
 
           async function assertNoScroll(label) {
@@ -93,7 +101,17 @@ jobs:
           const input = page.locator('[data-file]');
 
           await input.setInputFiles({ name: 'cover.png', mimeType: 'image/png', buffer: png });
-          await page.waitForFunction(() => document.querySelectorAll('[data-id]').length === 1);
+          await page.waitForFunction(() => document.querySelectorAll('[data-id]').length === 1, null, { timeout: 30000 }).catch(error => {
+            console.error('RUNTIME_PAGE_ERRORS', JSON.stringify(runtimeErrors));
+            console.error('RUNTIME_CONSOLE', JSON.stringify(runtimeConsole));
+            console.error('EDITOR_STATE', JSON.stringify({
+              clips: document.querySelectorAll('[data-id]').length,
+              selection: document.querySelector('[data-selection]')?.textContent || '',
+              status: document.querySelector('[data-runtime-status]')?.textContent || '',
+              hasFileInput: Boolean(document.querySelector('[data-file]'))
+            }));
+            throw error;
+          });
           assert.match(await page.locator('[data-selection]').textContent(), /cover/i);
 
           // Text is visible in the actual preview.
