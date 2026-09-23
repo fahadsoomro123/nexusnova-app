@@ -41,6 +41,17 @@ A change is DONE only when:
 7. evidence exists for the claim being made
 8. unresolved blockers are explicitly reported instead of hidden
 
+## Current Video Studio issue gates
+The exact current issues raised for AI Video Studio are tracked in `.github/CURRENT-VIDEO-STUDIO-ISSUES.md` and are release-blocking until runtime evidence proves PASS.
+
+Mandatory gates include:
+- Android photo/video import must work end-to-end.
+- Uploaded video must render as a complete correctly fitted frame by default; no tiny/partial/clipped preview.
+- Playback must use the same correct framing as the preview.
+- Timeline/edit actions must change real media state, not only the UI.
+- Timeline, playhead, clip boundaries, and preview must remain synchronized.
+- Export must reproduce the same intended edit state seen in the editor.
+
 ## Current app binding
 The current NexusNova AI Video Studio is subject to this standard immediately. Fixes must prioritize real media import, correct preview framing, timeline/editor behavior, and export consistency.
 
