@@ -16,8 +16,8 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         minSdk = 26
         targetSdk = 35
-        versionCode = 12021
-        versionName = "1.0.21-drive-history"
+        versionCode = 12025
+        versionName = "1.0.25-OTA12-native-fix"
     }
 
     buildTypes {
