@@ -295,6 +295,7 @@ export function renderAiVideoStudio(){
 
       <div class="nx-video-panel" data-panel="ai">
         <div class="nx-video-actions"><button class="nx-video-primary" data-ai-director>AI DIRECTOR</button><button class="nx-video-button" data-ai-captions>AUTO CAPTIONS</button></div>
+        <button type="button" class="nx-video-button nx-video-ai-apply" data-ai-apply disabled>APPLY DIRECTOR PLAN</button>
         <label class="nx-video-field" style="margin-top:7px"><span>AI NOTES / CAPTIONS</span><textarea data-ai-output placeholder="AI output appears here…" maxlength="5000"></textarea></label>
         <div class="nx-video-note">AI uses the selected local media only when you request it. Media sent for AI must fit the provider/browser limits; no fake processing is shown.</div>
       </div>
@@ -364,6 +365,7 @@ export function renderAiVideoStudio(){
     rotationOut:root.querySelector('[data-rotation-out]'),
     text:root.querySelector('[data-text]'),
     aiOut:root.querySelector('[data-ai-output]'),
+    aiApply:root.querySelector('[data-ai-apply]'),
     ratio:root.querySelector('[data-ratio]'),
     fitMode:root.querySelector('[data-fit-mode]'),
     bg:root.querySelector('[data-bg]'),
@@ -1143,20 +1145,77 @@ export function renderAiVideoStudio(){
 
   root.querySelectorAll('[data-tool]').forEach(b=>b.addEventListener('click',()=>setPanel(b.dataset.tool)));
 
+  function extractAiPlan(text){
+    const raw=String(text||'').trim();
+    if(!raw)return null;
+    const start=raw.indexOf('{');
+    if(start<0)return null;
+    let depth=0,inString=false,escaped=false;
+    for(let i=start;i<raw.length;i++){
+      const ch=raw[i];
+      if(inString){
+        if(escaped){escaped=false;continue;}
+        if(ch==='\\'){escaped=true;continue;}
+        if(ch==='"')inString=false;
+        continue;
+      }
+      if(ch==='"'){inString=true;continue;}
+      if(ch==='{')depth++;
+      else if(ch==='}'){
+        depth--;
+        if(depth===0){
+          try{return JSON.parse(raw.slice(start,i+1));}catch{return null;}
+        }
+      }
+    }
+    return null;
+  }
+  function syncAiApplyState(){
+    const plan=extractAiPlan(els.aiOut?.value);
+    if(els.aiApply) els.aiApply.disabled=!Boolean(plan&&selected());
+    return plan;
+  }
+  function applyAiDirectorPlan(){
+    const c=selected(),plan=syncAiApplyState();
+    if(!c||!plan){
+      setRuntime('Generate a readable AI Director plan first.',true);
+      return;
+    }
+    pushUndo();
+    const changed={};
+    if(Number.isFinite(Number(plan.speed))) changed.speed=clamp(Number(plan.speed),0.25,4);
+    if(Number.isFinite(Number(plan.brightness))) changed.brightness=clamp(Number(plan.brightness),0.5,1.8);
+    if(Number.isFinite(Number(plan.contrast))) changed.contrast=clamp(Number(plan.contrast),0.5,1.8);
+    if(Number.isFinite(Number(plan.saturate))) changed.saturate=clamp(Number(plan.saturate),0,2.2);
+    if(Number.isFinite(Number(plan.scale))) changed.scale=clamp(Number(plan.scale),0.5,2.5);
+    if(Number.isFinite(Number(plan.rotation))) changed.rotation=clamp(Number(plan.rotation),-180,180);
+    if(['none','mono','sepia','soft'].includes(String(plan.effect||''))) changed.effect=String(plan.effect);
+    if(['none','push','pull','left','right','drift'].includes(String(plan.motion||''))) changed.motion=String(plan.motion);
+    if(typeof plan.textOverlay==='string') changed.textOverlay=plan.textOverlay.slice(0,160);
+    Object.assign(c,changed);
+    if(['fit','fill'].includes(String(plan.fitMode||''))) state.canvas.fitMode=String(plan.fitMode);
+    render();
+    setRuntime('AI Director plan applied to the selected clip.');
+  }
+
+  root.querySelector('[data-ai-apply]').addEventListener('click',applyAiDirectorPlan);
+
   root.querySelector('[data-ai-director]').addEventListener('click',async()=>{
     const c=selected(); if(!c)return;
     try{
       if(c.kind==='image'){
         const data=await fileToInline(await fetch(state.urls.get(c.id)).then(r=>r.blob()),8);
-        const model=await aiModel('You are a concise cinematic video director. Analyze only the provided frame and return practical shot direction: camera motion, subject motion, lighting, lens feel, pacing and realistic production notes. Do not invent objects that are not visible.');
-        const res=await model.generateContent([{inlineData:data},{text:`Create a premium video direction for this clip. Existing user text: ${c.textOverlay||'none'}`}]);
+        const model=await aiModel('You are a concise cinematic video director. Analyze only the provided frame and return a short PLAN plus a machine-readable JSON object. Use only grounded observations. JSON keys: speed (0.25-4), brightness (0.5-1.8), contrast (0.5-1.8), saturate (0-2.2), effect (none|mono|sepia|soft), motion (none|push|pull|left|right|drift), scale (0.5-2.5), rotation (-180..180), fitMode (fit|fill), textOverlay (string <=160). Return valid JSON.');
+        const res=await model.generateContent([{inlineData:data},{text:`Create a premium director plan for this clip. Start with one concise PLAN paragraph, then include the JSON object. Existing user text: ${c.textOverlay||'none'}`}]);
         els.aiOut.value=String(res?.response?.text?.()||'').trim().slice(0,5000);
+        syncAiApplyState();
       }else{
         const blob=await fetch(state.urls.get(c.id)).then(r=>r.blob());
         const data=await fileToInline(blob,8);
-        const model=await aiModel('You are a concise cinematic video director. Analyze the supplied media conservatively. Return practical edit/generation direction and do not claim to have seen frames you cannot inspect.');
-        const res=await model.generateContent([{inlineData:data},{text:'Create a premium video direction for this clip.'}]);
+        const model=await aiModel('You are a concise cinematic video director. Analyze the supplied media conservatively. Return a short PLAN plus a machine-readable JSON object. Do not invent details you cannot inspect. JSON keys: speed (0.25-4), brightness (0.5-1.8), contrast (0.5-1.8), saturate (0-2.2), effect (none|mono|sepia|soft), motion (none|push|pull|left|right|drift), scale (0.5-2.5), rotation (-180..180), fitMode (fit|fill), textOverlay (string <=160). Return valid JSON.');
+        const res=await model.generateContent([{inlineData:data},{text:'Create a premium director plan for this clip. Start with one concise PLAN paragraph, then include the JSON object.'}]);
         els.aiOut.value=String(res?.response?.text?.()||'').trim().slice(0,5000);
+        syncAiApplyState();
       }
     }catch(e){els.aiOut.value='AI Director unavailable: '+String(e?.message||e).slice(0,220);}
   });
@@ -1169,7 +1228,8 @@ export function renderAiVideoStudio(){
       const model=await aiModel('Transcribe only what is spoken in the supplied media. Return concise caption lines with approximate timestamps in SRT format. If speech is unclear, mark [inaudible] rather than inventing words.');
       const res=await model.generateContent([{inlineData:data},{text:'Generate an SRT caption draft for this clip.'}]);
       els.aiOut.value=String(res?.response?.text?.()||'').trim().slice(0,5000);
-    }catch(e){els.aiOut.value='Auto captions unavailable: '+String(e?.message||e).slice(0,220);}
+      syncAiApplyState();
+    }catch(e){els.aiOut.value='Auto captions unavailable: '+String(e?.message||e).slice(0,220);syncAiApplyState();}
   });
 
   els.timelineTrack.addEventListener('pointerdown',event=>{
