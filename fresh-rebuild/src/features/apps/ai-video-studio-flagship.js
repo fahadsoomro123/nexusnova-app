@@ -268,6 +268,7 @@ export function renderAiVideoStudio(){
       <div class="nx-video-panel" data-panel="canvas">
         <div class="nx-video-grid2">
           <label class="nx-video-field"><span>FORMAT</span><select data-ratio><option value="16:9">16:9 LANDSCAPE</option><option value="9:16">9:16 SHORTS</option><option value="1:1">1:1 SQUARE</option><option value="4:5">4:5 SOCIAL</option></select></label>
+          <label class="nx-video-field"><span>FRAMING</span><select data-fit-mode><option value="fit" selected>FIT — SHOW FULL FRAME</option><option value="fill">FILL — CROP TO CANVAS</option></select></label>
           <label class="nx-video-field"><span>BACKGROUND</span><select data-bg><option value="#16131c">DARK</option><option value="#ffffff">WHITE</option><option value="#efe9ff">LAVENDER</option></select></label>
         </div>
         <div class="nx-video-note">Designed for Shorts, Reels, TikTok-style vertical video, square posts and landscape exports.</div>
@@ -343,6 +344,7 @@ export function renderAiVideoStudio(){
     text:root.querySelector('[data-text]'),
     aiOut:root.querySelector('[data-ai-output]'),
     ratio:root.querySelector('[data-ratio]'),
+    fitMode:root.querySelector('[data-fit-mode]'),
     bg:root.querySelector('[data-bg]'),
     fps:root.querySelector('[data-fps]'),
     quality:root.querySelector('[data-quality]'),
@@ -467,7 +469,7 @@ export function renderAiVideoStudio(){
   }
   function fitPreviewCanvas(){
     if(!els.preview || !els.previewStage)return;
-    const box=els.previewStage?.getBoundingClientRect?.() || els.preview.getBoundingClientRect();
+    const box=els.preview.getBoundingClientRect();
     const ratio=getPreviewRatio();
     const pad=16;
     const maxW=Math.max(1,box.width-pad);
@@ -483,11 +485,12 @@ export function renderAiVideoStudio(){
   }
   function fitPreviewMedia(el,naturalWidth,naturalHeight){
     const nw=Number(naturalWidth)||0, nh=Number(naturalHeight)||0;
-    if(!el || !nw || !nh || !els.preview) return;
-    const box=els.preview.getBoundingClientRect();
-    const pad=16;
+    if(!el || !nw || !nh || !els.previewStage) return;
+    const box=els.previewStage.getBoundingClientRect();
+    const pad=8;
     const bw=Math.max(1,box.width-pad), bh=Math.max(1,box.height-pad);
-    const scale=Math.min(bw/nw,bh/nh);
+    const mode=els.fitMode?.value==='fill'?'fill':'fit';
+    const scale=mode==='fill'?Math.max(bw/nw,bh/nh):Math.min(bw/nw,bh/nh);
     if(!Number.isFinite(scale)||scale<=0) return;
     el.style.width=Math.max(1,Math.round(nw*scale))+'px';
     el.style.height=Math.max(1,Math.round(nh*scale))+'px';
@@ -511,7 +514,7 @@ export function renderAiVideoStudio(){
   function applyPreview(){
     const c=selected();
     if(!c){els.video.pause();els.video.classList.add('nx-video-hidden');els.image.classList.add('nx-video-hidden');els.empty.classList.remove('nx-video-hidden');els.play.classList.add('nx-video-hidden');els.previewText.classList.add('nx-video-hidden');return;}
-    els.empty.classList.add('nx-video-hidden');els.play.classList.remove('nx-video-hidden');els.previewText.classList.toggle('nx-video-hidden',!c.textOverlay);els.previewTextValue.textContent=c.textOverlay||'';
+    els.empty.classList.add('nx-video-hidden');els.play.classList.remove('nx-video-hidden');fitPreviewCanvas();els.previewText.classList.toggle('nx-video-hidden',!c.textOverlay);els.previewTextValue.textContent=c.textOverlay||'';
     const url=state.urls.get(c.id);if(!url){setRuntime('Media source is unavailable. Re-import this clip.',true);return;}els.runtimeStatus.classList.add('nx-video-hidden');
     if(c.kind==='image'){els.video.pause();els.video.classList.add('nx-video-hidden');els.image.classList.remove('nx-video-hidden');if(els.image.src!==url)els.image.src=url;els.image.style.filter=cssFilter(c);els.image.style.transform=previewTransform(c);els.image.style.clipPath=previewMask(c);els.image.style.background=els.bg.value;els.current.textContent=fmt(state.playhead);return;}
     els.image.classList.add('nx-video-hidden');els.video.classList.remove('nx-video-hidden');if(els.video.src!==url){els.video.src=url;els.video.load();}refitPreviewMedia();
@@ -841,6 +844,7 @@ export function renderAiVideoStudio(){
   root.querySelector('[data-apply-text]').addEventListener('click',()=>{const c=selected();if(!c)return;pushUndo();c.textOverlay=els.text.value.trim();render();});
   root.querySelector('[data-clear-text]').addEventListener('click',()=>{const c=selected();if(!c)return;pushUndo();c.textOverlay='';els.text.value='';render();});
   root.querySelector('[data-ratio]').addEventListener('change',()=>{ fitPreviewCanvas(); applyPreview(); });
+  root.querySelector('[data-fit-mode]').addEventListener('change',()=>{ fitPreviewCanvas(); applyPreview(); });
   root.querySelector('[data-bg]').addEventListener('change',()=>{applyPreview();});
   root.querySelector('[data-open-export]').addEventListener('click',()=>exportVideo());
 
