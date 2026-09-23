@@ -490,7 +490,16 @@ export function renderAiVideoStudio(){
     const pad=8;
     const bw=Math.max(1,box.width-pad), bh=Math.max(1,box.height-pad);
     const mode=els.fitMode?.value==='fill'?'fill':'fit';
-    const scale=mode==='fill'?Math.max(bw/nw,bh/nh):Math.min(bw/nw,bh/nh);
+    if(mode==='fill'){
+      el.style.width=Math.max(1,Math.round(box.width))+'px';
+      el.style.height=Math.max(1,Math.round(box.height))+'px';
+      el.style.maxWidth='none';
+      el.style.maxHeight='none';
+      el.style.objectFit='cover';
+      el.style.objectPosition='center center';
+      return;
+    }
+    const scale=Math.min(bw/nw,bh/nh);
     if(!Number.isFinite(scale)||scale<=0) return;
     el.style.width=Math.max(1,Math.round(nw*scale))+'px';
     el.style.height=Math.max(1,Math.round(nh*scale))+'px';
