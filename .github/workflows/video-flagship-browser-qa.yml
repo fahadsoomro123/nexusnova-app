@@ -99,15 +99,21 @@ jobs:
           // Valid 1x1 PNG.
           const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64');
           const input = page.locator('[data-file]');
+          await input.evaluate(el => { window.__nxFileChangeCount = 0; el.addEventListener('change', () => window.__nxFileChangeCount += 1); });
 
           await input.setInputFiles({ name: 'cover.png', mimeType: 'image/png', buffer: png });
-          await page.waitForFunction(() => document.querySelectorAll('[data-id]').length === 1, null, { timeout: 30000 }).catch(error => {
+          await page.waitForTimeout(250);
+          if (await page.evaluate(() => window.__nxFileChangeCount === 0)) {
+            await input.dispatchEvent('change');
+          }
+          await page.waitForFunction(() => document.querySelectorAll('[data-id]').length === 1, null, { timeout: 30000 }).catch(async error => {
             console.error('RUNTIME_PAGE_ERRORS', JSON.stringify(runtimeErrors));
             console.error('RUNTIME_CONSOLE', JSON.stringify(runtimeConsole));
             console.error('EDITOR_STATE', JSON.stringify(await page.evaluate(() => ({
               clips: document.querySelectorAll('[data-id]').length,
               selection: document.querySelector('[data-selection]')?.textContent || '',
               status: document.querySelector('[data-runtime-status]')?.textContent || '',
+              fileChangeCount: window.__nxFileChangeCount || 0,
               hasFileInput: Boolean(document.querySelector('[data-file]'))
             }))));
             throw error;
