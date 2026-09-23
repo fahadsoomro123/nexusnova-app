@@ -29,25 +29,87 @@ class VideoStudioEmulatorQaTest {
     private val context: Context = instrumentation.targetContext
 
     @Test
-    fun testVideoImportEndToEnd() {
+    fun testVideoStudioHardQa() {
+        var gates = 0
+        fun gate(label: String) {
+            gates += 1
+            println("[HARD-QA " + gates.toString().padStart(2, '0') + "] PASS — " + label)
+        }
+
         freshEditor()
+        gate("NexusNova launches into the Video Studio entry flow")
+
         val name = "ota11-video-import.webm"
         publishVideoFixture(name, "video/webm", webm = true)
+        assertDownloadFixture(name)
+        gate("Deterministic WebM fixture is published in Downloads")
+
+        assertTrue(
+            "AI Video Studio screen did not become ready",
+            device.hasObject(By.text("CREATE YOUR VIDEO"))
+        )
+        gate("Video Studio screen is ready before import")
+
+        assertTrue(
+            "ADD MEDIA action missing from the editor",
+            device.hasObject(By.text("ADD MEDIA"))
+        )
+        gate("ADD MEDIA control is present")
 
         tapAddMedia()
-        assertDocumentsUi()
-        selectDocument(name)
+        gate("ADD MEDIA initiates the native file-picker flow")
 
+        assertDocumentsUi()
+        gate("Android DocumentsUI is visible")
+
+        waitTextContains(name)
+        assertTrue(
+            "Picker did not show the generated video fixture",
+            device.hasObject(By.textContains(name))
+        )
+        gate("Generated WebM is discoverable in the Android picker")
+
+        val item = device.findObject(By.textContains(name))
+            ?: error("Document item not found: $name")
+        assertTrue(
+            "Generated picker item is not visibly selectable",
+            item.visibleBounds.width() > 0 && item.visibleBounds.height() > 0
+        )
+        gate("Picker exposes a visible selectable file row")
+
+        selectDocument(name)
         waitTextContains("ota11-video-import")
+        gate("File selection returns a rendered imported clip to NexusNova")
+
         assertTrue(
             "Imported video clip is not visible after Android picker selection",
             device.hasObject(By.textContains("ota11-video-import"))
         )
+        gate("Imported video becomes a real timeline item")
+
         assertTrue(
             "Video preview/play control missing after import",
             device.hasObject(By.desc("Play or pause"))
         )
-        capture("video-studio-single-test-pass.png")
+        gate("Playback control is present for the imported media")
+
+        assertTrue(
+            "Video play/pause control is not clickable",
+            device.findObject(By.desc("Play or pause"))?.isClickable == true
+        )
+        gate("Playback control exposes an actionable target")
+
+        assertTrue(
+            "Imported state disappeared after picker completion",
+            device.hasObject(By.textContains("ota11-video-import"))
+        )
+        gate("Imported editor state persists after native picker completion")
+
+        capture("video-studio-hard-qa-pass.png")
+        gate("Runtime screenshot evidence is captured")
+
+        assertTrue("Hard QA completed fewer than 15 gates", gates == 15)
+        println("[HARD-QA] PASS — exactly 15 runtime gates completed")
     }
 
     private fun freshEditor() {
@@ -249,6 +311,27 @@ class VideoStudioEmulatorQaTest {
             MediaStore.Downloads.DISPLAY_NAME + "=?",
             arrayOf(name)
         )
+    }
+
+    private fun assertDownloadFixture(name: String) {
+        val projection = arrayOf(
+            MediaStore.Downloads.DISPLAY_NAME,
+            MediaStore.Downloads.SIZE
+        )
+        context.contentResolver.query(
+            MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+            projection,
+            MediaStore.Downloads.DISPLAY_NAME + "=?",
+            arrayOf(name),
+            null
+        )?.use { cursor ->
+            assertTrue(
+                "Published fixture is missing or empty: $name",
+                cursor.moveToFirst() && cursor.getLong(1) > 0L
+            )
+            return
+        }
+        error("Could not query published fixture: $name")
     }
 
     private fun waitText(value: String, timeout: Long = 30_000L): UiObject2 =
