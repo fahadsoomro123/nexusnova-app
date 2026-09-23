@@ -38,7 +38,7 @@ jobs:
           grep -Fq 'settings.allowContentAccess = true' app/src/main/java/com/nexusnova/app/MainActivity.kt
           grep -Fq 'Intent.ACTION_OPEN_DOCUMENT' app/src/main/java/com/nexusnova/app/MainActivity.kt
           grep -Fq 'FLAG_GRANT_READ_URI_PERMISSION' app/src/main/java/com/nexusnova/app/MainActivity.kt
-          grep -Fq 'versionCode = 12042' app/build.gradle.kts
+          grep -Fq 'versionCode = 27000042' app/build.gradle.kts
           grep -Fq 'versionName = "1.0.42-OTA12-native-fix"' app/build.gradle.kts
           echo "PASS — native picker fix and v1.0.42 identity verified."
 
