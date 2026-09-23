@@ -542,7 +542,6 @@ export function renderAiVideoStudio(){
   function refitPreviewMedia(){
     const c=selected();
     if(!c) return;
-    fitPreviewCanvas();
     if(c.kind==='image'){
       fitPreviewMedia(els.image,els.image.naturalWidth,els.image.naturalHeight);
     }else{
