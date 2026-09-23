@@ -9,13 +9,13 @@ plugins {
 // until it is explicitly unlocked for the final public release.
 android {
     namespace = "com.nexusnova.app"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.nexusnova.app"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 27000042
         versionName = "1.0.42-OTA12-native-fix"
     }
