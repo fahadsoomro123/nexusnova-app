@@ -108,6 +108,7 @@ function ensureVideoFlagshipStyles() {
     .nx-screen:has(.nx-video-flagship)>[data-app-mount]{height:calc(100% - 66px)!important;overflow:hidden!important;padding:0!important}
     .nx-video-flagship{grid-template-rows:minmax(0,1.28fr) minmax(0,.56fr) minmax(0,1fr) minmax(0,.56fr) minmax(0,.56fr)!important;gap:6px!important;padding:6px!important;border:0!important;border-radius:18px!important;box-shadow:none!important;background:#fff!important}
     .nx-video-preview{border-radius:18px!important;background:radial-gradient(circle at 50% 30%,#3e2c64 0,#191520 34%,#0e0b12 100%)!important}
+    .nx-video-stage{border-radius:16px!important}
     .nx-video-empty{max-width:88%!important;padding:12px!important;gap:5px!important}
     .nx-video-empty b{font-size:20px!important;letter-spacing:-.02em!important}
     .nx-video-empty span{max-width:100%!important;white-space:normal!important;overflow-wrap:anywhere!important;line-height:1.35!important;font-size:11px!important}
@@ -180,9 +181,11 @@ export function renderAiVideoStudio(){
   root.className='nx-app-body nx-video-flagship';
   root.innerHTML=`
     <section class="nx-video-preview" data-preview>
-      <div class="nx-video-empty" data-empty><b>CREATE YOUR VIDEO</b><span>Add videos or photos. Everything here is designed for fast, touch-first editing.</span></div>
-      <video playsinline preload="metadata" class="nx-video-hidden" data-main-video></video>
-      <img class="nx-video-hidden" data-main-image alt="">
+      <div class="nx-video-stage" data-preview-stage>
+        <div class="nx-video-empty" data-empty><b>CREATE YOUR VIDEO</b><span>Add videos or photos. Everything here is designed for fast, touch-first editing.</span></div>
+        <video playsinline preload="metadata" class="nx-video-hidden" data-main-video></video>
+        <img class="nx-video-hidden" data-main-image alt="">
+      </div>
       <div class="nx-video-runtime-status nx-video-hidden" data-runtime-status role="status" aria-live="polite"></div>
       <div class="nx-video-preview-text nx-video-hidden" data-preview-text><span data-preview-text-value></span></div>
       <button type="button" class="nx-video-play nx-video-hidden" data-play aria-label="Play or pause">▶</button>
@@ -307,6 +310,7 @@ export function renderAiVideoStudio(){
 
   const els = {
     preview:root.querySelector('[data-preview]'),
+    previewStage:root.querySelector('[data-preview-stage]'),
     empty:root.querySelector('[data-empty]'),
     video:root.querySelector('[data-main-video]'),
     image:root.querySelector('[data-main-image]'),
@@ -455,6 +459,28 @@ export function renderAiVideoStudio(){
       c.effect==='soft'?'blur(.35px)':''
     ].join(' ');
   }
+  function getPreviewRatio(){
+    const raw=String(els?.ratio?.value||'16:9');
+    const parts=raw.split(':').map(Number);
+    const w=Number(parts[0])||16, h=Number(parts[1])||9;
+    return w/h;
+  }
+  function fitPreviewCanvas(){
+    if(!els.preview || !els.previewStage)return;
+    const box=els.previewStage?.getBoundingClientRect?.() || els.preview.getBoundingClientRect();
+    const ratio=getPreviewRatio();
+    const pad=16;
+    const maxW=Math.max(1,box.width-pad);
+    const maxH=Math.max(1,box.height-pad);
+    let width=maxW, height=width/ratio;
+    if(height>maxH){height=maxH;width=height*ratio;}
+    width=Math.max(1,Math.round(width));
+    height=Math.max(1,Math.round(height));
+    els.previewStage.style.width=width+'px';
+    els.previewStage.style.height=height+'px';
+    els.previewStage.style.aspectRatio=ratio;
+    refitPreviewMedia();
+  }
   function fitPreviewMedia(el,naturalWidth,naturalHeight){
     const nw=Number(naturalWidth)||0, nh=Number(naturalHeight)||0;
     if(!el || !nw || !nh || !els.preview) return;
@@ -473,13 +499,14 @@ export function renderAiVideoStudio(){
   function refitPreviewMedia(){
     const c=selected();
     if(!c) return;
+    fitPreviewCanvas();
     if(c.kind==='image'){
       fitPreviewMedia(els.image,els.image.naturalWidth,els.image.naturalHeight);
     }else{
       fitPreviewMedia(els.video,els.video.videoWidth,els.video.videoHeight);
     }
   }
-  const previewResizeObserver=new ResizeObserver(()=>refitPreviewMedia());
+  const previewResizeObserver=new ResizeObserver(()=>fitPreviewCanvas());
 
   function applyPreview(){
     const c=selected();
@@ -767,6 +794,7 @@ export function renderAiVideoStudio(){
   }
 
   previewResizeObserver.observe(els.preview);
+  fitPreviewCanvas();
   els.file.addEventListener('change',()=>{const chosen=[...els.file.files||[]];void addFiles(chosen);els.file.value='';});
   root.querySelector('[data-add]').addEventListener('click',openFilePicker);
   root.querySelector('[data-split]').addEventListener('click',splitSelected);
@@ -812,7 +840,7 @@ export function renderAiVideoStudio(){
   root.querySelectorAll('[data-effect]').forEach(b=>b.addEventListener('click',()=>{const c=selected();if(!c)return;pushUndo();c.effect=b.dataset.effect;render();}));
   root.querySelector('[data-apply-text]').addEventListener('click',()=>{const c=selected();if(!c)return;pushUndo();c.textOverlay=els.text.value.trim();render();});
   root.querySelector('[data-clear-text]').addEventListener('click',()=>{const c=selected();if(!c)return;pushUndo();c.textOverlay='';els.text.value='';render();});
-  root.querySelector('[data-ratio]').addEventListener('change',()=>{});
+  root.querySelector('[data-ratio]').addEventListener('change',()=>{ fitPreviewCanvas(); applyPreview(); });
   root.querySelector('[data-bg]').addEventListener('change',()=>{applyPreview();});
   root.querySelector('[data-open-export]').addEventListener('click',()=>exportVideo());
 
