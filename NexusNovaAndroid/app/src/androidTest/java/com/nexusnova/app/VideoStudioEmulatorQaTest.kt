@@ -71,10 +71,14 @@ class VideoStudioEmulatorQaTest {
             assertTrue("Auth fields missing", authFields.size >= 2)
             authFields[0].text = "qa-emulator@nexusnova.local"
             authFields[1].text = "NexusNova123"
-            waitText("SIGN IN").click()
+            // The auth screen contains both a SIGN IN mode tab and the actual
+            // submit control. Select the submit control deterministically.
+            val signInButtons = device.findObjects(By.text("SIGN IN"))
+            assertTrue("SIGN IN submit control missing", signInButtons.size >= 2)
+            signInButtons.last().click()
         }
 
-        val novaHub = device.wait(Until.findObject(By.text("NOVA HUB")), 25_000L)
+        val novaHub = device.wait(Until.findObject(By.desc("Open Nova Hub")), 30_000L)
         if (novaHub != null) {
             novaHub.click()
             val search =
