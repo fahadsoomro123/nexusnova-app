@@ -99,9 +99,11 @@ jobs:
           // Valid 1x1 PNG.
           const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64');
           const input = page.locator('[data-file]');
-          await input.evaluate(el => { window.__nxFileChangeCount = 0; el.addEventListener('change', () => window.__nxFileChangeCount += 1); });
+          await input.evaluate(el => { window.__nxFileChangeCount = 0; el.value = ''; el.addEventListener('change', () => window.__nxFileChangeCount += 1); });
 
-          await input.setInputFiles({ name: 'cover.png', mimeType: 'image/png', buffer: png });
+          await input.setInputFiles([]);
+          await input.setInputFiles([{ name: 'cover.png', mimeType: 'image/png', buffer: png }]);
+          assert.equal(await input.evaluate(el => el.files?.length || 0), 1, 'fixture input did not contain exactly one file');
           await page.waitForTimeout(250);
           if (await page.evaluate(() => window.__nxFileChangeCount === 0)) {
             await input.dispatchEvent('change');
