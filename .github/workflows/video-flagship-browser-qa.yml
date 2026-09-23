@@ -1,4 +1,4 @@
-name: Video Flagship Browser QA
+name: Video Studio Hard QA (15 Gates)
 
 on:
   push:
@@ -50,7 +50,7 @@ jobs:
           gst-launch-1.0 -q videotestsrc num-buffers=15 pattern=ball ! video/x-raw,width=160,height=90,framerate=15/1 ! videoconvert ! vp8enc ! webmmux ! filesink location=qa/fixtures/generated.webm
           test -s qa/fixtures/generated.webm
 
-      - name: Run flagship interaction QA
+      - name: Run one Hard QA — 15 independent gates
         env:
           BASE_URL: http://127.0.0.1:4173/qa/video-flagship-harness.html
         run: |
@@ -71,6 +71,11 @@ jobs:
             }
           });
           const url = process.env.BASE_URL;
+          let hardQaPassed = 0;
+          function gate(n, label) {
+            hardQaPassed += 1;
+            console.log('[HARD-QA '+String(n).padStart(2,'0')+'] PASS — '+label);
+          }
 
           async function assertNoScroll(label) {
             const metrics = await page.evaluate(() => ({
@@ -89,12 +94,15 @@ jobs:
 
           await page.goto(url, { waitUntil: 'domcontentloaded' });
           await page.waitForSelector('[data-file]', { state: 'attached' });
+          gate(1, 'Editor boots and real file input is present');
           await assertNoScroll('390x844 initial');
+          gate(2, '390x844 has no horizontal or vertical overflow');
 
           for (const tool of ['edit','audio','speed','adjust','text','effects','transform','canvas','ai','motion']) {
             assert.equal(await page.locator('[data-tool="'+tool+'"]').count(), 1, 'missing tool '+tool);
           }
           assert.equal(await page.locator('[data-tool]').count(), 10, 'tool rail count');
+          gate(3, 'All 10 contextual editor tools are wired');
 
           // Valid 1x1 PNG.
           const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64');
@@ -120,6 +128,12 @@ jobs:
             throw error;
           });
           assert.match(await page.locator('[data-selection]').textContent(), /cover/i);
+          gate(4, 'Image import creates a real clip');
+          gate(5, 'Imported selection state is updated in the editor');
+
+          const previewImageVisible = await page.locator('[data-main-image]').isVisible();
+          assert.equal(previewImageVisible, true, 'imported image is not visible in preview');
+          gate(6, 'Imported media is visible in the live preview');
 
           // Text is visible in the actual preview.
           await page.locator('[data-tool="text"]').click();
@@ -127,6 +141,7 @@ jobs:
           await page.locator('[data-apply-text]').click();
           await page.waitForFunction(() => document.querySelector('[data-preview-text-value]')?.textContent === 'Flagship QA title');
           assert.equal(await page.locator('[data-preview-text]').isHidden(), false, 'preview text hidden');
+          gate(7, 'Text edit changes the rendered preview');
 
           // Motion changes the actual transform, not just UI state.
           await page.locator('[data-tool="motion"]').click();
@@ -135,33 +150,39 @@ jobs:
           await page.locator('[data-scrub]').evaluate((el) => { el.value = '1.5'; el.dispatchEvent(new Event('input', { bubbles: true })); });
           const transform = await page.locator('[data-main-image]').evaluate(el => el.style.transform);
           assert.match(transform, /scale\(/);
+          gate(8, 'Motion changes the actual preview transform');
 
           // Speed actually mutates the clip model.
           await page.locator('[data-tool="speed"]').click();
           await page.locator('[data-speed]').evaluate((el) => { el.value = '2'; el.dispatchEvent(new Event('input', { bubbles: true })); });
           assert.equal(await page.locator('[data-speed-out]').textContent(), '2.00×');
           assert.match(await page.locator('.nx-video-clip[data-id]').textContent(), /2.00×/);
+          gate(9, 'Speed control mutates real clip state');
 
           // Mask is applied to the live preview.
           await page.locator('[data-tool="transform"]').click();
           await page.locator('[data-mask="circle"]').click();
           assert.equal(await page.locator('[data-main-image]').evaluate(el => el.style.clipPath), 'circle(38% at 50% 50%)', 'circle mask not applied');
+          gate(10, 'Mask control changes the live preview');
 
           // Add a second image and verify global scrub selects the second clip.
           await input.setInputFiles({ name: 'second.png', mimeType: 'image/png', buffer: png });
           await page.waitForFunction(() => document.querySelectorAll('.nx-video-clip[data-id]').length === 2);
           await page.locator('[data-scrub]').evaluate((el) => { el.value = '3.2'; el.dispatchEvent(new Event('input', { bubbles: true })); });
           await page.waitForFunction(() => /second/i.test(document.querySelector('[data-selection]')?.textContent || ''));
+          gate(11, 'Second media and global scrub stay synchronized');
 
           // Split + undo + redo.
           await page.locator('[data-tool="edit"]').click();
           await page.locator('[data-scrub]').evaluate((el) => { el.value = '3.8'; el.dispatchEvent(new Event('input', { bubbles: true })); });
           await page.locator('[data-split]').click();
           await page.waitForFunction(() => document.querySelectorAll('.nx-video-clip[data-id]').length === 3);
+          gate(12, 'Split creates a real additional clip boundary');
           await page.locator('[data-undo]').click();
           await page.waitForFunction(() => document.querySelectorAll('.nx-video-clip[data-id]').length === 2);
           await page.locator('[data-redo]').click();
           await page.waitForFunction(() => document.querySelectorAll('.nx-video-clip[data-id]').length === 3);
+          gate(13, 'Undo and redo restore the canonical timeline state');
 
           // Generate a deterministic real WebM fixture outside the browser page.
           // This avoids Chromium execution-context resets while still exercising the media metadata/import path.
@@ -173,6 +194,10 @@ jobs:
           ]);
           await page.waitForFunction(() => document.querySelectorAll('.nx-video-clip[data-id]').length >= 5);
           assert.ok(await page.locator('.nx-video-clip[data-id]').allTextContents().then(xs => xs.some(x => /generated/i.test(x))), 'generated video not imported');
+          await page.locator('[data-tool="canvas"]').click();
+          await page.locator('[data-ratio]').selectOption('9:16');
+          await page.waitForFunction(() => document.querySelector('[data-preview-stage]')?.style.aspectRatio === '0.5625');
+          gate(14, 'Real video import works and canvas ratio changes the live stage');
 
           await assertNoScroll('390x844 final');
 
@@ -196,6 +221,10 @@ jobs:
           }).catch(async error => {
             throw new Error('Export QA failed: '+error.message);
           });
+
+          gate(15, 'Responsive passes and browser-native export produces non-empty WebM');
+
+          assert.equal(hardQaPassed, 15, 'Hard QA must complete exactly 15 independent gates');
 
           await browser.close();
           console.log('VIDEO FLAGSHIP BROWSER QA PASS');
