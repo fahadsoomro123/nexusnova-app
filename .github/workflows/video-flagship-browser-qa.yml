@@ -104,12 +104,12 @@ jobs:
           await page.waitForFunction(() => document.querySelectorAll('[data-id]').length === 1, null, { timeout: 30000 }).catch(error => {
             console.error('RUNTIME_PAGE_ERRORS', JSON.stringify(runtimeErrors));
             console.error('RUNTIME_CONSOLE', JSON.stringify(runtimeConsole));
-            console.error('EDITOR_STATE', JSON.stringify({
+            console.error('EDITOR_STATE', JSON.stringify(await page.evaluate(() => ({
               clips: document.querySelectorAll('[data-id]').length,
               selection: document.querySelector('[data-selection]')?.textContent || '',
               status: document.querySelector('[data-runtime-status]')?.textContent || '',
               hasFileInput: Boolean(document.querySelector('[data-file]'))
-            }));
+            }))));
             throw error;
           });
           assert.match(await page.locator('[data-selection]').textContent(), /cover/i);
