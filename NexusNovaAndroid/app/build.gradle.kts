@@ -16,8 +16,8 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         minSdk = 26
         targetSdk = 35
-        versionCode = 12025
-        versionName = "1.0.25-OTA12-native-fix"
+        versionCode = 12042
+        versionName = "1.0.42-OTA12-native-fix"
     }
 
     buildTypes {
