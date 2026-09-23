@@ -1,0 +1,42 @@
+name: NexusNova Flagship Governance
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  flagship-governance:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify mandatory policy files
+        run: |
+          set -euo pipefail
+          test -s AGENTS.md
+          test -s .github/NEXUSNOVA-FLAGSHIP-RULES.md
+          test -s .github/pull_request_template.md
+          echo "PASS — NexusNova flagship policy files exist."
+
+      - name: Verify mandatory policy language
+        run: |
+          set -euo pipefail
+          grep -Fq "Never declare an app, feature, UI, or release ready" AGENTS.md
+          grep -Fq "INSPECT -> AUDIT -> DEFINE USER FLOW -> PLAN -> IMPLEMENT" AGENTS.md
+          grep -Fq "360x800" AGENTS.md
+          grep -Fq "Default to FIT/CONTAIN" .github/NEXUSNOVA-FLAGSHIP-RULES.md
+          grep -Fq "No fake/dead/decorative-only primary controls." .github/pull_request_template.md
+          echo "PASS — flagship policy integrity is intact."
+
+      - name: Enforce PR evidence contract
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          body="$(jq -r '.pull_request.body // ""' "$GITHUB_EVENT_PATH")"
+          printf '%s' "$body" | grep -Fq "## NexusNova Flagship Review"
+          printf '%s' "$body" | grep -Fq "### Evidence"
+          printf '%s' "$body" | grep -Fq "### Blockers"
+          echo "PASS — PR contains flagship review, evidence, and blocker sections."
