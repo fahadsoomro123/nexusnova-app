@@ -7,6 +7,7 @@ on:
       - "NexusNovaAndroid/app/build.gradle.kts"
       - "NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt"
       - "NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt"
+      - "fresh-rebuild/src/features/apps/ai-video-studio-flagship.js"
       - ".github/workflows/build-ota12-native-fix-fast.yml"
 
 jobs:
