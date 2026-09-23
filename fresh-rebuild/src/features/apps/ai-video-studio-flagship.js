@@ -746,15 +746,59 @@ export function renderAiVideoStudio(){
     for(const file of files){
       const kind=mediaKind(file);if(!kind||file.size>20*1024*1024){rejected++;continue;}
       const id=uid('clip'),url=URL.createObjectURL(file);
-      const clip={id,name:file.name.replace(/\.[^.]+$/,'').slice(0,40)||'Media',kind,file:null,sourceUrl:null,sourceKey:id,in:0,out:kind==='image'?DEFAULT_DUR:0,speed:1,volume:1,muted:false,brightness:1,contrast:1,saturate:1,effect:'none',textOverlay:'',scale:1,rotation:0,flipX:false,flipY:false,motion:'none',mask:'none'};
+      const clip={id,name:file.name.replace(/\.[^.]+$/,'').slice(0,40)||'Media',kind,file:null,sourceUrl:null,sourceKey:id,in:0,out:kind==='image'?DEFAULT_DUR:DEFAULT_DUR,speed:1,volume:1,muted:false,brightness:1,contrast:1,saturate:1,effect:'none',textOverlay:'',scale:1,rotation:0,flipX:false,flipY:false,motion:'none',mask:'none'};
       try{
-        if(kind==='video'){const probe=document.createElement('video');const duration=await waitForVideoMetadata(probe,url,8000);probe.removeAttribute('src');probe.load();clip.out=Math.max(.1,duration);clip.sourceDuration=clip.out;}
-        else{await new Promise((resolve,reject)=>{const img=new Image();const timer=setTimeout(()=>reject(new Error('Image load timed out.')),6000);img.onload=()=>{clearTimeout(timer);resolve()};img.onerror=()=>{clearTimeout(timer);reject(new Error('This image could not be decoded on this device.'))};img.src=url;});}
-        state.clips.push(clip);state.sources.set(id,file);state.urls.set(id,url);imported++;
-      }catch(error){try{URL.revokeObjectURL(url)}catch{};rejected++;console.warn('[NexusNova Video] rejected media:',file?.name,error);}
+        if(kind==='image'){
+          await new Promise((resolve,reject)=>{
+            const img=new Image();
+            const timer=setTimeout(()=>reject(new Error('Image load timed out.')),6000);
+            img.onload=()=>{clearTimeout(timer);resolve();};
+            img.onerror=()=>{clearTimeout(timer);reject(new Error('This image could not be decoded on this device.'));};
+            img.src=url;
+          });
+          state.clips.push(clip);state.sources.set(id,file);state.urls.set(id,url);imported++;
+        }else{
+          // Do not block the editor on Android/WebView metadata probing. Put the
+          // selected video into the real timeline immediately, then resolve its
+          // duration in the background. This prevents the native picker return
+          // from appearing stuck on "Importing media…" for slow content providers.
+          state.clips.push(clip);state.sources.set(id,file);state.urls.set(id,url);imported++;
+          void (async()=>{
+            try{
+              const probe=document.createElement('video');
+              const duration=await waitForVideoMetadata(probe,url,8000);
+              probe.removeAttribute('src');probe.load();
+              const live=state.clips.find(item=>item.id===id);
+              if(live){
+                live.out=Math.max(.1,duration);
+                live.sourceDuration=live.out;
+                if(state.selectedId===id) state.playhead=clamp(state.playhead,0,clipDuration(live));
+                render();
+              }
+            }catch(error){
+              console.warn('[NexusNova Video] video metadata probe:',file?.name,error);
+              const live=state.clips.find(item=>item.id===id);
+              if(live){
+                live.out=Math.max(.1,Number(live.out)||DEFAULT_DUR);
+                live.sourceDuration=live.out;
+                if(state.selectedId===id) setRuntime('Video imported. Duration probe unavailable; preview may depend on the device codec.',true);
+                render();
+              }
+            }
+          })();
+        }
+      }catch(error){
+        try{URL.revokeObjectURL(url)}catch{};rejected++;console.warn('[NexusNova Video] rejected media:',file?.name,error);
+      }
     }
-    if(imported){state.undo.push(beforeImport);if(state.undo.length>50)state.undo.shift();state.redo.length=0;state.selectedId=state.clips[state.clips.length-1]?.id||state.selectedId;state.playhead=0;setRuntime(imported+' media item'+(imported===1?'':'s')+' ready.');render();setTimeout(()=>{if(!state.exportBusy)setRuntime('')},2200);}
-    else setRuntime('No compatible video or image was imported. Use MP4/MOV/WebM or JPG/PNG/WebP.',true);
+    if(imported){
+      state.undo.push(beforeImport);if(state.undo.length>50)state.undo.shift();state.redo.length=0;
+      state.selectedId=state.clips[state.clips.length-1]?.id||state.selectedId;state.playhead=0;
+      setRuntime(imported+' media item'+(imported===1?'':'s')+' ready.');render();
+      setTimeout(()=>{if(!state.exportBusy)setRuntime('')},2200);
+    }else{
+      setRuntime('No compatible video or image was imported. Use MP4/MOV/WebM or JPG/PNG/WebP.',true);
+    }
   }
 
   function splitSelected(){
