@@ -102,6 +102,21 @@ function ensureVideoFlagshipStyles() {
     @media(max-width:390px){
       .nx-video-flagship{grid-template-rows:minmax(0,1.34fr) minmax(0,.58fr) minmax(0,.94fr) minmax(0,.54fr) minmax(0,.50fr)!important}
     }
+    /* V2 timeline: true proportional lane, draggable playhead and trim handles. */
+    .nx-video-timeline-track{position:relative;min-height:0;height:66px;border-radius:11px;background:linear-gradient(180deg,#f7f4fb,#f0ebf7);overflow:hidden;touch-action:none}
+    .nx-video-timeline-track .nx-video-cliprow{display:flex!important;position:absolute!important;inset:0!important;gap:4px!important;overflow:hidden!important;padding:0!important}
+    .nx-video-timeline-track .nx-video-clip{position:relative!important;flex:1 1 0!important;min-width:0!important;height:100%!important;border-radius:9px!important;padding:4px!important;box-sizing:border-box!important;overflow:hidden!important}
+    .nx-video-timeline-track .nx-video-clip[data-id]{flex-grow:var(--clip-weight,1)!important}
+    .nx-video-timeline-track .nx-video-thumb{min-width:0!important;height:100%!important}
+    .nx-video-timeline-track .nx-video-clip-meta{min-width:0!important;overflow:hidden!important}
+    .nx-video-timeline-track .nx-video-reorder{display:none!important}
+    .nx-video-trim-handle{position:absolute;top:1px;bottom:1px;width:12px;padding:0;border:0;background:rgba(255,255,255,.94);box-shadow:0 0 0 1px rgba(108,76,255,.28),0 4px 12px rgba(35,25,58,.18);z-index:6;opacity:.98;touch-action:none}
+    .nx-video-trim-handle::after{content:"";position:absolute;top:50%;left:50%;width:2px;height:24px;border-radius:99px;background:#6c4cff;transform:translate(-50%,-50%)}
+    .nx-video-trim-left{left:0;border-radius:7px 3px 3px 7px}.nx-video-trim-right{right:0;border-radius:3px 7px 7px 3px}
+    .nx-video-timeline-playhead{position:absolute;top:0;bottom:0;left:0;z-index:12;width:2px;background:#ef4fb4;box-shadow:0 0 0 1px rgba(255,255,255,.55),0 0 12px rgba(239,79,180,.55);pointer-events:none;transform:translateX(-1px)}
+    .nx-video-timeline-playhead::before{content:"";position:absolute;left:50%;top:0;width:12px;height:8px;border-radius:0 0 7px 7px;background:#ef4fb4;transform:translateX(-50%)}
+    @media(max-width:390px){.nx-video-timeline-track{height:62px}.nx-video-trim-handle{width:11px}.nx-video-trim-handle::after{height:21px}}
+
     /* V2 flagship layout: fit the complete editor in a normal Android viewport. */
     .nx-screen:has(.nx-video-flagship){height:100dvh!important;max-height:100dvh!important;overflow:hidden!important;background:#fff!important;padding:0!important}
     .nx-screen:has(.nx-video-flagship)>.nx-app-head{height:62px!important;min-height:62px!important;margin:0 0 4px!important;padding:4px 12px 4px 10px!important;border-bottom:1px solid #eee9f5!important}
@@ -200,7 +215,10 @@ export function renderAiVideoStudio(){
         <input type="range" min="0" max="0" value="0" step="0.01" data-scrub aria-label="Timeline position">
         <strong data-total-time>00:00</strong>
       </div>
-      <div class="nx-video-cliprow" data-clip-row></div>
+      <div class="nx-video-timeline-track" data-timeline-track>
+        <div class="nx-video-cliprow" data-clip-row></div>
+        <div class="nx-video-timeline-playhead" data-timeline-playhead aria-hidden="true"></div>
+      </div>
     </section>
 
     <section class="nx-video-inspector">
@@ -219,7 +237,7 @@ export function renderAiVideoStudio(){
           <label class="nx-video-field"><span>IN POINT</span><input type="number" min="0" step=".1" data-in></label>
           <label class="nx-video-field"><span>OUT POINT</span><input type="number" min="0" step=".1" data-out></label>
         </div>
-        <div class="nx-video-note">Drag the timeline playhead, then split. Move clips with the arrows on each timeline item. All edits stay local until you export.</div>
+        <div class="nx-video-note">Drag the pink playhead to preview a cut. Drag either clip edge to trim IN/OUT directly. Timeline edits change the real clip state.</div>
       </div>
 
       <div class="nx-video-panel" data-panel="audio">
@@ -322,6 +340,8 @@ export function renderAiVideoStudio(){
     total:root.querySelector('[data-total-time]'),
     scrub:root.querySelector('[data-scrub]'),
     clipRow:root.querySelector('[data-clip-row]'),
+    timelineTrack:root.querySelector('[data-timeline-track]'),
+    timelinePlayhead:root.querySelector('[data-timeline-playhead]'),
     selection:root.querySelector('[data-selection]'),
     inspectorTitle:root.querySelector('[data-inspector-title]'),
     in:root.querySelector('[data-in]'),
@@ -532,7 +552,9 @@ export function renderAiVideoStudio(){
   }
   function render(){
     els.clipRow.innerHTML=state.clips.length?state.clips.map((c,i)=>`
-      <article class="nx-video-clip${c.id===state.selectedId?' is-active':''}" data-id="${c.id}">
+      <article class="nx-video-clip${c.id===state.selectedId?' is-active':''}" data-id="${c.id}" style="--clip-weight:${Math.max(.05,clipDuration(c))}">
+        <button type="button" class="nx-video-trim-handle nx-video-trim-left" data-trim="left" data-id="${c.id}" aria-label="Trim ${escapeHtml(c.name)} start"></button>
+        <button type="button" class="nx-video-trim-handle nx-video-trim-right" data-trim="right" data-id="${c.id}" aria-label="Trim ${escapeHtml(c.name)} end"></button>
         <div class="nx-video-thumb" data-select="${c.id}" role="button" tabindex="0" aria-label="Select ${escapeHtml(c.name)}">
           ${state.urls.get(c.id)?(c.kind==='image'
             ?`<img src="${escapeHtml(state.urls.get(c.id))}" alt="">`
@@ -571,7 +593,94 @@ export function renderAiVideoStudio(){
       root.querySelectorAll('[data-motion]').forEach(b=>b.classList.toggle('is-active',b.dataset.motion===(c.motion||'none')));
       root.querySelectorAll('[data-mask]').forEach(b=>b.classList.toggle('is-active',b.dataset.mask===(c.mask||'none')));
     }
+    paintTimeline();
     applyPreview();
+  }
+
+  function paintTimeline(){
+    const total=totalDuration();
+    const active=selected();
+    const position=total>0?clamp(((active?clipStartTime(active.id):0)+(Number(state.playhead)||0))/total,0,1):0;
+    if(els.timelinePlayhead) els.timelinePlayhead.style.left=(position*100)+'%';
+    els.clipRow.querySelectorAll('[data-id]').forEach(node=>{
+      const clip=state.clips.find(item=>item.id===node.dataset.id);
+      if(clip) node.style.setProperty('--clip-weight',String(Math.max(.05,clipDuration(clip))));
+    });
+  }
+
+  function timelineSecondsAt(clientX,totalSnapshot,rectSnapshot){
+    return clamp((Number(clientX)-rectSnapshot.left)/Math.max(1,rectSnapshot.width),0,1)*totalSnapshot;
+  }
+
+  let timelineDrag=null;
+
+  function timelinePointerDown(event){
+    if(!els.timelineTrack)return;
+    if(event.target.closest('[data-trim],[data-select],[data-up],[data-down]'))return;
+    const rect=els.timelineTrack.getBoundingClientRect();
+    const global=timelineSecondsAt(event.clientX,totalDuration(),rect);
+    const located=locateGlobalTime(global);
+    if(located.clip){
+      state.selectedId=located.clip.id;
+      state.playhead=located.local;
+      render();
+    }
+  }
+
+  function timelineTrimStart(event){
+    const handle=event.target.closest('[data-trim]');
+    if(!handle || !els.timelineTrack)return false;
+    const clip=state.clips.find(item=>item.id===handle.dataset.id);
+    if(!clip)return false;
+    const rect=els.timelineTrack.getBoundingClientRect();
+    pushUndo();
+    timelineDrag={
+      id:clip.id,
+      side:handle.dataset.trim,
+      startX:event.clientX,
+      originIn:Number(clip.in)||0,
+      originOut:Number(clip.out)||0,
+      total:Math.max(.05,totalDuration()),
+      rect:{left:rect.left,width:rect.width},
+      speed:Math.max(.05,Number(clip.speed)||1),
+      changed:false
+    };
+    try{handle.setPointerCapture?.(event.pointerId);}catch{}
+    event.preventDefault();
+    event.stopPropagation();
+    return true;
+  }
+
+  function timelinePointerMove(event){
+    if(!timelineDrag)return;
+    const clip=state.clips.find(item=>item.id===timelineDrag.id);
+    if(!clip)return;
+    const nowTime=timelineSecondsAt(event.clientX,timelineDrag.total,timelineDrag.rect);
+    const startTime=timelineSecondsAt(timelineDrag.startX,timelineDrag.total,timelineDrag.rect);
+    const delta=(nowTime-startTime)*timelineDrag.speed;
+    if(timelineDrag.side==='left'){
+      const next=clamp(timelineDrag.originIn+delta,0,Math.max(.05,timelineDrag.originOut-.05));
+      if(Math.abs(next-Number(clip.in))>.001){clip.in=next;timelineDrag.changed=true;}
+    }else{
+      const next=Math.max(timelineDrag.originIn+.05,timelineDrag.originOut+delta);
+      if(Math.abs(next-Number(clip.out))>.001){clip.out=next;timelineDrag.changed=true;}
+    }
+    state.playhead=clamp(state.playhead,0,clipDuration(clip));
+    els.in.value=Number(clip.in).toFixed(1);
+    els.out.value=Number(clip.out).toFixed(1);
+    els.current.textContent=fmt(state.playhead);
+    els.total.textContent=fmt(totalDuration());
+    els.meta.textContent=`${state.clips.length} clip${state.clips.length===1?'':'s'} • ${fmt(totalDuration())}`;
+    paintTimeline();
+    applyPreview();
+  }
+
+  function timelinePointerEnd(){
+    if(!timelineDrag)return;
+    const changed=timelineDrag.changed;
+    timelineDrag=null;
+    if(!changed && state.undo.length) state.undo.pop();
+    render();
   }
 
   function selectClip(id){
@@ -888,6 +997,14 @@ export function renderAiVideoStudio(){
     }catch(e){els.aiOut.value='Auto captions unavailable: '+String(e?.message||e).slice(0,220);}
   });
 
+  els.timelineTrack.addEventListener('pointerdown',event=>{
+    if(timelineTrimStart(event)) return;
+    timelinePointerDown(event);
+  });
+  window.addEventListener('pointermove',timelinePointerMove,{passive:true});
+  window.addEventListener('pointerup',timelinePointerEnd);
+  window.addEventListener('pointercancel',timelinePointerEnd);
+
   els.clipRow.addEventListener('click',event=>{
     const s=event.target.closest('[data-select]'); if(s){selectClip(s.dataset.select);return;}
     const up=event.target.closest('[data-up]');if(up){state.selectedId=up.dataset.up;moveSelected(-1);return;}
@@ -916,6 +1033,9 @@ export function renderAiVideoStudio(){
     state.urls.clear();
     state.sources.clear();
     window.removeEventListener('keydown',keydown);
+    window.removeEventListener('pointermove',timelinePointerMove);
+    window.removeEventListener('pointerup',timelinePointerEnd);
+    window.removeEventListener('pointercancel',timelinePointerEnd);
   };
   return root;
 }
