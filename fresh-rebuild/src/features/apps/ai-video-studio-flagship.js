@@ -588,6 +588,7 @@ export function renderAiVideoStudio(){
     els.selection.textContent=c?c.name:'Nothing selected';
     els.scrub.max=String(totalDuration());
     els.scrub.value=String(clamp((c?clipStartTime(c.id):0)+state.playhead,0,totalDuration()));
+    if(els.aiApply) syncAiApplyState();
     if(c){
       els.in.value=Number(c.in).toFixed(1);
       els.out.value=Number(c.out).toFixed(1);
@@ -1202,7 +1203,10 @@ export function renderAiVideoStudio(){
 
   root.querySelector('[data-ai-director]').addEventListener('click',async()=>{
     const c=selected(); if(!c)return;
+    const button=root.querySelector('[data-ai-director]');
     try{
+      if(button){button.disabled=true;button.textContent='ANALYZING…';}
+      setRuntime('AI Director is analyzing the selected media…');
       if(c.kind==='image'){
         const data=await fileToInline(await fetch(state.urls.get(c.id)).then(r=>r.blob()),8);
         const model=await aiModel('You are a concise cinematic video director. Analyze only the provided frame and return a short PLAN plus a machine-readable JSON object. Use only grounded observations. JSON keys: speed (0.25-4), brightness (0.5-1.8), contrast (0.5-1.8), saturate (0-2.2), effect (none|mono|sepia|soft), motion (none|push|pull|left|right|drift), scale (0.5-2.5), rotation (-180..180), fitMode (fit|fill), textOverlay (string <=160). Return valid JSON.');
@@ -1217,19 +1221,34 @@ export function renderAiVideoStudio(){
         els.aiOut.value=String(res?.response?.text?.()||'').trim().slice(0,5000);
         syncAiApplyState();
       }
-    }catch(e){els.aiOut.value='AI Director unavailable: '+String(e?.message||e).slice(0,220);syncAiApplyState();}
+    }catch(e){
+      els.aiOut.value='AI Director unavailable: '+String(e?.message||e).slice(0,220);
+      syncAiApplyState();
+      setRuntime('AI Director unavailable. No edit was applied.',true);
+    }finally{
+      if(button){button.disabled=false;button.textContent='AI DIRECTOR';}
+    }
   });
 
   root.querySelector('[data-ai-captions]').addEventListener('click',async()=>{
     const c=selected();if(!c||c.kind==='image')return;
+    const button=root.querySelector('[data-ai-captions]');
     try{
+      if(button){button.disabled=true;button.textContent='TRANSCRIBING…';}
+      setRuntime('Auto Captions is analyzing the selected video…');
       const blob=await fetch(state.urls.get(c.id)).then(r=>r.blob());
       const data=await fileToInline(blob,8);
       const model=await aiModel('Transcribe only what is spoken in the supplied media. Return concise caption lines with approximate timestamps in SRT format. If speech is unclear, mark [inaudible] rather than inventing words.');
       const res=await model.generateContent([{inlineData:data},{text:'Generate an SRT caption draft for this clip.'}]);
       els.aiOut.value=String(res?.response?.text?.()||'').trim().slice(0,5000);
       syncAiApplyState();
-    }catch(e){els.aiOut.value='Auto captions unavailable: '+String(e?.message||e).slice(0,220);syncAiApplyState();}
+    }catch(e){
+      els.aiOut.value='Auto captions unavailable: '+String(e?.message||e).slice(0,220);
+      syncAiApplyState();
+      setRuntime('Auto Captions unavailable. No edit was applied.',true);
+    }finally{
+      if(button){button.disabled=false;button.textContent='AUTO CAPTIONS';}
+    }
   });
 
   els.timelineTrack.addEventListener('pointerdown',event=>{
