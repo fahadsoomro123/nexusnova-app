@@ -78,8 +78,9 @@ class VideoStudioEmulatorQaTest {
         gate("Picker exposes a visible selectable file row")
 
         selectDocument(name)
+        gate("Native picker selection returns control to the NexusNova activity")
         waitTextContains("ota11-video-import")
-        gate("File selection returns a rendered imported clip to NexusNova")
+        gate("Imported clip is rendered after picker return")
 
         assertTrue(
             "Imported video clip is not visible after Android picker selection",

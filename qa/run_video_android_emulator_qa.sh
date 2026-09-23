@@ -42,8 +42,8 @@ errors=$(grep -Roh 'errors="[0-9]*"' app/build/outputs/androidTest-results 2>/de
 echo "RESULTS: tests=$completed_tests failures=$failures errors=$errors"
 
 if [ "$completed_tests" -ne 1 ] || [ "$failures" -ne 0 ] || [ "$errors" -ne 0 ]; then
-  echo "Expected exactly 1 passing end-to-end video import test."
+  echo "Expected exactly 1 passing Video Studio Hard QA test with 15 gates."
   exit 1
 fi
 
-echo "1/1 Video Studio end-to-end test PASS."
+echo "1/1 Video Studio Hard QA PASS — 15 runtime gates."
