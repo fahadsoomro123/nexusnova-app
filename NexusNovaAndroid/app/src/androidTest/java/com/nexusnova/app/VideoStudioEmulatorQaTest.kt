@@ -78,7 +78,9 @@ class VideoStudioEmulatorQaTest {
             signInButtons.last().click()
         }
 
-        val novaHub = device.wait(Until.findObject(By.desc("Open Nova Hub")), 30_000L)
+        val novaHub =
+            device.wait(Until.findObject(By.text("NOVA HUB")), 30_000L)
+                ?: device.wait(Until.findObject(By.desc("Open Nova Hub")), 5_000L)
         if (novaHub != null) {
             novaHub.click()
             val search =
