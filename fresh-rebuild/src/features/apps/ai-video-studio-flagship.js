@@ -35,7 +35,7 @@ async function aiModel(systemInstruction){
   return core.aiModel(systemInstruction);
 }
 
-const STYLE_ID = 'nx-video-flagship-v4';
+const STYLE_ID = 'nx-video-flagship-v5';
 const DEFAULT_DUR = 3;
 
 function ensureVideoFlagshipStyles() {
@@ -115,6 +115,7 @@ function ensureVideoFlagshipStyles() {
     .nx-video-trim-left{left:0;border-radius:7px 3px 3px 7px}.nx-video-trim-right{right:0;border-radius:3px 7px 7px 3px}
     .nx-video-timeline-playhead{position:absolute;top:0;bottom:0;left:0;z-index:12;width:2px;background:#ef4fb4;box-shadow:0 0 0 1px rgba(255,255,255,.55),0 0 12px rgba(239,79,180,.55);pointer-events:none;transform:translateX(-1px)}
     .nx-video-timeline-playhead::before{content:"";position:absolute;left:50%;top:0;width:12px;height:8px;border-radius:0 0 7px 7px;background:#ef4fb4;transform:translateX(-50%)}
+    .nx-video-timeline-track::after{content:"";position:absolute;inset:0;border-radius:11px;pointer-events:none;box-shadow:inset 0 0 0 1px rgba(108,76,255,.08)}
     @media(max-width:390px){.nx-video-timeline-track{height:62px}.nx-video-trim-handle{width:11px}.nx-video-trim-handle::after{height:21px}}
 
     /* V2 flagship layout: fit the complete editor in a normal Android viewport. */
@@ -389,7 +390,15 @@ export function renderAiVideoStudio(){
     stopExport:null,
     imagePlayFrame:0,
     imagePlayStartedAt:0,
-    runtimeMessage:''
+    runtimeMessage:'',
+    canvas:{
+      ratio:'16:9',
+      fitMode:'fit',
+      bg:'#16131c',
+      fps:30,
+      quality:720
+    },
+    playSession:0
   };
 
   function setRuntime(message='', isError=false){
@@ -438,7 +447,8 @@ export function renderAiVideoStudio(){
         ...c, file:null, sourceUrl:null
       })))),
       selectedId:state.selectedId,
-      playhead:state.playhead
+      playhead:state.playhead,
+      canvas:{...state.canvas}
     };
   }
   function pushUndo(){
@@ -461,6 +471,7 @@ export function renderAiVideoStudio(){
     }
     state.selectedId=keep.has(snap.selectedId)?snap.selectedId:(state.clips[0]?.id||null);
     state.playhead=clamp(snap.playhead||0,0,totalDuration());
+    state.canvas={...state.canvas,...(snap.canvas||{})};
     render();
   }
   function fmt(sec){
@@ -551,6 +562,11 @@ export function renderAiVideoStudio(){
     els.video.playbackRate=Number(c.speed)||1;els.video.volume=clamp(Number(c.volume ?? 1),0,1);els.video.muted=c.muted===true;els.video.style.filter=cssFilter(c);els.video.style.transform=previewTransform(c);els.video.style.clipPath=previewMask(c);els.video.style.background=els.bg.value;
   }
   function render(){
+    els.ratio.value=state.canvas.ratio;
+    els.fitMode.value=state.canvas.fitMode;
+    els.bg.value=state.canvas.bg;
+    els.fps.value=String(state.canvas.fps);
+    els.quality.value=String(state.canvas.quality);
     els.clipRow.innerHTML=state.clips.length?state.clips.map((c,i)=>`
       <article class="nx-video-clip${c.id===state.selectedId?' is-active':''}" data-id="${c.id}" style="--clip-weight:${Math.max(.05,clipDuration(c))}">
         <button type="button" class="nx-video-trim-handle nx-video-trim-left" data-trim="left" data-id="${c.id}" aria-label="Trim ${escapeHtml(c.name)} start"></button>
@@ -613,6 +629,39 @@ export function renderAiVideoStudio(){
   }
 
   let timelineDrag=null;
+  let timelineScrubDrag=false;
+
+  function applyTimelinePosition(global){
+    const located=locateGlobalTime(global);
+    if(!located.clip)return;
+    state.selectedId=located.clip.id;
+    state.playhead=located.local;
+    els.current.textContent=fmt(state.playhead);
+    els.scrub.value=String(clamp(global,0,totalDuration()));
+    paintTimeline();
+    applyPreview();
+  }
+
+  function timelineScrubStart(event){
+    if(!els.timelineTrack)return;
+    if(event.target.closest('[data-trim],[data-select],[data-up],[data-down]'))return;
+    timelineScrubDrag=true;
+    try{els.timelineTrack.setPointerCapture?.(event.pointerId)}catch{}
+    const rect=els.timelineTrack.getBoundingClientRect();
+    applyTimelinePosition(timelineSecondsAt(event.clientX,totalDuration(),rect));
+    event.preventDefault();
+  }
+
+  function timelineScrubMove(event){
+    if(!timelineScrubDrag||!els.timelineTrack)return;
+    const rect=els.timelineTrack.getBoundingClientRect();
+    applyTimelinePosition(timelineSecondsAt(event.clientX,totalDuration(),rect));
+    event.preventDefault();
+  }
+
+  function timelineScrubEnd(){
+    timelineScrubDrag=false;
+  }
 
   function timelinePointerDown(event){
     if(!els.timelineTrack)return;
@@ -806,8 +855,8 @@ export function renderAiVideoStudio(){
   }
 
   function makeCanvas(){
-    const [rw,rh]=String(els.ratio.value).split(':').map(Number);
-    const maxW=Number(els.quality.value)||720;
+    const [rw,rh]=String(state.canvas.ratio||els.ratio.value||'16:9').split(':').map(Number);
+    const maxW=Number(state.canvas.quality)||Number(els.quality.value)||720;
     const width=rw>=rh?maxW:Math.round(maxW*rw/rh);
     const height=Math.round(width*rh/rw);
     const canvas=document.createElement('canvas');
@@ -844,7 +893,9 @@ export function renderAiVideoStudio(){
         await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;});
         const dur=clipDuration(c),start=performance.now();
         while(performance.now()-start<dur*1000 && !aborted){
-          c.__exportProgress=clamp((performance.now()-start)/(dur*1000),0,1);ctx.save();ctx.filter=cssFilter(c);fitDraw(ctx,img,canvas.width,canvas.height,c);ctx.restore();drawClipText(c.textOverlay);
+          c.__exportProgress=clamp((performance.now()-start)/(dur*1000),0,1);
+          ctx.save();ctx.filter=cssFilter(c);fitDraw(ctx,img,canvas.width,canvas.height,{...c,__fitMode:state.canvas.fitMode});ctx.restore();
+          drawClipText(c.textOverlay);
           await new Promise(requestAnimationFrame);
         }
         return;
@@ -863,7 +914,10 @@ export function renderAiVideoStudio(){
       }catch{}
       await mediaVideo.play().catch(()=>{});
       while(mediaVideo.currentTime<end && !mediaVideo.ended && !aborted){
-        drawBackground();c.__exportProgress=clamp((mediaVideo.currentTime-Math.max(0,Number(c.in)||0))/Math.max(.001,(end-Math.max(0,Number(c.in)||0))),0,1);ctx.save();ctx.filter=cssFilter(c);fitDraw(ctx,mediaVideo,canvas.width,canvas.height,c);ctx.restore();drawClipText(c.textOverlay);
+        drawBackground();
+        c.__exportProgress=clamp((mediaVideo.currentTime-Math.max(0,Number(c.in)||0))/Math.max(.001,(end-Math.max(0,Number(c.in)||0))),0,1);
+        ctx.save();ctx.filter=cssFilter(c);fitDraw(ctx,mediaVideo,canvas.width,canvas.height,{...c,__fitMode:state.canvas.fitMode});ctx.restore();
+        drawClipText(c.textOverlay);
         await new Promise(requestAnimationFrame);
       }
       mediaVideo.pause();
@@ -893,7 +947,8 @@ export function renderAiVideoStudio(){
 
   function fitDraw(ctx,source,w,h,c={}){
     const sw=source.videoWidth||source.naturalWidth||w, sh=source.videoHeight||source.naturalHeight||h;
-    const fitScale=Math.min(w/sw,h/sh)*(Number(c.scale)||1),dw=sw*fitScale,dh=sh*fitScale;
+    const baseFit=c.__fitMode==='fill'?Math.max(w/sw,h/sh):Math.min(w/sw,h/sh);
+    const fitScale=baseFit*(Number(c.scale)||1),dw=sw*fitScale,dh=sh*fitScale;
     const motion=motionValues(c,clamp(Number(c.__exportProgress)||0,0,1)),baseScale=Math.max(.001,Number(c.scale)||1);
     const sx=c.flipX?-1:1,sy=c.flipY?-1:1;
     ctx.save();
@@ -924,15 +979,80 @@ export function renderAiVideoStudio(){
   root.querySelector('[data-reset]').addEventListener('click',()=>{const c=selected();if(!c)return;pushUndo();Object.assign(c,{in:0,out:c.kind==='image'?DEFAULT_DUR:c.sourceDuration||c.out,speed:1,volume:1,muted:false,brightness:1,contrast:1,saturate:1,effect:'none',textOverlay:'',motion:'none',mask:'none',scale:1,rotation:0,flipX:false,flipY:false});render();});
   root.querySelector('[data-undo]').addEventListener('click',undo);
   root.querySelector('[data-redo]').addEventListener('click',redo);
-  els.play.addEventListener('click',()=>{
-    const c=selected();if(!c)return;
-    if(c.kind==='image'){
-      if(state.imagePlayFrame){cancelAnimationFrame(state.imagePlayFrame);state.imagePlayFrame=0;els.play.textContent='▶';return;}
-      state.imagePlayStartedAt=performance.now()-state.playhead*1000;
-      const tick=now=>{const current=selected();if(!current||current.id!==c.id){state.imagePlayFrame=0;return;}const elapsed=(now-state.imagePlayStartedAt)/1000;const dur=clipDuration(current);state.playhead=Math.min(dur,elapsed);els.current.textContent=fmt(state.playhead);els.scrub.value=String(clamp(clipStartTime(current.id)+state.playhead,0,totalDuration()));applyPreview();if(state.playhead>=dur){state.imagePlayFrame=0;els.play.textContent='▶';return;}state.imagePlayFrame=requestAnimationFrame(tick)};
-      els.play.textContent='Ⅱ';state.imagePlayFrame=requestAnimationFrame(tick);return;
+  async function playWholeTimeline(){
+    if(!state.clips.length)return;
+    const token=++state.playSession;
+    if(state.imagePlayFrame){cancelAnimationFrame(state.imagePlayFrame);state.imagePlayFrame=0;}
+    els.play.textContent='Ⅱ';
+    const active=selected()||state.clips[0];
+    const activeIndex=Math.max(0,state.clips.findIndex(c=>c.id===active.id));
+    const startGlobal=clamp(clipStartTime(active.id)+state.playhead,0,totalDuration());
+
+    for(let i=activeIndex;i<state.clips.length;i++){
+      if(token!==state.playSession)return;
+      const c=state.clips[i];
+      const localStart=(i===activeIndex)?clamp(startGlobal-clipStartTime(c.id),0,clipDuration(c)):0;
+      state.selectedId=c.id;
+      state.playhead=localStart;
+      render();
+      if(c.kind==='image'){
+        await new Promise(resolve=>{
+          const start=performance.now()-localStart*1000;
+          const tick=now=>{
+            if(token!==state.playSession){resolve();return;}
+            const p=clamp((now-start)/1000,0,clipDuration(c));
+            state.playhead=p;
+            els.current.textContent=fmt(p);
+            els.scrub.value=String(clamp(clipStartTime(c.id)+p,0,totalDuration()));
+            paintTimeline();applyPreview();
+            if(p>=clipDuration(c)){resolve();return;}
+            state.imagePlayFrame=requestAnimationFrame(tick);
+          };
+          state.imagePlayFrame=requestAnimationFrame(tick);
+        });
+        state.imagePlayFrame=0;
+      }else{
+        try{
+          await waitForVideoMetadata(els.video,state.urls.get(c.id),8000);
+          await loadSeek(els.video,Number(c.in)+(localStart*(Number(c.speed)||1)));
+          els.video.playbackRate=Number(c.speed)||1;
+          els.video.volume=clamp(Number(c.volume??1),0,1);
+          els.video.muted=c.muted===true;
+          setRuntime('');
+          await els.video.play();
+          while(token===state.playSession && els.video.currentTime < Math.min(Number(c.out)||els.video.duration,els.video.duration)-.02){
+            const local=clamp((els.video.currentTime-(Number(c.in)||0))/(Number(c.speed)||1),0,clipDuration(c));
+            state.playhead=local;
+            els.current.textContent=fmt(local);
+            els.scrub.value=String(clamp(clipStartTime(c.id)+local,0,totalDuration()));
+            paintTimeline();applyPreview();
+            await new Promise(requestAnimationFrame);
+          }
+          els.video.pause();
+        }catch(error){
+          setRuntime(String(error?.message||'Playback failed.').slice(0,160),true);
+          return;
+        }
+      }
     }
-    if(els.video.paused){setRuntime('');els.video.play().catch(()=>setRuntime('Playback was blocked. Tap play again.',true));}else els.video.pause();
+    if(token===state.playSession){
+      state.selectedId=state.clips[state.clips.length-1]?.id||null;
+      state.playhead=selected()?clipDuration(selected()):0;
+      render();
+      els.play.textContent='▶';
+    }
+  }
+
+  function stopWholeTimeline(){
+    state.playSession++;
+    if(state.imagePlayFrame){cancelAnimationFrame(state.imagePlayFrame);state.imagePlayFrame=0;}
+    try{els.video.pause()}catch{}
+    els.play.textContent='▶';
+  }
+
+  els.play.addEventListener('click',()=>{
+    if(state.playSession && els.play.textContent==='Ⅱ'){stopWholeTimeline();return;}
+    void playWholeTimeline();
   });
   els.video.addEventListener('timeupdate',()=>{const c=selected();if(!c)return;const local=Math.max(0,els.video.currentTime-(Number(c.in)||0))/(Number(c.speed)||1);state.playhead=local;els.current.textContent=fmt(local);els.scrub.value=String(clamp(clipStartTime(c.id)+local,0,totalDuration()));els.video.style.transform=previewTransform(c);if(els.video.currentTime>=(Number(c.out)||0)-.02)els.video.pause();});
   els.video.addEventListener('loadedmetadata',()=>{if(selected()){refitPreviewMedia();applyPreview()}});
@@ -961,9 +1081,21 @@ export function renderAiVideoStudio(){
   root.querySelectorAll('[data-effect]').forEach(b=>b.addEventListener('click',()=>{const c=selected();if(!c)return;pushUndo();c.effect=b.dataset.effect;render();}));
   root.querySelector('[data-apply-text]').addEventListener('click',()=>{const c=selected();if(!c)return;pushUndo();c.textOverlay=els.text.value.trim();render();});
   root.querySelector('[data-clear-text]').addEventListener('click',()=>{const c=selected();if(!c)return;pushUndo();c.textOverlay='';els.text.value='';render();});
-  root.querySelector('[data-ratio]').addEventListener('change',()=>{ fitPreviewCanvas(); applyPreview(); });
-  root.querySelector('[data-fit-mode]').addEventListener('change',()=>{ fitPreviewCanvas(); applyPreview(); });
-  root.querySelector('[data-bg]').addEventListener('change',()=>{applyPreview();});
+  root.querySelector('[data-ratio]').addEventListener('change',()=>{
+    pushUndo();state.canvas.ratio=els.ratio.value;fitPreviewCanvas();applyPreview();
+  });
+  root.querySelector('[data-fit-mode]').addEventListener('change',()=>{
+    pushUndo();state.canvas.fitMode=els.fitMode.value;fitPreviewCanvas();applyPreview();
+  });
+  root.querySelector('[data-bg]').addEventListener('change',()=>{
+    pushUndo();state.canvas.bg=els.bg.value;applyPreview();
+  });
+  root.querySelector('[data-fps]').addEventListener('change',()=>{
+    pushUndo();state.canvas.fps=Number(els.fps.value)||30;
+  });
+  root.querySelector('[data-quality]').addEventListener('change',()=>{
+    pushUndo();state.canvas.quality=Number(els.quality.value)||720;
+  });
   root.querySelector('[data-open-export]').addEventListener('click',()=>exportVideo());
 
   root.querySelectorAll('[data-tool]').forEach(b=>b.addEventListener('click',()=>setPanel(b.dataset.tool)));
@@ -999,11 +1131,20 @@ export function renderAiVideoStudio(){
 
   els.timelineTrack.addEventListener('pointerdown',event=>{
     if(timelineTrimStart(event)) return;
-    timelinePointerDown(event);
+    timelineScrubStart(event);
   });
-  window.addEventListener('pointermove',timelinePointerMove,{passive:true});
-  window.addEventListener('pointerup',timelinePointerEnd);
-  window.addEventListener('pointercancel',timelinePointerEnd);
+  window.addEventListener('pointermove',event=>{
+    timelinePointerMove(event);
+    timelineScrubMove(event);
+  },{passive:false});
+  window.addEventListener('pointerup',event=>{
+    timelinePointerEnd();
+    timelineScrubEnd(event);
+  });
+  window.addEventListener('pointercancel',event=>{
+    timelinePointerEnd();
+    timelineScrubEnd(event);
+  });
 
   els.clipRow.addEventListener('click',event=>{
     const s=event.target.closest('[data-select]'); if(s){selectClip(s.dataset.select);return;}
@@ -1036,6 +1177,8 @@ export function renderAiVideoStudio(){
     window.removeEventListener('pointermove',timelinePointerMove);
     window.removeEventListener('pointerup',timelinePointerEnd);
     window.removeEventListener('pointercancel',timelinePointerEnd);
+    state.playSession++;
+    if(state.imagePlayFrame){cancelAnimationFrame(state.imagePlayFrame);state.imagePlayFrame=0;}
   };
   return root;
 }
