@@ -44,16 +44,6 @@ jobs:
           test -s app/build/outputs/apk/debug/app-debug.apk
           test -s app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
 
-      - name: Create deterministic VP8 WebM fixture
-        shell: bash
-        run: |
-          set -euo pipefail
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq gstreamer1.0-tools gstreamer1.0-plugins-good
-          mkdir -p qa/fixtures
-          gst-launch-1.0 -q             videotestsrc num-buffers=30 pattern=ball !             video/x-raw,width=160,height=90,framerate=15/1 !             videoconvert ! vp8enc ! webmmux !             filesink location=qa/fixtures/generated.webm
-          test -s qa/fixtures/generated.webm
-
       - name: Enable KVM
         shell: bash
         run: |
@@ -80,7 +70,6 @@ jobs:
             mkdir -p ../artifacts/video-emulator
             trap 'adb exec-out screencap -p > ../artifacts/video-emulator/final-screen.png || true; adb logcat -d -t 4000 > ../artifacts/video-emulator/logcat.txt || true; adb pull /sdcard/Android/data/com.nexusnova.app/files/Pictures ../artifacts/video-emulator/pictures >/dev/null 2>&1 || true' EXIT
             adb wait-for-device
-            adb push ../qa/fixtures/generated.webm /sdcard/Download/video-studio-video-qa.webm
             adb shell am force-stop com.nexusnova.app
             gradle --no-daemon :app:connectedDebugAndroidTest
 
