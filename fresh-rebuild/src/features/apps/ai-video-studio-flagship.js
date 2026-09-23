@@ -50,7 +50,7 @@ function ensureVideoFlagshipStyles() {
     .nx-screen:has(.nx-video-flagship) .nx-app-head>div>p:last-child{display:none!important}
     .nx-video-flagship{--violet:#6c4cff;--pink:#ef4fb4;--ink:#17141f;--muted:#7d7888;position:relative;display:grid;grid-template-rows:minmax(220px,39%) minmax(128px,23%) minmax(0,1fr) auto;gap:8px;width:100%;height:100%;min-height:0;box-sizing:border-box;padding:7px;border-radius:20px;background:linear-gradient(180deg,#fff,#faf8ff);overflow:hidden;border:1px solid #ebe7f4;box-shadow:0 12px 30px rgba(68,41,120,.08)}
     .nx-video-preview{position:relative;min-height:0;display:grid;place-items:center;overflow:hidden;border-radius:16px;background:#16131c;box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}
-    .nx-video-preview video,.nx-video-preview img{display:block;max-width:100%;max-height:100%;width:100%;height:100%;object-fit:contain;background:#16131c}
+    .nx-video-preview video,.nx-video-preview img{display:block;max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;object-position:center;background:#16131c;flex:none}
     .nx-video-empty{display:grid;place-items:center;gap:7px;color:#fff;text-align:center;padding:20px}.nx-video-empty b{font-size:18px}.nx-video-empty span{font-size:12px;opacity:.78}
     .nx-video-status{position:absolute;left:8px;right:8px;bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 9px;border-radius:11px;background:rgba(18,14,28,.78);backdrop-filter:blur(8px);color:#fff;font-size:11px}
     .nx-video-status strong{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.nx-video-status span{opacity:.74;white-space:nowrap}
@@ -455,13 +455,39 @@ export function renderAiVideoStudio(){
       c.effect==='soft'?'blur(.35px)':''
     ].join(' ');
   }
+  function fitPreviewMedia(el,naturalWidth,naturalHeight){
+    const nw=Number(naturalWidth)||0, nh=Number(naturalHeight)||0;
+    if(!el || !nw || !nh || !els.preview) return;
+    const box=els.preview.getBoundingClientRect();
+    const pad=16;
+    const bw=Math.max(1,box.width-pad), bh=Math.max(1,box.height-pad);
+    const scale=Math.min(bw/nw,bh/nh);
+    if(!Number.isFinite(scale)||scale<=0) return;
+    el.style.width=Math.max(1,Math.round(nw*scale))+'px';
+    el.style.height=Math.max(1,Math.round(nh*scale))+'px';
+    el.style.maxWidth='100%';
+    el.style.maxHeight='100%';
+    el.style.objectFit='contain';
+    el.style.objectPosition='center center';
+  }
+  function refitPreviewMedia(){
+    const c=selected();
+    if(!c) return;
+    if(c.kind==='image'){
+      fitPreviewMedia(els.image,els.image.naturalWidth,els.image.naturalHeight);
+    }else{
+      fitPreviewMedia(els.video,els.video.videoWidth,els.video.videoHeight);
+    }
+  }
+  const previewResizeObserver=new ResizeObserver(()=>refitPreviewMedia());
+
   function applyPreview(){
     const c=selected();
     if(!c){els.video.pause();els.video.classList.add('nx-video-hidden');els.image.classList.add('nx-video-hidden');els.empty.classList.remove('nx-video-hidden');els.play.classList.add('nx-video-hidden');els.previewText.classList.add('nx-video-hidden');return;}
     els.empty.classList.add('nx-video-hidden');els.play.classList.remove('nx-video-hidden');els.previewText.classList.toggle('nx-video-hidden',!c.textOverlay);els.previewTextValue.textContent=c.textOverlay||'';
     const url=state.urls.get(c.id);if(!url){setRuntime('Media source is unavailable. Re-import this clip.',true);return;}els.runtimeStatus.classList.add('nx-video-hidden');
     if(c.kind==='image'){els.video.pause();els.video.classList.add('nx-video-hidden');els.image.classList.remove('nx-video-hidden');if(els.image.src!==url)els.image.src=url;els.image.style.filter=cssFilter(c);els.image.style.transform=previewTransform(c);els.image.style.clipPath=previewMask(c);els.image.style.background=els.bg.value;els.current.textContent=fmt(state.playhead);return;}
-    els.image.classList.add('nx-video-hidden');els.video.classList.remove('nx-video-hidden');if(els.video.src!==url){els.video.src=url;els.video.load();}
+    els.image.classList.add('nx-video-hidden');els.video.classList.remove('nx-video-hidden');if(els.video.src!==url){els.video.src=url;els.video.load();}refitPreviewMedia();
     if(els.video.readyState>=1){const desired=clamp((Number(c.in)||0)+(Number(state.playhead)||0)*(Number(c.speed)||1),0,Math.max((Number(c.out)||DEFAULT_DUR)-.001,0));if(Math.abs((els.video.currentTime||0)-desired)>.08){try{els.video.currentTime=desired}catch{}}}
     els.video.playbackRate=Number(c.speed)||1;els.video.volume=clamp(Number(c.volume ?? 1),0,1);els.video.muted=c.muted===true;els.video.style.filter=cssFilter(c);els.video.style.transform=previewTransform(c);els.video.style.clipPath=previewMask(c);els.video.style.background=els.bg.value;
   }
@@ -740,6 +766,7 @@ export function renderAiVideoStudio(){
     const snap=state.redo.pop();restoreSnap(snap);
   }
 
+  previewResizeObserver.observe(els.preview);
   els.file.addEventListener('change',()=>{const chosen=[...els.file.files||[]];void addFiles(chosen);els.file.value='';});
   root.querySelector('[data-add]').addEventListener('click',openFilePicker);
   root.querySelector('[data-split]').addEventListener('click',splitSelected);
@@ -759,7 +786,9 @@ export function renderAiVideoStudio(){
     if(els.video.paused){setRuntime('');els.video.play().catch(()=>setRuntime('Playback was blocked. Tap play again.',true));}else els.video.pause();
   });
   els.video.addEventListener('timeupdate',()=>{const c=selected();if(!c)return;const local=Math.max(0,els.video.currentTime-(Number(c.in)||0))/(Number(c.speed)||1);state.playhead=local;els.current.textContent=fmt(local);els.scrub.value=String(clamp(clipStartTime(c.id)+local,0,totalDuration()));els.video.style.transform=previewTransform(c);if(els.video.currentTime>=(Number(c.out)||0)-.02)els.video.pause();});
-  els.video.addEventListener('loadeddata',()=>{if(selected())applyPreview()});
+  els.video.addEventListener('loadedmetadata',()=>{if(selected()){refitPreviewMedia();applyPreview()}});
+  els.video.addEventListener('loadeddata',()=>{if(selected()){refitPreviewMedia();applyPreview()}});
+  els.image.addEventListener('load',()=>{if(selected())refitPreviewMedia()});
   els.image.addEventListener('error',()=>setRuntime('This image cannot be previewed by the Android WebView.',true));
   els.video.addEventListener('error',()=>setRuntime('This video cannot be previewed by the Android WebView.',true));
   els.video.addEventListener('play',()=>els.play.textContent='Ⅱ');
