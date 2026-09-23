@@ -81,7 +81,7 @@ function ensureVideoFlagshipStyles() {
     .nx-video-hidden{display:none!important}.nx-video-file-input{position:absolute!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important;clip:rect(0 0 0 0)!important}.nx-video-runtime-status{position:absolute;left:10px;right:10px;top:10px;z-index:4;min-height:28px;display:flex;align-items:center;justify-content:center;padding:6px 9px;border-radius:10px;background:rgba(18,14,28,.78);backdrop-filter:blur(8px);color:#fff;font-size:10px;font-weight:750;text-align:center;pointer-events:none}.nx-video-runtime-status.is-error{background:rgba(116,24,60,.88)}.nx-video-preview-text{position:absolute;left:12px;right:12px;bottom:54px;z-index:3;display:flex;justify-content:center;pointer-events:none}.nx-video-preview-text span{max-width:92%;padding:8px 12px;border-radius:12px;background:rgba(12,9,18,.72);backdrop-filter:blur(6px);color:#fff;font-size:14px;font-weight:850;line-height:1.2;text-align:center;box-shadow:0 10px 24px rgba(0,0,0,.2)}.nx-video-motion-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}.nx-video-motion-grid button{height:32px;font-size:8px}.nx-video-mask-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}.nx-video-mask-grid button{height:32px;font-size:8px}
     @media(max-width:390px){.nx-video-flagship{grid-template-rows:minmax(205px,37%) minmax(120px,23%) minmax(0,1fr) auto;gap:6px;padding:6px}.nx-video-tool{font-size:9px;flex-basis:68px;min-width:68px}.nx-video-tool b{font-size:15px}.nx-video-clip{height:61px}.nx-video-cliprow{grid-auto-columns:minmax(100px,1fr)}.nx-video-inspector{padding:6px}}
     @media(max-height:720px){.nx-video-flagship{grid-template-rows:minmax(170px,36%) minmax(108px,23%) minmax(0,1fr) auto}.nx-screen:has(.nx-video-flagship) .nx-app-head{height:58px!important;min-height:58px!important}.nx-screen:has(.nx-video-flagship)>[data-app-mount]{height:calc(100% - 62px)!important}.nx-video-clip{height:56px}.nx-video-tool{font-size:8px}.nx-video-tool b{font-size:14px}}
-    @media(prefers-reduced-motion:reduce){.nx-video-play{transition:none}}
+    .nx-video-ai-apply:disabled{opacity:.45;cursor:not-allowed}.nx-video-ai-apply:not(:disabled){box-shadow:0 5px 14px rgba(108,76,255,.14)}\n    @media(prefers-reduced-motion:reduce){.nx-video-play{transition:none}}
     /* V4 full-screen editor + native picker reliability correction. */
     body:has(.nx-video-flagship) #nx-stage{height:100dvh!important;min-height:100dvh!important;max-height:100dvh!important;padding-bottom:0!important;overflow:hidden!important}
     .nx-screen:has(.nx-video-flagship){height:100dvh!important;min-height:0!important;max-height:100dvh!important;margin:0!important;padding:0!important;overflow:hidden!important;background:#fff!important}
@@ -1217,7 +1217,7 @@ export function renderAiVideoStudio(){
         els.aiOut.value=String(res?.response?.text?.()||'').trim().slice(0,5000);
         syncAiApplyState();
       }
-    }catch(e){els.aiOut.value='AI Director unavailable: '+String(e?.message||e).slice(0,220);}
+    }catch(e){els.aiOut.value='AI Director unavailable: '+String(e?.message||e).slice(0,220);syncAiApplyState();}
   });
 
   root.querySelector('[data-ai-captions]').addEventListener('click',async()=>{

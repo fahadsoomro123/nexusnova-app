@@ -141,7 +141,14 @@ jobs:
           await page.locator('[data-apply-text]').click();
           await page.waitForFunction(() => document.querySelector('[data-preview-text-value]')?.textContent === 'Flagship QA title');
           assert.equal(await page.locator('[data-preview-text]').isHidden(), false, 'preview text hidden');
-          gate(7, 'Text edit changes the rendered preview');
+          await page.locator('[data-tool="ai"]').click();
+          const aiApply = page.locator('[data-ai-apply]');
+          assert.equal(await aiApply.isDisabled(), true, 'AI apply must be disabled before a plan exists');
+          await page.locator('[data-ai-output]').fill('PLAN: QA director plan. {"speed":1.25,"brightness":1.05,"contrast":1.1,"saturate":1.05,"effect":"none","motion":"drift","scale":1,"rotation":0,"fitMode":"fit","textOverlay":"Flagship QA title"}');
+          assert.equal(await aiApply.isDisabled(), false, 'AI apply did not recognize a valid plan');
+          await aiApply.click();
+          assert.match(await page.locator('.nx-video-clip[data-id]').textContent(), /1\.25×/);
+          gate(7, 'Text edit and the real AI Director apply path change editor state');
 
           // Motion changes the actual transform, not just UI state.
           await page.locator('[data-tool="motion"]').click();
