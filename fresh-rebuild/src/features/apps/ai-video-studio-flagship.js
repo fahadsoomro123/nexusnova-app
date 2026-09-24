@@ -1176,7 +1176,7 @@ export function renderAiVideoStudio(){
     if(els.aiApply) els.aiApply.disabled=!Boolean(plan&&selected());
     return plan;
   }
-  function applyAiDirectorPlan(){
+  els.aiOut?.addEventListener('input',syncAiApplyState);\n\n  function applyAiDirectorPlan(){
     const c=selected(),plan=syncAiApplyState();
     if(!c||!plan){
       setRuntime('Generate a readable AI Director plan first.',true);
