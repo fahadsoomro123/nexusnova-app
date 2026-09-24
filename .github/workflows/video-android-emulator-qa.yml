@@ -81,10 +81,10 @@ jobs:
           target: google_apis
           arch: x86_64
           profile: Nexus 6
-          force-avd-creation: false
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+          force-avd-creation: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-load -no-snapshot-save -wipe-data -camera-back none -camera-front none
           disable-animations: true
-          emulator-boot-timeout: 300
+          emulator-boot-timeout: 360
           working-directory: NexusNovaAndroid
           script: bash "$GITHUB_WORKSPACE/qa/run_video_android_emulator_qa.sh"
 
