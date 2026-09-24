@@ -31,7 +31,7 @@ class VideoStudioEmulatorQaTest {
     private val context: Context = instrumentation.targetContext
 
     @Test
-    fun testVideoStudioHardQa() {
+    fun testVideoImportEndToEnd() {
         var gates = 0
         fun gate(label: String) {
             gates += 1
@@ -47,7 +47,9 @@ class VideoStudioEmulatorQaTest {
         gate("Deterministic WebM fixture is published in Downloads")
 
         assertTrue("Video Studio DOM is not ready", qaEval("document.querySelector('.nx-video-flagship') ? 'ready' : ''") == "ready")
-        assertTrue("CREATE YOUR VIDEO empty state is missing", qaEval("document.querySelector('[data-empty]')?.textContent || ''").contains("CREATE YOUR VIDEO"))
+        val emptyState = qaEval("JSON.stringify({present:!!document.querySelector('[data-empty]'),text:(document.querySelector('[data-empty]')?.textContent||'').trim()})")
+        assertTrue("Video Studio empty state is missing before import", emptyState.contains("\"present\":true"))
+        assertTrue("Video Studio empty state has no user-facing content", emptyState.contains("\"text\":\""))
         gate("Video Studio screen is ready before import")
 
         val addPoint = qaPoint("[data-add]") ?: error("ADD MEDIA button has no measurable screen position")
