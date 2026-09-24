@@ -10,6 +10,10 @@ on:
       - "NexusNovaAndroid/gradle/**"
       - "qa/run_video_android_emulator_qa.sh"
 
+concurrency:
+  group: video-studio-android-qa-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   android-emulator-video-qa:
     runs-on: ubuntu-latest
