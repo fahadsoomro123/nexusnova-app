@@ -33,15 +33,24 @@ jobs:
           gradle-version: "8.13"
 
       - name: Verify native media fix and release identity
+        id: release_identity
         working-directory: NexusNovaAndroid
         run: |
           set -euo pipefail
           grep -Fq 'settings.allowContentAccess = true' app/src/main/java/com/nexusnova/app/MainActivity.kt
           grep -Fq 'Intent.ACTION_OPEN_DOCUMENT' app/src/main/java/com/nexusnova/app/MainActivity.kt
           grep -Fq 'FLAG_GRANT_READ_URI_PERMISSION' app/src/main/java/com/nexusnova/app/MainActivity.kt
-          grep -Fq 'versionCode = 27000042' app/build.gradle.kts
-          grep -Fq 'versionName = "1.0.42-OTA12-native-fix"' app/build.gradle.kts
-          echo "PASS — native picker fix and v1.0.42 identity verified."
+
+          VERSION_NAME="$(grep -m1 'versionName' app/build.gradle.kts | cut -d'"' -f2)"
+          VERSION_CODE="$(grep -m1 'versionCode' app/build.gradle.kts | tr -cd '0-9')"
+          test -n "$VERSION_NAME"
+          test -n "$VERSION_CODE"
+          test "$VERSION_CODE" -gt 27000042
+
+          echo "PASS — native picker fix verified."
+          echo "PASS — release identity verified: $VERSION_NAME ($VERSION_CODE)."
+          echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+          echo "version_code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
 
       - name: Build release APK
         working-directory: NexusNovaAndroid
@@ -74,20 +83,26 @@ jobs:
           test -x "$APKSIGNER"
           test -x "$ZIPALIGN"
 
+          VERSION_NAME="$(grep -m1 'versionName' app/build.gradle.kts | cut -d'"' -f2)"
+          VERSION_CODE="$(grep -m1 'versionCode' app/build.gradle.kts | tr -cd '0-9')"
+          APK_NAME="NexusNova-v${VERSION_NAME}-OTA12-NATIVE-FIX.apk"
+
           rm -rf bootstrap-output
           mkdir -p bootstrap-output
           "$ZIPALIGN" -p -f 4 "$unsigned" bootstrap-output/unaligned.apk
-          "$APKSIGNER" sign             --ks /tmp/nexusnova-release.jks             --ks-pass "pass:$KEYSTORE_PASSWORD"             --ks-key-alias "$KEY_ALIAS"             --key-pass "pass:$KEY_PASSWORD"             --out bootstrap-output/NexusNova-v1.0.42-OTA12-NATIVE-FIX.apk             bootstrap-output/unaligned.apk
+          "$APKSIGNER" sign             --ks /tmp/nexusnova-release.jks             --ks-pass "pass:$KEYSTORE_PASSWORD"             --ks-key-alias "$KEY_ALIAS"             --key-pass "pass:$KEY_PASSWORD"             --out "bootstrap-output/$APK_NAME"             bootstrap-output/unaligned.apk
 
-          "$APKSIGNER" verify --verbose --print-certs bootstrap-output/NexusNova-v1.0.42-OTA12-NATIVE-FIX.apk
+          CERTS="$($APKSIGNER verify --verbose --print-certs "bootstrap-output/$APK_NAME" 2>&1)"
+          printf '%s\n' "$CERTS"
+          printf '%s\n' "$CERTS" | grep -Fq '30:05:2F:AF:26:F1:12:D8:8D:48:06:1B:88:E6:A6:98:37:1E:F0:CD:C4:20:31:22:A9:35:05:29:40:5A:71:6C'
 
-          sha256sum bootstrap-output/NexusNova-v1.0.42-OTA12-NATIVE-FIX.apk > bootstrap-output/NexusNova-v1.0.42-OTA12-NATIVE-FIX.apk.sha256
-          echo "PASS — signed v1.0.42 APK verified."
+          sha256sum "bootstrap-output/$APK_NAME" > "bootstrap-output/$APK_NAME.sha256"
+          echo "PASS — signed $VERSION_NAME APK verified with the expected NexusNova signing certificate ($VERSION_CODE)."
 
       - name: Upload signed APK
         uses: actions/upload-artifact@v4
         with:
-          name: NexusNova-v1.0.42-OTA12-NATIVE-FIX
-          path: NexusNovaAndroid/bootstrap-output/NexusNova-v1.0.42-OTA12-NATIVE-FIX.apk*
+          name: NexusNova-v${{ steps.release_identity.outputs.version_name }}-OTA12-NATIVE-FIX
+          path: NexusNovaAndroid/bootstrap-output/NexusNova-v${{ steps.release_identity.outputs.version_name }}-OTA12-NATIVE-FIX.apk*
           if-no-files-found: error
           retention-days: 14
