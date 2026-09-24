@@ -94,7 +94,7 @@ jobs:
 
           CERTS="$($APKSIGNER verify --verbose --print-certs "bootstrap-output/$APK_NAME" 2>&1)"
           printf '%s\n' "$CERTS"
-          printf '%s\n' "$CERTS" | grep -Fq '30:05:2F:AF:26:F1:12:D8:8D:48:06:1B:88:E6:A6:98:37:1E:F0:CD:C4:20:31:22:A9:35:05:29:40:5A:71:6C'
+          printf '%s\n' "$CERTS" | grep -Fq 'certificate SHA-256 digest: 30052faf26f112d88d48061b88e6a698371ef0cdc4203122a9350529405a716c'
 
           sha256sum "bootstrap-output/$APK_NAME" > "bootstrap-output/$APK_NAME.sha256"
           echo "PASS — signed $VERSION_NAME APK verified with the expected NexusNova signing certificate ($VERSION_CODE)."
