@@ -1,3 +1,4 @@
+# FINAL QA RUN MARKER: isolated Android emulator verification on the same release source.
 #!/usr/bin/env bash
 set -u
 
