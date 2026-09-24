@@ -6,13 +6,25 @@ RUNNER_OUTPUT="$RESULTS_DIR/connected-test.txt"
 
 ANDROID_SERIAL="${ANDROID_SERIAL:-emulator-5554}"
 
-adb start-server >/dev/null 2>&1 || true
-adb wait-for-device
+adb_start_status=0
+timeout --signal=TERM --kill-after=5s 30s adb start-server || adb_start_status=$?
+if [ "$adb_start_status" -ne 0 ]; then
+  echo "ADB server did not start within 30 seconds."
+  exit 1
+fi
+
+if ! timeout --signal=TERM --kill-after=5s 120s adb -s "$ANDROID_SERIAL" wait-for-device; then
+  echo "Android emulator did not become available within 120 seconds."
+  adb -s "$ANDROID_SERIAL" get-state || true
+  exit 1
+fi
 
 boot=""
 for attempt in $(seq 1 40); do
-  boot="$(adb -s "$ANDROID_SERIAL" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' | tail -n 1 || true)"
-  if [ "$boot" = "1" ]; then break; fi
+  boot="$(timeout --signal=TERM --kill-after=3s 10s adb -s "$ANDROID_SERIAL" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' | tail -n 1 || true)"
+  if [ "$boot" = "1" ]; then
+    break
+  fi
   sleep 2
 done
 
@@ -23,13 +35,13 @@ if [ "$boot" != "1" ]; then
 fi
 
 # Reset package data deterministically. Cached AVD state can survive while an
-# uninstall fails with Android Package Manager internals.
-adb -s "$ANDROID_SERIAL" shell am force-stop com.nexusnova.app || true
-adb -s "$ANDROID_SERIAL" shell pm clear com.nexusnova.app || true
-adb -s "$ANDROID_SERIAL" shell am force-stop com.nexusnova.app.test || true
-adb -s "$ANDROID_SERIAL" shell pm clear com.nexusnova.app.test || true
-adb -s "$ANDROID_SERIAL" uninstall com.nexusnova.app || true
-adb -s "$ANDROID_SERIAL" uninstall com.nexusnova.app.test || true
+# uninstall or Package Manager operation fails/hangs internally.
+timeout --signal=TERM --kill-after=5s 20s adb -s "$ANDROID_SERIAL" shell am force-stop com.nexusnova.app || true
+timeout --signal=TERM --kill-after=5s 20s adb -s "$ANDROID_SERIAL" shell pm clear com.nexusnova.app || true
+timeout --signal=TERM --kill-after=5s 20s adb -s "$ANDROID_SERIAL" shell am force-stop com.nexusnova.app.test || true
+timeout --signal=TERM --kill-after=5s 20s adb -s "$ANDROID_SERIAL" shell pm clear com.nexusnova.app.test || true
+timeout --signal=TERM --kill-after=5s 20s adb -s "$ANDROID_SERIAL" uninstall com.nexusnova.app || true
+timeout --signal=TERM --kill-after=5s 20s adb -s "$ANDROID_SERIAL" uninstall com.nexusnova.app.test || true
 
 mkdir -p "$RESULTS_DIR"
 rm -f "$RUNNER_OUTPUT"
