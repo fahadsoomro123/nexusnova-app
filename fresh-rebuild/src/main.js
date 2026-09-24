@@ -273,6 +273,15 @@ window.NexusNovaFresh = Object.freeze({
     openAppWithAd(safeId);
     return true;
   },
+  // DEBUG instrumentation uses this direct route to validate an individual
+  // editor without depending on the visual/accessibility surface of the Hub.
+  // Release callers never invoke this path; native QA also guards on DEBUG.
+  openAppDirectForQa(id) {
+    const safeId = String(id || '').trim();
+    if (!safeId) return false;
+    openAppDirect(safeId);
+    return true;
+  },
   openHub() {
     if (router.current === 'app' && currentAppParent === 'hub') requestHubReturnRestore();
     router.render('hub');
