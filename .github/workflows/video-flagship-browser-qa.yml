@@ -197,12 +197,19 @@ jobs:
           assert.ok(videoFixture.length > 1000, 'generated WebM is too small');
           await input.setInputFiles({ name: 'generated.webm', mimeType: 'video/webm', buffer: videoFixture });
           await page.waitForTimeout(500);
-          console.log('VIDEO_IMPORT_DEBUG', await page.locator('[data-meta]').textContent(), await page.locator('[data-runtime-status]').textContent(), await page.locator('[data-file]').evaluate(el => ({ files: el.files.length, value: el.value, accept: el.accept })));
+          const videoImportState = await page.locator('[data-meta]').textContent();
+          assert.match(videoImportState || '', /4 clips/);
           await page.waitForFunction(() => document.querySelectorAll('.nx-video-clip[data-id]').length >= 4);
           assert.ok(await page.locator('.nx-video-clip[data-id]').allTextContents().then(xs => xs.some(x => /generated/i.test(x))), 'generated video not imported');
           await page.locator('[data-tool="canvas"]').click();
           await page.locator('[data-ratio]').selectOption('9:16');
-          await page.waitForFunction(() => document.querySelector('[data-preview-stage]')?.style.aspectRatio === '0.5625');
+          await page.waitForTimeout(100);
+          const stageGeometry = await page.locator('[data-preview-stage]').evaluate(el => {
+            const r = el.getBoundingClientRect();
+            return { width: r.width, height: r.height, styleRatio: el.style.aspectRatio };
+          });
+          assert.ok(stageGeometry.width > 0 && stageGeometry.height > 0, 'preview stage is not rendered');
+          assert.ok(Math.abs((stageGeometry.width / stageGeometry.height) - (9 / 16)) < 0.03, 'preview stage did not become 9:16');
           gate(14, 'Real video import works and canvas ratio changes the live stage');
 
           await assertNoScroll('390x844 final');
