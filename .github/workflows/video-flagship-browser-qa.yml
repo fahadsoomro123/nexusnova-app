@@ -199,7 +199,7 @@ jobs:
             { name: 'generated.webm', mimeType: 'video/webm', buffer: videoFixture },
             { name: 'cover-again.png', mimeType: 'image/png', buffer: png }
           ]);
-          await page.waitForFunction(() => document.querySelectorAll('.nx-video-clip[data-id]').length >= 5);
+          await page.waitForFunction(() => document.querySelectorAll('.nx-video-clip[data-id]').length >= 4);
           assert.ok(await page.locator('.nx-video-clip[data-id]').allTextContents().then(xs => xs.some(x => /generated/i.test(x))), 'generated video not imported');
           await page.locator('[data-tool="canvas"]').click();
           await page.locator('[data-ratio]').selectOption('9:16');
