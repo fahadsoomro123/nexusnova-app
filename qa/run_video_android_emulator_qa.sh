@@ -4,11 +4,32 @@ set -u
 RESULTS_DIR="$GITHUB_WORKSPACE/qa/android-emulator-results"
 RUNNER_OUTPUT="$RESULTS_DIR/connected-test.txt"
 
+ANDROID_SERIAL="${ANDROID_SERIAL:-emulator-5554}"
+
 adb start-server >/dev/null 2>&1 || true
 adb wait-for-device
-adb shell getprop sys.boot_completed
-adb uninstall com.nexusnova.app || true
-adb uninstall com.nexusnova.app.test || true
+
+boot=""
+for attempt in $(seq 1 40); do
+  boot="$(adb -s "$ANDROID_SERIAL" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' | tail -n 1 || true)"
+  if [ "$boot" = "1" ]; then break; fi
+  sleep 2
+done
+
+if [ "$boot" != "1" ]; then
+  echo "Android emulator did not reach sys.boot_completed=1."
+  adb -s "$ANDROID_SERIAL" get-state || true
+  exit 1
+fi
+
+# Reset package data deterministically. Cached AVD state can survive while an
+# uninstall fails with Android Package Manager internals.
+adb -s "$ANDROID_SERIAL" shell am force-stop com.nexusnova.app || true
+adb -s "$ANDROID_SERIAL" shell pm clear com.nexusnova.app || true
+adb -s "$ANDROID_SERIAL" shell am force-stop com.nexusnova.app.test || true
+adb -s "$ANDROID_SERIAL" shell pm clear com.nexusnova.app.test || true
+adb -s "$ANDROID_SERIAL" uninstall com.nexusnova.app || true
+adb -s "$ANDROID_SERIAL" uninstall com.nexusnova.app.test || true
 
 mkdir -p "$RESULTS_DIR"
 rm -f "$RUNNER_OUTPUT"

@@ -496,6 +496,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun checkForWebUpdate() {
+        if (BuildConfig.NEXUS_SKIP_WEB_OTA) {
+            android.util.Log.i("NexusNovaOTA", "Skipping web OTA in debug/instrumentation build.")
+            return
+        }
         otaWebManager.checkForUpdate { updated ->
             if (!updated || isFinishing || isDestroyed || !::webView.isInitialized) return@checkForUpdate
             webView.post {

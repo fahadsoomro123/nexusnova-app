@@ -23,12 +23,14 @@ android {
     buildTypes {
         debug {
             buildConfigField("boolean", "NEXUS_ADS_TEST_MODE", "true")
+            buildConfigField("boolean", "NEXUS_SKIP_WEB_OTA", "true")
             manifestPlaceholders["appLabel"] = "NexusNova"
             manifestPlaceholders["admobAppId"] = "ca-app-pub-3940256099942544~3347511713"
         }
         release {
             isMinifyEnabled = true
             buildConfigField("boolean", "NEXUS_ADS_TEST_MODE", "true")
+            buildConfigField("boolean", "NEXUS_SKIP_WEB_OTA", "false")
             manifestPlaceholders["appLabel"] = "NexusNova"
             manifestPlaceholders["admobAppId"] = "ca-app-pub-3940256099942544~3347511713"
             proguardFiles(
