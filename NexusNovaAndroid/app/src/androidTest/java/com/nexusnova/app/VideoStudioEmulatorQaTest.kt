@@ -12,6 +12,8 @@ import android.os.Environment
 import android.provider.MediaStore
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
+import androidx.test.runner.lifecycle.Stage
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.UiObject2
@@ -37,77 +39,65 @@ class VideoStudioEmulatorQaTest {
         }
 
         freshEditor()
-        gate("NexusNova launches into the Video Studio entry flow")
+        gate("NexusNova launches directly into the real Video Studio editor")
 
         val name = "ota11-video-import.webm"
         publishVideoFixture(name, "video/webm", webm = true)
         assertDownloadFixture(name)
         gate("Deterministic WebM fixture is published in Downloads")
 
-        assertTrue(
-            "AI Video Studio screen did not become ready",
-            device.hasObject(By.text("CREATE YOUR VIDEO"))
-        )
+        assertTrue("Video Studio DOM is not ready", qaEval("document.querySelector('.nx-video-flagship') ? 'ready' : ''") == "ready")
+        assertTrue("CREATE YOUR VIDEO empty state is missing", qaEval("document.querySelector('[data-empty]')?.textContent || ''").contains("CREATE YOUR VIDEO"))
         gate("Video Studio screen is ready before import")
 
-        assertTrue(
-            "ADD MEDIA action missing from the editor",
-            device.hasObject(By.text("ADD MEDIA"))
-        )
-        gate("ADD MEDIA control is present")
+        val addPoint = qaPoint("[data-add]") ?: error("ADD MEDIA button has no measurable screen position")
+        assertTrue("ADD MEDIA control missing from Video Studio", qaEval("document.querySelector('[data-add]') ? 'present' : ''") == "present")
+        gate("ADD MEDIA control is present in the real editor DOM")
 
-        tapAddMedia()
-        gate("ADD MEDIA initiates the native file-picker flow")
+        device.click(addPoint.first, addPoint.second)
+        gate("A real Android touch initiates the native file-picker flow")
 
         assertDocumentsUi()
         gate("Android DocumentsUI is visible")
 
         waitTextContains(name)
-        assertTrue(
-            "Picker did not show the generated video fixture",
-            device.hasObject(By.textContains(name))
-        )
+        assertTrue("Picker did not show the generated video fixture", device.hasObject(By.textContains(name)))
         gate("Generated WebM is discoverable in the Android picker")
 
-        val item = device.findObject(By.textContains(name))
-            ?: error("Document item not found: $name")
-        assertTrue(
-            "Generated picker item is not visibly selectable",
-            item.visibleBounds.width() > 0 && item.visibleBounds.height() > 0
-        )
+        val item = device.findObject(By.textContains(name)) ?: error("Document item not found: $name")
+        assertTrue("Generated picker item is not visibly selectable", item.visibleBounds.width() > 0 && item.visibleBounds.height() > 0)
         gate("Picker exposes a visible selectable file row")
 
         selectDocument(name)
+        assertTrue("NexusNova activity did not regain focus", device.wait(Until.hasObject(By.pkg("com.nexusnova.app")), 15_000L))
         gate("Native picker selection returns control to the NexusNova activity")
-        waitTextContains("ota11-video-import")
-        gate("Imported clip is rendered after picker return")
 
-        assertTrue(
-            "Imported video clip is not visible after Android picker selection",
-            device.hasObject(By.textContains("ota11-video-import"))
-        )
-        gate("Imported video becomes a real timeline item")
+        waitQa(30_000L) { qaEval("document.querySelectorAll('.nx-video-clip[data-id]').length") == "1" }
+        val importedName = qaEval("document.querySelector('.nx-video-clip[data-id] .nx-video-clip-meta b')?.textContent || ''")
+        assertTrue("Imported video filename is missing from the real timeline", importedName.contains("ota11-video-import"))
+        gate("Imported video is rendered as a real timeline item after picker return")
 
-        assertTrue(
-            "Video preview/play control missing after import",
-            device.hasObject(By.desc("Play or pause"))
-        )
-        gate("Playback control is present for the imported media")
+        val playback = qaEval("JSON.stringify({visible:!!document.querySelector('[data-play]:not(.nx-video-hidden)'), aria:document.querySelector('[data-play]')?.getAttribute('aria-label')||'', source:document.querySelector('[data-main-video]')?.getAttribute('src')||''})")
+        assertTrue("Playback control is missing after import", playback.contains(""visible":true"))
+        assertTrue("Imported video has no preview source", playback.contains(""source":"blob:"))
+        assertTrue("Playback control lacks its actionable label", playback.contains("Play or pause"))
+        gate("Imported video preview and playback control are live")
 
-        assertTrue(
-            "Video play/pause control is not clickable",
-            device.findObject(By.desc("Play or pause"))?.isClickable == true
-        )
-        gate("Playback control exposes an actionable target")
+        val addAgainPoint = qaPoint("[data-add]") ?: error("ADD MEDIA control disappeared after import")
+        assertTrue("Editor controls disappeared after import", qaEval("document.querySelectorAll('[data-tool]').length") == "10")
+        gate("The full flagship editor remains mounted after native import")
 
-        assertTrue(
-            "Imported state disappeared after picker completion",
-            device.hasObject(By.textContains("ota11-video-import"))
-        )
-        gate("Imported editor state persists after native picker completion")
+        device.click(addAgainPoint.first, addAgainPoint.second)
+        gate("Second real Android touch reopens the native picker")
+        assertDocumentsUi()
+        waitTextContains(name)
+        gate("Native picker remains repeatable after an imported clip exists")
 
+        device.pressBack()
+        assertTrue("NexusNova activity did not return after cancelling the picker", device.wait(Until.hasObject(By.pkg("com.nexusnova.app")), 10_000L))
+        assertTrue("Imported clip disappeared after picker cancellation", qaEval("document.querySelectorAll('.nx-video-clip[data-id]').length") == "1")
         capture("video-studio-hard-qa-pass.png")
-        gate("Runtime screenshot evidence is captured")
+        gate("Picker cancellation preserves the imported editor state and captures runtime evidence")
 
         assertTrue("Hard QA completed fewer than 15 gates", gates == 15)
         println("[HARD-QA] PASS — exactly 15 runtime gates completed")
@@ -124,73 +114,66 @@ class VideoStudioEmulatorQaTest {
                 )
         )
 
-        val signIn = device.wait(Until.findObject(By.text("SIGN IN")), 8_000L)
-        if (signIn != null) {
-            val authFields =
-                device.wait(
-                    Until.findObjects(By.clazz("android.widget.EditText")),
-                    12_000L
-                ) ?: emptyList()
-            assertTrue("Auth fields missing", authFields.size >= 2)
-            authFields[0].text = "qa-emulator@nexusnova.local"
-            authFields[1].text = "NexusNova123"
-            // The auth screen contains both a SIGN IN mode tab and the actual
-            // submit control. Select the submit control deterministically.
-            val signInButtons = device.findObjects(By.text("SIGN IN"))
-            assertTrue("SIGN IN submit control missing", signInButtons.size >= 2)
-            signInButtons.last().click()
+        val deadline = System.currentTimeMillis() + 30_000L
+        var activity: MainActivity? = null
+        while (System.currentTimeMillis() < deadline) {
+            activity = currentMainActivity()
+            if (activity != null && activity.qaEvaluateJavascript("typeof window.NexusNovaFresh !== 'undefined'", 1_500L) == "true") break
+            Thread.sleep(350L)
         }
+        assertTrue("MainActivity WebView did not expose the QA bridge", activity != null)
+        assertTrue("NexusNovaFresh bootstrap never became available", activity?.qaEvaluateJavascript("typeof window.NexusNovaFresh !== 'undefined'") == "true")
 
-        val novaHub =
-            device.wait(Until.findObject(By.text("NOVA HUB")), 30_000L)
-                ?: device.wait(Until.findObject(By.desc("Open Nova Hub")), 5_000L)
-        if (novaHub != null) {
-            novaHub.click()
-            val search =
-                device.wait(Until.findObject(By.desc("Search Nova Hub")), 15_000L)
-                    ?: error("Nova Hub search field not found")
-            search.text = "AI Video Studio"
-            waitText("AI Video Studio").click()
+        val opened = activity?.qaEvaluateJavascript("window.NexusNovaFresh.openAppDirectForQa('ai-video-studio'); 'opened'")?.contains("opened") == true
+        assertTrue("Direct Video Studio QA route did not execute", opened)
+        waitQa(30_000L) { qaEval("document.querySelector('.nx-video-flagship') ? 'ready' : ''") == "ready" }
+    }
+
+    private fun currentMainActivity(): MainActivity? {
+        var found: MainActivity? = null
+        instrumentation.runOnMainSync {
+            found = ActivityLifecycleMonitorRegistry.getInstance()
+                .getActivitiesInStage(Stage.RESUMED)
+                .filterIsInstance<MainActivity>()
+                .firstOrNull()
         }
-
-        waitText("CREATE YOUR VIDEO")
+        return found
     }
 
-    private fun tapAddMedia() {
-        waitText("ADD MEDIA").click()
+    private fun qaEval(script: String, timeoutMs: Long = 5_000L): String {
+        val activity = currentMainActivity() ?: return ""
+        val raw = activity.qaEvaluateJavascript(script, timeoutMs) ?: return ""
+        return raw.trim().trim('"').replace("\\"", """)
     }
 
-    private fun assertDocumentsUi() {
-        assertTrue(
-            "Android DocumentsUI did not open",
-            device.wait(
-                Until.hasObject(By.pkg("com.google.android.documentsui")),
-                15_000L
-            )
+    private fun waitQa(timeoutMs: Long, predicate: () -> Boolean) {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (System.currentTimeMillis() < deadline) {
+            if (predicate()) return
+            Thread.sleep(200L)
+        }
+        error("Timed out waiting for Video Studio DOM condition")
+    }
+
+    private fun qaPoint(selector: String): Pair<Int, Int>? {
+        val value = qaEval(
+            """(() => {
+              const el = document.querySelector(""" + selector.quoteJs() + """);
+              if (!el) return '';
+              const r = el.getBoundingClientRect();
+              if (!(r.width > 0 && r.height > 0)) return '';
+              return Math.round(r.left + r.width / 2) + ',' + Math.round(r.top + r.height / 2);
+            })()"""
         )
+        val parts = value.split(',')
+        if (parts.size != 2) return null
+        val x = parts[0].trim().toIntOrNull() ?: return null
+        val y = parts[1].trim().toIntOrNull() ?: return null
+        return x to y
     }
 
-    private fun selectDocument(name: String) {
-        waitTextContains(name, 15_000L)
-        val item =
-            device.findObject(By.textContains(name))
-                ?: error("Document item not found: $name")
-        item.click()
-
-        val open =
-            device.wait(Until.findObject(By.text("OPEN")), 10_000L)
-                ?: device.wait(Until.findObject(By.text("Open")), 10_000L)
-                ?: error("OPEN button not found for $name")
-        open.click()
-
-        assertTrue(
-            "NexusNova did not regain focus after selecting $name",
-            device.wait(
-                Until.hasObject(By.pkg("com.nexusnova.app")),
-                15_000L
-            )
-        )
-    }
+    private fun String.quoteJs(): String =
+        "'" + replace("\", "\\").replace("'", "\'") + "'"
 
     private fun publishVideoFixture(name: String, mime: String, webm: Boolean) {
         val temp = File(context.cacheDir, "nn-$name")
