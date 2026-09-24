@@ -462,6 +462,28 @@ class MainActivity : AppCompatActivity() {
         pendingGeolocation = null
     }
 
+    /**
+     * DEBUG-only instrumentation hook for the dedicated Video Studio runtime QA.
+     * The test opens the real bundled WebView editor, then drives the native picker.
+     */
+    fun qaEvaluateJavascript(script: String, timeoutMs: Long = 5_000L): String? {
+        if (!BuildConfig.DEBUG || !::webView.isInitialized || script.isBlank()) return null
+        val latch = java.util.concurrent.CountDownLatch(1)
+        val result = java.util.concurrent.atomic.AtomicReference<String?>()
+        webView.post {
+            try {
+                webView.evaluateJavascript(script) { value ->
+                    result.set(value)
+                    latch.countDown()
+                }
+            } catch (_: Throwable) {
+                latch.countDown()
+            }
+        }
+        runCatching { latch.await(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS) }
+        return result.get()
+    }
+
     private fun loadProductionApp(forceFresh: Boolean = false) {
         usingOfflineFallback = false
         if (forceFresh) webView.clearCache(true)
