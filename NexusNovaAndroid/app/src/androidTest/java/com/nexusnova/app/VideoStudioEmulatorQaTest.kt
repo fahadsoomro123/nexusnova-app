@@ -175,6 +175,31 @@ class VideoStudioEmulatorQaTest {
     private fun String.quoteJs(): String =
         "'" + replace("\\", "\\\\").replace("'", "\\'") + "'"
 
+    private fun assertDocumentsUi() {
+        assertTrue(
+            "Android DocumentsUI did not open",
+            device.wait(Until.hasObject(By.pkg("com.google.android.documentsui")), 15_000L)
+        )
+    }
+
+    private fun selectDocument(name: String) {
+        waitTextContains(name, 15_000L)
+        val item = device.findObject(By.textContains(name))
+            ?: error("Document item not found: $name")
+        item.click()
+
+        val open =
+            device.wait(Until.findObject(By.text("OPEN")), 10_000L)
+                ?: device.wait(Until.findObject(By.text("Open")), 10_000L)
+                ?: error("OPEN button not found for $name")
+        open.click()
+
+        assertTrue(
+            "NexusNova did not regain focus after selecting $name",
+            device.wait(Until.hasObject(By.pkg("com.nexusnova.app")), 15_000L)
+        )
+    }
+
     private fun publishVideoFixture(name: String, mime: String, webm: Boolean) {
         val temp = File(context.cacheDir, "nn-$name")
         runCatching { temp.delete() }
