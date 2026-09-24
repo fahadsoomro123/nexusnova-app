@@ -99,6 +99,20 @@ jobs:
           set -euo pipefail
           gradle --no-daemon :app:assembleRelease
 
+      - name: Read release version
+        id: release_version
+        working-directory: NexusNovaAndroid
+        run: |
+          set -euo pipefail
+          VERSION_NAME="$(grep -m1 versionName app/build.gradle.kts | cut -d'"' -f2)"
+          VERSION_CODE="$(grep -m1 versionCode app/build.gradle.kts | tr -cd '0-9')"
+          test -n "$VERSION_NAME"
+          test -n "$VERSION_CODE"
+          echo "Release version: $VERSION_NAME ($VERSION_CODE)"
+          echo "name=NexusNova-v${VERSION_NAME}-BOOTSTRAP" >> "$GITHUB_OUTPUT"
+          echo "version_name=${VERSION_NAME}" >> "$GITHUB_OUTPUT"
+          echo "version_code=${VERSION_CODE}" >> "$GITHUB_OUTPUT"
+
       - name: Sign and verify bootstrap APK
         if: always()
         working-directory: NexusNovaAndroid
@@ -130,26 +144,27 @@ jobs:
           test -x "$ZIPALIGN"
 
           rm -rf bootstrap-output
+          ARTIFACT_BASE="NexusNova-v${VERSION_NAME}-BOOTSTRAP"
           mkdir -p bootstrap-output
           "$ZIPALIGN" -p -f 4 "$unsigned" bootstrap-output/unaligned-signed.apk
-          "$APKSIGNER" sign             --ks /tmp/nexusnova-release.jks             --ks-pass "pass:$KEYSTORE_PASSWORD"             --ks-key-alias "$KEY_ALIAS"             --key-pass "pass:$KEY_PASSWORD"             --out bootstrap-output/NexusNova-v1.0.24-OTA12-NATIVE-FIX-BOOTSTRAP.apk             bootstrap-output/unaligned-signed.apk
+          "$APKSIGNER" sign             --ks /tmp/nexusnova-release.jks             --ks-pass "pass:$KEYSTORE_PASSWORD"             --ks-key-alias "$KEY_ALIAS"             --key-pass "pass:$KEY_PASSWORD"             --out bootstrap-output/${ARTIFACT_BASE}.apk             bootstrap-output/unaligned-signed.apk
 
-          "$APKSIGNER" verify --verbose --print-certs bootstrap-output/NexusNova-v1.0.24-OTA12-NATIVE-FIX-BOOTSTRAP.apk
+          "$APKSIGNER" verify --verbose --print-certs bootstrap-output/${ARTIFACT_BASE}.apk
 
           d="$(mktemp -d)"
           trap 'rm -rf "$d"' EXIT
-          unzip -q bootstrap-output/NexusNova-v1.0.24-OTA12-NATIVE-FIX-BOOTSTRAP.apk             'assets/www/index.html'             'assets/www/src/features/apps/ai-video-studio-flagship.js'             -d "$d"
+          unzip -q bootstrap-output/${ARTIFACT_BASE}.apk             'assets/www/index.html'             'assets/www/src/features/apps/ai-video-studio-flagship.js'             -d "$d"
 
           grep -Fq 'nx-video-file-input' "$d/assets/www/src/features/apps/ai-video-studio-flagship.js"
           echo "PASS — signed bootstrap APK verified with native media-fix source."
 
-          sha256sum bootstrap-output/NexusNova-v1.0.24-OTA12-NATIVE-FIX-BOOTSTRAP.apk > bootstrap-output/NexusNova-v1.0.24-OTA12-NATIVE-FIX-BOOTSTRAP.apk.sha256
+          sha256sum bootstrap-output/${ARTIFACT_BASE}.apk > bootstrap-output/${ARTIFACT_BASE}.apk.sha256
 
       - name: Upload signed OTA12 bootstrap APK
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: NexusNova-v1.0.24-OTA12-NATIVE-FIX-BOOTSTRAP
+          name: ${{ steps.release_version.outputs.name }}
           path: NexusNovaAndroid/bootstrap-output/*
           if-no-files-found: error
           retention-days: 14
