@@ -1,5 +1,6 @@
 import { icon } from '../../components/icons.js';
 import { novaApps } from '../hub/app-registry.js';
+import { renderAiVideoStudio } from './ai-video-studio-flagship.js';
 
 let cleanup = null;
 const AI_PHOTO_ID = 'ai-photo-studio';
@@ -72,12 +73,7 @@ async function resolveRenderer(id) {
   // Flagship video route loads directly so a broken/slow aggregate renderer
   // bundle cannot fall back to the generic migration screen.
   if (id === 'ai-video-studio') {
-    try {
-      const module = await import('./ai-video-studio-flagship.js');
-      if (typeof module?.renderAiVideoStudio === 'function') return module.renderAiVideoStudio;
-    } catch (error) {
-      console.warn('[NexusNova Fresh] direct AI Video Studio flagship load failed:', error);
-    }
+    return renderAiVideoStudio;
   }
   for (const [path, exportName] of rendererSources) {
     const bag = await loadRendererBag(path, exportName);

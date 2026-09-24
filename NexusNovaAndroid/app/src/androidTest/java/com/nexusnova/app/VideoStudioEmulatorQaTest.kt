@@ -130,7 +130,22 @@ class VideoStudioEmulatorQaTest {
 
         val opened = activity?.qaEvaluateJavascript("window.NexusNovaFresh.openAppDirectForQa('ai-video-studio'); 'opened'")?.contains("opened") == true
         assertTrue("Direct Video Studio QA route did not execute", opened)
-        waitQa(30_000L) { qaEval("document.querySelector('.nx-video-flagship') ? 'ready' : ''") == "ready" }
+        try {
+            waitQa(30_000L) { qaEval("document.querySelector('.nx-video-flagship') ? 'ready' : ''") == "ready" }
+        } catch (error: Throwable) {
+            val diagnostic = qaEval(
+                """JSON.stringify({
+                    url: location.href,
+                    route: document.querySelector('#nx-stage')?.dataset.route || '',
+                    readyState: document.readyState,
+                    bodyText: (document.body?.innerText || '').slice(0, 1200),
+                    stageHtml: (document.querySelector('#nx-stage')?.innerHTML || '').slice(0, 3000),
+                    appMountHtml: (document.querySelector('[data-app-mount]')?.innerHTML || '').slice(0, 3000)
+                })"""
+            )
+            println("[HARD-QA-DIAGNOSTIC] $diagnostic")
+            throw error
+        }
     }
 
     private fun currentMainActivity(): MainActivity? {
