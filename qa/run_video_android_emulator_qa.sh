@@ -13,11 +13,20 @@ mkdir -p "$RESULTS_DIR"
 rm -f "$RUNNER_OUTPUT"
 
 set +e
-gradle --no-daemon :app:connectedDebugAndroidTest \
-  -Pandroid.testInstrumentationRunnerArguments.class=com.nexusnova.app.VideoStudioEmulatorQaTest \
-  --stacktrace > "$RUNNER_OUTPUT" 2>&1
+timeout --signal=TERM --kill-after=30s 12m \
+  gradle --no-daemon :app:connectedDebugAndroidTest \
+    -Pandroid.testInstrumentationRunnerArguments.class=com.nexusnova.app.VideoStudioEmulatorQaTest \
+    --stacktrace > "$RUNNER_OUTPUT" 2>&1
 status=$?
 set -e
+
+if [ "$status" -eq 124 ] || [ "$status" -eq 137 ]; then
+  echo "Android instrumentation exceeded the 12-minute hard runtime limit."
+  echo "Dumping focused device state and recent logcat before failing."
+  adb shell dumpsys activity activities | tail -n 160 || true
+  adb shell dumpsys window windows | tail -n 160 || true
+  adb logcat -d -v threadtime -t 4000 > "$RESULTS_DIR/logcat-timeout.txt" || true
+fi
 
 cat "$RUNNER_OUTPUT"
 cp -R app/build/outputs/androidTest-results "$RESULTS_DIR/" || true
