@@ -4,6 +4,7 @@ set -u
 RESULTS_DIR="$GITHUB_WORKSPACE/qa/android-emulator-results"
 RUNNER_OUTPUT="$RESULTS_DIR/connected-test.txt"
 
+adb start-server >/dev/null 2>&1 || true
 adb wait-for-device
 adb shell getprop sys.boot_completed
 adb uninstall com.nexusnova.app || true
