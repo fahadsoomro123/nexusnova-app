@@ -1,3 +1,4 @@
+# ISOLATED QA GROUP 2: same source, fresh Android emulator configuration.
 # FINAL QA RUN MARKER: isolated Android emulator verification on the same release source.
 #!/usr/bin/env bash
 set -u
