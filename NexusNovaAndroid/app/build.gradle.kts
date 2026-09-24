@@ -16,8 +16,8 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         minSdk = 26
         targetSdk = 36
-        versionCode = 27000042
-        versionName = "1.0.42-OTA12-native-fix"
+        versionCode = 27000043
+        versionName = "1.0.43-VideoStudio-Flagship-V2"
     }
 
     buildTypes {
