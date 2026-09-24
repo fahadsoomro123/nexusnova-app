@@ -78,8 +78,8 @@ class VideoStudioEmulatorQaTest {
         gate("Imported video is rendered as a real timeline item after picker return")
 
         val playback = qaEval("JSON.stringify({visible:!!document.querySelector('[data-play]:not(.nx-video-hidden)'), aria:document.querySelector('[data-play]')?.getAttribute('aria-label')||'', source:document.querySelector('[data-main-video]')?.getAttribute('src')||''})")
-        assertTrue("Playback control is missing after import", playback.contains(""visible":true"))
-        assertTrue("Imported video has no preview source", playback.contains(""source":"blob:"))
+        assertTrue("Playback control is missing after import", playback.contains("\"visible\":true"))
+        assertTrue("Imported video has no preview source", playback.contains("\"source\":\"blob:"))
         assertTrue("Playback control lacks its actionable label", playback.contains("Play or pause"))
         gate("Imported video preview and playback control are live")
 
@@ -143,7 +143,7 @@ class VideoStudioEmulatorQaTest {
     private fun qaEval(script: String, timeoutMs: Long = 5_000L): String {
         val activity = currentMainActivity() ?: return ""
         val raw = activity.qaEvaluateJavascript(script, timeoutMs) ?: return ""
-        return raw.trim().trim('"').replace("\\"", """)
+        return raw.trim().trim('"').replace("\\\"", "\"")
     }
 
     private fun waitQa(timeoutMs: Long, predicate: () -> Boolean) {
@@ -173,7 +173,7 @@ class VideoStudioEmulatorQaTest {
     }
 
     private fun String.quoteJs(): String =
-        "'" + replace("\", "\\").replace("'", "\'") + "'"
+        "'" + replace("\\", "\\\\").replace("'", "\\'") + "'"
 
     private fun publishVideoFixture(name: String, mime: String, webm: Boolean) {
         val temp = File(context.cacheDir, "nn-$name")
