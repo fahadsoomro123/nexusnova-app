@@ -222,6 +222,7 @@ jobs:
           }
 
           // Export one short image clip to verify browser-native output wiring.
+          await page.locator('[data-tool="edit"]').click();
           await page.locator('.nx-video-clip[data-id]').first().click();
           await page.locator('[data-out]').fill('0.3');
           await page.locator('[data-out]').dispatchEvent('change');
