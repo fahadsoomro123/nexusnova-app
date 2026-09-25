@@ -128,6 +128,14 @@ class VideoStudioEmulatorQaTest {
         assertTrue("MainActivity WebView did not expose the QA bridge", activity != null)
         assertTrue("NexusNovaFresh bootstrap never became available", activity?.qaEvaluateJavascript("typeof window.NexusNovaFresh !== 'undefined'") == "true")
 
+        // Do not race the app's normal boot sequence. The DEBUG bridge is exposed
+        // before the splash/auth route finishes, so a direct route call can be
+        // overwritten by boot(). Wait until boot has mounted its first real route.
+        waitQa(15_000L) {
+            val route = qaEval("document.querySelector('#nx-stage')?.dataset.route || ''")
+            route == "auth" || route == "mine" || route == "hub"
+        }
+
         val opened = activity?.qaEvaluateJavascript("window.NexusNovaFresh.openAppDirectForQa('ai-video-studio'); 'opened'")?.contains("opened") == true
         assertTrue("Direct Video Studio QA route did not execute", opened)
         try {
