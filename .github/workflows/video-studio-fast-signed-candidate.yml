@@ -2,11 +2,6 @@ name: Video Studio Fast Signed Candidate
 
 on:
   push:
-    paths:
-      - "fresh-rebuild/src/features/apps/ai-video-studio-flagship.js"
-      - "fresh-rebuild/src/features/apps/app-screen.js"
-      - "NexusNovaAndroid/app/**"
-      - "NexusNovaAndroid/gradle/**"
 
 concurrency:
   group: video-studio-signed-candidate-${{ github.ref }}
