@@ -1,0 +1,119 @@
+name: Video Studio Fast Signed Candidate
+
+on:
+  push:
+    paths:
+      - "fresh-rebuild/src/features/apps/ai-video-studio-flagship.js"
+      - "fresh-rebuild/src/features/apps/app-screen.js"
+      - "NexusNovaAndroid/app/**"
+      - "NexusNovaAndroid/gradle/**"
+
+concurrency:
+  group: video-studio-signed-candidate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-signed-candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle caching
+        uses: gradle/actions/setup-gradle@v5
+        with:
+          gradle-version: "8.13"
+
+      - name: Apply build-only missing caller strings
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("NexusNovaAndroid/app/src/main/res/values/strings.xml")
+          text = p.read_text(encoding="utf-8")
+          additions = '''
+              <string name="caller_setup_title">Caller ID</string>
+              <string name="caller_setup_body">Enable Caller ID to use the Android call-screening feature.</string>
+              <string name="enable_caller_id">ENABLE CALLER ID</string>
+          '''
+          if 'name="caller_setup_title"' not in text:
+              p.write_text(text.replace("</resources>", additions + "\n</resources>"), encoding="utf-8")
+          PY
+
+      - name: Build release APK
+        working-directory: NexusNovaAndroid
+        run: |
+          set -euo pipefail
+          gradle --no-daemon :app:assembleRelease
+
+      - name: Sign and verify candidate APK
+        working-directory: NexusNovaAndroid
+        env:
+          KEYSTORE_B64: ${{ secrets.NEXUSNOVA_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.NEXUSNOVA_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.NEXUSNOVA_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.NEXUSNOVA_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$KEYSTORE_B64"
+          test -n "$KEYSTORE_PASSWORD"
+          test -n "$KEY_ALIAS"
+          test -n "$KEY_PASSWORD"
+
+          printf '%s' "$KEYSTORE_B64" | base64 -d > /tmp/nexusnova-release.jks
+          keytool -list -keystore /tmp/nexusnova-release.jks -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
+
+          unsigned="$(find app/build/outputs/apk/release -maxdepth 1 -type f -name 'app-release-unsigned.apk' -print -quit)"
+          if [ -z "$unsigned" ]; then
+            unsigned="$(find app/build/outputs/apk/release -maxdepth 1 -type f -name 'app-release.apk' -print -quit)"
+          fi
+          test -n "$unsigned" && test -s "$unsigned"
+
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
+          ZIPALIGN="$(find "$ANDROID_HOME/build-tools" -type f -name zipalign | sort -V | tail -1)"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)"
+          test -x "$APKSIGNER" && test -x "$ZIPALIGN" && test -x "$AAPT"
+
+          badging="$("$AAPT" dump badging "$unsigned" | head -n 1)"
+          echo "$badging"
+          echo "$badging" | grep -Fq "versionCode='27000043'"
+          echo "$badging" | grep -Fq "versionName='1.0.43-VideoStudio-Flagship-V2'"
+
+          rm -rf bootstrap-output
+          mkdir -p bootstrap-output
+          artifact="NexusNova-v1.0.43-VideoStudio-Flagship-V2-CANDIDATE.apk"
+
+          "$ZIPALIGN" -p -f 4 "$unsigned" bootstrap-output/unaligned.apk
+          "$APKSIGNER" sign             --ks /tmp/nexusnova-release.jks             --ks-pass "pass:$KEYSTORE_PASSWORD"             --ks-key-alias "$KEY_ALIAS"             --key-pass "pass:$KEY_PASSWORD"             --out "bootstrap-output/$artifact"             bootstrap-output/unaligned.apk
+
+          certs="$("$APKSIGNER" verify --verbose --print-certs "bootstrap-output/$artifact" 2>&1)"
+          printf '%s\n' "$certs"
+          printf '%s\n' "$certs" | tr '[:upper:]' '[:lower:]' | grep -Fq "30052faf26f112d88d48061b88e6a698371ef0cdc4203122a9350529405a716c"
+
+          signed_badging="$("$AAPT" dump badging "bootstrap-output/$artifact" | head -n 1)"
+          echo "$signed_badging"
+          echo "$signed_badging" | grep -Fq "versionCode='27000043'"
+          echo "$signed_badging" | grep -Fq "versionName='1.0.43-VideoStudio-Flagship-V2'"
+
+          unzip -q "bootstrap-output/$artifact"             'assets/www/src/features/apps/ai-video-studio-flagship.js'             -d verify-unpacked
+          grep -Fq 'nx-video-file-input' verify-unpacked/assets/www/src/features/apps/ai-video-studio-flagship.js
+
+          sha256sum "bootstrap-output/$artifact" > "bootstrap-output/$artifact.sha256"
+          rm -rf verify-unpacked
+          echo "PASS — signed Video Studio 1.0.43 candidate verified."
+
+      - name: Upload signed candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: NexusNova-v1.0.43-VideoStudio-Flagship-V2-CANDIDATE
+          path: NexusNovaAndroid/bootstrap-output/*
+          if-no-files-found: error
+          retention-days: 14
