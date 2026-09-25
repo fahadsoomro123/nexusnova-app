@@ -3,13 +3,9 @@ package com.nexusnova.app
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.Paint
-import android.media.MediaRecorder
 import android.os.Environment
 import android.provider.MediaStore
+import android.util.Base64
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
@@ -228,83 +224,14 @@ class VideoStudioEmulatorQaTest {
     }
 
     private fun publishVideoFixture(name: String, mime: String, webm: Boolean) {
-        val temp = File(context.cacheDir, "nn-$name")
-        runCatching { temp.delete() }
-        generateVideoFixture(
-            temp,
-            webm = webm,
-            durationMs = 1_200L,
-            width = 320,
-            height = 180,
-            bitrate = 700_000
-        )
-        try {
-            publishDownload(name, mime) { out ->
-                temp.inputStream().use { input -> input.copyTo(out) }
-            }
-        } finally {
-            temp.delete()
-        }
+        assertTrue("WebM fixture type mismatch", webm)
+        val bytes = Base64.decode(WEBM_FIXTURE_BASE64, Base64.DEFAULT)
+        assertTrue("Static WebM fixture is empty", bytes.isNotEmpty())
+        publishDownload(name, mime) { out -> out.write(bytes) }
     }
 
-    private fun generateVideoFixture(
-        file: File,
-        webm: Boolean,
-        durationMs: Long,
-        width: Int,
-        height: Int,
-        bitrate: Int
-    ) {
-        val recorder = MediaRecorder()
-        var surface: android.view.Surface? = null
-        try {
-            recorder.setVideoSource(MediaRecorder.VideoSource.SURFACE)
-            recorder.setOutputFormat(
-                if (webm) MediaRecorder.OutputFormat.WEBM
-                else MediaRecorder.OutputFormat.MPEG_4
-            )
-            recorder.setVideoEncoder(
-                if (webm) MediaRecorder.VideoEncoder.VP8
-                else MediaRecorder.VideoEncoder.H264
-            )
-            recorder.setVideoSize(width, height)
-            recorder.setVideoFrameRate(20)
-            recorder.setVideoEncodingBitRate(bitrate)
-            recorder.setOutputFile(file.absolutePath)
-            recorder.prepare()
-            recorder.start()
-            surface = recorder.surface
-
-            val endAt = System.currentTimeMillis() + durationMs
-            var frame = 0
-            while (System.currentTimeMillis() < endAt) {
-                val canvas = surface.lockCanvas(null)
-                try {
-                    canvas.drawColor(
-                        when (frame % 3) {
-                            0 -> Color.rgb(22, 18, 30)
-                            1 -> Color.rgb(108, 76, 255)
-                            else -> Color.rgb(38, 180, 160)
-                        }
-                    )
-                } finally {
-                    surface.unlockCanvasAndPost(canvas)
-                }
-                frame++
-                Thread.sleep(45L)
-            }
-
-            recorder.stop()
-            assertTrue(
-                "Generated video fixture is empty: $file",
-                file.isFile && file.length() > 0L
-            )
-        } finally {
-            runCatching { surface?.release() }
-            runCatching { recorder.reset() }
-            runCatching { recorder.release() }
-            runCatching { file.deleteOnExit() }
-        }
+    companion object {
+        private const val WEBM_FIXTURE_BASE64 = "$b64"
     }
 
     private fun publishDownload(
