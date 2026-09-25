@@ -19,6 +19,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 55
 
+    env:
+      # Prevent emulator-runner cleanup from holding the job indefinitely.
+      ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL: "30"
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -75,6 +79,7 @@ jobs:
           fi
 
       - name: Run real Android emulator QA
+        timeout-minutes: 20
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
@@ -82,7 +87,7 @@ jobs:
           arch: x86_64
           profile: Nexus 6
           force-avd-creation: true
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot -camera-back none -camera-front none
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-save -camera-back none -camera-front none
           disable-animations: true
           emulator-boot-timeout: 300
           working-directory: NexusNovaAndroid
