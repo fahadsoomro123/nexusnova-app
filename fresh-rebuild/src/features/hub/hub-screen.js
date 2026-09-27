@@ -3,7 +3,7 @@ import { hubApps } from './app-registry.js';
 const hubState = { scrollY: 0, lastAppId: '', query: '' };
 let restoreOnNextRender = false;
 const HIDDEN_HUB_APP_IDS = new Set(['nova-track']);
-const ICON_ONLY_HUB_APP_IDS = new Set(['travel']);
+const ICON_ONLY_HUB_APP_IDS = new Set();
 
 export function requestHubReturnRestore() {
   restoreOnNextRender = true;
@@ -52,7 +52,7 @@ export function hubScreen({ openApp } = {}) {
         ${filtered.map(app => {
           const isLastOpened = app.id === hubState.lastAppId;
           return `
-            <button class="nx-app-card${isLastOpened ? ' is-last-opened' : ''}" type="button" data-app-id="${app.id}"${isLastOpened ? ' data-last-opened="true"' : ''} aria-label="${ICON_ONLY_HUB_APP_IDS.has(app.id) ? app.name : `Open ${app.name}`}">
+            <button class="nx-app-card${isLastOpened ? ' is-last-opened' : ''}" type="button" data-app-id="${app.id}"${isLastOpened ? ' data-last-opened="true"' : ''} aria-label="Open ${app.name}">
               <span class="nx-app-card__icon" aria-hidden="true">
                 <img src="${hubIconPath(app.id)}" alt="" width="192" height="192" loading="lazy" decoding="async" draggable="false">
               </span>
@@ -66,7 +66,6 @@ export function hubScreen({ openApp } = {}) {
     content.querySelectorAll('[data-app-id]').forEach(button => {
       button.addEventListener('click', () => {
         const appId = button.dataset.appId;
-        if (ICON_ONLY_HUB_APP_IDS.has(appId)) return;
         hubState.scrollY = currentScrollY();
         hubState.lastAppId = appId;
         content.querySelectorAll('.is-last-opened').forEach(card => {
