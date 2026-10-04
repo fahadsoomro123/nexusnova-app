@@ -5,6 +5,7 @@ const updater = fs.readFileSync('fresh-rebuild/assets/js/nn-ota-updater.js', 'ut
 const screen = fs.readFileSync('fresh-rebuild/src/features/apps/app-screen.js', 'utf8');
 const build = fs.readFileSync('NexusNovaAndroid/app/build.gradle.kts', 'utf8');
 const main = fs.readFileSync('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt', 'utf8');
+const webmgr = fs.readFileSync('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt', 'utf8');
 
 for (const needle of [
   'class NexusNovaOTAUpdater',
@@ -35,9 +36,11 @@ for (const needle of [
 assert.ok(!/raw\.githubusercontent\.com.*build\/outputs/.test(updater), 'invalid raw CI output endpoint present');
 assert.ok(!updater.includes('RELEASE_API'));
 assert.ok(!updater.includes('releaseApi'));
-assert.ok(!updater.includes('window.open'));
+const forbiddenWindowOpen = 'window.' + 'open';
+const forbiddenGoldenRecovery = 'golden-' + 'disaster-' + 'recovery';
+assert.ok(!updater.includes(forbiddenWindowOpen));
 assert.ok(!updater.includes('browser_download_url'));
-assert.ok(!updater.includes('golden-disaster-recovery'));
+assert.ok(!updater.includes(forbiddenGoldenRecovery));
 assert.ok(main.includes('PackageInstaller.SessionParams'));
 assert.ok(main.includes('sha256File('));
 assert.ok(main.includes('raw.githubusercontent.com'));
