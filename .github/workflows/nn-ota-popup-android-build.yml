@@ -134,6 +134,7 @@ jobs:
           echo "OTA_VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
           echo "OTA_VERSION_NAME=$VERSION_NAME" >> "$GITHUB_ENV"
           echo "OTA_SHA256=$SHA256" >> "$GITHUB_ENV"
+          echo "OTA_APK_SIZE_BYTES=$APK_SIZE_BYTES" >> "$GITHUB_ENV"
           echo "OTA_APK_SIZE_BYTES=$APK_SIZE_BYTES"
           echo "APK_SHA256=$SHA256"
 
