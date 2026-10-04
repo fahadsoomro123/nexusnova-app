@@ -1,6 +1,7 @@
 import { icon } from '../../components/icons.js';
 import { novaApps } from '../hub/app-registry.js';
 import { enhanceAiVideoStudio } from './nn-video-studio-upgrade.js';
+import { NexusNovaOTAUpdater } from '../../assets/js/nn-ota-updater.js';
 
 let cleanup = null;
 const AI_PHOTO_ID = 'ai-photo-studio';
@@ -264,12 +265,14 @@ export async function appScreen({ id, backToHub, backToMine } = {}) {
       void enhanceAppSafely(id, body);
       if (aiPhotoRoute) document.body.classList.add('nx-ai-photo-route-active');
       const novaSidebarCleanup = id === 'ai' ? installNovaPremiumSidebar(root, body) : () => {};
+      const otaUpdater = miningOwned ? null : new NexusNovaOTAUpdater({ feature: id === 'ai-video-studio' ? 'AI Video Studio' : 'NOVA HUB' });
       let cleaned = false;
       const bodyCleanup = () => {
         if (cleaned) return;
         cleaned = true;
         if (aiPhotoRoute) document.body.classList.remove('nx-ai-photo-route-active');
         novaSidebarCleanup();
+        otaUpdater?.destroy();
         try { window.speechSynthesis?.cancel?.(); } catch {}
         body.__nnVideoTimelineCleanup?.();
         body.__cleanup?.();
@@ -277,6 +280,11 @@ export async function appScreen({ id, backToHub, backToMine } = {}) {
       };
       cleanup = bodyCleanup;
       root.__cleanup = bodyCleanup;
+      if (otaUpdater) {
+        void otaUpdater.checkAndNotify().catch(error => {
+          if (error?.name !== 'AbortError') console.warn('[NexusNova Fresh] OTA notice skipped:', error);
+        });
+      }
     } catch (error) {
       if (aiPhotoRoute) document.body.classList.remove('nx-ai-photo-route-active');
       console.error(`[NexusNova Fresh] ${id} renderer:`, error);

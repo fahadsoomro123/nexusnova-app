@@ -18,6 +18,8 @@ android {
         targetSdk = 35
         versionCode = 12021
         versionName = "1.0.21-drive-history"
+        val nexusBuildCommit = System.getenv("GITHUB_SHA")?.trim()?.takeIf { Regex("^[0-9a-fA-F]{40}$").matches(it) } ?: "6adaa6c48b19ac12d09eb1f798d297c64029d7f6"
+        buildConfigField("String", "NEXUS_BUILD_COMMIT", "\"$nexusBuildCommit\"")
     }
 
     buildTypes {

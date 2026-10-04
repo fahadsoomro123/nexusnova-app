@@ -231,6 +231,13 @@ class MainActivity : AppCompatActivity() {
                 val target = view ?: return
                 val uri = url?.let { runCatching { Uri.parse(it) }.getOrNull() } ?: return
                 if (!isTrustedAppPage(uri) || usingOfflineFallback) return
+                if (isLocalOrigin(uri)) {
+                    val nativeInfo = JSONObject()
+                        .put("buildCommit", BuildConfig.NEXUS_BUILD_COMMIT)
+                        .put("versionCode", BuildConfig.VERSION_CODE)
+                        .put("versionName", BuildConfig.VERSION_NAME)
+                    target.evaluateJavascript("window.NexusNovaNativeInfo = " + nativeInfo + ";", null)
+                }
                 finishedWatchdogToken = mainFrameWatchdogToken
                 scheduleBlankScreenCheck(target, mainFrameWatchdogToken)
             }
