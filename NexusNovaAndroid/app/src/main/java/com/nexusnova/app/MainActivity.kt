@@ -1076,7 +1076,7 @@ class MainActivity : AppCompatActivity() {
             uri.encodedPath?.startsWith(expectedPrefix, ignoreCase = false) == true
     }
 
-    private fun bindLastPickedVideoMedia(message: JSONObject)
+    private fun bindLastPickedVideoMedia(message: JSONObject) {
         val requested = message.optJSONArray("files")
         val available = lastPickedVideoMedia
         if (requested == null || requested.length() == 0 || requested.length() != available.size) {
