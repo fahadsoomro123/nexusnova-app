@@ -8,6 +8,7 @@ on:
       - 'fresh-rebuild/src/features/apps/app-screen.js'
       - 'NexusNovaAndroid/app/build.gradle.kts'
       - 'NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt'
+      - 'NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt'
       - 'NexusNovaAndroid/app/src/main/AndroidManifest.xml'
       - 'NexusNovaAndroid/app/src/main/res/xml/file_paths.xml'
       - 'qa/nn-ota-updater-smoke.mjs'
@@ -38,7 +39,16 @@ jobs:
           fi
           echo 'Mining safe bounds: PASS'
           changed="$(git diff --name-only HEAD^ HEAD)"
-          allowed='^(.github/workflows/nn-ota-popup-(qa|android-build)\.yml|fresh-rebuild/assets/js/nn-ota-updater\.js|fresh-rebuild/src/features/apps/app-screen\.js|NexusNovaAndroid/app/build\.gradle\.kts|NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity\.kt|NexusNovaAndroid/app/src/main/AndroidManifest\.xml|NexusNovaAndroid/app/src/main/res/xml/file_paths\.xml|qa/nn-ota-updater-smoke\.mjs)$'
+          allowed='^(.github/workflows/nn-ota-popup-(qa|android-build)\.yml|fresh-rebuild/assets/js/nn-ota-updater\.js|fresh-rebuild/src/features/apps/app-screen\.js|NexusNovaAndroid/app/build\.gradle\.kts|NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity\.kt|NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager\.kt|NexusNovaAndroid/app/src/main/AndroidManifest\.xml|NexusNovaAndroid/app/src/main/res/xml/file_paths\.xml|qa/nn-ota-updater-smoke\.mjs)          unexpected="$(printf '%s\n' "$changed" | grep -Ev "$allowed" || true)"
+          if [ -n "$unexpected" ]; then
+            echo 'Unexpected modified files: FAIL'
+            printf '%s\n' "$unexpected"
+            exit 1
+          fi
+          echo 'Unexpected modified files: 0'
+      - name: OTA engine smoke
+        run: node qa/nn-ota-updater-smoke.mjs
+
           unexpected="$(printf '%s\n' "$changed" | grep -Ev "$allowed" || true)"
           if [ -n "$unexpected" ]; then
             echo 'Unexpected modified files: FAIL'

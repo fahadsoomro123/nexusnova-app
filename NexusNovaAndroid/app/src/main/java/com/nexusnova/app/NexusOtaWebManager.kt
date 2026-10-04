@@ -55,6 +55,7 @@ class NexusOtaWebManager(context: Context) {
 
         val relativePath = path.removePrefix(ASSET_PATH)
         if (!isSafeRelativePath(relativePath)) return null
+        if (relativePath == GLOBAL_OTA_UPDATER_PATH) return null
         val active = activeVersion().takeIf { it.isNotBlank() } ?: return null
         val root = File(versionsRoot, active)
         val file = safeChild(root, relativePath) ?: return null
@@ -349,6 +350,7 @@ class NexusOtaWebManager(context: Context) {
         const val ASSET_HOST = "appassets.androidplatform.net"
         const val ASSET_PATH = "/assets/www/"
         const val BUNDLED_WEB_BASE = "28ad58de566e42621dad6198aa01be885ccc9769"
+        const val GLOBAL_OTA_UPDATER_PATH = "assets/js/nn-ota-updater.js"
         const val MANIFEST_URL = "https://raw.githubusercontent.com/fahadsoomro123/nexusnova-website/nexusnova-ota-public/ota/manifest.json"
         const val FILE_BASE_URL = "https://raw.githubusercontent.com/fahadsoomro123/nexusnova-website/nexusnova-ota-public/ota/files/"
         const val CONNECT_TIMEOUT_MS = 8_000

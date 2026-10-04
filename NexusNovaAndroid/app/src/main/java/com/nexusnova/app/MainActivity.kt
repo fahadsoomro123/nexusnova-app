@@ -250,15 +250,22 @@ class MainActivity : AppCompatActivity() {
                 super.onPageFinished(view, url)
                 val target = view ?: return
                 val uri = url?.let { runCatching { Uri.parse(it) }.getOrNull() } ?: return
-                if (!isTrustedAppPage(uri) || usingOfflineFallback) return
-                if (isLocalOrigin(uri)) {
+                if (!isTrustedAppPage(uri)) return
+                if (isLocalOrigin(uri) || isProductionOrigin(uri)) {
                     val nativeInfo = JSONObject()
                         .put("buildCommit", BuildConfig.NEXUS_BUILD_COMMIT)
                         .put("versionCode", BuildConfig.VERSION_CODE)
                         .put("versionName", BuildConfig.VERSION_NAME)
-                    target.evaluateJavascript("window.NexusNovaNativeInfo = " + nativeInfo + ";", null)
-                    android.util.Log.i("NexusNovaDiagnostic", "runtimeBuildCommit=${BuildConfig.NEXUS_BUILD_COMMIT}; versionCode=${BuildConfig.VERSION_CODE}; versionName=${BuildConfig.VERSION_NAME}")
+                    target.evaluateJavascript(
+                        "window.NexusNovaNativeInfo = " + nativeInfo + ";" + GLOBAL_OTA_BOOT_SCRIPT,
+                        null
+                    )
+                    android.util.Log.i(
+                        "NexusNovaDiagnostic",
+                        "runtimeBuildCommit=${BuildConfig.NEXUS_BUILD_COMMIT}; versionCode=${BuildConfig.VERSION_CODE}; versionName=${BuildConfig.VERSION_NAME}"
+                    )
                 }
+                if (usingOfflineFallback) return
                 finishedWatchdogToken = mainFrameWatchdogToken
                 scheduleBlankScreenCheck(target, mainFrameWatchdogToken)
             }
@@ -1540,6 +1547,30 @@ class MainActivity : AppCompatActivity() {
         const val MAX_WEB_RECOVERY_ATTEMPTS = 1
         const val RENDERER_CRASH_RECOVERY_DELAY_MS = 1_500L
         const val MAX_RENDERER_CRASH_RECOVERIES = 1
+        const val GLOBAL_OTA_BOOT_SCRIPT = """
+            (function() {
+                if (window.__nexusNovaGlobalOtaStarted) return;
+                window.__nexusNovaGlobalOtaStarted = true;
+                try {
+                    var moduleUrl = new URL('./assets/js/nn-ota-updater.js', document.baseURI);
+                    moduleUrl.searchParams.set('startupOta', String(Date.now()));
+                    import(moduleUrl.href).then(function(module) {
+                        if (!module || typeof module.NexusNovaOTAUpdater !== 'function') {
+                            throw new Error('NexusNova OTA updater module unavailable');
+                        }
+                        var updater = new module.NexusNovaOTAUpdater({ feature: 'NexusNova' });
+                        window.__nexusNovaGlobalOtaUpdater = updater;
+                        return updater.checkAndNotify();
+                    }).catch(function(error) {
+                        window.__nexusNovaGlobalOtaStarted = false;
+                        console.warn('[NexusNova OTA] global startup check failed:', error);
+                    });
+                } catch (error) {
+                    window.__nexusNovaGlobalOtaStarted = false;
+                    console.warn('[NexusNova OTA] global startup bootstrap failed:', error);
+                }
+            })();
+        """
         const val SYSTEM_BACK_SCRIPT = """
             (function(){
               try {

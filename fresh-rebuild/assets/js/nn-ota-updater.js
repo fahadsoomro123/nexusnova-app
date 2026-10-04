@@ -272,9 +272,11 @@ export class NexusNovaOTAUpdater {
     const card = document.createElement('div');
     card.className = 'nn-ota-card';
     const badge = document.createElement('div'); badge.className = 'nn-ota-badge'; badge.textContent = 'UPDATE';
-    const title = document.createElement('h2'); title.textContent = (this.feature === 'AI Video Studio' ? 'New AI Video Studio Update Available' : 'New NOVA HUB Update Available') + ' (v' + update.shortSha + ')';
+    const title = document.createElement('h2');
+    const globalTitle = this.feature === 'NexusNova';
+    title.textContent = (globalTitle ? 'New NexusNova Update Available' : this.feature === 'AI Video Studio' ? 'New AI Video Studio Update Available' : 'New NOVA HUB Update Available') + ' (v' + update.shortSha + ')';
     const copy = document.createElement('p');
-    copy.textContent = this.feature === 'AI Video Studio' ? 'Please update to continue.' : 'A newer NexusNova build is available. Please update to continue.';
+    copy.textContent = globalTitle ? 'A newer NexusNova build is available. Please update to continue.' : this.feature === 'AI Video Studio' ? 'Please update to continue.' : 'A newer NexusNova build is available. Please update to continue.';
     const meta = document.createElement('div'); meta.className = 'nn-ota-meta';
     meta.textContent = 'commit: ' + update.latestCommit + (update.versionName ? ' • ' + update.versionName : '');
     const updateButton = document.createElement('button'); updateButton.className = 'nn-ota-update'; updateButton.type = 'button'; updateButton.textContent = 'Update Now';
