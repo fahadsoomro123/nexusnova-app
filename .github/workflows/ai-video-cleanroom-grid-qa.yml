@@ -1,4 +1,4 @@
-name: AI Video Clean-Room Grid QA
+name: AI Video Clean-Room Grid QA v2
 on:
   push:
     branches: [agent/ai-video-capability-parity-20261004]
