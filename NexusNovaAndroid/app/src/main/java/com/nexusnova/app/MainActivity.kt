@@ -54,14 +54,8 @@ class MainActivity : AppCompatActivity() {
             Thread(runnable, "NexusNovaOtaInstall").apply { isDaemon = true }
         }
     }
-    private val otaStartupExecutor by lazy {
-        Executors.newSingleThreadExecutor { runnable ->
-            Thread(runnable, "NexusNovaOtaStartup").apply { isDaemon = true }
-        }
-    }
     @Volatile private var otaDownloadConnection: HttpURLConnection? = null
     @Volatile private var otaInstallFuture: Future<*>? = null
-    @Volatile private var otaStartupDialogShown = false
     @Volatile private var otaInstallSessionId: Int = -1
     @Volatile private var otaInstallCommitted = false
 
@@ -171,8 +165,6 @@ class MainActivity : AppCompatActivity() {
         webView = WebView(this)
         setContentView(webView)
 
-        checkForNativeOtaUpdateAtStartup()
-
         configureWebView()
         try {
             installNativeMessageListener()
@@ -257,15 +249,12 @@ class MainActivity : AppCompatActivity() {
                 val target = view ?: return
                 val uri = url?.let { runCatching { Uri.parse(it) }.getOrNull() } ?: return
                 if (!isTrustedAppPage(uri)) return
-                if (isLocalOrigin(uri) || isProductionOrigin(uri)) {
+                if (isLocalOrigin(uri)) {
                     val nativeInfo = JSONObject()
                         .put("buildCommit", BuildConfig.NEXUS_BUILD_COMMIT)
                         .put("versionCode", BuildConfig.VERSION_CODE)
                         .put("versionName", BuildConfig.VERSION_NAME)
-                    target.evaluateJavascript(
-                        "window.NexusNovaNativeInfo = " + nativeInfo + ";" + GLOBAL_OTA_BOOT_SCRIPT,
-                        null
-                    )
+                    target.evaluateJavascript("window.NexusNovaNativeInfo = " + nativeInfo + ";", null)
                     android.util.Log.i(
                         "NexusNovaDiagnostic",
                         "runtimeBuildCommit=${BuildConfig.NEXUS_BUILD_COMMIT}; versionCode=${BuildConfig.VERSION_CODE}; versionName=${BuildConfig.VERSION_NAME}"
@@ -1059,104 +1048,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private data class StartupOtaMetadata(
-        val sourceCommit: String,
-        val versionCode: Long,
-        val versionName: String,
-        val sha256: String,
-        val apkUrl: String
-    )
-
-    private fun checkForNativeOtaUpdateAtStartup() {
-        otaStartupExecutor.execute {
-            try {
-                val connection = (URL(OTA_MANIFEST_URL).openConnection() as HttpURLConnection).apply {
-                    connectTimeout = OTA_STARTUP_CONNECT_TIMEOUT_MS
-                    readTimeout = OTA_STARTUP_READ_TIMEOUT_MS
-                    instanceFollowRedirects = true
-                    useCaches = false
-                    defaultUseCaches = false
-                    setRequestProperty("User-Agent", "NexusNova-Android-Startup-OTA/1")
-                    setRequestProperty("Cache-Control", "no-cache, no-store, max-age=0")
-                    setRequestProperty("Pragma", "no-cache")
-                }
-                val manifestText = try {
-                    connection.connect()
-                    if (connection.responseCode !in 200..299) {
-                        throw java.io.IOException("OTA manifest HTTP ${connection.responseCode}")
-                    }
-                    if (connection.contentLengthLong > OTA_STARTUP_MAX_MANIFEST_BYTES) {
-                        throw java.io.IOException("OTA manifest is too large")
-                    }
-                    connection.inputStream.use { input ->
-                        input.readBytesLimited(OTA_STARTUP_MAX_MANIFEST_BYTES).toString(Charsets.UTF_8)
-                    }
-                } finally {
-                    connection.disconnect()
-                }
-
-                val manifest = JSONObject(manifestText)
-                val metadata = StartupOtaMetadata(
-                    sourceCommit = manifest.optString("sourceCommit").trim().lowercase(Locale.ROOT),
-                    versionCode = manifest.optLong("versionCode", 0L),
-                    versionName = manifest.optString("versionName").trim(),
-                    sha256 = manifest.optString("sha256").trim().lowercase(Locale.ROOT),
-                    apkUrl = manifest.optString("apkUrl").trim()
-                )
-                val currentCommit = BuildConfig.NEXUS_BUILD_COMMIT.trim().lowercase(Locale.ROOT)
-                val apkUri = runCatching { Uri.parse(metadata.apkUrl) }.getOrNull()
-                val updateAvailable =
-                    manifest.optInt("schema", 0) == OTA_MANIFEST_SCHEMA &&
-                        manifest.optString("packageName").trim() == packageName &&
-                        metadata.sourceCommit.matches(SHA40_REGEX) &&
-                        metadata.sourceCommit != currentCommit &&
-                        metadata.versionCode > BuildConfig.VERSION_CODE.toLong() &&
-                        metadata.versionCode > 0L &&
-                        metadata.versionName.isNotBlank() &&
-                        Regex("^[0-9a-f]{64}$").matches(metadata.sha256) &&
-                        apkUri != null &&
-                        isAllowedOtaDownloadUri(apkUri)
-
-                if (!updateAvailable || otaStartupDialogShown) return@execute
-
-                runOnUiThread {
-                    if (!isFinishing && !isDestroyed && !otaStartupDialogShown) {
-                        showStartupOtaDialog(metadata)
-                    }
-                }
-            } catch (error: Throwable) {
-                android.util.Log.i("NexusNovaOTA", "Native startup update check unavailable: ${error.message}")
-            }
-        }
-    }
-
-    private fun showStartupOtaDialog(metadata: StartupOtaMetadata) {
-        if (otaStartupDialogShown || isFinishing || isDestroyed) return
-        otaStartupDialogShown = true
-
-        android.app.AlertDialog.Builder(this)
-            .setTitle("New NexusNova Update Available")
-            .setMessage(
-                "Version ${metadata.versionName} is ready.\n\n" +
-                    "The signed update will download in the background and open the Android system installer. " +
-                    "No browser or GitHub release page is used."
-            )
-            .setNegativeButton("Later") { dialog, _ ->
-                dialog.dismiss()
-            }
-            .setPositiveButton("Update Now") { dialog, _ ->
-                dialog.dismiss()
-                startNativeOtaInstall(
-                    JSONObject()
-                        .put("apkUrl", metadata.apkUrl)
-                        .put("expectedVersionCode", metadata.versionCode)
-                        .put("expectedSha256", metadata.sha256)
-                )
-            }
-            .setCancelable(true)
-            .show()
-    }
-
     private fun publishOtaInstallEvent(
         event: String,
         message: String? = null,
@@ -1176,20 +1067,6 @@ class MainActivity : AppCompatActivity() {
 
     private fun cleanupOtaCache() {
         runCatching { File(cacheDir, OTA_CACHE_DIR).deleteRecursively() }
-    }
-
-    private fun java.io.InputStream.readBytesLimited(maxBytes: Long): ByteArray {
-        val output = java.io.ByteArrayOutputStream()
-        val buffer = ByteArray(8 * 1024)
-        var total = 0L
-        while (true) {
-            val read = read(buffer)
-            if (read < 0) break
-            total += read
-            if (total > maxBytes) throw java.io.IOException("OTA manifest exceeded size limit")
-            output.write(buffer, 0, read)
-        }
-        return output.toByteArray()
     }
 
     private fun isAllowedOtaDownloadUri(uri: Uri): Boolean {
@@ -1563,7 +1440,6 @@ class MainActivity : AppCompatActivity() {
             otaDownloadConnection?.disconnect()
             otaDownloadConnection = null
         }
-        otaStartupExecutor.shutdownNow()
         otaInstallExecutor.shutdownNow()
         clearPendingWebCallbacks()
         super.onDestroy()
@@ -1624,13 +1500,6 @@ class MainActivity : AppCompatActivity() {
         const val OTA_MAX_APK_BYTES = 200L * 1024L * 1024L
         const val OTA_CONNECT_TIMEOUT_MS = 15_000
         const val OTA_READ_TIMEOUT_MS = 30_000
-        const val OTA_STARTUP_CONNECT_TIMEOUT_MS = 8_000
-        const val OTA_STARTUP_READ_TIMEOUT_MS = 12_000
-        const val OTA_STARTUP_MAX_MANIFEST_BYTES = 1L * 1024L * 1024L
-        const val OTA_MANIFEST_SCHEMA = 1
-        const val OTA_MANIFEST_URL = "https://raw.githubusercontent.com/fahadsoomro123/nexusnova-app/apk-builds/ota-bootstrap-safe/manifest.json"
-        val SHA40_REGEX = Regex("^[0-9a-f]{40}$")
-
         const val ACTION_OPEN_NOVA_VPN = "openNovaVpn"
         const val ACTION_OPEN_EXTERNAL = "openExternal"
         const val ACTION_SHOW_REWARDED_AD = "showRewardedAd"
@@ -1660,30 +1529,6 @@ class MainActivity : AppCompatActivity() {
         const val MAX_WEB_RECOVERY_ATTEMPTS = 1
         const val RENDERER_CRASH_RECOVERY_DELAY_MS = 1_500L
         const val MAX_RENDERER_CRASH_RECOVERIES = 1
-        const val GLOBAL_OTA_BOOT_SCRIPT = """
-            (function() {
-                if (window.__nexusNovaGlobalOtaStarted) return;
-                window.__nexusNovaGlobalOtaStarted = true;
-                try {
-                    var moduleUrl = new URL('./assets/js/nn-ota-updater.js', document.baseURI);
-                    moduleUrl.searchParams.set('startupOta', String(Date.now()));
-                    import(moduleUrl.href).then(function(module) {
-                        if (!module || typeof module.NexusNovaOTAUpdater !== 'function') {
-                            throw new Error('NexusNova OTA updater module unavailable');
-                        }
-                        var updater = new module.NexusNovaOTAUpdater({ feature: 'NexusNova' });
-                        window.__nexusNovaGlobalOtaUpdater = updater;
-                        return updater.checkAndNotify();
-                    }).catch(function(error) {
-                        window.__nexusNovaGlobalOtaStarted = false;
-                        console.warn('[NexusNova OTA] global startup check failed:', error);
-                    });
-                } catch (error) {
-                    window.__nexusNovaGlobalOtaStarted = false;
-                    console.warn('[NexusNova OTA] global startup bootstrap failed:', error);
-                }
-            })();
-        """
         const val SYSTEM_BACK_SCRIPT = """
             (function(){
               try {
