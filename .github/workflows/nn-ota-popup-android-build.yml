@@ -8,6 +8,7 @@ on:
       - 'fresh-rebuild/src/features/apps/app-screen.js'
       - 'NexusNovaAndroid/**'
       - '.github/workflows/nn-ota-popup-android-build.yml'
+      - 'qa/nn-ota-updater-smoke.mjs'
   workflow_dispatch:
 
 permissions:
