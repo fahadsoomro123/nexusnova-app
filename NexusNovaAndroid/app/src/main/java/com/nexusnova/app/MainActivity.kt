@@ -237,6 +237,7 @@ class MainActivity : AppCompatActivity() {
                         .put("versionCode", BuildConfig.VERSION_CODE)
                         .put("versionName", BuildConfig.VERSION_NAME)
                     target.evaluateJavascript("window.NexusNovaNativeInfo = " + nativeInfo + ";", null)
+                    android.util.Log.i("NexusNovaDiagnostic", "runtimeBuildCommit=${BuildConfig.NEXUS_BUILD_COMMIT}; versionCode=${BuildConfig.VERSION_CODE}; versionName=${BuildConfig.VERSION_NAME}")
                 }
                 finishedWatchdogToken = mainFrameWatchdogToken
                 scheduleBlankScreenCheck(target, mainFrameWatchdogToken)

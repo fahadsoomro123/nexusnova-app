@@ -19,7 +19,15 @@ for (const needle of [
   'const RELEASE_API',
   'latestCommit !== this.clientCommit',
   'Update Now',
-  'Please update to continue'
+  'Please update to continue',
+  'readInstalledBuildState()',
+  'fetchLatestRepositoryState()',
+  'verifyRuntimeState(',
+  'DIAGNOSTIC RUNTIME STATE',
+  'Current Device Running Code SHA',
+  'GitHub Repository Latest SHA',
+  'Verification Delta Status',
+  'NexusNovaDiagnostic'
 ]) assert.ok(updater.includes(needle), 'OTA updater missing: ' + needle);
 
 assert.ok(!/raw\.githubusercontent\.com.*build\/outputs/.test(updater), 'invalid raw CI output endpoint present');
@@ -28,4 +36,8 @@ assert.ok(screen.includes('miningOwned ? null'));
 assert.ok(screen.includes('otaUpdater.checkAndNotify'));
 assert.ok(build.includes('NEXUS_BUILD_COMMIT'));
 assert.ok(main.includes('NexusNovaNativeInfo'));
+assert.ok(main.includes('NexusNovaDiagnostic'));
+assert.ok(main.includes('BuildConfig.NEXUS_BUILD_COMMIT'));
+assert.ok(updater.includes('this.controller.abort()'));
+assert.ok(updater.includes('this.diagnosticPanel?.remove()'));
 console.log('NexusNova OTA popup smoke: engine, real endpoints, deterministic commit comparison, version bridge, Nova Hub isolation, and teardown assertions passed.');

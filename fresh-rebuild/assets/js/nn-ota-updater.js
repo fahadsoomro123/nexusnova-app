@@ -21,7 +21,18 @@ function acquireStyle() {
       '.nn-ota-update{width:100%;min-height:46px;border:0;border-radius:14px;background:#6d28d9;color:#fff;font:800 13px/1 system-ui,sans-serif;cursor:pointer;box-shadow:0 12px 26px rgba(109,40,217,.28)}',
       '.nn-ota-update:disabled{opacity:.62;cursor:wait}',
       '.nn-ota-later{width:100%;margin-top:9px;min-height:40px;border:1px solid rgba(148,163,184,.18);border-radius:13px;background:rgba(255,255,255,.03);color:#cbd5e1;font:700 12px/1 system-ui,sans-serif;cursor:pointer}',
-      '@media(max-width:390px){.nn-ota-card{padding:22px;border-radius:21px}.nn-ota-card h2{font-size:19px}}'
+      '.nn-ota-diagnostic{position:fixed;left:14px;right:14px;bottom:calc(14px + env(safe-area-inset-bottom));z-index:2147483646;padding:12px;border:1px solid rgba(148,163,184,.2);border-radius:16px;background:rgba(15,23,42,.96);box-shadow:0 16px 50px rgba(0,0,0,.38);color:#e5e7eb;font:600 10px/1.45 system-ui,sans-serif}',
+      '.nn-ota-diagnostic__head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}',
+      '.nn-ota-diagnostic__head strong{font-size:10px;letter-spacing:.08em}',
+      '.nn-ota-diagnostic__close{width:24px;height:24px;border:0;border-radius:8px;background:rgba(255,255,255,.06);color:#cbd5e1;font-size:17px;line-height:1;cursor:pointer}',
+      '.nn-ota-diagnostic__grid{display:grid;gap:5px}',
+      '.nn-ota-diagnostic__grid>div{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:8px;align-items:center}',
+      '.nn-ota-diagnostic span{color:#94a3b8}',
+      '.nn-ota-diagnostic code{overflow-wrap:anywhere;color:#f8fafc;font:700 9px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace}',
+      '.nn-ota-diagnostic b{font-size:10px;color:#f8fafc}',
+      '.nn-ota-diagnostic .is-match b{color:#86efac}',
+      '.nn-ota-diagnostic .is-mismatch b{color:#fca5a5}',
+      '@media(max-width:390px){.nn-ota-card{padding:22px;border-radius:21px}.nn-ota-card h2{font-size:19px}.nn-ota-diagnostic{left:8px;right:8px;padding:10px}.nn-ota-diagnostic__grid>div{grid-template-columns:1fr}.nn-ota-diagnostic__grid>div+div{margin-top:2px}}'
     ].join('');
     document.head.appendChild(styleNode);
   }
@@ -70,6 +81,8 @@ export class NexusNovaOTAUpdater {
     this.modal = null;
     this.releaseStyle = null;
     this.modalCleanup = null;
+    this.diagnosticPanel = null;
+    this.diagnosticState = null;
   }
 
   async fetchJson(url) {
@@ -81,6 +94,65 @@ export class NexusNovaOTAUpdater {
     });
     if (!response.ok) throw new Error('OTA HTTP ' + response.status);
     return response.json();
+  }
+
+  readInstalledBuildState() {
+    const info = window.NexusNovaNativeInfo || {};
+    return {
+      commit: sha40(info.buildCommit),
+      versionCode: Number(info.versionCode || 0) || 0,
+      versionName: String(info.versionName || ''),
+      source: 'BuildConfig.NEXUS_BUILD_COMMIT'
+    };
+  }
+
+  renderDiagnosticReport(state) {
+    if (this.destroyed || !state || !document.body) return;
+    if (!this.diagnosticPanel) {
+      if (!this.releaseStyle) this.releaseStyle = acquireStyle();
+      const panel = document.createElement('section');
+      panel.className = 'nn-ota-diagnostic';
+      panel.setAttribute('aria-label', 'NexusNova runtime diagnostic');
+      panel.innerHTML = '<div class="nn-ota-diagnostic__head"><strong>DIAGNOSTIC RUNTIME STATE</strong><button type="button" class="nn-ota-diagnostic__close" aria-label="Hide diagnostic">×</button></div><div class="nn-ota-diagnostic__grid"></div>';
+      document.body.appendChild(panel);
+      this.diagnosticPanel = panel;
+      const close = panel.querySelector('.nn-ota-diagnostic__close');
+      close?.addEventListener('click', () => panel.remove(), { signal: this.controller.signal });
+    }
+    const grid = this.diagnosticPanel.querySelector('.nn-ota-diagnostic__grid');
+    if (!grid) return;
+    const status = state.status === 'MATCH' ? 'MATCH' : 'MISMATCH';
+    const statusClass = status === 'MATCH' ? 'is-match' : 'is-mismatch';
+    grid.innerHTML = [
+      '<div><span>Current Device Running Code SHA</span><code>' + (state.installedCommit || 'UNAVAILABLE') + '</code></div>',
+      '<div><span>GitHub Repository Latest SHA</span><code>' + (state.latestCommit || 'UNAVAILABLE') + '</code></div>',
+      '<div class="' + statusClass + '"><span>Verification Delta Status</span><b>' + status + '</b></div>',
+      '<div><span>Checked</span><code>' + state.checkedAt + '</code></div>'
+    ].join('');
+  }
+
+  verifyRuntimeState(repositoryState) {
+    const installed = this.readInstalledBuildState();
+    const latestCommit = sha40(repositoryState?.sha);
+    const status = installed.commit && latestCommit && installed.commit === latestCommit ? 'MATCH' : 'MISMATCH';
+    const state = {
+      installedCommit: installed.commit,
+      latestCommit: latestCommit,
+      status: status,
+      versionCode: installed.versionCode,
+      versionName: installed.versionName,
+      checkedAt: new Date().toISOString()
+    };
+    this.diagnosticState = state;
+    console.info('[NexusNova Diagnostic]', JSON.stringify(state));
+    this.renderDiagnosticReport(state);
+    return state;
+  }
+
+  async fetchLatestRepositoryState() {
+    const repositoryState = await this.fetchJson(this.commitApi);
+    if (this.destroyed) return null;
+    return repositoryState;
   }
 
   async checkForUpdates() {
@@ -101,6 +173,7 @@ export class NexusNovaOTAUpdater {
     const commit = results[0];
     const release = results[1];
     const latestCommit = sha40(commit?.sha);
+    if (commit) this.verifyRuntimeState(commit);
     if (!latestCommit) return { available: false, reason: 'latest-commit-unavailable' };
     const available = !!this.clientCommit && latestCommit !== this.clientCommit;
     const assets = Array.isArray(release?.assets) ? release.assets : [];
@@ -185,6 +258,9 @@ export class NexusNovaOTAUpdater {
     this.modalCleanup = null;
     this.modal = null;
     this.latestUpdate = null;
+    this.diagnosticPanel?.remove();
+    this.diagnosticPanel = null;
+    this.diagnosticState = null;
     this.releaseStyle?.();
     this.releaseStyle = null;
     return true;
