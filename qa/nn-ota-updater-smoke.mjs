@@ -16,7 +16,7 @@ for (const needle of [
   'const COMMIT_API',
   'api.github.com',
   'const OTA_MANIFEST_URL',
-  'latestCommit !== this.clientCommit',
+  'publishedCommit !== this.clientCommit',
   'raw.githubusercontent.com',
   'expectedSha256',
   'expectedVersionCode',
