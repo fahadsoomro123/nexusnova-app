@@ -1,4 +1,5 @@
 name: Build bf6961 Production Signed APK
+# Trigger commit for the exact locked-source signed build.
 
 on:
   push:
