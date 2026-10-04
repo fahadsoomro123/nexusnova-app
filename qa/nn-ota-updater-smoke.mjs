@@ -13,7 +13,7 @@ assert.match(updater, /applyPatch\(/);
 assert.match(updater, /new AbortController\(\)/);
 assert.match(updater, /this\.controller\.abort\(\)/);
 assert.match(updater, /output-metadata\.json/);
-assert.match(updater, /api\.github\.com\/repos\/fahadsoomro123\/nexusnova-app\/commits\/main/);
+assert.match(updater, /const COMMIT_API = 'https:\/\/api\.github\.com\/repos\/'/);\nassert.match(updater, /\/commits\/\' \+ BRANCH/);\nassert.match(updater, /const METADATA_URL/);
 assert.match(screen, /NexusNovaOTAUpdater/);
 assert.match(screen, /miningOwned \? null/);
 assert.match(screen, /otaUpdater\.checkAndNotify/);
