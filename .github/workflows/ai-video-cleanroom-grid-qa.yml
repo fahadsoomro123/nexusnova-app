@@ -1,0 +1,23 @@
+name: AI Video Clean-Room Grid QA
+on:
+  push:
+    branches: [agent/ai-video-capability-parity-20261004]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  cleanroom-grid:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax checks
+        run: |
+          set -euo pipefail
+          node --check fresh-rebuild/assets/js/nn-video-studio-core.js
+          node --check fresh-rebuild/src/features/apps/nn-video-studio-upgrade.js
+          node --check fresh-rebuild/src/features/apps/app-screen.js
+      - name: Canonical core smoke
+        run: node qa/nn-video-studio-core-smoke.mjs
