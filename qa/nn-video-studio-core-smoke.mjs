@@ -36,8 +36,22 @@ assert.equal(editor.project.clips[0].trackId,'v1');
 assert.equal(editor.project.clips[0].startMs,0);
 editor.redo();
 assert.equal(editor.project.clips[0].startMs,2500);
+const lifecycleEditor = new NexusNovaVideoEditor({
+  tracks:[{id:'life',type:'video',name:'Lifecycle'}],
+  clips:[{id:'life-clip',trackId:'life',sourceDurationMs:1000,startMs:0,sourceInMs:0,sourceOutMs:1000}]
+});
+let lifecycleNotifications = 0;
+lifecycleEditor.subscribe(() => { lifecycleNotifications += 1; });
+lifecycleNotifications = 0;
+assert.equal(lifecycleEditor.destroy(), true);
+assert.equal(lifecycleEditor.destroy(), false);
+assert.equal(lifecycleEditor.history.length, 0);
+assert.equal(lifecycleEditor.redoHistory.length, 0);
+assert.throws(() => lifecycleEditor.setPlayheadMs(100), /destroyed/);
+assert.equal(lifecycleNotifications, 0);
+
 editor.beginTransaction('trim-right');
 editor.trimClipRight('a',4000,{transaction:true});
 editor.commitTransaction();
 assert.equal(editor.project.clips[0].sourceOutMs,4000);
-console.log('NexusNova AI Video Studio core smoke: 10 assertions passed.');
+console.log('NexusNova AI Video Studio core smoke: geometry, history, transactions, and lifecycle assertions passed.');

@@ -21,3 +21,5 @@ jobs:
           node --check fresh-rebuild/src/features/apps/app-screen.js
       - name: Canonical core smoke
         run: node qa/nn-video-studio-core-smoke.mjs
+      - name: Component scope and lifecycle audit
+        run: node qa/nn-video-studio-scope-smoke.mjs

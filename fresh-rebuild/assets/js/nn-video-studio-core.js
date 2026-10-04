@@ -21,6 +21,7 @@ export class NexusNovaVideoEditor {
     this.redoHistory = [];
     this.activeTransaction = null;
     this.listeners = new Set();
+    this.destroyed = false;
     this.#recalculateDuration();
     if (this.project.clips.length) {
       this.selection.primaryClipId = this.project.clips[0].id;
@@ -87,7 +88,12 @@ export class NexusNovaVideoEditor {
     if (emit) this.#emit('state-restored');
   }
 
+  #assertAlive() {
+    if (this.destroyed) throw new Error('Video editor is destroyed.');
+  }
+
   #mutate(label, mutator) {
+    this.#assertAlive();
     const result = mutator();
     this.#validate();
     this.#recalculateDuration();
@@ -96,6 +102,7 @@ export class NexusNovaVideoEditor {
   }
 
   #transaction(label, mutator) {
+    this.#assertAlive();
     const before = this.#cloneState();
     try {
       const result = mutator();
@@ -136,6 +143,7 @@ export class NexusNovaVideoEditor {
   }
 
   #emit(reason) {
+    if (this.destroyed) return;
     const snapshot = this.getSnapshot();
     this.listeners.forEach(listener => {
       try { listener({ reason, ...snapshot }); } catch (_) {}
@@ -143,7 +151,8 @@ export class NexusNovaVideoEditor {
   }
 
   subscribe(listener) {
-    if (typeof listener !== 'function') return () => {};
+    if (typeof listener !== 'function') return () => false;
+    if (this.destroyed) return () => false;
     this.listeners.add(listener);
     listener({ reason: 'initial', ...this.getSnapshot() });
     return () => this.listeners.delete(listener);
@@ -159,6 +168,7 @@ export class NexusNovaVideoEditor {
   }
 
   setPlayheadMs(timeMs) {
+    this.#assertAlive();
     this.playheadMs = Math.min(
       Math.max(0, Number(timeMs) || 0),
       this.project.durationMs
@@ -168,6 +178,7 @@ export class NexusNovaVideoEditor {
   }
 
   setSelection(clipIds, primaryClipId = clipIds?.[0] || null) {
+    this.#assertAlive();
     const valid = new Set(this.project.clips.map(clip => clip.id));
     const ids = [...new Set((Array.isArray(clipIds) ? clipIds : [clipIds]).filter(id => valid.has(id)))];
     this.selection = {
@@ -276,6 +287,7 @@ export class NexusNovaVideoEditor {
   }
 
   beginTransaction(label = 'edit') {
+    this.#assertAlive();
     if (this.activeTransaction) throw new Error('A timeline transaction is already active.');
     this.activeTransaction = { label, before: this.#cloneState() };
   }
@@ -301,6 +313,7 @@ export class NexusNovaVideoEditor {
   }
 
   undo() {
+    if (this.destroyed) return false;
     if (this.activeTransaction) this.rollbackTransaction();
     const entry = this.history.pop();
     if (!entry) return false;
@@ -310,11 +323,22 @@ export class NexusNovaVideoEditor {
   }
 
   redo() {
+    if (this.destroyed) return false;
     if (this.activeTransaction) this.rollbackTransaction();
     const entry = this.redoHistory.pop();
     if (!entry) return false;
     this.history.push(entry);
     this.#restoreState(entry.after);
+    return true;
+  }
+
+  destroy() {
+    if (this.destroyed) return false;
+    this.activeTransaction = null;
+    this.history.length = 0;
+    this.redoHistory.length = 0;
+    this.listeners.clear();
+    this.destroyed = true;
     return true;
   }
 
