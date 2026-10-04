@@ -81,16 +81,17 @@ jobs:
           if n1 != 1 or n2 != 1:
               raise SystemExit("Version injection failed")
           if 'signingConfigs {' not in s:
-              signing = '''    signingConfigs {
-          create("release") {
-              storeFile = file("nexusnova-release.jks")
-              storePassword = System.getenv("KEYSTORE_PASSWORD")
-              keyAlias = System.getenv("KEY_ALIAS")
-              keyPassword = System.getenv("KEY_PASSWORD")
-          }
-      }
-
-  '''
+              signing = "\n".join([
+                  "    signingConfigs {",
+                  "        create(\"release\") {",
+                  "            storeFile = file(\"nexusnova-release.jks\")",
+                  "            storePassword = System.getenv(\"KEYSTORE_PASSWORD\")",
+                  "            keyAlias = System.getenv(\"KEY_ALIAS\")",
+                  "            keyPassword = System.getenv(\"KEY_PASSWORD\")",
+                  "        }",
+                  "    }",
+                  "",
+              ])
               s = s.replace("    buildTypes {", signing + "    buildTypes {", 1)
           if 'signingConfig = signingConfigs.getByName("release")' not in s:
               s = s.replace('        release {\n', '        release {\n            signingConfig = signingConfigs.getByName("release")\n', 1)
