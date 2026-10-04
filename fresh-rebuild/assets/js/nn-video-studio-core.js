@@ -19,6 +19,7 @@ export class NexusNovaVideoEditor {
     this.playheadMs = 0;
     this.history = [];
     this.redoHistory = [];
+    this.activeTransaction = null;
     this.listeners = new Set();
     this.#recalculateDuration();
     if (this.project.clips.length) {
@@ -84,6 +85,14 @@ export class NexusNovaVideoEditor {
     this.zoom = snapshot.zoom;
     this.#recalculateDuration();
     if (emit) this.#emit('state-restored');
+  }
+
+  #mutate(label, mutator) {
+    const result = mutator();
+    this.#validate();
+    this.#recalculateDuration();
+    this.#emit(label);
+    return result;
   }
 
   #transaction(label, mutator) {
@@ -185,8 +194,8 @@ export class NexusNovaVideoEditor {
     return this.project.clips.find(clip => clip.id === clipId) || null;
   }
 
-  splitClip(clipId, timeMs) {
-    return this.#transaction('split-clip', () => {
+  splitClip(clipId, timeMs, options = {}) {
+    const run = () => {
       const clip = this.getClip(clipId);
       if (!clip) throw new Error('Clip not found.');
       const localMs = Number(timeMs) - clip.startMs;
@@ -212,11 +221,12 @@ export class NexusNovaVideoEditor {
       this.selection = { primaryClipId: right.id, clipIds: [right.id] };
       this.#recalculateDuration();
       return right;
-    });
+    };
+    return options.transaction ? this.#mutate('split-clip', run) : this.#transaction('split-clip', run);
   }
 
-  trimClipLeft(clipId, newInMs) {
-    return this.#transaction('trim-clip-left', () => {
+  trimClipLeft(clipId, newInMs, options = {}) {
+    const run = () => {
       const clip = this.getClip(clipId);
       if (!clip) throw new Error('Clip not found.');
       const nextIn = Math.max(0, Number(newInMs) || 0);
@@ -229,11 +239,28 @@ export class NexusNovaVideoEditor {
       clip.durationMs = nextDuration;
       this.playheadMs = clip.startMs;
       return clip;
-    });
+    };
+    return options.transaction ? this.#mutate('trim-clip-left', run) : this.#transaction('trim-clip-left', run);
   }
 
-  moveClip(clipId, newStartMs, targetTrackId) {
-    return this.#transaction('move-clip', () => {
+  trimClipRight(clipId, newOutMs, options = {}) {
+    const run = () => {
+      const clip = this.getClip(clipId);
+      if (!clip) throw new Error('Clip not found.');
+      const nextOut = Math.min(clip.sourceDurationMs, Number(newOutMs) || clip.sourceOutMs);
+      if (!(nextOut > clip.sourceInMs)) throw new Error('OUT point must remain after IN point.');
+      const nextDuration = (nextOut - clip.sourceInMs) / clip.speed;
+      if (nextDuration < this.minClipDurationMs) throw new Error('Trim would make the clip too short.');
+      clip.sourceOutMs = nextOut;
+      clip.durationMs = nextDuration;
+      this.playheadMs = Math.min(clip.startMs + nextDuration, this.project.durationMs);
+      return clip;
+    };
+    return options.transaction ? this.#mutate('trim-clip-right', run) : this.#transaction('trim-clip-right', run);
+  }
+
+  moveClip(clipId, newStartMs, targetTrackId, options = {}) {
+    const run = () => {
       const clip = this.getClip(clipId);
       if (!clip) throw new Error('Clip not found.');
       const track = this.project.tracks.find(item => item.id === targetTrackId);
@@ -244,10 +271,37 @@ export class NexusNovaVideoEditor {
       this.#recalculateDuration();
       this.playheadMs = clip.startMs;
       return clip;
-    });
+    };
+    return options.transaction ? this.#mutate('move-clip', run) : this.#transaction('move-clip', run);
+  }
+
+  beginTransaction(label = 'edit') {
+    if (this.activeTransaction) throw new Error('A timeline transaction is already active.');
+    this.activeTransaction = { label, before: this.#cloneState() };
+  }
+
+  commitTransaction() {
+    if (!this.activeTransaction) return false;
+    this.#validate();
+    const transaction = this.activeTransaction;
+    this.activeTransaction = null;
+    const after = this.#cloneState();
+    this.history.push({ label: transaction.label, before: transaction.before, after });
+    this.redoHistory.length = 0;
+    this.#emit(transaction.label);
+    return true;
+  }
+
+  rollbackTransaction() {
+    if (!this.activeTransaction) return false;
+    const snapshot = this.activeTransaction.before;
+    this.activeTransaction = null;
+    this.#restoreState(snapshot);
+    return true;
   }
 
   undo() {
+    if (this.activeTransaction) this.rollbackTransaction();
     const entry = this.history.pop();
     if (!entry) return false;
     this.redoHistory.push(entry);
@@ -256,6 +310,7 @@ export class NexusNovaVideoEditor {
   }
 
   redo() {
+    if (this.activeTransaction) this.rollbackTransaction();
     const entry = this.redoHistory.pop();
     if (!entry) return false;
     this.history.push(entry);

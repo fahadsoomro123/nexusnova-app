@@ -31,7 +31,8 @@ function formatTime(ms) {
   return `${String(minutes).padStart(2,'0')}:${String(seconds).padStart(2,'0')}`;
 }
 
-function createTrackGrid(editor) {
+function createTrackGrid(initialEditor) {
+  let editor = initialEditor;
   const host = document.createElement('div');
   host.className = EDITOR_CLASS;
   host.setAttribute('aria-label','NexusNova AI Video Studio timeline');
@@ -114,7 +115,8 @@ function createTrackGrid(editor) {
   let gesture = null;
   function pointerToTime(event) {
     const rect = canvas.getBoundingClientRect();
-    const localX = event.clientX - rect.left + canvas.scrollLeft;
+    const scroll = host.querySelector('.nn-video-editor__scroll');
+    const localX = event.clientX - rect.left + (scroll?.scrollLeft || 0);
     return editor.pixelsToTime(localX, editor.zoom);
   }
 
@@ -129,6 +131,7 @@ function createTrackGrid(editor) {
     const clip = editor.getClip(clipId);
     if (!clip) return;
     editor.setSelection([clip.id], clip.id);
+    editor.beginTransaction(handle ? `trim-${handle.dataset.edge}` : 'move-clip');
     event.currentTarget.setPointerCapture?.(event.pointerId);
 
     gesture = {
@@ -149,10 +152,13 @@ function createTrackGrid(editor) {
     try {
       if (gesture.mode === 'trim-left') {
         const nextIn = Math.max(0, gesture.originIn + deltaMs);
-        editor.trimClipLeft(gesture.clipId, nextIn);
+        editor.trimClipLeft(gesture.clipId, nextIn, {transaction:true});
+      } else if (gesture.mode === 'trim-right') {
+        const nextOut = Math.max(gesture.originIn + 50, gesture.originOut + deltaMs);
+        editor.trimClipRight(gesture.clipId, nextOut, {transaction:true});
       } else if (gesture.mode === 'move') {
         const nextStart = Math.max(0, gesture.originStart + deltaMs);
-        editor.moveClip(gesture.clipId, nextStart, gesture.originTrack);
+        editor.moveClip(gesture.clipId, nextStart, gesture.originTrack, {transaction:true});
       }
       render();
     } catch (_) {
@@ -162,10 +168,14 @@ function createTrackGrid(editor) {
 
   canvas.addEventListener('pointerup', event => {
     if (!gesture || gesture.pointerId !== event.pointerId) return;
+    try { editor.commitTransaction(); } catch (_) { editor.rollbackTransaction(); }
     gesture = null;
   });
 
-  canvas.addEventListener('pointercancel', () => { gesture = null; });
+  canvas.addEventListener('pointercancel', () => {
+    if (gesture) editor.rollbackTransaction();
+    gesture = null;
+  });
   canvas.addEventListener('click', event => {
     const clip = event.target.closest('.nn-clip__body');
     if (clip) editor.setSelection([clip.dataset.clipId], clip.dataset.clipId);
@@ -176,7 +186,7 @@ function createTrackGrid(editor) {
     window.dispatchEvent(new CustomEvent('nexusnova:video-studio-state', { detail:snapshot }));
   });
 
-  return { host, render };
+  return { host, render, setEditor(nextEditor) { editor = nextEditor; render(); } };
 }
 
 function createEditorFromFiles(files) {
@@ -249,9 +259,7 @@ export function enhanceAiVideoStudio(root) {
     editor = createEditorFromFiles(enriched);
     const current = editor.project.clips[0];
     if (current) editor.setSelection([current.id], current.id);
-    grid.host.replaceWith(grid.host.cloneNode(false));
-    const newGrid = createTrackGrid(editor);
-    clipRow.appendChild(newGrid.host);
+    grid.setEditor(editor);
     bindBridge(root, editor, video);
   };
 

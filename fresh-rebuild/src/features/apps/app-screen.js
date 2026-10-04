@@ -271,6 +271,7 @@ export async function appScreen({ id, backToHub, backToMine } = {}) {
         if (aiPhotoRoute) document.body.classList.remove('nx-ai-photo-route-active');
         novaSidebarCleanup();
         try { window.speechSynthesis?.cancel?.(); } catch {}
+        body.__nnVideoTimelineCleanup?.();
         body.__cleanup?.();
         if (cleanup === bodyCleanup) cleanup = null;
       };
