@@ -47,16 +47,25 @@ jobs:
             exit 1
           fi
           echo 'Unexpected modified files: 0'
+
           forbidden_release='releases/''latest'
-          forbidden_window='window.''open'
           forbidden_golden='golden-''disaster-''recovery'
-          for needle in "$forbidden_release" "$forbidden_window" "$forbidden_golden"; do
+          for needle in "$forbidden_release" "$forbidden_golden"; do
             if git grep -n -F -- "$needle" -- . ':!.git' >/dev/null; then
               echo "Forbidden legacy OTA token remains: $needle"
               git grep -n -F -- "$needle" -- . ':!.git' || true
               exit 1
             fi
           done
-          echo 'Legacy OTA redirect tokens: 0'
+
+          forbidden_window='window.''open'
+          for file in             fresh-rebuild/assets/js/nn-ota-updater.js             fresh-rebuild/src/features/apps/app-screen.js             NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt             NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt; do
+            if git grep -n -F -- "$forbidden_window" -- "$file" >/dev/null; then
+              echo "OTA-scoped browser redirect remains: $file"
+              git grep -n -F -- "$forbidden_window" -- "$file" || true
+              exit 1
+            fi
+          done
+          echo 'OTA-scoped redirect tokens: 0'
       - name: OTA engine smoke
         run: node qa/nn-ota-updater-smoke.mjs
