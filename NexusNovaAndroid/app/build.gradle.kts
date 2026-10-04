@@ -9,7 +9,7 @@ plugins {
 // until it is explicitly unlocked for the final public release.
 android {
     namespace = "com.nexusnova.app"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.nexusnova.app"
