@@ -2,7 +2,7 @@ package com.nexusnova.app
 
 import android.Manifest
 import android.annotation.SuppressLint
-import android.app.PackageInstaller
+import android.content.pm.PackageInstaller
 import android.app.PendingIntent
 import android.content.ContentResolver
 import android.content.Intent
