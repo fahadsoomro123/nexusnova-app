@@ -1,7 +1,7 @@
 const REPOSITORY = 'fahadsoomro123/nexusnova-app';
 const BRANCH = 'main';
 const COMMIT_API = 'https://api.github.com/repos/' + REPOSITORY + '/commits/' + BRANCH;
-const RELEASE_API = 'https://api.github.com/repos/' + REPOSITORY + '/releases/latest';
+const OTA_MANIFEST_URL = 'https://raw.githubusercontent.com/' + REPOSITORY + '/apk-builds/ota-bootstrap-safe/manifest.json';
 const STYLE_ID = 'nn-ota-updater-style';
 let styleNode = null;
 let styleUsers = 0;
@@ -61,7 +61,9 @@ function requestNativeUpdate(update) {
       return { started: false, reason: 'no-installable-apk' };
     }
     const started = window.nexusPostNativeAction('installUpdate', {
-      apkUrl: update.apkUrl
+      apkUrl: update.apkUrl,
+      expectedVersionCode: Number(update.versionCode || 0) || 0,
+      expectedSha256: update.sha256 || ''
     });
     return { started: !!started, method: 'native-package-installer' };
   } catch (error) {
@@ -75,7 +77,7 @@ export class NexusNovaOTAUpdater {
     this.repository = options.repository || REPOSITORY;
     this.branch = options.branch || BRANCH;
     this.commitApi = options.commitApi || COMMIT_API;
-    this.releaseApi = options.releaseApi || RELEASE_API;
+    this.manifestUrl = options.manifestUrl || OTA_MANIFEST_URL;
     this.feature = options.feature || 'NOVA HUB';
     this.clientCommit = sha40(options.clientCommit || window.NexusNovaNativeInfo?.buildCommit);
     this.clientVersionCode = Number(options.clientVersionCode || window.NexusNovaNativeInfo?.versionCode || 0) || 0;
@@ -167,35 +169,42 @@ export class NexusNovaOTAUpdater {
     const results = await Promise.all([
       this.fetchJson(this.commitApi).catch(error => {
         if (error?.name === 'AbortError') throw error;
-        console.warn('[NexusNova OTA] latest commit lookup failed:', error);
+        console.warn('[NexusNova OTA] repository commit lookup failed:', error);
         return null;
       }),
-      this.fetchJson(this.releaseApi).catch(error => {
+      this.fetchJson(this.manifestUrl).catch(error => {
         if (error?.name === 'AbortError') throw error;
-        console.info('[NexusNova OTA] release lookup unavailable:', error);
+        console.info('[NexusNova OTA] published APK manifest unavailable:', error);
         return null;
       })
     ]);
     if (this.destroyed) return null;
+
     const commit = results[0];
-    const release = results[1];
-    const latestCommit = sha40(commit?.sha);
+    const manifest = results[1];
+    const latestRepoCommit = sha40(commit?.sha);
     if (commit) this.verifyRuntimeState(commit);
-    if (!latestCommit) return { available: false, reason: 'latest-commit-unavailable' };
-    const assets = Array.isArray(release?.assets) ? release.assets : [];
-    const apk = assets.find(asset => /\.apk$/i.test(String(asset?.name || '')) && typeof asset?.browser_download_url === 'string');
-    const releaseMetadata = assets.find(asset => String(asset?.name || '') === 'output-metadata.json' && typeof asset?.browser_download_url === 'string');
-    const available = !!this.clientCommit && latestCommit !== this.clientCommit && !!apk?.browser_download_url;
+
+    const publishedCommit = sha40(manifest?.sourceCommit) || latestRepoCommit;
+    const apkUrl = String(manifest?.apkUrl || '').trim();
+    const sha256 = String(manifest?.sha256 || '').trim().toLowerCase();
+    const versionCode = Number(manifest?.versionCode || 0) || 0;
+    const versionName = String(manifest?.versionName || '').trim();
+    const validApkUrl = /^https:\/\/raw\.githubusercontent\.com\/fahadsoomro123\/nexusnova-app\/apk-builds\/ota-bootstrap-safe\/[^/?#]+\.apk(?:\?[^#]*)?$/.test(apkUrl);
+    const validSha256 = /^[0-9a-f]{64}$/.test(sha256);
+    const available = !!this.clientCommit && !!publishedCommit && publishedCommit !== this.clientCommit && validApkUrl && validSha256 && versionCode > this.clientVersionCode;
+
+    if (!publishedCommit) return { available: false, reason: 'published-build-unavailable' };
+
     this.latestUpdate = {
       available: available,
-      latestCommit: latestCommit,
-      shortSha: latestCommit.slice(0, 7),
-      latestMessage: String(commit?.commit?.message || 'NexusNova update').split('\n')[0],
-      commitUrl: commit?.html_url || ('https://github.com/' + this.repository + '/commit/' + latestCommit),
-      releaseUrl: release?.html_url || ('https://github.com/' + this.repository + '/releases'),
-      apkUrl: apk?.browser_download_url || '',
-      releaseTag: String(release?.tag_name || ''),
-      metadataUrl: releaseMetadata?.browser_download_url || '',
+      latestCommit: publishedCommit,
+      shortSha: publishedCommit.slice(0, 7),
+      latestMessage: String(manifest?.message || commit?.commit?.message || 'NexusNova update').split('\n')[0],
+      apkUrl: apkUrl,
+      sha256: sha256,
+      versionCode: versionCode,
+      versionName: versionName,
       clientCommit: this.clientCommit,
       clientVersionCode: this.clientVersionCode,
       clientVersionName: this.clientVersionName,
@@ -203,7 +212,6 @@ export class NexusNovaOTAUpdater {
     };
     return this.latestUpdate;
   }
-
   triggerUpdateDownload(update = this.latestUpdate) {
     if (this.destroyed || !update?.available) return { started: false, reason: 'no-update' };
     if (!update.apkUrl) return { started: false, reason: 'no-installable-apk' };
@@ -268,7 +276,7 @@ export class NexusNovaOTAUpdater {
     const copy = document.createElement('p');
     copy.textContent = this.feature === 'AI Video Studio' ? 'Please update to continue.' : 'A newer NexusNova build is available. Please update to continue.';
     const meta = document.createElement('div'); meta.className = 'nn-ota-meta';
-    meta.textContent = 'commit: ' + update.latestCommit + (update.releaseTag ? ' • release: ' + update.releaseTag : '');
+    meta.textContent = 'commit: ' + update.latestCommit + (update.versionName ? ' • ' + update.versionName : '');
     const updateButton = document.createElement('button'); updateButton.className = 'nn-ota-update'; updateButton.type = 'button'; updateButton.textContent = 'Update Now';
     const laterButton = document.createElement('button'); laterButton.className = 'nn-ota-later'; laterButton.type = 'button'; laterButton.textContent = 'Later';
     card.append(badge, title, copy, meta, updateButton, laterButton);
