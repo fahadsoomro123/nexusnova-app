@@ -16,8 +16,12 @@ for (const needle of [
   'output-metadata.json',
   'const COMMIT_API',
   'api.github.com',
-  'const RELEASE_API',
+  'const OTA_MANIFEST_URL',
   'latestCommit !== this.clientCommit',
+  'raw.githubusercontent.com',
+  'expectedSha256',
+  'expectedVersionCode',
+  'installUpdate',
   'Update Now',
   'Please update to continue',
   'readInstalledBuildState()',
@@ -30,6 +34,15 @@ for (const needle of [
 ]) assert.ok(updater.includes(needle), 'OTA updater missing: ' + needle);
 
 assert.ok(!/raw\.githubusercontent\.com.*build\/outputs/.test(updater), 'invalid raw CI output endpoint present');
+assert.ok(!updater.includes('RELEASE_API'));
+assert.ok(!updater.includes('releaseApi'));
+assert.ok(!updater.includes('window.open'));
+assert.ok(!updater.includes('browser_download_url'));
+assert.ok(!updater.includes('golden-disaster-recovery'));
+assert.ok(main.includes('PackageInstaller.SessionParams'));
+assert.ok(main.includes('sha256File('));
+assert.ok(main.includes('raw.githubusercontent.com'));
+assert.ok(!main.includes('launchCachedApkWithFileProvider'));
 assert.ok(screen.includes('NexusNovaOTAUpdater'));
 assert.ok(screen.includes('miningOwned ? null'));
 assert.ok(screen.includes('otaUpdater.checkAndNotify'));
