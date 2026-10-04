@@ -27,7 +27,7 @@ let appScreenModulePromise = null;
 let appScreenModule = null;
 function loadAppScreenModule() {
   if (!appScreenModulePromise) {
-    appScreenModulePromise = import('./features/apps/app-screen.js?ota=nv16').then(module => {
+    appScreenModulePromise = import('./features/apps/app-screen.js?ota=nv17').then(module => {
       appScreenModule = module;
       return module;
     }).catch(error => {
@@ -43,7 +43,7 @@ let novaVaultModulePromise = null;
 let novaVaultModule = null;
 function loadNovaVaultModule() {
   if (!novaVaultModulePromise) {
-    novaVaultModulePromise = import('./features/apps/nova-vault-screen-v13.js?ota=nv14').then(module => {
+    novaVaultModulePromise = import('./features/apps/nova-vault-screen-v13.js?ota=nv15').then(module => {
       novaVaultModule = module;
       return module;
     }).catch(error => {
