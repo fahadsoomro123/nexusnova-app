@@ -31,7 +31,7 @@ editor.moveClip('a',2500,'v2',{transaction:true});
 editor.commitTransaction();
 assert.equal(editor.project.clips[0].startMs,2500);
 assert.equal(editor.project.clips[0].trackId,'v2');
-assert.equal(editor.history.length,2);
+assert.equal(editor.history.length,1);
 editor.undo();
 assert.equal(editor.project.clips[0].trackId,'v1');
 editor.redo();
