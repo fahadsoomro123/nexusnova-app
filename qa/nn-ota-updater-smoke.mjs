@@ -6,23 +6,26 @@ const screen = fs.readFileSync('fresh-rebuild/src/features/apps/app-screen.js', 
 const build = fs.readFileSync('NexusNovaAndroid/app/build.gradle.kts', 'utf8');
 const main = fs.readFileSync('NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt', 'utf8');
 
-assert.match(updater, /class NexusNovaOTAUpdater/);
-assert.match(updater, /checkForUpdates\\(\\)/);
-assert.match(updater, /triggerUpdateDownload\\(/);
-assert.match(updater, /applyPatch\\(/);
-assert.match(updater, /new AbortController\\(\\)/);
-assert.match(updater, /this\\.controller\\.abort\\(\\)/);
-assert.match(updater, /output-metadata\\.json/); // release asset, not a raw CI build-output path
-assert.match(updater, /const COMMIT_API/);
-assert.match(updater, /api\\.github\\.com/);
-assert.match(updater, /const RELEASE_API/);
-assert.match(updater, /latestCommit !== this\\.clientCommit/);
-assert.match(updater, /Update Now/);
-assert.match(updater, /Please update to continue/);
-assert.doesNotMatch(updater, /raw\\.githubusercontent\\.com.*build\\/outputs/);
-assert.match(screen, /NexusNovaOTAUpdater/);
-assert.match(screen, /miningOwned \\? null/);
-assert.match(screen, /otaUpdater\\.checkAndNotify/);
-assert.match(build, /NEXUS_BUILD_COMMIT/);
-assert.match(main, /NexusNovaNativeInfo/);
-console.log('NexusNova OTA popup smoke: engine, endpoints, version bridge, Nova Hub isolation, and teardown assertions passed.');
+for (const needle of [
+  'class NexusNovaOTAUpdater',
+  'checkForUpdates()',
+  'triggerUpdateDownload(',
+  'applyPatch(',
+  'new AbortController()',
+  'this.controller.abort()',
+  'output-metadata.json',
+  'const COMMIT_API',
+  'api.github.com',
+  'const RELEASE_API',
+  'latestCommit !== this.clientCommit',
+  'Update Now',
+  'Please update to continue'
+]) assert.ok(updater.includes(needle), 'OTA updater missing: ' + needle);
+
+assert.ok(!/raw\.githubusercontent\.com.*build\/outputs/.test(updater), 'invalid raw CI output endpoint present');
+assert.ok(screen.includes('NexusNovaOTAUpdater'));
+assert.ok(screen.includes('miningOwned ? null'));
+assert.ok(screen.includes('otaUpdater.checkAndNotify'));
+assert.ok(build.includes('NEXUS_BUILD_COMMIT'));
+assert.ok(main.includes('NexusNovaNativeInfo'));
+console.log('NexusNova OTA popup smoke: engine, real endpoints, deterministic commit comparison, version bridge, Nova Hub isolation, and teardown assertions passed.');
