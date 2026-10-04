@@ -52,16 +52,22 @@ function jsonUrl(url) {
   return url + (url.indexOf('?') >= 0 ? '&' : '?') + 'otaNonce=' + Date.now();
 }
 
-function openUpdateChannel(url) {
+function requestNativeUpdate(update) {
   try {
-    if (typeof window.nexusPostNativeAction === 'function') {
-      return window.nexusPostNativeAction('openExternal', { url: url });
+    if (typeof window.nexusPostNativeAction !== 'function') {
+      return { started: false, reason: 'native-bridge-unavailable' };
     }
-    const opened = window.open(url, '_blank', 'noopener,noreferrer');
-    return !!opened;
+    if (!update?.apkUrl) {
+      return { started: false, reason: 'no-installable-apk' };
+    }
+    const started = window.nexusPostNativeAction('installUpdate', {
+      apkUrl: update.apkUrl,
+      expectedVersionCode: Number(update.expectedVersionCode || 0) || 0
+    });
+    return { started: !!started, method: 'native-package-installer' };
   } catch (error) {
-    console.warn('[NexusNova OTA] update handoff failed:', error);
-    return false;
+    console.warn('[NexusNova OTA] native update request failed:', error);
+    return { started: false, reason: 'native-request-failed' };
   }
 }
 
@@ -83,6 +89,8 @@ export class NexusNovaOTAUpdater {
     this.modalCleanup = null;
     this.diagnosticPanel = null;
     this.diagnosticState = null;
+    this.nativeInstallEventHandler = event => this.handleNativeInstallEvent(event);
+    window.addEventListener('nexusnova:ota-install', this.nativeInstallEventHandler, { signal: this.controller.signal });
   }
 
   async fetchJson(url) {
@@ -175,7 +183,7 @@ export class NexusNovaOTAUpdater {
     const latestCommit = sha40(commit?.sha);
     if (commit) this.verifyRuntimeState(commit);
     if (!latestCommit) return { available: false, reason: 'latest-commit-unavailable' };
-    const available = !!this.clientCommit && latestCommit !== this.clientCommit;
+    const available = !!this.clientCommit && latestCommit !== this.clientCommit && !!apk?.browser_download_url;
     const assets = Array.isArray(release?.assets) ? release.assets : [];
     const apk = assets.find(asset => /\.apk$/i.test(String(asset?.name || '')) && typeof asset?.browser_download_url === 'string');
     const releaseMetadata = assets.find(asset => String(asset?.name || '') === 'output-metadata.json' && typeof asset?.browser_download_url === 'string');
@@ -189,6 +197,7 @@ export class NexusNovaOTAUpdater {
       apkUrl: apk?.browser_download_url || '',
       releaseTag: String(release?.tag_name || ''),
       metadataUrl: releaseMetadata?.browser_download_url || '',
+      expectedVersionCode: Number(commit?.versionCode || 0) || 0,
       clientCommit: this.clientCommit,
       clientVersionCode: this.clientVersionCode,
       clientVersionName: this.clientVersionName,
@@ -199,14 +208,52 @@ export class NexusNovaOTAUpdater {
 
   triggerUpdateDownload(update = this.latestUpdate) {
     if (this.destroyed || !update?.available) return { started: false, reason: 'no-update' };
-    const url = update.apkUrl || update.releaseUrl || update.commitUrl;
-    if (!url) return { started: false, reason: 'no-endpoint' };
-    return { started: openUpdateChannel(url), url: url, method: update.apkUrl ? 'apk-release-asset' : 'release-page' };
+    if (!update.apkUrl) return { started: false, reason: 'no-installable-apk' };
+    return { ...requestNativeUpdate(update), url: update.apkUrl };
   }
 
   async applyPatch(update = this.latestUpdate) {
     if (this.destroyed || !update?.available) return { applied: false, reason: 'no-update' };
-    return { applied: false, reason: 'platform-update-handoff', ...this.triggerUpdateDownload(update) };
+    return { applied: false, reason: 'native-installer', ...this.triggerUpdateDownload(update) };
+  }
+
+  handleNativeInstallEvent(event) {
+    if (this.destroyed || !this.modal) return;
+    const detail = event?.detail || {};
+    const copy = this.modal.querySelector('.nn-ota-card p');
+    const button = this.modal.querySelector('.nn-ota-update');
+    if (!copy || !button) return;
+
+    const eventName = String(detail.event || '');
+    if (eventName === 'download-start') {
+      copy.textContent = 'Downloading the signed NexusNova update in the background…';
+      button.textContent = 'Downloading…';
+      button.disabled = true;
+    } else if (eventName === 'download-progress') {
+      const percent = Math.max(0, Math.min(100, Number(detail.percent || 0)));
+      copy.textContent = 'Downloading update package… ' + percent + '%';
+      button.textContent = percent >= 100 ? 'Verifying…' : 'Downloading… ' + percent + '%';
+    } else if (eventName === 'download-complete') {
+      copy.textContent = 'Update package downloaded. Verifying package identity and signature…';
+      button.textContent = 'Verifying…';
+    } else if (eventName === 'install-staged') {
+      copy.textContent = 'Opening Android system installer…';
+      button.textContent = 'Installer Ready';
+    } else if (eventName === 'install-prompt') {
+      copy.textContent = 'Android is ready to confirm this signed update.';
+      button.textContent = 'Installer Open';
+    } else if (eventName === 'success') {
+      copy.textContent = 'Update installed successfully. NexusNova will restart with the new build.';
+      button.textContent = 'Installed';
+    } else if (eventName === 'cancelled') {
+      copy.textContent = 'Update download cancelled.';
+      button.textContent = 'Update Now';
+      button.disabled = false;
+    } else if (eventName === 'failure') {
+      copy.textContent = String(detail.message || 'The update could not be installed safely.');
+      button.textContent = 'Update Now';
+      button.disabled = false;
+    }
   }
 
   showUpdatePopup(update = this.latestUpdate) {
@@ -231,11 +278,17 @@ export class NexusNovaOTAUpdater {
     const dismiss = () => { if (this.modal) this.modal.remove(); this.modal = null; };
     updateButton.addEventListener('click', async () => {
       if (this.destroyed) return;
-      updateButton.disabled = true; updateButton.textContent = 'Opening Update…';
+      updateButton.disabled = true; updateButton.textContent = 'Starting secure download…';
+      copy.textContent = 'Preparing the signed NexusNova update…';
       const result = await this.applyPatch(update);
       if (this.destroyed) return;
-      if (result.started) { copy.textContent = 'The official NexusNova update channel has been opened.'; updateButton.textContent = 'Update Opened'; }
-      else { copy.textContent = 'No installable APK release is published for this commit yet. The notification is ready for the next published build.'; updateButton.disabled = false; updateButton.textContent = 'Update Now'; }
+      if (!result.started) {
+        copy.textContent = result.reason === 'native-bridge-unavailable'
+          ? 'Native installer unavailable in this build.'
+          : 'The signed APK could not be started for installation.';
+        updateButton.disabled = false;
+        updateButton.textContent = 'Update Now';
+      }
     }, { signal: this.controller.signal });
     laterButton.addEventListener('click', dismiss, { signal: this.controller.signal });
     modal.addEventListener('click', event => { if (event.target === modal) dismiss(); }, { signal: this.controller.signal });
@@ -252,6 +305,11 @@ export class NexusNovaOTAUpdater {
 
   destroy() {
     if (this.destroyed) return false;
+    try {
+      if (typeof window.nexusPostNativeAction === 'function') {
+        window.nexusPostNativeAction('cancelUpdate', {});
+      }
+    } catch (_) {}
     this.destroyed = true;
     this.controller.abort();
     this.modalCleanup?.();
