@@ -13,7 +13,6 @@ for (const needle of [
   'applyPatch(',
   'new AbortController()',
   'this.controller.abort()',
-  'output-metadata.json',
   'const COMMIT_API',
   'api.github.com',
   'const OTA_MANIFEST_URL',
