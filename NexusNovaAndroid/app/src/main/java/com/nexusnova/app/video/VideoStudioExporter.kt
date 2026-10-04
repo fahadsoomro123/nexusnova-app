@@ -5,7 +5,7 @@ import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import androidx.media3.common.MimeTypes
-import androidx.media3.common.Composition
+import androidx.media3.transformer.Composition
 import androidx.media3.transformer.ExportException
 import androidx.media3.transformer.ExportResult
 import androidx.media3.transformer.ProgressHolder
@@ -87,7 +87,7 @@ class VideoStudioExporter(
                     completedComposition: Composition,
                     result: ExportResult
                 ) {
-                    if (!isCurrent(activeTransformer = transformer)) return
+                    if (!isCurrent(transformer)) return
                     exporting.set(false)
                     stopProgressPolling()
                     val output = activeOutput
@@ -103,7 +103,7 @@ class VideoStudioExporter(
                     result: ExportResult,
                     exception: ExportException
                 ) {
-                    if (!isCurrent(activeTransformer = transformer)) return
+                    if (!isCurrent(transformer)) return
                     exporting.set(false)
                     stopProgressPolling()
                     val output = activeOutput
