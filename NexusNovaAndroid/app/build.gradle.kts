@@ -93,6 +93,15 @@ dependencies {
 
     // Google User Messaging Platform remains available for privacy testing.
     implementation("com.google.android.ump:user-messaging-platform:4.0.0")
+
+    // Native media foundation for AI Video Studio. Media3 1.11.1 is the
+    // current stable line documented by Android Developers (2026-09).
+    implementation("androidx.media3:media3-common:1.11.1")
+    implementation("androidx.media3:media3-exoplayer:1.11.1")
+    implementation("androidx.media3:media3-transformer:1.11.1")
+    implementation("androidx.media3:media3-effect:1.11.1")
+    implementation("androidx.media3:media3-ui:1.11.1")
+
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test:runner:1.6.2")
     androidTestImplementation("androidx.test.uiautomator:uiautomator:2.3.0")
