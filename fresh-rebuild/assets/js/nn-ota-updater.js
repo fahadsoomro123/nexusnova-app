@@ -61,8 +61,7 @@ function requestNativeUpdate(update) {
       return { started: false, reason: 'no-installable-apk' };
     }
     const started = window.nexusPostNativeAction('installUpdate', {
-      apkUrl: update.apkUrl,
-      expectedVersionCode: Number(update.expectedVersionCode || 0) || 0
+      apkUrl: update.apkUrl
     });
     return { started: !!started, method: 'native-package-installer' };
   } catch (error) {
@@ -183,10 +182,10 @@ export class NexusNovaOTAUpdater {
     const latestCommit = sha40(commit?.sha);
     if (commit) this.verifyRuntimeState(commit);
     if (!latestCommit) return { available: false, reason: 'latest-commit-unavailable' };
-    const available = !!this.clientCommit && latestCommit !== this.clientCommit && !!apk?.browser_download_url;
     const assets = Array.isArray(release?.assets) ? release.assets : [];
     const apk = assets.find(asset => /\.apk$/i.test(String(asset?.name || '')) && typeof asset?.browser_download_url === 'string');
     const releaseMetadata = assets.find(asset => String(asset?.name || '') === 'output-metadata.json' && typeof asset?.browser_download_url === 'string');
+    const available = !!this.clientCommit && latestCommit !== this.clientCommit && !!apk?.browser_download_url;
     this.latestUpdate = {
       available: available,
       latestCommit: latestCommit,
@@ -197,7 +196,6 @@ export class NexusNovaOTAUpdater {
       apkUrl: apk?.browser_download_url || '',
       releaseTag: String(release?.tag_name || ''),
       metadataUrl: releaseMetadata?.browser_download_url || '',
-      expectedVersionCode: Number(commit?.versionCode || 0) || 0,
       clientCommit: this.clientCommit,
       clientVersionCode: this.clientVersionCode,
       clientVersionName: this.clientVersionName,
