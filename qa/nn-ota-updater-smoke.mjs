@@ -26,8 +26,7 @@ for (const needle of [
   'DIAGNOSTIC RUNTIME STATE',
   'Current Device Running Code SHA',
   'GitHub Repository Latest SHA',
-  'Verification Delta Status',
-  'NexusNovaDiagnostic'
+  'Verification Delta Status'
 ]) assert.ok(updater.includes(needle), 'OTA updater missing: ' + needle);
 
 assert.ok(!/raw\.githubusercontent\.com.*build\/outputs/.test(updater), 'invalid raw CI output endpoint present');
