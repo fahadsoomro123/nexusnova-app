@@ -12,10 +12,14 @@ assert.match(updater, /triggerUpdateDownload\\(/);
 assert.match(updater, /applyPatch\\(/);
 assert.match(updater, /new AbortController\\(\\)/);
 assert.match(updater, /this\\.controller\\.abort\\(\\)/);
-assert.match(updater, /output-metadata\\.json/);
+assert.match(updater, /output-metadata\\.json/); // release asset, not a raw CI build-output path
 assert.match(updater, /const COMMIT_API/);
 assert.match(updater, /api\\.github\\.com/);
 assert.match(updater, /const RELEASE_API/);
+assert.match(updater, /latestCommit !== this\\.clientCommit/);
+assert.match(updater, /Update Now/);
+assert.match(updater, /Please update to continue/);
+assert.doesNotMatch(updater, /raw\\.githubusercontent\\.com.*build\\/outputs/);
 assert.match(screen, /NexusNovaOTAUpdater/);
 assert.match(screen, /miningOwned \\? null/);
 assert.match(screen, /otaUpdater\\.checkAndNotify/);

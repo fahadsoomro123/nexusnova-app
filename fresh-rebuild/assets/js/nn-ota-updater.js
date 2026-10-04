@@ -2,7 +2,6 @@ const REPOSITORY = 'fahadsoomro123/nexusnova-app';
 const BRANCH = 'main';
 const COMMIT_API = 'https://api.github.com/repos/' + REPOSITORY + '/commits/' + BRANCH;
 const RELEASE_API = 'https://api.github.com/repos/' + REPOSITORY + '/releases/latest';
-const METADATA_URL = 'https://raw.githubusercontent.com/' + REPOSITORY + '/main/NexusNovaAndroid/app/build/outputs/apk/debug/output-metadata.json';
 const STYLE_ID = 'nn-ota-updater-style';
 let styleNode = null;
 let styleUsers = 0;
@@ -61,7 +60,6 @@ export class NexusNovaOTAUpdater {
     this.branch = options.branch || BRANCH;
     this.commitApi = options.commitApi || COMMIT_API;
     this.releaseApi = options.releaseApi || RELEASE_API;
-    this.metadataUrl = options.metadataUrl === false ? '' : (options.metadataUrl || METADATA_URL);
     this.feature = options.feature || 'NOVA HUB';
     this.clientCommit = sha40(options.clientCommit || window.NexusNovaNativeInfo?.buildCommit);
     this.clientVersionCode = Number(options.clientVersionCode || window.NexusNovaNativeInfo?.versionCode || 0) || 0;
@@ -97,21 +95,17 @@ export class NexusNovaOTAUpdater {
         if (error?.name === 'AbortError') throw error;
         console.info('[NexusNova OTA] release lookup unavailable:', error);
         return null;
-      }),
-      this.metadataUrl ? this.fetchJson(this.metadataUrl).catch(error => {
-        if (error?.name === 'AbortError') throw error;
-        return null;
-      }) : Promise.resolve(null)
+      })
     ]);
     if (this.destroyed) return null;
     const commit = results[0];
     const release = results[1];
-    const metadata = results[2];
     const latestCommit = sha40(commit?.sha);
     if (!latestCommit) return { available: false, reason: 'latest-commit-unavailable' };
     const available = !!this.clientCommit && latestCommit !== this.clientCommit;
     const assets = Array.isArray(release?.assets) ? release.assets : [];
     const apk = assets.find(asset => /\.apk$/i.test(String(asset?.name || '')) && typeof asset?.browser_download_url === 'string');
+    const releaseMetadata = assets.find(asset => String(asset?.name || '') === 'output-metadata.json' && typeof asset?.browser_download_url === 'string');
     this.latestUpdate = {
       available: available,
       latestCommit: latestCommit,
@@ -121,7 +115,7 @@ export class NexusNovaOTAUpdater {
       releaseUrl: release?.html_url || ('https://github.com/' + this.repository + '/releases'),
       apkUrl: apk?.browser_download_url || '',
       releaseTag: String(release?.tag_name || ''),
-      metadata: metadata,
+      metadataUrl: releaseMetadata?.browser_download_url || '',
       clientCommit: this.clientCommit,
       clientVersionCode: this.clientVersionCode,
       clientVersionName: this.clientVersionName,
@@ -152,9 +146,9 @@ export class NexusNovaOTAUpdater {
     const card = document.createElement('div');
     card.className = 'nn-ota-card';
     const badge = document.createElement('div'); badge.className = 'nn-ota-badge'; badge.textContent = 'UPDATE';
-    const title = document.createElement('h2'); title.textContent = 'New AI Video Studio Update Available';
+    const title = document.createElement('h2'); title.textContent = (this.feature === 'AI Video Studio' ? 'New AI Video Studio Update Available' : 'New NOVA HUB Update Available') + ' (v' + update.shortSha + ')';
     const copy = document.createElement('p');
-    copy.textContent = 'Update v' + update.shortSha + ' has arrived. Install the latest build to access the newest multi-layer timeline tools.';
+    copy.textContent = this.feature === 'AI Video Studio' ? 'Please update to continue.' : 'A newer NexusNova build is available. Please update to continue.';
     const meta = document.createElement('div'); meta.className = 'nn-ota-meta';
     meta.textContent = 'commit: ' + update.latestCommit + (update.releaseTag ? ' • release: ' + update.releaseTag : '');
     const updateButton = document.createElement('button'); updateButton.className = 'nn-ota-update'; updateButton.type = 'button'; updateButton.textContent = 'Update Now';
