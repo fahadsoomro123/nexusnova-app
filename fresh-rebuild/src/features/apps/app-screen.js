@@ -1,5 +1,6 @@
 import { icon } from '../../components/icons.js';
 import { novaApps } from '../hub/app-registry.js';
+import { enhanceAiVideoStudio } from './nn-video-studio-upgrade.js';
 
 let cleanup = null;
 const AI_PHOTO_ID = 'ai-photo-studio';
@@ -259,6 +260,7 @@ export async function appScreen({ id, backToHub, backToMine } = {}) {
       const body = renderer();
       if (!(body instanceof Node)) throw new Error('Renderer returned an invalid screen.');
       mount.appendChild(body);
+      if (id === 'ai-video-studio') body.__nnVideoTimelineCleanup = enhanceAiVideoStudio(body);
       void enhanceAppSafely(id, body);
       if (aiPhotoRoute) document.body.classList.add('nx-ai-photo-route-active');
       const novaSidebarCleanup = id === 'ai' ? installNovaPremiumSidebar(root, body) : () => {};
