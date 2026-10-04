@@ -761,8 +761,12 @@ class MainActivity : AppCompatActivity() {
 
         val rawUrl = message.optString("apkUrl").trim()
         val expectedVersionCode = message.optLong("expectedVersionCode", 0L)
+        val expectedSha256 = message.optString("expectedSha256").trim().lowercase(Locale.ROOT)
         val uri = runCatching { Uri.parse(rawUrl) }.getOrNull()
-        if (uri == null || !isAllowedOtaDownloadUri(uri)) {
+        if (uri == null || !isAllowedOtaDownloadUri(uri) ||
+            !Regex("^[0-9a-f]{64}$").matches(expectedSha256) ||
+            expectedVersionCode <= 0L
+        ) {
             publishOtaInstallEvent("failure", "The update source is not an approved NexusNova release asset.")
             return false
         }
@@ -772,9 +776,9 @@ class MainActivity : AppCompatActivity() {
 
         otaInstallFuture = otaInstallExecutor.submit {
             try {
-                val apkFile = downloadOtaApk(uri)
+                val apkFile = downloadOtaApk(uri, expectedSha256)
                 publishOtaInstallEvent("download-complete")
-                verifyOtaApk(apkFile, expectedVersionCode)
+                verifyOtaApk(apkFile, expectedVersionCode, expectedSha256)
                 publishOtaInstallEvent("install-staged")
                 installOtaApk(apkFile)
             } catch (error: Throwable) {
@@ -811,7 +815,7 @@ class MainActivity : AppCompatActivity() {
         publishOtaInstallEvent("cancelled")
     }
 
-    private fun downloadOtaApk(uri: Uri): File {
+    private fun downloadOtaApk(uri: Uri, expectedSha256: String): File {
         val root = File(cacheDir, OTA_CACHE_DIR)
         if (!root.exists() && !root.mkdirs()) throw java.io.IOException("Could not create OTA cache")
         val temp = File(root, OTA_APK_NAME + ".part")
@@ -869,10 +873,17 @@ class MainActivity : AppCompatActivity() {
         }
 
         if (!temp.renameTo(target)) throw java.io.IOException("Could not finalize OTA cache file")
+        if (sha256File(target) != expectedSha256) {
+            throw SecurityException("OTA SHA-256 mismatch")
+        }
         return target
     }
 
-    private fun verifyOtaApk(apkFile: File, expectedVersionCode: Long) {
+    private fun verifyOtaApk(
+        apkFile: File,
+        expectedVersionCode: Long,
+        expectedSha256: String
+    ) {
         if (!apkFile.isFile || apkFile.length() <= 0L) throw java.io.IOException("OTA APK cache is empty")
 
         val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -903,8 +914,11 @@ class MainActivity : AppCompatActivity() {
         if (targetVersionCode <= currentVersionCode) {
             throw SecurityException("OTA version ${targetVersionCode} is not newer than installed ${currentVersionCode}")
         }
-        if (expectedVersionCode > 0L && targetVersionCode != expectedVersionCode) {
+        if (expectedVersionCode <= 0L || targetVersionCode != expectedVersionCode) {
             throw SecurityException("OTA versionCode does not match the published update metadata")
+        }
+        if (sha256File(apkFile) != expectedSha256) {
+            throw SecurityException("OTA SHA-256 mismatch")
         }
 
         val currentSigner = signingCertificateDigests(currentInfo)
@@ -930,6 +944,19 @@ class MainActivity : AppCompatActivity() {
         return MessageDigest.getInstance("SHA-256")
             .digest(value)
             .joinToString("") { byte -> "%02x".format(byte) }
+    }
+
+    private fun sha256File(file: File): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        file.inputStream().buffered().use { input ->
+            val buffer = ByteArray(32 * 1024)
+            while (true) {
+                val read = input.read(buffer)
+                if (read < 0) break
+                digest.update(buffer, 0, read)
+            }
+        }
+        return digest.digest().joinToString("") { byte -> "%02x".format(byte) }
     }
 
     private fun installOtaApk(apkFile: File) {
@@ -968,17 +995,11 @@ class MainActivity : AppCompatActivity() {
                 runCatching { packageManager.packageInstaller.abandonSession(otaInstallSessionId) }
                 otaInstallSessionId = -1
             }
-            if (error is SecurityException || error is IllegalStateException || error is java.io.IOException) {
-                if (otaInstallCommitted) throw error
-                runCatching { launchCachedApkWithFileProvider(apkFile) }
-                    .onFailure { fallback ->
-                        publishOtaInstallEvent("failure", fallback.message ?: "Android package installer could not start.")
-                        throw fallback
-                    }
-                    .onSuccess { publishOtaInstallEvent("install-prompt") }
-            } else {
+            if (otaInstallCommitted || error !is SecurityException && error !is IllegalStateException && error !is java.io.IOException) {
                 throw error
             }
+            publishOtaInstallEvent("failure", error.message ?: "Android package installer could not start.")
+            throw error
         }
     }
 
@@ -1037,17 +1058,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun launchCachedApkWithFileProvider(apkFile: File) {
-        val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", apkFile)
-        val intent = Intent(Intent.ACTION_VIEW)
-            .setDataAndType(uri, APK_MIME_TYPE)
-            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        runOnUiThread {
-            startActivity(intent)
-        }
-    }
-
     private fun publishOtaInstallEvent(
         event: String,
         message: String? = null,
@@ -1070,10 +1080,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun isAllowedOtaDownloadUri(uri: Uri): Boolean {
-        val expectedPrefix = "/${OTA_GITHUB_REPOSITORY}/releases/download/"
+        val expectedPrefix = "/${OTA_GITHUB_REPOSITORY}/apk-builds/ota-bootstrap-safe/"
         return uri.scheme.equals("https", ignoreCase = true) &&
-            uri.host.equals("github.com", ignoreCase = true) &&
-            uri.encodedPath?.startsWith(expectedPrefix, ignoreCase = false) == true
+            uri.host.equals("raw.githubusercontent.com", ignoreCase = true) &&
+            uri.encodedPath?.startsWith(expectedPrefix, ignoreCase = false) == true &&
+            uri.encodedPath?.endsWith(".apk", ignoreCase = true) == true
     }
 
     private fun bindLastPickedVideoMedia(message: JSONObject) {
