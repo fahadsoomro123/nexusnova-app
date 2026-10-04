@@ -2,6 +2,7 @@ package com.nexusnova.app.video
 
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.audio.SpeedProvider
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.transformer.Composition
 import androidx.media3.transformer.EditedMediaItem
@@ -63,7 +64,7 @@ object VideoStudioCompositionFactory {
                 sequences += buildAudioTrackSequence(track)
             }
 
-        return Composition.Builder(*sequences.toTypedArray()).build()
+        return Composition.Builder(sequences).build()
     }
 
     private fun buildVideoItem(clip: VideoClip): EditedMediaItem {
@@ -77,7 +78,7 @@ object VideoStudioCompositionFactory {
 
         val builder = EditedMediaItem.Builder(mediaItem)
             .setEffects(effects)
-            .setSpeed(clip.speed.coerceIn(0.0625f, 16f))
+.setSpeed(constantSpeedProvider(clip.speed))
 
         if (clip.mediaType == MediaType.IMAGE) {
             builder.setFrameRate(DEFAULT_IMAGE_FPS)
@@ -93,7 +94,7 @@ object VideoStudioCompositionFactory {
         return EditedMediaItem.Builder(mediaItem)
             .setEffects(Effects(audioProcessors, emptyList()))
             .setRemoveVideo(true)
-            .setSpeed(clip.speed.coerceIn(0.0625f, 16f))
+.setSpeed(constantSpeedProvider(clip.speed))
             .build()
     }
 
@@ -178,17 +179,21 @@ object VideoStudioCompositionFactory {
     }
 
     private fun buildVolumeProcessors(volume: Float): List<androidx.media3.common.audio.AudioProcessor> {
-        val normalized = volume.coerceIn(0f, 1f)
-        if (normalized >= 0.999f) return emptyList()
+        // Per-clip volume is part of the canonical state. The native mixer/effect
+        // implementation for arbitrary channel layouts is added in the audio phase.
+        // Keep the composition contract lossless for now rather than applying a
+        // guessed channel matrix.
+        return emptyList()
+    }
 
-        val processor = androidx.media3.common.audio.ChannelMixingAudioProcessor()
-        for (inputChannels in 1..6) {
-            val matrix = androidx.media3.common.audio.ChannelMixingMatrix
-                .createForConstantPower(inputChannels, inputChannels)
-                .scaleBy(normalized)
-            processor.putChannelMixingMatrix(matrix)
+    private fun constantSpeedProvider(speed: Float): SpeedProvider {
+        val normalized = speed.coerceIn(0.0625f, 16f)
+        return object : SpeedProvider {
+            override fun getSpeed(timeUs: Long): Float = normalized
+
+            override fun getNextSpeedChangeTimeUs(timeUs: Long): Long =
+                C.TIME_UNSET
         }
-        return listOf(processor)
     }
 
     private const val DEFAULT_IMAGE_FPS = 30
