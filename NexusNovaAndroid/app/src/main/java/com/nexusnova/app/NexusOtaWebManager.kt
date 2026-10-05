@@ -349,7 +349,7 @@ class NexusOtaWebManager(context: Context) {
         const val BUNDLED_WEB_BASE = "28ad58de566e42621dad6198aa01be885ccc9769"
         const val GLOBAL_OTA_UPDATER_PATH = "assets/js/nn-ota-updater.js"
         const val MANIFEST_URL = "https://raw.githubusercontent.com/fahadsoomro123/nexusnova-app/main/ota/manifest.json"
-        const val FILE_BASE_URL = "https://raw.githubusercontent.com/fahadsoomro123/nexusnova-app/main/fresh-rebuild/"
+        const val FILE_BASE_URL = "https://raw.githubusercontent.com/fahadsoomro123/nexusnova-app/main/ota/files/"
         const val CONNECT_TIMEOUT_MS = 8_000
         const val READ_TIMEOUT_MS = 12_000
         const val UPDATE_CHECK_ATTEMPTS = 4
