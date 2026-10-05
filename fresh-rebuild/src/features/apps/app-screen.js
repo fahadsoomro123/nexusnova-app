@@ -254,22 +254,94 @@ export async function appScreen({ id, backToHub, backToMine } = {}) {
 
   root.querySelector('[data-app-back]').addEventListener('click', () => goBack?.());
   const mount = root.querySelector('[data-app-mount]');
+
+  // Keep AI Video Studio outside the synchronous route factory.
+  // Commit the lightweight route shell first, then resolve and mount the heavy
+  // editor on the next frame. Optional timeline enhancement is also non-blocking.
+  if (id === 'ai-video-studio') {
+    let cancelled = false;
+    let frameId = 0;
+    let body = null;
+    let bodyCleanup = null;
+
+    const cancelVideoRoute = () => {
+      cancelled = true;
+      if (frameId) {
+        cancelAnimationFrame(frameId);
+        frameId = 0;
+      }
+      try { bodyCleanup?.(); } catch {}
+      bodyCleanup = null;
+      if (cleanup === cancelVideoRoute) cleanup = null;
+    };
+
+    cleanup = cancelVideoRoute;
+    root.__cleanup = cancelVideoRoute;
+    mount.innerHTML = '<article class="nx-tool-card nx-migration-card"><h2>AI Video Studio</h2><p>Loading editor…</p></article>';
+
+    frameId = requestAnimationFrame(() => {
+      frameId = 0;
+      void resolveRenderer(id).then(renderer => {
+        if (cancelled || !root.isConnected) return;
+
+        try {
+          if (typeof renderer !== 'function') {
+            mount.innerHTML = '<article class="nx-tool-card nx-migration-card"><h2>AI Video Studio</h2><p>The editor module could not be loaded.</p></article>';
+            return;
+          }
+
+          body = renderer();
+          if (!(body instanceof Node)) throw new Error('Renderer returned an invalid screen.');
+          mount.replaceChildren(body);
+
+          void import('./nn-video-studio-upgrade.js?ota=nv17')
+            .then(videoEnhancer => {
+              if (cancelled || !body || !root.isConnected) return;
+              if (typeof videoEnhancer?.enhanceAiVideoStudio === 'function') {
+                body.__nnVideoTimelineCleanup = videoEnhancer.enhanceAiVideoStudio(body);
+              }
+            })
+            .catch(error => {
+              console.warn('[NexusNova Fresh] optional video enhancer skipped:', error);
+            });
+
+          let cleaned = false;
+          const cleanupBody = () => {
+            if (cleaned) return;
+            cleaned = true;
+            try { window.speechSynthesis?.cancel?.(); } catch {}
+            body.__nnVideoTimelineCleanup?.();
+            body.__cleanup?.();
+            if (cleanup === cleanupBody) cleanup = null;
+            bodyCleanup = null;
+          };
+
+          bodyCleanup = cleanupBody;
+          cleanup = cleanupBody;
+          root.__cleanup = cleanupBody;
+        } catch (error) {
+          if (cancelled || !root.isConnected) return;
+          console.error('[NexusNova Fresh] ai-video-studio renderer:', error);
+          mount.innerHTML = '<article class="nx-tool-card"><h2>AI Video Studio could not initialize</h2><p>This tool hit a local runtime error. You can safely leave this screen and continue using other NexusNova areas.</p><button class="nx-secondary" type="button" data-app-error-back>BACK TO NOVA HUB</button></article>';
+          mount.querySelector('[data-app-error-back]')?.addEventListener('click', () => goBack?.());
+        }
+      }).catch(error => {
+        if (cancelled || !root.isConnected) return;
+        console.warn('[NexusNova Fresh] deferred AI Video Studio load failed:', error);
+        mount.innerHTML = '<article class="nx-tool-card"><h2>AI Video Studio could not load</h2><p>The editor module failed to load. You can safely leave this screen and continue using other NexusNova areas.</p><button class="nx-secondary" type="button" data-app-error-back>BACK TO NOVA HUB</button></article>';
+        mount.querySelector('[data-app-error-back]')?.addEventListener('click', () => goBack?.());
+      });
+    });
+
+    return root;
+  }
+
   const renderer = await resolveRenderer(id);
   if (renderer) {
     try {
       const body = renderer();
       if (!(body instanceof Node)) throw new Error('Renderer returned an invalid screen.');
       mount.appendChild(body);
-      if (id === 'ai-video-studio') {
-        try {
-          const videoEnhancer = await import('./nn-video-studio-upgrade.js?ota=nv17');
-          if (typeof videoEnhancer?.enhanceAiVideoStudio === 'function') {
-            body.__nnVideoTimelineCleanup = videoEnhancer.enhanceAiVideoStudio(body);
-          }
-        } catch (error) {
-          console.warn('[NexusNova Fresh] optional video enhancer skipped:', error);
-        }
-      }
       void enhanceAppSafely(id, body);
       if (aiPhotoRoute) document.body.classList.add('nx-ai-photo-route-active');
       const novaSidebarCleanup = id === 'ai' ? installNovaPremiumSidebar(root, body) : () => {};
