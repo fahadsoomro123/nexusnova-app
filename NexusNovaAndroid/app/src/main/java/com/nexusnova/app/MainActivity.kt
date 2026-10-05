@@ -61,6 +61,8 @@ class MainActivity : AppCompatActivity() {
     @Volatile private var otaInstallCommitted = false
     private var nativeOtaUpdateDialog: androidx.appcompat.app.AlertDialog? = null
     private var nativeOtaPromptMessage: JSONObject? = null
+    private var nativeOtaProgressText: android.widget.TextView? = null
+    private var nativeOtaProgressBar: android.widget.ProgressBar? = null
 
     private val videoMediaRegistry by lazy { VideoMediaRegistry(contentResolver) }
     private val videoExporter by lazy { VideoStudioExporter(this) }
@@ -785,18 +787,57 @@ class MainActivity : AppCompatActivity() {
 
         val promptMessage = JSONObject(message.toString())
         val versionLabel = versionName.takeIf { it.isNotBlank() } ?: "latest release"
+        val density = resources.displayMetrics.density
+        val content = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding((24 * density).toInt(), 0, (24 * density).toInt(), 0)
+        }
+        val progressText = android.widget.TextView(this).apply {
+            text = "Version $versionLabel is ready. Download 0%"
+            setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 17f)
+        }
+        val progressBar = android.widget.ProgressBar(
+            this,
+            null,
+            android.R.attr.progressBarStyleHorizontal
+        ).apply {
+            max = 100
+            progress = 0
+            isIndeterminate = false
+        }
+        content.addView(
+            progressText,
+            android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        )
+        content.addView(
+            progressBar,
+            android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                (6 * density).toInt()
+            ).apply {
+                topMargin = (14 * density).toInt()
+            }
+        )
+
         val dialog = MaterialAlertDialogBuilder(this)
             .setIcon(R.drawable.ic_launcher)
             .setTitle("NexusNova update available")
-            .setMessage("Version $versionLabel is ready. Update now to get the latest NexusNova improvements.")
+            .setView(content)
             .setNegativeButton("Not now", null)
             .setPositiveButton("Update", null)
             .create()
 
         nativeOtaPromptMessage = promptMessage
         nativeOtaUpdateDialog = dialog
+        nativeOtaProgressText = progressText
+        nativeOtaProgressBar = progressBar
         dialog.setOnDismissListener {
             if (nativeOtaUpdateDialog === dialog) nativeOtaUpdateDialog = null
+            if (nativeOtaProgressText === progressText) nativeOtaProgressText = null
+            if (nativeOtaProgressBar === progressBar) nativeOtaProgressBar = null
             nativeOtaPromptMessage = null
         }
         dialog.show()
