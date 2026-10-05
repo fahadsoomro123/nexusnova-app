@@ -1062,44 +1062,37 @@ class MainActivity : AppCompatActivity() {
 
     private fun installOtaApk(apkFile: File) {
         try {
-            val installer = packageManager.packageInstaller
-            val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
-                setAppPackageName(packageName)
-                setSize(apkFile.length())
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_REQUIRED)
-                }
+            val apkUri = FileProvider.getUriForFile(
+                this,
+                packageName + ".fileprovider",
+                apkFile
+            )
+            val installIntent = Intent(Intent.ACTION_INSTALL_PACKAGE).apply {
+                data = apkUri
+                type = APK_MIME_TYPE
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                putExtra(Intent.EXTRA_INSTALLER_PACKAGE_NAME, packageName)
             }
-            val sessionId = installer.createSession(params)
-            otaInstallSessionId = sessionId
-            val session = installer.openSession(sessionId)
-            try {
-                session.openWrite("base.apk", 0L, apkFile.length()).use { output ->
-                    apkFile.inputStream().buffered().use { input ->
-                        val buffer = ByteArray(32 * 1024)
-                        while (true) {
-                            if (Thread.currentThread().isInterrupted) throw InterruptedException("OTA install cancelled")
-                            val read = input.read(buffer)
-                            if (read < 0) break
-                            output.write(buffer, 0, read)
-                        }
-                    }
-                    session.fsync(output)
-                }
-                session.commit(createOtaStatusIntentSender(sessionId))
-                otaInstallCommitted = true
-            } finally {
-                session.close()
+            val fallbackIntent = Intent(Intent.ACTION_VIEW).apply {
+                data = apkUri
+                type = APK_MIME_TYPE
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
+            val intentToLaunch = when {
+                installIntent.resolveActivity(packageManager) != null -> installIntent
+                fallbackIntent.resolveActivity(packageManager) != null -> fallbackIntent
+                else -> throw java.io.IOException("No Android package installer is available.")
+            }
+            startActivity(intentToLaunch)
+            // Keep the verified APK alive while the system installer reads it.
+            otaInstallCommitted = true
         } catch (error: Throwable) {
-            if (otaInstallSessionId >= 0 && !otaInstallCommitted) {
-                runCatching { packageManager.packageInstaller.abandonSession(otaInstallSessionId) }
-                otaInstallSessionId = -1
-            }
-            if (otaInstallCommitted || error !is SecurityException && error !is IllegalStateException && error !is java.io.IOException) {
-                throw error
-            }
-            publishOtaInstallEvent("failure", error.message ?: "Android package installer could not start.")
+            publishOtaInstallEvent(
+                "failure",
+                error.message ?: "Android package installer could not open the verified update."
+            )
             throw error
         }
     }
