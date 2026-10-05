@@ -200,7 +200,7 @@ jobs:
           badging="$($AAPT dump badging "$apk" | head -n 1)"
           echo "$badging"
           echo "$badging" | grep -q "name='com.nexusnova.app'"
-          echo "$badging" | grep -q "versionCode='27000045'"
+          echo "$badging" | grep -q "versionCode='27000046'"
           echo "$badging" | grep -q "versionName='1.0.45-ota-21'"
 
           unzip -l "$apk" > /tmp/apk-list.txt
