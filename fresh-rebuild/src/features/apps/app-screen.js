@@ -88,13 +88,14 @@ async function resolveRenderer(id) {
 }
 
 async function enhanceAppSafely(id, body) {
-  const tasks = [
-    import('./mining-integrations.js').then(module => module.enhanceMiningApp?.(id, body))
-  ];
-  const results = await Promise.allSettled(tasks);
-  results.forEach(result => {
-    if (result.status === 'rejected') console.warn('[NexusNova Fresh] optional app enhancement skipped:', result.reason);
-  });
+  // Mining integrations belong only to the mining-owned routes.
+  // Never load Firebase/mining dependencies while opening unrelated apps.
+  if (id !== 'tasks' && id !== 'nova-vault') return;
+  try {
+    await import('./mining-integrations.js').then(module => module.enhanceMiningApp?.(id, body));
+  } catch (error) {
+    console.warn('[NexusNova Fresh] optional app enhancement skipped:', error);
+  }
 }
 
 function ensureNovaPremiumSidebarStyle() {
