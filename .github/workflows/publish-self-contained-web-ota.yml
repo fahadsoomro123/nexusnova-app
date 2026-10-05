@@ -1,0 +1,137 @@
+name: Publish Self-Contained Web OTA
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'fresh-rebuild/**'
+      - '.github/workflows/publish-self-contained-web-ota.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish-web-ota:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Build complete OTA payload and manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          rm -rf ota/files
+          mkdir -p ota/files
+          cp -a fresh-rebuild/. ota/files/
+
+          # Preview and marker files are source artifacts, not runtime payload.
+          rm -rf ota/files/preview
+          rm -f \
+            ota/files/nova-vault-v3-ota-trigger.txt \
+            ota/files/ota-current-base-restore-20260903.txt \
+            ota/files/ota-rollback-trigger-20260829.txt
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import json
+          import os
+
+          root = Path('ota/files')
+          entries = []
+          total = 0
+
+          for path in sorted(p for p in root.rglob('*') if p.is_file()):
+              rel = path.relative_to(root).as_posix()
+              data = path.read_bytes()
+              size = len(data)
+              total += size
+              entries.append({
+                  'path': rel,
+                  'sha256': hashlib.sha256(data).hexdigest(),
+                  'size': size,
+              })
+
+          if not entries:
+              raise SystemExit('OTA payload is empty')
+          if len(entries) > 2000:
+              raise SystemExit(f'OTA file count too large: {len(entries)}')
+          if total > 60 * 1024 * 1024:
+              raise SystemExit(f'OTA payload too large: {total} bytes')
+
+          manifest = {
+              'schema': 2,
+              'base': '28ad58de566e42621dad6198aa01be885ccc9769',
+              'version': os.environ['GITHUB_SHA'],
+              'diagnostic': 'self-contained-fresh-rebuild-web-ota',
+              'source_commit': os.environ['GITHUB_SHA'],
+              'message': 'Self-contained NexusNova web OTA bundle',
+              'files': entries,
+              'video_release': 'flagship-v5-current-main-bundle',
+              'ota_badge': 'OTA-APP-REPO',
+              'ota_badge_status': 'ACTIVE'
+          }
+
+          Path('ota/manifest.json').write_text(
+              json.dumps(manifest, separators=(',', ':')) + '\n',
+              encoding='utf-8'
+          )
+
+          print(f"OTA_FILES={len(entries)}")
+          print(f"OTA_TOTAL_BYTES={total}")
+          print(f"OTA_VERSION={os.environ['GITHUB_SHA']}")
+          PY
+
+      - name: Verify entry-point dependency closure
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s ota/files/index.html
+          test -s ota/files/src/main.js
+          test -s ota/files/src/core/nn-ota-updater.js
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          root = Path('ota/files')
+
+          def exists_local(ref: str) -> bool:
+              ref = ref.split('?', 1)[0].split('#', 1)[0]
+              if not ref.startswith('./'):
+                  return True
+              return (root / ref[2:]).is_file()
+
+          html = (root / 'index.html').read_text(encoding='utf-8')
+          refs = re.findall(r'''(?:src|href)=["'](\./[^"']+)["']''', html)
+          missing = [r for r in refs if not exists_local(r)]
+          if missing:
+              raise SystemExit('Missing index.html runtime refs:\n' + '\n'.join(missing))
+
+          main = (root / 'src/main.js').read_text(encoding='utf-8')
+          imports = re.findall(r'''(?:import\s+(?:[^\'"\n]+?\s+from\s+)?|import\()\s*["']([^"']+)["']''', main)
+          missing_imports = [r for r in imports if r.startswith('.') and not exists_local(r)]
+          if missing_imports:
+              raise SystemExit('Missing src/main.js runtime imports:\n' + '\n'.join(missing_imports))
+          print('ENTRYPOINT_DEPENDENCIES=PASS')
+          PY
+
+      - name: Commit OTA payload to main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add ota/files ota/manifest.json
+          if git diff --cached --quiet; then
+            echo 'OTA payload already current.'
+            exit 0
+          fi
+          git commit -m "publish: self-contained web OTA ${GITHUB_SHA::7}"
+          git push origin HEAD:main
