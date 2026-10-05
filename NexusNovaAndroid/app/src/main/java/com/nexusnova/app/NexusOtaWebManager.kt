@@ -33,15 +33,22 @@ class NexusOtaWebManager(context: Context) {
                 .edit().clear().apply()
         }
 
-        // Recovery safeguard: the currently published web OTA was found to be
-        // shadowing the signed bundled baseline with a stale app-screen module.
-        // Clear any persisted overlay before WebView serves its first resource.
-        runCatching { versionsRoot.deleteRecursively() }
-        prefs.edit()
-            .clear()
-            .putString(KEY_BUNDLED_BASE, BUNDLED_WEB_BASE)
-            .apply()
-        android.util.Log.w(TAG, "Cleared persisted OTA overlay; serving signed bundled baseline")
+        // Preserve a valid active OTA overlay across activity/process recreation.
+        // Only discard the overlay when it belongs to a different bundled web
+        // baseline, because that overlay can no longer safely shadow this APK.
+        val storedBundledBase = prefs.getString(KEY_BUNDLED_BASE, null)?.trim()
+        if (!storedBundledBase.isNullOrEmpty() && storedBundledBase != BUNDLED_WEB_BASE) {
+            runCatching { versionsRoot.deleteRecursively() }
+            prefs.edit()
+                .clear()
+                .putString(KEY_BUNDLED_BASE, BUNDLED_WEB_BASE)
+                .apply()
+            android.util.Log.w(TAG, "Discarded OTA overlay from older bundled baseline")
+        } else if (storedBundledBase.isNullOrEmpty()) {
+            prefs.edit()
+                .putString(KEY_BUNDLED_BASE, BUNDLED_WEB_BASE)
+                .apply()
+        }
     }
 
     fun intercept(uri: Uri): WebResourceResponse? {
