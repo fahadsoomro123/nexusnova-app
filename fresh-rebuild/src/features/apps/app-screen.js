@@ -88,13 +88,15 @@ async function resolveRenderer(id) {
 }
 
 async function enhanceAppSafely(id, body) {
-  const tasks = [
-    import('./mining-integrations.js').then(module => module.enhanceMiningApp?.(id, body))
-  ];
-  const results = await Promise.allSettled(tasks);
-  results.forEach(result => {
-    if (result.status === 'rejected') console.warn('[NexusNova Fresh] optional app enhancement skipped:', result.reason);
-  });
+  // Mining integrations are relevant only to the mining-owned app routes.
+  // Do not load Firebase/mining modules while opening unrelated screens such as
+  // AI Video Studio because a slow optional dependency must never delay UI input.
+  if (id !== 'tasks' && id !== 'nova-vault') return;
+  try {
+    await import('./mining-integrations.js').then(module => module.enhanceMiningApp?.(id, body));
+  } catch (error) {
+    console.warn('[NexusNova Fresh] optional app enhancement skipped:', error);
+  }
 }
 
 function ensureNovaPremiumSidebarStyle() {
@@ -260,14 +262,26 @@ export async function appScreen({ id, backToHub, backToMine } = {}) {
       if (!(body instanceof Node)) throw new Error('Renderer returned an invalid screen.');
       mount.appendChild(body);
       if (id === 'ai-video-studio') {
-        try {
-          const videoEnhancer = await import('./nn-video-studio-upgrade.js?ota=nv17');
-          if (typeof videoEnhancer?.enhanceAiVideoStudio === 'function') {
-            body.__nnVideoTimelineCleanup = videoEnhancer.enhanceAiVideoStudio(body);
-          }
-        } catch (error) {
-          console.warn('[NexusNova Fresh] optional video enhancer skipped:', error);
-        }
+        // The enhancer is optional. Never await it here because router.render()
+        // must be able to commit the screen immediately even if an asset/module
+        // is slow or unavailable on Android WebView.
+        void import('./nn-video-studio-upgrade.js?ota=nv18')
+          .then(videoEnhancer => {
+            const attach = () => {
+              if (!root.isConnected) return;
+              if (typeof videoEnhancer?.enhanceAiVideoStudio !== 'function') return;
+              try {
+                body.__nnVideoTimelineCleanup = videoEnhancer.enhanceAiVideoStudio(body);
+              } catch (error) {
+                console.warn('[NexusNova Fresh] video enhancer attach skipped:', error);
+              }
+            };
+            // Let router.render() attach the returned root before optional enhancement.
+            setTimeout(attach, 0);
+          })
+          .catch(error => {
+            console.warn('[NexusNova Fresh] optional video enhancer skipped:', error);
+          });
       }
       void enhanceAppSafely(id, body);
       if (aiPhotoRoute) document.body.classList.add('nx-ai-photo-route-active');
