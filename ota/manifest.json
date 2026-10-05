@@ -1,37 +1,23 @@
 {
   "schema": 2,
-  "base": "28ad58de566e42621dad6198aa01be885ccc9769",
-  "version": "791e9a9fe173f05894a2257040ffc58fccb4dece",
-  "diagnostic": "cold-start-blank-screen-bundle-import-repair",
-  "source_commit": "59029effa53b8ba079f34b0dc1e60d852feeed7b",
+  "base": "f2b2d7a09b867fcd006102139d80d46d19fbedac",
+  "version": "8df75e88e18610784c336706cff782d501abef95",
+  "diagnostic": "video-studio-native-popup-test",
+  "source_commit": "8df75e88e18610784c336706cff782d501abef95",
+  "message": "AI Video Studio update",
   "files": [
     {
       "path": "index.html",
-      "sha256": "5dc878d23c4c2b9d5a1e1373ded81062892c86ecbdc5ce33554004eba9d5afe2",
-      "size": 8939
-    },
-    {
-      "path": "src/main.js",
-      "sha256": "4e701d49d79aed34de9593520d191b9e7527125df0147be75bced3e30c9fc189",
-      "size": 12906
-    },
-    {
-      "path": "src/features/apps/app-screen.js",
-      "sha256": "891f0252c15ab9742cd214c137d5d67f55e823a8a9fd1ee498368e13d9590f3a",
-      "size": 22257
+      "sha256": "3ca0498bee6d7e586fc992e4a27e0994e64796ed5463fef08b72929394cfc814",
+      "size": 9082
     },
     {
       "path": "src/features/apps/ai-video-studio-flagship.js",
-      "sha256": "d69e0a902bfdc0b316fd2b856973386ca8fadd56d27cec74aeb5717405847871",
-      "size": 64716
-    },
-    {
-      "path": "src/features/apps/nn-video-studio-upgrade.js",
-      "sha256": "ba343d53e5963f394ff0b32e97cbc170440cf4e269bd51c1dec833408502b1b7",
-      "size": 14103
+      "sha256": "8192c419c9371367261818dc97930b036560718b9a06f2b33521109505501e5c",
+      "size": 65630
     }
   ],
   "video_release": "flagship-v5-current-main-bundle",
-  "ota_badge": "OTA-APP-REPO",
+  "ota_badge": "OTA-VIDEO-STUDIO",
   "ota_badge_status": "ACTIVE"
 }
