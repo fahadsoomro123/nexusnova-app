@@ -166,8 +166,8 @@ jobs:
           import re
           p=Path('app/build.gradle.kts')
           s=p.read_text(encoding='utf-8')
-          s,n1=re.subn(r'versionCode\s*=\s*\d+','versionCode = 27000047',s,count=1)
-          s,n2=re.subn(r'versionName\s*=\s*"[^"]+"','versionName = "1.0.45-ota-22"',s,count=1)
+          s,n1=re.subn(r'versionCode\s*=\s*\d+','versionCode = 27010021',s,count=1)
+          s,n2=re.subn(r'versionName\s*=\s*"[^"]+"','versionName = "1.0.45-ota-23"',s,count=1)
           if n1 != 1 or n2 != 1:
               raise SystemExit('Version injection failed')
           signing='''    signingConfigs {\n        create("release") {\n            storeFile = file("nexusnova-release.jks")\n            storePassword = System.getenv("KEYSTORE_PASSWORD")\n            keyAlias = System.getenv("KEY_ALIAS")\n            keyPassword = System.getenv("KEY_PASSWORD")\n        }\n    }\n\n'''
@@ -200,8 +200,8 @@ jobs:
           badging="$($AAPT dump badging "$apk" | head -n 1)"
           echo "$badging"
           echo "$badging" | grep -q "name='com.nexusnova.app'"
-          echo "$badging" | grep -q "versionCode='27000047'"
-          echo "$badging" | grep -q "versionName='1.0.45-ota-22'"
+          echo "$badging" | grep -q "versionCode='27010021'"
+          echo "$badging" | grep -q "versionName='1.0.45-ota-23'"
 
           unzip -l "$apk" > /tmp/apk-list.txt
           grep -Fq 'assets/www/assets/icons/nova-hub/travel.webp' /tmp/apk-list.txt
@@ -225,7 +225,7 @@ jobs:
           ! grep -Fq 'src/features/apps/travel-' "$d/assets/www/index.html"
           grep -q 'waitForFirebaseUser' "$d/assets/www/src/core/firebase-backend.js"
           grep -q 'signInWithEmailAndPassword' "$d/assets/www/src/core/auth-service.js"
-          echo "SIGNED OTA-22 APK VERIFIED from $PUBLIC_SHA"
+          echo "SIGNED OTA-23 APK VERIFIED from $PUBLIC_SHA"
 
       - name: Package verified APK
         shell: bash
@@ -233,14 +233,14 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p signed-output
-          cp app/build/outputs/apk/release/app-release.apk signed-output/NexusNova-v1.0.45-ota-22-SIGNED.apk
-          sha256sum signed-output/NexusNova-v1.0.45-ota-22-SIGNED.apk > signed-output/NexusNova-v1.0.45-ota-22-SIGNED.apk.sha256
+          cp app/build/outputs/apk/release/app-release.apk signed-output/NexusNova-v1.0.45-ota-23-SIGNED.apk
+          sha256sum signed-output/NexusNova-v1.0.45-ota-23-SIGNED.apk > signed-output/NexusNova-v1.0.45-ota-23-SIGNED.apk.sha256
           printf '%s\n' "$PUBLIC_SHA" > signed-output/PUBLIC-SOURCE-SHA.txt
 
       - name: Upload verified APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: NexusNova-v1.0.45-ota-22-SIGNED
+          name: NexusNova-v1.0.45-ota-23-SIGNED
           path: build-src/NexusNovaAndroid/signed-output/*
           if-no-files-found: error
           retention-days: 7
