@@ -234,7 +234,7 @@ jobs:
           set -euo pipefail
           mkdir -p signed-output
           cp app/build/outputs/apk/release/app-release.apk signed-output/NexusNova-v1.0.45-ota-21-SIGNED.apk
-          sha256sum signed-output/NexusNova-v1.0.45-ota-20-SIGNED.apk > signed-output/NexusNova-v1.0.45-ota-21-SIGNED.apk.sha256
+          sha256sum signed-output/NexusNova-v1.0.45-ota-21-SIGNED.apk > signed-output/NexusNova-v1.0.45-ota-21-SIGNED.apk.sha256
           printf '%s\n' "$PUBLIC_SHA" > signed-output/PUBLIC-SOURCE-SHA.txt
 
       - name: Upload verified APK artifact
