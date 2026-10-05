@@ -166,6 +166,10 @@ export class NexusNovaOTAUpdater {
 
   async checkForUpdates() {
     if (this.destroyed) return null;
+    const installed = this.readInstalledBuildState();
+    if (installed.commit) this.clientCommit = installed.commit;
+    if (installed.versionCode > 0) this.clientVersionCode = installed.versionCode;
+    if (installed.versionName) this.clientVersionName = installed.versionName;
     const results = await Promise.all([
       this.fetchJson(this.commitApi).catch(error => {
         if (error?.name === 'AbortError') throw error;

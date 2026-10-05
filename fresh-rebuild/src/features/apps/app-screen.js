@@ -3,6 +3,7 @@ import { novaApps } from '../hub/app-registry.js';
 
 let cleanup = null;
 const AI_PHOTO_ID = 'ai-photo-studio';
+const VIDEO_STUDIO_CACHE_KEY = '?ota=nv18';
 const rendererSources = [
   ['./premium-studio-suite.js', 'premiumStudioRenderers'],
   ['./nova-sol57-fresh.js', 'novaSol57Renderers'],
@@ -73,7 +74,7 @@ async function resolveRenderer(id) {
   // bundle cannot fall back to the generic migration screen.
   if (id === 'ai-video-studio') {
     try {
-      const module = await import('./ai-video-studio-flagship.js');
+      const module = await import('./ai-video-studio-flagship.js' + VIDEO_STUDIO_CACHE_KEY);
       if (typeof module?.renderAiVideoStudio === 'function') return module.renderAiVideoStudio;
     } catch (error) {
       console.warn('[NexusNova Fresh] direct AI Video Studio flagship load failed:', error);
@@ -294,7 +295,7 @@ export async function appScreen({ id, backToHub, backToMine } = {}) {
           if (!(body instanceof Node)) throw new Error('Renderer returned an invalid screen.');
           mount.replaceChildren(body);
 
-          void import('./nn-video-studio-upgrade.js?ota=nv17')
+          void import('./nn-video-studio-upgrade.js' + VIDEO_STUDIO_CACHE_KEY)
             .then(videoEnhancer => {
               if (cancelled || !body || !root.isConnected) return;
               if (typeof videoEnhancer?.enhanceAiVideoStudio === 'function') {

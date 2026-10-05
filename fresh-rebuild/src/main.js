@@ -11,6 +11,7 @@ import { authScreen } from './features/auth/auth-screen.js';
 import { mineScreen, cleanupMineScreen } from './features/mine/mine-screen.js';
 import { hubScreen, requestHubReturnRestore } from './features/hub/hub-screen.js';
 import { mineApps } from './features/hub/app-registry.js';
+import NexusNovaOTAUpdater from './assets/js/nn-ota-updater.js?ota=nv18';
 
 const stage = document.getElementById('nx-stage');
 const dock = document.querySelector('.nx-dock');
@@ -20,6 +21,8 @@ const mineAppIds = new Set(mineApps.map(app => app.id));
 const BOOT_SPLASH_MIN_MS = 1_350;
 const POST_LOGIN_SPLASH_MS = 900;
 const bootSplashStartedAt = performance.now();
+const globalOtaUpdater = new NexusNovaOTAUpdater({ feature: 'NexusNova' });
+const NATIVE_BUILD_INFO_WAIT_MS = 2_500;
 
 backend.attach(firebaseBackend);
 
@@ -186,6 +189,16 @@ function wait(ms) {
   return new Promise(resolve => setTimeout(resolve, Math.max(0, Number(ms) || 0)));
 }
 
+async function waitForNativeBuildInfo(timeoutMs = NATIVE_BUILD_INFO_WAIT_MS) {
+  const deadline = performance.now() + Math.max(0, Number(timeoutMs) || 0);
+  while (performance.now() < deadline) {
+    const info = window.NexusNovaNativeInfo;
+    if (info?.buildCommit && Number(info?.versionCode) > 0) return info;
+    await wait(50);
+  }
+  return window.NexusNovaNativeInfo || null;
+}
+
 function parentRouteForApp(id) {
   return mineAppIds.has(String(id || '')) ? 'mine' : 'hub';
 }
@@ -323,6 +336,10 @@ function waitForBootSplashMinimum() {
 
 async function boot() {
   renderCinematicSplash('boot');
+  await waitForNativeBuildInfo();
+  void globalOtaUpdater.checkAndNotify().catch(error => {
+    console.warn('[NexusNova OTA] startup check skipped:', error);
+  });
   const user = await authService.waitForUser();
   await waitForBootSplashMinimum();
   if (!user) {
