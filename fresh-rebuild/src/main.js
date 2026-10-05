@@ -11,7 +11,7 @@ import { authScreen } from './features/auth/auth-screen.js';
 import { mineScreen, cleanupMineScreen } from './features/mine/mine-screen.js';
 import { hubScreen, requestHubReturnRestore } from './features/hub/hub-screen.js';
 import { mineApps } from './features/hub/app-registry.js';
-import NexusNovaOTAUpdater from './assets/js/nn-ota-updater.js?ota=nv18';
+import NexusNovaOTAUpdater from '../assets/js/nn-ota-updater.js?ota=nv18';
 
 const stage = document.getElementById('nx-stage');
 const dock = document.querySelector('.nx-dock');
