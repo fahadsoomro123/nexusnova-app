@@ -154,7 +154,6 @@ export class NexusNovaOTAUpdater {
     };
     this.diagnosticState = state;
     console.info('[NexusNova Diagnostic]', JSON.stringify(state));
-    this.renderDiagnosticReport(state);
     return state;
   }
 
@@ -309,9 +308,31 @@ export class NexusNovaOTAUpdater {
     return true;
   }
 
+  requestNativeUpdatePrompt(update = this.latestUpdate) {
+    try {
+      if (this.destroyed || !update?.available) {
+        return false;
+      }
+      if (typeof window.nexusPostNativeAction !== 'function') {
+        return false;
+      }
+      return !!window.nexusPostNativeAction('showUpdatePrompt', {
+        apkUrl: update.apkUrl,
+        expectedVersionCode: update.versionCode,
+        expectedSha256: update.sha256,
+        versionName: update.versionName
+      });
+    } catch (error) {
+      console.warn('[NexusNova OTA] native update prompt request failed:', error);
+      return false;
+    }
+  }
+
   async checkAndNotify() {
     const update = await this.checkForUpdates();
-    if (update?.available) this.showUpdatePopup(update);
+    if (update?.available && !this.requestNativeUpdatePrompt(update)) {
+      console.warn('[NexusNova OTA] Native update prompt unavailable; update notification was suppressed.');
+    }
     return update;
   }
 
