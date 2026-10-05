@@ -73,8 +73,8 @@ jobs:
           import os, re
           p = Path('app/build.gradle.kts')
           s = p.read_text(encoding='utf-8')
-          version_code = 27010026
-          version_name = "1.0.45-ota-28"
+          version_code = 27010030
+          version_name = "1.0.45-ota-30"
           s, n1 = re.subn(r'versionCode\s*=\s*\d+', f'versionCode = {version_code}', s, count=1)
           s, n2 = re.subn(r'versionName\s*=\s*"[^"]+"', f'versionName = "{version_name}"', s, count=1)
           if n1 != 1 or n2 != 1:
@@ -124,8 +124,8 @@ jobs:
           echo "$badging" | grep -q "name='com.nexusnova.app'"
           VERSION_CODE="$("$AAPT" dump badging "$apk" | sed -n "s/.*versionCode='\([0-9]*\)'.*/\1/p")"
           VERSION_NAME="$("$AAPT" dump badging "$apk" | sed -n "s/.*versionName='\([^']*\)'.*/\1/p")"
-          test "$VERSION_CODE" = "27010026"
-          test "$VERSION_NAME" = "1.0.45-ota-28"
+          test "$VERSION_CODE" = "27010030"
+          test "$VERSION_NAME" = "1.0.45-ota-30"
           SHA256="$(sha256sum "$apk" | awk '{print $1}')"
           APK_SIZE_BYTES="$(stat -c '%s' "$apk")"
           test "${#SHA256}" = 64
