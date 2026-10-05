@@ -82,7 +82,7 @@ class NexusOtaWebManager(context: Context) {
             var lastError: Throwable? = null
             for (attempt in 1..UPDATE_CHECK_ATTEMPTS) {
                 try {
-                    updated = checkForUpdateBlocking(attempt)
+                    updated = checkForUpdateBlocking(attempt, null, null)
                     lastError = null
                     if (updated) break
                 } catch (error: Throwable) {
@@ -120,9 +120,90 @@ class NexusOtaWebManager(context: Context) {
         return true
     }
 
+    data class PendingUpdate(
+        val version: String,
+        val message: String,
+        val fileCount: Int,
+        val totalBytes: Long
+    )
+
     fun activeVersion(): String = prefs.getString(KEY_ACTIVE_VERSION, "")?.trim().orEmpty()
 
-    private fun checkForUpdateBlocking(attempt: Int): Boolean {
+    fun peekForUpdate(onComplete: (PendingUpdate?) -> Unit) {
+        EXECUTOR.execute {
+            try {
+                onComplete(peekForUpdateBlocking())
+            } catch (error: Throwable) {
+                android.util.Log.w(TAG, "Web OTA availability check failed", error)
+                onComplete(null)
+            }
+        }
+    }
+
+    fun applyUpdate(
+        expectedVersion: String,
+        onProgress: (Int) -> Unit,
+        onComplete: (Boolean, String?) -> Unit
+    ) {
+        EXECUTOR.execute {
+            try {
+                val updated = checkForUpdateBlocking(1, expectedVersion, onProgress)
+                onComplete(updated, null)
+            } catch (error: Throwable) {
+                android.util.Log.w(TAG, "Web OTA activation failed", error)
+                onComplete(false, error.message ?: "Web update could not be activated safely.")
+            }
+        }
+    }
+
+    private fun peekForUpdateBlocking(): PendingUpdate? {
+        val requestNonce = "${System.currentTimeMillis()}-peek"
+        val manifestText = downloadText(
+            addQuery(MANIFEST_URL, "n", requestNonce),
+            MAX_MANIFEST_BYTES
+        )
+        val manifest = JSONObject(manifestText)
+        if (manifest.optInt("schema", 0) != MANIFEST_SCHEMA) {
+            throw IOException("Unsupported OTA manifest schema")
+        }
+        val base = manifest.optString("base").trim().lowercase()
+        if (base != BUNDLED_WEB_BASE) throw IOException("OTA base mismatch")
+
+        val version = manifest.optString("version").trim().lowercase()
+        if (!VERSION_PATTERN.matches(version)) throw IOException("Invalid OTA version")
+        if (version == activeVersion()) return null
+        if (version == prefs.getString(KEY_BLOCKED_VERSION, "")?.trim()) return null
+
+        val filesJson = manifest.optJSONArray("files") ?: throw IOException("OTA file list missing")
+        if (filesJson.length() !in 1..MAX_FILE_COUNT) throw IOException("Invalid OTA file count")
+        var totalBytes = 0L
+        var hasIndex = false
+        for (i in 0 until filesJson.length()) {
+            val item = filesJson.optJSONObject(i) ?: throw IOException("Invalid OTA file entry")
+            val filePath = item.optString("path").trim()
+            val size = item.optLong("size", -1L)
+            val sha = item.optString("sha256").trim().lowercase()
+            if (!isSafeRelativePath(filePath)) throw IOException("Unsafe OTA path")
+            if (!SHA256_PATTERN.matches(sha)) throw IOException("Invalid OTA hash")
+            if (size !in 0..MAX_SINGLE_FILE_BYTES) throw IOException("Invalid OTA file size")
+            totalBytes += size
+            if (totalBytes > MAX_TOTAL_BYTES) throw IOException("OTA package too large")
+            if (filePath == "index.html") hasIndex = true
+        }
+        if (!hasIndex) throw IOException("OTA entry point missing")
+        return PendingUpdate(
+            version = version,
+            message = manifest.optString("message", "AI Video Studio update available").trim(),
+            fileCount = filesJson.length(),
+            totalBytes = totalBytes
+        )
+    }
+
+    private fun checkForUpdateBlocking(
+        attempt: Int,
+        expectedVersion: String? = null,
+        onProgress: ((Int) -> Unit)? = null
+    ): Boolean {
         val requestNonce = "${System.currentTimeMillis()}-$attempt"
         val manifestText = downloadText(
             addQuery(MANIFEST_URL, "n", requestNonce),
@@ -138,6 +219,7 @@ class NexusOtaWebManager(context: Context) {
 
         val version = manifest.optString("version").trim().lowercase()
         if (!VERSION_PATTERN.matches(version)) throw IOException("Invalid OTA version")
+        if (!expectedVersion.isNullOrBlank() && version != expectedVersion.trim().lowercase()) throw IOException("OTA version changed while update was pending")
         if (version == activeVersion()) return false
         if (version == prefs.getString(KEY_BLOCKED_VERSION, "")?.trim()) return false
 
@@ -170,13 +252,20 @@ class NexusOtaWebManager(context: Context) {
 
         try {
             var actualTotal = 0L
+            onProgress?.invoke(0)
             entries.forEach { entry ->
                 val output = safeChild(staging, entry.path) ?: throw IOException("Unsafe OTA output path")
                 output.parentFile?.mkdirs()
                 val versionedUrl = addQuery(FILE_BASE_URL + encodePath(entry.path), "v", version)
                 val url = addQuery(versionedUrl, "n", requestNonce)
-                val written = downloadFile(url, output, entry.size)
+                val written = downloadFile(url, output, entry.size) { bytes ->
+                    val percent = if (declaredTotal > 0L) {
+                        ((actualTotal + bytes) * 100L / declaredTotal).toInt().coerceIn(0, 100)
+                    } else 0
+                    onProgress?.invoke(percent)
+                }
                 actualTotal += written
+                if (declaredTotal > 0L) onProgress?.invoke((actualTotal * 100L / declaredTotal).toInt().coerceIn(0, 100))
                 if (actualTotal > MAX_TOTAL_BYTES) throw IOException("OTA package exceeded size limit")
                 if (written != entry.size) throw IOException("OTA size mismatch for ${entry.path}")
                 if (!sha256(output).equals(entry.sha256, ignoreCase = true)) {
@@ -234,7 +323,12 @@ class NexusOtaWebManager(context: Context) {
         }
     }
 
-    private fun downloadFile(url: String, output: File, expectedSize: Long): Long {
+    private fun downloadFile(
+        url: String,
+        output: File,
+        expectedSize: Long,
+        onBytes: ((Long) -> Unit)? = null
+    ): Long {
         val connection = open(url)
         try {
             val length = connection.contentLengthLong
@@ -250,6 +344,7 @@ class NexusOtaWebManager(context: Context) {
                         val read = input.read(buffer)
                         if (read < 0) break
                         total += read
+                        onBytes?.invoke(total)
                         if (total > MAX_SINGLE_FILE_BYTES || total > expectedSize) {
                             throw IOException("OTA file exceeded size limit")
                         }
