@@ -33,18 +33,15 @@ class NexusOtaWebManager(context: Context) {
                 .edit().clear().apply()
         }
 
-        // APK updates preserve SharedPreferences and files. If a newly installed APK
-        // contains a newer bundled web baseline, an old active differential package
-        // must never keep overriding that newer bundle. Reset the overlay atomically.
-        val storedBase = prefs.getString(KEY_BUNDLED_BASE, "")?.trim()?.lowercase().orEmpty()
-        if (storedBase != BUNDLED_WEB_BASE) {
-            runCatching { versionsRoot.deleteRecursively() }
-            prefs.edit()
-                .clear()
-                .putString(KEY_BUNDLED_BASE, BUNDLED_WEB_BASE)
-                .apply()
-            android.util.Log.i(TAG, "Reset OTA overlay for bundled base $BUNDLED_WEB_BASE")
-        }
+        // Recovery safeguard: the currently published web OTA was found to be
+        // shadowing the signed bundled baseline with a stale app-screen module.
+        // Clear any persisted overlay before WebView serves its first resource.
+        runCatching { versionsRoot.deleteRecursively() }
+        prefs.edit()
+            .clear()
+            .putString(KEY_BUNDLED_BASE, BUNDLED_WEB_BASE)
+            .apply()
+        android.util.Log.w(TAG, "Cleared persisted OTA overlay; serving signed bundled baseline")
     }
 
     fun intercept(uri: Uri): WebResourceResponse? {
