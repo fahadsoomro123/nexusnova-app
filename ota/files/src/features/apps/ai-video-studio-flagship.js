@@ -178,6 +178,7 @@ export function renderAiVideoStudio(){
   const releaseDock=takeVideoDockOwnership();
   const root=document.createElement('div');
   root.className='nx-app-body nx-video-flagship';
+  root.dataset.nexusnovaWebRelease='video-studio-ota-test-1';
   root.innerHTML=`
     <section class="nx-video-preview" data-preview>
       <div class="nx-video-empty" data-empty><b>CREATE YOUR VIDEO</b><span>Add videos or photos. Everything here is designed for fast, touch-first editing.</span></div>
