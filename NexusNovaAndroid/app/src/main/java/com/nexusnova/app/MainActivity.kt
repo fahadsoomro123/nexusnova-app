@@ -1162,12 +1162,23 @@ class MainActivity : AppCompatActivity() {
             if (!dialog.isShowing) return@runOnUiThread
 
             when (event) {
-                "download-start" -> dialog.setMessage("Preparing the secure NexusNova update…")
-                "download-progress" -> dialog.setMessage(
-                    "Downloading update… ${progress?.coerceIn(0, 100) ?: 0}%"
-                )
-                "download-complete" -> dialog.setMessage("Verifying the signed update…")
-                "install-staged" -> dialog.setMessage("Preparing Android installation…")
+                "download-start" -> {
+                    nativeOtaProgressText?.text = "Downloading update… 0%"
+                    nativeOtaProgressBar?.progress = 0
+                }
+                "download-progress" -> {
+                    val percent = progress?.coerceIn(0, 100) ?: 0
+                    nativeOtaProgressText?.text = "Downloading update… $percent%"
+                    nativeOtaProgressBar?.progress = percent
+                }
+                "download-complete" -> {
+                    nativeOtaProgressText?.text = "Download complete. Verifying the signed update…"
+                    nativeOtaProgressBar?.progress = 100
+                }
+                "install-staged" -> {
+                    nativeOtaProgressText?.text = "Update verified. Opening Android installer…"
+                    nativeOtaProgressBar?.progress = 100
+                }
                 "install-prompt" -> {
                     dialog.dismiss()
                     nativeOtaUpdateDialog = null
@@ -1181,7 +1192,7 @@ class MainActivity : AppCompatActivity() {
                     nativeOtaUpdateDialog = null
                 }
                 "failure" -> {
-                    dialog.setMessage(message ?: "The update could not be installed safely.")
+                    nativeOtaProgressText?.text = message ?: "The update could not be installed safely."
                     dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE)?.apply {
                         isEnabled = true
                         text = "Update"
