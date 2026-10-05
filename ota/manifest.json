@@ -1,8 +1,8 @@
 {
   "schema": 2,
   "base": "28ad58de566e42621dad6198aa01be885ccc9769",
-  "version": "23a6c6d7cf34bf50ddbc4f7030445b64951bacbd",
-  "diagnostic": "app-repo-ota-video-studio-migration",
+  "version": "411b5c022b57cb0310d416fa5fd01cec1f7f24ef",
+  "diagnostic": "app-repo-ota-hosting-final",
   "source_commit": "59029effa53b8ba079f34b0dc1e60d852feeed7b",
   "files": [
     {
