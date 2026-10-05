@@ -26,6 +26,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.core.view.WindowCompat
@@ -58,6 +59,8 @@ class MainActivity : AppCompatActivity() {
     @Volatile private var otaInstallFuture: Future<*>? = null
     @Volatile private var otaInstallSessionId: Int = -1
     @Volatile private var otaInstallCommitted = false
+    private var nativeOtaUpdateDialog: androidx.appcompat.app.AlertDialog? = null
+    private var nativeOtaPromptMessage: JSONObject? = null
 
     private val videoMediaRegistry by lazy { VideoMediaRegistry(contentResolver) }
     private val videoExporter by lazy { VideoStudioExporter(this) }
@@ -673,6 +676,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         when (message.optString("action")) {
+            ACTION_OTA_SHOW_PROMPT -> showNativeOtaUpdatePrompt(message)
             ACTION_OTA_INSTALL -> startNativeOtaInstall(message)
             ACTION_OTA_CANCEL -> cancelNativeOtaInstall()
 
@@ -758,6 +762,55 @@ class MainActivity : AppCompatActivity() {
                 if (isHttpUri(uri)) openExternalUri(uri)
             }
         }
+    }
+
+    private fun showNativeOtaUpdatePrompt(message: JSONObject): Boolean {
+        if (isFinishing || isDestroyed) return false
+        if (otaInstallFuture?.isDone == false) return true
+        if (nativeOtaUpdateDialog?.isShowing == true) return true
+
+        val rawUrl = message.optString("apkUrl").trim()
+        val expectedVersionCode = message.optLong("expectedVersionCode", 0L)
+        val expectedSha256 = message.optString("expectedSha256").trim().lowercase(Locale.ROOT)
+        val versionName = message.optString("versionName").trim()
+        val uri = runCatching { Uri.parse(rawUrl) }.getOrNull()
+
+        if (uri == null || !isAllowedOtaDownloadUri(uri) ||
+            !Regex("^[0-9a-f]{64}$").matches(expectedSha256) ||
+            expectedVersionCode <= 0L
+        ) {
+            android.util.Log.w("NexusNovaOTA", "Rejected invalid native update prompt metadata")
+            return false
+        }
+
+        val promptMessage = JSONObject(message.toString())
+        val versionLabel = versionName.takeIf { it.isNotBlank() } ?: "latest release"
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setIcon(R.drawable.ic_launcher)
+            .setTitle("NexusNova update available")
+            .setMessage("Version $versionLabel is ready. Update now to get the latest NexusNova improvements.")
+            .setNegativeButton("Not now", null)
+            .setPositiveButton("Update", null)
+            .create()
+
+        nativeOtaPromptMessage = promptMessage
+        nativeOtaUpdateDialog = dialog
+        dialog.setOnDismissListener {
+            if (nativeOtaUpdateDialog === dialog) nativeOtaUpdateDialog = null
+            nativeOtaPromptMessage = null
+        }
+        dialog.show()
+
+        dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+            val request = nativeOtaPromptMessage ?: return@setOnClickListener
+            val started = startNativeOtaInstall(request)
+            if (started) {
+                dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE)?.isEnabled = false
+                dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEGATIVE)?.isEnabled = false
+                dialog.setMessage("Preparing the secure NexusNova update…")
+            }
+        }
+        return true
     }
 
     private fun startNativeOtaInstall(message: JSONObject): Boolean {
@@ -1065,11 +1118,52 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun updateNativeOtaDialog(
+        event: String,
+        message: String? = null,
+        progress: Int? = null
+    ) {
+        runOnUiThread {
+            val dialog = nativeOtaUpdateDialog ?: return@runOnUiThread
+            if (!dialog.isShowing) return@runOnUiThread
+
+            when (event) {
+                "download-start" -> dialog.setMessage("Preparing the secure NexusNova update…")
+                "download-progress" -> dialog.setMessage(
+                    "Downloading update… ${progress?.coerceIn(0, 100) ?: 0}%"
+                )
+                "download-complete" -> dialog.setMessage("Verifying the signed update…")
+                "install-staged" -> dialog.setMessage("Preparing Android installation…")
+                "install-prompt" -> {
+                    dialog.dismiss()
+                    nativeOtaUpdateDialog = null
+                }
+                "success" -> {
+                    dialog.dismiss()
+                    nativeOtaUpdateDialog = null
+                }
+                "cancelled" -> {
+                    dialog.dismiss()
+                    nativeOtaUpdateDialog = null
+                }
+                "failure" -> {
+                    dialog.setMessage(message ?: "The update could not be installed safely.")
+                    dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE)?.apply {
+                        isEnabled = true
+                        text = "Update"
+                    }
+                    dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEGATIVE)?.isEnabled = true
+                }
+            }
+        }
+    }
+
     private fun publishOtaInstallEvent(
         event: String,
         message: String? = null,
         progress: Int? = null
     ) {
+        updateNativeOtaDialog(event, message, progress)
         if (!::webView.isInitialized || isFinishing || isDestroyed) return
         val payload = JSONObject().put("event", event)
         if (!message.isNullOrBlank()) payload.put("message", message)
@@ -1452,6 +1546,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        nativeOtaUpdateDialog?.dismiss()
+        nativeOtaUpdateDialog = null
+        nativeOtaPromptMessage = null
         if (!otaInstallCommitted) cancelNativeOtaInstall()
         else {
             otaDownloadConnection?.disconnect()
@@ -1506,6 +1603,7 @@ class MainActivity : AppCompatActivity() {
         const val BROWSER_BRIDGE_NAME = "NexusBrowserAndroid"
         const val BROWSER_ACTION_OPEN = "open"
 
+        const val ACTION_OTA_SHOW_PROMPT = "showUpdatePrompt"
         const val ACTION_OTA_INSTALL = "installUpdate"
         const val ACTION_OTA_CANCEL = "cancelUpdate"
         const val ACTION_OTA_INSTALL_STATUS = "com.nexusnova.app.OTA_INSTALL_STATUS"
