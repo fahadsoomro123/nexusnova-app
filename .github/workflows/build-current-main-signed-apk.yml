@@ -33,9 +33,17 @@ jobs:
       - name: Checkout exact NexusNova execution snapshot
         uses: actions/checkout@v4
         with:
-          ref: 7029a867822a0e3f1010a018891c1e37b6e4a916
+          ref: ${{ github.sha }}
           path: build-src
           fetch-depth: 1
+
+      - name: Verify checkout matches triggering main commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          ACTUAL_SHA="$(git -C build-src rev-parse HEAD)"
+          test "$ACTUAL_SHA" = "$GITHUB_SHA"
+          echo "MAIN_SHA=$ACTUAL_SHA"
 
       - name: Lock exact bundled web baseline
         shell: bash
@@ -158,8 +166,8 @@ jobs:
           import re
           p=Path('app/build.gradle.kts')
           s=p.read_text(encoding='utf-8')
-          s,n1=re.subn(r'versionCode\s*=\s*\d+','versionCode = 26091214',s,count=1)
-          s,n2=re.subn(r'versionName\s*=\s*"[^"]+"','versionName = "1.0.38-icon-reset"',s,count=1)
+          s,n1=re.subn(r'versionCode\s*=\s*\d+','versionCode = 27000045',s,count=1)
+          s,n2=re.subn(r'versionName\s*=\s*"[^"]+"','versionName = "1.0.45-current-main"',s,count=1)
           if n1 != 1 or n2 != 1:
               raise SystemExit('Version injection failed')
           signing='''    signingConfigs {\n        create("release") {\n            storeFile = file("nexusnova-release.jks")\n            storePassword = System.getenv("KEYSTORE_PASSWORD")\n            keyAlias = System.getenv("KEY_ALIAS")\n            keyPassword = System.getenv("KEY_PASSWORD")\n        }\n    }\n\n'''
@@ -192,8 +200,8 @@ jobs:
           badging="$($AAPT dump badging "$apk" | head -n 1)"
           echo "$badging"
           echo "$badging" | grep -q "name='com.nexusnova.app'"
-          echo "$badging" | grep -q "versionCode='26091214'"
-          echo "$badging" | grep -q "versionName='1.0.38-icon-reset'"
+          echo "$badging" | grep -q "versionCode='27000045'"
+          echo "$badging" | grep -q "versionName='1.0.45-current-main'"
 
           unzip -l "$apk" > /tmp/apk-list.txt
           grep -Fq 'assets/www/assets/icons/nova-hub/travel.webp' /tmp/apk-list.txt
@@ -225,8 +233,8 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p signed-output
-          cp app/build/outputs/apk/release/app-release.apk signed-output/NexusNova-v1.0.38-SIGNED-ICON-ONLY-RESET.apk
-          sha256sum signed-output/NexusNova-v1.0.38-SIGNED-ICON-ONLY-RESET.apk > signed-output/NexusNova-v1.0.38-SIGNED-ICON-ONLY-RESET.apk.sha256
+          cp app/build/outputs/apk/release/app-release.apk signed-output/NexusNova-v1.0.45-CURRENT-MAIN-SIGNED.apk
+          sha256sum signed-output/NexusNova-v1.0.45-CURRENT-MAIN-SIGNED.apk > signed-output/NexusNova-v1.0.45-CURRENT-MAIN-SIGNED.apk.sha256
           printf '%s\n' "$PUBLIC_SHA" > signed-output/PUBLIC-SOURCE-SHA.txt
 
       - name: Upload verified APK artifact
