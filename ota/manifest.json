@@ -1,8 +1,8 @@
 {
   "schema": 2,
   "base": "28ad58de566e42621dad6198aa01be885ccc9769",
-  "version": "411b5c022b57cb0310d416fa5fd01cec1f7f24ef",
-  "diagnostic": "app-repo-ota-hosting-final",
+  "version": "b802ecf4396ab37fbda8d7efc004bd857f04374e",
+  "diagnostic": "app-repo-ota-hosting-build",
   "source_commit": "59029effa53b8ba079f34b0dc1e60d852feeed7b",
   "files": [
     {
