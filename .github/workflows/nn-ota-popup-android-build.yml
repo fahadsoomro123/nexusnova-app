@@ -63,7 +63,7 @@ jobs:
           test -s app/nexusnova-release.jks
           keytool -list -keystore app/nexusnova-release.jks -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
 
-      - name: Inject exact OTA-28 release version
+      - name: Inject OTA-32 release version and exact bundled web baseline
         working-directory: NexusNovaAndroid
         shell: bash
         run: |
@@ -73,8 +73,17 @@ jobs:
           import os, re
           p = Path('app/build.gradle.kts')
           s = p.read_text(encoding='utf-8')
-          version_code = 27010031
-          version_name = "1.0.45-ota-31"
+          web = Path('app/src/main/java/com/nexusnova/app/NexusOtaWebManager.kt')
+          ws = web.read_text(encoding='utf-8')
+          build_sha = os.environ.get("GITHUB_SHA", "").strip()
+          if not re.fullmatch(r"[0-9a-f]{40}", build_sha):
+              raise SystemExit("Invalid GITHUB_SHA for bundled web baseline")
+          ws, wn = re.subn(r'const val BUNDLED_WEB_BASE = "[0-9a-f]{40}"', f'const val BUNDLED_WEB_BASE = "{build_sha}"', ws, count=1)
+          if wn != 1:
+              raise SystemExit("Bundled web baseline injection failed")
+          web.write_text(ws, encoding='utf-8')
+          version_code = 27010032
+          version_name = "1.0.45-ota-32"
           s, n1 = re.subn(r'versionCode\s*=\s*\d+', f'versionCode = {version_code}', s, count=1)
           s, n2 = re.subn(r'versionName\s*=\s*"[^"]+"', f'versionName = "{version_name}"', s, count=1)
           if n1 != 1 or n2 != 1:
@@ -124,8 +133,8 @@ jobs:
           echo "$badging" | grep -q "name='com.nexusnova.app'"
           VERSION_CODE="$("$AAPT" dump badging "$apk" | sed -n "s/.*versionCode='\([0-9]*\)'.*/\1/p")"
           VERSION_NAME="$("$AAPT" dump badging "$apk" | sed -n "s/.*versionName='\([^']*\)'.*/\1/p")"
-          test "$VERSION_CODE" = "27010031"
-          test "$VERSION_NAME" = "1.0.45-ota-31"
+          test "$VERSION_CODE" = "27010032"
+          test "$VERSION_NAME" = "1.0.45-ota-32"
           SHA256="$(sha256sum "$apk" | awk '{print $1}')"
           APK_SIZE_BYTES="$(stat -c '%s' "$apk")"
           test "${#SHA256}" = 64
