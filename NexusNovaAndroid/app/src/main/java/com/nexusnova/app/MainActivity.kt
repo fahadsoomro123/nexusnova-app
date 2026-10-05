@@ -171,9 +171,26 @@ class MainActivity : AppCompatActivity() {
         } catch (error: Throwable) {
             android.util.Log.e("NexusNovaStartup", "Native bridge setup failed", error)
         }
-
         // Render the signed baseline while the native startup OTA check runs independently.
         loadProductionApp()
+        startWebOtaCheck()
+    }
+
+    private fun startWebOtaCheck() {
+        if (isFinishing || isDestroyed) return
+
+        otaWebManager.checkForUpdate { updated ->
+            if (!updated) return@checkForUpdate
+
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                android.util.Log.i(
+                    "NexusNovaOTA",
+                    "Verified web OTA activated; refreshing local app overlay"
+                )
+                loadProductionApp(forceFresh = true)
+            }
+        }
     }
 
     private fun initializeAdsSafely() {
