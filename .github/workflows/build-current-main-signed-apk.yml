@@ -200,8 +200,8 @@ jobs:
           badging="$($AAPT dump badging "$apk" | head -n 1)"
           echo "$badging"
           echo "$badging" | grep -q "name='com.nexusnova.app'"
-          echo "$badging" | grep -q "versionCode='27010021'"
-          echo "$badging" | grep -q "versionName='1.0.45-ota-23'"
+          echo "$badging" | grep -q "versionCode='27010022'"
+          echo "$badging" | grep -q "versionName='1.0.45-ota-24'"
 
           unzip -l "$apk" > /tmp/apk-list.txt
           grep -Fq 'assets/www/assets/icons/nova-hub/travel.webp' /tmp/apk-list.txt
