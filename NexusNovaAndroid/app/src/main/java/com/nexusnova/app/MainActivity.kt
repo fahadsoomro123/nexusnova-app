@@ -184,18 +184,110 @@ class MainActivity : AppCompatActivity() {
     private fun startWebOtaCheck() {
         if (isFinishing || isDestroyed) return
 
-        otaWebManager.checkForUpdate { updated ->
-            if (!updated) return@checkForUpdate
-
+        otaWebManager.peekForUpdate { update ->
+            if (update == null) return@peekForUpdate
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
-                android.util.Log.i(
-                    "NexusNovaOTA",
-                    "Verified web OTA activated; refreshing local app overlay"
-                )
-                loadProductionApp(forceFresh = true)
+                showNativeWebOtaUpdatePrompt(update)
             }
         }
+    }
+
+    private fun showNativeWebOtaUpdatePrompt(update: NexusOtaWebManager.PendingUpdate): Boolean {
+        if (isFinishing || isDestroyed) return false
+        if (otaInstallFuture?.isDone == false) return true
+        if (nativeOtaUpdateDialog?.isShowing == true) return true
+
+        val density = resources.displayMetrics.density
+        val content = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding((24 * density).toInt(), 0, (24 * density).toInt(), 0)
+        }
+        val progressText = android.widget.TextView(this).apply {
+            text = "Version ${update.version.take(7)} is ready. Download 0%"
+            setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 17f)
+        }
+        val progressBar = android.widget.ProgressBar(
+            this,
+            null,
+            android.R.attr.progressBarStyleHorizontal
+        ).apply {
+            max = 100
+            progress = 0
+            isIndeterminate = false
+        }
+        content.addView(
+            progressText,
+            android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        )
+        content.addView(
+            progressBar,
+            android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                (6 * density).toInt()
+            ).apply { topMargin = (14 * density).toInt() }
+        )
+
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setIcon(R.drawable.ic_launcher)
+            .setTitle("AI Video Studio update available")
+            .setView(content)
+            .setNegativeButton("Not now", null)
+            .setPositiveButton("Update", null)
+            .create()
+
+        nativeOtaPromptMessage = JSONObject()
+            .put("kind", "web")
+            .put("webVersion", update.version)
+        nativeOtaUpdateDialog = dialog
+        nativeOtaProgressText = progressText
+        nativeOtaProgressBar = progressBar
+        dialog.setOnDismissListener {
+            if (nativeOtaUpdateDialog === dialog) nativeOtaUpdateDialog = null
+            if (nativeOtaProgressText === progressText) nativeOtaProgressText = null
+            if (nativeOtaProgressBar === progressBar) nativeOtaProgressBar = null
+            nativeOtaPromptMessage = null
+        }
+        dialog.show()
+
+        dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+            val version = nativeOtaPromptMessage?.optString("webVersion").orEmpty()
+            if (version.isBlank()) return@setOnClickListener
+            val started = startNativeWebOtaInstall(version)
+            if (started) {
+                dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE)?.isEnabled = false
+                dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEGATIVE)?.isEnabled = false
+            }
+        }
+        return true
+    }
+
+    private fun startNativeWebOtaInstall(expectedVersion: String): Boolean {
+        if (expectedVersion.isBlank()) return false
+        publishOtaInstallEvent("download-start")
+        otaWebManager.applyUpdate(
+            expectedVersion = expectedVersion,
+            onProgress = { percent ->
+                publishOtaInstallEvent("download-progress", progress = percent)
+            },
+            onComplete = { updated, error ->
+                if (updated) {
+                    publishOtaInstallEvent("install-staged")
+                    runOnUiThread {
+                        if (isFinishing || isDestroyed) return@runOnUiThread
+                        android.util.Log.i("NexusNovaOTA", "Verified web OTA activated; refreshing local app overlay")
+                        publishOtaInstallEvent("success")
+                        loadProductionApp(forceFresh = true)
+                    }
+                } else {
+                    publishOtaInstallEvent("failure", error ?: "The AI Video Studio update could not be activated safely.")
+                }
+            }
+        )
+        return true
     }
 
     private fun initializeAdsSafely() {
