@@ -1,11 +1,10 @@
-import { getMiningSnapshot, waitForFirebaseUser } from './firebase-backend.js';
+import { waitForFirebaseUser } from './firebase-backend.js';
 
 // Mining is served by the production NexusNova Telegram/Cloudflare Worker.
 // Keep the legacy reward exports intact so unrelated Nova Vault/task modules
 // continue to load without a module-import regression.
 const MINING_API_BASE = 'https://nexusnova-telegram-bot.fahadsoomro123.workers.dev';
 const LEGACY_REWARD_API_BASE = 'https://nova-mining-rewards.fahadsoomro123.workers.dev';
-const MINING_REQUEST_TIMEOUT_MS = 30_000;
 
 const ACTIONS = Object.freeze({
   claimDailyReward: '/v1/tasks/daily/claim',
@@ -29,11 +28,11 @@ async function post(base, path, data = {}) {
   const user = await waitForFirebaseUser();
   if (!user) throw new Error('Please sign in first.');
 
-  const token = await user.getIdToken(true);
+  const token = await user.getIdToken(false);
   if (!token) throw new Error('Secure sign-in token is unavailable. Reopen NexusNova and try again.');
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), MINING_REQUEST_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), 15_000);
 
   try {
     const response = await fetch(`${base}${path}`, {
@@ -42,12 +41,9 @@ async function post(base, path, data = {}) {
       signal: controller.signal,
       headers: {
         Authorization: `Bearer ${token}`,
-        Accept: 'application/json',
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(data || {}),
-      credentials: 'omit',
-      referrerPolicy: 'no-referrer'
+      body: JSON.stringify(data || {})
     });
 
     let body = null;
@@ -56,25 +52,6 @@ async function post(base, path, data = {}) {
     return body?.data && typeof body.data === 'object' ? body.data : (body || {});
   } catch (error) {
     if (error?.name === 'AbortError') {
-      // The Worker can commit the Firestore transaction even if the client
-      // misses the HTTP response. Re-read the authoritative Firebase state
-      // before surfacing a false timeout to the user.
-      if (base === MINING_API_BASE && path === '/api/mining/session') {
-        try {
-          const snapshot = await getMiningSnapshot();
-          const startedAt = Number(snapshot?.startedAt || 0);
-          const ageMs = Date.now() - startedAt;
-          if (snapshot?.active === true && startedAt > 0 && ageMs >= -5000 && ageMs < 120000) {
-            return {
-              miningActive: true,
-              miningStartedAt: startedAt,
-              balance: Number(snapshot?.balance),
-              totalMined: Number(snapshot?.totalMined),
-              novaVaultPending: Number(snapshot?.novaVaultPending || 0)
-            };
-          }
-        } catch (_) {}
-      }
       throw new Error('Cloudflare mining request timed out. Please try again.');
     }
     if (error?.status) throw error;
