@@ -2,9 +2,9 @@
   "schema": 2,
   "base": "3ceae1c01b69c94ec9e86d4fe2b3a12db5d2e634",
   "version": "69b7d1f9062f26dd61c1ca84c673bb72ed604ac450a0ee8af23f2fbf6456964c",
-  "diagnostic": "video-studio-capcut-flagship-ota-v5-nv99",
+  "diagnostic": "video-studio-capcut-flagship-ota-v5-nv99-web-only",
   "source_commit": "d6eb789c505d5d7a0292b519f3fb95ad3916d551",
-  "message": "AI Video Studio Flagship V5 cache-bust nv99",
+  "message": "AI Video Studio Flagship V5 web-only OTA, native APK updater disabled",
   "files": [
     {
       "path": "index.html",
@@ -13,8 +13,8 @@
     },
     {
       "path": "src/main.js",
-      "sha256": "89dc777f6f8c3acf24b7ad22c3d631b64e3b96cdac092488bc67e0c47391da06",
-      "size": 12900
+      "sha256": "57e49a8652fa51a8b6753fa53b66d205aef698921b5f08e7b30cb513cd4dff2d",
+      "size": 12755
     },
     {
       "path": "src/features/apps/app-screen.js",
