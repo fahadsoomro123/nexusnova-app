@@ -1,0 +1,1 @@
+NexusNova OTA payload integrity guard trigger. Do not include this file in ota/files.
