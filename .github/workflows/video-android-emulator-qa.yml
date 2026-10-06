@@ -55,11 +55,18 @@ jobs:
               <string name="caller_setup_body">Enable Caller ID to use the Android call-screening feature.</string>
               <string name="enable_caller_id">ENABLE CALLER ID</string>
           '''
-          if "name="caller_setup_title"" not in text:
+          if 'name="caller_setup_title"' not in text:
               text = text.replace("</resources>", additions + "\n</resources>")
               p.write_text(text, encoding="utf-8")
           PY
 
+
+      - name: Copy real video fixture into Android test assets
+        run: |
+          set -euo pipefail
+          mkdir -p NexusNovaAndroid/app/src/androidTest/assets
+          cp qa/fixtures/video-studio-video-qa.webm NexusNovaAndroid/app/src/androidTest/assets/video-studio-video-qa.webm
+          test -s NexusNovaAndroid/app/src/androidTest/assets/video-studio-video-qa.webm
 
       - name: Build app and Android test APKs
         run: |
@@ -100,7 +107,6 @@ jobs:
             set -u
             adb install -r app/build/outputs/apk/debug/app-debug.apk
             adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
-            adb push "$GITHUB_WORKSPACE/qa/fixtures/video-studio-video-qa.webm" /sdcard/Download/video-studio-video-qa.webm
             test -s "$GITHUB_WORKSPACE/qa/fixtures/video-studio-video-qa.webm"
 
             adb shell am instrument -w -r -e class com.nexusnova.app.VideoStudioEmulatorQaTest#videoStudioFullscreenScopedDockAndNativeMediaPicker com.nexusnova.app.test/androidx.test.runner.AndroidJUnitRunner
