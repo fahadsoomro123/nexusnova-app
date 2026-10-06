@@ -11,7 +11,6 @@ import { authScreen } from './features/auth/auth-screen.js';
 import { mineScreen, cleanupMineScreen } from './features/mine/mine-screen.js';
 import { hubScreen, requestHubReturnRestore } from './features/hub/hub-screen.js';
 import { mineApps } from './features/hub/app-registry.js';
-import NexusNovaOTAUpdater from './core/nn-ota-updater.js?ota=nv18';
 
 const stage = document.getElementById('nx-stage');
 const dock = document.querySelector('.nx-dock');
@@ -21,7 +20,6 @@ const mineAppIds = new Set(mineApps.map(app => app.id));
 const BOOT_SPLASH_MIN_MS = 1_350;
 const POST_LOGIN_SPLASH_MS = 900;
 const bootSplashStartedAt = performance.now();
-const globalOtaUpdater = new NexusNovaOTAUpdater({ feature: 'NexusNova' });
 const NATIVE_BUILD_INFO_WAIT_MS = 2_500;
 
 backend.attach(firebaseBackend);
