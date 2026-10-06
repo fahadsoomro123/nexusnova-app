@@ -34,9 +34,6 @@ import androidx.webkit.WebViewAssetLoader
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import org.json.JSONObject
-import com.nexusnova.app.video.VideoMediaRegistry
-import com.nexusnova.app.video.VideoStudioExporter
-import com.nexusnova.app.video.VideoStudioJsonCodec
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
@@ -63,10 +60,6 @@ class MainActivity : AppCompatActivity() {
     private var nativeOtaPromptMessage: JSONObject? = null
     private var nativeOtaProgressText: android.widget.TextView? = null
     private var nativeOtaProgressBar: android.widget.ProgressBar? = null
-
-    private val videoMediaRegistry by lazy { VideoMediaRegistry(contentResolver) }
-    private val videoExporter by lazy { VideoStudioExporter(this) }
-
     private val assetLoader by lazy {
         WebViewAssetLoader.Builder()
             .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this))
@@ -77,20 +70,11 @@ class MainActivity : AppCompatActivity() {
     private var pendingGeolocation: PendingGeolocation? = null
     private var fileChooserCallback: ValueCallback<Array<Uri>>? = null
     private var fileChooserAcceptTypes: Set<String> = emptySet()
-    private var pendingVideoMediaBinding = false
-    private var lastPickedVideoMedia: List<PickedVideoMedia> = emptyList()
     private var usingOfflineFallback = false
     private var mainFrameWatchdogToken = 0
     private var finishedWatchdogToken = -1
     private var webRecoveryAttempts = 0
     private var rendererCrashRecoveries = 0
-
-    private data class PickedVideoMedia(
-        val uri: Uri,
-        val name: String,
-        val size: Long,
-        val mimeType: String?
-    )
 
     private data class PendingGeolocation(
         val origin: String,
@@ -133,26 +117,11 @@ class MainActivity : AppCompatActivity() {
                     totalBytes += size
                     acceptedUris.add(uri)
                 }
-            if (pendingVideoMediaBinding) {
-                lastPickedVideoMedia = acceptedUris.map { uri ->
-                    PickedVideoMedia(
-                        uri = uri,
-                        name = queryDisplayName(uri) ?: uri.lastPathSegment.orEmpty(),
-                        size = pickedUriSize(uri) ?: -1L,
-                        mimeType = runCatching { contentResolver.getType(uri) }.getOrNull()
-                    )
-                }
-            } else {
-                lastPickedVideoMedia = emptyList()
-            }
-
             acceptedUris.toTypedArray().takeIf { it.isNotEmpty() }
         } catch (_: Exception) {
-            lastPickedVideoMedia = emptyList()
             null
         }
 
-        pendingVideoMediaBinding = false
         callback.onReceiveValue(selected)
     }
 
@@ -556,7 +525,6 @@ class MainActivity : AppCompatActivity() {
                     .map { it.trim() }
                     .filter { it.isNotEmpty() }
                     .toSet()
-                pendingVideoMediaBinding = fileChooserAcceptTypes.any { value ->
                     value.startsWith("video/", ignoreCase = true) ||
                         value.startsWith("image/", ignoreCase = true) ||
                         value.startsWith("audio/", ignoreCase = true)
@@ -568,8 +536,6 @@ class MainActivity : AppCompatActivity() {
                 } catch (_: Exception) {
                     fileChooserCallback = null
                     fileChooserAcceptTypes = emptySet()
-                    pendingVideoMediaBinding = false
-                    lastPickedVideoMedia = emptyList()
                     callback.onReceiveValue(null)
                     true
                 }
@@ -808,10 +774,6 @@ class MainActivity : AppCompatActivity() {
                 adManager?.publishStatus()
             }
 
-            ACTION_VIDEO_BIND_PICKED_MEDIA -> bindLastPickedVideoMedia(message)
-            ACTION_VIDEO_EXPORT -> startVideoExport(message)
-            ACTION_VIDEO_EXPORT_CANCEL -> cancelVideoExport()
-            ACTION_VIDEO_EXPORT_STATUS -> publishVideoExportStatus()
 
             ACTION_NATIVE_DRIVE_START -> {
                 if (!hasLocationPermission()) {
@@ -1325,204 +1287,6 @@ class MainActivity : AppCompatActivity() {
             uri.encodedPath?.endsWith(".apk", ignoreCase = true) == true
     }
 
-    private fun bindLastPickedVideoMedia(message: JSONObject) {
-        val requested = message.optJSONArray("files")
-        val available = lastPickedVideoMedia
-        if (requested == null || requested.length() == 0 || requested.length() != available.size) {
-            publishVideoEvent(
-                JSONObject()
-                    .put("event", "bindings-error")
-                    .put("message", "The native media selection could not be matched to the editor files.")
-            )
-            return
-        }
-
-        val bindings = org.json.JSONArray()
-        for (index in 0 until requested.length()) {
-            val request = requested.optJSONObject(index) ?: run {
-                publishVideoEvent(
-                    JSONObject()
-                        .put("event", "bindings-error")
-                        .put("message", "Invalid media binding request.")
-                )
-                return
-            }
-            val picked = available[index]
-            val nameMatches = request.optString("name") == picked.name
-            val sizeMatches = request.optLong("size", Long.MIN_VALUE) == picked.size
-            val typeMatches = request.optString("type").trim()
-                .let { it.isBlank() || it == (picked.mimeType ?: "") }
-
-            if (!nameMatches || !sizeMatches || !typeMatches) {
-                publishVideoEvent(
-                    JSONObject()
-                        .put("event", "bindings-error")
-                        .put("message", "Native media binding validation failed for " + picked.name)
-                )
-                return
-            }
-
-            val entry = videoMediaRegistry.register(picked.uri, picked.mimeType)
-            bindings.put(
-                JSONObject()
-                    .put("name", picked.name)
-                    .put("size", picked.size)
-                    .put("type", picked.mimeType ?: JSONObject.NULL)
-                    .put("nativeSourceKey", entry.token)
-            )
-        }
-
-        lastPickedVideoMedia = emptyList()
-        publishVideoEvent(
-            JSONObject()
-                .put("event", "bindings")
-                .put("files", bindings)
-        )
-    }
-
-    private fun startVideoExport(message: JSONObject) {
-        if (videoExporter.isExporting()) {
-            publishVideoEvent(
-                JSONObject()
-                    .put("event", "error")
-                    .put("message", "Another Video Studio export is already running.")
-            )
-            return
-        }
-
-        val projectPayload = message.optJSONObject("project")
-        if (projectPayload == null) {
-            publishVideoEvent(
-                JSONObject()
-                    .put("event", "error")
-                    .put("message", "Video export payload is missing the project.")
-            )
-            return
-        }
-
-        val project = try {
-            VideoStudioJsonCodec.decodeProject(projectPayload, videoMediaRegistry)
-        } catch (error: Throwable) {
-            publishVideoEvent(
-                JSONObject()
-                    .put("event", "error")
-                    .put("message", error.message ?: "The project could not be prepared for native export.")
-            )
-            return
-        }
-
-        try {
-            videoExporter.start(
-                project,
-                object : VideoStudioExporter.Listener {
-                    override fun onStarted(outputFile: java.io.File) {
-                        publishVideoEvent(
-                            JSONObject()
-                                .put("event", "started")
-                                .put("path", outputFile.absolutePath)
-                                .put("name", outputFile.name)
-                        )
-                    }
-
-                    override fun onProgress(percent: Int) {
-                        publishVideoEvent(
-                            JSONObject()
-                                .put("event", "progress")
-                                .put("percent", percent)
-                        )
-                    }
-
-                    override fun onCompleted(
-                        outputFile: java.io.File,
-                        result: androidx.media3.transformer.ExportResult
-                    ) {
-                        publishVideoEvent(
-                            JSONObject()
-                                .put("event", "completed")
-                                .put("path", outputFile.absolutePath)
-                                .put("name", outputFile.name)
-                                .put("sizeBytes", outputFile.length())
-                        )
-                    }
-
-                    override fun onCancelled(outputFile: java.io.File?) {
-                        publishVideoEvent(
-                            JSONObject()
-                                .put("event", "cancelled")
-                                .put("path", outputFile?.absolutePath ?: "")
-                        )
-                    }
-
-                    override fun onError(
-                        outputFile: java.io.File?,
-                        error: androidx.media3.transformer.ExportException
-                    ) {
-                        publishVideoEvent(
-                            JSONObject()
-                                .put("event", "error")
-                                .put("path", outputFile?.absolutePath ?: "")
-                                .put("message", error.message ?: "Native video export failed.")
-                        )
-                    }
-                }
-            )
-        } catch (error: Throwable) {
-            publishVideoEvent(
-                JSONObject()
-                    .put("event", "error")
-                    .put("message", error.message ?: "Native video export could not start.")
-            )
-        }
-    }
-
-    private fun cancelVideoExport() {
-        if (videoExporter.isExporting()) {
-            runCatching { videoExporter.cancel() }
-        } else {
-            publishVideoEvent(JSONObject().put("event", "cancelled").put("path", ""))
-        }
-    }
-
-    private fun publishVideoExportStatus() {
-        publishVideoEvent(
-            JSONObject()
-                .put("event", "status")
-                .put("exporting", videoExporter.isExporting())
-        )
-    }
-
-    private fun publishVideoEvent(payload: JSONObject) {
-        if (!::webView.isInitialized || isFinishing || isDestroyed) return
-        val detail = payload.toString()
-        val script = "window.dispatchEvent(new CustomEvent('nexusnova:video-native',{detail:$detail}));"
-        webView.post {
-            if (!isFinishing && !isDestroyed && ::webView.isInitialized) {
-                runCatching { webView.evaluateJavascript(script, null) }
-            }
-        }
-    }
-
-    private fun queryDisplayName(uri: Uri): String? {
-        return try {
-            contentResolver.query(
-                uri,
-                arrayOf(OpenableColumns.DISPLAY_NAME),
-                null,
-                null,
-                null
-            )?.use { cursor ->
-                val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                if (index >= 0 && cursor.moveToFirst() && !cursor.isNull(index)) {
-                    cursor.getString(index)
-                } else {
-                    null
-                }
-            }
-        } catch (_: Exception) {
-            null
-        }
-    }
-
     private fun publishNativeDriveSnapshot(error: String? = null) {
         if (!::webView.isInitialized || isFinishing || isDestroyed) return
         val snapshot = NexusDriveForegroundService.readSnapshot(this)
@@ -1757,10 +1521,6 @@ class MainActivity : AppCompatActivity() {
         const val ACTION_SHOW_REWARDED_AD = "showRewardedAd"
         const val ACTION_SHOW_INTERSTITIAL_AD = "showInterstitialAd"
         const val ACTION_AD_STATUS = "adStatus"
-        const val ACTION_VIDEO_BIND_PICKED_MEDIA = "videoBindPickedMedia"
-        const val ACTION_VIDEO_EXPORT = "videoExport"
-        const val ACTION_VIDEO_EXPORT_CANCEL = "videoExportCancel"
-        const val ACTION_VIDEO_EXPORT_STATUS = "videoExportStatus"
         const val ACTION_NATIVE_DRIVE_START = "nativeDriveStart"
         const val ACTION_NATIVE_DRIVE_PAUSE = "nativeDrivePause"
         const val ACTION_NATIVE_DRIVE_RESUME = "nativeDriveResume"
