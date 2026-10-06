@@ -235,6 +235,8 @@ export async function appScreen({ id, backToHub, backToMine } = {}) {
   const parentName = miningOwned ? 'Mine' : 'Nova Hub';
   const goBack = miningOwned ? backToMine : backToHub;
   const aiPhotoRoute = id === AI_PHOTO_ID;
+  const novaCutRoute = id === 'ai-video-studio';
+  if (novaCutRoute) root.classList.add('nx-novacut-route-screen');
 
   if (aiPhotoRoute) {
     root.classList.add('nx-ai-photo-route-screen');
@@ -280,3 +282,36 @@ export async function appScreen({ id, backToHub, backToMine } = {}) {
   return root;
 }
 export function cleanupAppScreen() { cleanup?.(); cleanup = null; }
+
+
+.nx-novacut-route-screen .nx-novacut-route-head{
+  display:grid!important;
+  grid-template-columns:44px 44px minmax(0,1fr)!important;
+  align-items:center!important;
+  gap:10px!important;
+  padding:8px 10px!important;
+}
+.nx-novacut-route-screen .nx-novacut-route-head .nx-back{
+  width:44px!important;
+  height:44px!important;
+  display:grid!important;
+  place-items:center!important;
+  padding:0!important;
+}
+.nx-novacut-route-screen .nx-novacut-route-head .nx-app-head__icon{
+  width:44px!important;
+  height:44px!important;
+  display:grid!important;
+  place-items:center!important;
+  border-radius:14px!important;
+}
+.nx-novacut-route-screen .nx-novacut-route-head > div{
+  min-width:0!important;
+}
+.nx-novacut-route-screen .nx-novacut-route-head h1{
+  margin:0!important;
+  line-height:1!important;
+}
+.nx-novacut-route-screen .nx-novacut-route-head .nx-eyebrow{
+  margin:0 0 5px!important;
+}
