@@ -1,10 +1,10 @@
 {
   "schema": 2,
   "base": "3ceae1c01b69c94ec9e86d4fe2b3a12db5d2e634",
-  "version": "8df75e88e18610784c336706cff782d501abef95",
-  "diagnostic": "video-studio-native-popup-test",
-  "source_commit": "8df75e88e18610784c336706cff782d501abef95",
-  "message": "AI Video Studio update",
+  "version": "158a61956e4660417ffdf4be311d7eadc6592313",
+  "diagnostic": "video-studio-native-popup",
+  "source_commit": "158a61956e4660417ffdf4be311d7eadc6592313",
+  "message": "AI Video Studio update available",
   "files": [
     {
       "path": "index.html",
