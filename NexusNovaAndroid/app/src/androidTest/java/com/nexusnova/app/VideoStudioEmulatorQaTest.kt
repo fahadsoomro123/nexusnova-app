@@ -25,6 +25,7 @@ class VideoStudioEmulatorQaTest {
     @Test
     fun videoStudioFullscreenScopedDockAndNativeMediaPicker() {
         require(Build.VERSION.SDK_INT >= 29)
+        publishDownload("video-studio-video-qa.webm", "video/webm", instrumentation.context.assets.open("video-studio-video-qa.webm").use { it.readBytes() })
         publishDownload("video-studio-photo-qa.png", "image/png", Base64.getDecoder().decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="))
 
         context.startActivity(
@@ -64,6 +65,7 @@ class VideoStudioEmulatorQaTest {
         device.pressBack()
         waitText("NOVA HUB")
         assertTrue("dock was not restored after leaving Video Studio", device.hasObject(By.text("MINE")))
+        cleanupDownload("video-studio-video-qa.webm")
         cleanupDownload("video-studio-photo-qa.png")
     }
 
