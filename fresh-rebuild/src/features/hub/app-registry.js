@@ -30,6 +30,7 @@ export const novaApps = Object.freeze([
   { id: 'ai-transcribe', name: 'AI Transcribe', category: 'NexusNova Pro Studio', icon: 'chat', description: 'Audio/video transcription, summaries and translation workspace' },
   { id: 'ai-writing-pro', name: 'AI Writing Pro', category: 'NexusNova Pro Studio', icon: 'notes', description: 'Compose, rewrite, inspect and export polished writing' },
   { id: 'digital-sign', name: 'Digital Sign', category: 'NexusNova Pro Studio', icon: 'document', description: 'Draw, place and export visual electronic signatures locally' },
+  { id: 'ai-video-studio', name: 'NovaCut', category: 'NexusNova Pro Studio', icon: 'ai-video-studio', description: 'Retired video runtime reserved as an inert NovaCut surface' },
 
   { id: 'ai', name: 'Nova AI', category: 'Discover', icon: 'ai', description: 'AI chat, voice and research tools' },
   { id: 'smart', name: 'Smart Hub', category: 'Discover', icon: 'smart', description: 'AI, voice, file understanding and real-data daily brief' },
