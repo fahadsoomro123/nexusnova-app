@@ -3,7 +3,7 @@ import { novaApps } from '../hub/app-registry.js';
 
 let cleanup = null;
 const AI_PHOTO_ID = 'ai-photo-studio';
-const VIDEO_STUDIO_CACHE_KEY = '?ota=nv18';
+const VIDEO_STUDIO_CACHE_KEY = '?ota=nv19';
 const rendererSources = [
   ['./premium-studio-suite.js', 'premiumStudioRenderers'],
   ['./nova-sol57-fresh.js', 'novaSol57Renderers'],
