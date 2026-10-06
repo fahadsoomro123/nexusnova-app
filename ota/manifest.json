@@ -1,10 +1,10 @@
 {
   "schema": 2,
   "base": "3ceae1c01b69c94ec9e86d4fe2b3a12db5d2e634",
-  "version": "ca16371533923f5f3f960d430d83ac5ca032bd9a",
-  "diagnostic": "video-studio-capcut-flagship-ota-v4-cachefix",
-  "source_commit": "ca16371533923f5f3f960d430d83ac5ca032bd9a",
-  "message": "AI Video Studio CapCut Flagship V4 cache-fixed update",
+  "version": "d6eb789c505d5d7a0292b519f3fb95ad3916d551",
+  "diagnostic": "video-studio-capcut-flagship-ota-v5-real-complete",
+  "source_commit": "d6eb789c505d5d7a0292b519f3fb95ad3916d551",
+  "message": "AI Video Studio CapCut Flagship V5 update",
   "files": [
     {
       "path": "index.html",
@@ -23,8 +23,8 @@
     },
     {
       "path": "src/features/apps/ai-video-studio-flagship.js",
-      "sha256": "4242aac257698310eca411a1ec12a3d29726ab7506393676db8a08c732c567b9",
-      "size": 67442
+      "sha256": "8ade125bdf9ecb089d618504140ba992a9a851b582dc91847f0de093352b67d9",
+      "size": 78932
     },
     {
       "path": "src/features/apps/nn-video-studio-upgrade.js",
