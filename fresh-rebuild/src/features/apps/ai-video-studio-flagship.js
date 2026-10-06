@@ -752,32 +752,14 @@ export function renderAiVideoStudio(){
       const clip={id,name:file.name.replace(/\.[^.]+$/,'').slice(0,40)||'Media',kind,file:null,sourceUrl:null,sourceKey:id,in:0,out:kind==='image'?DEFAULT_DUR:DEFAULT_DUR,speed:1,volume:1,muted:false,brightness:1,contrast:1,saturate:1,effect:'none',textOverlay:'',scale:1,rotation:0,flipX:false,flipY:false,motion:'none',mask:'none'};
       try{
         if(kind==='image'){
-          // Keep Android/WebView imports non-blocking. Register the real clip immediately,
-          // then validate image decoding in the background so the picker cannot appear stuck.
+          await new Promise((resolve,reject)=>{
+            const img=new Image();
+            const timer=setTimeout(()=>reject(new Error('Image load timed out.')),6000);
+            img.onload=()=>{clearTimeout(timer);resolve();};
+            img.onerror=()=>{clearTimeout(timer);reject(new Error('This image could not be decoded on this device.'));};
+            img.src=url;
+          });
           state.clips.push(clip);state.sources.set(id,file);state.urls.set(id,url);imported++;
-          void (async()=>{
-            try{
-              const img=new Image();
-              const timer=setTimeout(()=>rejectImage(new Error('Image load timed out.')),6000);
-              const cleanup=()=>clearTimeout(timer);
-              const rejectImage=(error)=>{
-                cleanup();
-                const live=state.clips.find(item=>item.id===id);
-                if(live) setRuntime('Image imported. Preview decode failed; re-import the image or use PNG/JPG/WebP.',true);
-                throw error;
-              };
-              await new Promise((resolve,reject)=>{
-                img.onload=()=>{cleanup();resolve();};
-                img.onerror=()=>{cleanup();reject(new Error('This image could not be decoded on this device.'));};
-                img.src=url;
-              });
-              if(state.selectedId===id) refitPreviewMedia();
-              render();
-            }catch(error){
-              console.warn('[NexusNova Video] image metadata probe:',file?.name,error);
-              render();
-            }
-          })();
         }else{
           // Do not block the editor on Android/WebView metadata probing. Put the
           // selected video into the real timeline immediately, then resolve its
