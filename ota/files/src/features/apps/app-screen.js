@@ -227,6 +227,33 @@ function installNovaPremiumSidebar(root, body) {
   };
 }
 
+function ensureNovaCutRouteStyle() {
+  if (document.getElementById('nx-novacut-route-style')) return;
+  const style = document.createElement('style');
+  style.id = 'nx-novacut-route-style';
+  style.textContent = `
+    .nx-novacut-route-screen .nx-app-head{
+      display:grid!important;
+      grid-template-columns:44px 44px minmax(0,1fr)!important;
+      align-items:center!important;
+      gap:10px!important;
+      padding:8px 10px!important;
+    }
+    .nx-novacut-route-screen .nx-app-head .nx-back{
+      width:44px!important;height:44px!important;
+      display:grid!important;place-items:center!important;padding:0!important;
+    }
+    .nx-novacut-route-screen .nx-app-head .nx-app-head__icon{
+      width:44px!important;height:44px!important;
+      display:grid!important;place-items:center!important;border-radius:14px!important;
+    }
+    .nx-novacut-route-screen .nx-app-head > div{min-width:0!important}
+    .nx-novacut-route-screen .nx-app-head h1{margin:0!important;line-height:1!important}
+    .nx-novacut-route-screen .nx-app-head .nx-eyebrow{margin:0 0 5px!important}
+  `;
+  document.head.appendChild(style);
+}
+
 export async function appScreen({ id, backToHub, backToMine } = {}) {
   cleanup?.(); cleanup = null;
   const app = novaApps.find(item => item.id === id); const root = document.createElement('section'); root.className = 'nx-screen';
@@ -237,6 +264,7 @@ export async function appScreen({ id, backToHub, backToMine } = {}) {
   const aiPhotoRoute = id === AI_PHOTO_ID;
   const novaCutRoute = id === 'ai-video-studio';
   if (novaCutRoute) root.classList.add('nx-novacut-route-screen');
+  if (novaCutRoute) ensureNovaCutRouteStyle();
 
   if (aiPhotoRoute) {
     root.classList.add('nx-ai-photo-route-screen');
@@ -284,34 +312,3 @@ export async function appScreen({ id, backToHub, backToMine } = {}) {
 export function cleanupAppScreen() { cleanup?.(); cleanup = null; }
 
 
-.nx-novacut-route-screen .nx-novacut-route-head{
-  display:grid!important;
-  grid-template-columns:44px 44px minmax(0,1fr)!important;
-  align-items:center!important;
-  gap:10px!important;
-  padding:8px 10px!important;
-}
-.nx-novacut-route-screen .nx-novacut-route-head .nx-back{
-  width:44px!important;
-  height:44px!important;
-  display:grid!important;
-  place-items:center!important;
-  padding:0!important;
-}
-.nx-novacut-route-screen .nx-novacut-route-head .nx-app-head__icon{
-  width:44px!important;
-  height:44px!important;
-  display:grid!important;
-  place-items:center!important;
-  border-radius:14px!important;
-}
-.nx-novacut-route-screen .nx-novacut-route-head > div{
-  min-width:0!important;
-}
-.nx-novacut-route-screen .nx-novacut-route-head h1{
-  margin:0!important;
-  line-height:1!important;
-}
-.nx-novacut-route-screen .nx-novacut-route-head .nx-eyebrow{
-  margin:0 0 5px!important;
-}
