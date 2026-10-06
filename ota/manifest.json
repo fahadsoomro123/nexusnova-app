@@ -1,10 +1,10 @@
 {
   "schema": 2,
   "base": "3ceae1c01b69c94ec9e86d4fe2b3a12db5d2e634",
-  "version": "158a61956e4660417ffdf4be311d7eadc6592313",
-  "diagnostic": "video-studio-native-popup",
-  "source_commit": "158a61956e4660417ffdf4be311d7eadc6592313",
-  "message": "AI Video Studio update available",
+  "version": "f43911d088c5b8b743e39cd8ce7b7637a4855692",
+  "diagnostic": "video-studio-capcut-flagship-ota",
+  "source_commit": "f43911d088c5b8b743e39cd8ce7b7637a4855692",
+  "message": "AI Video Studio flagship editor update",
   "files": [
     {
       "path": "index.html",
@@ -13,11 +13,11 @@
     },
     {
       "path": "src/features/apps/ai-video-studio-flagship.js",
-      "sha256": "36c65949d89efabba900008ebab26876fb8dfae1bcfc02daca2ca054a5dc26ca",
-      "size": 64778
+      "sha256": "4242aac257698310eca411a1ec12a3d29726ab7506393676db8a08c732c567b9",
+      "size": 67442
     }
   ],
-  "video_release": "flagship-v5-current-main-bundle",
+  "video_release": "flagship-video-studio-20260922",
   "ota_badge": "OTA-VIDEO-STUDIO",
   "ota_badge_status": "ACTIVE"
 }
