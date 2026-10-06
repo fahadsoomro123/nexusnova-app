@@ -35,7 +35,7 @@ async function aiModel(systemInstruction){
   return core.aiModel(systemInstruction);
 }
 
-const STYLE_ID = 'nx-video-flagship-v5';
+const STYLE_ID = 'nx-video-flagship-v6';
 const DEFAULT_DUR = 3;
 
 function ensureVideoFlagshipStyles() {
@@ -294,10 +294,23 @@ export function renderAiVideoStudio(){
       </div>
 
       <div class="nx-video-panel" data-panel="ai">
-        <div class="nx-video-actions"><button class="nx-video-primary" data-ai-director>AI DIRECTOR</button><button class="nx-video-button" data-ai-captions>AUTO CAPTIONS</button></div>
-        <button type="button" class="nx-video-button nx-video-ai-apply" data-ai-apply disabled>APPLY DIRECTOR PLAN</button>
-        <label class="nx-video-field" style="margin-top:7px"><span>AI NOTES / CAPTIONS</span><textarea data-ai-output placeholder="AI output appears here…" maxlength="5000"></textarea></label>
-        <div class="nx-video-note">AI uses the selected local media only when you request it. Media sent for AI must fit the provider/browser limits; no fake processing is shown.</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px">
+          <div><strong style="display:block;font-size:14px">AI CREATE STUDIO</strong><span style="display:block;font-size:10px;color:#8c8797;margin-top:2px">CapCut-inspired AI workflow for scenes, captions and edits</span></div>
+          <span style="padding:5px 8px;border-radius:999px;background:#f0ebff;color:#6244d8;font-size:9px;font-weight:900">AI</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px">
+          <button type="button" class="nx-video-button is-active" disabled>TEXT → VIDEO</button>
+          <button type="button" class="nx-video-button" disabled>SCRIPT → SCENES</button>
+          <button type="button" class="nx-video-button" disabled>IMAGE → MOTION</button>
+          <button type="button" class="nx-video-button" disabled>AUTO EDIT</button>
+        </div>
+        <label class="nx-video-field" style="margin-top:7px"><span>AI DIRECTOR PROMPT</span><textarea data-ai-output placeholder="Describe the hook, pacing, captions, transitions and visual style for this project…" maxlength="5000"></textarea></label>
+        <div class="nx-video-actions" style="margin-top:7px">
+          <button type="button" class="nx-video-primary" data-ai-director>AI DIRECTOR</button>
+          <button type="button" class="nx-video-button" data-ai-captions>AUTO CAPTIONS</button>
+        </div>
+        <button type="button" class="nx-video-button nx-video-ai-apply" data-ai-apply disabled>APPLY DIRECTOR PLAN TO TIMELINE</button>
+        <div class="nx-video-note">The editor uses real project media and the real AI Director model. Text-to-video pixel generation is not claimed when no video-generation backend is configured.</div>
       </div>
 
       <div class="nx-video-panel" data-panel="export">
