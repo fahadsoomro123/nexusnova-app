@@ -728,13 +728,13 @@ function parseMp4TrackLeaf(
 
     const widthOffset =
       version === 1
-        ? absolute + 88
-        : absolute + 80;
+        ? absolute + 96
+        : absolute + 84;
 
     const heightOffset =
       version === 1
-        ? absolute + 92
-        : absolute + 84;
+        ? absolute + 100
+        : absolute + 88;
 
     const width =
       readFixed1616(
