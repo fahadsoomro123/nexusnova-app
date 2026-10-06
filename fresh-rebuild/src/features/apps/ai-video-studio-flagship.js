@@ -752,21 +752,15 @@ export function renderAiVideoStudio(){
       const clip={id,name:file.name.replace(/\.[^.]+$/,'').slice(0,40)||'Media',kind,file:null,sourceUrl:null,sourceKey:id,in:0,out:kind==='image'?DEFAULT_DUR:DEFAULT_DUR,speed:1,volume:1,muted:false,brightness:1,contrast:1,saturate:1,effect:'none',textOverlay:'',scale:1,rotation:0,flipX:false,flipY:false,motion:'none',mask:'none'};
       try{
         if(kind==='image'){
-          // Keep Android/WebView imports non-blocking. Register the real clip immediately,
-          // then validate image decoding in the background so the picker cannot appear stuck.
+          // Register the real clip immediately so Android/WebView imports never block
+          // on image decoding. Validate the preview source asynchronously afterward.
           state.clips.push(clip);state.sources.set(id,file);state.urls.set(id,url);imported++;
           void (async()=>{
             try{
-              const img=new Image();
-              const timer=setTimeout(()=>rejectImage(new Error('Image load timed out.')),6000);
-              const cleanup=()=>clearTimeout(timer);
-              const rejectImage=(error)=>{
-                cleanup();
-                const live=state.clips.find(item=>item.id===id);
-                if(live) setRuntime('Image imported. Preview decode failed; re-import the image or use PNG/JPG/WebP.',true);
-                throw error;
-              };
               await new Promise((resolve,reject)=>{
+                const img=new Image();
+                const timer=setTimeout(()=>reject(new Error('Image load timed out.')),6000);
+                const cleanup=()=>clearTimeout(timer);
                 img.onload=()=>{cleanup();resolve();};
                 img.onerror=()=>{cleanup();reject(new Error('This image could not be decoded on this device.'));};
                 img.src=url;
@@ -775,6 +769,7 @@ export function renderAiVideoStudio(){
               render();
             }catch(error){
               console.warn('[NexusNova Video] image metadata probe:',file?.name,error);
+              setRuntime('Image imported. Preview decode failed; re-import the image or use PNG/JPG/WebP.',true);
               render();
             }
           })();
@@ -1035,7 +1030,20 @@ export function renderAiVideoStudio(){
 
   previewResizeObserver.observe(els.preview);
   fitPreviewCanvas();
-  els.file.addEventListener('change',()=>{const chosen=[...els.file.files||[]];void addFiles(chosen);els.file.value='';});
+  let lastFileSelectionKey='';
+  const handleFileSelection=()=>{
+    const chosen=[...els.file.files||[]];
+    if(!chosen.length)return;
+    const key=chosen.map(file=>`${file.name}:${file.size}:${file.lastModified}`).join('|');
+    if(key===lastFileSelectionKey)return;
+    lastFileSelectionKey=key;
+    try{void addFiles(chosen);}finally{
+      els.file.value='';
+      setTimeout(()=>{lastFileSelectionKey='';},0);
+    }
+  };
+  els.file.addEventListener('input',handleFileSelection);
+  els.file.addEventListener('change',handleFileSelection);
   root.querySelector('[data-add]').addEventListener('click',openFilePicker);
   root.querySelector('[data-split]').addEventListener('click',splitSelected);
   root.querySelector('[data-delete]').addEventListener('click',deleteSelected);
