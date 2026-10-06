@@ -1,0 +1,115 @@
+/* NexusNova Mine component-skin v1
+   Hyper-real tactile vector hardware layer built from the supplied reference.
+   VISUAL ONLY: no mining/backend/auth/timer/action logic. Geometry remains owned by premium-mine-reference-locked.css. */
+@media (max-width:600px){
+  #nx-stage[data-route="mine"] .nx-screen-head{
+    background:url('../skins/mine/frame-header.svg') center/100% 100% no-repeat!important;
+    border-color:transparent!important;
+    box-shadow:none!important;
+  }
+  #nx-stage[data-route="mine"] .nx-screen-head::before{display:none!important}
+  #nx-stage[data-route="mine"] .nx-screen-head::after{
+    content:""!important;
+    background:url('../skins/mine/status-lamp.svg') center/100% 100% no-repeat!important;
+    border:0!important;
+    box-shadow:none!important;
+    filter:none!important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-nebula-miner{
+    background:url('../skins/mine/frame-panel.svg') center/100% 100% no-repeat!important;
+    border-color:transparent!important;
+    box-shadow:none!important;
+  }
+  #nx-stage[data-route="mine"] .nx-nebula-miner::before{display:none!important}
+
+  #nx-stage[data-route="mine"] .nx-nebula-core{
+    filter:drop-shadow(0 3px 0 #000) drop-shadow(0 12px 14px rgba(0,0,0,.78))!important;
+  }
+  #nx-stage[data-route="mine"] .nx-nebula-core::after{
+    content:""!important;
+    inset:-6.5%!important;
+    background:url('../skins/mine/ring-bezel.svg') center/100% 100% no-repeat!important;
+    border:0!important;
+    box-shadow:none!important;
+  }
+  #nx-stage[data-route="mine"] .nx-nebula-core::before{
+    border-color:#697b86!important;
+    box-shadow:
+      0 0 0 3px #010304,
+      0 0 0 7px #34434d,
+      inset 0 2px 0 rgba(255,255,255,.28),
+      inset 0 -8px 16px rgba(0,0,0,.62),
+      inset 0 0 26px rgba(0,153,255,.34),
+      0 0 25px rgba(0,143,255,.27)!important;
+  }
+  #nx-stage[data-route="mine"] .nx-nebula-core__aura{
+    background:radial-gradient(circle at 42% 30%,#17455d 0%,#081923 45%,#020608 76%,#010304 100%)!important;
+    box-shadow:0 0 0 4px #010304,0 0 0 7px #4c5e69,inset 0 2px rgba(255,255,255,.13),inset 0 -13px 24px rgba(0,0,0,.78),inset 0 0 34px rgba(0,158,255,.2)!important;
+  }
+  #nx-stage[data-route="mine"] .nx-nebula-core__center{
+    background:radial-gradient(circle at 43% 27%,#17455c 0%,#071822 46%,#020608 76%,#010304 100%)!important;
+    box-shadow:0 0 0 4px #010304,0 0 0 7px #596b76,inset 0 2px rgba(255,255,255,.18),inset 5px 5px 12px rgba(80,190,240,.1),inset -6px -12px 25px rgba(0,0,0,.8),0 11px 22px rgba(0,0,0,.65)!important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-nebula-readout,
+  #nx-stage[data-route="mine"] .nx-nebula-meta>div,
+  #nx-stage[data-route="mine"] .nx-mining-tools{
+    background:url('../skins/mine/frame-panel.svg') center/100% 100% no-repeat!important;
+    border-color:transparent!important;
+    box-shadow:none!important;
+  }
+  #nx-stage[data-route="mine"] .nx-nebula-readout::before,
+  #nx-stage[data-route="mine"] .nx-mining-tools::before{display:none!important}
+  #nx-stage[data-route="mine"] .nx-nebula-readout::after{
+    opacity:.7!important;
+    filter:drop-shadow(0 0 5px rgba(0,191,255,.22))!important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-nebula-meta>div::before{
+    background:linear-gradient(145deg,#75838c 0%,#22303a 18%,#081016 58%,#020406 100%)!important;
+    border-color:#84939c!important;
+    box-shadow:0 0 0 2px #010304,0 0 0 5px #2b3942,inset 2px 2px 3px rgba(255,255,255,.2),inset -4px -6px 9px rgba(0,0,0,.8),0 6px 9px rgba(0,0,0,.55)!important;
+  }
+
+  #nx-stage[data-route="mine"] .nx-nebula-action{
+    background:url('../skins/mine/action-frame.svg') center/100% 100% no-repeat!important;
+    border-color:transparent!important;
+    box-shadow:none!important;
+    text-shadow:0 2px 0 #00101a,0 5px 8px rgba(0,0,0,.55)!important;
+  }
+  #nx-stage[data-route="mine"] .nx-nebula-action::before,
+  #nx-stage[data-route="mine"] .nx-nebula-action::after{display:none!important}
+
+  #nx-stage[data-route="mine"] .nx-mining-tool{
+    background:url('../skins/mine/card-cyan.svg') center/100% 100% no-repeat!important;
+    border-color:transparent!important;
+    box-shadow:none!important;
+  }
+  #nx-stage[data-route="mine"] .nx-mining-tool--boost{
+    background:url('../skins/mine/card-purple.svg') center/100% 100% no-repeat!important;
+  }
+  #nx-stage[data-route="mine"] .nx-mining-tool__icon{
+    background:linear-gradient(145deg,#173a4a,#061017)!important;
+    border-color:#45d5ff!important;
+    box-shadow:0 0 0 2px #010304,0 0 0 4px #34444e,inset 0 1px rgba(255,255,255,.2),inset 0 -5px 9px rgba(0,0,0,.72),0 5px 9px rgba(0,0,0,.5)!important;
+  }
+  #nx-stage[data-route="mine"] .nx-mining-tool--boost .nx-mining-tool__icon{
+    background:linear-gradient(145deg,#3a1a4b,#100817)!important;
+    border-color:#d969ff!important;
+    box-shadow:0 0 0 2px #010304,0 0 0 4px #5b3568,inset 0 1px rgba(255,255,255,.22),inset 0 -5px 9px rgba(0,0,0,.72),0 0 15px rgba(193,70,255,.22)!important;
+  }
+
+  body:has(#nx-stage[data-route="mine"]) .nx-dock{
+    background:url('../skins/mine/dock-frame.svg') center/100% 100% no-repeat!important;
+    border-color:transparent!important;
+    box-shadow:none!important;
+  }
+  body:has(#nx-stage[data-route="mine"]) #nxEmergencySosButton{
+    background:url('../skins/mine/sos-button.svg') center/100% 100% no-repeat!important;
+    border:0!important;
+    box-shadow:none!important;
+    color:transparent!important;
+    text-shadow:none!important;
+  }
+}

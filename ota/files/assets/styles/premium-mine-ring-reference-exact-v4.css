@@ -1,0 +1,98 @@
+/* NexusNova Mine exact reference ring v4.
+   SOURCE: user-supplied ring close-up only. No generated imagery.
+   VISUAL ONLY: live mining state/timer/balance/actions remain untouched. */
+@media (max-width:900px) {
+  html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-core {
+    background:radial-gradient(circle at 50% 50%,#07131b 0 54%,#02070b 55% 100%)!important;
+    box-shadow:none!important;
+    filter:none!important;
+    overflow:visible!important;
+  }
+
+  /* Brighter full illuminated track: keeps the exact reference material visible even outside live progress. */
+  html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-core__aura {
+    display:block!important;
+    position:absolute!important;
+    inset:0!important;
+    width:100%!important;
+    height:100%!important;
+    margin:0!important;
+    border:0!important;
+    border-radius:50%!important;
+    background:var(--mine-skin-ring-band-exact) center/100% 100% no-repeat!important;
+    box-shadow:none!important;
+    filter:saturate(.86) brightness(.62)!important;
+    opacity:.92!important;
+    z-index:2!important;
+    pointer-events:none!important;
+  }
+
+  /* Live-progress illuminated track using the exact blue/cyan/green source texture. */
+  html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-core__orbit--outer {
+    display:block!important;
+    position:absolute!important;
+    inset:0!important;
+    width:100%!important;
+    height:100%!important;
+    margin:0!important;
+    border:0!important;
+    border-radius:50%!important;
+    background:var(--mine-skin-ring-band-exact) center/100% 100% no-repeat!important;
+    box-shadow:0 0 14px rgba(0,196,255,.28)!important;
+    filter:saturate(.86) brightness(.92) contrast(.98)!important;
+    opacity:1!important;
+    z-index:3!important;
+    pointer-events:none!important;
+    -webkit-mask-image:conic-gradient(from -90deg,#000 0deg var(--nx-nebula-progress),transparent var(--nx-nebula-progress) 360deg)!important;
+    mask-image:conic-gradient(from -90deg,#000 0deg var(--nx-nebula-progress),transparent var(--nx-nebula-progress) 360deg)!important;
+    -webkit-mask-size:100% 100%!important;
+    mask-size:100% 100%!important;
+  }
+
+  html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-core__orbit--mid,
+  html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-core__orbit--inner {
+    display:none!important;
+  }
+
+  /* Exact mechanical chassis / clamps / screws / blue hardware lights. */
+  html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-core::after {
+    content:""!important;
+    position:absolute!important;
+    inset:0!important;
+    width:100%!important;
+    height:100%!important;
+    border:0!important;
+    border-radius:50%!important;
+    background:var(--mine-skin-ring-shell-exact) center/100% 100% no-repeat!important;
+    box-shadow:none!important;
+    filter:saturate(1.14) brightness(1.14) drop-shadow(0 0 4px rgba(0,150,255,.28))!important;
+    opacity:1!important;
+    z-index:6!important;
+    pointer-events:none!important;
+  }
+
+  html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-core__center {
+    z-index:5!important;
+  }
+
+  /* Whole Mine lighting pass. Geometry intentionally untouched. */
+  html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-miner {
+    filter:brightness(1.14) saturate(1.18) contrast(1.03)!important;
+  }
+
+  html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-mining-tools {
+    filter:brightness(1.12) saturate(1.16) contrast(1.02)!important;
+  }
+
+  html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) .nx-dock {
+    filter:brightness(1.10) saturate(1.12)!important;
+  }
+
+  html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-miner__head strong {
+    text-shadow:0 0 7px rgba(17,255,185,.74),0 0 14px rgba(17,255,185,.34)!important;
+  }
+
+  html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-miner__sync {
+    text-shadow:0 0 6px rgba(65,220,255,.48),0 2px 3px #000!important;
+  }
+}

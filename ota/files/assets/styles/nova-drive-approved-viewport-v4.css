@@ -1,0 +1,253 @@
+/* Nova Drive / Vehicle Tracking approved visual viewport lock.
+   2026-09-02 approved Drive-only correction:
+   - preserve exact approved PNG bytes/aspect ratio; never stretch
+   - keep Tracker rendering unchanged
+   - restore Drive full-cover scale so the gauge is not reduced and no bottom dead area remains
+   - paint the approved Drive/Vehicle Tracking bottom tabs over the raster Mine/Nova Hub labels
+   - fully mask the source SOS row before painting the approved website strip */
+
+html.nx-approved-drive-active,
+html.nx-approved-drive-active body {
+  width: 100% !important;
+  height: 100dvh !important;
+  min-height: 0 !important;
+  max-height: 100dvh !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+  background: #02070d !important;
+}
+
+html.nx-approved-drive-active body .nx-app {
+  position: fixed !important;
+  inset: 0 !important;
+  width: auto !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+  background:
+    linear-gradient(180deg, #071522 0%, #02070d 8%, #01050a 50%, #02070d 92%, #071522 100%) !important;
+}
+
+html.nx-approved-drive-active body .nx-app .nx-stage,
+html.nx-approved-drive-active .nx-stage > .nx-screen.nx-drive-v3-screen,
+html.nx-approved-drive-active .nx-drive-v3-screen > [data-app-mount],
+html.nx-approved-drive-active .nx-drive-v3-screen > [data-app-mount] > .nxdr3 {
+  position: absolute !important;
+  inset: 0 !important;
+  width: auto !important;
+  height: auto !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-width: none !important;
+  max-height: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  scroll-padding: 0 !important;
+  overflow: visible !important;
+}
+
+html.nx-approved-drive-active .nx-stage > .nx-screen.nx-drive-v3-screen {
+  animation: none !important;
+  transform: none !important;
+}
+
+html.nx-approved-drive-active .nxdr3 > .nx-approved-drive {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: auto !important;
+  bottom: auto !important;
+  width: var(--nx-approved-vw, 100vw) !important;
+  height: var(--nx-approved-vh, 100dvh) !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-width: none !important;
+  max-height: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  background:
+    linear-gradient(180deg, #071522 0%, #02070d 8%, #01050a 50%, #02070d 92%, #071522 100%) !important;
+}
+
+html.nx-approved-drive-active .nx-drive-v3-screen > .nx-app-head {
+  display: none !important;
+}
+
+html.nx-approved-drive-active .nx-drive-v3-screen > [data-app-mount] > .nxdr3 {
+  display: block !important;
+}
+
+/* Shared view geometry. Tracker keeps the previous safe-edge crop override.
+   Drive uses the renderer's exact full-cover width/height and real crop-x. */
+html.nx-approved-drive-active .nx-approved-view {
+  position: absolute !important;
+  top: 50% !important;
+  left: 50% !important;
+  right: auto !important;
+  bottom: auto !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-width: none !important;
+  max-height: none !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+  transform: translate(-50%, -50%) !important;
+  transform-origin: center !important;
+}
+
+html.nx-approved-drive-active .nx-approved-view[data-approved-drive-view] {
+  width: var(--nx-approved-drive-cover-w, 100vw) !important;
+  height: var(--nx-approved-drive-cover-h, 100dvh) !important;
+  aspect-ratio: 864 / 1472 !important;
+  top: 0 !important;
+  transform: translate(-50%, 0) !important;
+}
+
+html.nx-approved-drive-active .nx-approved-view[data-approved-tracker-view] {
+  width: calc(var(--nx-approved-vw, 100vw) + min(60px, 9vw)) !important;
+  height: auto !important;
+  aspect-ratio: 941 / 1672 !important;
+  --nx-approved-crop-x: min(30px, 4.5vw) !important;
+}
+
+html.nx-approved-drive-active .nx-approved-art {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  margin: 0 !important;
+  display: block !important;
+  object-fit: contain !important;
+  object-position: center !important;
+  filter: none !important;
+  transform: none !important;
+  image-rendering: auto !important;
+}
+
+/* Tracker controls stay exactly as before: raster-painted, transparent hit targets. */
+html.nx-approved-drive-active .nx-approved-view[data-approved-tracker-view] .nx-approved-domain-strip,
+html.nx-approved-drive-active .nx-approved-view[data-approved-tracker-view] .nx-approved-mode-tab {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+html.nx-approved-drive-active .nx-approved-view[data-approved-tracker-view] .nx-approved-domain-strip > *,
+html.nx-approved-drive-active .nx-approved-view[data-approved-tracker-view] .nx-approved-mode-tab > * {
+  visibility: hidden !important;
+  opacity: 0 !important;
+}
+
+html.nx-approved-drive-active .nx-approved-view[data-approved-tracker-view] .nx-approved-mode-tab::after {
+  display: none !important;
+}
+
+/* Drive only: erase the complete source SOS row, including its red outer edges.
+   The approved website strip is painted immediately above this mask. */
+html.nx-approved-drive-active .nx-approved-view[data-approved-drive-view]::before {
+  content: '';
+  position: absolute;
+  z-index: 39;
+  left: var(--nx-approved-crop-x, 0px);
+  top: 83.95%;
+  width: var(--nx-approved-vw, 100vw);
+  height: 7.45%;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #071522 0%, #03101a 45%, #02070d 100%);
+  pointer-events: none;
+}
+
+html.nx-approved-drive-active .nx-approved-view[data-approved-drive-view] .nx-approved-domain-strip.drive {
+  background:
+    radial-gradient(circle at 50% 50%, rgba(0,205,255,.13), transparent 42%),
+    linear-gradient(180deg, #0b293b 0%, #061725 46%, #020c15 100%) !important;
+  border: 1.5px solid rgba(41,209,255,.50) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.12),
+    inset 0 -2px 0 rgba(0,0,0,.78),
+    inset 0 0 26px rgba(0,183,255,.08),
+    0 7px 18px rgba(0,0,0,.52) !important;
+  color: #f2fbff !important;
+  text-decoration: none !important;
+  outline: 0 !important;
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+html.nx-approved-drive-active .nx-approved-view[data-approved-drive-view] .nx-approved-domain-strip.drive > * {
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+/* Drive only: use the exact approved live tabs from the prototype. They cover
+   the raster's Mine/Nova Hub labels while leaving the centre N medallion visible. */
+html.nx-approved-drive-active .nx-approved-view[data-approved-drive-view] .nx-approved-mode-tab,
+html.nx-approved-drive-active .nx-approved-view[data-approved-drive-view] .nx-approved-mode-tab > * {
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+/* Pair and Open Map already exist in the approved tracker raster. Their DOM
+   buttons remain fully clickable but no longer draw a second card/border. */
+html.nx-approved-drive-active .nx-approved-action:not(.security) {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+html.nx-approved-drive-active .nx-approved-action:not(.security) > * {
+  visibility: hidden !important;
+  opacity: 0 !important;
+}
+
+/* The source raster says REVOKE. Final product behaviour is Tracker Security,
+   so only the inner face is replaced. */
+html.nx-approved-drive-active .nx-approved-action.security {
+  margin: 4px !important;
+  border: 0 !important;
+  border-radius: 16px !important;
+  background: linear-gradient(180deg, #111b35, #071321 58%, #030910) !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+html.nx-approved-drive-active .nx-approved-paired-mask.is-visible {
+  left: calc(var(--nx-approved-crop-x, 0px) + 3vw + 4px) !important;
+  top: calc(67.2% + 4px) !important;
+  width: calc(30.3vw - 8px) !important;
+  height: calc(10.3% - 8px) !important;
+  border: 0 !important;
+  border-radius: 16px !important;
+  background: linear-gradient(180deg, rgba(8,31,45,.995), rgba(3,14,24,.998)) !important;
+  box-shadow: none !important;
+  place-items: center !important;
+  padding: 0 6px !important;
+  color: #70ffae !important;
+}
+
+html.nx-approved-drive-active .nx-approved-paired-mask.is-visible::before {
+  display: none !important;
+}
+
+/* Keep the functional back control fully inside the visible safe edge. */
+html.nx-approved-drive-active .nx-approved-back {
+  left: var(--nx-approved-crop-x, 0px) !important;
+  min-width: 44px !important;
+}
+
+html.nx-approved-drive-active .nx-dock,
+html.nx-approved-drive-active #nxEmergencySosButton,
+html.nx-approved-drive-active #nxEmergencySosEdit {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}

@@ -1,0 +1,192 @@
+/* NexusNova Mine branding v10 — exact original v7 visual language on the stable absolute layer.
+   Visual-only: no flex growth, no Mine resizing, no crop/scale changes, no mining/runtime ownership changes. */
+#nx-mine-brand-portal{display:none}
+
+@media (max-width:900px) and (max-aspect-ratio:8/15){
+  body:has(#nx-stage[data-route="mine"]) #nx-mine-brand-portal{
+    position:absolute!important;
+    z-index:24!important;
+    left:50%!important;
+    right:auto!important;
+    top:calc(165.2778vw + 8px)!important;
+    bottom:calc(9.4907vw + 8px)!important;
+    width:calc(100vw - 20px)!important;
+    max-width:844px!important;
+    min-height:82px!important;
+    margin:0!important;
+    padding:clamp(9px,1.45dvh,18px) clamp(15px,4.2vw,34px)!important;
+    display:flex!important;
+    align-items:center!important;
+    justify-content:flex-start!important;
+    gap:clamp(9px,2.4vw,18px)!important;
+    box-sizing:border-box!important;
+    overflow:hidden!important;
+    transform:translateX(-50%)!important;
+    border:1px solid rgba(137,190,214,.42)!important;
+    border-radius:clamp(12px,2.4vw,20px)!important;
+    outline:0!important;
+    color:#e9f4fa!important;
+    text-align:left!important;
+    cursor:pointer!important;
+    touch-action:manipulation!important;
+    -webkit-tap-highlight-color:transparent!important;
+    background:
+      radial-gradient(circle at 18% 18%,rgba(50,205,255,.13),transparent 28%),
+      linear-gradient(180deg,rgba(43,57,66,.96) 0%,rgba(15,25,32,.99) 10%,rgba(5,12,17,.995) 48%,rgba(12,22,29,.995) 82%,rgba(32,45,53,.97) 100%)!important;
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.24),
+      inset 0 -1px 0 rgba(133,181,204,.16),
+      inset 0 0 0 3px rgba(2,6,9,.82),
+      inset 0 -18px 26px rgba(0,0,0,.42),
+      0 0 0 2px rgba(2,5,8,.92),
+      0 0 0 4px rgba(52,72,82,.56),
+      0 8px 20px rgba(0,0,0,.72),
+      0 0 22px rgba(0,168,238,.10)!important;
+  }
+
+  body:has(#nx-stage[data-route="mine"]) #nx-mine-brand-portal::before{
+    content:""!important;
+    position:absolute!important;
+    inset:6px!important;
+    z-index:0!important;
+    pointer-events:none!important;
+    border:1px solid rgba(72,128,151,.22)!important;
+    border-radius:calc(clamp(12px,2.4vw,20px) - 5px)!important;
+    background:
+      linear-gradient(135deg,rgba(255,255,255,.08),transparent 11%,transparent 88%,rgba(48,197,255,.07)),
+      repeating-linear-gradient(90deg,rgba(57,87,100,.06) 0 1px,transparent 1px 14px)!important;
+    box-shadow:inset 0 0 20px rgba(0,0,0,.55)!important;
+  }
+
+  body:has(#nx-stage[data-route="mine"]) #nx-mine-brand-portal::after{
+    content:""!important;
+    position:absolute!important;
+    left:7%!important;
+    right:7%!important;
+    top:0!important;
+    height:2px!important;
+    z-index:1!important;
+    pointer-events:none!important;
+    background:linear-gradient(90deg,transparent,#16c7ff 28%,#4ee7ff 50%,#16c7ff 72%,transparent)!important;
+    opacity:.78!important;
+    box-shadow:0 0 9px rgba(36,207,255,.72)!important;
+  }
+
+  body:has(#nx-stage[data-route="mine"]) #nx-mine-brand-portal .nx-mine-brand__lamp{
+    position:absolute!important;
+    z-index:3!important;
+    right:clamp(14px,3.6vw,30px)!important;
+    top:clamp(10px,1.4dvh,18px)!important;
+    width:clamp(5px,1.2vw,9px)!important;
+    height:clamp(5px,1.2vw,9px)!important;
+    border-radius:50%!important;
+    background:#20e7b2!important;
+    box-shadow:0 0 0 4px rgba(32,231,178,.11),0 0 13px rgba(32,231,178,.9)!important;
+  }
+
+  body:has(#nx-stage[data-route="mine"]) #nx-mine-brand-portal .nx-mine-brand__mark{
+    position:relative!important;
+    z-index:2!important;
+    flex:0 0 clamp(42px,11vw,72px)!important;
+    width:clamp(42px,11vw,72px)!important;
+    height:clamp(42px,11vw,72px)!important;
+    display:grid!important;
+    place-items:center!important;
+    box-sizing:border-box!important;
+    border:1px solid rgba(76,211,255,.58)!important;
+    border-radius:20%!important;
+    color:#58ddff!important;
+    font:900 clamp(18px,4.8vw,34px)/1 system-ui,sans-serif!important;
+    text-shadow:0 0 11px rgba(39,205,255,.65)!important;
+    background:linear-gradient(145deg,#173546 0%,#07141d 48%,#03080c 100%)!important;
+    box-shadow:inset 0 1px rgba(255,255,255,.20),inset 0 -8px 15px rgba(0,0,0,.58),0 0 0 3px #020508,0 0 14px rgba(0,174,239,.22)!important;
+    transform:rotate(45deg)!important;
+  }
+
+  body:has(#nx-stage[data-route="mine"]) #nx-mine-brand-portal .nx-mine-brand__copy{
+    position:relative!important;
+    z-index:2!important;
+    min-width:0!important;
+    display:flex!important;
+    flex-direction:column!important;
+    justify-content:center!important;
+    gap:clamp(2px,.5dvh,5px)!important;
+  }
+
+  body:has(#nx-stage[data-route="mine"]) #nx-mine-brand-portal .nx-mine-brand__copy small{
+    display:block!important;
+    margin:0!important;
+    color:#62c9e8!important;
+    font:800 clamp(7px,1.7vw,12px)/1 system-ui,sans-serif!important;
+    letter-spacing:.15em!important;
+    white-space:nowrap!important;
+    opacity:.9!important;
+  }
+
+  body:has(#nx-stage[data-route="mine"]) #nx-mine-brand-portal .nx-mine-brand__copy strong{
+    display:block!important;
+    margin:0!important;
+    color:#f3f7fa!important;
+    font:900 clamp(16px,4.4vw,31px)/1 system-ui,sans-serif!important;
+    letter-spacing:.02em!important;
+    white-space:nowrap!important;
+    text-shadow:0 2px 0 #000,0 0 12px rgba(66,211,255,.13)!important;
+  }
+
+  body:has(#nx-stage[data-route="mine"]) #nx-mine-brand-portal .nx-mine-brand__copy strong em{
+    color:#37d5ff!important;
+    font-style:normal!important;
+    text-shadow:0 0 12px rgba(55,213,255,.48)!important;
+  }
+
+  body:has(#nx-stage[data-route="mine"]) #nx-mine-brand-portal .nx-mine-brand__copy > span{
+    display:block!important;
+    margin:0!important;
+    color:#9fb4c0!important;
+    font:700 clamp(9px,2.3vw,16px)/1.1 system-ui,sans-serif!important;
+    letter-spacing:.04em!important;
+    white-space:nowrap!important;
+  }
+
+  body:has(#nx-stage[data-route="mine"]) #nx-mine-brand-portal .nx-mine-brand__cta{
+    position:relative!important;
+    z-index:2!important;
+    margin-left:auto!important;
+    margin-right:clamp(5px,1.7vw,13px)!important;
+    padding:clamp(7px,1.1dvh,11px) clamp(10px,2.6vw,18px)!important;
+    display:block!important;
+    width:auto!important;
+    height:auto!important;
+    min-width:0!important;
+    box-sizing:border-box!important;
+    border:1px solid rgba(49,194,238,.42)!important;
+    border-radius:10px!important;
+    color:#cdefff!important;
+    font:900 clamp(8px,2vw,14px)/1 system-ui,sans-serif!important;
+    letter-spacing:.09em!important;
+    white-space:nowrap!important;
+    background:linear-gradient(180deg,rgba(15,67,91,.88),rgba(4,24,35,.96))!important;
+    box-shadow:inset 0 1px rgba(255,255,255,.13),0 0 11px rgba(0,175,238,.13)!important;
+  }
+
+  body:has(#nx-stage[data-route="mine"]) #nx-mine-brand-portal .nx-mine-brand__cta b{
+    margin-left:.25em!important;
+    color:#3bdcff!important;
+    font-size:1.3em!important;
+    line-height:.7!important;
+  }
+
+  body:has(#nx-stage[data-route="mine"]) #nx-mine-brand-portal:active{
+    filter:brightness(1.10) saturate(1.05)!important;
+  }
+}
+
+@media (max-width:900px) and (max-aspect-ratio:8/15) and (max-height:760px){
+  body:has(#nx-stage[data-route="mine"]) #nx-mine-brand-portal .nx-mine-brand__copy small,
+  body:has(#nx-stage[data-route="mine"]) #nx-mine-brand-portal .nx-mine-brand__cta{display:none!important}
+}
+
+/* If a phone is too short to have a real spacer, keep branding hidden rather than overlap Mine. */
+@media (max-width:900px) and (min-aspect-ratio:8/15){
+  body:has(#nx-stage[data-route="mine"]) #nx-mine-brand-portal{display:none!important}
+}

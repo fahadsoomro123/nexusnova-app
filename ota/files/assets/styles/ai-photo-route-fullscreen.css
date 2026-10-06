@@ -1,0 +1,315 @@
+/* AI Photo Studio structural fullscreen route.
+   The enhanced editor remains untouched; this file controls only the outer app shell. */
+
+body.nx-ai-photo-route-active {
+  overflow: hidden !important;
+  overscroll-behavior: none;
+  background: #07080c;
+}
+
+body.nx-ai-photo-route-active .nx-app {
+  width: 100% !important;
+  max-width: none !important;
+  height: 100dvh !important;
+  min-height: 100dvh !important;
+  margin: 0 !important;
+}
+
+body.nx-ai-photo-route-active .nx-stage {
+  width: 100% !important;
+  height: 100dvh !important;
+  min-height: 0 !important;
+  max-height: 100dvh !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  scroll-padding: 0 !important;
+}
+
+body.nx-ai-photo-route-active .nx-dock,
+body.nx-ai-photo-route-active #nx-mine-brand-portal,
+body.nx-ai-photo-route-active #nxEmergencySosButton,
+body.nx-ai-photo-route-active #nxEmergencySosEdit {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+.nx-screen.nx-ai-photo-route-screen {
+  position: relative;
+  width: 100%;
+  height: 100dvh;
+  min-height: 0;
+  max-height: 100dvh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  animation: none;
+  background: #07080c;
+}
+
+.nx-ai-photo-route-screen > [data-app-mount] {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* The original enhanced editor keeps its own top/work/bottom grid. */
+.nx-ai-photo-route-screen > [data-app-mount] > .nx-photo-editor {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+/* Current visual rule: no title/description inside the top bar. */
+.nx-ai-photo-route-screen .nx-photo-project {
+  display: none !important;
+}
+
+/* Reserve real toolbar space for the floating back control without moving editor rows. */
+.nx-ai-photo-route-screen .nx-photo-top {
+  padding-right: 58px !important;
+}
+
+.nx-ai-photo-route-back {
+  position: absolute;
+  z-index: 2147481200;
+  top: calc(env(safe-area-inset-top, 0px) + 7px);
+  right: max(9px, env(safe-area-inset-right, 0px));
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding: 0 0 3px;
+  border: 1px solid rgba(148, 163, 184, .22);
+  border-radius: 13px;
+  background: linear-gradient(155deg, rgba(30, 33, 41, .98), rgba(14, 16, 22, .98));
+  color: #fff;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, .32), inset 0 1px rgba(255, 255, 255, .08);
+  font: 800 28px/1 system-ui, -apple-system, "Segoe UI", sans-serif;
+  cursor: pointer;
+}
+
+.nx-ai-photo-route-back:active {
+  transform: scale(.96);
+}
+
+/* Specificity firewall against the generic premium-studio viewport contract.
+   AI Photo is a dedicated fullscreen route, so it must not inherit the
+   generic studio shell's reserved app-header/dock deductions. */
+body.nx-ai-photo-route-active .nx-stage > .nx-screen.nx-ai-photo-route-screen:has(.nx-studio) {
+  box-sizing: border-box !important;
+  width: 100% !important;
+  height: 100dvh !important;
+  min-height: 0 !important;
+  max-height: 100dvh !important;
+  margin: 0 !important;
+  padding: 0 0 max(env(safe-area-inset-bottom, 0px), 8px) !important;
+  overflow: hidden !important;
+}
+
+body.nx-ai-photo-route-active .nx-stage > .nx-screen.nx-ai-photo-route-screen:has(.nx-studio) > [data-app-mount] {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+body.nx-ai-photo-route-active .nx-stage > .nx-screen.nx-ai-photo-route-screen > [data-app-mount] > .nx-studio.nx-photo-editor {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+}
+
+/*
+ * Readability firewall for the dark AI Photo Studio UI.
+ * Android WebView and inherited generic studio rules can otherwise render
+ * button/select/option text with a dark foreground on dark surfaces.
+ * Keep this fully scoped to AI Photo so unrelated NexusNova modules are untouched.
+ */
+body.nx-ai-photo-route-active .nx-ai-photo-route-screen {
+  color-scheme: dark;
+  --nx-ai-photo-readable: #f7f8ff;
+  --nx-ai-photo-readable-soft: #d8deeb;
+  --nx-ai-photo-readable-muted: #b7c0d3;
+}
+
+body.nx-ai-photo-route-active .nx-ai-photo-route-screen :is(
+  button,
+  [role="button"],
+  select,
+  input,
+  textarea
+) {
+  color: var(--nx-ai-photo-readable) !important;
+  -webkit-text-fill-color: currentColor !important;
+  caret-color: #ffffff;
+}
+
+body.nx-ai-photo-route-active .nx-ai-photo-route-screen :is(button,[role="button"]) :is(
+  span,
+  strong,
+  b,
+  small,
+  em,
+  i
+) {
+  color: inherit !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+
+body.nx-ai-photo-route-active .nx-ai-photo-route-screen :is(select,select option,select optgroup) {
+  color: #f8fafc !important;
+  background-color: #121722 !important;
+  -webkit-text-fill-color: #f8fafc !important;
+}
+
+body.nx-ai-photo-route-active .nx-ai-photo-route-screen :is(input,textarea)::placeholder {
+  color: #aeb8ca !important;
+  -webkit-text-fill-color: #aeb8ca !important;
+  opacity: 1 !important;
+}
+
+body.nx-ai-photo-route-active .nx-ai-photo-route-screen :is(
+  .nx-photo-panel,
+  .nx-photo-sheet,
+  .nx-canva-v3,
+  .nxv3-pane,
+  .nxputer-wrap,
+  .nxps-account-popover
+) :is(label,.nx-photo-label,.nxv3-label,.nxputer-label) {
+  color: var(--nx-ai-photo-readable-soft) !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+
+body.nx-ai-photo-route-active .nx-ai-photo-route-screen :is(
+  .nx-photo-tool,
+  .nx-photo-tab,
+  .nx-photo-chip,
+  .nx-photo-ai-actions button,
+  .nxv3-btn,
+  .nxv3-tab,
+  .nxps-home-return,
+  .nxps-workspace-home,
+  .nxps-account-chip
+) {
+  color: var(--nx-ai-photo-readable) !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+
+body.nx-ai-photo-route-active .nx-ai-photo-route-screen :is(
+  button:disabled,
+  [role="button"][aria-disabled="true"],
+  select:disabled,
+  input:disabled,
+  textarea:disabled
+) {
+  color: var(--nx-ai-photo-readable-muted) !important;
+  -webkit-text-fill-color: currentColor !important;
+  opacity: .78 !important;
+}
+
+/*
+ * Some QA/result/editor surfaces mount the Photo Studio root directly without
+ * the outer route body class. Mirror the same readability contract at the
+ * editor root so generated-result actions, sheets and nested editor controls
+ * cannot fall back to black text.
+ */
+.nx-photo-editor:is(.nxps-premium-studio,.nxps-locked-visual) {
+  color-scheme: dark;
+  --nx-ai-photo-readable: #f7f8ff;
+  --nx-ai-photo-readable-soft: #d8deeb;
+  --nx-ai-photo-readable-muted: #b7c0d3;
+}
+
+.nx-photo-editor:is(.nxps-premium-studio,.nxps-locked-visual) :is(
+  button,
+  [role="button"],
+  select,
+  input,
+  textarea
+) {
+  color: var(--nx-ai-photo-readable) !important;
+  -webkit-text-fill-color: currentColor !important;
+  caret-color: #ffffff;
+}
+
+.nx-photo-editor:is(.nxps-premium-studio,.nxps-locked-visual) :is(button,[role="button"]) :is(
+  span,
+  strong,
+  b,
+  small,
+  em,
+  i
+) {
+  color: inherit !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+
+.nx-photo-editor:is(.nxps-premium-studio,.nxps-locked-visual) :is(select,select option,select optgroup) {
+  color: #f8fafc !important;
+  background-color: #121722 !important;
+  -webkit-text-fill-color: #f8fafc !important;
+}
+
+.nx-photo-editor:is(.nxps-premium-studio,.nxps-locked-visual) :is(input,textarea)::placeholder {
+  color: #aeb8ca !important;
+  -webkit-text-fill-color: #aeb8ca !important;
+  opacity: 1 !important;
+}
+
+.nx-photo-editor:is(.nxps-premium-studio,.nxps-locked-visual) :is(
+  .nx-photo-panel,
+  .nx-photo-sheet,
+  .nx-canva-v3,
+  .nxv3-pane,
+  .nxputer-wrap,
+  .nxps-account-popover
+) :is(label,.nx-photo-label,.nxv3-label,.nxputer-label) {
+  color: var(--nx-ai-photo-readable-soft) !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+
+.nx-photo-editor:is(.nxps-premium-studio,.nxps-locked-visual) :is(
+  button:disabled,
+  [role="button"][aria-disabled="true"],
+  select:disabled,
+  input:disabled,
+  textarea:disabled
+) {
+  color: var(--nx-ai-photo-readable-muted) !important;
+  -webkit-text-fill-color: currentColor !important;
+  opacity: .78 !important;
+}
+
+@media (max-width: 520px), (max-height: 720px) {
+  body.nx-ai-photo-route-active .nx-stage > .nx-screen.nx-ai-photo-route-screen:has(.nx-studio) > [data-app-mount] {
+    height: 100% !important;
+    max-height: 100% !important;
+  }
+}
+
+@media (max-width: 390px) {
+  .nx-ai-photo-route-screen .nx-photo-top {
+    padding-right: 54px !important;
+  }
+  .nx-ai-photo-route-back {
+    right: max(7px, env(safe-area-inset-right, 0px));
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+  }
+}

@@ -1,0 +1,176 @@
+/* NexusNova Mine raster v2 geometry reset.
+   VISUAL ONLY. Neutralizes the old reference-locked absolute geometry so
+   header -> miner -> tools -> dock remain one continuous responsive stack. */
+@media (max-width: 900px) {
+  html body:has(#nx-stage[data-route="mine"]) .nx-app {
+    position: relative !important;
+    inset: auto !important;
+    left: auto !important;
+    right: auto !important;
+    top: auto !important;
+    bottom: auto !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    display: block !important;
+    overflow: visible !important;
+    transform: none !important;
+  }
+
+  html body:has(#nx-stage[data-route="mine"]) #nx-stage.nx-stage[data-route="mine"] {
+    position: relative !important;
+    inset: auto !important;
+    left: auto !important;
+    right: auto !important;
+    top: auto !important;
+    bottom: auto !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    display: block !important;
+    overflow: visible !important;
+    transform: none !important;
+  }
+
+  html body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-screen {
+    position: relative !important;
+    inset: auto !important;
+    left: auto !important;
+    right: auto !important;
+    top: auto !important;
+    bottom: auto !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    display: block !important;
+    overflow: visible !important;
+    transform: none !important;
+  }
+
+  html body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-screen-head,
+  html body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-miner,
+  html body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-mining-tools {
+    position: relative !important;
+    inset: auto !important;
+    left: auto !important;
+    right: auto !important;
+    top: auto !important;
+    bottom: auto !important;
+    float: none !important;
+    transform: none !important;
+  }
+
+  /* Old locked CSS left fixed vw width/height on these absolute overlay wrappers.
+     Inset alone could not override those sizes, so live values collapsed to the left. */
+  html body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-miner__layout,
+  html body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-readouts,
+  html body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-meta {
+    left: 0 !important;
+    right: 0 !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    max-width: none !important;
+    max-height: none !important;
+    box-sizing: border-box !important;
+    transform: none !important;
+  }
+
+  html body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-readouts,
+  html body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-meta {
+    display: block !important;
+    grid-template-columns: none !important;
+    gap: 0 !important;
+  }
+
+  html body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-readout {
+    right: auto !important;
+    bottom: auto !important;
+    box-sizing: border-box !important;
+  }
+
+  html body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-core,
+  html body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-core__center,
+  html body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-core__center > * {
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+
+  html body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-core,
+  html body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-core__center {
+    transform: none !important;
+  }
+
+  /* Brighter mining chamber only; dimensions stay untouched until final sizing pass. */
+  html[data-mine-raster-skin="ready"] body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-nebula-miner {
+    filter: brightness(1.16) saturate(1.20) contrast(1.03) !important;
+  }
+
+  html body:has(#nx-stage[data-route="mine"]) .nx-dock {
+    position: relative !important;
+    inset: auto !important;
+    left: auto !important;
+    right: auto !important;
+    top: auto !important;
+    bottom: auto !important;
+    float: none !important;
+    transform: none !important;
+  }
+
+  /* FINAL SIZING PASS: the approved raster stack is exactly 864x1536 (9:16).
+     Use cover-fit so tall phones have no bottom black blank area. The complete
+     locked composition scales uniformly; only horizontal overflow is center-cropped. */
+  html:has(#nx-stage[data-route="mine"]),
+  html body:has(#nx-stage[data-route="mine"]) {
+    width: 100% !important;
+    height: 100dvh !important;
+    min-height: 100dvh !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    background: #000 !important;
+  }
+
+  html body:has(#nx-stage[data-route="mine"]) .nx-app,
+  html body:has(#nx-stage[data-route="mine"]) #nx-stage.nx-stage[data-route="mine"] {
+    width: 100% !important;
+    height: 100dvh !important;
+    min-height: 100dvh !important;
+    max-height: 100dvh !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+  }
+
+  html body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-screen,
+  html body:has(#nx-stage[data-route="mine"]) .nx-dock {
+    width: max(100vw, 56.25dvh) !important;
+    max-width: none !important;
+    margin-left: 50% !important;
+    margin-right: 0 !important;
+    transform: translateX(-50%) !important;
+  }
+
+  html body:has(#nx-stage[data-route="mine"]) #nx-stage[data-route="mine"] .nx-screen {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
+  html body:has(#nx-stage[data-route="mine"]) .nx-dock {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+  }
+}

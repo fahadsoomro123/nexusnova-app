@@ -1,0 +1,292 @@
+html.nx-todo-v1-active,
+html.nx-todo-v1-active body {
+  width:100%;
+  height:100%;
+  min-height:100%;
+  overflow:hidden!important;
+  overscroll-behavior:none;
+}
+
+html.nx-todo-v1-active body {
+  background:#07111f!important;
+  color:#f5f9ff!important;
+}
+
+html.nx-todo-v1-active body .nx-app {
+  width:100%!important;
+  max-width:760px!important;
+  height:100dvh!important;
+  min-height:0!important;
+  overflow:hidden!important;
+}
+
+html.nx-todo-v1-active body .nx-stage {
+  width:100%!important;
+  height:100dvh!important;
+  min-height:0!important;
+  padding:0!important;
+  overflow:hidden!important;
+  background:#07111f!important;
+}
+
+html.nx-todo-v1-active body .nx-dock,
+html.nx-todo-v1-active body #nx-mine-brand-portal {
+  display:none!important;
+}
+
+html.nx-todo-v1-active .nx-todo-v1-screen {
+  width:100%!important;
+  height:100dvh!important;
+  min-height:0!important;
+  margin:0!important;
+  padding:0!important;
+  overflow:hidden!important;
+  background:#07111f!important;
+}
+
+html.nx-todo-v1-active .nx-todo-v1-screen > .nx-app-head {
+  display:none!important;
+}
+
+html.nx-todo-v1-active .nx-todo-v1-screen [data-app-mount] {
+  width:100%!important;
+  height:100dvh!important;
+  min-height:0!important;
+  overflow:hidden!important;
+}
+
+html.nx-todo-v1-active .nx-todo-v1-screen .nx-todo-pro {
+  width:100%!important;
+  height:100dvh!important;
+  min-height:0!important;
+  max-height:none!important;
+  margin:0!important;
+  padding:calc(env(safe-area-inset-top,0px) + 7px) 9px calc(env(safe-area-inset-bottom,0px) + 7px)!important;
+  display:grid!important;
+  grid-template-rows:auto minmax(0,1fr)!important;
+  gap:6px!important;
+  border-radius:0!important;
+  overflow:hidden!important;
+  background:radial-gradient(circle at 50% 5%,rgba(91,224,255,.10),transparent 24%),linear-gradient(155deg,#111d27,#08111a 62%,#050b11)!important;
+  box-shadow:none!important;
+}
+
+html.nx-todo-v1-active .nx-todo-v1-screen .nx-todo-pro > .nx-tool-card {
+  min-height:0!important;
+  margin:0!important;
+  border-radius:17px!important;
+}
+
+html.nx-todo-v1-active .nx-todo-v1-screen .nx-todo-pro > .nx-tool-card:first-child {
+  padding:9px!important;
+}
+
+html.nx-todo-v1-active .nx-todo-v1-screen .nx-todo-pro > .nx-tool-card:first-child .nx-work-head {
+  min-height:34px!important;
+  margin-bottom:5px!important;
+  padding-right:44px!important;
+}
+
+html.nx-todo-v1-active .nx-todo-v1-screen .nx-work-form {
+  gap:5px!important;
+}
+
+html.nx-todo-v1-active .nx-todo-v1-screen .nx-work-row {
+  grid-template-columns:minmax(0,1fr) 88px!important;
+  gap:5px!important;
+}
+
+html.nx-todo-v1-active .nx-todo-v1-screen .nx-work-form input,
+html.nx-todo-v1-active .nx-todo-v1-screen .nx-work-form select,
+html.nx-todo-v1-active .nx-todo-v1-screen .nx-work-actions input,
+html.nx-todo-v1-active .nx-todo-v1-screen .nx-work-actions button {
+  min-height:34px!important;
+  height:34px!important;
+  padding:7px 9px!important;
+}
+
+html.nx-todo-v1-active .nx-todo-v1-screen .nx-work-actions {
+  grid-template-columns:minmax(0,1fr) 92px!important;
+  gap:5px!important;
+}
+
+html.nx-todo-v1-active .nx-todo-v1-screen .nx-work-deck {
+  min-height:0!important;
+  height:100%!important;
+  padding:8px!important;
+  display:grid!important;
+  grid-template-rows:auto minmax(0,1fr) auto!important;
+  overflow:hidden!important;
+}
+
+html.nx-todo-v1-active .nx-todo-v1-screen .nx-todo-summary {
+  gap:5px!important;
+  margin-bottom:5px!important;
+}
+
+html.nx-todo-v1-active .nx-todo-v1-screen .nx-todo-summary > div {
+  min-height:39px!important;
+  padding:5px 7px!important;
+}
+
+html.nx-todo-v1-active .nx-todo-v1-screen .nx-work-tools.todo {
+  margin:0 0 6px!important;
+  padding:3px!important;
+  gap:3px!important;
+}
+
+html.nx-todo-v1-active .nx-todo-v1-screen .nx-work-tools.todo button {
+  min-height:30px!important;
+  height:30px!important;
+}
+
+html.nx-todo-v1-active .nx-todo-v1-screen .nx-work-list {
+  min-height:0!important;
+  height:100%!important;
+  overflow-y:auto!important;
+  overflow-x:hidden!important;
+  overscroll-behavior:contain!important;
+  -webkit-overflow-scrolling:touch;
+  padding:1px 2px 4px!important;
+}
+
+html.nx-todo-v1-active .nx-todo-v1-screen .nx-todo-footer {
+  flex:0 0 auto!important;
+  margin-top:5px!important;
+}
+
+html.nx-todo-v1-active .nx-todo-v1-screen .nx-todo-footer button {
+  min-height:29px!important;
+  height:29px!important;
+}
+
+.nx-todo-hub-back {
+  position:fixed;
+  top:calc(env(safe-area-inset-top,0px) + 10px);
+  right:max(10px,env(safe-area-inset-right,0px));
+  z-index:2147481000;
+  width:38px;
+  height:38px;
+  display:grid;
+  place-items:center;
+  padding:0 0 2px;
+  border:1px solid rgba(151,188,224,.18);
+  border-radius:13px;
+  background:rgba(11,29,48,.94);
+  color:#f7fbff;
+  box-shadow:0 7px 20px rgba(0,0,0,.22),inset 0 1px 0 rgba(255,255,255,.06);
+  font:700 28px/1 system-ui,-apple-system,"Segoe UI",sans-serif;
+  cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+}
+
+.nx-todo-hub-back:active { transform:scale(.95); }
+
+@media (max-height:700px) {
+  html.nx-todo-v1-active .nx-todo-v1-screen .nx-todo-pro {
+    gap:4px!important;
+    padding-top:calc(env(safe-area-inset-top,0px) + 4px)!important;
+    padding-bottom:calc(env(safe-area-inset-bottom,0px) + 4px)!important;
+  }
+  html.nx-todo-v1-active .nx-todo-v1-screen .nx-todo-pro > .nx-tool-card:first-child { padding:7px!important; }
+  html.nx-todo-v1-active .nx-todo-v1-screen .nx-todo-pro > .nx-tool-card:first-child .nx-work-head { min-height:30px!important;margin-bottom:3px!important; }
+  html.nx-todo-v1-active .nx-todo-v1-screen .nx-work-form { gap:3px!important; }
+  html.nx-todo-v1-active .nx-todo-v1-screen .nx-work-form input,
+  html.nx-todo-v1-active .nx-todo-v1-screen .nx-work-form select,
+  html.nx-todo-v1-active .nx-todo-v1-screen .nx-work-actions input,
+  html.nx-todo-v1-active .nx-todo-v1-screen .nx-work-actions button { min-height:30px!important;height:30px!important; }
+  html.nx-todo-v1-active .nx-todo-v1-screen .nx-work-deck { padding:6px!important; }
+  html.nx-todo-v1-active .nx-todo-v1-screen .nx-todo-summary > div { min-height:34px!important;padding-top:4px!important;padding-bottom:4px!important; }
+  html.nx-todo-v1-active .nx-todo-v1-screen .nx-work-tools.todo { margin-bottom:4px!important; }
+  html.nx-todo-v1-active .nx-todo-v1-screen .nx-work-tools.todo button { min-height:27px!important;height:27px!important; }
+  html.nx-todo-v1-active .nx-todo-v1-screen .nx-todo-footer { margin-top:3px!important; }
+  html.nx-todo-v1-active .nx-todo-v1-screen .nx-todo-footer button { min-height:26px!important;height:26px!important; }
+}
+
+@media (max-width:390px) {
+  html.nx-todo-v1-active .nx-todo-v1-screen .nx-todo-pro { padding-left:7px!important;padding-right:7px!important; }
+  html.nx-todo-v1-active .nx-todo-v1-screen .nx-work-row { grid-template-columns:minmax(0,1fr) 78px!important; }
+  html.nx-todo-v1-active .nx-todo-v1-screen .nx-work-actions { grid-template-columns:minmax(0,1fr) 84px!important; }
+  .nx-todo-hub-back { width:36px;height:36px;right:8px;top:calc(env(safe-area-inset-top,0px) + 8px); }
+}
+
+@media (prefers-color-scheme: light) {
+  html.nx-todo-v1-active body,
+  html.nx-todo-v1-active body .nx-stage,
+  html.nx-todo-v1-active .nx-todo-v1-screen {
+    background:#f5f7fb!important;
+    color:#111827!important;
+  }
+
+  html.nx-todo-v1-active .nx-todo-v1-screen .nx-todo-pro {
+    background:radial-gradient(circle at 50% 4%,rgba(68,150,215,.08),transparent 25%),linear-gradient(180deg,#f7f9fc,#eef3f8)!important;
+    color:#111827!important;
+  }
+
+  html.nx-todo-v1-active .nx-todo-v1-screen .nx-todo-pro > .nx-tool-card {
+    border-color:#dce4ed!important;
+    background:#ffffff!important;
+    color:#111827!important;
+    box-shadow:0 5px 16px rgba(29,43,62,.07)!important;
+  }
+
+  html.nx-todo-v1-active .nx-todo-v1-screen .nx-work-brand strong,
+  html.nx-todo-v1-active .nx-todo-v1-screen .nx-todo-copy strong,
+  html.nx-todo-v1-active .nx-todo-v1-screen .nx-todo-summary strong {
+    color:#172033!important;
+  }
+
+  html.nx-todo-v1-active .nx-todo-v1-screen .nx-work-brand small,
+  html.nx-todo-v1-active .nx-todo-v1-screen .nx-todo-copy small,
+  html.nx-todo-v1-active .nx-todo-v1-screen .nx-todo-summary span {
+    color:#66758a!important;
+  }
+
+  html.nx-todo-v1-active .nx-todo-v1-screen .nx-work-form input,
+  html.nx-todo-v1-active .nx-todo-v1-screen .nx-work-form select,
+  html.nx-todo-v1-active .nx-todo-v1-screen .nx-work-actions input {
+    border-color:#d8e1eb!important;
+    background:#f8fafc!important;
+    color:#172033!important;
+    box-shadow:inset 0 1px 2px rgba(15,23,42,.05)!important;
+  }
+
+  html.nx-todo-v1-active .nx-todo-v1-screen .nx-todo-card {
+    border-color:#dce4ed!important;
+    background:#ffffff!important;
+    box-shadow:0 3px 10px rgba(29,43,62,.06)!important;
+  }
+
+  html.nx-todo-v1-active .nx-todo-v1-screen .nx-todo-card.done {
+    background:#f8fafc!important;
+  }
+
+  html.nx-todo-v1-active .nx-todo-v1-screen .nx-work-tools.todo {
+    border-color:#d8e1eb!important;
+    background:#f3f6fa!important;
+  }
+
+  html.nx-todo-v1-active .nx-todo-v1-screen .nx-work-tools.todo button {
+    color:#64748b!important;
+  }
+
+  html.nx-todo-v1-active .nx-todo-v1-screen .nx-work-tools.todo button.is-active {
+    border-color:#c9dae6!important;
+    background:#e8f1f7!important;
+    color:#15384a!important;
+    box-shadow:0 2px 5px rgba(29,43,62,.06)!important;
+  }
+
+  html.nx-todo-v1-active .nx-todo-v1-screen .nx-work-empty {
+    border-color:#ccd8e5!important;
+    background:#f8fafc!important;
+    color:#718096!important;
+  }
+
+  .nx-todo-hub-back {
+    border-color:#d6dee8;
+    background:rgba(255,255,255,.97);
+    color:#111827;
+    box-shadow:0 6px 17px rgba(30,42,60,.10);
+  }
+}

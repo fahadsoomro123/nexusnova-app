@@ -1,0 +1,106 @@
+html.nx-batch1-tools-active,
+html.nx-batch1-tools-active body{
+  width:100%;height:100%;min-height:100%;overflow:hidden!important;overscroll-behavior:none;
+}
+html.nx-batch1-tools-active body{background:#07111f!important;color:#f5f9ff!important}
+html.nx-batch1-tools-active body .nx-app{width:100%!important;max-width:760px!important;height:100dvh!important;min-height:0!important;overflow:hidden!important}
+html.nx-batch1-tools-active body .nx-stage{width:100%!important;height:100dvh!important;min-height:0!important;padding:0!important;overflow:hidden!important;background:#07111f!important}
+html.nx-batch1-tools-active body .nx-dock,
+html.nx-batch1-tools-active body #nx-mine-brand-portal{display:none!important}
+html.nx-batch1-tools-active .nx-batch1-tools-screen{width:100%!important;height:100dvh!important;min-height:0!important;max-height:100dvh!important;margin:0!important;padding:0!important;overflow:hidden!important;background:#07111f!important}
+html.nx-batch1-tools-active .nx-batch1-tools-screen>.nx-app-head{display:none!important}
+html.nx-batch1-tools-active .nx-batch1-tools-screen [data-app-mount]{width:100%!important;height:100dvh!important;min-height:0!important;overflow:hidden!important}
+html.nx-batch1-tools-active .nx-batch1-tools-screen .nx-app-body{box-sizing:border-box!important;width:100%!important;height:100dvh!important;min-height:0!important;max-height:100dvh!important;margin:0!important;padding:calc(env(safe-area-inset-top,0px) + 7px) 8px calc(env(safe-area-inset-bottom,0px) + 7px)!important;overflow:hidden!important}
+html.nx-batch1-tools-active .nx-batch1-tools-screen .nx-tool-card{margin:0!important;box-sizing:border-box!important}
+
+.nx-batch1-hub-back{position:fixed;top:calc(env(safe-area-inset-top,0px) + 10px);right:max(10px,env(safe-area-inset-right,0px));z-index:2147481000;width:38px;height:38px;display:grid;place-items:center;padding:0 0 2px;border:1px solid rgba(151,188,224,.18);border-radius:13px;background:rgba(11,29,48,.94);color:#f7fbff;box-shadow:0 7px 20px rgba(0,0,0,.22),inset 0 1px 0 rgba(255,255,255,.06);font:700 28px/1 system-ui,-apple-system,"Segoe UI",sans-serif;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.nx-batch1-hub-back:active{transform:scale(.95)}
+
+/* Unit Converter: inputs stay clear, released screen becomes a large conversion result workspace. */
+html.nx-batch1-tools-active .nx-b1-unit-root{display:grid!important}
+html.nx-batch1-tools-active .nx-b1-unit-root>.nx-tool-card{height:100%!important;min-height:0!important;padding:52px 14px 14px!important;display:grid!important;grid-template-rows:auto auto auto minmax(0,1fr)!important;gap:12px!important;border-radius:24px!important;overflow:hidden!important}
+html.nx-batch1-tools-active .nx-b1-unit-root .nx-field{margin:0!important;display:grid!important;gap:6px!important}
+html.nx-batch1-tools-active .nx-b1-unit-root .nx-field>span{font-size:12px!important;font-weight:800!important;letter-spacing:.04em!important}
+html.nx-batch1-tools-active .nx-b1-unit-root input,
+html.nx-batch1-tools-active .nx-b1-unit-root select{min-height:52px!important;height:52px!important;border-radius:15px!important;padding:0 14px!important;font-size:16px!important}
+html.nx-batch1-tools-active .nx-b1-unit-root .nx-two-col{display:grid!important;grid-template-columns:1fr 1fr!important;gap:10px!important;margin:0!important}
+html.nx-batch1-tools-active .nx-b1-unit-root .nx-result{min-height:0!important;height:100%!important;margin:0!important;padding:20px!important;display:grid!important;place-items:center!important;text-align:center!important;border-radius:22px!important;font-size:clamp(34px,10vw,58px)!important;font-weight:900!important;line-height:1.06!important;overflow:auto!important;overflow-wrap:anywhere}
+
+/* Expenses: form + summaries stay compact, actual records get the remaining screen. */
+html.nx-batch1-tools-active .nx-b1-expenses-root{display:grid!important;grid-template-rows:auto auto minmax(0,1fr)!important;gap:9px!important}
+html.nx-batch1-tools-active .nx-b1-expenses-root>.nx-tool-card{padding:50px 12px 12px!important;display:grid!important;gap:8px!important;border-radius:22px!important}
+html.nx-batch1-tools-active .nx-b1-expenses-root .nx-two-col{display:grid!important;grid-template-columns:1fr 1fr!important;gap:8px!important;margin:0!important}
+html.nx-batch1-tools-active .nx-b1-expenses-root .nx-field{margin:0!important;display:grid!important;gap:5px!important}
+html.nx-batch1-tools-active .nx-b1-expenses-root .nx-field>span{font-size:10px!important;font-weight:850!important}
+html.nx-batch1-tools-active .nx-b1-expenses-root input,
+html.nx-batch1-tools-active .nx-b1-expenses-root select{min-height:42px!important;height:42px!important;border-radius:13px!important;padding:0 11px!important;font-size:13px!important}
+html.nx-batch1-tools-active .nx-b1-expenses-root [data-add-expense]{min-height:44px!important;height:44px!important;margin:0!important;border-radius:13px!important;font-size:11px!important;font-weight:900!important}
+html.nx-batch1-tools-active .nx-b1-expenses-root.is-expense-editing [data-add-expense]{outline:2px solid rgba(113,224,255,.18)!important}
+html.nx-batch1-tools-active .nx-b1-expenses-root>.nx-summary-grid{display:grid!important;grid-template-columns:1fr 1fr!important;gap:8px!important;margin:0!important}
+html.nx-batch1-tools-active .nx-b1-expenses-root>.nx-summary-grid>div{min-height:72px!important;padding:10px 12px!important;border-radius:16px!important;display:grid!important;align-content:center!important}
+html.nx-batch1-tools-active .nx-b1-expenses-root>.nx-summary-grid span{font-size:9px!important}
+html.nx-batch1-tools-active .nx-b1-expenses-root>.nx-summary-grid strong{font-size:clamp(22px,6.5vw,32px)!important;line-height:1!important}
+html.nx-batch1-tools-active .nx-b1-expenses-root>[data-exp-list]{min-height:0!important;height:100%!important;margin:0!important;padding:2px 2px 6px!important;overflow:auto!important;overscroll-behavior:contain!important;align-content:start!important;gap:8px!important;scrollbar-width:thin}
+html.nx-batch1-tools-active .nx-b1-expenses-root .nx-list-card{margin:0!important;padding:11px 12px!important;border-radius:16px!important}
+html.nx-batch1-tools-active .nx-b1-expenses-root .nx-list-card__head{display:flex!important;align-items:center!important;gap:6px!important}
+html.nx-batch1-tools-active .nx-b1-expenses-root .nx-list-card__head strong{min-width:0!important;margin-right:auto!important;font-size:13px!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important}
+html.nx-batch1-tools-active .nx-b1-expenses-root .nx-list-card p{margin:6px 0!important;font-size:11px!important;line-height:1.35!important}
+html.nx-batch1-tools-active .nx-b1-expenses-root .nx-list-card small{font-size:9px!important}
+html.nx-batch1-tools-active .nx-b1-expenses-root .nx-icon-button{flex:0 0 34px!important;width:34px!important;height:34px!important;min-height:34px!important;padding:0!important;border-radius:11px!important;font-size:18px!important}
+html.nx-batch1-tools-active .nx-b1-expenses-root .nx-expense-edit{color:#9cecff!important}
+
+/* Focus Timer: the free viewport becomes the timer, not empty card space. */
+html.nx-batch1-tools-active .nx-b1-focus-root{display:grid!important}
+html.nx-batch1-tools-active .nx-b1-focus-root>.nx-focus-tool{height:100%!important;min-height:0!important;padding:54px 14px 16px!important;display:grid!important;grid-template-rows:minmax(0,1fr) auto!important;gap:18px!important;border-radius:24px!important;overflow:hidden!important}
+html.nx-batch1-tools-active .nx-b1-focus-root .nx-focus-ring{align-self:center!important;justify-self:center!important;width:min(76vw,460px)!important;height:auto!important;aspect-ratio:1/1!important;max-height:min(66dvh,460px)!important;border-width:10px!important}
+html.nx-batch1-tools-active .nx-b1-focus-root .nx-focus-ring>div{width:100%!important;height:100%!important;display:grid!important;place-content:center!important;text-align:center!important}
+html.nx-batch1-tools-active .nx-b1-focus-root [data-pomo-label]{font-size:clamp(15px,4vw,22px)!important;letter-spacing:.16em!important}
+html.nx-batch1-tools-active .nx-b1-focus-root [data-pomo-time]{font-size:clamp(58px,18vw,104px)!important;line-height:1!important;font-variant-numeric:tabular-nums!important}
+html.nx-batch1-tools-active .nx-b1-focus-root .nx-action-row{display:grid!important;grid-template-columns:repeat(3,1fr)!important;gap:9px!important;margin:0!important}
+html.nx-batch1-tools-active .nx-b1-focus-root .nx-action-row button{min-height:58px!important;height:58px!important;border-radius:16px!important;font-size:12px!important;font-weight:900!important}
+
+/* BMI: calculation result owns the largest part of the screen. */
+html.nx-batch1-tools-active .nx-b1-bmi-root{display:grid!important}
+html.nx-batch1-tools-active .nx-b1-bmi-root>.nx-tool-card{height:100%!important;min-height:0!important;padding:52px 14px 14px!important;display:grid!important;grid-template-rows:auto auto minmax(0,1fr) auto!important;gap:12px!important;border-radius:24px!important;overflow:hidden!important}
+html.nx-batch1-tools-active .nx-b1-bmi-root .nx-two-col{display:grid!important;grid-template-columns:1fr 1fr!important;gap:10px!important;margin:0!important}
+html.nx-batch1-tools-active .nx-b1-bmi-root .nx-field{margin:0!important;display:grid!important;gap:6px!important}
+html.nx-batch1-tools-active .nx-b1-bmi-root .nx-field>span{font-size:11px!important;font-weight:850!important}
+html.nx-batch1-tools-active .nx-b1-bmi-root input{min-height:52px!important;height:52px!important;border-radius:15px!important;padding:0 13px!important;font-size:17px!important}
+html.nx-batch1-tools-active .nx-b1-bmi-root [data-bmi-go]{min-height:52px!important;height:52px!important;margin:0!important;border-radius:15px!important;font-size:12px!important;font-weight:900!important}
+html.nx-batch1-tools-active .nx-b1-bmi-root [data-bmi-result]{min-height:0!important;height:100%!important;margin:0!important;padding:18px!important;display:grid!important;place-items:center!important;text-align:center!important;border-radius:22px!important;font-size:clamp(38px,11vw,66px)!important;font-weight:900!important;line-height:1.08!important}
+html.nx-batch1-tools-active .nx-b1-bmi-root .nx-tool-meta{margin:0!important;padding:8px 10px!important;text-align:center!important;font-size:10px!important;line-height:1.35!important}
+
+@media(max-height:700px){
+  html.nx-batch1-tools-active .nx-b1-unit-root>.nx-tool-card{padding-top:46px!important;gap:8px!important}
+  html.nx-batch1-tools-active .nx-b1-unit-root input,html.nx-batch1-tools-active .nx-b1-unit-root select{min-height:44px!important;height:44px!important}
+  html.nx-batch1-tools-active .nx-b1-expenses-root>.nx-tool-card{padding-top:45px!important;gap:6px!important}
+  html.nx-batch1-tools-active .nx-b1-expenses-root input,html.nx-batch1-tools-active .nx-b1-expenses-root select{min-height:36px!important;height:36px!important}
+  html.nx-batch1-tools-active .nx-b1-expenses-root [data-add-expense]{min-height:38px!important;height:38px!important}
+  html.nx-batch1-tools-active .nx-b1-expenses-root>.nx-summary-grid>div{min-height:58px!important}
+  html.nx-batch1-tools-active .nx-b1-focus-root>.nx-focus-tool{padding-top:47px!important;gap:10px!important}
+  html.nx-batch1-tools-active .nx-b1-focus-root .nx-action-row button{min-height:48px!important;height:48px!important}
+  html.nx-batch1-tools-active .nx-b1-bmi-root>.nx-tool-card{padding-top:46px!important;gap:8px!important}
+  html.nx-batch1-tools-active .nx-b1-bmi-root input,html.nx-batch1-tools-active .nx-b1-bmi-root [data-bmi-go]{min-height:44px!important;height:44px!important}
+}
+
+@media(max-width:390px){
+  html.nx-batch1-tools-active .nx-batch1-tools-screen .nx-app-body{padding-left:6px!important;padding-right:6px!important}
+  .nx-batch1-hub-back{width:36px;height:36px;right:8px;top:calc(env(safe-area-inset-top,0px) + 8px)}
+  html.nx-batch1-tools-active .nx-b1-unit-root>.nx-tool-card,
+  html.nx-batch1-tools-active .nx-b1-bmi-root>.nx-tool-card{padding-left:10px!important;padding-right:10px!important}
+}
+
+@media(prefers-color-scheme:light){
+  html.nx-batch1-tools-active body,html.nx-batch1-tools-active body .nx-stage,html.nx-batch1-tools-active .nx-batch1-tools-screen{background:#f4f6f8!important;color:#111827!important}
+  html.nx-batch1-tools-active .nx-batch1-tools-screen .nx-tool-card{border-color:#d8e0e8!important;background:#fff!important;box-shadow:0 7px 22px rgba(27,39,56,.08)!important;color:#172033!important}
+  html.nx-batch1-tools-active .nx-batch1-tools-screen .nx-field>span,html.nx-batch1-tools-active .nx-b1-bmi-root .nx-tool-meta{color:#66758a!important}
+  html.nx-batch1-tools-active .nx-batch1-tools-screen input,html.nx-batch1-tools-active .nx-batch1-tools-screen select{border-color:#ced9e2!important;background:#f7f9fb!important;color:#172033!important;box-shadow:inset 0 1px 3px rgba(27,39,56,.06)!important}
+  html.nx-batch1-tools-active .nx-b1-unit-root .nx-result,html.nx-batch1-tools-active .nx-b1-bmi-root [data-bmi-result]{border-color:#cfdbe5!important;background:linear-gradient(180deg,#f5f8fa,#edf2f6)!important;color:#172033!important;box-shadow:inset 0 2px 7px rgba(27,39,56,.06)!important}
+  html.nx-batch1-tools-active .nx-b1-expenses-root>.nx-summary-grid>div,html.nx-batch1-tools-active .nx-b1-expenses-root .nx-list-card{border-color:#d8e0e8!important;background:#fff!important;color:#172033!important;box-shadow:0 3px 10px rgba(27,39,56,.06)!important}
+  html.nx-batch1-tools-active .nx-b1-expenses-root .nx-list-card p,html.nx-batch1-tools-active .nx-b1-expenses-root .nx-list-card small{color:#68778a!important}
+  html.nx-batch1-tools-active .nx-b1-focus-root .nx-focus-ring{border-color:#c7dce6!important;background:#f7fafc!important;box-shadow:inset 0 0 0 8px #edf3f7,0 10px 30px rgba(27,39,56,.08)!important}
+  html.nx-batch1-tools-active .nx-b1-focus-root [data-pomo-time],html.nx-batch1-tools-active .nx-b1-focus-root [data-pomo-label]{color:#17384a!important}
+  .nx-batch1-hub-back{border-color:#d5dde5;background:rgba(255,255,255,.97);color:#111827;box-shadow:0 6px 17px rgba(30,42,60,.10)}
+}
+
+@media(prefers-reduced-motion:reduce){.nx-batch1-hub-back{transition:none!important}}

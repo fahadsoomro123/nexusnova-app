@@ -1,0 +1,122 @@
+/* NexusNova selected premium visuals.
+   Qibla, Speed and Drive now own their clean .nx2-* visual systems in their canonical JS renderers.
+   This shared stylesheet remains canonical only for Prayer. */
+
+/* PRAYER TIMES — selected reference */
+.nx-prayer-screen>.nx-app-head{display:none!important}
+.nx-prayer-immersive .nx-dock{display:none!important}
+.nx-prayer-premium{min-width:0;max-width:100%;padding:4px 0 28px}
+.nx-prayer-premium .nxprayer-console--selected{padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;overflow:visible}
+.nx-prayer-premium button{font:inherit;-webkit-tap-highlight-color:transparent}
+.nx-prayer-premium .nxprayer-topbar{display:grid;grid-template-columns:58px 72px minmax(0,1fr) auto;gap:11px;align-items:center;padding:0 1px 22px}
+.nx-prayer-premium .nxprayer-back,.nx-prayer-premium .nxprayer-calendar,.nx-prayer-premium .nxprayer-menu,.nx-prayer-premium .nxprayer-gps{display:grid;place-items:center;border:1px solid rgba(82,145,188,.42);background:linear-gradient(145deg,#071725,#040c15);box-shadow:inset 0 1px rgba(255,255,255,.06),0 12px 30px rgba(0,0,0,.2);cursor:pointer}
+.nx-prayer-premium .nxprayer-back{width:58px;height:64px;border-radius:18px}
+.nx-prayer-premium .nxprayer-brandmark{display:grid;place-items:center;width:72px;height:76px;border:1px solid rgba(38,165,233,.6);border-radius:21px;background:radial-gradient(circle at 50% 28%,rgba(18,191,255,.3),rgba(5,33,54,.98) 58%,#03101b);box-shadow:0 0 30px rgba(0,184,255,.14),inset 0 1px rgba(255,255,255,.12)}
+.nx-prayer-premium .nxprayer-brandcopy{min-width:0;display:grid;gap:1px}
+.nx-prayer-premium .nxprayer-brandcopy>b{color:#f7fbff;font-size:clamp(24px,6vw,34px);font-weight:800;line-height:.98;letter-spacing:-.03em}
+.nx-prayer-premium .nxprayer-brandcopy>strong{color:#24e0f5;font-size:clamp(20px,5vw,28px);font-weight:750;line-height:1.06;text-shadow:0 0 15px rgba(19,213,241,.2)}
+.nx-prayer-premium .nxprayer-brandcopy>span{margin-top:4px;color:#8ba0be;font-size:clamp(9px,2.5vw,14px);white-space:nowrap}
+.nx-prayer-premium .nxprayer-topactions{display:flex;gap:9px}
+.nx-prayer-premium .nxprayer-calendar,.nx-prayer-premium .nxprayer-menu{width:54px;height:60px;border-radius:17px}
+.nx-prayer-premium .nxprayer-control-art{display:block;width:72%;height:72%;filter:drop-shadow(0 0 8px rgba(54,203,255,.08));pointer-events:none}
+.nx-prayer-premium .nxprayer-brand-art{width:84%;height:84%;filter:drop-shadow(0 0 11px rgba(0,221,255,.34))}
+.nx-prayer-premium .nxprayer-citybox{margin-top:27px;padding:14px;border:1px solid rgba(32,185,244,.7);border-radius:24px;background:linear-gradient(145deg,rgba(3,29,48,.99),rgba(2,14,25,.995));box-shadow:0 0 27px rgba(0,181,255,.09),inset 0 0 0 1px rgba(54,191,247,.11)}
+.nx-prayer-premium .nxprayer-locationrow{display:grid;grid-template-columns:minmax(0,1fr) 68px;gap:12px;align-items:center}
+.nx-prayer-premium .nxprayer-locationinput{display:grid;grid-template-columns:44px minmax(0,1fr) 34px;align-items:center;min-width:0;min-height:68px;border:1px solid rgba(97,161,198,.27);border-radius:19px;background:#04111c;box-shadow:inset 0 1px rgba(255,255,255,.018)}
+.nx-prayer-premium .nxprayer-location-art{width:34px;height:42px;margin-left:6px;filter:drop-shadow(0 0 10px rgba(68,232,255,.38))}
+.nx-prayer-premium .nxprayer-locationinput input{width:100%;min-width:0;min-height:66px;border:0;background:transparent;color:#f5f8fb;padding:0 4px;outline:none;font-size:clamp(13px,3.9vw,23px);line-height:1;text-overflow:ellipsis}
+.nx-prayer-premium .nxprayer-locationinput input::placeholder{color:#8193aa}
+.nx-prayer-premium .nxprayer-chevron{display:grid;place-items:center;width:34px;height:50px;border:0;background:transparent;cursor:pointer}
+.nx-prayer-premium .nxprayer-chevron>span{width:11px;height:11px;border-right:2px solid #c1cedc;border-bottom:2px solid #c1cedc;transform:rotate(45deg) translateY(-3px);opacity:.92}
+.nx-prayer-premium .nxprayer-gps{width:68px;height:68px;border-radius:20px;background:linear-gradient(145deg,#0a263a,#061522)}
+.nx-prayer-premium .nxprayer-gps .nxprayer-control-art{width:67%;height:67%;filter:drop-shadow(0 0 11px rgba(108,219,255,.24))}
+.nx-prayer-premium .nxprayer-results{width:100%;min-height:44px;margin-top:10px;border:1px solid rgba(79,161,205,.3);border-radius:13px;background:#06131f;color:#e8f3f9;padding:0 11px;outline:none}
+.nx-prayer-premium .nxprayer-results[hidden]{display:none}
+.nx-prayer-premium .nxprayer-datebar{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:30px 7px 20px;color:#8da1bf;font-size:clamp(8px,2.5vw,13px)}
+.nx-prayer-premium .nxprayer-datebar>span{display:flex;align-items:center;gap:7px;min-width:0}
+.nx-prayer-premium .nxprayer-datebar b{font-weight:600;white-space:nowrap}
+.nx-prayer-premium .nxprayer-datebar i{color:#536a80;font-style:normal}
+.nx-prayer-premium .nxprayer-datebar small{white-space:nowrap;font-size:inherit}
+.nx-prayer-premium .nxprayer-datebar small em{color:#48c8f1;font-style:normal}
+.nx-prayer-premium .nxprayer-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:7px;min-width:0}
+.nx-prayer-premium .nxprayer-card{position:relative;min-width:0;min-height:360px;overflow:hidden;padding:18px 4px 8px;border:1px solid rgba(105,161,196,.42);border-radius:18px;text-align:center;background:linear-gradient(180deg,rgba(8,30,49,.98),rgba(2,10,18,.998));box-shadow:inset 0 1px rgba(255,255,255,.045);display:flex;flex-direction:column;align-items:center}
+.nx-prayer-premium .nxprayer-card::before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at 50% 0,rgba(20,120,180,.24),transparent 37%),linear-gradient(180deg,transparent 55%,rgba(0,0,0,.28))}
+.nx-prayer-premium .nxprayer-card--0{color:#20e6df;border-color:rgba(41,230,232,.85);box-shadow:0 0 23px rgba(32,224,229,.14),inset 0 0 30px rgba(16,173,194,.12),inset 0 1px rgba(255,255,255,.07)}
+.nx-prayer-premium .nxprayer-card--1{color:#ffab12}.nx-prayer-premium .nxprayer-card--2{color:#fbb30d}.nx-prayer-premium .nxprayer-card--3{color:#f5b51b}.nx-prayer-premium .nxprayer-card--4{color:#ff493b}.nx-prayer-premium .nxprayer-card--5{color:#8a51ff}
+.nx-prayer-premium .nxprayer-prayer-art{display:block;background-image:url('../media/selected/prayer-icons-selected.png');background-repeat:no-repeat;background-size:600% 100%;background-position-y:center}
+.nx-prayer-premium .nxprayer-prayer-art--0{background-position-x:0}.nx-prayer-premium .nxprayer-prayer-art--1{background-position-x:20%}.nx-prayer-premium .nxprayer-prayer-art--2{background-position-x:40%}.nx-prayer-premium .nxprayer-prayer-art--3{background-position-x:60%}.nx-prayer-premium .nxprayer-prayer-art--4{background-position-x:80%}.nx-prayer-premium .nxprayer-prayer-art--5{background-position-x:100%}
+.nx-prayer-premium .nxprayer-icon{position:relative;z-index:2;width:64px;height:64px;flex:0 0 64px;margin:0 auto;filter:drop-shadow(0 0 13px currentColor)}
+.nx-prayer-premium .nxprayer-card>span{position:relative;z-index:2;display:block;margin-top:12px;color:currentColor;font-size:clamp(8px,2.6vw,13px);font-weight:800;white-space:nowrap}
+.nx-prayer-premium .nxprayer-divider{position:relative;z-index:2;display:block;width:72%;height:12px;margin:18px auto 13px;background:linear-gradient(90deg,transparent,currentColor,transparent) center/100% 1px no-repeat;filter:drop-shadow(0 0 5px currentColor)}
+.nx-prayer-premium .nxprayer-divider>b{position:absolute;left:50%;top:50%;width:6px;height:6px;border-radius:50%;background:currentColor;transform:translate(-50%,-50%);box-shadow:0 0 10px currentColor}
+.nx-prayer-premium .nxprayer-card>strong{position:relative;z-index:2;display:grid;gap:2px;color:#f6f7fa;font-variant-numeric:tabular-nums}
+.nx-prayer-premium .nxprayer-card>strong>b{font-size:clamp(15px,4.5vw,25px);line-height:1.02;letter-spacing:-.035em}
+.nx-prayer-premium .nxprayer-card>strong>small{color:#aeb9c8;font-size:clamp(8px,2.5vw,13px);font-weight:500}
+.nx-prayer-premium .nxprayer-card>em{position:relative;z-index:2;display:block;margin-top:23px;color:currentColor;font-style:normal;font-size:clamp(7px,2.2vw,12px);font-variant-numeric:tabular-nums;white-space:nowrap}
+.nx-prayer-premium .nxprayer-ornament{position:relative;z-index:1;margin-top:auto;width:96%;height:105px;background:currentColor;-webkit-mask:url('../media/selected/prayer-ornament-selected.png') center bottom/contain no-repeat;mask:url('../media/selected/prayer-ornament-selected.png') center bottom/contain no-repeat;opacity:.38;filter:drop-shadow(0 0 5px currentColor)}
+.nx-prayer-premium .nxprayer-card.is-next{border-color:rgba(47,223,236,.96);box-shadow:0 0 24px rgba(28,222,234,.18),inset 0 0 34px rgba(16,174,194,.14),inset 0 1px rgba(255,255,255,.08)}
+.nx-prayer-premium .nxprayer-next{display:grid;grid-template-columns:92px minmax(0,1fr) auto;gap:20px;align-items:center;margin-top:34px;padding:22px 24px;border:1px solid rgba(63,190,238,.72);border-radius:24px;background:linear-gradient(145deg,rgba(3,31,49,.99),rgba(3,15,27,.995));box-shadow:inset 0 1px rgba(255,255,255,.05),0 0 30px rgba(0,153,223,.08)}
+.nx-prayer-premium .nxprayer-next-orbit{position:relative;display:grid;place-items:center;width:90px;height:90px;border:2px solid rgba(40,226,221,.45);border-radius:50%;background:radial-gradient(circle,rgba(12,69,76,.6),rgba(3,25,36,.9) 62%,transparent 64%);box-shadow:0 0 20px rgba(31,223,224,.18),inset 0 0 18px rgba(26,154,173,.14)}
+.nx-prayer-premium .nxprayer-next-orbit::before{content:"";position:absolute;inset:-7px;border-radius:50%;border:2px dashed rgba(24,211,203,.44);border-left-color:transparent;border-bottom-color:rgba(19,205,198,.12);transform:rotate(-12deg)}
+.nx-prayer-premium .nxprayer-next-icon{width:62px;height:62px;filter:drop-shadow(0 0 13px #1ee0d8)}
+.nx-prayer-premium .nxprayer-next-copy{min-width:0}
+.nx-prayer-premium .nxprayer-next-copy>span{display:block;color:#20c9c7;font-size:clamp(9px,2.8vw,14px);letter-spacing:.05em}
+.nx-prayer-premium .nxprayer-next-copy>strong{display:block;margin-top:7px;color:#f7f8fb;font-size:clamp(18px,5vw,27px);font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nx-prayer-premium .nxprayer-progress{position:relative;height:13px;margin-top:16px;border:1px solid rgba(126,157,183,.28);border-radius:999px;background:#17263a;overflow:visible}
+.nx-prayer-premium .nxprayer-progress i{display:block;height:100%;width:0;border-radius:inherit;background:linear-gradient(90deg,#00cdbc,#4cf1f0);box-shadow:0 0 14px rgba(64,238,238,.52)}
+.nx-prayer-premium .nxprayer-progress>b{position:absolute;top:50%;left:0;width:17px;height:17px;border:3px solid #eaffff;border-radius:50%;background:#67eff2;transform:translate(-50%,-50%);box-shadow:0 0 10px #46e6ed}
+.nx-prayer-premium .nxprayer-next-copy>small{display:block;margin-top:9px;color:#8499b7;font-size:clamp(8px,2.5vw,13px)}
+.nx-prayer-premium .nxprayer-next>b{color:#64eaf1;font-size:clamp(17px,5vw,25px);font-variant-numeric:tabular-nums;white-space:nowrap}
+.nx-prayer-premium .nxpi-status{margin:14px 4px 0;color:#8b9cac;font-size:9px;line-height:1.4}
+
+@media(max-width:560px){
+  .nx-prayer-premium{padding-top:2px}
+  .nx-prayer-premium .nxprayer-topbar{grid-template-columns:48px 60px minmax(0,1fr) auto;gap:8px;padding-bottom:15px}
+  .nx-prayer-premium .nxprayer-back{width:48px;height:54px;border-radius:16px}
+  .nx-prayer-premium .nxprayer-brandmark{width:60px;height:64px;border-radius:18px}
+  .nx-prayer-premium .nxprayer-brandcopy>b{font-size:clamp(20px,6.4vw,28px)}
+  .nx-prayer-premium .nxprayer-brandcopy>strong{font-size:clamp(17px,5.4vw,23px)}
+  .nx-prayer-premium .nxprayer-brandcopy>span{font-size:clamp(8px,2.4vw,11px)}
+  .nx-prayer-premium .nxprayer-topactions{gap:6px}
+  .nx-prayer-premium .nxprayer-calendar,.nx-prayer-premium .nxprayer-menu{width:43px;height:50px;border-radius:14px}
+  .nx-prayer-premium .nxprayer-citybox{margin-top:15px;padding:9px;border-radius:21px}
+  .nx-prayer-premium .nxprayer-locationrow{grid-template-columns:minmax(0,1fr) 54px;gap:8px}
+  .nx-prayer-premium .nxprayer-locationinput{grid-template-columns:34px minmax(0,1fr) 26px;min-height:54px;border-radius:17px}
+  .nx-prayer-premium .nxprayer-location-art{width:28px;height:33px;margin-left:3px}
+  .nx-prayer-premium .nxprayer-locationinput input{min-height:52px;padding-right:1px;font-size:clamp(11px,3.2vw,15px)}
+  .nx-prayer-premium .nxprayer-gps{width:54px;height:54px;border-radius:17px}
+  .nx-prayer-premium .nxprayer-datebar{gap:5px;margin:22px 4px 17px;font-size:clamp(7px,2.15vw,10px)}
+  .nx-prayer-premium .nxprayer-grid{gap:4px}
+  .nx-prayer-premium .nxprayer-card{min-height:280px;padding:13px 2px 6px;border-radius:15px}
+  .nx-prayer-premium .nxprayer-icon{width:49px;height:49px;flex-basis:49px}
+  .nx-prayer-premium .nxprayer-card>span{font-size:clamp(7px,2.25vw,10px);margin-top:8px}
+  .nx-prayer-premium .nxprayer-divider{margin:12px auto 10px}
+  .nx-prayer-premium .nxprayer-card>strong>b{font-size:clamp(12px,4vw,18px)}
+  .nx-prayer-premium .nxprayer-card>strong>small{font-size:clamp(7px,2.15vw,10px)}
+  .nx-prayer-premium .nxprayer-card>em{margin-top:14px;font-size:clamp(6px,1.9vw,9px)}
+  .nx-prayer-premium .nxprayer-ornament{height:72px;opacity:.42}
+  .nx-prayer-premium .nxprayer-next{grid-template-columns:66px minmax(0,1fr) auto;column-gap:12px;row-gap:0;margin-top:25px;padding:14px 16px;border-radius:20px}
+  .nx-prayer-premium .nxprayer-next-orbit{width:66px;height:66px;grid-column:1;grid-row:1/5}
+  .nx-prayer-premium .nxprayer-next-icon{width:47px;height:47px}
+  .nx-prayer-premium .nxprayer-next-copy{display:contents}
+  .nx-prayer-premium .nxprayer-next-copy>strong{font-size:clamp(15px,4.7vw,20px);grid-column:2;grid-row:2}
+  .nx-prayer-premium .nxprayer-next-copy>span{font-size:clamp(7px,2.3vw,10px);grid-column:2;grid-row:1}
+  .nx-prayer-premium .nxprayer-next>b{font-size:clamp(13px,4.2vw,18px);grid-column:3;grid-row:2;justify-self:end}
+  .nx-prayer-premium .nxprayer-next-copy>small{font-size:clamp(7px,2.15vw,9px);grid-column:2/4;grid-row:4}
+  .nx-prayer-premium .nxprayer-progress{height:10px;margin-top:11px;grid-column:2/4;grid-row:3}
+  .nx-prayer-premium .nxprayer-progress>b{width:13px;height:13px;border-width:2px}
+}
+
+@media(max-width:360px){
+  .nx-prayer-premium .nxprayer-topbar{grid-template-columns:44px 54px minmax(0,1fr) auto;gap:6px}
+  .nx-prayer-premium .nxprayer-back{width:44px;height:50px}
+  .nx-prayer-premium .nxprayer-brandmark{width:54px;height:58px}
+  .nx-prayer-premium .nxprayer-calendar,.nx-prayer-premium .nxprayer-menu{width:38px;height:45px}
+  .nx-prayer-premium .nxprayer-topactions{gap:4px}
+  .nx-prayer-premium .nxprayer-locationinput input{font-size:10.5px}
+  .nx-prayer-premium .nxprayer-card{min-height:270px}
+  .nx-prayer-premium .nxprayer-ornament{height:68px}
+  .nx-prayer-premium .nxprayer-next{grid-template-columns:58px minmax(0,1fr) auto;padding:13px 12px;column-gap:9px;row-gap:0}
+  .nx-prayer-premium .nxprayer-next-orbit{width:56px;height:56px}
+  .nx-prayer-premium .nxprayer-next-icon{width:40px;height:40px}
+}

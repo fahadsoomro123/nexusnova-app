@@ -1,0 +1,119 @@
+/* NOVA 5.7 premium viewport + stage compatibility fix.
+   Older Android WebViews may not support :has(), so NOVA gets an explicit
+   runtime stage class instead of relying on parent-selector support. */
+
+.nx-stage.nx57-stage-active {
+  padding-bottom: calc(var(--nx-dock-height) + var(--nx-safe-bottom) + 8px);
+  scroll-padding-bottom: calc(var(--nx-dock-height) + var(--nx-safe-bottom) + 8px);
+}
+
+.nx57-shell-premium {
+  height: calc(100dvh - var(--nx-pad) - var(--nx-dock-height) - var(--nx-safe-bottom) - 8px);
+  min-height: 0;
+  max-height: calc(100dvh - var(--nx-pad) - var(--nx-dock-height) - var(--nx-safe-bottom) - 8px);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.nx57-shell-premium > [data-app-mount] {
+  min-height: 0;
+  display: grid;
+  overflow: hidden;
+}
+
+.nx57-shell-premium > [data-app-mount] > .nx-app-body.nx57 {
+  min-height: 0;
+  height: 100%;
+  display: grid;
+  overflow: hidden;
+}
+
+.nx57-shell-premium .nx-app-body.nx57 > .nx-panel.nx57 {
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  grid-template-rows: auto minmax(0, 1fr) auto auto auto;
+}
+
+.nx57-shell-premium .nx57-messages {
+  min-height: 0 !important;
+  max-height: none !important;
+  height: auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.nx57-shell-premium .nx57-compose {
+  flex: 0 0 auto;
+}
+
+.nx57-shell-premium .nx57-status {
+  justify-self: start;
+  max-width: calc(100% - 8px);
+  margin: 0 4px 2px;
+  padding: 5px 9px;
+  border: 1px solid rgba(126, 151, 181, .10);
+  border-radius: 999px;
+  background: rgba(8, 24, 40, .68);
+  color: #9fb3c8;
+  opacity: .88;
+  font-size: 9px;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* NOVA-only SOS placement: keep emergency access in the header lane, not over chat. */
+html.nx57-stage-active #nxEmergencySosButton {
+  top: calc(var(--nx-pad) + 7px) !important;
+  right: 64px !important;
+  bottom: auto !important;
+  width: 32px !important;
+  height: 32px !important;
+  border-radius: 11px !important;
+  opacity: .82 !important;
+  font-size: 7px !important;
+  letter-spacing: .35px !important;
+}
+
+html.nx57-stage-active #nxEmergencySosButton[data-active="1"],
+html.nx57-stage-active #nxEmergencySosButton[data-busy="1"] {
+  top: calc(var(--nx-pad) + 5px) !important;
+  right: 62px !important;
+  width: 36px !important;
+  height: 36px !important;
+  border-radius: 12px !important;
+  opacity: 1 !important;
+  font-size: 8px !important;
+}
+
+html.nx57-stage-active #nxEmergencySosEdit {
+  top: calc(var(--nx-pad) + 10px) !important;
+  right: 104px !important;
+  bottom: auto !important;
+  width: 26px !important;
+  height: 26px !important;
+  font-size: 11px !important;
+}
+
+@media (max-width: 390px) {
+  html.nx57-stage-active #nxEmergencySosButton {
+    right: 58px !important;
+  }
+  html.nx57-stage-active #nxEmergencySosButton[data-active="1"],
+  html.nx57-stage-active #nxEmergencySosButton[data-busy="1"] {
+    right: 56px !important;
+  }
+  html.nx57-stage-active #nxEmergencySosEdit {
+    right: 96px !important;
+  }
+}
+
+@media (max-width: 520px) {
+  .nx57-shell-premium .nx57-messages {
+    min-height: 0 !important;
+    max-height: none !important;
+  }
+}

@@ -1,0 +1,208 @@
+/* NexusNova premium UI for the new Travel + Learning suites only. */
+:where(.nx-tool-card:has([data-flight-origin]),
+       .nx-tool-card:has([data-hotel-destination]),
+       .nx-tool-card:has([data-ground-origin]),
+       .nx-tool-card:has([data-learn-topic]),
+       .nx-tool-card:has([data-paper-board]),
+       .nx-tool-card:has([data-plan-subjects]),
+       .nx-tool-card:has([data-card-q])) {
+  position: relative;
+  overflow: hidden;
+  padding: 14px;
+  border-color: rgba(176, 211, 236, .11);
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(76, 214, 201, .08), transparent 34%),
+    linear-gradient(150deg, rgba(12, 25, 40, .96), rgba(6, 14, 25, .98));
+  box-shadow: 0 14px 34px rgba(0, 0, 0, .18), inset 0 1px rgba(255, 255, 255, .035);
+}
+
+:where(.nx-tool-card:has([data-learn-topic]),
+       .nx-tool-card:has([data-paper-board]),
+       .nx-tool-card:has([data-plan-subjects]),
+       .nx-tool-card:has([data-card-q])) {
+  background:
+    radial-gradient(circle at 100% 0%, rgba(166, 124, 255, .08), transparent 32%),
+    linear-gradient(150deg, rgba(17, 24, 42, .97), rgba(7, 14, 26, .98));
+}
+
+:where(.nx-tool-card:has([data-flight-origin]),
+       .nx-tool-card:has([data-hotel-destination]),
+       .nx-tool-card:has([data-ground-origin]),
+       .nx-tool-card:has([data-learn-topic]),
+       .nx-tool-card:has([data-paper-board]),
+       .nx-tool-card:has([data-plan-subjects]),
+       .nx-tool-card:has([data-card-q])) > strong:first-of-type {
+  display: block;
+  margin: 1px 0 3px;
+  font-size: 15px;
+  line-height: 1.25;
+  letter-spacing: -.02em;
+}
+
+:where([data-flight-origin],[data-flight-destination],[data-flight-departure],[data-flight-return],[data-flight-adults],[data-flight-cabin],[data-flight-currency],
+       [data-hotel-destination],[data-hotel-checkin],[data-hotel-checkout],[data-hotel-adults],[data-hotel-rooms],[data-hotel-currency],
+       [data-ground-origin],[data-ground-destination],[data-ground-date],[data-ground-time],[data-ground-adults],[data-ground-currency],
+       [data-learn-topic],[data-paper-board],[data-paper-class],[data-paper-subject],[data-paper-year],
+       [data-plan-subjects],[data-plan-exam],[data-plan-minutes],[data-card-q],[data-card-a]) {
+  min-height: 41px !important;
+  padding: 9px 11px !important;
+  border-radius: 12px !important;
+  border-color: rgba(159, 199, 229, .12) !important;
+  background: rgba(2, 9, 17, .68) !important;
+  box-shadow: inset 0 1px rgba(255, 255, 255, .018) !important;
+  font-size: 12px;
+}
+
+:where([data-flight-origin],[data-flight-destination],[data-flight-departure],[data-flight-return],[data-flight-adults],[data-flight-cabin],[data-flight-currency],
+       [data-hotel-destination],[data-hotel-checkin],[data-hotel-checkout],[data-hotel-adults],[data-hotel-rooms],[data-hotel-currency],
+       [data-ground-origin],[data-ground-destination],[data-ground-date],[data-ground-time],[data-ground-adults],[data-ground-currency],
+       [data-learn-topic],[data-paper-board],[data-paper-class],[data-paper-subject],[data-paper-year],
+       [data-plan-subjects],[data-plan-exam],[data-plan-minutes],[data-card-q],[data-card-a]):focus {
+  border-color: rgba(77, 219, 207, .38) !important;
+  box-shadow: 0 0 0 3px rgba(77, 219, 207, .055) !important;
+}
+
+:where(.nx-tool-card:has([data-flight-origin]),
+       .nx-tool-card:has([data-hotel-destination]),
+       .nx-tool-card:has([data-ground-origin]),
+       .nx-tool-card:has([data-learn-topic]),
+       .nx-tool-card:has([data-paper-board]),
+       .nx-tool-card:has([data-plan-subjects]),
+       .nx-tool-card:has([data-card-q])) .nx-field {
+  gap: 5px;
+  margin-top: 9px;
+}
+
+:where(.nx-tool-card:has([data-flight-origin]),
+       .nx-tool-card:has([data-hotel-destination]),
+       .nx-tool-card:has([data-ground-origin]),
+       .nx-tool-card:has([data-learn-topic]),
+       .nx-tool-card:has([data-paper-board]),
+       .nx-tool-card:has([data-plan-subjects]),
+       .nx-tool-card:has([data-card-q])) .nx-field > span {
+  font-size: 8px;
+  letter-spacing: .075em;
+  color: rgba(181, 202, 220, .68);
+}
+
+:where([data-flight-search],[data-hotel-search],[data-ground-search],[data-learn-summary],[data-plan-build],[data-card-add]) {
+  width: 100%;
+  min-height: 42px !important;
+  margin-top: 10px !important;
+  border: 1px solid rgba(90, 224, 210, .22) !important;
+  border-radius: 13px !important;
+  background: linear-gradient(135deg, rgba(24, 105, 109, .95), rgba(23, 77, 105, .96)) !important;
+  box-shadow: 0 9px 22px rgba(0, 0, 0, .16), inset 0 1px rgba(255, 255, 255, .08) !important;
+  font-size: 9px !important;
+  letter-spacing: .075em !important;
+}
+
+:where([data-learn-quiz],[data-paper-mode],[data-flight-sort],[data-hotel-sort],[data-ground-sort]) {
+  min-height: 38px !important;
+  margin-top: 0 !important;
+  padding: 0 11px !important;
+  border: 1px solid rgba(155, 193, 220, .12) !important;
+  border-radius: 11px !important;
+  background: rgba(12, 29, 44, .72) !important;
+  color: rgba(228, 240, 249, .9) !important;
+  box-shadow: none !important;
+  font-size: 8px !important;
+  letter-spacing: .06em !important;
+}
+
+:where([data-learn-summary],[data-paper-mode].nx-primary,[data-flight-sort].nx-primary,[data-hotel-sort].nx-primary,[data-ground-sort].nx-primary) {
+  border-color: rgba(156, 123, 255, .27) !important;
+  background: linear-gradient(135deg, rgba(88, 61, 145, .72), rgba(42, 73, 111, .76)) !important;
+}
+
+:where(.nx-tool-card:has([data-flight-origin]),
+       .nx-tool-card:has([data-hotel-destination]),
+       .nx-tool-card:has([data-ground-origin]),
+       .nx-tool-card:has([data-learn-topic]),
+       .nx-tool-card:has([data-paper-board])) .nx-action-row {
+  gap: 6px;
+  padding: 4px;
+  margin-top: 9px;
+  border: 1px solid rgba(159, 199, 229, .08);
+  border-radius: 14px;
+  background: rgba(2, 9, 17, .38);
+}
+
+:where([data-flight-results],[data-hotel-results],[data-ground-results],[data-paper-results]) .nx-list-card,
+[data-learn-output] {
+  border-color: rgba(157, 199, 229, .095) !important;
+  border-radius: 15px !important;
+  background: linear-gradient(145deg, rgba(11, 24, 38, .9), rgba(5, 13, 23, .9)) !important;
+  box-shadow: inset 0 1px rgba(255, 255, 255, .025);
+}
+
+:where([data-flight-results],[data-hotel-results],[data-ground-results],[data-paper-results]) .nx-badge,
+[data-flight-count],[data-hotel-count],[data-ground-count] {
+  border: 1px solid rgba(91, 219, 204, .15);
+  background: rgba(55, 154, 144, .09);
+  color: rgba(184, 244, 234, .88);
+}
+
+:where([data-flight-status],[data-hotel-status],[data-ground-status],[data-learn-status],[data-paper-status]) {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 11px;
+  background: rgba(2, 9, 17, .34);
+  color: rgba(174, 196, 216, .72);
+  line-height: 1.4;
+}
+
+[data-paper-results] [data-paper-source] {
+  min-height: 35px;
+  margin-top: 2px;
+  padding: 0 10px;
+  border: 1px solid rgba(155, 193, 220, .12);
+  border-radius: 10px;
+  background: rgba(11, 27, 42, .72);
+  color: rgba(226, 238, 247, .88);
+  font-size: 8px;
+  font-weight: 850;
+  letter-spacing: .055em;
+}
+
+[data-paper-source-text] {
+  padding: 8px 9px;
+  border-radius: 9px;
+  background: rgba(0, 0, 0, .22);
+  font-size: 9px !important;
+  overflow-wrap: anywhere;
+}
+
+[data-learn-output] [data-read-full] {
+  min-height: 39px;
+  padding: 0 12px;
+  border: 1px solid rgba(157, 124, 255, .2);
+  border-radius: 11px;
+  background: rgba(96, 68, 157, .18);
+  color: rgba(239, 234, 255, .94);
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: .055em;
+}
+
+:where(.nx-tool-card:has([data-flight-origin]),
+       .nx-tool-card:has([data-hotel-destination]),
+       .nx-tool-card:has([data-ground-origin]),
+       .nx-tool-card:has([data-paper-board])) .nx-two-col {
+  gap: 7px;
+}
+
+@media (max-width: 380px) {
+  :where(.nx-tool-card:has([data-flight-origin]),
+         .nx-tool-card:has([data-hotel-destination]),
+         .nx-tool-card:has([data-ground-origin]),
+         .nx-tool-card:has([data-paper-board])) .nx-two-col {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  :where([data-flight-origin],[data-flight-destination],[data-hotel-destination],[data-ground-origin],[data-ground-destination],
+         [data-paper-board],[data-paper-class],[data-paper-subject]) {
+    font-size: 11px;
+  }
+}
