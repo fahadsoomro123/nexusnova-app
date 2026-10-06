@@ -63,7 +63,7 @@ jobs:
           test -s app/nexusnova-release.jks
           keytool -list -keystore app/nexusnova-release.jks -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
 
-      - name: Inject OTA-32 release version and exact bundled web baseline
+      - name: Inject OTA-33 release version and exact bundled web baseline
         working-directory: NexusNovaAndroid
         shell: bash
         run: |
@@ -82,8 +82,8 @@ jobs:
           if wn != 1:
               raise SystemExit("Bundled web baseline injection failed")
           web.write_text(ws, encoding='utf-8')
-          version_code = 27010032
-          version_name = "1.0.45-ota-32"
+          version_code = 27010033
+          version_name = "1.0.45-ota-33"
           s, n1 = re.subn(r'versionCode\s*=\s*\d+', f'versionCode = {version_code}', s, count=1)
           s, n2 = re.subn(r'versionName\s*=\s*"[^"]+"', f'versionName = "{version_name}"', s, count=1)
           if n1 != 1 or n2 != 1:
@@ -133,8 +133,8 @@ jobs:
           echo "$badging" | grep -q "name='com.nexusnova.app'"
           VERSION_CODE="$("$AAPT" dump badging "$apk" | sed -n "s/.*versionCode='\([0-9]*\)'.*/\1/p")"
           VERSION_NAME="$("$AAPT" dump badging "$apk" | sed -n "s/.*versionName='\([^']*\)'.*/\1/p")"
-          test "$VERSION_CODE" = "27010032"
-          test "$VERSION_NAME" = "1.0.45-ota-32"
+          test "$VERSION_CODE" = "27010033"
+          test "$VERSION_NAME" = "1.0.45-ota-33"
           SHA256="$(sha256sum "$apk" | awk '{print $1}')"
           APK_SIZE_BYTES="$(stat -c '%s' "$apk")"
           test "${#SHA256}" = 64
