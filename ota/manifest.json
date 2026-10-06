@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "base": "3ceae1c01b69c94ec9e86d4fe2b3a12db5d2e634",
+  "base": "28ad58de566e42621dad6198aa01be885ccc9769",
   "version": "e09f021fb8b632225a7a0cb94901393d8ad0a51e",
   "diagnostic": "video-studio-native-popup-test",
   "source_commit": "e09f021fb8b632225a7a0cb94901393d8ad0a51e",
@@ -8,13 +8,13 @@
   "files": [
     {
       "path": "index.html",
-      "sha256": "3ca0498bee6d7e586fc992e4a27e0994e64796ed5463fef08b72929394cfc814",
-      "size": 9082
+      "sha256": "5dc878d23c4c2b9d5a1e1373ded81062892c86ecbdc5ce33554004eba9d5afe2",
+      "size": 8939
     },
     {
       "path": "src/features/apps/ai-video-studio-flagship.js",
-      "sha256": "8192c419c9371367261818dc97930b036560718b9a06f2b33521109505501e5c",
-      "size": 65630
+      "sha256": "36c65949d89efabba900008ebab26876fb8dfae1bcfc02daca2ca054a5dc26ca",
+      "size": 64778
     }
   ],
   "video_release": "flagship-v5-current-main-bundle",
