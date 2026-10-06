@@ -202,7 +202,7 @@ class MainActivity : AppCompatActivity() {
 
         val dialog = MaterialAlertDialogBuilder(this)
             .setIcon(R.drawable.ic_launcher)
-            .setTitle("AI Video Studio update available")
+            .setTitle("Web update available")
             .setView(content)
             .setNegativeButton("Not now", null)
             .setPositiveButton("Update", null)
@@ -252,7 +252,7 @@ class MainActivity : AppCompatActivity() {
                         loadProductionApp(forceFresh = true)
                     }
                 } else {
-                    publishOtaInstallEvent("failure", error ?: "The AI Video Studio update could not be activated safely.")
+                    publishOtaInstallEvent("failure", error ?: "The web update could not be activated safely.")
                 }
             }
         )
