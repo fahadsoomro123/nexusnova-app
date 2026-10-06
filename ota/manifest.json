@@ -1,10 +1,10 @@
 {
   "schema": 2,
   "base": "356b2a6387a838551c24f8f4d1cc50f2affa4baa",
-  "version": "69b7d1f9062f26dd61c1ca84c673bb72ed604ac450a0ee8af23f2fbf6456964c",
+  "version": "d6eb789c505d5d7a0292b519f3fb95ad3916d551",
   "diagnostic": "video-studio-capcut-flagship-ota-v5-nv99-web-only",
   "source_commit": "d6eb789c505d5d7a0292b519f3fb95ad3916d551",
-  "message": "AI Video Studio Flagship V5 web-only OTA for OTA-29 baseline",
+  "message": "AI Video Studio Flagship V5 web-only OTA",
   "files": [
     {
       "path": "index.html",
