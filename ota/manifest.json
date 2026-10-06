@@ -1,9 +1,9 @@
 {
   "schema": 2,
   "base": "3ceae1c01b69c94ec9e86d4fe2b3a12db5d2e634",
-  "version": "f43911d088c5b8b743e39cd8ce7b7637a4855692",
-  "diagnostic": "video-studio-capcut-flagship-ota",
-  "source_commit": "f43911d088c5b8b743e39cd8ce7b7637a4855692",
+  "version": "508869e9d921d94a8a007003ca39d1037d59ff21",
+  "diagnostic": "video-studio-capcut-flagship-ota-v2",
+  "source_commit": "508869e9d921d94a8a007003ca39d1037d59ff21",
   "message": "AI Video Studio flagship editor update",
   "files": [
     {
@@ -15,6 +15,16 @@
       "path": "src/features/apps/ai-video-studio-flagship.js",
       "sha256": "4242aac257698310eca411a1ec12a3d29726ab7506393676db8a08c732c567b9",
       "size": 67442
+    },
+    {
+      "path": "src/features/apps/nn-video-studio-upgrade.js",
+      "sha256": "ba343d53e5963f394ff0b32e97cbc170440cf4e269bd51c1dec833408502b1b7",
+      "size": 14103
+    },
+    {
+      "path": "assets/js/nn-video-studio-core.js",
+      "sha256": "b7e78589f79b88998c275b328c7e23ed0df4202467ad905206ccd5b8ffbda3fc",
+      "size": 12499
     }
   ],
   "video_release": "flagship-video-studio-20260922",
