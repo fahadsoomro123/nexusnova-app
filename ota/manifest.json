@@ -1,48 +1,10 @@
 {
   "schema": 2,
+  "enabled": false,
   "base": "356b2a6387a838551c24f8f4d1cc50f2affa4baa",
-  "version": "a2c42c51ef63479c7ae4ebe086ae307d7dde1f91",
-  "diagnostic": "video-studio-capcut-ai-v6",
-  "source_commit": "5d1a7be394f6a418421a8a7e274ac876239e75ac",
-  "message": "AI Video Studio CapCut-style AI Create workspace",
-  "files": [
-    {
-      "path": "index.html",
-      "sha256": "5dc878d23c4c2b9d5a1e1373ded81062892c86ecbdc5ce33554004eba9d5afe2",
-      "size": 8939
-    },
-    {
-      "path": "src/main.js",
-      "sha256": "57e49a8652fa51a8b6753fa53b66d205aef698921b5f08e7b30cb513cd4dff2d",
-      "size": 12755
-    },
-    {
-      "path": "src/features/apps/app-screen.js",
-      "sha256": "ebeb6f8183519d2fc6d0258cdb51c41e6971b66cb3f6a0eab3a5ca42bec7e4ee",
-      "size": 22272
-    },
-    {
-      "path": "src/features/apps/ai-video-studio-flagship.js",
-      "sha256": "6e034122e38d52603ec352d1929f3f89434a997251f30e6c604899494dc60ac0",
-      "size": 86254
-    },
-    {
-      "path": "src/features/apps/nn-video-studio-upgrade.js",
-      "sha256": "ba343d53e5963f394ff0b32e97cbc170440cf4e269bd51c1dec833408502b1b7",
-      "size": 14103
-    },
-    {
-      "path": "assets/js/nn-video-studio-core.js",
-      "sha256": "b7e78589f79b88998c275b328c7e23ed0df4202467ad905206ccd5b8ffbda3fc",
-      "size": 12499
-    },
-    {
-      "path": "assets/styles/nn-video-studio.css",
-      "sha256": "63005e60bde3904b1df483c6ba6d2125d43c8ea7634d7b57d3784adef618f12c",
-      "size": 4801
-    }
-  ],
-  "video_release": "flagship-video-studio-20260922",
-  "ota_badge": "OTA-VIDEO-STUDIO",
-  "ota_badge_status": "ACTIVE"
+  "version": "85f440b80ef20d30ce5ad1bb863800aa9bf86655",
+  "diagnostic": "web-ota-disabled-after-video-studio-removal",
+  "source_commit": "85f440b80ef20d30ce5ad1bb863800aa9bf86655",
+  "message": "Web OTA disabled",
+  "files": []
 }
