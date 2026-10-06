@@ -770,9 +770,9 @@ class MainActivity : AppCompatActivity() {
         }
 
         when (message.optString("action")) {
-            ACTION_OTA_SHOW_PROMPT -> showNativeOtaUpdatePrompt(message)
-            ACTION_OTA_INSTALL -> startNativeOtaInstall(message)
-            ACTION_OTA_CANCEL -> cancelNativeOtaInstall()
+            ACTION_OTA_SHOW_PROMPT, ACTION_OTA_INSTALL, ACTION_OTA_CANCEL -> {
+                android.util.Log.i("NexusNovaOTA", "Legacy full-APK OTA action ignored; web OTA only.")
+            }
 
             ACTION_OPEN_NOVA_VPN -> {
                 val authToken = message.optString("authToken").trim()
