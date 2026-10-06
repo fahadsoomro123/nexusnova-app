@@ -1,4 +1,4 @@
-/* NexusNova NovaCut Media Pipeline Core */
+/* NexusNova NovaCut Media Pipeline Core | Absolute CDN assets pinned */
 const RUNTIME = Object.freeze({
   FFMPEG_PACKAGE: "https://unpkg.com/@ffmpeg/ffmpeg@0.12.15/dist/esm/index.js",
   FFMPEG_WORKER: "https://unpkg.com/@ffmpeg/ffmpeg@0.12.15/dist/esm/worker.js",
