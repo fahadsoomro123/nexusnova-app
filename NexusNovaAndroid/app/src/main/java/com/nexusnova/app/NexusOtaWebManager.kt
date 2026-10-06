@@ -163,8 +163,7 @@ class NexusOtaWebManager(context: Context) {
             MAX_MANIFEST_BYTES
         )
         val manifest = JSONObject(manifestText)
-        val isOtaValid: Boolean = manifest.optBoolean("enabled", true)
-        if (!isOtaValid) return false
+        if (!manifest.optBoolean("enabled", true)) return null
         if (manifest.optInt("schema", 0) != MANIFEST_SCHEMA) {
             throw IOException("Unsupported OTA manifest schema")
         }
@@ -212,7 +211,8 @@ class NexusOtaWebManager(context: Context) {
             MAX_MANIFEST_BYTES
         )
         val manifest = JSONObject(manifestText)
-        if (!manifest.optBoolean("enabled", true)) return null
+        val isOtaValid: Boolean = manifest.optBoolean("enabled", true)
+        if (!isOtaValid) return false
         if (manifest.optInt("schema", 0) != MANIFEST_SCHEMA) {
             throw IOException("Unsupported OTA manifest schema")
         }
