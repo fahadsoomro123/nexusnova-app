@@ -1,9 +1,9 @@
 {
   "schema": 2,
   "base": "3ceae1c01b69c94ec9e86d4fe2b3a12db5d2e634",
-  "version": "67e7806ba0ad97f69e4f15bef81293acb416f7c0",
+  "version": "dd2dd1bbb68660e333fa1277e6b6b77ebd4b1e3d",
   "diagnostic": "video-studio-capcut-flagship-ota-v4",
-  "source_commit": "67e7806ba0ad97f69e4f15bef81293acb416f7c0",
+  "source_commit": "dd2dd1bbb68660e333fa1277e6b6b77ebd4b1e3d",
   "message": "AI Video Studio flagship editor update",
   "files": [
     {
