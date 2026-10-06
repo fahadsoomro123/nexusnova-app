@@ -3,7 +3,7 @@
   "enabled": false,
   "base": "356b2a6387a838551c24f8f4d1cc50f2affa4baa",
   "version": "85f440b80ef20d30ce5ad1bb863800aa9bf86655",
-  "diagnostic": "web-ota-disabled-after-video-studio-removal",
+  "diagnostic": "web-ota-disabled",
   "source_commit": "85f440b80ef20d30ce5ad1bb863800aa9bf86655",
   "message": "Web OTA disabled",
   "files": []
