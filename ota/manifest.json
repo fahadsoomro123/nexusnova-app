@@ -1,8 +1,8 @@
 {
   "schema": 2,
   "base": "3ceae1c01b69c94ec9e86d4fe2b3a12db5d2e634",
-  "version": "d6eb789c505d5d7a0292b519f3fb95ad3916d551",
-  "diagnostic": "video-studio-capcut-flagship-ota-v5-real-complete",
+  "version": "69b7d1f9062f26dd61c1ca84c673bb72ed604ac450a0ee8af23f2fbf6456964c",
+  "diagnostic": "video-studio-capcut-flagship-ota-v5-force-refresh",
   "source_commit": "d6eb789c505d5d7a0292b519f3fb95ad3916d551",
   "message": "AI Video Studio CapCut Flagship V5 update",
   "files": [
