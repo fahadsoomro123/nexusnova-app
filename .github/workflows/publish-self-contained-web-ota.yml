@@ -65,9 +65,17 @@ jobs:
           if total > 60 * 1024 * 1024:
               raise SystemExit(f'OTA payload too large: {total} bytes')
 
+          apk_manifest_url = f"https://raw.githubusercontent.com/{os.environ['GITHUB_REPOSITORY']}/apk-builds/ota-bootstrap-safe/manifest.json?nonce={os.environ['GITHUB_SHA']}"
+          import urllib.request
+          with urllib.request.urlopen(apk_manifest_url, timeout=20) as response:
+              apk_manifest = json.loads(response.read().decode('utf-8'))
+          base = str(apk_manifest.get('sourceCommit', '')).strip().lower()
+          if not __import__('re').fullmatch(r'[0-9a-f]{40}', base):
+              raise SystemExit(f'Invalid published APK baseline: {base}')
+
           manifest = {
               'schema': 2,
-              'base': '28ad58de566e42621dad6198aa01be885ccc9769',
+              'base': base,
               'version': os.environ['GITHUB_SHA'],
               'diagnostic': 'self-contained-fresh-rebuild-web-ota',
               'source_commit': os.environ['GITHUB_SHA'],
@@ -102,21 +110,21 @@ jobs:
 
           root = Path('ota/files')
 
-          def exists_local(ref: str) -> bool:
+          def exists_local(ref: str, base_dir: Path) -> bool:
               ref = ref.split('?', 1)[0].split('#', 1)[0]
               if not ref.startswith('./'):
                   return True
-              return (root / ref[2:]).is_file()
+              return (base_dir / ref[2:]).is_file()
 
           html = (root / 'index.html').read_text(encoding='utf-8')
           refs = re.findall(r'''(?:src|href)=["'](\./[^"']+)["']''', html)
-          missing = [r for r in refs if not exists_local(r)]
+          missing = [r for r in refs if not exists_local(r, root)]
           if missing:
               raise SystemExit('Missing index.html runtime refs:\n' + '\n'.join(missing))
 
           main = (root / 'src/main.js').read_text(encoding='utf-8')
           imports = re.findall(r'''(?:import\s+(?:[^\'"\n]+?\s+from\s+)?|import\()\s*["']([^"']+)["']''', main)
-          missing_imports = [r for r in imports if r.startswith('.') and not exists_local(r)]
+          missing_imports = [r for r in imports if r.startswith('.') and not exists_local(r, root / 'src')]
           if missing_imports:
               raise SystemExit('Missing src/main.js runtime imports:\n' + '\n'.join(missing_imports))
           print('ENTRYPOINT_DEPENDENCIES=PASS')
