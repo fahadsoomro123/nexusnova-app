@@ -62,6 +62,8 @@ jobs:
           const browser = await chromium.launch({ headless: true });
           const context = await browser.newContext({ viewport: { width: 390, height: 844 }, acceptDownloads: true });
           const page = await context.newPage();
+          page.on('pageerror', error => console.log('[VIDEO-PAGEERROR]', error.stack || error.message));
+          page.on('console', message => console.log('[VIDEO-CONSOLE]', message.type(), message.text()));
           const url = process.env.BASE_URL;
 
           async function assertNoScroll(label) {
