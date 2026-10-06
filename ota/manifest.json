@@ -2,9 +2,9 @@
   "schema": 2,
   "base": "3ceae1c01b69c94ec9e86d4fe2b3a12db5d2e634",
   "version": "69b7d1f9062f26dd61c1ca84c673bb72ed604ac450a0ee8af23f2fbf6456964c",
-  "diagnostic": "video-studio-capcut-flagship-ota-v5-force-refresh",
+  "diagnostic": "video-studio-capcut-flagship-ota-v5-nv99",
   "source_commit": "d6eb789c505d5d7a0292b519f3fb95ad3916d551",
-  "message": "AI Video Studio CapCut Flagship V5 update",
+  "message": "AI Video Studio Flagship V5 cache-bust nv99",
   "files": [
     {
       "path": "index.html",
@@ -18,8 +18,8 @@
     },
     {
       "path": "src/features/apps/app-screen.js",
-      "sha256": "6973eaaf11d29d275b11df9521482ff44bf4395ce032e20dcb570d10103674bc",
-      "size": 22257
+      "sha256": "ebeb6f8183519d2fc6d0258cdb51c41e6971b66cb3f6a0eab3a5ca42bec7e4ee",
+      "size": 22272
     },
     {
       "path": "src/features/apps/ai-video-studio-flagship.js",
