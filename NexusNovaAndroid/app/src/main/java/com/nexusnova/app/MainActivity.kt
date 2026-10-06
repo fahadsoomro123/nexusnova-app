@@ -525,10 +525,6 @@ class MainActivity : AppCompatActivity() {
                     .map { it.trim() }
                     .filter { it.isNotEmpty() }
                     .toSet()
-                    value.startsWith("video/", ignoreCase = true) ||
-                        value.startsWith("image/", ignoreCase = true) ||
-                        value.startsWith("audio/", ignoreCase = true)
-                }
 
                 return try {
                     fileChooserLauncher.launch(params.createIntent())
