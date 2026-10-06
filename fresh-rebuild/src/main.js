@@ -337,9 +337,8 @@ function waitForBootSplashMinimum() {
 async function boot() {
   renderCinematicSplash('boot');
   await waitForNativeBuildInfo();
-  void globalOtaUpdater.checkAndNotify().catch(error => {
-    console.warn('[NexusNova OTA] startup check skipped:', error);
-  });
+  // AI Video Studio uses the native web-OTA popup path.
+  // Do not auto-open the separate full-APK NexusNova updater at startup.
   const user = await authService.waitForUser();
   await waitForBootSplashMinimum();
   if (!user) {
