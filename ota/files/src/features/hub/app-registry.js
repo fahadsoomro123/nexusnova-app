@@ -26,7 +26,6 @@ export const novaApps = Object.freeze([
   { id: 'nova-track', name: 'Nova Track', category: 'Live & Local', icon: 'track', description: 'Legacy route into Nova Drive history and analytics' },
 
   { id: 'ai-photo-studio', name: 'AI Photo Studio', category: 'NexusNova Pro Studio', icon: 'ai', description: '3D pro photo editor, AI visual director and premium generation gateway' },
-  { id: 'ai-video-studio', name: 'AI Video Studio', category: 'NexusNova Pro Studio', icon: 'entertainment', description: 'Local trim, color, render, AI director and premium video gateway' },
   { id: 'pdf-pro', name: 'PDF Pro', category: 'NexusNova Pro Studio', icon: 'document', description: 'Local merge, split, organize and image-to-PDF document engine' },
   { id: 'ai-transcribe', name: 'AI Transcribe', category: 'NexusNova Pro Studio', icon: 'chat', description: 'Audio/video transcription, summaries and translation workspace' },
   { id: 'ai-writing-pro', name: 'AI Writing Pro', category: 'NexusNova Pro Studio', icon: 'notes', description: 'Compose, rewrite, inspect and export polished writing' },
