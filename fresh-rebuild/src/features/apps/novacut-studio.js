@@ -1451,8 +1451,7 @@ export class NovaCutStudioInteractions {
     const viewportX =
       laneRect.left -
       timelineRect.left +
-      contentX -
-      this.timeline.scrollLeft;
+      contentX;
 
     const boundedX =
       clamp(
