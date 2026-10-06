@@ -1,10 +1,10 @@
 {
   "schema": 2,
   "base": "3ceae1c01b69c94ec9e86d4fe2b3a12db5d2e634",
-  "version": "dd2dd1bbb68660e333fa1277e6b6b77ebd4b1e3d",
-  "diagnostic": "video-studio-capcut-flagship-ota-v4",
-  "source_commit": "dd2dd1bbb68660e333fa1277e6b6b77ebd4b1e3d",
-  "message": "AI Video Studio flagship editor update",
+  "version": "3e4b2f3e10fb15f8198f754c302e793b60d59cbd",
+  "diagnostic": "video-studio-flagship-v2-ota-final",
+  "source_commit": "3e4b2f3e10fb15f8198f754c302e793b60d59cbd",
+  "message": "AI Video Studio Flagship V2 update",
   "files": [
     {
       "path": "index.html",
@@ -13,26 +13,11 @@
     },
     {
       "path": "src/features/apps/ai-video-studio-flagship.js",
-      "sha256": "d69e0a902bfdc0b316fd2b856973386ca8fadd56d27cec74aeb5717405847871",
-      "size": 64716
-    },
-    {
-      "path": "src/features/apps/nn-video-studio-upgrade.js",
-      "sha256": "ba343d53e5963f394ff0b32e97cbc170440cf4e269bd51c1dec833408502b1b7",
-      "size": 14103
-    },
-    {
-      "path": "assets/js/nn-video-studio-core.js",
-      "sha256": "b7e78589f79b88998c275b328c7e23ed0df4202467ad905206ccd5b8ffbda3fc",
-      "size": 12499
-    },
-    {
-      "path": "assets/styles/nn-video-studio.css",
-      "sha256": "63005e60bde3904b1df483c6ba6d2125d43c8ea7634d7b57d3784adef618f12c",
-      "size": 4801
+      "sha256": "774017c60d005e3b33f9a240978d50982f98b6fdc14b6a144578102a48a1a311",
+      "size": 85052
     }
   ],
   "video_release": "flagship-video-studio-20260922",
-  "ota_badge": "OTA-VIDEO-STUDIO",
+  "ota_badge": "OTA-VIDEO-STUDIO-V2",
   "ota_badge_status": "ACTIVE"
 }
