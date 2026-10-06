@@ -28,7 +28,7 @@ let appScreenModulePromise = null;
 let appScreenModule = null;
 function loadAppScreenModule() {
   if (!appScreenModulePromise) {
-    appScreenModulePromise = import('./features/apps/app-screen.js?ota=nv20').then(module => {
+    appScreenModulePromise = import('./features/apps/app-screen.js?ota=nv18').then(module => {
       appScreenModule = module;
       return module;
     }).catch(error => {
