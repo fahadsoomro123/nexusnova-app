@@ -5,6 +5,7 @@ import { renderAiTranscribeStudio } from './ai-transcribe-studio.js';
 import { renderAiWritingStudio } from './ai-writing-studio.js';
 import { renderDigitalSignStudio } from './digital-sign-studio.js';
 import { createNovaCutEngine } from './novacut-engine.js';
+import { createNovaCutStudioInteractions } from './novacut-studio.js';
 
 function renderNovaCut() {
   const root = document.createElement('div');
@@ -139,6 +140,7 @@ function renderNovaCut() {
   });
 
   root.__novaCutEngine = engine;
+  root.__novaCutInteractions = createNovaCutStudioInteractions(root, engine);
   return root;
 }
 
