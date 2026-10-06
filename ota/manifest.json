@@ -1,10 +1,10 @@
 {
   "schema": 2,
   "base": "3ceae1c01b69c94ec9e86d4fe2b3a12db5d2e634",
-  "version": "f537a5c515b691d8e40910a2ec1243874785ae49",
-  "diagnostic": "video-studio-capcut-flagship-ota-v3-restored",
-  "source_commit": "f537a5c515b691d8e40910a2ec1243874785ae49",
-  "message": "AI Video Studio CapCut Flagship V3 update",
+  "version": "ca16371533923f5f3f960d430d83ac5ca032bd9a",
+  "diagnostic": "video-studio-capcut-flagship-ota-v4-cachefix",
+  "source_commit": "ca16371533923f5f3f960d430d83ac5ca032bd9a",
+  "message": "AI Video Studio CapCut Flagship V4 cache-fixed update",
   "files": [
     {
       "path": "index.html",
@@ -13,8 +13,13 @@
     },
     {
       "path": "src/main.js",
-      "sha256": "bc4f77a6a801ac48e7e21c7129cd3c3b9ac20c98de32ec2e0d104710d99b43bc",
+      "sha256": "345bdd2f3a5af45d3c97b59101a808e0152487aca98a32932bbc39173ba228c3",
       "size": 12900
+    },
+    {
+      "path": "src/features/apps/app-screen.js",
+      "sha256": "1c9aae57ea4c8f95473696a0d45913d1f3ad42f5d6b54c0f4e6ac5dbaf0cdd37",
+      "size": 22257
     },
     {
       "path": "src/features/apps/ai-video-studio-flagship.js",
