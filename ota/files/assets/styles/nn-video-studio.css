@@ -1,0 +1,165 @@
+/* NexusNova AI Video Studio additive timeline layer. */
+.nn-video-editor{
+  --nn-brand-primary:#6d28d9;
+  --nn-surface:#1f2937;
+  --nn-border:#374151;
+  --nn-text:#f9fafb;
+  --nn-muted:#cbd5e1;
+  --nn-track:#111827;
+  --nn-track-alt:#172033;
+  position:relative;
+  display:grid;
+  grid-template-columns:62px minmax(0,1fr);
+  grid-template-rows:28px repeat(3,minmax(34px,1fr));
+  min-width:100%;
+  min-height:132px;
+  height:100%;
+  overflow:hidden;
+  border:1px solid var(--nn-border);
+  border-radius:12px;
+  background:var(--nn-surface);
+  color:var(--nn-text);
+  box-sizing:border-box;
+  user-select:none;
+  touch-action:none;
+  isolation:isolate;
+}
+.nn-video-editor .nn-timeline__ruler{
+  grid-column:2;
+  grid-row:1;
+  position:relative;
+  overflow:hidden;
+  border-bottom:1px solid var(--nn-border);
+  background:#111827;
+  color:var(--nn-muted);
+  font-size:8px;
+}
+.nn-video-editor .nn-timeline__ruler span{position:absolute;top:7px;transform:translateX(-50%);white-space:nowrap;pointer-events:none}
+.nn-video-editor .nn-track__label{
+  display:flex;
+  align-items:center;
+  padding:0 6px;
+  border-right:1px solid var(--nn-border);
+  border-bottom:1px solid var(--nn-border);
+  background:#172033;
+  color:var(--nn-muted);
+  font-size:8px;
+  font-weight:800;
+}
+.nn-video-editor .nn-track__row{
+  position:relative;
+  overflow:hidden;
+  border-bottom:1px solid var(--nn-border);
+  background:var(--nn-track);
+}
+.nn-video-editor .nn-track__row:nth-of-type(even){background:var(--nn-track-alt)}
+.nn-video-editor .nn-clip__body{
+  position:absolute;
+  top:5px;
+  bottom:5px;
+  min-width:8px;
+  border:1px solid rgba(255,255,255,.18);
+  border-radius:7px;
+  background:linear-gradient(135deg,var(--nn-brand-primary),#8b5cf6);
+  color:var(--nn-text);
+  display:flex;
+  align-items:center;
+  overflow:hidden;
+  cursor:grab;
+  box-shadow:0 3px 10px rgba(0,0,0,.22);
+  touch-action:none;
+}
+.nn-video-editor .nn-clip__body.is-selected{outline:2px solid #c4b5fd;outline-offset:-1px}
+.nn-video-editor .nn-clip__body:active{cursor:grabbing}
+.nn-video-editor .nn-clip__label{
+  min-width:0;
+  padding:0 6px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  font-size:8px;
+  font-weight:800;
+  pointer-events:none;
+}
+.nn-video-editor .nn-clip__handle{
+  position:absolute;
+  top:0;
+  bottom:0;
+  width:12px;
+  z-index:2;
+  cursor:ew-resize;
+  touch-action:none;
+}
+.nn-video-editor .nn-clip__handle[data-edge="left"]{left:0}
+.nn-video-editor .nn-clip__handle[data-edge="right"]{right:0}
+.nn-video-editor .nn-clip__handle::after{
+  content:"";
+  position:absolute;
+  top:25%;
+  bottom:25%;
+  width:2px;
+  left:5px;
+  border-radius:2px;
+  background:#fff;
+  opacity:.85;
+}
+.nn-video-editor .nn-playhead{
+  position:absolute;
+  top:0;
+  bottom:0;
+  width:2px;
+  z-index:20;
+  background:#fff;
+  box-shadow:0 0 0 1px rgba(109,40,217,.55),0 0 10px rgba(255,255,255,.65);
+  pointer-events:none;
+}
+.nn-video-editor .nn-playhead::before{
+  content:"";
+  position:absolute;
+  top:0;
+  left:50%;
+  width:9px;
+  height:9px;
+  transform:translate(-50%,0) rotate(45deg);
+  background:var(--nn-brand-primary);
+}
+.nn-video-editor .nn-video-editor__status{
+  position:absolute;
+  left:5px;
+  right:5px;
+  bottom:4px;
+  z-index:25;
+  padding:3px 6px;
+  border-radius:5px;
+  background:rgba(15,23,42,.88);
+  color:var(--nn-muted);
+  font-size:7px;
+  pointer-events:none;
+}
+.nn-video-editor .nn-video-editor__scroll{
+  grid-column:2;
+  grid-row:1 / -1;
+  position:absolute;
+  inset:0;
+  overflow:auto;
+  z-index:0;
+  scrollbar-width:none;
+}
+.nn-video-editor .nn-video-editor__scroll::-webkit-scrollbar{display:none}
+.nn-video-editor .nn-video-editor__content{position:relative;min-height:132px}
+.nn-video-editor .nn-video-editor__tracks{position:absolute;left:0;right:0;top:28px;height:104px}
+.nn-video-editor .nn-video-editor__track-labels{position:absolute;left:0;top:28px;width:62px;height:104px;z-index:4}
+.nn-video-editor .nn-video-editor__track-labels .nn-track__label{height:34.66px;box-sizing:border-box}
+.nn-video-editor .nn-video-editor__canvas{position:absolute;left:62px;right:0;top:0;height:132px}
+.nn-video-editor .nn-video-editor__canvas .nn-timeline__ruler{height:28px}
+.nn-video-editor .nn-video-editor__canvas .nn-track__row{height:34.66px}
+@media(max-width:520px){
+  .nn-video-editor{grid-template-columns:52px minmax(0,1fr);min-height:118px}
+  .nn-video-editor .nn-video-editor__track-labels{width:52px}
+  .nn-video-editor .nn-video-editor__canvas{left:52px}
+  .nn-video-editor .nn-video-editor__tracks{height:90px}
+  .nn-video-editor .nn-video-editor__track-labels .nn-track__label{height:30px}
+  .nn-video-editor .nn-video-editor__canvas .nn-track__row{height:30px}
+  .nn-video-editor .nn-video-editor__content{min-height:118px}
+  .nn-video-editor .nn-video-editor__tracks{top:28px}
+}
