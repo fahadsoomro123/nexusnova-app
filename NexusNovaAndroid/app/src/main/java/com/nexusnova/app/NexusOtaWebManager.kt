@@ -163,6 +163,7 @@ class NexusOtaWebManager(context: Context) {
             MAX_MANIFEST_BYTES
         )
         val manifest = JSONObject(manifestText)
+        if (!manifest.optBoolean("enabled", true)) return null
         if (manifest.optInt("schema", 0) != MANIFEST_SCHEMA) {
             throw IOException("Unsupported OTA manifest schema")
         }
@@ -193,7 +194,7 @@ class NexusOtaWebManager(context: Context) {
         if (!hasIndex) throw IOException("OTA entry point missing")
         return PendingUpdate(
             version = version,
-            message = manifest.optString("message", "AI Video Studio update available").trim(),
+            message = manifest.optString("message", "Web update available").trim(),
             fileCount = filesJson.length(),
             totalBytes = totalBytes
         )
@@ -210,6 +211,7 @@ class NexusOtaWebManager(context: Context) {
             MAX_MANIFEST_BYTES
         )
         val manifest = JSONObject(manifestText)
+        if (!manifest.optBoolean("enabled", true)) return null
         if (manifest.optInt("schema", 0) != MANIFEST_SCHEMA) {
             throw IOException("Unsupported OTA manifest schema")
         }
