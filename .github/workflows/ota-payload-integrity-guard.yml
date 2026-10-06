@@ -1,0 +1,81 @@
+name: NexusNova OTA Payload Integrity Guard
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'ota/**'
+      - '.github/workflows/ota-payload-integrity-guard.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  integrity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Verify manifest matches payload byte-for-byte
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import json
+          import re
+          import urllib.request
+          import os
+
+          manifest_path = Path('ota/manifest.json')
+          root = Path('ota/files')
+          manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+
+          assert manifest.get('schema') == 2, 'unsupported OTA schema'
+          assert re.fullmatch(r'[0-9a-f]{40}', manifest.get('base', '')), 'invalid OTA base'
+          version = manifest.get('version', '')
+          source = manifest.get('source_commit', '')
+          assert re.fullmatch(r'[0-9a-f]{40}', version), 'invalid OTA version'
+          assert source == version, 'version/source_commit drift'
+
+          entries = manifest.get('files')
+          assert isinstance(entries, list) and entries, 'OTA file list missing'
+
+          seen = set()
+          total = 0
+          repo = os.environ['GITHUB_REPOSITORY']
+          for entry in entries:
+              path = entry.get('path', '')
+              declared_sha = entry.get('sha256', '')
+              declared_size = entry.get('size')
+              assert path not in seen, f'duplicate OTA path: {path}'
+              seen.add(path)
+              assert path and not path.startswith(('/', '\\'))
+              assert '..' not in Path(path).parts
+              assert re.fullmatch(r'[0-9a-f]{64}', declared_sha), f'invalid SHA: {path}'
+              assert isinstance(declared_size, int) and declared_size >= 0, f'invalid size: {path}'
+
+              local = root / path
+              assert local.is_file(), f'manifest file missing: {path}'
+              data = local.read_bytes()
+              actual_size = len(data)
+              actual_sha = hashlib.sha256(data).hexdigest()
+              assert actual_size == declared_size, f'local size mismatch: {path}: {actual_size} != {declared_size}'
+              assert actual_sha == declared_sha, f'local SHA mismatch: {path}: {actual_sha} != {declared_sha}'
+              total += actual_size
+
+              url = f'https://raw.githubusercontent.com/{repo}/main/ota/files/{path}'
+              remote = urllib.request.urlopen(url, timeout=20).read()
+              assert len(remote) == declared_size, f'remote size mismatch: {path}: {len(remote)} != {declared_size}'
+              assert hashlib.sha256(remote).hexdigest() == declared_sha, f'remote SHA mismatch: {path}'
+
+          assert total <= 60 * 1024 * 1024, f'OTA total too large: {total}'
+          assert 'index.html' in seen, 'OTA entry point missing'
+          print(f'OTA_MANIFEST_INTEGRITY=PASS files={len(entries)} bytes={total} version={version} base={manifest["base"]}')
+          PY
