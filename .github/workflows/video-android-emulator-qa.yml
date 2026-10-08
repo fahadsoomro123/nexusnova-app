@@ -104,9 +104,32 @@ jobs:
           emulator-boot-timeout: 300
           working-directory: NexusNovaAndroid
           script: |
-            set -u
-            adb install -r app/build/outputs/apk/debug/app-debug.apk
-            adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+            set -eu
+            adb wait-for-device
+            adb shell pm list packages | grep -q '^package:com.nexusnova.app
+            test -s "$GITHUB_WORKSPACE/qa/fixtures/video-studio-video-qa.webm"
+
+            adb shell am instrument -w -r -e class com.nexusnova.app.VideoStudioEmulatorQaTest#videoStudioFullscreenScopedDockAndNativeMediaPicker com.nexusnova.app.test/androidx.test.runner.AndroidJUnitRunner
+            status=$?
+
+            mkdir -p "$GITHUB_WORKSPACE/qa/android-emulator-results"
+            adb logcat -d -v threadtime > "$GITHUB_WORKSPACE/qa/android-emulator-results/logcat.txt" || true
+            adb shell ls -la /sdcard/Android/data/com.nexusnova.app/files/Pictures/ || true
+            adb pull /sdcard/Android/data/com.nexusnova.app/files/Pictures "$GITHUB_WORKSPACE/qa/android-emulator-results/" || true
+
+            exit $status
+
+
+      - name: Upload Android emulator evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: video-studio-android-emulator-evidence
+          path: qa/android-emulator-results/
+          if-no-files-found: warn
+ && adb uninstall com.nexusnova.app || true
+            adb install app/build/outputs/apk/debug/app-debug.apk
+            adb install app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
             test -s "$GITHUB_WORKSPACE/qa/fixtures/video-studio-video-qa.webm"
 
             adb shell am instrument -w -r -e class com.nexusnova.app.VideoStudioEmulatorQaTest#videoStudioFullscreenScopedDockAndNativeMediaPicker com.nexusnova.app.test/androidx.test.runner.AndroidJUnitRunner
