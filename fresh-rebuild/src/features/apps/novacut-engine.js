@@ -1116,6 +1116,20 @@ export class NovaCutEngine {
     return result;
   }
 
+  cycleRatio() {
+    const ratios = Object.keys(RATIO_PRESETS);
+    const currentIndex = Math.max(0, ratios.indexOf(this.aspectRatio));
+    const nextRatio = ratios[(currentIndex + 1) % ratios.length];
+    this.aspectRatio = nextRatio;
+    this.events.emit("ratio", {
+      ratio: nextRatio,
+      size: RATIO_PRESETS[nextRatio]
+    });
+    this.setStatus(nextRatio);
+    this.refresh();
+    return nextRatio;
+  }
+
   setPlayhead(timestamp) {
     this.currentTimestamp = clamp(timestamp, 0, this.registry.durationMs());
     const current = this.root?.querySelector("[data-role='current-time']");
