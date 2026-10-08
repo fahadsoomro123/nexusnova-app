@@ -99,7 +99,7 @@ const context = {
   SharedArrayBuffer: class SharedArrayBuffer {}
 };
 
-vm.runInNewContext(source, context, { filename: "novacut-engine.js" });
+vm.runInNewContext(source + "\nthis.NovaCutEngine = NovaCutEngine;\nthis.NovaCutCanvasPreview = NovaCutCanvasPreview;", context, { filename: "novacut-engine.js" });
 
 test("resolve() reuses one in-flight decoder per clip", async () => {
   const engine = new context.NovaCutEngine();
