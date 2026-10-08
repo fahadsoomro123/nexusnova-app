@@ -206,6 +206,8 @@ export class NovaCutCanvasPreview {
     this.sourceCtx = this.sourceCanvas.getContext("2d");
     this.media = new Map();
     this.pending = new Map();
+    this.audioMedia = new Map();
+    this.audioPending = new Map();
     this.urls = new Map();
     this.stickerMedia = new Map();
     this.stickerPending = new Map();
@@ -311,6 +313,44 @@ export class NovaCutCanvasPreview {
     }
   }
 
+  async resolveAudio(segment) {
+    if (!segment?.file) return null;
+    if (this.audioMedia.has(segment.id)) return this.audioMedia.get(segment.id);
+    if (this.audioPending.has(segment.id)) return this.audioPending.get(segment.id);
+    const task = (async () => {
+      const audio = document.createElement("audio");
+      audio.preload = "auto";
+      audio.src = typeof segment.file === "string" ? segment.file : this.objectUrl(segment.file);
+      await new Promise((resolve, reject) => {
+        if (audio.readyState >= 2) return resolve();
+        const timer = window.setTimeout(() => {
+          cleanup();
+          reject(new Error("NovaCut audio decoder timed out."));
+        }, 15000);
+        const cleanup = () => {
+          clearTimeout(timer);
+          audio.removeEventListener("loadeddata", onReady);
+          audio.removeEventListener("canplay", onReady);
+          audio.removeEventListener("error", onError);
+        };
+        const onReady = () => { cleanup(); resolve(); };
+        const onError = () => { cleanup(); reject(new Error("NovaCut audio decoder rejected the media.")); };
+        audio.addEventListener("loadeddata", onReady, { once: true });
+        audio.addEventListener("canplay", onReady, { once: true });
+        audio.addEventListener("error", onError, { once: true });
+        try { audio.load(); } catch (error) { cleanup(); reject(error); }
+      });
+      this.audioMedia.set(segment.id, audio);
+      return audio;
+    })();
+    this.audioPending.set(segment.id, task);
+    try {
+      return await task;
+    } finally {
+      this.audioPending.delete(segment.id);
+    }
+  }
+
   async seek(timestamp) {
     const active = this.engine.getActiveVideoClips();
     await Promise.all(active.map(async (clip) => {
@@ -324,6 +364,20 @@ export class NovaCutCanvasPreview {
       try {
         if (Math.abs(media.currentTime - target) > 0.025) media.currentTime = target;
       } catch (_) {}
+    }));
+
+    const activeAudio = this.engine.registry.audioTracks.filter((segment) =>
+      timestamp >= segment.startTime && timestamp < segment.startTime + segment.duration
+    );
+    await Promise.all(activeAudio.map(async (segment) => {
+      const audio = await this.resolveAudio(segment).catch((error) => {
+        this.engine.reportError("audio-decode", error);
+        return null;
+      });
+      if (!audio) return;
+      const local = Math.max(0, timestamp - segment.startTime);
+      try { audio.currentTime = msToSec(local); } catch (_) {}
+      audio.volume = clamp(segment.volume ?? 1, 0, 1);
     }));
   }
 
@@ -342,6 +396,22 @@ export class NovaCutCanvasPreview {
         throw new Error("NovaCut could not start Android/WebView video playback: " + (error?.message || error));
       }
     }));
+
+    const activeAudio = this.engine.registry.audioTracks.filter((segment) =>
+      this.engine.currentTimestamp >= segment.startTime &&
+      this.engine.currentTimestamp < segment.startTime + segment.duration
+    );
+    await Promise.all(activeAudio.map(async (segment) => {
+      const audio = await this.resolveAudio(segment);
+      const local = Math.max(0, this.engine.currentTimestamp - segment.startTime);
+      try {
+        if (Math.abs(audio.currentTime - msToSec(local)) > 0.12) audio.currentTime = msToSec(local);
+        audio.volume = clamp(segment.volume ?? 1, 0, 1);
+        await audio.play();
+      } catch (error) {
+        throw new Error("NovaCut could not start audio playback: " + (error?.message || error));
+      }
+    }));
   }
 
   pauseAll() {
@@ -349,6 +419,9 @@ export class NovaCutCanvasPreview {
       if (media instanceof HTMLVideoElement) {
         try { media.pause(); } catch (_) {}
       }
+    });
+    this.audioMedia.forEach((audio) => {
+      try { audio.pause(); } catch (_) {}
     });
   }
 
@@ -361,6 +434,15 @@ export class NovaCutCanvasPreview {
     }
     for (const id of Array.from(this.pending.keys())) {
       if (!live.has(id)) this.pending.delete(id);
+    }
+    const liveAudio = new Set(this.engine.registry.audioTracks.map((segment) => segment.id));
+    for (const [id, audio] of this.audioMedia.entries()) {
+      if (liveAudio.has(id)) continue;
+      try { audio.pause?.(); audio.removeAttribute?.("src"); audio.load?.(); } catch (_) {}
+      this.audioMedia.delete(id);
+    }
+    for (const id of Array.from(this.audioPending.keys())) {
+      if (!liveAudio.has(id)) this.audioPending.delete(id);
     }
   }
 
@@ -398,6 +480,15 @@ export class NovaCutCanvasPreview {
     for (const [id, media] of this.media.entries()) {
       if (!activeIds.has(id) && media instanceof HTMLVideoElement) {
         try { media.pause(); } catch (_) {}
+      }
+    }
+    for (const [id, audio] of this.audioMedia.entries()) {
+      if (!this.engine.registry.audioTracks.some((segment) =>
+        segment.id === id &&
+        now >= segment.startTime &&
+        now < segment.startTime + segment.duration
+      )) {
+        try { audio.pause(); } catch (_) {}
       }
     }
     for (const clip of active) {
@@ -450,6 +541,19 @@ export class NovaCutCanvasPreview {
     const stickers = this.engine.registry.overlayTracks
       .filter((item) => now >= item.startTime && now < item.startTime + item.duration)
       .sort((a, b) => Number(a.zIndex || 0) - Number(b.zIndex || 0));
+    const activeAudio = this.engine.registry.audioTracks.filter((segment) =>
+      now >= segment.startTime && now < segment.startTime + segment.duration
+    );
+    if (this.engine.isPlaying) {
+      activeAudio.forEach((segment) => {
+        const audio = this.audioMedia.get(segment.id);
+        if (audio) {
+          audio.volume = clamp(segment.volume ?? 1, 0, 1);
+          if (audio.paused) audio.play().catch(() => {});
+        }
+      });
+    }
+
     for (const sticker of stickers) this.drawSticker(ctx, sticker, width, height);
 
     const texts = this.engine.registry.textTracks
@@ -517,6 +621,11 @@ export class NovaCutCanvasPreview {
     this.urls.forEach((url) => { try { URL.revokeObjectURL(url); } catch (_) {} });
     this.media.clear();
     this.pending.clear();
+    this.audioMedia.forEach((audio) => {
+      try { audio.pause(); audio.removeAttribute("src"); audio.load(); } catch (_) {}
+    });
+    this.audioMedia.clear();
+    this.audioPending.clear();
     this.stickerMedia.clear();
     this.stickerPending.clear();
     this.urls.clear();
