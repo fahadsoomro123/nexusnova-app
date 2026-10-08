@@ -89,10 +89,10 @@ check("media injected status path", () => assert(has(suite, "status.textContent 
 check("decode error status path", () => assert(has(suite, "status.textContent = 'Decode error'"), "decode error UI missing"));
 
 // 56-65: interaction/history correctness
-check("pointer interaction present", () => assert(has(studio, "pointerdown"), "pointerdown missing"));
-check("pointer move present", () => assert(has(studio, "pointermove"), "pointermove missing"));
-check("pointer up present", () => assert(has(studio, "pointerup"), "pointerup missing"));
-check("pointer cancel present", () => assert(has(studio, "pointercancel"), "pointercancel missing"));
+check("pointer interaction present", () => assert(has(engine, "pointerdown"), "pointerdown missing"));
+check("pointer move present", () => assert(has(engine, "pointermove"), "pointermove missing"));
+check("pointer up present", () => assert(has(engine, "pointerup"), "pointerup missing"));
+check("pointer cancel present", () => assert(has(engine, "pointercancel"), "pointercancel missing"));
 check("history transaction begin present", () => assert(has(studio, "beginHistoryTransaction"), "history begin wiring missing"));
 check("history transaction commit present", () => assert(has(studio, "commitHistoryTransaction"), "history commit wiring missing"));
 check("history transaction cancel present", () => assert(has(studio, "cancelHistoryTransaction"), "history cancel wiring missing"));
@@ -101,15 +101,15 @@ check("history undo present", () => assert(has(history, "undo()"), "history undo
 check("history redo present", () => assert(has(history, "redo()"), "history redo missing"));
 
 // 66-75: effects/overlays
-check("blur effect supported", () => assert(has(effects, '"blur"'), "blur missing"));
-check("mosaic effect supported", () => assert(has(effects, '"mosaic"'), "mosaic missing"));
-check("scramble effect supported", () => assert(has(effects, '"scramble"'), "scramble missing"));
-check("censor effect supported", () => assert(has(effects, '"censor"'), "censor missing"));
+check("blur effect supported", () => assert(/id:\s*'blur'/.test(effects), "blur missing"));
+check("mosaic effect supported", () => assert(/id:\s*'mosaic'/.test(effects), "mosaic missing"));
+check("scramble effect supported", () => assert(/id:\s*'scramble'/.test(effects), "scramble missing"));
+check("censor effect supported", () => assert(/id:\s*'censor'/.test(effects), "censor missing"));
 check("effect draw API present", () => assert(has(effects, "export function drawNovaCutEffect"), "effect draw missing"));
 check("effect normalization present", () => assert(has(effects, "export function normalizeNovaCutEffect"), "effect normalize missing"));
 check("local sticker catalog present", () => assert(has(overlays, "export const NOVACUT_STICKERS"), "sticker catalog missing"));
 check("local sticker asset resolver present", () => assert(has(overlays, "export function stickerAssetUrl"), "sticker resolver missing"));
-check("sticker loader present", () => assert(has(overlays, "export function loadNovaCutImageAsset"), "sticker loader missing"));
+check("sticker loader present", () => assert(/export\s+async\s+function\s+loadNovaCutImageAsset/.test(overlays), "sticker loader missing"));
 check("no remote sticker CDN", () => assert(!/https?:\/\/[^\n]*sticker/i.test(overlays), "remote sticker CDN detected"));
 
 // 76-90: Android picker implementation
@@ -141,7 +141,7 @@ check("FileProvider remains present", () => assert(has(manifest, "androidx.core.
 check("signed workflow pins current production version", () => assert(has(workflow, "versionCode = 27010028"), "signed workflow versionCode stale"));
 check("signed workflow pins current version name", () => assert(has(workflow, 'versionName = "1.0.45-ota-30"'), "signed workflow versionName stale"));
 check("signed workflow packages ota-30 artifact", () => assert(has(workflow, "NexusNova-v1.0.45-ota-30-SIGNED.apk"), "ota-30 artifact missing"));
-check("signed workflow validates signature before packaging", () => assert(has(workflow, 'apksigner verify --verbose --print-certs'), "signature verification missing"));
+check("signed workflow validates signature before packaging", () => assert(/verify --verbose --print-certs/.test(workflow), "signature verification missing"));
 
 assert(tests.length === 100, "Expected exactly 100 QA checks, got " + tests.length);
 
