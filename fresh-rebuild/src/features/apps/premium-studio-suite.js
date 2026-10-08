@@ -30,7 +30,9 @@ const SVG = Object.freeze({
   text: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6h14M12 6v13M9 19h6"></path></svg>',
   ratio: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="6" width="16" height="12" rx="2"></rect><path d="M8 15h3M13 9h3"></path></svg>',
   more: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="12" r="1.5" fill="currentColor" stroke="none"></circle><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"></circle><circle cx="18" cy="12" r="1.5" fill="currentColor" stroke="none"></circle></svg>',
-  export: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10M8 10l4 4 4-4M5 18h14"></path></svg>'
+  export: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10M8 10l4 4 4-4M5 18h14"></path></svg>',
+  duplicate: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"></rect><path d="M9 6V4h9a2 2 0 0 1 2 2v9h-2"></path></svg>',
+  trash: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M9 7V4h6v3M8 10v8M12 10v8M16 10v8M7 20h10"></path></svg>'
 });
 
 function escapeHtml(value) {
@@ -138,10 +140,18 @@ function renderNovaCut() {
             <span class="nx-novacut__eyebrow">TIMELINE</span>
             <strong>Project sequence</strong>
           </div>
-          <button type="button" class="nx-novacut__add-button" data-action="media">
-            <span>${SVG.media}</span>
-            Add media
-          </button>
+          <div class="nx-novacut__timeline-head-actions">
+            <button type="button" class="nx-novacut__icon-button nx-novacut__timeline-action" data-action="duplicate" aria-label="Duplicate selected clip" title="Duplicate selected clip">
+              ${SVG.duplicate}
+            </button>
+            <button type="button" class="nx-novacut__icon-button nx-novacut__timeline-action" data-action="delete" aria-label="Delete selected clip" title="Delete selected clip">
+              ${SVG.trash}
+            </button>
+            <button type="button" class="nx-novacut__add-button" data-action="media">
+              <span>${SVG.media}</span>
+              Add media
+            </button>
+          </div>
         </div>
 
         <div class="nx-novacut__timeline" aria-label="Multi-track timeline">
@@ -225,6 +235,10 @@ function renderNovaCut() {
   const status = root.querySelector("[data-role='status']");
   const playButton = root.querySelector("[data-action='play']");
   const playIcon = root.querySelector("[data-role='play-icon']");
+  const undoButton = root.querySelector("[data-action='undo']");
+  const redoButton = root.querySelector("[data-action='redo']");
+  const duplicateButton = root.querySelector("[data-action='duplicate']");
+  const deleteButton = root.querySelector("[data-action='delete']");
 
   const engine = createNovaCutEngine({ root });
 
@@ -260,6 +274,8 @@ function renderNovaCut() {
   engine.on("text", renderTimeline);
   engine.on("split", renderTimeline);
   engine.on("selectionchange", renderTimeline);
+  engine.on("delete", renderTimeline);
+  engine.on("duplicate", renderTimeline);
 
   engine.on("playheadchange", ({ timestamp }) => {
     const duration = engine.registry.durationMs();
@@ -272,6 +288,19 @@ function renderNovaCut() {
   engine.on("statechange", (state) => {
     if (canvasEmpty) canvasEmpty.hidden = Boolean(state.videoTracks?.length);
     if (status) status.textContent = state.videoTracks?.length ? "Editing" : "Ready";
+    if (undoButton) undoButton.disabled = !state.canUndo;
+    if (redoButton) redoButton.disabled = !state.canRedo;
+    const hasSelection = Boolean(state.activeTrackId);
+    if (duplicateButton) duplicateButton.disabled = !hasSelection;
+    if (deleteButton) deleteButton.disabled = !hasSelection;
+  });
+
+  engine.on("historychange", (history) => {
+    if (undoButton) undoButton.disabled = !history.canUndo;
+    if (redoButton) redoButton.disabled = !history.canRedo;
+    const hasSelection = Boolean(engine.activeTrackId);
+    if (duplicateButton) duplicateButton.disabled = !hasSelection;
+    if (deleteButton) deleteButton.disabled = !hasSelection;
   });
 
   engine.on("ratio", ({ ratio }) => {
@@ -314,7 +343,7 @@ function renderNovaCut() {
       ready: "Ready",
       "decode-error": "Decode error"
     };
-    if (statusNode) statusNode.textContent = labels[status] || String(status);
+    if (status) status.textContent = labels[status] || String(status);
   });
 
   engine.on("playbackchange", ({ isPlaying }) => {
