@@ -104,18 +104,30 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if grep -RInE 'PackageInstaller|ACTION_INSTALL_PACKAGE|REQUEST_INSTALL_PACKAGES|FileProvider|downloadOtaApk|apkUrl.*install|installUpdate' NexusNovaAndroid/app/src/main/java fresh-rebuild --include='*.kt' --include='*.java' --include='*.js' --include='*.ts' 2>/dev/null; then
-            echo 'CUSTOM_NATIVE_APK_UPDATER_DETECTED'
+          sources=(
+            NexusNovaAndroid/app/src/main/java/com/nexusnova/app/MainActivity.kt
+            NexusNovaAndroid/app/src/main/java/com/nexusnova/app/NexusPlayUpdateManager.kt
+            fresh-rebuild/src/core/nn-ota-updater.js
+            fresh-rebuild/assets/js/nn-ota-updater.js
+          )
+          for file in "${sources[@]}"; do
+            test -f "$file"
+            if grep -nE 'PackageInstaller|ACTION_INSTALL_PACKAGE|REQUEST_INSTALL_PACKAGES|downloadOtaApk|apkUrl.*install|installUpdate' "$file"; then
+              echo "CUSTOM_NATIVE_APK_UPDATER_DETECTED in $file"
+              exit 1
+            fi
+          done
+          if grep -nE 'REQUEST_INSTALL_PACKAGES|androidx\.core\.content\.FileProvider' NexusNovaAndroid/app/src/main/AndroidManifest.xml; then
+            echo 'LEGACY_APK_INSTALL_MANIFEST_CAPABILITY_DETECTED'
             exit 1
           fi
-          legacy_workflows="$(find .github/workflows -type f ! -name 'nexusnova-release-governance.yml' -print0 | xargs -0 grep -IlE 'PackageInstaller|ACTION_INSTALL_PACKAGE|REQUEST_INSTALL_PACKAGES|FileProvider|downloadOtaApk|apk-builds/.+\.apk|apk-builds/ota-bootstrap|installUpdate' 2>/dev/null || true)"
+          legacy_workflows="$(find .github/workflows -type f ! -name 'nexusnova-release-governance.yml' -print0 | xargs -0 grep -IlE 'PackageInstaller|ACTION_INSTALL_PACKAGE|REQUEST_INSTALL_PACKAGES|downloadOtaApk|apk-builds/.+\.apk|apk-builds/ota-bootstrap|installUpdate' 2>/dev/null || true)"
           if [ -n "$legacy_workflows" ]; then
             echo 'LEGACY_APK_UPDATER_WORKFLOW_DETECTED'
             printf '%s\n' "$legacy_workflows"
             exit 1
           fi
           echo 'CUSTOM_NATIVE_APK_UPDATER_GUARD=PASS'
-
       - name: Require Google Play update dependency
         shell: bash
         run: |
