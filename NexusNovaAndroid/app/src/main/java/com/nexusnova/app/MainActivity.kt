@@ -201,6 +201,36 @@ class MainActivity : AppCompatActivity() {
         return true
     }
 
+    private fun startPlayUpdateCheck() {
+        if (isFinishing || isDestroyed) return
+        playUpdateManager.checkForUpdate(
+            showStandardUpdate = { info ->
+                runOnUiThread {
+                    if (!isFinishing && !isDestroyed) {
+                        MaterialAlertDialogBuilder(this)
+                            .setTitle("NexusNova update available")
+                            .setMessage("A newer NexusNova version is available from Google Play.")
+                            .setNegativeButton("Not now", null)
+                            .setPositiveButton("Update") { _, _ -> playUpdateManager.startStandard(info) }
+                            .show()
+                    }
+                }
+            },
+            showCriticalUpdate = { info ->
+                runOnUiThread {
+                    if (!isFinishing && !isDestroyed) {
+                        MaterialAlertDialogBuilder(this)
+                            .setTitle("Important NexusNova update")
+                            .setMessage("This update is required to keep NexusNova secure and compatible.")
+                            .setPositiveButton("Update now") { _, _ -> playUpdateManager.startImmediate(info) }
+                            .setCancelable(false)
+                            .show()
+                    }
+                }
+            }
+        )
+    }
+
     private fun initializeAdsSafely() {
         if (isFinishing || isDestroyed || adManager != null) return
 
@@ -754,94 +784,6 @@ class MainActivity : AppCompatActivity() {
                 if (isHttpUri(uri)) openExternalUri(uri)
             }
         }
-    }
-
-    private fun showNativeOtaUpdatePrompt(message: JSONObject): Boolean {
-        if (isFinishing || isDestroyed) return false
-        if (otaInstallFuture?.isDone == false) return true
-        if (nativeOtaUpdateDialog?.isShowing == true) return true
-
-        val rawUrl = message.optString("apkUrl").trim()
-        val expectedVersionCode = message.optLong("expectedVersionCode", 0L)
-        val expectedSha256 = message.optString("expectedSha256").trim().lowercase(Locale.ROOT)
-        val versionName = message.optString("versionName").trim()
-        val uri = runCatching { Uri.parse(rawUrl) }.getOrNull()
-
-        if (uri == null || !isAllowedOtaDownloadUri(uri) ||
-            !Regex("^[0-9a-f]{64}$").matches(expectedSha256) ||
-            expectedVersionCode <= 0L
-        ) {
-            android.util.Log.w("NexusNovaOTA", "Rejected invalid native update prompt metadata")
-            return false
-        }
-
-        val promptMessage = JSONObject(message.toString())
-        val versionLabel = versionName.takeIf { it.isNotBlank() } ?: "latest release"
-        val density = resources.displayMetrics.density
-        val content = android.widget.LinearLayout(this).apply {
-            orientation = android.widget.LinearLayout.VERTICAL
-            setPadding((24 * density).toInt(), 0, (24 * density).toInt(), 0)
-        }
-        val progressText = android.widget.TextView(this).apply {
-            text = "Version $versionLabel is ready. Download 0%"
-            setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 17f)
-        }
-        val progressBar = android.widget.ProgressBar(
-            this,
-            null,
-            android.R.attr.progressBarStyleHorizontal
-        ).apply {
-            max = 100
-            progress = 0
-            isIndeterminate = false
-        }
-        content.addView(
-            progressText,
-            android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-        )
-        content.addView(
-            progressBar,
-            android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                (6 * density).toInt()
-            ).apply {
-                topMargin = (14 * density).toInt()
-            }
-        )
-
-        val dialog = MaterialAlertDialogBuilder(this)
-            .setIcon(R.drawable.ic_launcher)
-            .setTitle("NexusNova update available")
-            .setView(content)
-            .setNegativeButton("Not now", null)
-            .setPositiveButton("Update", null)
-            .create()
-
-        nativeOtaPromptMessage = promptMessage
-        nativeOtaUpdateDialog = dialog
-        nativeOtaProgressText = progressText
-        nativeOtaProgressBar = progressBar
-        dialog.setOnDismissListener {
-            if (nativeOtaUpdateDialog === dialog) nativeOtaUpdateDialog = null
-            if (nativeOtaProgressText === progressText) nativeOtaProgressText = null
-            if (nativeOtaProgressBar === progressBar) nativeOtaProgressBar = null
-            nativeOtaPromptMessage = null
-        }
-        dialog.show()
-
-        dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-            val request = nativeOtaPromptMessage ?: return@setOnClickListener
-            val started = startNativeOtaInstall(request)
-            if (started) {
-                dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE)?.isEnabled = false
-                dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEGATIVE)?.isEnabled = false
-                dialog.setMessage("Preparing the secure NexusNova update…")
-            }
-        }
-        return true
     }
 
     private fun publishNativeDriveSnapshot(error: String? = null) {
