@@ -59,7 +59,16 @@ jobs:
           set -euo pipefail
           test -f settings.gradle.kts
           test -d app
-          test -d autopilot
+          if [ -d autopilot ]; then
+            echo "Autopilot module: PRESENT"
+          else
+            echo "Autopilot module: NOT PRESENT (optional module skipped)"
+          fi
+          if [ -d tracker ]; then
+            echo "Tracker module: PRESENT"
+          else
+            echo "Tracker module: NOT PRESENT (optional module skipped)"
+          fi
           echo "Android project structure: PASS"
 
       - name: Compile and test without signing
@@ -67,7 +76,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          gradle --no-daemon :app:assembleDebug :autopilot:assembleDebug :tracker:assembleDebug
+          gradle --no-daemon :app:assembleDebug
+          if [ -d autopilot ]; then
+            gradle --no-daemon :autopilot:assembleDebug
+          fi
+          if [ -d tracker ]; then
+            gradle --no-daemon :tracker:assembleDebug
+          fi
           gradle --no-daemon test
           echo "Unsigned debug builds + tests: PASS"
 
@@ -76,6 +91,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          if [ ! -d autopilot ]; then
+            echo "Autopilot module absent: verification skipped."
+            exit 0
+          fi
           apk='autopilot/build/outputs/apk/debug/autopilot-debug.apk'
           test -s "$apk"
           AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)"

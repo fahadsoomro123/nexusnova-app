@@ -16,8 +16,9 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         minSdk = 26
         targetSdk = 35
-        versionCode = 27010026
-        versionName = "1.0.45-ota-28"
+        versionCode = 27010028
+        // Tiny controlled build increment for the on-device updater proof.
+        versionName = "1.0.47-updater-proof"
         val nexusBuildCommit = System.getenv("GITHUB_SHA")?.trim()?.takeIf { Regex("^[0-9a-fA-F]{40}$").matches(it) } ?: "6adaa6c48b19ac12d09eb1f798d297c64029d7f6"
         buildConfigField("String", "NEXUS_BUILD_COMMIT", "\"$nexusBuildCommit\"")
     }
@@ -80,6 +81,8 @@ dependencies {
     implementation("com.google.android.material:material:1.11.0")
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")
     implementation("androidx.webkit:webkit:1.10.0")
+    implementation("com.google.android.play:app-update:2.1.0")
+    implementation("com.google.android.play:app-update-ktx:2.1.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 
     // Activity Recognition + location context for smart Nova Drive auto trips.
