@@ -75,7 +75,7 @@ check("audio injection calls engine", () => assert(has(media, "engine.addAudioSe
 check("NovaCut renderer present", () => assert(has(suite, "function renderNovaCut()"), "renderer missing"));
 check("preview canvas present", () => assert(/data-role=['"]preview-canvas['"]/.test(suite), "preview canvas missing"));
 check("play button present", () => assert(has(suite, "data-action='play'"), "play button missing"));
-check("export button present", () => assert(has(suite, "data-action='export'"), "export missing"));
+check("export button present", () => assert(/data-action=['"]export['"]/.test(suite), "export missing"));
 check("video lane present", () => assert(has(suite, "data-role='video-lane'"), "video lane missing"));
 check("audio lane present", () => assert(has(suite, "data-role='audio-lane'"), "audio lane missing"));
 check("text lane present", () => assert(has(suite, "data-role='text-lane'"), "text lane missing"));
