@@ -824,10 +824,13 @@ class NovaCutEngine {
     const record = this.registry.getById(trackId);
     if (!record) return { success: false, reason: "clip-not-found" };
     return this.withHistory("Delete clip", () => {
+      const listBefore = this.registry[record.type] || [];
+      const removedIndex = listBefore.findIndex((item) => item.id === record.item.id);
       const removed = this.registry.removeById(record.item.id);
       this.preview?.removeClipMedia?.(record.item.id);
       const list = this.registry[record.type] || [];
-      this.activeTrackId = list.length ? list[Math.min(0, list.length - 1)]?.id || null : null;
+      const replacementIndex = Math.min(Math.max(0, removedIndex), Math.max(0, list.length - 1));
+      this.activeTrackId = list.length ? list[replacementIndex]?.id || null : null;
       this.refresh();
       this.events.emit("delete", { removed: removed?.item || null, type: removed?.type || null });
       return { success: Boolean(removed), removed };
