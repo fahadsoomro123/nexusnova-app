@@ -307,10 +307,8 @@ test("visual layers support stickers, text editing, transform history and export
   });
   const compiled = engine.compiler.compile();
   assert.equal(compiled.overlayAssets.length, 2);
-  assert.deepEqual(
-    compiled.overlayAssets.map((asset) => asset.kind),
-    ["text", "sticker"]
-  );
+  const overlayKinds = Array.from(compiled.overlayAssets, (asset) => asset.kind);
+  assert.equal(overlayKinds.join(","), "text,sticker");
 });
 
 test("split, duplicate and delete participate in history", () => {
