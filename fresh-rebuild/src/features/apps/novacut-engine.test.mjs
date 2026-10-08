@@ -3,6 +3,11 @@ import fs from "node:fs";
 import vm from "node:vm";
 import test from "node:test";
 
+const visualsSource = fs.readFileSync(
+  new URL("./novacut-visuals.js", import.meta.url),
+  "utf8"
+).replace(/export const /g, "const ").replace(/export function /g, "function ");
+
 const historySource = fs.readFileSync(
   new URL("./novacut-history.js", import.meta.url),
   "utf8"
@@ -14,7 +19,7 @@ const source = fs.readFileSync(
 ).replace(/import\s+\{\s*createNovaCutHistory\s*\}\s+from\s+["']\.\/novacut-history\.js["'];?\s*/, "")
 .replace(/export \{[\s\S]*?\};\nexport const createNovaCutEngine[\s\S]*$/, "");
 
-const combinedSource = historySource + "\n" + source;
+const combinedSource = visualsSource + "\n" + historySource + "\n" + source;
 
 const studioSource = fs.readFileSync(
   new URL("./novacut-studio.js", import.meta.url),
@@ -242,6 +247,69 @@ test("timeline interaction exposes visible move/trim affordances and desktop poi
   assert.match(studioSource, /const mode =\s*state\.mode/);
   assert.match(studioSource, /Trim clip start/);
   assert.match(studioSource, /Trim clip end/);
+});
+
+test("visual layers support stickers, text editing, transform history and export assets", () => {
+  const engine = new context.NovaCutEngine();
+
+  const sticker = engine.addSticker({
+    id: "sticker-1",
+    stickerId: "heart",
+    startTime: 500,
+    duration: 2500,
+    x: 0.25,
+    y: 0.35
+  });
+
+  assert.equal(sticker.stickerId, "heart");
+  assert.equal(engine.registry.stickerTracks.length, 1);
+  assert.equal(engine.registry.durationMs(), 3000);
+
+  engine.updateVisualTransform("sticker-1", {
+    x: 0.75,
+    y: 0.65,
+    scale: 1.8,
+    rotation: 22
+  });
+  assert.equal(engine.registry.stickerTracks[0].x, 0.75);
+  assert.equal(engine.registry.stickerTracks[0].scale, 1.8);
+  assert.equal(engine.registry.stickerTracks[0].rotation, 22);
+
+  assert.equal(engine.undo(), true);
+  assert.equal(engine.registry.stickerTracks[0].x, 0.25);
+  assert.equal(engine.registry.stickerTracks[0].scale, 1);
+  assert.equal(engine.redo(), true);
+  assert.equal(engine.registry.stickerTracks[0].rotation, 22);
+
+  const cue = engine.addTextCue({
+    id: "text-1",
+    text: "Hello",
+    startTime: 0,
+    duration: 2000
+  });
+  engine.updateTextCue("text-1", {
+    text: "Edited",
+    duration: 4000,
+    style: { fontSize: 72, rotation: -12 }
+  });
+  assert.equal(cue.text, "Edited");
+  assert.equal(cue.duration, 4000);
+  assert.equal(cue.style.fontSize, 72);
+  assert.equal(cue.style.rotation, -12);
+
+  engine.addVideoClip({
+    id: "video-visual-export",
+    file: "blob:export-video",
+    startTime: 0,
+    duration: 4000,
+    sourceStartTime: 0
+  });
+  const compiled = engine.compiler.compile();
+  assert.equal(compiled.overlayAssets.length, 2);
+  assert.deepEqual(
+    compiled.overlayAssets.map((asset) => asset.kind),
+    ["text", "sticker"]
+  );
 });
 
 test("split, duplicate and delete participate in history", () => {
