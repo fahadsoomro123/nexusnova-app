@@ -25,7 +25,7 @@ class NexusPlayUpdateManager(activity: Activity) {
     private val appUpdateManager: AppUpdateManager =
         AppUpdateManagerFactory.create(activity)
 
-    private val updateLauncher: ActivityResultLauncher<IntentSenderRequest>
+    private lateinit var updateLauncher: ActivityResultLauncher<IntentSenderRequest>
     private var onFlexibleDownloaded: (() -> Unit)? = null
 
     private val installListener = InstallStateUpdatedListener { state ->
