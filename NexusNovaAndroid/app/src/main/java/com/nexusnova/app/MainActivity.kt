@@ -164,6 +164,48 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun showNativeWebOtaUpdatePrompt(update: NexusOtaWebManager.PendingUpdate): Boolean {
+        if (isFinishing || isDestroyed) return false
+
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle("NexusNova web update available")
+            .setMessage("A newer NovaCut and web interface package is ready. This update changes only the WebView layer.")
+            .setNegativeButton("Not now", null)
+            .setPositiveButton("Update", null)
+            .create()
+
+        dialog.show()
+        dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+            val button = dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE)
+            button.isEnabled = false
+            button.text = "Updating…"
+            otaWebManager.applyUpdate(
+                expectedVersion = update.version,
+                onProgress = { percent ->
+                    runOnUiThread {
+                        if (!isFinishing && !isDestroyed && dialog.isShowing) {
+                            dialog.setMessage("Downloading and verifying web update… $percent%")
+                        }
+                    }
+                },
+                onComplete = { updated, error ->
+                    runOnUiThread {
+                        if (isFinishing || isDestroyed) return@runOnUiThread
+                        if (updated) {
+                            dialog.dismiss()
+                            loadProductionApp(forceFresh = true)
+                        } else {
+                            button.isEnabled = true
+                            button.text = "Update"
+                            dialog.setMessage(error ?: "The web update could not be activated safely.")
+                        }
+                    }
+                }
+            )
+        }
+        return true
+    }
+
     private fun initializeAdsSafely() {
         if (isFinishing || isDestroyed || adManager != null) return
 
@@ -638,9 +680,8 @@ class MainActivity : AppCompatActivity() {
 
         when (message.optString("action")) {
             ACTION_OTA_SHOW_PROMPT, ACTION_OTA_INSTALL, ACTION_OTA_CANCEL -> {
-                android.util.Log.w("NexusNovaPlayUpdate", "Legacy APK updater request rejected; native updates are controlled by Google Play.")
+                android.util.Log.w("NexusNovaPlayUpdate", "Legacy native APK updater request rejected; native updates are controlled by Google Play.")
             }
-
             ACTION_OPEN_NOVA_VPN -> {
                 val authToken = message.optString("authToken").trim()
                 if (authToken.isBlank() || authToken.length > MAX_VPN_AUTH_TOKEN_CHARS) return
