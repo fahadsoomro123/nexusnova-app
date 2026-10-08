@@ -108,6 +108,12 @@ jobs:
             echo 'CUSTOM_NATIVE_APK_UPDATER_DETECTED'
             exit 1
           fi
+          legacy_workflows="$(find .github/workflows -type f ! -name 'nexusnova-release-governance.yml' -print0 | xargs -0 grep -IlE 'PackageInstaller|ACTION_INSTALL_PACKAGE|REQUEST_INSTALL_PACKAGES|FileProvider|downloadOtaApk|apk-builds/.+\.apk|apk-builds/ota-bootstrap|installUpdate' 2>/dev/null || true)"
+          if [ -n "$legacy_workflows" ]; then
+            echo 'LEGACY_APK_UPDATER_WORKFLOW_DETECTED'
+            printf '%s\n' "$legacy_workflows"
+            exit 1
+          fi
           echo 'CUSTOM_NATIVE_APK_UPDATER_GUARD=PASS'
 
       - name: Require Google Play update dependency
