@@ -16,8 +16,8 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         minSdk = 26
         targetSdk = 35
-        versionCode = 27010026
-        versionName = "1.0.45-ota-28"
+        versionCode = 27010028
+        versionName = "1.0.45-ota-30"
         val nexusBuildCommit = System.getenv("GITHUB_SHA")?.trim()?.takeIf { Regex("^[0-9a-fA-F]{40}$").matches(it) } ?: "6adaa6c48b19ac12d09eb1f798d297c64029d7f6"
         buildConfigField("String", "NEXUS_BUILD_COMMIT", "\"$nexusBuildCommit\"")
     }
