@@ -1441,8 +1441,7 @@ export class NovaCutStudioInteractions {
 
         if (
           !record ||
-          record.type !==
-            "videoTracks"
+          !["videoTracks", "textTracks", "stickerTracks"].includes(record.type)
         ) {
           return;
         }
