@@ -750,3 +750,42 @@
 @media (prefers-reduced-motion: reduce) {
   .nx-novacut__timeline { scroll-behavior: auto !important; }
 }
+
+
+/* NovaCut v2 editor sheets, stickers and region effects */
+.nx-novacut__sheet-root{position:fixed!important;inset:0!important;z-index:99999!important;pointer-events:none!important}
+.nx-novacut__sheet-backdrop{position:absolute!important;inset:0!important;background:rgba(0,0,0,.58)!important;backdrop-filter:blur(7px)!important;pointer-events:auto!important}
+.nx-novacut__sheet{position:absolute!important;left:50%!important;bottom:max(10px,env(safe-area-inset-bottom))!important;width:min(620px,calc(100% - 20px))!important;max-height:min(78vh,760px)!important;transform:translateX(-50%)!important;overflow:auto!important;padding:16px!important;border:1px solid rgba(255,255,255,.09)!important;border-radius:20px!important;background:#111216!important;color:#f5f7fb!important;box-shadow:0 25px 80px rgba(0,0,0,.55)!important;pointer-events:auto!important}
+.nx-novacut__sheet>header{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:10px!important;margin-bottom:14px!important}
+.nx-novacut__sheet-x{width:34px!important;height:34px!important;border:1px solid rgba(255,255,255,.08)!important;border-radius:10px!important;background:rgba(255,255,255,.05)!important;color:#fff!important;font-size:20px!important}
+.nx-novacut__sheet-body{display:grid!important;gap:12px!important}
+.nx-novacut__form-grid{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px!important}
+.nx-novacut__form-grid label{display:grid!important;gap:6px!important;font-size:10px!important;font-weight:800!important;letter-spacing:.04em!important;text-transform:uppercase!important;color:#9ca3ad!important}
+.nx-novacut__form-grid input{width:100%!important;min-height:40px!important;box-sizing:border-box!important;border:1px solid rgba(255,255,255,.09)!important;border-radius:10px!important;padding:0 10px!important;background:#191b21!important;color:#fff!important}
+.nx-novacut__form-grid input[type='color']{padding:3px!important}
+.nx-novacut__check-row{display:flex!important;align-items:center!important;gap:8px!important;font-size:11px!important;color:#dce1ea!important}
+.nx-novacut__sheet-actions{display:flex!important;justify-content:flex-end!important;gap:8px!important;margin-top:4px!important}
+.nx-novacut__primary,.nx-novacut__secondary,.nx-novacut__tool-grid button,.nx-novacut__effect-pill{min-height:40px!important;border-radius:11px!important;border:1px solid rgba(255,255,255,.08)!important;padding:0 14px!important;font-weight:800!important}
+.nx-novacut__primary{background:#63b9ff!important;color:#05111b!important}
+.nx-novacut__secondary,.nx-novacut__tool-grid button,.nx-novacut__effect-pill{background:rgba(255,255,255,.05)!important;color:#e8edf5!important}
+.nx-novacut__tool-grid{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important}
+.nx-novacut__tool-grid button{min-height:48px!important;text-align:left!important}
+.nx-novacut__sticker-grid{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:8px!important}
+.nx-novacut__sticker-choice{min-height:88px!important;display:grid!important;place-items:center!important;gap:4px!important;border:1px solid rgba(255,255,255,.08)!important;border-radius:14px!important;background:rgba(255,255,255,.045)!important;color:#fff!important}
+.nx-novacut__sticker-choice span{font-size:34px!important}
+.nx-novacut__sticker-choice small{font-size:9px!important;color:#aab0ba!important}
+.nx-novacut__effect-pills{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:7px!important}
+.nx-novacut__effect-pill.is-selected{border-color:rgba(99,185,255,.5)!important;background:rgba(99,185,255,.11)!important}
+.nx-novacut__sheet-copy{margin:0!important;color:#9aa2ad!important;font-size:11px!important;line-height:1.5!important}
+.nx-novacut__clip--sticker{background:linear-gradient(180deg,rgba(170,120,255,.22),rgba(110,70,180,.12))!important}
+.nx-novacut__clip--effect{background:linear-gradient(180deg,rgba(99,185,255,.18),rgba(65,105,150,.1))!important}
+.nx-novacut__clip-glyph{display:grid!important;place-items:center!important;width:28px!important;height:28px!important;font-size:18px!important}
+.nx-novacut__track--overlay .nx-novacut__lane,.nx-novacut__track--effect .nx-novacut__lane{min-height:58px!important}
+.nx-novacut__lane-tool-glyph{font-size:22px!important}
+.nx-novacut__dock{grid-template-columns:repeat(6,minmax(0,1fr))!important}
+@media(max-width:520px){
+  .nx-novacut__form-grid{grid-template-columns:1fr!important}
+  .nx-novacut__sticker-grid{grid-template-columns:repeat(4,minmax(0,1fr))!important}
+  .nx-novacut__effect-pills{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .nx-novacut__dock{grid-template-columns:repeat(6,minmax(0,1fr))!important}
+}
