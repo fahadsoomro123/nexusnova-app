@@ -2,8 +2,6 @@ package com.nexusnova.app
 
 import android.Manifest
 import android.annotation.SuppressLint
-import android.content.pm.PackageInstaller
-import android.app.PendingIntent
 import android.content.ContentResolver
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -28,38 +26,22 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import androidx.core.content.ContextCompat
-import androidx.core.content.FileProvider
 import androidx.core.view.WindowCompat
 import androidx.webkit.WebViewAssetLoader
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import org.json.JSONObject
 import java.io.File
-import java.net.HttpURLConnection
 import java.net.URL
-import java.security.MessageDigest
 import java.util.Locale
 import java.util.concurrent.Executors
-import java.util.concurrent.Future
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
     private var adManager: NexusAdManager? = null
     private val otaWebManager by lazy { NexusOtaWebManager(this) }
-    private val otaInstallExecutor by lazy {
-        Executors.newSingleThreadExecutor { runnable ->
-            Thread(runnable, "NexusNovaOtaInstall").apply { isDaemon = true }
-        }
-    }
-    @Volatile private var otaDownloadConnection: HttpURLConnection? = null
-    @Volatile private var otaInstallFuture: Future<*>? = null
-    @Volatile private var otaInstallSessionId: Int = -1
-    @Volatile private var otaInstallCommitted = false
-    private var nativeOtaUpdateDialog: androidx.appcompat.app.AlertDialog? = null
-    private var nativeOtaPromptMessage: JSONObject? = null
-    private var nativeOtaProgressText: android.widget.TextView? = null
-    private var nativeOtaProgressBar: android.widget.ProgressBar? = null
+    private val playUpdateManager by lazy { NexusPlayUpdateManager(this) }
     private val assetLoader by lazy {
         WebViewAssetLoader.Builder()
             .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this))
@@ -95,6 +77,13 @@ class MainActivity : AppCompatActivity() {
         val pending = pendingGeolocation ?: return@registerForActivityResult
         pendingGeolocation = null
         pending.callback.invoke(pending.origin, hasLocationPermission(), false)
+    }
+
+    private val playUpdateLauncher = registerForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        android.util.Log.i("NexusNovaPlayUpdate", "Play update flow result=${result.resultCode}")
+        playUpdateManager.resumeIncompleteUpdate()
     }
 
     private val fileChooserLauncher = registerForActivityResult(
@@ -140,6 +129,18 @@ class MainActivity : AppCompatActivity() {
         setContentView(webView)
 
         configureWebView()
+        playUpdateManager.bindLauncher(playUpdateLauncher)
+        playUpdateManager.setFlexibleDownloadedHandler {
+            runOnUiThread {
+                if (!isFinishing && !isDestroyed) {
+                    com.google.android.material.snackbar.Snackbar.make(
+                        webView,
+                        "Update downloaded. Restart NexusNova to install.",
+                        com.google.android.material.snackbar.Snackbar.LENGTH_INDEFINITE
+                    ).setAction("RESTART") { playUpdateManager.completeFlexibleUpdate() }.show()
+                }
+            }
+        }
         try {
             installNativeMessageListener()
         } catch (error: Throwable) {
@@ -148,6 +149,7 @@ class MainActivity : AppCompatActivity() {
         // Render the signed baseline while the native startup OTA check runs independently.
         loadProductionApp()
         startWebOtaCheck()
+        startPlayUpdateCheck()
     }
 
     private fun startWebOtaCheck() {
@@ -160,103 +162,6 @@ class MainActivity : AppCompatActivity() {
                 showNativeWebOtaUpdatePrompt(update)
             }
         }
-    }
-
-    private fun showNativeWebOtaUpdatePrompt(update: NexusOtaWebManager.PendingUpdate): Boolean {
-        if (isFinishing || isDestroyed) return false
-        if (otaInstallFuture?.isDone == false) return true
-        if (nativeOtaUpdateDialog?.isShowing == true) return true
-
-        val density = resources.displayMetrics.density
-        val content = android.widget.LinearLayout(this).apply {
-            orientation = android.widget.LinearLayout.VERTICAL
-            setPadding((24 * density).toInt(), 0, (24 * density).toInt(), 0)
-        }
-        val progressText = android.widget.TextView(this).apply {
-            text = "Version ${update.version.take(7)} is ready. Download 0%"
-            setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 17f)
-        }
-        val progressBar = android.widget.ProgressBar(
-            this,
-            null,
-            android.R.attr.progressBarStyleHorizontal
-        ).apply {
-            max = 100
-            progress = 0
-            isIndeterminate = false
-        }
-        content.addView(
-            progressText,
-            android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-        )
-        content.addView(
-            progressBar,
-            android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                (6 * density).toInt()
-            ).apply { topMargin = (14 * density).toInt() }
-        )
-
-        val dialog = MaterialAlertDialogBuilder(this)
-            .setIcon(R.drawable.ic_launcher)
-            .setTitle("Web update available")
-            .setView(content)
-            .setNegativeButton("Not now", null)
-            .setPositiveButton("Update", null)
-            .create()
-
-        nativeOtaPromptMessage = JSONObject()
-            .put("kind", "web")
-            .put("webVersion", update.version)
-        nativeOtaUpdateDialog = dialog
-        nativeOtaProgressText = progressText
-        nativeOtaProgressBar = progressBar
-        dialog.setOnDismissListener {
-            if (nativeOtaUpdateDialog === dialog) nativeOtaUpdateDialog = null
-            if (nativeOtaProgressText === progressText) nativeOtaProgressText = null
-            if (nativeOtaProgressBar === progressBar) nativeOtaProgressBar = null
-            nativeOtaPromptMessage = null
-        }
-        dialog.show()
-
-        dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-            val version = nativeOtaPromptMessage?.optString("webVersion").orEmpty()
-            if (version.isBlank()) return@setOnClickListener
-            val started = startNativeWebOtaInstall(version)
-            if (started) {
-                dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE)?.isEnabled = false
-                dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEGATIVE)?.isEnabled = false
-            }
-        }
-        return true
-    }
-
-    private fun startNativeWebOtaInstall(expectedVersion: String): Boolean {
-        if (expectedVersion.isBlank()) return false
-        publishOtaInstallEvent("download-start")
-        otaWebManager.applyUpdate(
-            expectedVersion = expectedVersion,
-            onProgress = { percent ->
-                publishOtaInstallEvent("download-progress", progress = percent)
-            },
-            onComplete = { updated, error ->
-                if (updated) {
-                    publishOtaInstallEvent("install-staged")
-                    runOnUiThread {
-                        if (isFinishing || isDestroyed) return@runOnUiThread
-                        android.util.Log.i("NexusNovaOTA", "Verified web OTA activated; refreshing local app overlay")
-                        publishOtaInstallEvent("success")
-                        loadProductionApp(forceFresh = true)
-                    }
-                } else {
-                    publishOtaInstallEvent("failure", error ?: "The web update could not be activated safely.")
-                }
-            }
-        )
-        return true
     }
 
     private fun initializeAdsSafely() {
@@ -733,7 +638,7 @@ class MainActivity : AppCompatActivity() {
 
         when (message.optString("action")) {
             ACTION_OTA_SHOW_PROMPT, ACTION_OTA_INSTALL, ACTION_OTA_CANCEL -> {
-                android.util.Log.i("NexusNovaOTA", "Legacy full-APK OTA action ignored; web OTA only.")
+                android.util.Log.w("NexusNovaPlayUpdate", "Legacy APK updater request rejected; native updates are controlled by Google Play.")
             }
 
             ACTION_OPEN_NOVA_VPN -> {
@@ -904,385 +809,6 @@ class MainActivity : AppCompatActivity() {
         return true
     }
 
-    private fun startNativeOtaInstall(message: JSONObject): Boolean {
-        if (otaInstallFuture?.isDone == false) {
-            publishOtaInstallEvent("failure", "An update is already downloading.")
-            return true
-        }
-
-        val rawUrl = message.optString("apkUrl").trim()
-        val expectedVersionCode = message.optLong("expectedVersionCode", 0L)
-        val expectedSha256 = message.optString("expectedSha256").trim().lowercase(Locale.ROOT)
-        val uri = runCatching { Uri.parse(rawUrl) }.getOrNull()
-        if (uri == null || !isAllowedOtaDownloadUri(uri) ||
-            !Regex("^[0-9a-f]{64}$").matches(expectedSha256) ||
-            expectedVersionCode <= 0L
-        ) {
-            publishOtaInstallEvent("failure", "The update source is not an approved NexusNova release asset.")
-            return false
-        }
-
-        otaInstallCommitted = false
-        publishOtaInstallEvent("download-start")
-
-        otaInstallFuture = otaInstallExecutor.submit {
-            try {
-                val apkFile = downloadOtaApk(uri, expectedSha256)
-                publishOtaInstallEvent("download-complete")
-                verifyOtaApk(apkFile, expectedVersionCode, expectedSha256)
-                publishOtaInstallEvent("install-staged")
-                installOtaApk(apkFile)
-            } catch (error: Throwable) {
-                if (Thread.currentThread().isInterrupted) {
-                    publishOtaInstallEvent("cancelled")
-                } else {
-                    android.util.Log.e("NexusNovaOTA", "Native OTA installation failed", error)
-                    publishOtaInstallEvent(
-                        "failure",
-                        error.message ?: "The signed update could not be installed."
-                    )
-                }
-            } finally {
-                otaDownloadConnection?.disconnect()
-                otaDownloadConnection = null
-                otaInstallFuture = null
-                if (!otaInstallCommitted) cleanupOtaCache()
-            }
-        }
-        return true
-    }
-
-    private fun cancelNativeOtaInstall() {
-        if (otaInstallCommitted) return
-        otaDownloadConnection?.disconnect()
-        otaDownloadConnection = null
-        otaInstallFuture?.cancel(true)
-        otaInstallFuture = null
-        if (otaInstallSessionId >= 0) {
-            runCatching { packageManager.packageInstaller.abandonSession(otaInstallSessionId) }
-            otaInstallSessionId = -1
-        }
-        cleanupOtaCache()
-        publishOtaInstallEvent("cancelled")
-    }
-
-    private fun downloadOtaApk(uri: Uri, expectedSha256: String): File {
-        val root = File(cacheDir, OTA_CACHE_DIR)
-        if (!root.exists() && !root.mkdirs()) throw java.io.IOException("Could not create OTA cache")
-        val temp = File(root, OTA_APK_NAME + ".part")
-        val target = File(root, OTA_APK_NAME)
-        temp.delete()
-        target.delete()
-
-        val connection = (URL(uri.toString()).openConnection() as HttpURLConnection).apply {
-            connectTimeout = OTA_CONNECT_TIMEOUT_MS
-            readTimeout = OTA_READ_TIMEOUT_MS
-            instanceFollowRedirects = true
-            useCaches = false
-            defaultUseCaches = false
-            setRequestProperty("User-Agent", "NexusNova-Android-OTA/1")
-            setRequestProperty("Cache-Control", "no-cache, no-store, max-age=0")
-        }
-        otaDownloadConnection = connection
-        try {
-            connection.connect()
-            if (connection.responseCode !in 200..299) {
-                throw java.io.IOException("OTA download HTTP ${connection.responseCode}")
-            }
-            val declaredLength = connection.contentLengthLong
-            if (declaredLength > OTA_MAX_APK_BYTES) throw java.io.IOException("OTA APK is too large")
-
-            var total = 0L
-            var lastReported = -1
-            connection.inputStream.buffered().use { input ->
-                temp.outputStream().buffered().use { output ->
-                    val buffer = ByteArray(32 * 1024)
-                    while (true) {
-                        if (Thread.currentThread().isInterrupted) throw InterruptedException("OTA download cancelled")
-                        val read = input.read(buffer)
-                        if (read < 0) break
-                        total += read
-                        if (total > OTA_MAX_APK_BYTES) throw java.io.IOException("OTA APK exceeded size limit")
-                        output.write(buffer, 0, read)
-                        if (declaredLength > 0L) {
-                            val percent = ((total * 100L) / declaredLength).toInt().coerceIn(0, 100)
-                            if (percent != lastReported) {
-                                lastReported = percent
-                                publishOtaInstallEvent("download-progress", progress = percent)
-                            }
-                        }
-                    }
-                    output.flush()
-                }
-            }
-            if (declaredLength >= 0L && total != declaredLength) {
-                throw java.io.IOException("OTA byte-count mismatch")
-            }
-        } finally {
-            connection.disconnect()
-            otaDownloadConnection = null
-        }
-
-        if (!temp.renameTo(target)) throw java.io.IOException("Could not finalize OTA cache file")
-        if (sha256File(target) != expectedSha256) {
-            throw SecurityException("OTA SHA-256 mismatch")
-        }
-        return target
-    }
-
-    private fun verifyOtaApk(
-        apkFile: File,
-        expectedVersionCode: Long,
-        expectedSha256: String
-    ) {
-        if (!apkFile.isFile || apkFile.length() <= 0L) throw java.io.IOException("OTA APK cache is empty")
-
-        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            PackageManager.GET_SIGNING_CERTIFICATES
-        } else {
-            @Suppress("DEPRECATION")
-            PackageManager.GET_SIGNATURES
-        }
-        val archive = packageManager.getPackageArchiveInfo(apkFile.absolutePath, flags)
-            ?: throw java.io.IOException("Downloaded OTA is not a readable APK")
-        if (archive.packageName != packageName) {
-            throw SecurityException("OTA package mismatch: ${archive.packageName}")
-        }
-
-        val targetVersionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            archive.longVersionCode
-        } else {
-            @Suppress("DEPRECATION")
-            archive.versionCode.toLong()
-        }
-        val currentInfo = packageManager.getPackageInfo(packageName, flags)
-        val currentVersionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            currentInfo.longVersionCode
-        } else {
-            @Suppress("DEPRECATION")
-            currentInfo.versionCode.toLong()
-        }
-        if (targetVersionCode <= currentVersionCode) {
-            throw SecurityException("OTA version ${targetVersionCode} is not newer than installed ${currentVersionCode}")
-        }
-        if (expectedVersionCode <= 0L || targetVersionCode != expectedVersionCode) {
-            throw SecurityException("OTA versionCode does not match the published update metadata")
-        }
-        if (sha256File(apkFile) != expectedSha256) {
-            throw SecurityException("OTA SHA-256 mismatch")
-        }
-
-        val currentSigner = signingCertificateDigests(currentInfo)
-        val targetSigner = signingCertificateDigests(archive)
-        if (currentSigner.isEmpty() || targetSigner.isEmpty() || currentSigner.intersect(targetSigner).isEmpty()) {
-            throw SecurityException("OTA production signing certificate mismatch")
-        }
-    }
-
-    private fun signingCertificateDigests(info: PackageInfo): Set<String> {
-        val signatures: Array<Signature> = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            val signingInfo = info.signingInfo ?: return emptySet()
-            if (signingInfo.hasMultipleSigners()) signingInfo.apkContentsSigners
-            else signingInfo.signingCertificateHistory
-        } else {
-            @Suppress("DEPRECATION")
-            info.signatures ?: emptyArray()
-        }
-        return signatures.map { signature -> sha256Hex(signature.toByteArray()) }.toSet()
-    }
-
-    private fun sha256Hex(value: ByteArray): String {
-        return MessageDigest.getInstance("SHA-256")
-            .digest(value)
-            .joinToString("") { byte -> "%02x".format(byte) }
-    }
-
-    private fun sha256File(file: File): String {
-        val digest = MessageDigest.getInstance("SHA-256")
-        file.inputStream().buffered().use { input ->
-            val buffer = ByteArray(32 * 1024)
-            while (true) {
-                val read = input.read(buffer)
-                if (read < 0) break
-                digest.update(buffer, 0, read)
-            }
-        }
-        return digest.digest().joinToString("") { byte -> "%02x".format(byte) }
-    }
-
-    private fun installOtaApk(apkFile: File) {
-        try {
-            val apkUri = FileProvider.getUriForFile(
-                this,
-                packageName + ".fileprovider",
-                apkFile
-            )
-            val installIntent = Intent(Intent.ACTION_INSTALL_PACKAGE).apply {
-                data = apkUri
-                type = APK_MIME_TYPE
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                putExtra(Intent.EXTRA_INSTALLER_PACKAGE_NAME, packageName)
-            }
-            val fallbackIntent = Intent(Intent.ACTION_VIEW).apply {
-                data = apkUri
-                type = APK_MIME_TYPE
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            val intentToLaunch = when {
-                installIntent.resolveActivity(packageManager) != null -> installIntent
-                fallbackIntent.resolveActivity(packageManager) != null -> fallbackIntent
-                else -> throw java.io.IOException("No Android package installer is available.")
-            }
-            startActivity(intentToLaunch)
-            // Keep the verified APK alive while the system installer reads it.
-            otaInstallCommitted = true
-        } catch (error: Throwable) {
-            publishOtaInstallEvent(
-                "failure",
-                error.message ?: "Android package installer could not open the verified update."
-            )
-            throw error
-        }
-    }
-
-    private fun createOtaStatusIntentSender(sessionId: Int): android.content.IntentSender {
-        val callbackIntent = Intent(this, MainActivity::class.java)
-            .setAction(ACTION_OTA_INSTALL_STATUS)
-            .putExtra(EXTRA_OTA_SESSION_ID, sessionId)
-            .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-        val pending = PendingIntent.getActivity(
-            this,
-            sessionId,
-            callbackIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        return pending.intentSender
-    }
-
-    private fun handleOtaInstallStatus(intent: Intent): Boolean {
-        if (intent.action != ACTION_OTA_INSTALL_STATUS) return false
-        val status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)
-        when (status) {
-            PackageInstaller.STATUS_PENDING_USER_ACTION -> {
-                val installerIntent = extractInstallIntent(intent)
-                if (installerIntent == null) {
-                    publishOtaInstallEvent("failure", "Android did not return an installer confirmation intent.")
-                    return true
-                }
-                publishOtaInstallEvent("install-prompt")
-                runCatching { startActivity(installerIntent) }
-                    .onFailure { publishOtaInstallEvent("failure", it.message ?: "Could not open Android installer.") }
-            }
-            PackageInstaller.STATUS_SUCCESS -> {
-                publishOtaInstallEvent("success")
-                otaInstallSessionId = -1
-                cleanupOtaCache()
-            }
-            else -> {
-                publishOtaInstallEvent(
-                    "failure",
-                    intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)
-                        ?: "Android rejected the update package."
-                )
-                otaInstallSessionId = -1
-                cleanupOtaCache()
-            }
-        }
-        return true
-    }
-
-    @Suppress("DEPRECATION")
-    private fun extractInstallIntent(intent: Intent): Intent? {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            intent.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)
-        } else {
-            intent.getParcelableExtra(Intent.EXTRA_INTENT)
-        }
-    }
-
-    private fun updateNativeOtaDialog(
-        event: String,
-        message: String? = null,
-        progress: Int? = null
-    ) {
-        runOnUiThread {
-            val dialog = nativeOtaUpdateDialog ?: return@runOnUiThread
-            if (!dialog.isShowing) return@runOnUiThread
-
-            when (event) {
-                "download-start" -> {
-                    nativeOtaProgressText?.text = "Downloading update… 0%"
-                    nativeOtaProgressBar?.progress = 0
-                }
-                "download-progress" -> {
-                    val percent = progress?.coerceIn(0, 100) ?: 0
-                    nativeOtaProgressText?.text = "Downloading update… $percent%"
-                    nativeOtaProgressBar?.progress = percent
-                }
-                "download-complete" -> {
-                    nativeOtaProgressText?.text = "Download complete. Verifying the signed update…"
-                    nativeOtaProgressBar?.progress = 100
-                }
-                "install-staged" -> {
-                    nativeOtaProgressText?.text = "Update verified. Opening Android installer…"
-                    nativeOtaProgressBar?.progress = 100
-                }
-                "install-prompt" -> {
-                    dialog.dismiss()
-                    nativeOtaUpdateDialog = null
-                }
-                "success" -> {
-                    dialog.dismiss()
-                    nativeOtaUpdateDialog = null
-                }
-                "cancelled" -> {
-                    dialog.dismiss()
-                    nativeOtaUpdateDialog = null
-                }
-                "failure" -> {
-                    nativeOtaProgressText?.text = message ?: "The update could not be installed safely."
-                    dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE)?.apply {
-                        isEnabled = true
-                        text = "Update"
-                    }
-                    dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEGATIVE)?.isEnabled = true
-                }
-            }
-        }
-    }
-
-    private fun publishOtaInstallEvent(
-        event: String,
-        message: String? = null,
-        progress: Int? = null
-    ) {
-        updateNativeOtaDialog(event, message, progress)
-        if (!::webView.isInitialized || isFinishing || isDestroyed) return
-        val payload = JSONObject().put("event", event)
-        if (!message.isNullOrBlank()) payload.put("message", message)
-        if (progress != null) payload.put("percent", progress)
-        val script = "window.dispatchEvent(new CustomEvent('nexusnova:ota-install',{detail:$payload}));"
-        webView.post {
-            if (!isFinishing && !isDestroyed && ::webView.isInitialized) {
-                runCatching { webView.evaluateJavascript(script, null) }
-            }
-        }
-    }
-
-    private fun cleanupOtaCache() {
-        runCatching { File(cacheDir, OTA_CACHE_DIR).deleteRecursively() }
-    }
-
-    private fun isAllowedOtaDownloadUri(uri: Uri): Boolean {
-        val expectedPrefix = "/${OTA_GITHUB_REPOSITORY}/apk-builds/ota-bootstrap-safe/"
-        return uri.scheme.equals("https", ignoreCase = true) &&
-            uri.host.equals("raw.githubusercontent.com", ignoreCase = true) &&
-            uri.encodedPath?.startsWith(expectedPrefix, ignoreCase = false) == true &&
-            uri.encodedPath?.endsWith(".apk", ignoreCase = true) == true
-    }
-
     private fun publishNativeDriveSnapshot(error: String? = null) {
         if (!::webView.isInitialized || isFinishing || isDestroyed) return
         val snapshot = NexusDriveForegroundService.readSnapshot(this)
@@ -1436,22 +962,17 @@ class MainActivity : AppCompatActivity() {
 
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
-        if (intent != null) {
-            handleOtaInstallStatus(intent)
-            setIntent(intent)
-        }
+        setIntent(intent)
+        playUpdateManager.resumeIncompleteUpdate()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (::webView.isInitialized) playUpdateManager.resumeIncompleteUpdate()
     }
 
     override fun onDestroy() {
-        nativeOtaUpdateDialog?.dismiss()
-        nativeOtaUpdateDialog = null
-        nativeOtaPromptMessage = null
-        if (!otaInstallCommitted) cancelNativeOtaInstall()
-        else {
-            otaDownloadConnection?.disconnect()
-            otaDownloadConnection = null
-        }
-        otaInstallExecutor.shutdownNow()
+        playUpdateManager.unregister()
         clearPendingWebCallbacks()
         super.onDestroy()
     }
@@ -1500,18 +1021,6 @@ class MainActivity : AppCompatActivity() {
         const val BROWSER_BRIDGE_NAME = "NexusBrowserAndroid"
         const val BROWSER_ACTION_OPEN = "open"
 
-        const val ACTION_OTA_SHOW_PROMPT = "showUpdatePrompt"
-        const val ACTION_OTA_INSTALL = "installUpdate"
-        const val ACTION_OTA_CANCEL = "cancelUpdate"
-        const val ACTION_OTA_INSTALL_STATUS = "com.nexusnova.app.OTA_INSTALL_STATUS"
-        const val EXTRA_OTA_SESSION_ID = "otaSessionId"
-        const val OTA_GITHUB_REPOSITORY = "fahadsoomro123/nexusnova-app"
-        const val OTA_CACHE_DIR = "nexusnova-ota"
-        const val OTA_APK_NAME = "nexusnova-update.apk"
-        const val APK_MIME_TYPE = "application/vnd.android.package-archive"
-        const val OTA_MAX_APK_BYTES = 200L * 1024L * 1024L
-        const val OTA_CONNECT_TIMEOUT_MS = 15_000
-        const val OTA_READ_TIMEOUT_MS = 30_000
         const val ACTION_OPEN_NOVA_VPN = "openNovaVpn"
         const val ACTION_OPEN_EXTERNAL = "openExternal"
         const val ACTION_SHOW_REWARDED_AD = "showRewardedAd"
