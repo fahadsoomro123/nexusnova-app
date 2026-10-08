@@ -1255,7 +1255,7 @@ class NovaCutEngine {
 
     if (style.background) {
       const clean = String(style.background).replace("#", "");
-      const full = clean.length === 3 ? clean.split("").map((c) => c + c).join("") : clean;
+      const full = clean.length === 3 ? clean.split("").map((item) => item + item).join("") : clean;
       const r = parseInt(full.slice(0, 2), 16) || 0;
       const g = parseInt(full.slice(2, 4), 16) || 0;
       const b = parseInt(full.slice(4, 6), 16) || 0;
@@ -1269,7 +1269,16 @@ class NovaCutEngine {
     });
     ctx.restore();
 
-    const blob = await new Promise((resolve, reject) => canvas.toBlob((value) => value  async createStickerPng(ffmpeg, sticker, width, height, index, path) {
+    const blob = await new Promise((resolve, reject) => canvas.toBlob(
+      (value) => value
+        ? resolve(value)
+        : reject(new Error(`NovaCut failed to encode text layer ${index}.`)),
+      "image/png"
+    ));
+    await this.writeFile(ffmpeg, path, blob);
+  }
+
+  async createStickerPng(ffmpeg, sticker, width, height, index, path) {
     const canvas = document.createElement("canvas");
     canvas.width = width;
     canvas.height = height;
@@ -1278,13 +1287,11 @@ class NovaCutEngine {
     ctx.clearRect(0, 0, width, height);
     drawSticker(ctx, sticker, width, height, 1);
     const blob = await new Promise((resolve, reject) => canvas.toBlob(
-      (value) => value ? resolve(value) : reject(new Error(`NovaCut failed to encode sticker layer ${index}.`)),
+      (value) => value
+        ? resolve(value)
+        : reject(new Error(`NovaCut failed to encode sticker layer ${index}.`)),
       "image/png"
     ));
-    await this.writeFile(ffmpeg, path, blob);
-  }
-
- ? resolve(value) : reject(new Error(`NovaCut failed to encode text layer ${index}.`)), "image/png"));
     await this.writeFile(ffmpeg, path, blob);
   }
 
