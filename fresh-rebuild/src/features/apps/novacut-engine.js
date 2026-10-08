@@ -725,6 +725,13 @@ class NovaCutEngine {
     return true;
   }
 
+  clearSelection() {
+    if (this.activeTrackId === null) return false;
+    this.activeTrackId = null;
+    this.events.emit("selectionchange", { id: null, cleared: true });
+    return true;
+  }
+
   restoreState(state = {}, options = {}) {
     this.pause();
     this.aspectRatio = RATIO_PRESETS[state.aspectRatio] ? state.aspectRatio : "16:9";
