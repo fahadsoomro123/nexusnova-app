@@ -124,12 +124,15 @@ class NovaCutTrackRegistry {
   }
 }
 
+
 class NovaCutCanvasPreview {
   constructor(engine, canvas) {
     this.engine = engine;
     this.canvas = canvas;
     this.ctx = canvas?.getContext("2d", { alpha: false, desynchronized: true }) || null;
     this.media = new Map();
+    this.pending = new Map();
+    this.awaitingRender = new Set();
     this.urls = new Map();
     this.frameId = 0;
     this.running = false;
@@ -139,6 +142,20 @@ class NovaCutCanvasPreview {
       this.resizeObserver.observe(canvas);
     }
     this.resize();
+  }
+
+  isVideo(media) {
+    return typeof HTMLVideoElement !== "undefined"
+      ? media instanceof HTMLVideoElement
+      : String(media?.tagName || "").toLowerCase() === "video";
+  }
+
+  emitMediaStatus(clip, status, error = null) {
+    this.engine.events.emit("media:status", {
+      clipId: clip?.id || null,
+      status,
+      error: error || null
+    });
   }
 
   resize() {
@@ -152,32 +169,102 @@ class NovaCutCanvasPreview {
   }
 
   async resolve(clip) {
-    if (!clip.file) return null;
+    if (!clip?.file) return null;
     if (this.media.has(clip.id)) return this.media.get(clip.id);
-    let media;
-    if (sourceKind(clip.file) === "image") {
-      media = new Image();
-      media.decoding = "async";
-      media.src = typeof clip.file === "string" ? clip.file : this.objectUrl(clip.file);
-      await new Promise((resolve, reject) => {
-        media.onload = resolve;
-        media.onerror = () => reject(new Error(`NovaCut could not decode image "${clip.id}".`));
-      });
-    } else {
-      media = document.createElement("video");
-      media.muted = true;
-      media.playsInline = true;
-      media.preload = "auto";
-      media.src = typeof clip.file === "string" ? clip.file : this.objectUrl(clip.file);
-      await new Promise((resolve, reject) => {
-        const ok = () => { media.removeEventListener("error", fail); resolve(); };
-        const fail = () => { media.removeEventListener("loadedmetadata", ok); reject(new Error(`NovaCut could not decode video "${clip.id}".`)); };
-        media.addEventListener("loadedmetadata", ok, { once: true });
-        media.addEventListener("error", fail, { once: true });
-      });
-    }
-    this.media.set(clip.id, media);
-    return media;
+    if (this.pending.has(clip.id)) return this.pending.get(clip.id);
+
+    const promise = (async () => {
+      this.emitMediaStatus(clip, "decoding");
+      let media = null;
+
+      try {
+        if (sourceKind(clip.file) === "image") {
+          media = new Image();
+          media.decoding = "async";
+
+          await new Promise((resolve, reject) => {
+            const finish = () => {
+              cleanup();
+              resolve();
+            };
+            const fail = () => {
+              cleanup();
+              reject(new Error("NovaCut could not decode image \"" + String(clip.id) + "\"."));
+            };
+            const cleanup = () => {
+              media.removeEventListener?.("load", finish);
+              media.removeEventListener?.("error", fail);
+            };
+
+            media.addEventListener("load", finish, { once: true });
+            media.addEventListener("error", fail, { once: true });
+            media.src = typeof clip.file === "string" ? clip.file : this.objectUrl(clip.file);
+
+            if (media.complete && media.naturalWidth > 0) {
+              finish();
+            }
+          });
+        } else {
+          media = document.createElement("video");
+          media.muted = true;
+          media.defaultMuted = true;
+          media.playsInline = true;
+          media.preload = "auto";
+          media.setAttribute?.("playsinline", "");
+          media.setAttribute?.("muted", "");
+          media.setAttribute?.("webkit-playsinline", "");
+
+          await new Promise((resolve, reject) => {
+            let settled = false;
+
+            const cleanup = () => {
+              media.removeEventListener?.("loadeddata", finish);
+              media.removeEventListener?.("canplay", finish);
+              media.removeEventListener?.("error", fail);
+              media.removeEventListener?.("abort", fail);
+            };
+
+            const finish = () => {
+              if (settled) return;
+              if (media.readyState < 2) return;
+              settled = true;
+              cleanup();
+              resolve();
+            };
+
+            const fail = () => {
+              if (settled) return;
+              settled = true;
+              cleanup();
+              reject(new Error("NovaCut could not decode video \"" + String(clip.id) + "\"."));
+            };
+
+            media.addEventListener("loadeddata", finish);
+            media.addEventListener("canplay", finish);
+            media.addEventListener("error", fail, { once: true });
+            media.addEventListener("abort", fail, { once: true });
+            media.src = typeof clip.file === "string" ? clip.file : this.objectUrl(clip.file);
+            media.load?.();
+
+            if (media.readyState >= 2) {
+              finish();
+            }
+          });
+        }
+
+        this.media.set(clip.id, media);
+        this.emitMediaStatus(clip, "ready");
+        return media;
+      } catch (error) {
+        this.emitMediaStatus(clip, "decode-error", error);
+        throw error;
+      } finally {
+        this.pending.delete(clip.id);
+      }
+    })();
+
+    this.pending.set(clip.id, promise);
+    return promise;
   }
 
   objectUrl(blob) {
@@ -220,12 +307,26 @@ class NovaCutCanvasPreview {
 
     for (const clip of active) {
       const media = this.media.get(clip.id);
-      if (!media) { this.resolve(clip).catch((e) => this.engine.reportError("decode", e)); continue; }
 
-      if (media instanceof HTMLVideoElement) {
+      if (!media) {
+        if (!this.awaitingRender.has(clip.id)) {
+          this.awaitingRender.add(clip.id);
+          this.resolve(clip)
+            .then(() => {
+              if (this.engine.isPlaying) {
+                this.engine.syncMediaToPlayhead({ autoplay: true });
+              }
+            })
+            .catch((error) => this.engine.reportError("decode", error))
+            .finally(() => this.awaitingRender.delete(clip.id));
+        }
+        continue;
+      }
+
+      if (this.isVideo(media)) {
         const localMs = now - clip.startTime;
         const target = msToSec(clip.sourceStartTime + localMs);
-        if (Math.abs(media.currentTime - target) > 0.035) {
+        if (!this.engine.isPlaying || Math.abs(media.currentTime - target) > 0.20) {
           try { media.currentTime = target; } catch (_) {}
         }
         if (media.readyState < 2) continue;
@@ -255,7 +356,7 @@ class NovaCutCanvasPreview {
     const y = clamp(style.y, 0, 1) * height;
     const size = Math.max(8, Number(style.fontSize) || 48);
     ctx.save();
-    ctx.font = `${style.italic ? "italic " : ""}${style.bold ? "800 " : "600 "}${size}px ${style.fontFamily || "system-ui"}`;
+    ctx.font = (style.italic ? "italic " : "") + (style.bold ? "800 " : "600 ") + size + "px " + (style.fontFamily || "system-ui");
     ctx.textAlign = style.align || "center";
     ctx.textBaseline = "middle";
     const lines = String(cue.text).split(/\r?\n/).slice(0, 8);
@@ -277,7 +378,7 @@ class NovaCutCanvasPreview {
     const r = parseInt(full.slice(0, 2), 16) || 0;
     const g = parseInt(full.slice(2, 4), 16) || 0;
     const b = parseInt(full.slice(4, 6), 16) || 0;
-    return `rgba(${r},${g},${b},${clamp(alpha ?? 1, 0, 1)})`;
+    return "rgba(" + r + "," + g + "," + b + "," + clamp(alpha ?? 1, 0, 1) + ")";
   }
 
   dispose() {
@@ -285,10 +386,13 @@ class NovaCutCanvasPreview {
     this.resizeObserver?.disconnect();
     this.media.forEach((media) => { try { media.pause?.(); media.removeAttribute?.("src"); media.load?.(); } catch (_) {} });
     this.urls.forEach((url) => { try { URL.revokeObjectURL(url); } catch (_) {} });
+    this.pending.clear();
+    this.awaitingRender.clear();
     this.media.clear();
     this.urls.clear();
   }
 }
+
 
 class NovaCutFFmpegRuntime {
   constructor(engine) {
@@ -593,13 +697,18 @@ class NovaCutEngine {
     return result;
   }
 
-  setPlayhead(timestamp) {
+
+  setPlayhead(timestamp, options = {}) {
     this.currentTimestamp = clamp(timestamp, 0, this.registry.durationMs());
     const current = this.root?.querySelector("[data-role='current-time']");
     const duration = this.root?.querySelector("[data-role='duration']");
     if (current) current.textContent = this.format(this.currentTimestamp);
     if (duration) duration.textContent = this.format(this.registry.durationMs());
     this.events.emit("playheadchange", { timestamp: this.currentTimestamp });
+
+    if (options.syncMedia !== false) {
+      this.syncMediaToPlayhead({ autoplay: this.isPlaying });
+    }
   }
 
   format(ms) {
@@ -608,32 +717,108 @@ class NovaCutEngine {
       .map((n) => String(n).padStart(2, "0")).join(":");
   }
 
-  togglePlayback() { this.isPlaying ? this.pause() : this.play(); }
+  togglePlayback() { return this.isPlaying ? this.pause() : this.play(); }
 
-  play() {
-    if (this.isPlaying) return;
+  async play() {
+    if (this.isPlaying) return true;
+
+    const duration = this.registry.durationMs();
+    if (this.currentTimestamp >= duration) {
+      this.setPlayhead(0, { syncMedia: false });
+    }
+
+    const active = this.getActiveVideoClips();
+    try {
+      if (this.preview && active.length) {
+        await Promise.all(active.map((clip) => this.preview.resolve(clip)));
+      }
+    } catch (error) {
+      this.reportError("playback", error);
+      return false;
+    }
+
     this.isPlaying = true;
+    this.syncMediaToPlayhead({ autoplay: true });
+    this.events.emit("playbackchange", { isPlaying: true });
+
     let last = performance.now();
     const tick = (now) => {
       if (!this.isPlaying) return;
-      const delta = now - last;
+
+      const delta = Math.max(0, now - last);
       last = now;
-      this.setPlayhead(this.currentTimestamp + delta);
-      if (this.currentTimestamp >= this.registry.durationMs()) {
-        this.setPlayhead(0);
+      const next = this.currentTimestamp + delta;
+
+      if (next >= this.registry.durationMs()) {
+        this.setPlayhead(0, { syncMedia: false });
         this.pause();
         return;
       }
+
+      this.setPlayhead(next, { syncMedia: false });
+      this.syncMediaToPlayhead({ autoplay: true });
       this.playbackFrame = requestAnimationFrame(tick);
     };
+
     this.playbackFrame = requestAnimationFrame(tick);
+    return true;
   }
 
   pause() {
+    const changed = this.isPlaying;
     this.isPlaying = false;
     cancelAnimationFrame(this.playbackFrame);
     this.playbackFrame = 0;
+
+    this.preview?.media?.forEach((media) => {
+      if (this.preview?.isVideo?.(media)) {
+        try { media.pause?.(); } catch (_) {}
+      }
+    });
+
+    if (changed) {
+      this.events.emit("playbackchange", { isPlaying: false });
+    }
   }
+
+  syncMediaToPlayhead({ autoplay = false } = {}) {
+    const active = this.getActiveVideoClips();
+    const activeIds = new Set(active.map((clip) => clip.id));
+
+    this.preview?.media?.forEach((media, clipId) => {
+      if (!activeIds.has(clipId) && this.preview?.isVideo?.(media)) {
+        try { media.pause?.(); } catch (_) {}
+      }
+    });
+
+    for (const clip of active) {
+      const media = this.preview?.media?.get(clip.id);
+      if (!media || !this.preview?.isVideo?.(media)) continue;
+      if (media.readyState < 1) continue;
+
+      const localMs = this.currentTimestamp - clip.startTime;
+      const target = Math.max(
+        msToSec(clip.sourceStartTime),
+        msToSec(clip.sourceStartTime + localMs)
+      );
+
+      if (!this.isPlaying || Math.abs(media.currentTime - target) > 0.20) {
+        try { media.currentTime = target; } catch (_) {}
+      }
+
+      if (autoplay && media.readyState >= 2) {
+        try {
+          const playPromise = media.play?.();
+          if (playPromise?.catch) {
+            playPromise.catch((error) => this.reportError("playback", error));
+          }
+        } catch (error) {
+          this.reportError("playback", error);
+        }
+      }
+    }
+  }
+
 
   getActiveVideoClips() {
     const t = this.currentTimestamp;
