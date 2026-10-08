@@ -41,7 +41,7 @@ export function normalizeSticker(input = {}) {
     y: clampUnit(input.y, 0.5),
     scale: Math.max(0.2, Math.min(4, Number(input.scale) || 1)),
     rotation: Number.isFinite(Number(input.rotation)) ? Number(input.rotation) : 0,
-    opacity: Math.max(0, Math.min(1, Number(input.opacity) || 1))
+    opacity: Math.max(0, Math.min(1, input.opacity === undefined ? 1 : Number(input.opacity)))
   };
 }
 
