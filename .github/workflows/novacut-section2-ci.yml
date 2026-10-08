@@ -1,0 +1,37 @@
+name: NovaCut Section 2 Timeline CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "fresh-rebuild/src/features/apps/novacut-engine.js"
+      - "fresh-rebuild/src/features/apps/novacut-history.js"
+      - "fresh-rebuild/src/features/apps/novacut-studio.js"
+      - "fresh-rebuild/src/features/apps/novacut-studio.css"
+      - "fresh-rebuild/src/features/apps/premium-studio-suite.js"
+      - "fresh-rebuild/src/features/apps/novacut-engine.test.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax
+        run: |
+          node --check fresh-rebuild/src/features/apps/novacut-engine.js
+          node --check fresh-rebuild/src/features/apps/novacut-history.js
+          node --check fresh-rebuild/src/features/apps/novacut-studio.js
+          node --check fresh-rebuild/src/features/apps/premium-studio-suite.js
+          echo "NOVACUT SECTION 2 SYNTAX PASS"
+      - name: Timeline and history tests
+        run: |
+          node --test fresh-rebuild/src/features/apps/novacut-engine.test.mjs
+          echo "NOVACUT SECTION 2 TESTS PASS"
