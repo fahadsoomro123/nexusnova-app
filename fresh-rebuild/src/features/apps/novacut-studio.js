@@ -74,12 +74,19 @@ function ensureStyle(root) {
     ".nx-novacut__timeline.novacut-gesture-active{touch-action:none;user-select:none;-webkit-user-select:none;}",
     ".nx-novacut__clip{position:relative;flex:0 0 auto;will-change:transform,width;margin-left:0;transition:none;}",
     ".nx-novacut__clip.novacut-selected{border-color:#45a8ff;box-shadow:0 0 0 1px rgba(69,168,255,.18);}",
-    ".novacut-clip__handle{position:absolute;top:0;bottom:0;width:18px;z-index:4;display:block;touch-action:none;}",
-    ".novacut-clip__handle::after{content:'';position:absolute;top:8px;bottom:8px;width:3px;border-radius:3px;background:rgba(245,245,247,.72);box-shadow:0 0 0 1px rgba(0,0,0,.28);}",
-    ".novacut-clip__handle[data-novacut-edge='start']{left:0;cursor:ew-resize;}",
-    ".novacut-clip__handle[data-novacut-edge='start']::after{left:5px;}",
-    ".novacut-clip__handle[data-novacut-edge='end']{right:0;cursor:ew-resize;}",
-    ".novacut-clip__handle[data-novacut-edge='end']::after{right:5px;}",
+    ".nx-novacut__clip--video{cursor:grab;}",
+    ".nx-novacut__clip--video:active{cursor:grabbing;}",
+    ".novacut-clip__handle{position:absolute;top:0;bottom:0;width:28px;z-index:8;display:block;touch-action:none;opacity:.96;border-radius:8px;}",
+    ".novacut-clip__handle::before{content:'‹';position:absolute;top:50%;left:4px;transform:translateY(-50%);font-size:19px;line-height:1;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.8);}",
+    ".novacut-clip__handle::after{content:'';position:absolute;top:5px;bottom:5px;width:4px;border-radius:4px;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.35),0 0 10px rgba(99,185,255,.55);}",
+    ".novacut-clip__handle[data-novacut-edge='start']{left:0;cursor:ew-resize;background:linear-gradient(90deg,rgba(99,185,255,.24),transparent);}",
+    ".novacut-clip__handle[data-novacut-edge='start']::after{left:4px;}",
+    ".novacut-clip__handle[data-novacut-edge='end']{right:0;cursor:ew-resize;background:linear-gradient(270deg,rgba(99,185,255,.24),transparent);}",
+    ".novacut-clip__handle[data-novacut-edge='end']::before{content:'›';left:auto;right:4px;}",
+    ".novacut-clip__handle[data-novacut-edge='end']::after{right:4px;}",
+    ".novacut-clip__move-affordance{position:absolute;left:50%;top:5px;transform:translateX(-50%);z-index:7;pointer-events:none;padding:2px 6px;border:1px solid rgba(255,255,255,.24);border-radius:999px;background:rgba(5,5,7,.72);color:#eaf7ff;font:900 7px/1 Inter,ui-sans-serif,system-ui,sans-serif;letter-spacing:.12em;box-shadow:0 4px 12px rgba(0,0,0,.25);opacity:0;transition:opacity 100ms ease;}",
+    ".nx-novacut__clip.novacut-selected .novacut-clip__move-affordance,.nx-novacut__clip.is-selected .novacut-clip__move-affordance,.nx-novacut__clip:hover .novacut-clip__move-affordance{opacity:1;}",
+    ".nx-novacut__clip.novacut-selected .novacut-clip__handle,.nx-novacut__clip.is-selected .novacut-clip__handle{opacity:1;}"
     ".nx-novacut__interaction-playhead{position:absolute;z-index:20;width:1px;top:25px;bottom:0;pointer-events:none;background:linear-gradient(180deg,#45a8ff,#45a8ff22);box-shadow:0 0 8px rgba(69,168,255,.36);}",
     ".nx-novacut__interaction-playhead::before{content:'';position:absolute;top:-1px;left:50%;width:9px;height:9px;border-radius:3px;background:#45a8ff;border:1px solid #fff;transform:translate(-50%,-50%);box-shadow:0 0 10px rgba(69,168,255,.5);}",
     ".nx-novacut__clip[data-novacut-dragging='true']{z-index:8;opacity:.92;}",
@@ -113,6 +120,7 @@ export class NovaCutStudioInteractions {
 
     this.mode = "idle";
     this.touchState = null;
+    this.activePointerId = null;
 
     this.pendingFrame = 0;
     this.pendingMutationFrame = 0;
@@ -233,6 +241,50 @@ export class NovaCutStudioInteractions {
     );
 
     this.root.addEventListener(
+      "pointerdown",
+      (event) => {
+        this.onPointerStart(event);
+      },
+      {
+        signal,
+        passive: false
+      }
+    );
+
+    this.root.addEventListener(
+      "pointermove",
+      (event) => {
+        this.onPointerMove(event);
+      },
+      {
+        signal,
+        passive: false
+      }
+    );
+
+    this.root.addEventListener(
+      "pointerup",
+      (event) => {
+        this.onPointerEnd(event);
+      },
+      {
+        signal,
+        passive: false
+      }
+    );
+
+    this.root.addEventListener(
+      "pointercancel",
+      (event) => {
+        this.onPointerCancel(event);
+      },
+      {
+        signal,
+        passive: false
+      }
+    );
+
+    this.root.addEventListener(
       "click",
       (event) => {
         this.onClick(event);
@@ -306,6 +358,100 @@ export class NovaCutStudioInteractions {
     );
 
     this.decorateVideoClips();
+  }
+
+  toPointerGestureEvent(event) {
+    return {
+      target: event.target,
+      changedTouches: [{
+        clientX: event.clientX,
+        clientY: event.clientY
+      }],
+      preventDefault: () => event.preventDefault()
+    };
+  }
+
+  isPrimaryPointer(event) {
+    if (event.pointerType === "touch") {
+      return false;
+    }
+
+    if (event.isPrimary === false) {
+      return false;
+    }
+
+    return event.pointerType !== "mouse" || event.button === 0;
+  }
+
+  onPointerStart(event) {
+    if (!this.isPrimaryPointer(event)) {
+      return;
+    }
+
+    this.activePointerId = event.pointerId;
+
+    try {
+      this.timeline?.setPointerCapture?.(event.pointerId);
+    } catch (_) {}
+
+    this.onTouchStart(
+      this.toPointerGestureEvent(event)
+    );
+  }
+
+  onPointerMove(event) {
+    if (
+      this.activePointerId === null ||
+      event.pointerId !== this.activePointerId
+    ) {
+      return;
+    }
+
+    this.onTouchMove(
+      this.toPointerGestureEvent(event)
+    );
+  }
+
+  onPointerEnd(event) {
+    if (
+      this.activePointerId === null ||
+      event.pointerId !== this.activePointerId
+    ) {
+      return;
+    }
+
+    const pointerId = this.activePointerId;
+
+    this.onTouchEnd(
+      this.toPointerGestureEvent(event)
+    );
+
+    try {
+      this.timeline?.releasePointerCapture?.(pointerId);
+    } catch (_) {}
+
+    this.activePointerId = null;
+  }
+
+  onPointerCancel(event) {
+    if (
+      this.activePointerId === null ||
+      event.pointerId !== this.activePointerId
+    ) {
+      return;
+    }
+
+    const pointerId = this.activePointerId;
+
+    this.onTouchCancel(
+      this.toPointerGestureEvent(event)
+    );
+
+    try {
+      this.timeline?.releasePointerCapture?.(pointerId);
+    } catch (_) {}
+
+    this.activePointerId = null;
   }
 
   onClick(event) {
@@ -1155,6 +1301,9 @@ export class NovaCutStudioInteractions {
     const clip =
       state.clip;
 
+    const mode =
+      state.mode;
+
     clip.startTime =
       Math.max(
         0,
@@ -1345,6 +1494,8 @@ export class NovaCutStudioInteractions {
         "presentation"
       );
 
+      start.title = "Trim clip start";
+
       element.prepend(
         start
       );
@@ -1372,9 +1523,19 @@ export class NovaCutStudioInteractions {
         "presentation"
       );
 
+      end.title = "Trim clip end";
       element.append(
         end
       );
+    }
+
+    if (!element.querySelector(".novacut-clip__move-affordance")) {
+      const move = this.root.ownerDocument.createElement("span");
+      move.className = "novacut-clip__move-affordance";
+      move.textContent = "MOVE";
+      move.setAttribute("aria-hidden", "true");
+      move.title = "Drag clip to move";
+      element.append(move);
     }
   }
 
@@ -1545,6 +1706,9 @@ export class NovaCutStudioInteractions {
     );
 
     this.touchState =
+      null;
+
+    this.activePointerId =
       null;
 
     this.scheduleSync();
