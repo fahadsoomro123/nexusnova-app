@@ -1,4 +1,5 @@
 /* NexusNova NovaCut Media Pipeline Core | Absolute CDN assets pinned */
+import { createNovaCutHistory } from "./novacut-history.js";
 const RUNTIME = Object.freeze({
   FFMPEG_PACKAGE: "https://unpkg.com/@ffmpeg/ffmpeg@0.12.15/dist/esm/index.js",
   FFMPEG_WORKER: "https://unpkg.com/@ffmpeg/ffmpeg@0.12.15/dist/esm/worker.js",
@@ -103,6 +104,18 @@ class NovaCutTrackRegistry {
     };
     this.textTracks.push(cue);
     return cue;
+  }
+
+  removeById(trackId) {
+    const idValue = String(trackId || "");
+    for (const [type, list] of [["videoTracks", this.videoTracks], ["audioTracks", this.audioTracks], ["textTracks", this.textTracks]]) {
+      const index = list.findIndex((entry) => entry.id === idValue);
+      if (index >= 0) {
+        const [removed] = list.splice(index, 1);
+        return { type, item: removed };
+      }
+    }
+    return null;
   }
 
   getById(trackId) {
@@ -381,6 +394,20 @@ class NovaCutCanvasPreview {
     return "rgba(" + r + "," + g + "," + b + "," + clamp(alpha ?? 1, 0, 1) + ")";
   }
 
+  removeClipMedia(clipId) {
+    const media = this.media.get(clipId);
+    if (!media) return;
+    try { media.pause?.(); media.removeAttribute?.("src"); media.load?.(); } catch (_) {}
+    this.media.delete(clipId);
+  }
+
+  reconcileMedia() {
+    const ids = new Set(this.engine.registry.videoTracks.map((clip) => clip.id));
+    for (const clipId of this.media.keys()) {
+      if (!ids.has(clipId)) this.removeClipMedia(clipId);
+    }
+  }
+
   dispose() {
     this.stop();
     this.resizeObserver?.disconnect();
@@ -635,12 +662,60 @@ class NovaCutEngine {
     };
     this.runtime = new NovaCutFFmpegRuntime(this);
     this.compiler = new NovaCutCommandCompiler(this);
+    this.history = createNovaCutHistory(this, { limit: 100 });
     this.preview = null;
     this.abort = null;
     if (this.root) this.mount(this.root);
   }
 
   on(event, callback) { return this.events.on(event, callback); }
+
+  getState() {
+    return {
+      videoTracks: this.registry.videoTracks,
+      audioTracks: this.registry.audioTracks,
+      textTracks: this.registry.textTracks,
+      aspectRatio: this.aspectRatio,
+      currentTimestamp: this.currentTimestamp,
+      activeTrackId: this.activeTrackId,
+      canUndo: this.history?.canUndo?.() || false,
+      canRedo: this.history?.canRedo?.() || false
+    };
+  }
+
+  selectClip(trackId) {
+    const record = this.registry.getById(trackId);
+    if (!record) return false;
+    this.activeTrackId = record.item.id;
+    this.events.emit("selectionchange", { id: this.activeTrackId, type: record.type });
+    return true;
+  }
+
+  restoreState(state = {}, options = {}) {
+    this.pause();
+    this.aspectRatio = RATIO_PRESETS[state.aspectRatio] ? state.aspectRatio : "16:9";
+    this.currentTimestamp = Math.max(0, Number(state.currentTimestamp) || 0);
+    this.activeTrackId = state.activeTrackId ? String(state.activeTrackId) : null;
+    this.registry.videoTracks = (state.videoTracks || []).map((track) => ({ ...track, file: track.file || null }));
+    this.registry.audioTracks = (state.audioTracks || []).map((track) => ({ ...track, file: track.file || null }));
+    this.registry.textTracks = (state.textTracks || []).map((track) => ({ ...track }));
+    this.preview?.reconcileMedia?.();
+    this.refresh();
+    this.events.emit("selectionchange", { id: this.activeTrackId, fromHistory: Boolean(options.fromHistory) });
+  }
+
+  withHistory(label, mutator) {
+    if (!this.history) return mutator();
+    return this.history.run(label, mutator);
+  }
+
+  recordExternalMutation(before, label) {
+    if (!this.history || !before) return false;
+    return this.history.commit(before, label);
+  }
+
+  undo() { return this.history?.undo?.() || false; }
+  redo() { return this.history?.redo?.() || false; }
 
   mount(root) {
     this.root = root;
@@ -668,6 +743,10 @@ class NovaCutEngine {
     bind("ratio", () => this.cycleRatio());
     bind("export", () => this.compileAndExportVideo());
     bind("play", () => this.togglePlayback());
+    bind("undo", () => this.undo());
+    bind("redo", () => this.redo());
+    bind("duplicate", () => this.duplicateClip());
+    bind("delete", () => this.deleteClip());
 
     root.querySelectorAll("[data-clip-id]").forEach((element) => {
       element.addEventListener("click", () => {
@@ -680,21 +759,112 @@ class NovaCutEngine {
   }
 
   addVideoClip(clip) {
-    const result = this.registry.addVideoClip(clip);
-    this.refresh();
-    return result;
+    return this.withHistory("Add video", () => {
+      const result = this.registry.addVideoClip(clip);
+      this.activeTrackId = result.id;
+      this.refresh();
+      return result;
+    });
   }
 
   addAudioSegment(segment) {
-    const result = this.registry.addAudioSegment(segment);
-    this.refresh();
-    return result;
+    return this.withHistory("Add audio", () => {
+      const result = this.registry.addAudioSegment(segment);
+      this.activeTrackId = result.id;
+      this.refresh();
+      return result;
+    });
   }
 
   addTextCue(cue) {
-    const result = this.registry.addTextCue(cue);
-    this.refresh();
-    return result;
+    return this.withHistory("Add text", () => {
+      const result = this.registry.addTextCue(cue);
+      this.activeTrackId = result.id;
+      this.refresh();
+      return result;
+    });
+  }
+
+  moveClip(trackId, startTime) {
+    const record = this.registry.getById(trackId || this.activeTrackId);
+    if (!record) return { success: false, reason: "clip-not-found" };
+    const nextStart = Math.max(0, Number(startTime) || 0);
+    return this.withHistory("Move clip", () => {
+      record.item.startTime = nextStart;
+      this.activeTrackId = record.item.id;
+      this.refresh();
+      return { success: true, clip: record.item };
+    });
+  }
+
+  trimClip(trackId, edge, timestamp) {
+    const record = this.registry.getById(trackId || this.activeTrackId);
+    if (!record || record.type !== "videoTracks") return { success: false, reason: "video-clip-not-found" };
+    const clip = record.item;
+    const minFrame = 1000 / 30;
+    return this.withHistory("Trim " + (edge === "start" ? "start" : "end"), () => {
+      const originalEnd = clip.startTime + clip.duration;
+      if (edge === "start") {
+        const nextStart = clamp(timestamp, 0, originalEnd - minFrame);
+        const delta = nextStart - clip.startTime;
+        clip.startTime = nextStart;
+        clip.duration = Math.max(minFrame, originalEnd - nextStart);
+        clip.sourceStartTime = Math.max(0, clip.sourceStartTime + delta);
+      } else {
+        const nextEnd = Math.max(clip.startTime + minFrame, Number(timestamp) || clip.startTime + minFrame);
+        clip.duration = Math.max(minFrame, nextEnd - clip.startTime);
+      }
+      this.activeTrackId = clip.id;
+      this.refresh();
+      return { success: true, clip };
+    });
+  }
+
+  deleteClip(trackId = this.activeTrackId) {
+    const record = this.registry.getById(trackId);
+    if (!record) return { success: false, reason: "clip-not-found" };
+    return this.withHistory("Delete clip", () => {
+      const listBefore = this.registry[record.type] || [];
+      const removedIndex = listBefore.findIndex((item) => item.id === record.item.id);
+      const removed = this.registry.removeById(record.item.id);
+      this.preview?.removeClipMedia?.(record.item.id);
+      const list = this.registry[record.type] || [];
+      const replacementIndex = Math.min(Math.max(0, removedIndex), Math.max(0, list.length - 1));
+      this.activeTrackId = list.length ? list[replacementIndex]?.id || null : null;
+      this.refresh();
+      this.events.emit("delete", { removed: removed?.item || null, type: removed?.type || null });
+      return { success: Boolean(removed), removed };
+    });
+  }
+
+  duplicateClip(trackId = this.activeTrackId) {
+    const record = this.registry.getById(trackId);
+    if (!record) return { success: false, reason: "clip-not-found" };
+    return this.withHistory("Duplicate clip", () => {
+      if (record.type !== "videoTracks") {
+        const prefix = record.type === "audioTracks" ? "audio" : "text";
+        const copy = { ...record.item, id: id(prefix), startTime: record.item.startTime + record.item.duration };
+        const list = this.registry[record.type];
+        const index = list.findIndex((item) => item.id === record.item.id);
+        list.splice(index + 1, 0, copy);
+        this.activeTrackId = copy.id;
+        this.refresh();
+        this.events.emit("duplicate", { original: record.item, duplicate: copy });
+        return { success: true, duplicate: copy };
+      }
+      const clip = record.item;
+      const insertAt = clip.startTime + clip.duration;
+      const copy = { ...clip, id: id("video"), startTime: insertAt };
+      this.registry.videoTracks
+        .filter((item) => item.id !== clip.id && item.startTime >= insertAt)
+        .forEach((item) => { item.startTime += clip.duration; });
+      const index = this.registry.videoTracks.findIndex((item) => item.id === clip.id);
+      this.registry.videoTracks.splice(index + 1, 0, copy);
+      this.activeTrackId = copy.id;
+      this.refresh();
+      this.events.emit("duplicate", { original: clip, duplicate: copy });
+      return { success: true, duplicate: copy };
+    });
   }
 
 
@@ -826,6 +996,7 @@ class NovaCutEngine {
   }
 
   executeSplitAction(activeTrackId, currentTimestamp) {
+    const before = this.history?.snapshot?.();
     try {
       const targetId = activeTrackId || this.activeTrackId;
       const record = this.registry.getById(targetId);
@@ -859,7 +1030,9 @@ class NovaCutEngine {
 
       this.registry.videoTracks.splice(index, 1, first, second);
       this.activeTrackId = second.id;
+      this.preview?.removeClipMedia?.(clip.id);
       this.refresh();
+      this.history?.commit(before, "Split clip");
       this.events.emit("split", { originalClipId: clip.id, firstClip: first, secondClip: second, splitTimestamp: timestamp });
       return { success: true, firstClip: first, secondClip: second };
     } catch (error) {
@@ -904,11 +1077,13 @@ class NovaCutEngine {
   }
 
   cycleRatio() {
+    const before = this.history?.snapshot?.();
     const keys = Object.keys(RATIO_PRESETS);
     const next = keys[(keys.indexOf(this.aspectRatio) + 1) % keys.length];
     this.aspectRatio = next;
     this.events.emit("ratio", { ratio: next, preset: RATIO_PRESETS[next] });
     this.refresh();
+    this.history?.commit(before, "Canvas ratio");
   }
 
   async writeFile(ffmpeg, path, file) {
@@ -1031,12 +1206,9 @@ class NovaCutEngine {
   }
 
   refresh() {
+    this.currentTimestamp = clamp(this.currentTimestamp, 0, this.registry.durationMs());
     this.setPlayhead(this.currentTimestamp);
-    this.events.emit("statechange", {
-      videoTracks: this.registry.videoTracks,
-      audioTracks: this.registry.audioTracks,
-      textTracks: this.registry.textTracks
-    });
+    this.events.emit("statechange", this.getState());
   }
 
   reportError(scope, error) {

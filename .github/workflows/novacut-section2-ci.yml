@@ -1,0 +1,30 @@
+name: NovaCut Section 2 Timeline CI
+
+on:
+  push:
+    branches: [novacut-section2-timeline-20261008]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax
+        run: |
+          node --check fresh-rebuild/src/features/apps/novacut-engine.js
+          node --check fresh-rebuild/src/features/apps/novacut-history.js
+          node --check fresh-rebuild/src/features/apps/novacut-studio.js
+          node --check fresh-rebuild/src/features/apps/premium-studio-suite.js
+          echo "NOVACUT SECTION 2 SYNTAX PASS"
+      - name: Timeline and history tests
+        run: |
+          node --test fresh-rebuild/src/features/apps/novacut-engine.test.mjs
+          echo "NOVACUT SECTION 2 TESTS PASS"

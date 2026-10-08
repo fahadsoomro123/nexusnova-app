@@ -325,6 +325,32 @@
   border-bottom: 1px solid var(--nc-line) !important;
 }
 
+.nx-novacut__timeline-head-actions {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 6px !important;
+}
+
+.nx-novacut__timeline-action {
+  width: 32px !important;
+  height: 32px !important;
+  display: grid !important;
+  place-items: center !important;
+  padding: 0 !important;
+}
+
+.nx-novacut__timeline-action svg {
+  width: 14px !important;
+  height: 14px !important;
+}
+
+.nx-novacut__timeline-action:disabled {
+  opacity: .34 !important;
+  cursor: not-allowed !important;
+  box-shadow: none !important;
+}
+
 .nx-novacut__add-button {
   display: inline-flex !important;
   align-items: center !important;
@@ -500,6 +526,107 @@
 .nx-novacut__clip.is-selected {
   border-color: rgba(99,185,255,.85) !important;
   box-shadow: 0 0 0 2px rgba(99,185,255,.11), 0 8px 20px rgba(0,0,0,.2) !important;
+}
+
+.nx-novacut__clip--video {
+  cursor: grab !important;
+}
+
+.nx-novacut__clip--video:active {
+  cursor: grabbing !important;
+}
+
+.novacut-clip__handle {
+  position: absolute !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  width: 28px !important;
+  z-index: 8 !important;
+  display: block !important;
+  touch-action: none !important;
+  opacity: .96 !important;
+  border-radius: 8px !important;
+}
+
+.novacut-clip__handle::before {
+  content: "‹";
+  position: absolute !important;
+  top: 50% !important;
+  left: 4px !important;
+  transform: translateY(-50%) !important;
+  font-size: 19px !important;
+  line-height: 1 !important;
+  color: #fff !important;
+  text-shadow: 0 1px 3px rgba(0,0,0,.8) !important;
+}
+
+.novacut-clip__handle::after {
+  content: "";
+  position: absolute !important;
+  top: 5px !important;
+  bottom: 5px !important;
+  width: 4px !important;
+  border-radius: 4px !important;
+  background: #fff !important;
+  box-shadow: 0 0 0 1px rgba(0,0,0,.35), 0 0 10px rgba(99,185,255,.55) !important;
+}
+
+.novacut-clip__handle[data-novacut-edge="start"] {
+  left: 0 !important;
+  cursor: ew-resize !important;
+  background: linear-gradient(90deg, rgba(99,185,255,.24), transparent) !important;
+}
+
+.novacut-clip__handle[data-novacut-edge="start"]::after {
+  left: 4px !important;
+}
+
+.novacut-clip__handle[data-novacut-edge="end"] {
+  right: 0 !important;
+  cursor: ew-resize !important;
+  background: linear-gradient(270deg, rgba(99,185,255,.24), transparent) !important;
+}
+
+.novacut-clip__handle[data-novacut-edge="end"]::before {
+  content: "›" !important;
+  left: auto !important;
+  right: 4px !important;
+}
+
+.novacut-clip__handle[data-novacut-edge="end"]::after {
+  right: 4px !important;
+}
+
+.novacut-clip__move-affordance {
+  position: absolute !important;
+  left: 50% !important;
+  top: 5px !important;
+  transform: translateX(-50%) !important;
+  z-index: 7 !important;
+  pointer-events: none !important;
+  padding: 2px 6px !important;
+  border: 1px solid rgba(255,255,255,.24) !important;
+  border-radius: 999px !important;
+  background: rgba(5,5,7,.72) !important;
+  color: #eaf7ff !important;
+  font-size: 7px !important;
+  line-height: 1 !important;
+  font-weight: 900 !important;
+  letter-spacing: .12em !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,.25) !important;
+  opacity: 0 !important;
+  transition: opacity 100ms ease !important;
+}
+
+.nx-novacut__clip.novacut-selected .novacut-clip__move-affordance,
+.nx-novacut__clip.is-selected .novacut-clip__move-affordance,
+.nx-novacut__clip:hover .novacut-clip__move-affordance {
+  opacity: 1 !important;
+}
+
+.nx-novacut__clip.novacut-selected .novacut-clip__handle,
+.nx-novacut__clip.is-selected .novacut-clip__handle {
+  opacity: 1 !important;
 }
 
 .nx-novacut__clip-thumb {
