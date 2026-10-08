@@ -1327,27 +1327,65 @@ class MainActivity : AppCompatActivity() {
 
     private fun validatePickedUri(uri: Uri, acceptedTypes: Set<String>): Long? {
         if (uri.scheme != ContentResolver.SCHEME_CONTENT) return null
-        val size = pickedUriSize(uri) ?: return null
-        if (size > MAX_PICKED_FILE_BYTES) return null
-        if (acceptedTypes.isEmpty()) return size
+
+        // Some Android media providers do not expose SIZE or MIME consistently.
+        // A valid content URI should not be rejected solely because provider
+        // metadata is incomplete. Enforce hard limits only when size is known.
+        val size = pickedUriSize(uri)
+        if (size != null && size > MAX_PICKED_FILE_BYTES) return null
+        if (acceptedTypes.isEmpty()) return size ?: 0L
 
         val mimeType = try {
             contentResolver.getType(uri)?.lowercase(Locale.ROOT)
         } catch (_: Exception) {
             null
-        } ?: return null
+        }
+
+        val displayName = pickedUriDisplayName(uri)
+        val extension = displayName
+            ?.substringAfterLast('.', "")
+            ?.lowercase(Locale.ROOT)
+            ?.takeIf { it.isNotBlank() }
+
         val accepted = acceptedTypes
             .asSequence()
             .flatMap { value -> value.split(',').asSequence() }
             .map { value -> value.substringBefore(';').trim().lowercase(Locale.ROOT) }
             .any { acceptedType ->
                 acceptedType == "*/*" ||
-                    acceptedType == mimeType ||
-                    (acceptedType.endsWith("/*") &&
-                        mimeType.startsWith(acceptedType.removeSuffix("*"))) ||
+                    (mimeType != null && (
+                        acceptedType == mimeType ||
+                            (acceptedType.endsWith("/*") &&
+                                mimeType.startsWith(acceptedType.removeSuffix("*")))
+                    )) ||
+                    acceptedType == extension?.let { ".$it" } ||
                     (acceptedType == ".pdf" && mimeType == "application/pdf")
             }
-        return size.takeIf { accepted }
+
+        return (if (accepted) size ?: 0L else null)
+    }
+
+    private fun pickedUriDisplayName(uri: Uri): String? {
+        try {
+            contentResolver.query(
+                uri,
+                arrayOf(OpenableColumns.DISPLAY_NAME),
+                null,
+                null,
+                null
+            )?.use { cursor ->
+                val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (index >= 0 && cursor.moveToFirst() && !cursor.isNull(index)) {
+                    cursor.getString(index)?.takeIf { it.isNotBlank() }?.let { return it }
+                }
+            }
+        } catch (_: Exception) {
+            // Fall through to URI path for providers without a display-name column.
+        }
+
+        return uri.lastPathSegment
+            ?.substringAfterLast('/')
+            ?.takeIf { it.isNotBlank() }
     }
 
     private fun pickedUriSize(uri: Uri): Long? {
