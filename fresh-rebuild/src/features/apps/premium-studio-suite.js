@@ -334,6 +334,7 @@ function renderNovaCut() {
   engine.on("selectionchange", renderTimeline);
   engine.on("delete", renderTimeline);
   engine.on("duplicate", renderTimeline);
+  engine.on("visualchange", renderTimeline);
 
   engine.on("playheadchange", ({ timestamp }) => {
     const duration = engine.registry.durationMs();
@@ -394,14 +395,14 @@ function renderNovaCut() {
   };
 
 
-  engine.on("media:status", ({ status }) => {
-    if (!status) return;
+  engine.on("media:status", ({ status: mediaStatus }) => {
+    if (!mediaStatus) return;
     const labels = {
       decoding: "Decoding…",
       ready: "Ready",
       "decode-error": "Decode error"
     };
-    if (status) status.textContent = labels[status] || String(status);
+    if (status) status.textContent = labels[mediaStatus] || String(mediaStatus);
   });
 
   engine.on("playbackchange", ({ isPlaying }) => {
