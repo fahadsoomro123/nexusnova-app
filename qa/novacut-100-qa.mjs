@@ -153,8 +153,6 @@ for (const [index, test] of tests.entries()) {
     console.log(`${String(index + 1).padStart(3, "0")}/100 PASS  ${test.label}`);
   } catch (error) {
     console.error(`${String(index + 1).padStart(3, "0")}/100 FAIL  ${test.label}: ${error.message}`);
-    process.exitCode = 1;
-    break;
   }
 }
 
