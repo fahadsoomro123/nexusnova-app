@@ -5,8 +5,6 @@ import android.annotation.SuppressLint
 import android.content.ContentResolver
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.content.pm.PackageInfo
-import android.content.pm.Signature
 import android.provider.OpenableColumns
 import android.net.Uri
 import android.os.Build
@@ -31,10 +29,7 @@ import androidx.webkit.WebViewAssetLoader
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import org.json.JSONObject
-import java.io.File
-import java.net.URL
 import java.util.Locale
-import java.util.concurrent.Executors
 
 class MainActivity : AppCompatActivity() {
 
@@ -679,9 +674,8 @@ class MainActivity : AppCompatActivity() {
         }
 
         when (message.optString("action")) {
-            ACTION_OTA_SHOW_PROMPT, ACTION_OTA_INSTALL, ACTION_OTA_CANCEL -> {
-                android.util.Log.w("NexusNovaPlayUpdate", "Legacy native APK updater request rejected; native updates are controlled by Google Play.")
-            }
+            ACTION_PLAY_UPDATE_PROMPT -> startPlayUpdateCheck()
+
             ACTION_OPEN_NOVA_VPN -> {
                 val authToken = message.optString("authToken").trim()
                 if (authToken.isBlank() || authToken.length > MAX_VPN_AUTH_TOKEN_CHARS) return
@@ -1062,6 +1056,7 @@ class MainActivity : AppCompatActivity() {
         const val BROWSER_BRIDGE_NAME = "NexusBrowserAndroid"
         const val BROWSER_ACTION_OPEN = "open"
 
+        const val ACTION_PLAY_UPDATE_PROMPT = "playUpdatePrompt"
         const val ACTION_OPEN_NOVA_VPN = "openNovaVpn"
         const val ACTION_OPEN_EXTERNAL = "openExternal"
         const val ACTION_SHOW_REWARDED_AD = "showRewardedAd"
