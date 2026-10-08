@@ -1,7 +1,7 @@
 name: NovaCut Section 1 CI
 on:
   pull_request:
-    branches: [main]
+    branches: [main, novacut-section1-playback-20261008-gated]
     paths:
       - 'fresh-rebuild/src/features/apps/novacut-engine.js'
       - 'fresh-rebuild/src/features/apps/premium-studio-suite.js'
