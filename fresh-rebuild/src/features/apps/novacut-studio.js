@@ -465,7 +465,9 @@ export class NovaCutStudioInteractions {
         this.timeline.scrollLeft,
       mode: edge
         ? "trim-pending"
-        : "drag-pending"
+        : "drag-pending",
+      historyBefore:
+        this.engine.history?.snapshot?.() || null
     };
 
     this.cancelLongPress();
@@ -1188,6 +1190,15 @@ export class NovaCutStudioInteractions {
         "statechange",
         this.engine.getState?.()
       );
+    }
+
+    if (state.historyBefore && typeof this.engine.recordExternalMutation === "function") {
+      const label = mode === "drag"
+        ? "Move clip"
+        : mode === "trim-start"
+          ? "Trim start"
+          : "Trim end";
+      this.engine.recordExternalMutation(state.historyBefore, label);
     }
   }
 
