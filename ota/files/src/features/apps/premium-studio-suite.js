@@ -29,6 +29,7 @@ const SVG = Object.freeze({
   audio: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 10v4M8 8v8M11 5v14M15 8v8M18 10v4"></path></svg>',
   text: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6h14M12 6v13M9 19h6"></path></svg>',
   ratio: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="6" width="16" height="12" rx="2"></rect><path d="M8 15h3M13 9h3"></path></svg>',
+  effects: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"></rect><path d="M8 12h8M12 8v8"></path></svg>',
   more: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="12" r="1.5" fill="currentColor" stroke="none"></circle><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"></circle><circle cx="18" cy="12" r="1.5" fill="currentColor" stroke="none"></circle></svg>',
   export: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10M8 10l4 4 4-4M5 18h14"></path></svg>'
 });
@@ -49,28 +50,34 @@ function renderTrackClip(clip, type) {
   const selected = clip?.id === clip?.engineActiveId ? ' is-selected' : '';
 
   if (type === 'video') {
-    return `<button type="button" class="nx-novacut__clip nx-novacut__clip--video${selected}" data-clip-id="${id}">
-      <span class="nx-novacut__clip-thumb" aria-hidden="true"></span>
-      <span class="nx-novacut__clip-copy">
-        <strong>Video</strong>
-        <small>${seconds}s</small>
-      </span>
-      <span class="nx-novacut__clip-wave" aria-hidden="true"></span>
-    </button>`;
+    return '<button type="button" class="nx-novacut__clip nx-novacut__clip--video' + selected + '" data-clip-id="' + id + '">' +
+      '<span class="nx-novacut__clip-thumb" aria-hidden="true"></span>' +
+      '<span class="nx-novacut__clip-copy"><strong>Video</strong><small>' + seconds + 's</small></span>' +
+      '<span class="nx-novacut__clip-wave" aria-hidden="true"></span></button>';
   }
 
   if (type === 'audio') {
-    return `<div class="nx-novacut__clip nx-novacut__clip--audio">
-      <span class="nx-novacut__track-icon">${SVG.audio}</span>
-      <span class="nx-novacut__clip-copy"><strong>Audio</strong><small>${seconds}s</small></span>
-      <span class="nx-novacut__audio-bars" aria-hidden="true"></span>
-    </div>`;
+    return '<button type="button" class="nx-novacut__clip nx-novacut__clip--audio' + selected + '" data-clip-id="' + id + '">' +
+      '<span class="nx-novacut__track-icon">' + SVG.audio + '</span>' +
+      '<span class="nx-novacut__clip-copy"><strong>Audio</strong><small>' + seconds + 's</small></span>' +
+      '<span class="nx-novacut__audio-bars" aria-hidden="true"></span></button>';
   }
 
-  return `<div class="nx-novacut__clip nx-novacut__clip--text">
-    <span class="nx-novacut__track-icon">${SVG.text}</span>
-    <span class="nx-novacut__clip-copy"><strong>${escapeHtml(clip?.text || 'Text')}</strong><small>${seconds}s</small></span>
-  </div>`;
+  if (type === 'sticker') {
+    return '<button type="button" class="nx-novacut__clip nx-novacut__clip--sticker' + selected + '" data-clip-id="' + id + '">' +
+      '<span class="nx-novacut__clip-glyph">' + escapeHtml(clip?.glyph || '★') + '</span>' +
+      '<span class="nx-novacut__clip-copy"><strong>' + escapeHtml(clip?.label || 'Sticker') + '</strong><small>' + seconds + 's</small></span></button>';
+  }
+
+  if (type === 'effect') {
+    return '<button type="button" class="nx-novacut__clip nx-novacut__clip--effect' + selected + '" data-clip-id="' + id + '">' +
+      '<span class="nx-novacut__track-icon">' + SVG.effects + '</span>' +
+      '<span class="nx-novacut__clip-copy"><strong>' + escapeHtml(String(clip?.type || 'Effect').toUpperCase()) + '</strong><small>' + seconds + 's</small></span></button>';
+  }
+
+  return '<button type="button" class="nx-novacut__clip nx-novacut__clip--text' + selected + '" data-clip-id="' + id + '">' +
+    '<span class="nx-novacut__track-icon">' + SVG.text + '</span>' +
+    '<span class="nx-novacut__clip-copy"><strong>' + escapeHtml(clip?.text || 'Text') + '</strong><small>' + seconds + 's</small></span></button>';
 }
 
 function renderNovaCut() {
@@ -80,147 +87,54 @@ function renderNovaCut() {
   root.className = 'nx-app-body nx-novacut-host';
   root.dataset.novacut = 'active';
 
-  root.innerHTML = `
-    <section class="nx-novacut nx-novacut--elite" aria-label="NovaCut editor">
-
-      <header class="nx-novacut__header">
-        <div class="nx-novacut__project">
-          <span class="nx-novacut__brand-mark">N</span>
-          <div>
-            <span class="nx-novacut__eyebrow">NOVA EDITOR</span>
-            <strong>NovaCut</strong>
-          </div>
-        </div>
-
-        <div class="nx-novacut__top-actions">
-          <button type="button" class="nx-novacut__icon-button" data-action="undo" aria-label="Undo">${SVG.undo}</button>
-          <button type="button" class="nx-novacut__icon-button" data-action="redo" aria-label="Redo">${SVG.redo}</button>
-          <button type="button" class="nx-novacut__icon-button" data-novacut-more aria-label="More options">${SVG.more}</button>
-          <button type="button" class="nx-novacut__export-button" data-action="export">
-            ${SVG.export}
-            <span>Export</span>
-          </button>
-        </div>
-      </header>
-
-      <section class="nx-novacut__canvas-area">
-        <div class="nx-novacut__canvas-shell">
-          <canvas class="nx-novacut__canvas" data-role="preview-canvas"></canvas>
-
-          <div class="nx-novacut__canvas-empty" data-role="canvas-empty">
-            <button type="button" class="nx-novacut__media-drop" data-action="media" aria-label="Add media">
-              <span>${SVG.media}</span>
-              <strong>Add media</strong>
-              <small>Photo, video or audio</small>
-            </button>
-          </div>
-
-          <div class="nx-novacut__canvas-overlay">
-            <span class="nx-novacut__live-dot"></span>
-            <span data-role="status">Ready</span>
-          </div>
-        </div>
-
-        <div class="nx-novacut__transport">
-          <span data-role="current-time">00:00:00</span>
-
-          <button type="button" class="nx-novacut__play" data-action="play" aria-label="Play">
-            <span data-role="play-icon">${SVG.play}</span>
-          </button>
-
-          <span data-role="duration">00:00:00</span>
-        </div>
-      </section>
-
-      <section class="nx-novacut__timeline-shell">
-        <div class="nx-novacut__timeline-head">
-          <div>
-            <span class="nx-novacut__eyebrow">TIMELINE</span>
-            <strong>Project sequence</strong>
-          </div>
-          <button type="button" class="nx-novacut__add-button" data-action="media">
-            <span>${SVG.media}</span>
-            Add media
-          </button>
-        </div>
-
-        <div class="nx-novacut__timeline" aria-label="Multi-track timeline">
-          <div class="nx-novacut__ruler">
-            <div class="nx-novacut__ruler-pad"></div>
-            <div class="nx-novacut__ticks">
-              <span style="--i:0">0:00</span>
-              <span style="--i:1">0:01</span>
-              <span style="--i:2">0:02</span>
-              <span style="--i:3">0:03</span>
-              <span style="--i:4">0:04</span>
-              <span style="--i:5">0:05</span>
-              <span style="--i:6">0:06</span>
-              <span style="--i:7">0:07</span>
-              <span style="--i:8">0:08</span>
-            </div>
-          </div>
-
-          <div class="nx-novacut__track nx-novacut__track--video">
-            <div class="nx-novacut__track-label">
-              <span class="nx-novacut__track-index">01</span>
-              <span class="nx-novacut__track-name">Video</span>
-            </div>
-            <div class="nx-novacut__lane" data-role="video-lane">
-              <button type="button" class="nx-novacut__lane-add" data-action="media">${SVG.media}<span>Add media</span></button>
-            </div>
-          </div>
-
-          <div class="nx-novacut__track nx-novacut__track--audio">
-            <div class="nx-novacut__track-label">
-              <span class="nx-novacut__track-index">02</span>
-              <span class="nx-novacut__track-name">Audio</span>
-            </div>
-            <div class="nx-novacut__lane" data-role="audio-lane">
-              <span class="nx-novacut__lane-hint">Music and voice</span>
-            </div>
-          </div>
-
-          <div class="nx-novacut__track nx-novacut__track--text">
-            <div class="nx-novacut__track-label">
-              <span class="nx-novacut__track-index">03</span>
-              <span class="nx-novacut__track-name">Text</span>
-            </div>
-            <div class="nx-novacut__lane" data-role="text-lane">
-              <button type="button" class="nx-novacut__lane-tool" data-action="text">${SVG.text}<span>Add text</span></button>
-            </div>
-          </div>
-
-          <span class="nx-novacut__interaction-surface" aria-hidden="true"></span>
-        </div>
-      </section>
-
-      <nav class="nx-novacut__dock" aria-label="NovaCut tools">
-        <button type="button" class="nx-novacut__dock-item nx-novacut__dock-item--active" data-action="media">
-          <span>${SVG.media}</span>
-          <strong>Media</strong>
-        </button>
-        <button type="button" class="nx-novacut__dock-item" data-action="split">
-          <span>${SVG.split}</span>
-          <strong>Split</strong>
-        </button>
-        <button type="button" class="nx-novacut__dock-item" data-action="audio">
-          <span>${SVG.audio}</span>
-          <strong>Audio</strong>
-        </button>
-        <button type="button" class="nx-novacut__dock-item" data-action="text">
-          <span>${SVG.text}</span>
-          <strong>Text</strong>
-        </button>
-        <button type="button" class="nx-novacut__dock-item" data-action="ratio">
-          <span>${SVG.ratio}</span>
-          <strong>Canvas</strong>
-        </button>
-      </nav>
-    </section>`;
+  root.innerHTML = '<section class="nx-novacut nx-novacut--elite" aria-label="NovaCut editor">' +
+    '<header class="nx-novacut__header">' +
+      '<div class="nx-novacut__project"><span class="nx-novacut__brand-mark">N</span><div><span class="nx-novacut__eyebrow">NOVA EDITOR</span><strong>NovaCut</strong></div></div>' +
+      '<div class="nx-novacut__top-actions">' +
+        '<button type="button" class="nx-novacut__icon-button" data-action="undo" aria-label="Undo">' + SVG.undo + '</button>' +
+        '<button type="button" class="nx-novacut__icon-button" data-action="redo" aria-label="Redo">' + SVG.redo + '</button>' +
+        '<button type="button" class="nx-novacut__icon-button" data-action="more" aria-label="More options">' + SVG.more + '</button>' +
+        '<button type="button" class="nx-novacut__export-button" data-action="export">' + SVG.export + '<span>Export</span></button>' +
+      '</div>' +
+    '</header>' +
+    '<section class="nx-novacut__canvas-area">' +
+      '<div class="nx-novacut__canvas-shell"><canvas class="nx-novacut__canvas" data-role="preview-canvas"></canvas>' +
+        '<div class="nx-novacut__canvas-empty" data-role="canvas-empty">' +
+          '<button type="button" class="nx-novacut__media-drop" data-action="media" aria-label="Add media"><span>' + SVG.media + '</span><strong>Add media</strong><small>Photo, video or audio</small></button>' +
+        '</div>' +
+        '<div class="nx-novacut__canvas-overlay"><span class="nx-novacut__live-dot"></span><span data-role="status">Ready</span></div>' +
+      '</div>' +
+      '<div class="nx-novacut__transport"><span data-role="current-time">00:00:00</span><button type="button" class="nx-novacut__play" data-action="play" aria-label="Play"><span data-role="play-icon">' + SVG.play + '</span></button><span data-role="duration">00:00:00</span></div>' +
+    '</section>' +
+    '<section class="nx-novacut__timeline-shell">' +
+      '<div class="nx-novacut__timeline-head"><div><span class="nx-novacut__eyebrow">TIMELINE</span><strong>Project sequence</strong></div><button type="button" class="nx-novacut__add-button" data-action="media"><span>' + SVG.media + '</span>Add media</button></div>' +
+      '<div class="nx-novacut__timeline" aria-label="Multi-track timeline">' +
+        '<div class="nx-novacut__ruler"><div class="nx-novacut__ruler-pad"></div><div class="nx-novacut__ticks">' +
+          '<span style="--i:0">0:00</span><span style="--i:1">0:01</span><span style="--i:2">0:02</span><span style="--i:3">0:03</span><span style="--i:4">0:04</span><span style="--i:5">0:05</span><span style="--i:6">0:06</span><span style="--i:7">0:07</span><span style="--i:8">0:08</span>' +
+        '</div></div>' +
+        '<div class="nx-novacut__track nx-novacut__track--video"><div class="nx-novacut__track-label"><span class="nx-novacut__track-index">01</span><span class="nx-novacut__track-name">Video</span></div><div class="nx-novacut__lane" data-role="video-lane"><button type="button" class="nx-novacut__lane-add" data-action="media">' + SVG.media + '<span>Add media</span></button></div></div>' +
+        '<div class="nx-novacut__track nx-novacut__track--audio"><div class="nx-novacut__track-label"><span class="nx-novacut__track-index">02</span><span class="nx-novacut__track-name">Audio</span></div><div class="nx-novacut__lane" data-role="audio-lane"><span class="nx-novacut__lane-hint">Music and voice</span></div></div>' +
+        '<div class="nx-novacut__track nx-novacut__track--text"><div class="nx-novacut__track-label"><span class="nx-novacut__track-index">03</span><span class="nx-novacut__track-name">Text</span></div><div class="nx-novacut__lane" data-role="text-lane"><button type="button" class="nx-novacut__lane-tool" data-action="text">' + SVG.text + '<span>Add text</span></button></div></div>' +
+        '<div class="nx-novacut__track nx-novacut__track--overlay"><div class="nx-novacut__track-label"><span class="nx-novacut__track-index">04</span><span class="nx-novacut__track-name">Overlay</span></div><div class="nx-novacut__lane" data-role="overlay-lane"><button type="button" class="nx-novacut__lane-tool" data-action="sticker"><span class="nx-novacut__lane-tool-glyph">★</span><span>Add sticker</span></button></div></div>' +
+        '<div class="nx-novacut__track nx-novacut__track--effect"><div class="nx-novacut__track-label"><span class="nx-novacut__track-index">05</span><span class="nx-novacut__track-name">Effects</span></div><div class="nx-novacut__lane" data-role="effect-lane"><button type="button" class="nx-novacut__lane-tool" data-action="effects">' + SVG.effects + '<span>Add effect</span></button></div></div>' +
+        '<span class="nx-novacut__interaction-surface" aria-hidden="true"></span>' +
+      '</div>' +
+    '</section>' +
+    '<nav class="nx-novacut__dock" aria-label="NovaCut tools">' +
+      '<button type="button" class="nx-novacut__dock-item nx-novacut__dock-item--active" data-action="media"><span>' + SVG.media + '</span><strong>Media</strong></button>' +
+      '<button type="button" class="nx-novacut__dock-item" data-action="split"><span>' + SVG.split + '</span><strong>Split</strong></button>' +
+      '<button type="button" class="nx-novacut__dock-item" data-action="audio"><span>' + SVG.audio + '</span><strong>Audio</strong></button>' +
+      '<button type="button" class="nx-novacut__dock-item" data-action="text"><span>' + SVG.text + '</span><strong>Text</strong></button>' +
+      '<button type="button" class="nx-novacut__dock-item" data-action="effects"><span>' + SVG.effects + '</span><strong>Effects</strong></button>' +
+      '<button type="button" class="nx-novacut__dock-item" data-action="ratio"><span>' + SVG.ratio + '</span><strong>Canvas</strong></button>' +
+    '</nav>' +
+  '</section>';
 
   const videoLane = root.querySelector("[data-role='video-lane']");
   const audioLane = root.querySelector("[data-role='audio-lane']");
   const textLane = root.querySelector("[data-role='text-lane']");
+  const overlayLane = root.querySelector("[data-role='overlay-lane']");
+  const effectLane = root.querySelector("[data-role='effect-lane']");
   const canvasEmpty = root.querySelector("[data-role='canvas-empty']");
   const status = root.querySelector("[data-role='status']");
   const playButton = root.querySelector("[data-action='play']");
@@ -229,39 +143,54 @@ function renderNovaCut() {
   const engine = createNovaCutEngine({ root });
 
   const renderTimeline = (state = {}) => {
-    if (!videoLane || !audioLane || !textLane) return;
-
+    if (!videoLane || !audioLane || !textLane || !overlayLane || !effectLane) return;
     const videos = state.videoTracks || [];
     const audios = state.audioTracks || [];
     const texts = state.textTracks || [];
+    const overlays = state.overlayTracks || [];
+    const effects = state.effectTracks || [];
 
     videoLane.innerHTML = videos.length
-      ? videos.map((clip) => renderTrackClip(clip, "video")).join("")
+      ? videos.map((clip) => renderTrackClip(clip, 'video')).join('')
       : '<button type="button" class="nx-novacut__lane-add" data-action="media">' + SVG.media + '<span>Add media</span></button>';
-
     audioLane.innerHTML = audios.length
-      ? audios.map((segment) => renderTrackClip(segment, "audio")).join("")
+      ? audios.map((segment) => renderTrackClip(segment, 'audio')).join('')
       : '<span class="nx-novacut__lane-hint">Music and voice</span>';
-
     textLane.innerHTML = texts.length
-      ? texts.map((cue) => renderTrackClip(cue, "text")).join("")
+      ? texts.map((cue) => renderTrackClip(cue, 'text')).join('')
       : '<button type="button" class="nx-novacut__lane-tool" data-action="text">' + SVG.text + '<span>Add text</span></button>';
+    overlayLane.innerHTML = overlays.length
+      ? overlays.map((item) => renderTrackClip(item, 'sticker')).join('')
+      : '<button type="button" class="nx-novacut__lane-tool" data-action="sticker"><span class="nx-novacut__lane-tool-glyph">★</span><span>Add sticker</span></button>';
+    effectLane.innerHTML = effects.length
+      ? effects.map((item) => renderTrackClip(item, 'effect')).join('')
+      : '<button type="button" class="nx-novacut__lane-tool" data-action="effects">' + SVG.effects + '<span>Add effect</span></button>';
 
     if (canvasEmpty) canvasEmpty.hidden = videos.length > 0;
-
     const selected = engine.activeTrackId;
     root.querySelectorAll("[data-clip-id]").forEach((element) => {
-      element.classList.toggle("is-selected", element.dataset.clipId === String(selected || ""));
+      element.classList.toggle('is-selected', element.dataset.clipId === String(selected || ''));
     });
   };
 
-  engine.on("statechange", renderTimeline);
-  engine.on("audio", renderTimeline);
-  engine.on("text", renderTimeline);
-  engine.on("split", renderTimeline);
-  engine.on("selectionchange", renderTimeline);
+  engine.on('statechange', renderTimeline);
+  engine.on('split', renderTimeline);
+  engine.on('audio', renderTimeline);
+  engine.on('text', renderTimeline);
+  engine.on('selectionchange', renderTimeline);
 
-  engine.on("playheadchange", ({ timestamp }) => {
+  engine.on('historystatechange', ({ canUndo, canRedo }) => {
+    root.querySelectorAll("[data-action='undo']").forEach((node) => {
+      node.disabled = !canUndo;
+      node.setAttribute('aria-disabled', String(!canUndo));
+    });
+    root.querySelectorAll("[data-action='redo']").forEach((node) => {
+      node.disabled = !canRedo;
+      node.setAttribute('aria-disabled', String(!canRedo));
+    });
+  });
+
+  engine.on('playheadchange', ({ timestamp }) => {
     const duration = engine.registry.durationMs();
     const currentNode = root.querySelector("[data-role='current-time']");
     const durationNode = root.querySelector("[data-role='duration']");
@@ -269,71 +198,62 @@ function renderNovaCut() {
     if (durationNode) durationNode.textContent = engine.format(duration);
   });
 
-  engine.on("statechange", (state) => {
+  engine.on('statechange', (state) => {
     if (canvasEmpty) canvasEmpty.hidden = Boolean(state.videoTracks?.length);
-    if (status) status.textContent = state.videoTracks?.length ? "Editing" : "Ready";
   });
 
-  engine.on("ratio", ({ ratio }) => {
-    const statusNode = root.querySelector("[data-role='status']");
-    if (statusNode) statusNode.textContent = ratio;
+  engine.on('ratio', ({ ratio }) => {
+    if (status) status.textContent = ratio;
   });
 
-  engine.on("export:progress", ({ progress }) => {
-    if (status) status.textContent = `Export ${Math.round(progress * 100)}%`;
+  engine.on('export:progress', ({ progress }) => {
+    if (status) status.textContent = 'Export ' + Math.round(progress * 100) + '%';
   });
 
-  engine.on("export:complete", () => {
-    if (status) status.textContent = "Exported";
+  engine.on('export:complete', () => {
+    if (status) status.textContent = 'Export complete';
   });
 
-  engine.on("export:error", () => {
-    if (status) status.textContent = "Export error";
+  engine.on('export:error', () => {
+    if (status) status.textContent = 'Export error';
   });
 
-  engine.on("error", ({ error }) => {
-    if (status && error?.message) status.textContent = "Error";
-  });
-
-  engine.on("runtime:ready", () => {
-    if (status) status.textContent = "Engine ready";
+  engine.on('error', ({ error }) => {
+    if (status && error?.message) status.textContent = 'Error';
   });
 
   const setPlayVisual = () => {
     if (!playIcon || !playButton) return;
     playIcon.innerHTML = engine.isPlaying ? SVG.pause : SVG.play;
-    playButton.setAttribute("aria-label", engine.isPlaying ? "Pause" : "Play");
-    playButton.classList.toggle("is-playing", engine.isPlaying);
+    playButton.setAttribute('aria-label', engine.isPlaying ? 'Pause' : 'Play');
+    playButton.classList.toggle('is-playing', engine.isPlaying);
   };
 
-  engine.on("playheadchange", setPlayVisual);
-  root.addEventListener("click", (event) => {
-    const action = event.target?.closest?.("[data-action]");
-    if (!action) return;
-    if (action.dataset.action === "play") queueMicrotask(setPlayVisual);
+  engine.on('playheadchange', setPlayVisual);
+
+  const mediaParser = createNovaCutMediaParser(root, engine, { maxFilesPerBatch: 8 });
+
+  root.addEventListener('novacut-media:file:injected', async (event) => {
+    const clip = event.detail?.record?.track || null;
+    if (!clip) return;
+    if (status) status.textContent = 'Decoding';
+    try {
+      await engine.prepareClip(clip);
+      if (status) status.textContent = 'Media ready';
+    } catch (_) {
+      if (status) status.textContent = 'Decode error';
+    }
   });
 
-  const mediaParser = createNovaCutMediaParser(root, engine, {
-    maxFilesPerBatch: 8
-  });
-
-  root.addEventListener("novacut-media:file:injected", () => {
-    if (status) status.textContent = "Media ready";
-  });
-
-  root.addEventListener("novacut-media:file:error", () => {
-    if (status) status.textContent = "Media error";
+  root.addEventListener('novacut-media:file:error', () => {
+    if (status) status.textContent = 'Media import error';
   });
 
   root.__novaCutEngine = engine;
   root.__novaCutMediaParser = mediaParser;
   root.__novaCutInteractions = createNovaCutStudioInteractions(root, engine);
 
-  renderTimeline(engine.getState ? engine.getState() : {
-    videoTracks: [],
-    audioTracks: [],
-    textTracks: []
-  });
+  renderTimeline(engine.getState());
 
   return root;
 }
