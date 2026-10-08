@@ -16,6 +16,11 @@ const source = fs.readFileSync(
 
 const combinedSource = historySource + "\n" + source;
 
+const studioSource = fs.readFileSync(
+  new URL("./novacut-studio.js", import.meta.url),
+  "utf8"
+);
+
 class FakeEventTarget {
   constructor() { this.listeners = new Map(); }
   addEventListener(name, fn) {
@@ -226,6 +231,17 @@ test("timeline mutations are individually undoable", () => {
   assert.equal(engine.registry.videoTracks[0].duration, 1300);
   assert.equal(engine.undo(), true);
   assert.equal(engine.registry.videoTracks[0].duration, 3000);
+});
+
+test("timeline interaction exposes visible move/trim affordances and desktop pointer support", () => {
+  assert.match(studioSource, /pointerdown/);
+  assert.match(studioSource, /pointermove/);
+  assert.match(studioSource, /pointerup/);
+  assert.match(studioSource, /pointercancel/);
+  assert.match(studioSource, /novacut-clip__move-affordance/);
+  assert.match(studioSource, /const mode =\s*state\.mode/);
+  assert.match(studioSource, /Trim clip start/);
+  assert.match(studioSource, /Trim clip end/);
 });
 
 test("split, duplicate and delete participate in history", () => {
