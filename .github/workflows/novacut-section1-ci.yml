@@ -1,0 +1,33 @@
+name: NovaCut Section 1 CI
+on:
+  pull_request:
+    branches: [main, novacut-section1-playback-20261008-gated]
+    paths:
+      - 'fresh-rebuild/src/features/apps/novacut-engine.js'
+      - 'fresh-rebuild/src/features/apps/premium-studio-suite.js'
+      - 'fresh-rebuild/src/features/apps/novacut-engine.test.mjs'
+      - '.github/workflows/novacut-section1-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  section1:
+    name: NovaCut Playback and Media Lifecycle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax checks
+        run: |
+          set -euo pipefail
+          node --check fresh-rebuild/src/features/apps/novacut-engine.js
+          node --check fresh-rebuild/src/features/apps/premium-studio-suite.js
+      - name: Playback unit tests
+        run: |
+          set -euo pipefail
+          node --test fresh-rebuild/src/features/apps/novacut-engine.test.mjs
+          echo "NOVACUT SECTION 1 CI PASS"
