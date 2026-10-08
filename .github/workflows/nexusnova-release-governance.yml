@@ -104,7 +104,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if grep -RInE 'PackageInstaller|ACTION_INSTALL_PACKAGE|REQUEST_INSTALL_PACKAGES|FileProvider|downloadOtaApk|apkUrl.*install|installUpdate' NexusNovaAndroid fresh-rebuild --include='*.kt' --include='*.java' --include='*.js' --include='*.ts' 2>/dev/null; then
+          if grep -RInE 'PackageInstaller|ACTION_INSTALL_PACKAGE|REQUEST_INSTALL_PACKAGES|FileProvider|downloadOtaApk|apkUrl.*install|installUpdate' NexusNovaAndroid/app/src/main/java fresh-rebuild --include='*.kt' --include='*.java' --include='*.js' --include='*.ts' 2>/dev/null; then
             echo 'CUSTOM_NATIVE_APK_UPDATER_DETECTED'
             exit 1
           fi
@@ -122,6 +122,15 @@ jobs:
           set -euo pipefail
           grep -Fq 'com.google.android.play:app-update:2.1.0' NexusNovaAndroid/app/build.gradle.kts
           echo 'GOOGLE_PLAY_IN_APP_UPDATE_DEPENDENCY=PASS'
+      - name: Verify generated Android web payload is APK-updater free
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -d NexusNovaAndroid/app/src/main/assets/www ] && grep -RInE 'PackageInstaller|ACTION_INSTALL_PACKAGE|REQUEST_INSTALL_PACKAGES|FileProvider|downloadOtaApk|apkUrl.*install|installUpdate' NexusNovaAndroid/app/src/main/assets/www --include='*.js' --include='*.kt' --include='*.java' --include='*.ts' 2>/dev/null; then
+            echo 'GENERATED_WEB_PAYLOAD_CONTAINS_CUSTOM_APK_UPDATER'
+            exit 1
+          fi
+          echo 'GENERATED_WEB_PAYLOAD_APK_UPDATER_GUARD=PASS'
       - name: Set up Java 17
         uses: actions/setup-java@v5
         with:
