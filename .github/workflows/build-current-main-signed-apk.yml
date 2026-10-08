@@ -142,6 +142,7 @@ jobs:
           node-version: "22"
 
       - name: NovaCut 100 QA gate
+        working-directory: build-src
         shell: bash
         run: |
           set -euo pipefail
