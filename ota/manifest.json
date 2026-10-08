@@ -1,10 +1,10 @@
 {
-  "schema": 2,
+  "schema": 999,
   "base": "28ad58de566e42621dad6198aa01be885ccc9769",
   "version": "91e5c79af25252e40babcf8a6de3048d9d2c6871",
-  "diagnostic": "nexusnova-remote-ota-proof-r2",
+  "diagnostic": "nexusnova-ota-fetch-probe",
   "source_commit": "fd3779bc172bf384b58bf65b0e34176c25674725",
-  "message": "Tiny remote OTA proof update R2",
+  "message": "Temporary OTA fetch probe",
   "files": [
     {
       "path": "index.html",
@@ -17,6 +17,6 @@
       "size": 4801
     }
   ],
-  "ota_badge": "OTA-REMOTE-PROOF",
-  "ota_badge_status": "ACTIVE"
+  "ota_badge": "OTA-FETCH-PROBE",
+  "ota_badge_status": "TEMPORARY"
 }
