@@ -1,5 +1,6 @@
 /* NexusNova NovaCut Media Pipeline Core | Absolute CDN assets pinned */
 import { createNovaCutHistory } from "./novacut-history.js";
+import { drawSticker, normalizeSticker } from "./novacut-visuals.js";
 const RUNTIME = Object.freeze({
   FFMPEG_PACKAGE: "https://unpkg.com/@ffmpeg/ffmpeg@0.12.15/dist/esm/index.js",
   FFMPEG_WORKER: "https://unpkg.com/@ffmpeg/ffmpeg@0.12.15/dist/esm/worker.js",
@@ -55,6 +56,7 @@ class NovaCutTrackRegistry {
     this.videoTracks = [];
     this.audioTracks = [];
     this.textTracks = [];
+    this.stickerTracks = [];
   }
 
   addVideoClip(input = {}) {
@@ -99,6 +101,7 @@ class NovaCutTrackRegistry {
         backgroundAlpha: clamp(input.style?.backgroundAlpha ?? 0.62, 0, 1),
         bold: Boolean(input.style?.bold),
         italic: Boolean(input.style?.italic),
+        rotation: Number.isFinite(Number(input.style?.rotation)) ? Number(input.style.rotation) : 0,
         align: input.style?.align === "left" || input.style?.align === "right" ? input.style.align : "center"
       }
     };
@@ -106,9 +109,18 @@ class NovaCutTrackRegistry {
     return cue;
   }
 
+  addSticker(input = {}) {
+    const normalized = normalizeSticker({
+      ...input,
+      id: String(input.id || id("sticker"))
+    });
+    this.stickerTracks.push(normalized);
+    return normalized;
+  }
+
   removeById(trackId) {
     const idValue = String(trackId || "");
-    for (const [type, list] of [["videoTracks", this.videoTracks], ["audioTracks", this.audioTracks], ["textTracks", this.textTracks]]) {
+    for (const [type, list] of [["videoTracks", this.videoTracks], ["audioTracks", this.audioTracks], ["textTracks", this.textTracks], ["stickerTracks", this.stickerTracks]]) {
       const index = list.findIndex((entry) => entry.id === idValue);
       if (index >= 0) {
         const [removed] = list.splice(index, 1);
@@ -120,7 +132,7 @@ class NovaCutTrackRegistry {
 
   getById(trackId) {
     const idValue = String(trackId || "");
-    for (const [type, list] of [["videoTracks", this.videoTracks], ["audioTracks", this.audioTracks], ["textTracks", this.textTracks]]) {
+    for (const [type, list] of [["videoTracks", this.videoTracks], ["audioTracks", this.audioTracks], ["textTracks", this.textTracks], ["stickerTracks", this.stickerTracks]]) {
       const found = list.find((entry) => entry.id === idValue);
       if (found) return { type, item: found };
     }
@@ -132,7 +144,8 @@ class NovaCutTrackRegistry {
       1,
       ...this.videoTracks.map((x) => x.startTime + x.duration),
       ...this.audioTracks.map((x) => x.startTime + x.duration),
-      ...this.textTracks.map((x) => x.startTime + x.duration)
+      ...this.textTracks.map((x) => x.startTime + x.duration),
+      ...this.stickerTracks.map((x) => x.startTime + x.duration)
     );
   }
 }
@@ -357,6 +370,17 @@ class NovaCutCanvasPreview {
       try { ctx.drawImage(media, dx, dy, dw, dh); } catch (error) { this.engine.reportError("canvas", error); }
     }
 
+    const stickers = (this.engine.registry.stickerTracks || [])
+      .filter((sticker) => now >= sticker.startTime && now < sticker.startTime + sticker.duration);
+
+    for (const sticker of stickers) {
+      try {
+        drawSticker(ctx, sticker, width, height, globalThis.devicePixelRatio || 1);
+      } catch (error) {
+        this.engine.reportError("sticker", error);
+      }
+    }
+
     const cues = this.engine.registry.textTracks
       .filter((cue) => now >= cue.startTime && now < cue.startTime + cue.duration);
 
@@ -369,6 +393,8 @@ class NovaCutCanvasPreview {
     const y = clamp(style.y, 0, 1) * height;
     const size = Math.max(8, Number(style.fontSize) || 48);
     ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate((Number(style.rotation) || 0) * Math.PI / 180);
     ctx.font = (style.italic ? "italic " : "") + (style.bold ? "800 " : "600 ") + size + "px " + (style.fontFamily || "system-ui");
     ctx.textAlign = style.align || "center";
     ctx.textBaseline = "middle";
@@ -378,10 +404,10 @@ class NovaCutCanvasPreview {
     const total = lines.length * lh;
     if (style.background) {
       ctx.fillStyle = this.rgba(style.background, style.backgroundAlpha);
-      ctx.fillRect(x - widest / 2 - size * 0.35, y - total / 2 - size * 0.2, widest + size * 0.7, total + size * 0.4);
+      ctx.fillRect(-widest / 2 - size * 0.35, -total / 2 - size * 0.2, widest + size * 0.7, total + size * 0.4);
     }
     ctx.fillStyle = style.color || "#ffffff";
-    lines.forEach((line, i) => ctx.fillText(line, x, y - total / 2 + i * lh + lh / 2));
+    lines.forEach((line, i) => ctx.fillText(line, 0, -total / 2 + i * lh + lh / 2));
     ctx.restore();
   }
 
@@ -593,23 +619,30 @@ class NovaCutCommandCompiler {
       currentAudio = "aout";
     }
 
-    const textInputs = [];
-    const textAssets = this.engine.registry.textTracks.map((cue, index) => {
-      const path = `/novacut/text-${String(index).padStart(3, "0")}.png`;
+    const overlayAssets = [];
+
+    this.engine.registry.textTracks.forEach((cue, index) => {
       const source = addInput({ name: `text-${index}.png`, __textAsset: true }, "image", "text");
-      source.path = path;
-      textInputs.push({ cue, input: source });
-      return { cue, input: source };
+      source.path = `/novacut/text-${String(index).padStart(3, "0")}.png`;
+      overlayAssets.push({ kind: "text", cue, input: source });
     });
 
-    for (const { cue, input } of textInputs) {
-      const src = `tsrc${input.index}`;
-      const out = `tout${input.index}`;
+    (this.engine.registry.stickerTracks || []).forEach((sticker, index) => {
+      const source = addInput({ name: `sticker-${index}.png`, __stickerAsset: true }, "image", "sticker");
+      source.path = `/novacut/sticker-${String(index).padStart(3, "0")}.png`;
+      overlayAssets.push({ kind: "sticker", sticker, input: source });
+    });
+
+    for (const asset of overlayAssets) {
+      const src = `osrc${asset.input.index}`;
+      const out = `oout${asset.input.index}`;
+      filters.push(`[${asset.input.index}:v:0]format=rgba[${src}]`);
+      const start = asset.kind === "text" ? asset.cue.startTime : asset.sticker.startTime;
+      const end = asset.kind === "text"
+        ? asset.cue.startTime + asset.cue.duration
+        : asset.sticker.startTime + asset.sticker.duration;
       filters.push(
-        `[${input.index}:v:0]format=rgba[${src}]`
-      );
-      filters.push(
-        `[${currentVideo}][${src}]overlay=0:0:enable='between(t,${msToSec(cue.startTime).toFixed(3)},${msToSec(cue.startTime + cue.duration).toFixed(3)})':eof_action=pass:shortest=0[${out}]`
+        `[${currentVideo}][${src}]overlay=0:0:enable='between(t,${msToSec(start).toFixed(3)},${msToSec(end).toFixed(3)})':eof_action=pass:shortest=0[${out}]`
       );
       currentVideo = out;
     }
@@ -639,7 +672,7 @@ class NovaCutCommandCompiler {
     if (currentAudio) args.push("-c:a", "aac", "-b:a", String(options.audioBitrate || "192k"));
     args.push(outputPath);
 
-    return { args, inputs, textAssets, outputPath, outputName, width, height, fps, durationMs };
+    return { args, inputs, overlayAssets, outputPath, outputName, width, height, fps, durationMs };
   }
 }
 
@@ -675,6 +708,7 @@ class NovaCutEngine {
       videoTracks: this.registry.videoTracks,
       audioTracks: this.registry.audioTracks,
       textTracks: this.registry.textTracks,
+      stickerTracks: this.registry.stickerTracks,
       aspectRatio: this.aspectRatio,
       currentTimestamp: this.currentTimestamp,
       activeTrackId: this.activeTrackId,
@@ -699,6 +733,7 @@ class NovaCutEngine {
     this.registry.videoTracks = (state.videoTracks || []).map((track) => ({ ...track, file: track.file || null }));
     this.registry.audioTracks = (state.audioTracks || []).map((track) => ({ ...track, file: track.file || null }));
     this.registry.textTracks = (state.textTracks || []).map((track) => ({ ...track }));
+    this.registry.stickerTracks = (state.stickerTracks || []).map((track) => ({ ...track }));
     this.preview?.reconcileMedia?.();
     this.refresh();
     this.events.emit("selectionchange", { id: this.activeTrackId, fromHistory: Boolean(options.fromHistory) });
@@ -785,6 +820,105 @@ class NovaCutEngine {
     });
   }
 
+  addSticker(sticker) {
+    return this.withHistory("Add sticker", () => {
+      const result = this.registry.addSticker(sticker);
+      this.activeTrackId = result.id;
+      this.refresh();
+      this.events.emit("visualchange", { id: result.id, kind: "sticker", action: "add" });
+      return result;
+    });
+  }
+
+  updateTextCue(trackId, patch = {}, options = {}) {
+    const record = this.registry.getById(trackId);
+    if (!record || record.type !== "textTracks") return { success: false, reason: "text-not-found" };
+
+    const apply = () => {
+      const cue = record.item;
+      if (patch.text !== undefined) cue.text = String(patch.text);
+      if (patch.startTime !== undefined) cue.startTime = Math.max(0, Number(patch.startTime) || 0);
+      if (patch.duration !== undefined) cue.duration = Math.max(33.34, Number(patch.duration) || 33.34);
+      if (patch.style) {
+        cue.style = {
+          ...cue.style,
+          ...patch.style,
+          x: clamp(patch.style.x ?? cue.style.x, 0, 1),
+          y: clamp(patch.style.y ?? cue.style.y, 0, 1),
+          fontSize: Math.max(8, Number(patch.style.fontSize) || cue.style.fontSize),
+          backgroundAlpha: clamp(patch.style.backgroundAlpha ?? cue.style.backgroundAlpha, 0, 1),
+          rotation: Number.isFinite(Number(patch.style.rotation)) ? Number(patch.style.rotation) : (Number(cue.style.rotation) || 0)
+        };
+      }
+      this.activeTrackId = cue.id;
+      this.refresh();
+      this.events.emit("visualchange", { id: cue.id, kind: "text", action: "update" });
+      return { success: true, cue };
+    };
+
+    if (options.live) return apply();
+    return this.withHistory("Edit text", apply);
+  }
+
+  updateVisualTransform(trackId, patch = {}, options = {}) {
+    const record = this.registry.getById(trackId);
+    if (!record || !["textTracks", "stickerTracks"].includes(record.type)) {
+      return { success: false, reason: "visual-not-found" };
+    }
+
+    const apply = () => {
+      const item = record.item;
+      if (record.type === "stickerTracks") {
+        item.x = clamp(patch.x ?? item.x, 0, 1);
+        item.y = clamp(patch.y ?? item.y, 0, 1);
+        item.scale = clamp(patch.scale ?? item.scale, 0.2, 4);
+        item.rotation = Number.isFinite(Number(patch.rotation)) ? Number(patch.rotation) : item.rotation;
+        item.opacity = clamp(patch.opacity ?? item.opacity, 0, 1);
+      } else {
+        const style = item.style || {};
+        item.style = {
+          ...style,
+          x: clamp(patch.x ?? style.x, 0, 1),
+          y: clamp(patch.y ?? style.y, 0, 1),
+          rotation: Number.isFinite(Number(patch.rotation)) ? Number(patch.rotation) : (Number(style.rotation) || 0),
+          fontSize: Math.max(8, Number(patch.fontSize) || style.fontSize || 48)
+        };
+      }
+      this.activeTrackId = item.id;
+      this.refresh();
+      this.events.emit("visualchange", { id: item.id, kind: record.type === "stickerTracks" ? "sticker" : "text", action: "transform" });
+      return { success: true, item };
+    };
+
+    if (options.live) return apply();
+    return this.withHistory("Transform visual", apply);
+  }
+
+  restoreVisualTransform(trackId, snapshot = {}) {
+    const record = this.registry.getById(trackId);
+    if (!record) return false;
+    const item = record.item;
+    if (record.type === "stickerTracks") {
+      item.x = clamp(snapshot.x ?? item.x, 0, 1);
+      item.y = clamp(snapshot.y ?? item.y, 0, 1);
+      item.scale = clamp(snapshot.scale ?? item.scale, 0.2, 4);
+      item.rotation = finite(snapshot.rotation, item.rotation);
+    } else if (record.type === "textTracks") {
+      item.style = {
+        ...item.style,
+        x: clamp(snapshot.x ?? item.style.x, 0, 1),
+        y: clamp(snapshot.y ?? item.style.y, 0, 1),
+        fontSize: Math.max(8, Number(snapshot.fontSize) || item.style.fontSize || 48),
+        rotation: finite(snapshot.rotation, item.style.rotation || 0)
+      };
+    } else {
+      return false;
+    }
+    this.activeTrackId = item.id;
+    this.refresh();
+    return true;
+  }
+
   moveClip(trackId, startTime) {
     const record = this.registry.getById(trackId || this.activeTrackId);
     if (!record) return { success: false, reason: "clip-not-found" };
@@ -799,7 +933,7 @@ class NovaCutEngine {
 
   trimClip(trackId, edge, timestamp) {
     const record = this.registry.getById(trackId || this.activeTrackId);
-    if (!record || record.type !== "videoTracks") return { success: false, reason: "video-clip-not-found" };
+    if (!record || !["videoTracks", "textTracks", "stickerTracks"].includes(record.type)) return { success: false, reason: "clip-not-found" };
     const clip = record.item;
     const minFrame = 1000 / 30;
     return this.withHistory("Trim " + (edge === "start" ? "start" : "end"), () => {
@@ -809,7 +943,9 @@ class NovaCutEngine {
         const delta = nextStart - clip.startTime;
         clip.startTime = nextStart;
         clip.duration = Math.max(minFrame, originalEnd - nextStart);
-        clip.sourceStartTime = Math.max(0, clip.sourceStartTime + delta);
+        if (record.type === "videoTracks") {
+          clip.sourceStartTime = Math.max(0, clip.sourceStartTime + delta);
+        }
       } else {
         const nextEnd = Math.max(clip.startTime + minFrame, Number(timestamp) || clip.startTime + minFrame);
         clip.duration = Math.max(minFrame, nextEnd - clip.startTime);
@@ -842,7 +978,7 @@ class NovaCutEngine {
     if (!record) return { success: false, reason: "clip-not-found" };
     return this.withHistory("Duplicate clip", () => {
       if (record.type !== "videoTracks") {
-        const prefix = record.type === "audioTracks" ? "audio" : "text";
+        const prefix = record.type === "audioTracks" ? "audio" : record.type === "stickerTracks" ? "sticker" : "text";
         const copy = { ...record.item, id: id(prefix), startTime: record.item.startTime + record.item.duration };
         const list = this.registry[record.type];
         const index = list.findIndex((item) => item.id === record.item.id);
@@ -1065,15 +1201,12 @@ class NovaCutEngine {
   }
 
   addTextOverlay() {
-    const value = typeof window.prompt === "function" ? window.prompt("NovaCut text overlay", "") : null;
-    if (!value?.trim()) return;
-    const cue = this.addTextCue({
-      text: value.trim(),
-      startTime: this.currentTimestamp,
-      duration: 3000,
-      style: { x: 0.5, y: 0.82, fontSize: 48, color: "#ffffff", background: "#000000", backgroundAlpha: 0.62, bold: true }
+    const selected = this.activeTrackId ? this.registry.getById(this.activeTrackId) : null;
+    const cue = selected?.type === "textTracks" ? selected.item : null;
+    this.events.emit("text:edit-request", {
+      cue,
+      startTime: cue?.startTime ?? this.currentTimestamp
     });
-    this.events.emit("text", { cue });
   }
 
   cycleRatio() {
@@ -1107,6 +1240,10 @@ class NovaCutEngine {
     const y = clamp(style.y, 0, 1) * height;
     const size = Math.max(8, Number(style.fontSize) || 48);
 
+    ctx.clearRect(0, 0, width, height);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate((Number(style.rotation) || 0) * Math.PI / 180);
     ctx.font = `${style.italic ? "italic " : ""}${style.bold ? "800 " : "600 "}${size}px ${style.fontFamily || "system-ui"}`;
     ctx.textAlign = style.align || "center";
     ctx.textBaseline = "middle";
@@ -1123,15 +1260,31 @@ class NovaCutEngine {
       const g = parseInt(full.slice(2, 4), 16) || 0;
       const b = parseInt(full.slice(4, 6), 16) || 0;
       ctx.fillStyle = `rgba(${r},${g},${b},${clamp(style.backgroundAlpha ?? 0.62, 0, 1)})`;
-      ctx.fillRect(x - widest / 2 - size * 0.35, y - total / 2 - size * 0.2, widest + size * 0.7, total + size * 0.4);
+      ctx.fillRect(-widest / 2 - size * 0.35, -total / 2 - size * 0.2, widest + size * 0.7, total + size * 0.4);
     }
 
     ctx.fillStyle = style.color || "#ffffff";
     lines.forEach((line, lineIndex) => {
-      ctx.fillText(line, x, y - total / 2 + lineIndex * lh + lh / 2);
+      ctx.fillText(line, 0, -total / 2 + lineIndex * lh + lh / 2);
     });
+    ctx.restore();
 
-    const blob = await new Promise((resolve, reject) => canvas.toBlob((value) => value ? resolve(value) : reject(new Error(`NovaCut failed to encode text layer ${index}.`)), "image/png"));
+    const blob = await new Promise((resolve, reject) => canvas.toBlob((value) => value  async createStickerPng(ffmpeg, sticker, width, height, index, path) {
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("NovaCut could not create sticker export canvas.");
+    ctx.clearRect(0, 0, width, height);
+    drawSticker(ctx, sticker, width, height, 1);
+    const blob = await new Promise((resolve, reject) => canvas.toBlob(
+      (value) => value ? resolve(value) : reject(new Error(`NovaCut failed to encode sticker layer ${index}.`)),
+      "image/png"
+    ));
+    await this.writeFile(ffmpeg, path, blob);
+  }
+
+ ? resolve(value) : reject(new Error(`NovaCut failed to encode text layer ${index}.`)), "image/png"));
     await this.writeFile(ffmpeg, path, blob);
   }
 
@@ -1148,19 +1301,30 @@ class NovaCutEngine {
       const compiled = this.compiler.compile(options);
 
       for (const input of compiled.inputs) {
-        if (input.file?.__textAsset) continue;
+        if (input.file?.__textAsset || input.file?.__stickerAsset) continue;
         await this.writeFile(ffmpeg, input.path, input.file);
       }
 
-      for (const [index, asset] of compiled.textAssets.entries()) {
-        await this.createTextPng(
-          ffmpeg,
-          asset.cue,
-          compiled.width,
-          compiled.height,
-          index,
-          asset.input.path
-        );
+      for (const [index, asset] of compiled.overlayAssets.entries()) {
+        if (asset.kind === "text") {
+          await this.createTextPng(
+            ffmpeg,
+            asset.cue,
+            compiled.width,
+            compiled.height,
+            index,
+            asset.input.path
+          );
+        } else {
+          await this.createStickerPng(
+            ffmpeg,
+            asset.sticker,
+            compiled.width,
+            compiled.height,
+            index,
+            asset.input.path
+          );
+        }
       }
 
       const exitCode = await ffmpeg.exec(compiled.args);
