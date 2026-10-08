@@ -1,11 +1,8 @@
 package com.nexusnova.app
 
 import android.app.Activity
-import android.content.IntentSender
-import android.os.Build
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.IntentSenderRequest
-import androidx.core.content.ContextCompat
 import com.google.android.play.core.appupdate.AppUpdateInfo
 import com.google.android.play.core.appupdate.AppUpdateManager
 import com.google.android.play.core.appupdate.AppUpdateManagerFactory
@@ -43,7 +40,6 @@ class NexusPlayUpdateManager(activity: Activity) {
     }
 
     fun checkForUpdate(
-        activity: Activity,
         showStandardUpdate: (AppUpdateInfo) -> Unit,
         showCriticalUpdate: (AppUpdateInfo) -> Unit,
     ) {
