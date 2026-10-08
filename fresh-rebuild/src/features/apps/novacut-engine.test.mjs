@@ -3,10 +3,18 @@ import fs from "node:fs";
 import vm from "node:vm";
 import test from "node:test";
 
+const historySource = fs.readFileSync(
+  new URL("./novacut-history.js", import.meta.url),
+  "utf8"
+).replace(/export class /g, "class ").replace(/export function /g, "function ");
+
 const source = fs.readFileSync(
   new URL("./novacut-engine.js", import.meta.url),
   "utf8"
-).replace(/export \{[\s\S]*?\};\nexport const createNovaCutEngine[\s\S]*$/, "");
+).replace(/^import \{ createNovaCutHistory \} from "\.\/novacut-history\.js";\n/, "")
+.replace(/export \{[\s\S]*?\};\nexport const createNovaCutEngine[\s\S]*$/, "");
+
+const combinedSource = historySource + "\n" + source;
 
 class FakeEventTarget {
   constructor() { this.listeners = new Map(); }
@@ -57,9 +65,10 @@ class FakeVideo extends FakeEventTarget {
 }
 
 const createdVideos = [];
+let testId = 0;
 const context = {
   navigator: { hardwareConcurrency: 4, deviceMemory: 4 },
-  crypto: { randomUUID: () => "test-id" },
+  crypto: { randomUUID: () => "test-id-" + (++testId) },
   URL: {
     createObjectURL: (file) => "blob:" + String(file),
     revokeObjectURL: () => {}
@@ -99,7 +108,14 @@ const context = {
   SharedArrayBuffer: class SharedArrayBuffer {}
 };
 
-vm.runInNewContext(source + "\nthis.NovaCutEngine = NovaCutEngine;\nthis.NovaCutCanvasPreview = NovaCutCanvasPreview;", context, { filename: "novacut-engine.js" });
+vm.runInNewContext(
+  combinedSource +
+    "\nthis.NovaCutEngine = NovaCutEngine;" +
+    "\nthis.NovaCutCanvasPreview = NovaCutCanvasPreview;" +
+    "\nthis.NovaCutHistory = NovaCutHistory;",
+  context,
+  { filename: "novacut-engine.js" }
+);
 
 test("resolve() reuses one in-flight decoder per clip", async () => {
   const engine = new context.NovaCutEngine();
@@ -163,4 +179,90 @@ test("play() invokes the real video element and pause() stops it", async () => {
   engine.pause();
   assert.equal(engine.isPlaying, false);
   assert.equal(media.pauseCalls, 1);
+});
+
+
+test("history tracks add, undo and redo without duplicating playback state", () => {
+  const engine = new context.NovaCutEngine();
+  const clip = engine.addVideoClip({
+    id: "history-clip",
+    file: "blob:history-video",
+    startTime: 0,
+    duration: 3000,
+    sourceStartTime: 0
+  });
+
+  assert.equal(clip.id, "history-clip");
+  assert.equal(engine.registry.videoTracks.length, 1);
+  assert.equal(engine.history.canUndo(), true);
+
+  assert.equal(engine.undo(), true);
+  assert.equal(engine.registry.videoTracks.length, 0);
+  assert.equal(engine.history.canRedo(), true);
+
+  assert.equal(engine.redo(), true);
+  assert.equal(engine.registry.videoTracks.length, 1);
+  assert.equal(engine.registry.videoTracks[0].id, "history-clip");
+});
+
+test("timeline mutations are individually undoable", () => {
+  const engine = new context.NovaCutEngine();
+  engine.addVideoClip({
+    id: "edit-clip",
+    file: "blob:edit-video",
+    startTime: 0,
+    duration: 3000,
+    sourceStartTime: 0
+  });
+
+  engine.moveClip("edit-clip", 500);
+  assert.equal(engine.registry.videoTracks[0].startTime, 500);
+  assert.equal(engine.undo(), true);
+  assert.equal(engine.registry.videoTracks[0].startTime, 0);
+  assert.equal(engine.redo(), true);
+  assert.equal(engine.registry.videoTracks[0].startTime, 500);
+
+  engine.trimClip("edit-clip", "end", 1800);
+  assert.equal(engine.registry.videoTracks[0].duration, 1300);
+  assert.equal(engine.undo(), true);
+  assert.equal(engine.registry.videoTracks[0].duration, 3000);
+});
+
+test("split, duplicate and delete participate in history", () => {
+  const engine = new context.NovaCutEngine();
+  engine.addVideoClip({
+    id: "split-clip",
+    file: "blob:split-video",
+    startTime: 0,
+    duration: 3000,
+    sourceStartTime: 0
+  });
+  engine.selectClip("split-clip");
+  engine.setPlayhead(1000, { syncMedia: false });
+
+  const split = engine.executeSplitAction("split-clip", 1000);
+  assert.equal(split.success, true);
+  assert.equal(engine.registry.videoTracks.length, 2);
+
+  assert.equal(engine.undo(), true);
+  assert.equal(engine.registry.videoTracks.length, 1);
+  assert.equal(engine.registry.videoTracks[0].id, "split-clip");
+
+  assert.equal(engine.redo(), true);
+  assert.equal(engine.registry.videoTracks.length, 2);
+
+  engine.selectClip(engine.registry.videoTracks[0].id);
+  const duplicate = engine.duplicateClip();
+  assert.equal(duplicate.success, true);
+  assert.equal(engine.registry.videoTracks.length, 3);
+
+  assert.equal(engine.undo(), true);
+  assert.equal(engine.registry.videoTracks.length, 2);
+
+  engine.selectClip(engine.registry.videoTracks[0].id);
+  const deleted = engine.deleteClip();
+  assert.equal(deleted.success, true);
+  assert.equal(engine.registry.videoTracks.length, 1);
+  assert.equal(engine.undo(), true);
+  assert.equal(engine.registry.videoTracks.length, 2);
 });
