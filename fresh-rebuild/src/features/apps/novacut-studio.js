@@ -555,7 +555,7 @@ export class NovaCutStudioInteractions {
 
       if (
         record &&
-        record.type === "videoTracks"
+        ["videoTracks", "textTracks", "stickerTracks"].includes(record.type)
       ) {
         this.beginClipTouch(
           event,
@@ -597,6 +597,7 @@ export class NovaCutStudioInteractions {
       element,
       clip,
       clipId: clip.id,
+      recordType: this.engine.registry.getById(clip.id)?.type || "videoTracks",
       edge,
       originalStartTime:
         finite(clip.startTime),
@@ -1110,9 +1111,9 @@ export class NovaCutStudioInteractions {
       state.originalDuration;
 
     const previous =
-      this.getPreviousVideoClip(
-        clip
-      );
+      state.recordType === "videoTracks"
+        ? this.getPreviousVideoClip(clip)
+        : null;
 
     const previousEnd =
       previous
@@ -1171,9 +1172,9 @@ export class NovaCutStudioInteractions {
       state.originalStartTime;
 
     const next =
-      this.getNextVideoClip(
-        clip
-      );
+      state.recordType === "videoTracks"
+        ? this.getNextVideoClip(clip)
+        : null;
 
     const maximumEnd =
       next
@@ -1204,6 +1205,11 @@ export class NovaCutStudioInteractions {
   ) {
     const minimum =
       this.options.minFrameMs;
+
+    const record = this.engine.registry.getById(clip.id);
+    if (record && record.type !== "videoTracks") {
+      return Math.max(0, finite(desiredStart));
+    }
 
     const previous =
       this.getPreviousVideoClip(
