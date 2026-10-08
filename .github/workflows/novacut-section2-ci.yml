@@ -1,15 +1,8 @@
 name: NovaCut Section 2 Timeline CI
 
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - "fresh-rebuild/src/features/apps/novacut-engine.js"
-      - "fresh-rebuild/src/features/apps/novacut-history.js"
-      - "fresh-rebuild/src/features/apps/novacut-studio.js"
-      - "fresh-rebuild/src/features/apps/novacut-studio.css"
-      - "fresh-rebuild/src/features/apps/premium-studio-suite.js"
-      - "fresh-rebuild/src/features/apps/novacut-engine.test.mjs"
+  push:
+    branches: [novacut-section2-timeline-20261008]
 
 permissions:
   contents: read
