@@ -45,6 +45,7 @@ function normalizeState(state = {}) {
     videoTracks: (state.videoTracks || []).map(normalizeTrack),
     audioTracks: (state.audioTracks || []).map(normalizeTrack),
     textTracks: (state.textTracks || []).map(normalizeTrack),
+    stickerTracks: (state.stickerTracks || []).map(normalizeTrack),
     aspectRatio: String(state.aspectRatio || "16:9"),
     currentTimestamp: Math.max(0, finite(state.currentTimestamp)),
     activeTrackId: state.activeTrackId ? String(state.activeTrackId) : null
@@ -63,6 +64,7 @@ function signatureForState(state) {
     videoTracks: normalized.videoTracks.map(strip),
     audioTracks: normalized.audioTracks.map(strip),
     textTracks: normalized.textTracks.map(strip),
+    stickerTracks: normalized.stickerTracks.map(strip),
     aspectRatio: normalized.aspectRatio,
     currentTimestamp: normalized.currentTimestamp,
     activeTrackId: normalized.activeTrackId

@@ -7,6 +7,8 @@ import { renderDigitalSignStudio } from './digital-sign-studio.js';
 import { createNovaCutEngine } from './novacut-engine.js';
 import { createNovaCutStudioInteractions } from './novacut-studio.js';
 import { createNovaCutMediaParser } from './novacut-media.js';
+import { STICKER_LIBRARY } from './novacut-visuals.js';
+import { createNovaCutVisualEditor } from './novacut-visual-editor.js';
 
 const NOVACUT_CSS = new URL('./novacut-studio.css', import.meta.url).href;
 
@@ -32,7 +34,8 @@ const SVG = Object.freeze({
   more: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="12" r="1.5" fill="currentColor" stroke="none"></circle><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"></circle><circle cx="18" cy="12" r="1.5" fill="currentColor" stroke="none"></circle></svg>',
   export: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10M8 10l4 4 4-4M5 18h14"></path></svg>',
   duplicate: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"></rect><path d="M9 6V4h9a2 2 0 0 1 2 2v9h-2"></path></svg>',
-  trash: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M9 7V4h6v3M8 10v8M12 10v8M16 10v8M7 20h10"></path></svg>'
+  trash: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M9 7V4h6v3M8 10v8M12 10v8M16 10v8M7 20h10"></path></svg>',
+  sticker: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 4 2.5 2H16a4 4 0 0 1 4 4v6a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4V8a4 4 0 0 1 3-4Z"></path><path d="m8 16 2.5-3 2 2 2.5-3 3 4"></path><circle cx="9" cy="10" r="1"></circle></svg>'
 });
 
 function escapeHtml(value) {
@@ -58,6 +61,14 @@ function renderTrackClip(clip, type) {
         <small>${seconds}s</small>
       </span>
       <span class="nx-novacut__clip-wave" aria-hidden="true"></span>
+    </button>`;
+  }
+
+  if (type === 'sticker') {
+    const sticker = STICKER_LIBRARY.find((entry) => entry.id === clip?.stickerId) || STICKER_LIBRARY[0];
+    return `<button type="button" class="nx-novacut__clip nx-novacut__clip--sticker${selected}" data-clip-id="${id}">
+      <span class="nx-novacut__sticker-chip" aria-hidden="true">${escapeHtml(sticker.glyph)}</span>
+      <span class="nx-novacut__clip-copy"><strong>${escapeHtml(sticker.name)}</strong><small>${seconds}s</small></span>
     </button>`;
   }
 
@@ -200,9 +211,44 @@ function renderNovaCut() {
             </div>
           </div>
 
+          <div class="nx-novacut__track nx-novacut__track--sticker">
+            <div class="nx-novacut__track-label">
+              <span class="nx-novacut__track-index">04</span>
+              <span class="nx-novacut__track-name">Stickers</span>
+            </div>
+            <div class="nx-novacut__lane" data-role="sticker-lane">
+              <button type="button" class="nx-novacut__lane-tool" data-action="sticker">${SVG.sticker}<span>Add sticker</span></button>
+            </div>
+          </div>
+
           <span class="nx-novacut__interaction-surface" aria-hidden="true"></span>
         </div>
       </section>
+
+      <div class="nx-novacut__sticker-panel" data-role="sticker-panel" hidden aria-label="Sticker library">
+        <div class="nx-novacut__panel-head"><strong>Sticker library</strong><button type="button" class="nx-novacut__panel-close" data-action="sticker-close" aria-label="Close sticker library">×</button></div>
+        <div class="nx-novacut__sticker-grid" data-role="sticker-grid"></div>
+      </div>
+
+      <div class="nx-novacut__text-modal" data-role="text-modal" hidden>
+        <form class="nx-novacut__text-dialog" data-role="text-form">
+          <div class="nx-novacut__panel-head"><strong data-role="text-modal-title">Add text</strong><button type="button" class="nx-novacut__panel-close" data-action="text-close" aria-label="Close text editor">×</button></div>
+          <label>Text<textarea data-role="text-input" rows="3" maxlength="500" placeholder="Type your text"></textarea></label>
+          <div class="nx-novacut__form-grid">
+            <label>Color<input type="color" data-role="text-color" value="#ffffff"></label>
+            <label>Size<input type="number" data-role="text-size" min="8" max="180" step="1" value="48"></label>
+            <label>Duration (s)<input type="number" data-role="text-duration" min="0.1" max="300" step="0.1" value="3"></label>
+          </div>
+          <div class="nx-novacut__form-checks">
+            <label><input type="checkbox" data-role="text-bold" checked> Bold</label>
+            <label><input type="checkbox" data-role="text-italic"> Italic</label>
+          </div>
+          <div class="nx-novacut__text-dialog-actions">
+            <button type="button" class="nx-novacut__secondary-button" data-action="text-close">Cancel</button>
+            <button type="submit" class="nx-novacut__primary-button">Apply</button>
+          </div>
+        </form>
+      </div>
 
       <nav class="nx-novacut__dock" aria-label="NovaCut tools">
         <button type="button" class="nx-novacut__dock-item nx-novacut__dock-item--active" data-action="media">
@@ -221,6 +267,10 @@ function renderNovaCut() {
           <span>${SVG.text}</span>
           <strong>Text</strong>
         </button>
+        <button type="button" class="nx-novacut__dock-item" data-action="sticker">
+          <span>${SVG.sticker}</span>
+          <strong>Stickers</strong>
+        </button>
         <button type="button" class="nx-novacut__dock-item" data-action="ratio">
           <span>${SVG.ratio}</span>
           <strong>Canvas</strong>
@@ -231,6 +281,7 @@ function renderNovaCut() {
   const videoLane = root.querySelector("[data-role='video-lane']");
   const audioLane = root.querySelector("[data-role='audio-lane']");
   const textLane = root.querySelector("[data-role='text-lane']");
+  const stickerLane = root.querySelector("[data-role='sticker-lane']");
   const canvasEmpty = root.querySelector("[data-role='canvas-empty']");
   const status = root.querySelector("[data-role='status']");
   const playButton = root.querySelector("[data-action='play']");
@@ -248,6 +299,7 @@ function renderNovaCut() {
     const videos = state.videoTracks || [];
     const audios = state.audioTracks || [];
     const texts = state.textTracks || [];
+    const stickers = state.stickerTracks || [];
 
     videoLane.innerHTML = videos.length
       ? videos.map((clip) => renderTrackClip(clip, "video")).join("")
@@ -260,6 +312,12 @@ function renderNovaCut() {
     textLane.innerHTML = texts.length
       ? texts.map((cue) => renderTrackClip(cue, "text")).join("")
       : '<button type="button" class="nx-novacut__lane-tool" data-action="text">' + SVG.text + '<span>Add text</span></button>';
+
+    if (stickerLane) {
+      stickerLane.innerHTML = stickers.length
+        ? stickers.map((sticker) => renderTrackClip(sticker, "sticker")).join("")
+        : '<button type="button" class="nx-novacut__lane-tool" data-action="sticker">' + SVG.sticker + '<span>Add sticker</span></button>';
+    }
 
     if (canvasEmpty) canvasEmpty.hidden = videos.length > 0;
 
@@ -276,6 +334,7 @@ function renderNovaCut() {
   engine.on("selectionchange", renderTimeline);
   engine.on("delete", renderTimeline);
   engine.on("duplicate", renderTimeline);
+  engine.on("visualchange", renderTimeline);
 
   engine.on("playheadchange", ({ timestamp }) => {
     const duration = engine.registry.durationMs();
@@ -336,14 +395,14 @@ function renderNovaCut() {
   };
 
 
-  engine.on("media:status", ({ status }) => {
-    if (!status) return;
+  engine.on("media:status", ({ status: mediaStatus }) => {
+    if (!mediaStatus) return;
     const labels = {
       decoding: "Decoding…",
       ready: "Ready",
       "decode-error": "Decode error"
     };
-    if (status) status.textContent = labels[status] || String(status);
+    if (status) status.textContent = labels[mediaStatus] || String(mediaStatus);
   });
 
   engine.on("playbackchange", ({ isPlaying }) => {
@@ -372,8 +431,120 @@ function renderNovaCut() {
   root.__novaCutEngine = engine;
   root.__novaCutMediaParser = mediaParser;
   root.__novaCutInteractions = createNovaCutStudioInteractions(root, engine);
+  root.__novaCutVisualEditor = createNovaCutVisualEditor(root, engine);
 
-  const initialState = engine.getState ? engine.getState() : { videoTracks: [], audioTracks: [], textTracks: [], canUndo: false, canRedo: false, activeTrackId: null };
+  const stickerPanel = root.querySelector("[data-role='sticker-panel']");
+  const stickerGrid = root.querySelector("[data-role='sticker-grid']");
+  const textModal = root.querySelector("[data-role='text-modal']");
+  const textForm = root.querySelector("[data-role='text-form']");
+  const textInput = root.querySelector("[data-role='text-input']");
+  const textColor = root.querySelector("[data-role='text-color']");
+  const textSize = root.querySelector("[data-role='text-size']");
+  const textDuration = root.querySelector("[data-role='text-duration']");
+  const textBold = root.querySelector("[data-role='text-bold']");
+  const textItalic = root.querySelector("[data-role='text-italic']");
+  const textModalTitle = root.querySelector("[data-role='text-modal-title']");
+  let editingTextId = null;
+  let pendingTextStart = engine.currentTimestamp;
+
+  if (stickerGrid) {
+    stickerGrid.innerHTML = STICKER_LIBRARY.map((sticker) => (
+      '<button type="button" class="nx-novacut__sticker-option" data-sticker-id="' +
+      escapeHtml(sticker.id) +
+      '" title="' + escapeHtml(sticker.name) + '">' +
+      '<span aria-hidden="true">' + escapeHtml(sticker.glyph) + '</span>' +
+      '<small>' + escapeHtml(sticker.name) + '</small>' +
+      '</button>'
+    )).join("");
+  }
+
+  const openStickerPanel = () => {
+    if (stickerPanel) stickerPanel.hidden = false;
+  };
+  const closeStickerPanel = () => {
+    if (stickerPanel) stickerPanel.hidden = true;
+  };
+
+  root.addEventListener("click", (event) => {
+    const target = event.target?.closest?.("[data-action='sticker'], [data-action='sticker-close']");
+    if (!target) return;
+    event.preventDefault();
+    if (target.dataset.action === "sticker") openStickerPanel();
+    else closeStickerPanel();
+  });
+
+  root.addEventListener("click", (event) => {
+    const option = event.target?.closest?.("[data-sticker-id]");
+    if (!option) return;
+    const sticker = STICKER_LIBRARY.find((entry) => entry.id === option.dataset.stickerId);
+    if (!sticker) return;
+    engine.addSticker({
+      stickerId: sticker.id,
+      startTime: engine.currentTimestamp,
+      duration: 3000,
+      x: 0.5,
+      y: 0.5,
+      scale: 1
+    });
+    closeStickerPanel();
+  });
+
+  const openTextEditor = (cue = null, startTime = engine.currentTimestamp) => {
+    editingTextId = cue?.id || null;
+    pendingTextStart = Number.isFinite(Number(startTime)) ? Number(startTime) : engine.currentTimestamp;
+    if (textModal) textModal.hidden = false;
+    if (textModalTitle) textModalTitle.textContent = cue ? "Edit text" : "Add text";
+    if (textInput) textInput.value = cue?.text || "";
+    if (textColor) textColor.value = cue?.style?.color || "#ffffff";
+    if (textSize) textSize.value = String(cue?.style?.fontSize || 48);
+    if (textDuration) textDuration.value = String(((cue?.duration || 3000) / 1000).toFixed(1));
+    if (textBold) textBold.checked = cue ? Boolean(cue.style?.bold) : true;
+    if (textItalic) textItalic.checked = cue ? Boolean(cue.style?.italic) : false;
+    textInput?.focus?.();
+  };
+
+  const closeTextEditor = () => {
+    if (textModal) textModal.hidden = true;
+    editingTextId = null;
+  };
+
+  engine.on("text:edit-request", ({ cue, startTime }) => openTextEditor(cue, startTime));
+
+  root.addEventListener("click", (event) => {
+    const target = event.target?.closest?.("[data-action='text-close']");
+    if (target) {
+      event.preventDefault();
+      closeTextEditor();
+    }
+  });
+
+  textForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const value = textInput?.value?.trim() || "";
+    if (!value) return;
+    const payload = {
+      text: value,
+      duration: Math.max(100, Number(textDuration?.value) * 1000 || 3000),
+      style: {
+        color: textColor?.value || "#ffffff",
+        fontSize: Math.max(8, Math.min(180, Number(textSize?.value) || 48)),
+        bold: Boolean(textBold?.checked),
+        italic: Boolean(textItalic?.checked)
+      }
+    };
+    if (editingTextId) {
+      engine.updateTextCue(editingTextId, payload);
+    } else {
+      engine.addTextCue({
+        ...payload,
+        startTime: pendingTextStart,
+        style: { x: 0.5, y: 0.82, ...payload.style }
+      });
+    }
+    closeTextEditor();
+  });
+
+  const initialState = engine.getState ? engine.getState() : { videoTracks: [], audioTracks: [], textTracks: [], stickerTracks: [], canUndo: false, canRedo: false, activeTrackId: null };
   renderTimeline(initialState);
   if (undoButton) undoButton.disabled = !initialState.canUndo;
   if (redoButton) redoButton.disabled = !initialState.canRedo;

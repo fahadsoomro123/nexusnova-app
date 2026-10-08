@@ -1,0 +1,31 @@
+name: NovaCut Section 3 Visual Editor CI
+
+on:
+  push:
+    branches: [novacut-section3-visual-editor-20261008]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax
+        run: |
+          node --check fresh-rebuild/src/features/apps/novacut-visuals.js
+          node --check fresh-rebuild/src/features/apps/novacut-visual-editor.js
+          node --check fresh-rebuild/src/features/apps/novacut-engine.js
+          node --check fresh-rebuild/src/features/apps/novacut-studio.js
+          node --check fresh-rebuild/src/features/apps/premium-studio-suite.js
+          echo "NOVACUT SECTION 3 SYNTAX PASS"
+      - name: Visual editor tests
+        run: |
+          node --test fresh-rebuild/src/features/apps/novacut-engine.test.mjs
+          echo "NOVACUT SECTION 3 TESTS PASS"
