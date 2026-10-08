@@ -227,7 +227,11 @@ export class NovaCutVisualEditor {
       if (record) {
         this.engine.selectClip(record.item.id);
       } else {
-        this.engine.events.emit("visualselectclear", {});
+        if (typeof this.engine.clearSelection === "function") {
+          this.engine.clearSelection();
+        } else {
+          this.engine.events.emit("visualselectclear", {});
+        }
         return;
       }
     }
