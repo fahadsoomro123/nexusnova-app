@@ -306,6 +306,21 @@ function renderNovaCut() {
     playButton.classList.toggle("is-playing", engine.isPlaying);
   };
 
+
+  engine.on("media:status", ({ status }) => {
+    if (!status) return;
+    const labels = {
+      decoding: "Decoding…",
+      ready: "Ready",
+      "decode-error": "Decode error"
+    };
+    if (statusNode) statusNode.textContent = labels[status] || String(status);
+  });
+
+  engine.on("playbackchange", ({ isPlaying }) => {
+    if (status && isPlaying) status.textContent = "Playing";
+  });
+
   engine.on("playheadchange", setPlayVisual);
   root.addEventListener("click", (event) => {
     const action = event.target?.closest?.("[data-action]");
@@ -318,7 +333,7 @@ function renderNovaCut() {
   });
 
   root.addEventListener("novacut-media:file:injected", () => {
-    if (status) status.textContent = "Media ready";
+    if (status) status.textContent = "Preparing media…";
   });
 
   root.addEventListener("novacut-media:file:error", () => {
