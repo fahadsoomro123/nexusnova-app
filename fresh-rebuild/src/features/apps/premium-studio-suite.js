@@ -62,17 +62,17 @@ function renderTrackClip(clip, type) {
   }
 
   if (type === 'audio') {
-    return `<div class="nx-novacut__clip nx-novacut__clip--audio">
+    return `<button type="button" class="nx-novacut__clip nx-novacut__clip--audio" data-clip-id="${id}">
       <span class="nx-novacut__track-icon">${SVG.audio}</span>
       <span class="nx-novacut__clip-copy"><strong>Audio</strong><small>${seconds}s</small></span>
       <span class="nx-novacut__audio-bars" aria-hidden="true"></span>
-    </div>`;
+    </button>`;
   }
 
-  return `<div class="nx-novacut__clip nx-novacut__clip--text">
+  return `<button type="button" class="nx-novacut__clip nx-novacut__clip--text" data-clip-id="${id}">
     <span class="nx-novacut__track-icon">${SVG.text}</span>
     <span class="nx-novacut__clip-copy"><strong>${escapeHtml(clip?.text || 'Text')}</strong><small>${seconds}s</small></span>
-  </div>`;
+  </button>`;
 }
 
 function renderNovaCut() {
@@ -373,11 +373,12 @@ function renderNovaCut() {
   root.__novaCutMediaParser = mediaParser;
   root.__novaCutInteractions = createNovaCutStudioInteractions(root, engine);
 
-  renderTimeline(engine.getState ? engine.getState() : {
-    videoTracks: [],
-    audioTracks: [],
-    textTracks: []
-  });
+  const initialState = engine.getState ? engine.getState() : { videoTracks: [], audioTracks: [], textTracks: [], canUndo: false, canRedo: false, activeTrackId: null };
+  renderTimeline(initialState);
+  if (undoButton) undoButton.disabled = !initialState.canUndo;
+  if (redoButton) redoButton.disabled = !initialState.canRedo;
+  if (duplicateButton) duplicateButton.disabled = !initialState.activeTrackId;
+  if (deleteButton) deleteButton.disabled = !initialState.activeTrackId;
 
   return root;
 }
