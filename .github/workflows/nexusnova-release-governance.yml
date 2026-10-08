@@ -169,5 +169,11 @@ jobs:
         run: |
           set -euo pipefail
           gradle --no-daemon :app:assembleRelease 2>&1 | tee "$GITHUB_WORKSPACE/android-build.log"
-          test -s app/build/outputs/apk/release/app-release.apk
+          mkdir -p "$GITHUB_WORKSPACE/release-apk-proof"
+          find app/build/outputs -type f -name '*.apk' -size +0c -print | tee "$GITHUB_WORKSPACE/release-apk-proof/apk-files.txt"
+          apk="$(find app/build/outputs -type f -name 'app-release.apk' -size +0c -print -quit)"
+          test -n "$apk"
+          cp "$apk" "$GITHUB_WORKSPACE/release-apk-proof/app-release.apk"
+          test -s "$GITHUB_WORKSPACE/release-apk-proof/app-release.apk"
+          echo "ANDROID_RELEASE_APK=$apk"
           echo 'ANDROID_RELEASE_COMPILE=PASS'
