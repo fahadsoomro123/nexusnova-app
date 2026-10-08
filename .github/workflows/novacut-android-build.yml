@@ -1,0 +1,75 @@
+name: NovaCut Android Build QA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "fresh-rebuild/src/features/apps/novacut-engine.js"
+      - "fresh-rebuild/src/features/apps/novacut-history.js"
+      - "fresh-rebuild/src/features/apps/novacut-overlays.js"
+      - "fresh-rebuild/src/features/apps/novacut-effects.js"
+      - "fresh-rebuild/src/features/apps/novacut-studio.js"
+      - "fresh-rebuild/src/features/apps/novacut-studio.css"
+      - "fresh-rebuild/src/features/apps/premium-studio-suite.js"
+      - "NexusNovaAndroid/**"
+      - ".github/workflows/novacut-android-build.yml"
+
+jobs:
+  novacut-android-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Gradle 8.13
+        uses: gradle/actions/setup-gradle@v5
+        with:
+          gradle-version: "8.13"
+
+      - name: NovaCut JavaScript syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check fresh-rebuild/src/features/apps/novacut-engine.js
+          node --check fresh-rebuild/src/features/apps/novacut-history.js
+          node --check fresh-rebuild/src/features/apps/novacut-overlays.js
+          node --check fresh-rebuild/src/features/apps/novacut-effects.js
+          node --check fresh-rebuild/src/features/apps/novacut-studio.js
+          node --check fresh-rebuild/src/features/apps/premium-studio-suite.js
+          echo "NOVACUT JS SYNTAX PASS"
+
+      - name: Android debug and test APK build
+        working-directory: NexusNovaAndroid
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon :app:assembleDebug :app:assembleDebugAndroidTest --stacktrace
+          test -s app/build/outputs/apk/debug/app-debug.apk
+          test -s app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+          echo "APP APK:"
+          stat -c "%n %s bytes" app/build/outputs/apk/debug/app-debug.apk
+          echo "TEST APK:"
+          stat -c "%n %s bytes" app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+
+      - name: Upload APK evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: novacut-android-build-evidence
+          path: |
+            NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk
+            NexusNovaAndroid/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+          if-no-files-found: warn
