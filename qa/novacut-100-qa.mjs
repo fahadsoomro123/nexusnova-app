@@ -73,7 +73,7 @@ check("audio injection calls engine", () => assert(has(media, "engine.addAudioSe
 
 // 41-55: suite/UI integration
 check("NovaCut renderer present", () => assert(has(suite, "function renderNovaCut()"), "renderer missing"));
-check("preview canvas present", () => assert(has(suite, "data-role='preview-canvas'"), "preview canvas missing"));
+check("preview canvas present", () => assert(/data-role=['"]preview-canvas['"]/.test(suite), "preview canvas missing"));
 check("play button present", () => assert(has(suite, "data-action='play'"), "play button missing"));
 check("export button present", () => assert(has(suite, "data-action='export'"), "export missing"));
 check("video lane present", () => assert(has(suite, "data-role='video-lane'"), "video lane missing"));
@@ -96,7 +96,7 @@ check("pointer cancel present", () => assert(has(studio, "pointercancel"), "poin
 check("history transaction begin present", () => assert(has(studio, "beginHistoryTransaction"), "history begin wiring missing"));
 check("history transaction commit present", () => assert(has(studio, "commitHistoryTransaction"), "history commit wiring missing"));
 check("history transaction cancel present", () => assert(has(studio, "cancelHistoryTransaction"), "history cancel wiring missing"));
-check("100-entry history cap", () => assert(has(history, "limit: 100") || has(history, "limit || 100"), "history cap missing"));
+check("100-entry history cap", () => assert(/this\.limit = Math\.max\(20, Math\.floor\(Number\(options\.limit\) \|\| 100\)\)/.test(history), "history cap missing"));
 check("history undo present", () => assert(has(history, "undo()"), "history undo missing"));
 check("history redo present", () => assert(has(history, "redo()"), "history redo missing"));
 
