@@ -1,0 +1,121 @@
+name: NexusNova Release Governance
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'NexusNovaAndroid/**'
+      - 'fresh-rebuild/**'
+      - 'ota/**'
+      - '.github/workflows/**'
+      - 'docs/NEXUSNOVA-RELEASE-ARCHITECTURE-VNEXT.md'
+
+permissions:
+  contents: read
+
+jobs:
+  release-governance:
+    name: Native + Web Release Gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout pull request
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Protect frozen production paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          changed="$(git diff --name-only "origin/${{ github.base_ref }}...HEAD")"
+          printf '%s\n' "$changed"
+
+          blocked="$(printf '%s\n' "$changed" | grep -E '^(cloudflare/safepay-webhook-worker\.js|cloudflare/telegram-bot/|cloudflare/.*(worker|config|route|workflow)|assets/js/fbr-atl-status-checker\.js|assets/logo\.png|sitemap[^/]*$|robots\.txt$)' || true)"
+          if [ -n "$blocked" ]; then
+            echo "FROZEN_PATHS_CHANGED"
+            printf '%s\n' "$blocked"
+            exit 1
+          fi
+          echo "FROZEN_PATH_GUARD=PASS"
+
+      - name: Validate native package and versionCode
+        shell: bash
+        run: |
+          set -euo pipefail
+          current_file='NexusNovaAndroid/app/build.gradle.kts'
+          base_file="$(mktemp)"
+
+          if ! git diff --name-only "origin/${{ github.base_ref }}...HEAD" | grep -q '^NexusNovaAndroid/'; then
+            echo 'ANDROID_RELEASE_GUARD=SKIP (web-only change)'
+            exit 0
+          fi
+
+          git show "origin/${{ github.base_ref }}:$current_file" > "$base_file"
+          current_app_id="$(sed -n 's/^[[:space:]]*applicationId = "\([^"]*\)"/\1/p' "$current_file" | head -n1)"
+          base_app_id="$(sed -n 's/^[[:space:]]*applicationId = "\([^"]*\)"/\1/p' "$base_file" | head -n1)"
+          current_code="$(sed -n 's/^[[:space:]]*versionCode = \([0-9][0-9]*\)/\1/p' "$current_file" | head -n1)"
+          base_code="$(sed -n 's/^[[:space:]]*versionCode = \([0-9][0-9]*\)/\1/p' "$base_file" | head -n1)"
+
+          test "$current_app_id" = 'com.nexusnova.app'
+          test "$current_app_id" = "$base_app_id"
+          test -n "$current_code"
+          test -n "$base_code"
+          test "$current_code" -gt "$base_code"
+
+          echo "APPLICATION_ID=$current_app_id"
+          echo "BASE_VERSION_CODE=$base_code"
+          echo "PR_VERSION_CODE=$current_code"
+          echo "ANDROID_VERSION_GUARD=PASS"
+
+      - name: Validate OTA is web-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f ota/manifest.json
+
+          if find ota/files -type f -iname '*.apk' -print -quit 2>/dev/null | grep -q .; then
+            echo 'OTA payload contains an APK. Native APK distribution belongs to Google Play.'
+            exit 1
+          fi
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+          import re
+
+          manifest = json.loads(Path('ota/manifest.json').read_text(encoding='utf-8'))
+          assert manifest.get('schema') == 2, 'unexpected OTA schema'
+          assert re.fullmatch(r'[0-9a-f]{40}', str(manifest.get('version', ''))), 'invalid OTA version'
+          assert re.fullmatch(r'[0-9a-f]{40}', str(manifest.get('base', ''))), 'invalid OTA base'
+          entries = manifest.get('files', [])
+          assert isinstance(entries, list) and entries, 'OTA file list missing'
+          for item in entries:
+              path = str(item.get('path', ''))
+              assert not path.lower().endswith('.apk'), f'APK listed in OTA manifest: {path}'
+              assert re.fullmatch(r'[0-9a-f]{64}', str(item.get('sha256', '')).lower())
+              assert isinstance(item.get('size'), int) and item['size'] >= 0
+          assert any(item.get('path') == 'index.html' for item in entries), 'OTA entry point missing'
+          print('OTA_WEB_ONLY_GUARD=PASS')
+          PY
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Compile Android release candidate
+        working-directory: NexusNovaAndroid
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon :app:assembleRelease 2>&1 | tee "$GITHUB_WORKSPACE/android-build.log"
+          test -s app/build/outputs/apk/release/app-release.apk
+          echo 'ANDROID_RELEASE_COMPILE=PASS'
