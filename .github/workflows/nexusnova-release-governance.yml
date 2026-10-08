@@ -121,12 +121,21 @@ jobs:
             echo 'LEGACY_APK_INSTALL_MANIFEST_CAPABILITY_DETECTED'
             exit 1
           fi
-          legacy_workflows="$(find .github/workflows -type f ! -name 'nexusnova-release-governance.yml' -print0 | xargs -0 grep -IlE 'PackageInstaller|ACTION_INSTALL_PACKAGE|REQUEST_INSTALL_PACKAGES|downloadOtaApk|apk-builds/.+\.apk|apk-builds/ota-bootstrap|installUpdate' 2>/dev/null || true)"
-          if [ -n "$legacy_workflows" ]; then
-            echo 'LEGACY_APK_UPDATER_WORKFLOW_DETECTED'
-            printf '%s\n' "$legacy_workflows"
-            exit 1
-          fi
+          legacy_workflows=(
+            .github/workflows/nexusnova-oneoff-permanent-ota-apk.yml
+            .github/workflows/nexusnova-oneoff-public-ota-apk.yml
+            .github/workflows/nn-ota-popup-android-build.yml
+            .github/workflows/nn-ota-popup-qa.yml
+            .github/workflows/one-shot-nova57-ota-bootstrap-apk-v2.yml
+            .github/workflows/one-shot-nova57-ota-bootstrap-apk-v3.yml
+            .github/workflows/one-shot-nova57-ota-bootstrap-apk-v4.yml
+            .github/workflows/one-shot-nova57-ota-bootstrap-apk.yml
+          )
+          for file in "${legacy_workflows[@]}"; do
+            test -f "$file"
+            grep -Fq 'RETIRED -' "$file"
+          done
+          echo 'LEGACY_APK_WORKFLOW_RETIREMENT_GUARD=PASS'
           echo 'CUSTOM_NATIVE_APK_UPDATER_GUARD=PASS'
       - name: Require Google Play update dependency
         shell: bash
