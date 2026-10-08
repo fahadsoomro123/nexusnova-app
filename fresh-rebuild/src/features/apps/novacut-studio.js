@@ -707,11 +707,17 @@ export class NovaCutStudioInteractions {
         this.commitClipMutation();
         this.engine.commitHistoryTransaction?.();
       } catch (error) {
+        this.engine.cancelHistoryTransaction?.();
         this.engine.reportError(
           "interaction-commit",
           error
         );
       }
+    } else if (
+      mode === "drag-pending" ||
+      mode === "trim-pending"
+    ) {
+      this.engine.cancelHistoryTransaction?.();
     }
 
     if (
@@ -737,8 +743,9 @@ export class NovaCutStudioInteractions {
       )
     ) {
       this.restoreClipMutation();
-      this.engine.cancelHistoryTransaction?.();
     }
+
+    this.engine.cancelHistoryTransaction?.();
 
     event.preventDefault();
     this.cleanupGesture();
