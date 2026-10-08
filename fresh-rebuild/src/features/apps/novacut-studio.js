@@ -442,6 +442,8 @@ export class NovaCutStudioInteractions {
   ) {
     this.cancelLongPress();
 
+    this.engine.beginHistoryTransaction?.("Timeline edit");
+
     this.touchState = {
       originX: touch.clientX,
       originY: touch.clientY,
@@ -703,6 +705,7 @@ export class NovaCutStudioInteractions {
 
       try {
         this.commitClipMutation();
+        this.engine.commitHistoryTransaction?.();
       } catch (error) {
         this.engine.reportError(
           "interaction-commit",
@@ -734,6 +737,7 @@ export class NovaCutStudioInteractions {
       )
     ) {
       this.restoreClipMutation();
+      this.engine.cancelHistoryTransaction?.();
     }
 
     event.preventDefault();
