@@ -394,6 +394,12 @@ export class NovaCutCanvasPreview {
     ctx.fillRect(0, 0, width, height);
 
     const active = this.engine.getActiveVideoClips().slice().sort((a, b) => a.startTime - b.startTime);
+    const activeIds = new Set(active.map((clip) => clip.id));
+    for (const [id, media] of this.media.entries()) {
+      if (!activeIds.has(id) && media instanceof HTMLVideoElement) {
+        try { media.pause(); } catch (_) {}
+      }
+    }
     for (const clip of active) {
       const media = this.media.get(clip.id);
       if (!media) {
