@@ -24,6 +24,10 @@ android {
 
     buildTypes {
         debug {
+            // QA-only install target. Keeps the production package/signature untouched
+            // while allowing the NovaCut debug build to coexist with the installed app.
+            applicationIdSuffix = ".novacutqa"
+            versionNameSuffix = "-novacutqa"
             buildConfigField("boolean", "NEXUS_ADS_TEST_MODE", "true")
             manifestPlaceholders["appLabel"] = "NexusNova"
             manifestPlaceholders["admobAppId"] = "ca-app-pub-3940256099942544~3347511713"
