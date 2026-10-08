@@ -112,13 +112,45 @@ class MainActivity : AppCompatActivity() {
                 .parseResult(result.resultCode, result.data)
                 ?.forEach { uri ->
                     if (acceptedUris.size >= MAX_PICKED_FILES) return@forEach
-                    val size = validatePickedUri(uri, acceptedTypes) ?: return@forEach
-                    if (size > MAX_PICKED_TOTAL_BYTES - totalBytes) return@forEach
+                    grantPickedUriReadAccess(uri, result.data?.flags ?: 0)
+
+                    val size = validatePickedUri(uri, acceptedTypes)
+                    if (size == null) {
+                        android.util.Log.w(
+                            "NexusNovaFilePicker",
+                            "Rejected picker URI: $uri mime=" +
+                                runCatching { contentResolver.getType(uri) }.getOrNull() +
+                                " name=" + pickedUriDisplayName(uri) +
+                                " accepted=" + acceptedTypes
+                        )
+                        return@forEach
+                    }
+
+                    if (size > MAX_PICKED_TOTAL_BYTES - totalBytes) {
+                        android.util.Log.w(
+                            "NexusNovaFilePicker",
+                            "Rejected picker URI for batch size: $uri size=$size"
+                        )
+                        return@forEach
+                    }
+
                     totalBytes += size
                     acceptedUris.add(uri)
+                    android.util.Log.i(
+                        "NexusNovaFilePicker",
+                        "Accepted picker URI: $uri mime=" +
+                            runCatching { contentResolver.getType(uri) }.getOrNull() +
+                            " name=" + pickedUriDisplayName(uri) +
+                            " size=" + size
+                    )
                 }
             acceptedUris.toTypedArray().takeIf { it.isNotEmpty() }
-        } catch (_: Exception) {
+        } catch (error: Exception) {
+            android.util.Log.e(
+                "NexusNovaFilePicker",
+                "Picker result processing failed",
+                error
+            )
             null
         }
 
@@ -1327,10 +1359,11 @@ class MainActivity : AppCompatActivity() {
 
     private fun validatePickedUri(uri: Uri, acceptedTypes: Set<String>): Long? {
         if (uri.scheme != ContentResolver.SCHEME_CONTENT) return null
+        if (uri.authority.equals(packageName, ignoreCase = true)) return null
 
-        // Some Android media providers do not expose SIZE or MIME consistently.
-        // A valid content URI should not be rejected solely because provider
-        // metadata is incomplete. Enforce hard limits only when size is known.
+        // Some Android media providers do not expose SIZE, MIME, or DISPLAY_NAME
+        // consistently. Enforce hard limits when size is known, but do not discard
+        // a valid picker result solely because provider metadata is incomplete.
         val size = pickedUriSize(uri)
         if (size != null && size > MAX_PICKED_FILE_BYTES) return null
         if (acceptedTypes.isEmpty()) return size ?: 0L
@@ -1347,22 +1380,70 @@ class MainActivity : AppCompatActivity() {
             ?.lowercase(Locale.ROOT)
             ?.takeIf { it.isNotBlank() }
 
-        val accepted = acceptedTypes
+        val normalizedAcceptTypes = acceptedTypes
             .asSequence()
             .flatMap { value -> value.split(',').asSequence() }
             .map { value -> value.substringBefore(';').trim().lowercase(Locale.ROOT) }
-            .any { acceptedType ->
-                acceptedType == "*/*" ||
-                    (mimeType != null && (
-                        acceptedType == mimeType ||
-                            (acceptedType.endsWith("/*") &&
-                                mimeType.startsWith(acceptedType.removeSuffix("*")))
-                    )) ||
-                    acceptedType == extension?.let { ".$it" } ||
-                    (acceptedType == ".pdf" && mimeType == "application/pdf")
+            .filter { it.isNotBlank() }
+            .toList()
+
+        val explicitMatch = normalizedAcceptTypes.any { acceptedType ->
+            acceptedType == "*/*" ||
+                (mimeType != null && (
+                    acceptedType == mimeType ||
+                        (acceptedType.endsWith("/*") &&
+                            mimeType.startsWith(acceptedType.removeSuffix("*")))
+                )) ||
+                acceptedType == extension?.let { ".$it" } ||
+                (acceptedType == ".pdf" && mimeType == "application/pdf")
+        }
+
+        if (explicitMatch) return size ?: 0L
+
+        // The originating WebView request already constrained the system picker to
+        // media-only MIME categories. Some Android providers still return an opaque
+        // content URI without MIME/name metadata. Preserve that media-only result,
+        // then let NovaCut's own binary/media parser perform the final format check.
+        val mediaOnlyRequest = normalizedAcceptTypes.isNotEmpty() &&
+            normalizedAcceptTypes.all {
+                it == "*/*" ||
+                    it == "video/*" ||
+                    it == "audio/*" ||
+                    it == "image/*"
             }
 
-        return (if (accepted) size ?: 0L else null)
+        if (mediaOnlyRequest && isReadableContentUri(uri)) {
+            return size ?: 0L
+        }
+
+        return null
+    }
+
+    private fun isReadableContentUri(uri: Uri): Boolean {
+        return try {
+            contentResolver.openAssetFileDescriptor(uri, "r")?.use { true } == true
+        } catch (_: Exception) {
+            try {
+                contentResolver.openInputStream(uri)?.use { true } == true
+            } catch (_: Exception) {
+                false
+            }
+        }
+    }
+
+    private fun grantPickedUriReadAccess(uri: Uri, resultFlags: Int) {
+        if (uri.scheme != ContentResolver.SCHEME_CONTENT) return
+
+        val readFlag = Intent.FLAG_GRANT_READ_URI_PERMISSION
+        runCatching {
+            grantUriPermission(packageName, uri, readFlag)
+        }
+
+        if ((resultFlags and Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION) != 0) {
+            runCatching {
+                contentResolver.takePersistableUriPermission(uri, readFlag)
+            }
+        }
     }
 
     private fun pickedUriDisplayName(uri: Uri): String? {
