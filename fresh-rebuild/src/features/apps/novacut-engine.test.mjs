@@ -17,6 +17,7 @@ const source = fs.readFileSync(
   new URL("./novacut-engine.js", import.meta.url),
   "utf8"
 ).replace(/import\s+\{\s*createNovaCutHistory\s*\}\s+from\s+["']\.\/novacut-history\.js["'];?\s*/, "")
+.replace(/import\s+\{\s*drawSticker\s*,\s*normalizeSticker\s*\}\s+from\s+["']\.\/novacut-visuals\.js["'];?\s*/, "")
 .replace(/export \{[\s\S]*?\};\nexport const createNovaCutEngine[\s\S]*$/, "");
 
 const combinedSource = visualsSource + "\n" + historySource + "\n" + source;
