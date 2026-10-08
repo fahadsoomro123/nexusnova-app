@@ -325,6 +325,32 @@
   border-bottom: 1px solid var(--nc-line) !important;
 }
 
+.nx-novacut__timeline-head-actions {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 6px !important;
+}
+
+.nx-novacut__timeline-action {
+  width: 32px !important;
+  height: 32px !important;
+  display: grid !important;
+  place-items: center !important;
+  padding: 0 !important;
+}
+
+.nx-novacut__timeline-action svg {
+  width: 14px !important;
+  height: 14px !important;
+}
+
+.nx-novacut__timeline-action:disabled {
+  opacity: .34 !important;
+  cursor: not-allowed !important;
+  box-shadow: none !important;
+}
+
 .nx-novacut__add-button {
   display: inline-flex !important;
   align-items: center !important;
