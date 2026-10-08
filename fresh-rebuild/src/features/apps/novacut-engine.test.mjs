@@ -250,6 +250,11 @@ test("timeline interaction exposes visible move/trim affordances and desktop poi
   assert.match(studioSource, /Trim clip end/);
 });
 
+test("visual timeline interactions include text and sticker tracks", () => {
+  assert.match(studioSource, /"textTracks", "stickerTracks"/);
+  assert.match(studioSource, /recordType: this\.engine\.registry\.getById/);
+  assert.match(studioSource, /state\.recordType === "videoTracks"/);
+});
 test("visual layers support stickers, text editing, transform history and export assets", () => {
   const engine = new context.NovaCutEngine();
 
