@@ -139,8 +139,8 @@ check("debug QA suffix preserved", () => assert(has(gradle, 'applicationIdSuffix
 check("FileProvider remains present", () => assert(has(manifest, "androidx.core.content.FileProvider"), "FileProvider missing"));
 
 // 97-100: signed build gate + exact regression safety
-check("signed workflow pins current production version", () => assert(has(workflow, "versionCode = 27010034"), "signed workflow versionCode stale"));
-check("signed workflow pins current version name", () => assert(has(workflow, 'versionName = "1.0.47-ota-36"'), "signed workflow versionName stale"));
+check("signed workflow verifies OTA-36 versionCode", () => assert(has(workflow, "versionCode = 27010034") && has(workflow, "versionCode='27010034'"), "signed workflow versionCode injection or APK verification stale"));
+check("signed workflow verifies OTA-36 versionName", () => assert(has(workflow, 'versionName = "1.0.47-ota-36"') && has(workflow, "versionName='1.0.47-ota-36'") && has(workflow, "SIGNED OTA-36 APK VERIFIED"), "signed workflow versionName, APK assertion, or summary stale"));
 check("signed workflow packages ota-36 artifact", () => assert(has(workflow, "NexusNova-v1.0.47-ota-36-SIGNED.apk"), "ota-36 artifact missing"));
 check("signed workflow validates signature before packaging", () => assert(/verify --verbose --print-certs/.test(workflow), "signature verification missing"));
 
