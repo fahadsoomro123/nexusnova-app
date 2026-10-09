@@ -75,32 +75,44 @@ pull_remote_file() {
 
 capture_screenshot() {
   local output="$1"
-  local remote="/sdcard/nova-$(basename "$output")"
   local attempt status
   for attempt in 1 2 3; do
     if ! wait_for_device; then
       echo "Device offline before screenshot attempt $attempt" >> "$RESULTS/screenshot-retries.txt"
-      continue
-    fi
-    adb shell screencap -p "$remote" > "$output.shell.txt" 2>&1
-    status=$?
-    if [ "$status" -ne 0 ]; then
-      echo "Remote screencap attempt $attempt failed (status=$status)" >> "$RESULTS/screenshot-retries.txt"
       sleep 1
       continue
     fi
-    if pull_remote_file "$remote" "$output"; then
-      if python3 - "$output" <<'PY'
+
+    # Stream the PNG directly over ADB. Writing a remote file then pulling it
+    # doubled the ADB traffic and repeatedly destabilized the high-res AVD.
+    : > "$output"
+    adb exec-out screencap -p > "$output" 2> "$output.shell.txt"
+    status=$?
+    if [ "$status" -ne 0 ]; then
+      echo "Direct screencap attempt $attempt failed (status=$status)" >> "$RESULTS/screenshot-retries.txt"
+      sleep 1
+      continue
+    fi
+
+    if python3 - "$output" <<'PY'
 import sys
 from pathlib import Path
-raise SystemExit(0 if Path(sys.argv[1]).read_bytes().startswith(bytes.fromhex("89504e470d0a1a0a")) else 1)
+
+data = Path(sys.argv[1]).read_bytes()
+valid = (
+    len(data) > 1024
+    and data.startswith(bytes.fromhex("89504e470d0a1a0a"))
+    and b"IHDR" in data[:32]
+    and data.endswith(bytes.fromhex("0000000049454e44ae426082"))
+)
+raise SystemExit(0 if valid else 1)
 PY
-      then
-        adb shell rm -f "$remote" >/dev/null 2>&1 || true
-        return 0
-      fi
+    then
+      echo "Direct screenshot capture attempt $attempt PASS" >> "$RESULTS/screenshot-retries.txt"
+      return 0
     fi
-    echo "Screenshot validation attempt $attempt failed" >> "$RESULTS/screenshot-retries.txt"
+
+    echo "Direct screenshot PNG validation failed on attempt $attempt" >> "$RESULTS/screenshot-retries.txt"
     sleep 1
   done
   return 1
@@ -158,6 +170,10 @@ adb shell mkdir -p /sdcard/Download
 adb push "$FIXTURE" /sdcard/Download/video-studio-video-qa.webm > "$RESULTS/fixture-push.txt" 2>&1
 if [ $? -ne 0 ]; then fail "Could not place the video fixture in Android Downloads."; fi
 adb shell am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file:///sdcard/Download/video-studio-video-qa.webm > "$RESULTS/media-scan.txt" 2>&1 || true
+adb shell wm size 720x1600 > "$RESULTS/emulator-display-size.txt" 2>&1
+if [ $? -ne 0 ]; then fail "Could not set deterministic 720x1600 emulator viewport."; fi
+adb shell wm density 280 > "$RESULTS/emulator-display-density.txt" 2>&1
+if [ $? -ne 0 ]; then fail "Could not set deterministic 280-dpi emulator density."; fi
 
 # Clear cached AVD logcat first: cached AVDs can contain old build diagnostics.
 adb logcat -c > "$RESULTS/logcat-clear.txt" 2>&1
