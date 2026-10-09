@@ -75,7 +75,7 @@ check("audio injection calls engine", () => assert(has(media, "engine.addAudioSe
 // 41-55: suite/UI integration
 check("NovaCut renderer present", () => assert(has(suite, "function renderNovaCut()"), "renderer missing"));
 check("preview canvas present", () => assert(/data-role=['"]preview-canvas['"]/.test(suite), "preview canvas missing"));
-check("play button present", () => assert(has(suite, "data-action='play'"), "play button missing"));
+check("play button and visible transport icon", () => assert(has(suite, "data-action='play'") && has(suite, "data-role='play-icon'") && has(suite, "M8 5.2v13.6L19 12 8 5.2Z") && has(studioCss, '.nx-novacut-host .nx-novacut__play svg path[fill="currentColor"]') && has(studioCss, '.nx-novacut-host .nx-novacut__play svg path:not([fill])'), "play/pause glyph or visible SVG styling missing"));
 check("export button present", () => assert(/data-action=['"]export['"]/.test(suite), "export missing"));
 check("video lane present", () => assert(has(suite, "data-role='video-lane'"), "video lane missing"));
 check("audio lane present", () => assert(has(suite, "data-role='audio-lane'"), "audio lane missing"));
