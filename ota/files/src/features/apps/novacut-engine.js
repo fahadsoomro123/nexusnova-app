@@ -652,7 +652,6 @@ export class NovaCutCanvasPreview {
       }
 
       const isVideoElement = media instanceof HTMLVideoElement;
-      const isVideoElement = media instanceof HTMLVideoElement;
       const sw = isVideoElement ? Number(media.videoWidth) : Number(media.naturalWidth);
       const sh = isVideoElement ? Number(media.videoHeight) : Number(media.naturalHeight);
       // Never pretend a not-yet-decoded video is a 1x1 image. That masked the
