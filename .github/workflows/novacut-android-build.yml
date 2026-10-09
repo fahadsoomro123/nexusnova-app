@@ -83,7 +83,7 @@ jobs:
               qa_client["client_info"]["android_client_info"]["package_name"] = package
               data["client"].append(qa_client)
           target.parent.mkdir(parents=True, exist_ok=True)
-          target.write_text(json.dumps(data, indent=2) + "\\n", encoding="utf-8")
+          target.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
           print("Generated temporary debug-only Firebase client for " + package)
           print("Production app/google-services.json left unchanged.")
           PY
