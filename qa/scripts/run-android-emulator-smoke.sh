@@ -54,6 +54,26 @@ wait_for_device() {
   return 1
 }
 
+
+pull_remote_file() {
+  local remote="$1" output="$2" attempt status
+  for attempt in 1 2 3; do
+    if ! wait_for_device; then
+      echo "Device offline before pull attempt $attempt for $remote" >> "$RESULTS/adb-recovery.txt"
+      sleep 1
+      continue
+    fi
+    adb pull "$remote" "$output" > "$output.adb.txt" 2>&1
+    status=$?
+    if [ "$status" -eq 0 ] && [ -s "$output" ]; then
+      return 0
+    fi
+    echo "Pull attempt $attempt failed for $remote (status=$status)" >> "$RESULTS/adb-recovery.txt"
+    sleep 1
+  done
+  return 1
+}
+
 capture_screenshot() {
   local output="$1"
   local attempt status
@@ -120,7 +140,7 @@ fi
 # Let the bundled web splash finish its minimum display period before inspecting UI.
 sleep 4
 adb shell uiautomator dump /sdcard/nova-app-window.xml > "$RESULTS/app-ui-dump.txt" 2>&1
-adb pull /sdcard/nova-app-window.xml "$RESULTS/app-window.xml" > "$RESULTS/app-ui-pull.txt" 2>&1
+pull_remote_file /sdcard/nova-app-window.xml "$RESULTS/app-window.xml" > "$RESULTS/app-ui-pull.txt" 2>&1
 if ! grep -Eqi 'text="NEXUSNOVA|text="nexusnovatools\.com|content-desc="Open nexusnovatools\.com in Nova Browser"' "$RESULTS/app-window.xml"; then
   fail "WebView page-finished event occurred, but expected NexusNova portal content was not accessible. Refusing a splash-only screenshot."
 fi
@@ -154,7 +174,7 @@ if [ $? -ne 0 ]; then fail "Android refused the native video-picker intent."; fi
 sleep 2
 adb shell dumpsys activity activities > "$RESULTS/activity-after-picker.txt" 2>&1
 adb shell uiautomator dump /sdcard/nova-picker-window.xml > "$RESULTS/picker-ui-dump.txt" 2>&1
-adb pull /sdcard/nova-picker-window.xml "$RESULTS/picker-window.xml" > "$RESULTS/picker-window-pull.txt" 2>&1
+pull_remote_file /sdcard/nova-picker-window.xml "$RESULTS/picker-window.xml" > "$RESULTS/picker-window-pull.txt" 2>&1
 if ! grep -Eqi 'com\.google\.android\.documentsui|com\.android\.documentsui|DocumentsUI' "$RESULTS/activity-after-picker.txt" "$RESULTS/picker-window.xml"; then
   fail "Native video picker UI was not identifiable after opening ACTION_OPEN_DOCUMENT."
 fi
@@ -167,7 +187,7 @@ read -r menu_x menu_y <<< "$coordinates"
 adb shell input tap "$menu_x" "$menu_y"
 sleep 1
 adb shell uiautomator dump /sdcard/nova-picker-roots.xml > "$RESULTS/picker-roots-dump.txt" 2>&1
-adb pull /sdcard/nova-picker-roots.xml "$RESULTS/picker-roots.xml" > "$RESULTS/picker-roots-pull.txt" 2>&1
+pull_remote_file /sdcard/nova-picker-roots.xml "$RESULTS/picker-roots.xml" > "$RESULTS/picker-roots-pull.txt" 2>&1
 if ! coordinates="$(find_node_center "$RESULTS/picker-roots.xml" "Downloads")"; then
   fail "Native picker navigation did not expose a Downloads location."
 fi
@@ -176,7 +196,7 @@ adb shell input tap "$downloads_x" "$downloads_y"
 sleep 2
 adb shell dumpsys activity activities > "$RESULTS/activity-after-downloads.txt" 2>&1
 adb shell uiautomator dump /sdcard/nova-picker-downloads.xml > "$RESULTS/picker-downloads-dump.txt" 2>&1
-adb pull /sdcard/nova-picker-downloads.xml "$RESULTS/picker-downloads-window.xml" > "$RESULTS/picker-downloads-pull.txt" 2>&1
+pull_remote_file /sdcard/nova-picker-downloads.xml "$RESULTS/picker-downloads-window.xml" > "$RESULTS/picker-downloads-pull.txt" 2>&1
 if ! grep -Fq 'video-studio-video-qa.webm' "$RESULTS/picker-downloads-window.xml"; then
   fail "The native picker opened Downloads but did not show the deterministic video fixture."
 fi
