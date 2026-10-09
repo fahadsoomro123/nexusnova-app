@@ -529,12 +529,28 @@ export class NovaCutCanvasPreview {
     }));
   }
 
+  enableVideoAudio(media, clip) {
+    if (!(media instanceof HTMLVideoElement)) return;
+    // Videos stay muted while preloading; restore source audio for user-requested playback.
+    media.defaultMuted = false;
+    media.muted = false;
+    media.volume = clamp(clip?.volume ?? 1, 0, 1);
+  }
+
+  enableActiveVideoAudio() {
+    for (const clip of this.engine.getActiveVideoClips()) {
+      const media = this.media.get(clip.id);
+      if (media instanceof HTMLVideoElement) this.enableVideoAudio(media, clip);
+    }
+  }
+
   async playActive() {
     const active = this.engine.getActiveVideoClips();
     if (!active.length) throw new Error("No video clip is active at the current playhead.");
     await Promise.all(active.map(async (clip) => {
       const media = await this.resolve(clip);
       if (!(media instanceof HTMLVideoElement)) return;
+      this.enableVideoAudio(media, clip);
       const local = Math.max(0, this.engine.currentTimestamp - clip.startTime);
       const target = Math.max(0, msToSec(clip.sourceStartTime + local));
       try {
@@ -663,6 +679,7 @@ export class NovaCutCanvasPreview {
           if (Math.abs(media.currentTime - target) > 0.12) {
             try { media.currentTime = target; } catch (_) {}
           }
+          this.enableVideoAudio(media, clip);
           media.play().catch((error) => this.engine.reportError("playback", error));
         }
       }
@@ -1109,6 +1126,10 @@ export class NovaCutEngine {
       root.querySelectorAll("[data-action=\"" + action + "\"]").forEach((element) => {
         element.addEventListener("click", (event) => {
           event.preventDefault();
+          if (action === "play" && !this.isPlaying) {
+            // Unmute synchronously inside the tap so Android WebView retains user activation.
+            this.preview?.enableActiveVideoAudio();
+          }
           Promise.resolve().then(handler).catch((error) => this.reportError("action:" + action, error));
         }, { signal });
       });
