@@ -254,8 +254,6 @@ function renderNovaCut() {
 
   engine.on('playheadchange', ({ timestamp }) => {
     const duration = engine.registry.durationMs();
-    // Keep ruler range aligned if trimming changes the effective sequence length.
-    renderTimelineRuler();
     const currentNode = root.querySelector("[data-role='current-time']");
     const durationNode = root.querySelector("[data-role='duration']");
     if (currentNode) currentNode.textContent = engine.format(timestamp);
