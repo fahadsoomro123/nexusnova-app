@@ -219,7 +219,12 @@ function renderNovaCut() {
   });
 
   engine.on('error', ({ error }) => {
-    if (status && error?.message) status.textContent = 'Error';
+    if (!status || !error?.message) return;
+    const message = String(error.message);
+    status.textContent = 'Error: ' + message.slice(0, 72);
+    status.title = message;
+    status.setAttribute('aria-label', message);
+    console.error('[NovaCut engine]', error);
   });
 
   const setPlayVisual = () => {
@@ -233,20 +238,47 @@ function renderNovaCut() {
 
   const mediaParser = createNovaCutMediaParser(root, engine, { maxFilesPerBatch: 8 });
 
+  root.addEventListener('novacut-media:batch:start', (event) => {
+    const total = Number(event.detail?.total) || 0;
+    if (status && total > 0) status.textContent = 'Reading ' + total + ' media file(s)…';
+  });
+
+  root.addEventListener('novacut-media:file:parse-start', (event) => {
+    const fileName = String(event.detail?.file?.name || 'media');
+    if (status) status.textContent = 'Reading ' + fileName.slice(0, 44);
+  });
+
   root.addEventListener('novacut-media:file:injected', async (event) => {
     const clip = event.detail?.record?.track || null;
     if (!clip) return;
-    if (status) status.textContent = 'Decoding';
+    if (status) status.textContent = 'Checking video decoder…';
     try {
       await engine.prepareClip(clip);
-      if (status) status.textContent = 'Media ready';
-    } catch (_) {
-      if (status) status.textContent = 'Decode error';
+      if (status) {
+        status.textContent = 'Media ready';
+        status.title = String(clip.file?.name || 'Media ready');
+      }
+    } catch (error) {
+      const message = String(error?.message || 'Video decoder rejected the selected file.');
+      if (status) {
+        status.textContent = 'Decode failed: ' + message.slice(0, 60);
+        status.title = message;
+        status.setAttribute('aria-label', message);
+      }
+      console.error('[NovaCut decode]', error);
     }
   });
 
-  root.addEventListener('novacut-media:file:error', () => {
-    if (status) status.textContent = 'Media import error';
+  root.addEventListener('novacut-media:file:error', (event) => {
+    const record = event.detail?.record || null;
+    const fileName = String(record?.file?.name || record?.metadata?.name || 'selected media');
+    const reason = String(record?.error?.message || 'The selected media could not be imported.');
+    if (status) {
+      status.textContent = 'Import failed: ' + reason.slice(0, 54);
+      status.title = fileName + ': ' + reason;
+      status.setAttribute('aria-label', fileName + ': ' + reason);
+    }
+    console.error('[NovaCut import]', fileName, reason, record?.error || event.detail);
   });
 
   root.__novaCutEngine = engine;
