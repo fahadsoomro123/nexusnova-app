@@ -132,15 +132,15 @@ check("picker callback receives selected URIs", () => assert(has(activity, "call
 // 91-96: Android package/release integrity
 check("production package ID correct", () => assert(has(gradle, 'applicationId = "com.nexusnova.app"'), "package ID changed"));
 check("production namespace correct", () => assert(has(gradle, 'namespace = "com.nexusnova.app"'), "namespace changed"));
-check("production version advanced", () => assert(has(gradle, "versionCode = 27010030"), "versionCode not advanced"));
-check("production version name advanced", () => assert(has(gradle, 'versionName = "1.0.45-ota-32"'), "versionName not advanced"));
+check("production version advanced", () => assert(has(gradle, "versionCode = 27010031"), "versionCode not advanced"));
+check("production version name advanced", () => assert(has(gradle, 'versionName = "1.0.45-ota-33"'), "versionName not advanced"));
 check("debug QA suffix preserved", () => assert(has(gradle, 'applicationIdSuffix = ".novacutqa"'), "QA suffix missing"));
 check("FileProvider remains present", () => assert(has(manifest, "androidx.core.content.FileProvider"), "FileProvider missing"));
 
 // 97-100: signed build gate + exact regression safety
-check("signed workflow pins current production version", () => assert(has(workflow, "versionCode = 27010030"), "signed workflow versionCode stale"));
-check("signed workflow pins current version name", () => assert(has(workflow, 'versionName = "1.0.45-ota-32"'), "signed workflow versionName stale"));
-check("signed workflow packages ota-31 artifact", () => assert(has(workflow, "NexusNova-v1.0.45-ota-32-SIGNED.apk"), "ota-31 artifact missing"));
+check("signed workflow pins current production version", () => assert(has(workflow, "versionCode = 27010031"), "signed workflow versionCode stale"));
+check("signed workflow pins current version name", () => assert(has(workflow, 'versionName = "1.0.45-ota-33"'), "signed workflow versionName stale"));
+check("signed workflow packages ota-31 artifact", () => assert(has(workflow, "NexusNova-v1.0.45-ota-33-SIGNED.apk"), "ota-31 artifact missing"));
 check("signed workflow validates signature before packaging", () => assert(/verify --verbose --print-certs/.test(workflow), "signature verification missing"));
 
 assert(tests.length === 100, "Expected exactly 100 QA checks, got " + tests.length);
