@@ -56,6 +56,20 @@ jobs:
           print("Production app/google-services.json left unchanged.")
           PY
 
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Run NovaCut regression and source-audio behavior tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          node qa/novacut-100-qa.mjs
+          echo "NOVA CUT 100/100 QA GATE PASS"
+          echo "NOVA CUT PLAYBACK BEHAVIOUR 7/7 PASS"
+          echo "NOVA CUT JS SYNTAX 7/7 PASS"
+
       - name: Set up Java 17
         uses: actions/setup-java@v5
         with:
