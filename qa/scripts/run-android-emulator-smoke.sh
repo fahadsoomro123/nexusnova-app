@@ -3,6 +3,12 @@
 # Run through android-emulator-runner from NexusNovaAndroid.
 set +e
 
+# Bound every host-side ADB call so a stuck device-shell/UIAutomator command
+# cannot hold the CI job forever; the workflow also has an overall 180s limit.
+adb() {
+  timeout --signal=TERM --kill-after=3s 25s command adb "$@"
+}
+
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 RESULTS="$ROOT/qa/android-emulator-results"
 mkdir -p "$RESULTS"
