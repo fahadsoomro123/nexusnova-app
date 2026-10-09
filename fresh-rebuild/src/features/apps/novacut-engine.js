@@ -252,7 +252,17 @@ export class NovaCutCanvasPreview {
         video.removeEventListener("error", onError);
       };
       const onReady = () => { cleanup(); resolve(); };
-      const onError = () => { cleanup(); reject(new Error("NovaCut video decoder rejected the media.")); };
+      const onError = () => {
+        cleanup();
+        const mediaError = video.error;
+        const code = Number(mediaError?.code) || 0;
+        const detail = String(mediaError?.message || "");
+        reject(new Error(
+          "NovaCut video decoder rejected the media" +
+          (code ? " (MediaError " + code + (detail ? ": " + detail : "") + ")" : "") +
+          "."
+        ));
+      };
       video.addEventListener("loadeddata", onReady, { once: true });
       video.addEventListener("canplay", onReady, { once: true });
       video.addEventListener("error", onError, { once: true });
@@ -500,13 +510,19 @@ export class NovaCutCanvasPreview {
       if (media instanceof HTMLVideoElement) {
         const local = Math.max(0, now - clip.startTime);
         const target = msToSec(clip.sourceStartTime + local);
+        // Seeking on every RAF while playing repeatedly flushes the decoder on
+        // slower Android/WebView devices. Seek only while paused or when a new
+        // clip becomes active and needs its initial timeline position.
         if (!this.engine.isPlaying && Math.abs(media.currentTime - target) > 0.03) {
-          try { media.currentTime = target; } catch (_) {}
-        } else if (this.engine.isPlaying && Math.abs(media.currentTime - target) > 0.3) {
           try { media.currentTime = target; } catch (_) {}
         }
         if (media.readyState < 2) continue;
-        if (this.engine.isPlaying && media.paused) media.play().catch(() => {});
+        if (this.engine.isPlaying && media.paused) {
+          if (Math.abs(media.currentTime - target) > 0.12) {
+            try { media.currentTime = target; } catch (_) {}
+          }
+          media.play().catch((error) => this.engine.reportError("playback", error));
+        }
       }
 
       const sw = media.videoWidth || media.naturalWidth || 1;
@@ -1168,7 +1184,32 @@ export class NovaCutEngine {
       const delta = Math.max(0, now - last);
       last = now;
       const duration = this.registry.durationMs();
-      this.currentTimestamp = Math.min(duration, this.currentTimestamp + delta);
+      const active = this.getActiveVideoClips()
+        .slice()
+        .sort((a, b) => b.startTime - a.startTime);
+      const clockClip = active.find((clip) => {
+        const media = this.preview?.media.get(clip.id);
+        return media instanceof HTMLVideoElement &&
+          media.readyState >= 2 &&
+          Number.isFinite(media.currentTime);
+      });
+      if (clockClip) {
+        const media = this.preview.media.get(clockClip.id);
+        const mediaTimelineTime = clockClip.startTime +
+          media.currentTime * 1000 -
+          Math.max(0, Number(clockClip.sourceStartTime) || 0);
+        // Use the actual decoder clock, not RAF wall time. The previous
+        // implementation advanced playhead and aggressively re-seeked when a
+        // MediaTek/WebView decoder lagged, which could keep the preview black.
+        this.currentTimestamp = clamp(
+          Math.max(this.currentTimestamp, mediaTimelineTime),
+          0,
+          duration
+        );
+      } else {
+        // Preserve navigation over timeline gaps until the next clip is active.
+        this.currentTimestamp = Math.min(duration, this.currentTimestamp + delta);
+      }
       this.setPlayhead(this.currentTimestamp);
       if (this.currentTimestamp >= duration) {
         this.pause();
