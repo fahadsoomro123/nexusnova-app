@@ -1459,9 +1459,13 @@ export class NovaCutStudioInteractions {
       this.engine.currentTimestamp *
       pxPerMs;
 
+    // The playhead's absolute left is in scroll-content coordinates, not
+    // viewport coordinates. Account for horizontal scroll or it drifts as the
+    // user pans a long sequence on mobile.
     const viewportX =
       laneRect.left -
       timelineRect.left +
+      this.timeline.scrollLeft +
       contentX;
 
     const boundedX =
@@ -1470,7 +1474,7 @@ export class NovaCutStudioInteractions {
         0,
         Math.max(
           0,
-          this.timeline.clientWidth
+          this.timeline.scrollWidth
         )
       );
 
