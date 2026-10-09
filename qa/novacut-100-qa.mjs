@@ -319,8 +319,10 @@ const compilerVideo = (overrides = {}) => ({
 const videoAudioPlan = new NovaCutCommandCompiler(makeCompilerEngine({ videos: [compilerVideo()] })).compile();
 const videoAudioFilter = videoAudioPlan.args[videoAudioPlan.args.indexOf("-filter_complex") + 1];
 if (!videoAudioFilter.includes("[0:a:0]atrim=start=0.000:duration=5.000") ||
-    !videoAudioPlan.args.includes("[vsrcaudio0]")) {
-  throw new Error("Export command omitted source audio from a clip marked as containing audio.");
+    !videoAudioPlan.args.includes("[vsrcaudio0]") ||
+    !videoAudioFilter.includes("scale=1920:1080:force_original_aspect_ratio=decrease") ||
+    !videoAudioFilter.includes("overlay=x=(W-w)/2+0:y=(H-h)/2")) {
+  throw new Error("Export command omitted source audio, output-canvas fitting, or centered positioning.");
 }
 console.log("EXPORT BEHAVIOUR 1/4 PASS  source video audio maps to MP4 output");
 
