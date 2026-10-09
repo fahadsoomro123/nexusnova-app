@@ -203,7 +203,7 @@ export class NovaCutCanvasPreview {
     this.canvas = canvas;
     // Avoid desynchronized video-to-canvas presentation on Android WebView.
     // It can report playback progress while the Canvas preview remains black.
-    this.ctx = canvas?.getContext("2d", { alpha: false }) || null;
+    this.ctx = canvas?.getContext("2d", { alpha: true }) || null;
     this.sourceCanvas = document.createElement("canvas");
     this.sourceCtx = this.sourceCanvas.getContext("2d");
     this.media = new Map();
@@ -213,6 +213,10 @@ export class NovaCutCanvasPreview {
     this.urls = new Map();
     this.stickerMedia = new Map();
     this.stickerPending = new Map();
+    this.frameProbe = new Map();
+    this.nativeFallbackActive = false;
+    this.nativePreviewMedia = null;
+    this.renderTick = 0;
     this.frameId = 0;
     this.running = false;
     this.resizeObserver = null;
@@ -233,6 +237,93 @@ export class NovaCutCanvasPreview {
     if (this.canvas.height !== height) this.canvas.height = height;
     this.sourceCanvas.width = width;
     this.sourceCanvas.height = height;
+  }
+
+  mountNativePreview(media) {
+    if (!(media instanceof HTMLVideoElement) || !this.canvas) return;
+    const shell = this.canvas.parentElement;
+    if (!shell) return;
+    if (this.nativePreviewMedia && this.nativePreviewMedia !== media) {
+      try {
+        this.nativePreviewMedia.pause();
+        this.nativePreviewMedia.remove();
+      } catch (_) {}
+    }
+    this.nativePreviewMedia = media;
+    media.classList.add("nx-novacut__native-preview-video");
+    Object.assign(media.style, {
+      position: "absolute",
+      inset: "0",
+      width: "100%",
+      height: "100%",
+      maxWidth: "100%",
+      maxHeight: "100%",
+      objectFit: "contain",
+      zIndex: "0",
+      pointerEvents: "none",
+      background: "#050507",
+      display: "block"
+    });
+    if (media.parentElement !== shell) shell.insertBefore(media, this.canvas);
+    this.canvas.classList.add("nx-novacut__canvas--native-preview");
+  }
+
+  enableNativePreviewFallback(media, clip, reason) {
+    if (this.nativeFallbackActive) return;
+    this.nativeFallbackActive = true;
+    this.mountNativePreview(media);
+    this.engine.setStatus("Native video preview fallback");
+    this.engine.events.emit("preview:fallback", {
+      clip,
+      reason: String(reason || "Canvas did not show video pixels.")
+    });
+  }
+
+  probeVideoCanvasOutput(clip, media, x, y, width, height) {
+    if (this.nativeFallbackActive || !this.ctx || media.readyState < 2) return;
+    const key = clip.id;
+    const state = this.frameProbe.get(key) || { ticks: 0, lowOutput: 0, done: false };
+    if (state.done) return;
+    state.ticks += 1;
+    if (state.ticks % 8 !== 0) {
+      this.frameProbe.set(key, state);
+      return;
+    }
+
+    try {
+      const points = [
+        [0.18, 0.18], [0.5, 0.18], [0.82, 0.18],
+        [0.18, 0.5], [0.5, 0.5], [0.82, 0.5],
+        [0.18, 0.82], [0.5, 0.82], [0.82, 0.82]
+      ];
+      let visiblePixels = 0;
+      for (const [px, py] of points) {
+        const sx = Math.max(0, Math.min(this.canvas.width - 1, Math.floor(x + width * px)));
+        const sy = Math.max(0, Math.min(this.canvas.height - 1, Math.floor(y + height * py)));
+        const data = this.ctx.getImageData(sx, sy, 1, 1).data;
+        const luma = data[0] * 0.2126 + data[1] * 0.7152 + data[2] * 0.0722;
+        if (luma > 24) visiblePixels += 1;
+      }
+      // If any sampled frame has actual picture output, do not probe this clip
+      // again. If all remain black for several checks while video time advances,
+      // bypass video-to-canvas and attach the same decoder as a native DOM video.
+      if (visiblePixels >= 2) {
+        state.done = true;
+        this.frameProbe.set(key, state);
+        return;
+      }
+      state.lowOutput += 1;
+      this.frameProbe.set(key, state);
+      if (state.lowOutput >= 3 && media.currentTime > 0.25) {
+        this.enableNativePreviewFallback(media, clip, "Canvas video pixels stayed black while the media clock advanced.");
+      }
+    } catch (error) {
+      state.lowOutput += 1;
+      this.frameProbe.set(key, state);
+      if (state.lowOutput >= 2) {
+        this.enableNativePreviewFallback(media, clip, "Canvas frame pixels could not be sampled: " + (error?.message || error));
+      }
+    }
   }
 
   objectUrl(blob) {
@@ -513,8 +604,12 @@ export class NovaCutCanvasPreview {
     const now = this.engine.currentTimestamp;
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.fillStyle = "#050507";
-    ctx.fillRect(0, 0, width, height);
+    if (this.nativeFallbackActive) {
+      ctx.clearRect(0, 0, width, height);
+    } else {
+      ctx.fillStyle = "#050507";
+      ctx.fillRect(0, 0, width, height);
+    }
 
     const active = this.engine.getActiveVideoClips().slice().sort((a, b) => a.startTime - b.startTime);
     const activeIds = new Set(active.map((clip) => clip.id));
@@ -557,6 +652,7 @@ export class NovaCutCanvasPreview {
       }
 
       const isVideoElement = media instanceof HTMLVideoElement;
+      const isVideoElement = media instanceof HTMLVideoElement;
       const sw = isVideoElement ? Number(media.videoWidth) : Number(media.naturalWidth);
       const sh = isVideoElement ? Number(media.videoHeight) : Number(media.naturalHeight);
       // Never pretend a not-yet-decoded video is a 1x1 image. That masked the
@@ -575,12 +671,18 @@ export class NovaCutCanvasPreview {
       const y = (height - dh) / 2;
       const rotation = (Number(clip.transform?.rotation) || 0) * Math.PI / 180;
 
+      if (isVideoElement && this.nativeFallbackActive) {
+        this.mountNativePreview(media);
+        continue;
+      }
+
       ctx.save();
       ctx.translate(x + dw / 2, y + dh / 2);
       ctx.rotate(rotation);
       ctx.scale(clip.transform?.flipX ? -1 : 1, clip.transform?.flipY ? -1 : 1);
       ctx.drawImage(media, -dw / 2, -dh / 2, dw, dh);
       ctx.restore();
+      if (isVideoElement) this.probeVideoCanvasOutput(clip, media, x, y, dw, dh);
     }
 
     this.sourceCtx?.setTransform(1, 0, 0, 1, 0, 0);
@@ -670,8 +772,10 @@ export class NovaCutCanvasPreview {
     this.stop();
     this.resizeObserver?.disconnect();
     this.media.forEach((media) => {
-      try { media.pause?.(); media.removeAttribute?.("src"); media.load?.(); } catch (_) {}
+      try { media.pause?.(); media.removeAttribute?.("src"); media.load?.(); media.remove?.(); } catch (_) {}
     });
+    this.nativePreviewMedia = null;
+    this.canvas?.classList.remove("nx-novacut__canvas--native-preview");
     this.urls.forEach((url) => { try { URL.revokeObjectURL(url); } catch (_) {} });
     this.media.clear();
     this.pending.clear();
