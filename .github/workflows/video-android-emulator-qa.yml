@@ -11,6 +11,7 @@ on:
       - "fresh-rebuild/src/features/apps/novacut-studio.css"
       - "fresh-rebuild/src/features/apps/premium-studio-suite.js"
       - "qa/novacut-100-qa.mjs"
+      - "qa/novacut-export-ffmpeg-smoke.mjs"
       - "NexusNovaAndroid/app/**"
       - ".github/workflows/video-android-emulator-qa.yml"
       - "NexusNovaAndroid/gradle/**"
@@ -95,6 +96,12 @@ jobs:
           ffmpeg -hide_banner -loglevel error             -f lavfi -i color=c=white:s=160x90:r=12:d=1             -c:v libvpx -b:v 200k -an             qa/fixtures/video-studio-video-qa.webm
           test -s qa/fixtures/video-studio-video-qa.webm
           stat -c "%n %s bytes" qa/fixtures/video-studio-video-qa.webm
+
+      - name: Run real FFmpeg export smoke tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          node qa/novacut-export-ffmpeg-smoke.mjs
 
       - name: Set up Gradle caching
         uses: gradle/actions/setup-gradle@v5
