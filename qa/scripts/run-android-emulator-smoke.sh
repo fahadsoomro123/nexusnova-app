@@ -121,7 +121,7 @@ fi
 sleep 4
 adb shell uiautomator dump /sdcard/nova-app-window.xml > "$RESULTS/app-ui-dump.txt" 2>&1
 adb pull /sdcard/nova-app-window.xml "$RESULTS/app-window.xml" > "$RESULTS/app-ui-pull.txt" 2>&1
-if ! grep -Eqi 'text="NEXUSNOVA|text="nexusnovatools\\.com|content-desc="Open nexusnovatools\\.com in Nova Browser"' "$RESULTS/app-window.xml"; then
+if ! grep -Eqi 'text="NEXUSNOVA|text="nexusnovatools\.com|content-desc="Open nexusnovatools\.com in Nova Browser"' "$RESULTS/app-window.xml"; then
   fail "WebView page-finished event occurred, but expected NexusNova portal content was not accessible. Refusing a splash-only screenshot."
 fi
 if ! capture_screenshot "$RESULTS/novacut-shell-launch.png"; then
