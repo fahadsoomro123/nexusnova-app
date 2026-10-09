@@ -139,9 +139,14 @@ jobs:
           bash -n qa/scripts/run-android-emulator-smoke.sh
           python3 - <<'PY'
           import re
+          from pathlib import Path
           bounds = r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]"
           assert re.fullmatch(bounds, "[0,84][196,252]"), "UI bounds parser regex did not match Android bounds"
-          print("Android smoke script syntax and UI-bounds regex PASS")
+          script = Path("qa/scripts/run-android-emulator-smoke.sh").read_text(encoding="utf-8")
+          assert "command adb" not in script, "timeout must invoke adb as an executable, not a shell builtin"
+          assert 'timeout --signal=TERM --kill-after=2s 15s adb "$@"' in script, "bounded adb wrapper is missing"
+          assert "live-logcat.txt" in script and "capture_screenshot()" in script, "bounded recovery/log capture missing"
+          print("Android smoke script syntax, ADB wrapper, and UI-bounds checks PASS")
           PY
 
       - name: Build Android QA APK
