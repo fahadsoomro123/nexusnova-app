@@ -5,7 +5,7 @@ set +e
 
 # Keep device commands bounded. A flaky emulator/ADB connection must not stall CI.
 adb() {
-  timeout --signal=TERM --kill-after=2s 15s command adb "$@"
+  timeout --signal=TERM --kill-after=2s 15s adb "$@"
 }
 
 ROOT="$(cd "$(dirname "$(realpath "${BASH_SOURCE[0]}")")/../.." && pwd)"
@@ -28,10 +28,10 @@ stop_logcat() {
 # tighter independent deadline and cannot consume the workflow's whole timeout.
 capture_failure_diagnostics() {
   stop_logcat
-  timeout --signal=TERM --kill-after=1s 5s command adb devices > "$RESULTS/adb-devices.txt" 2>&1 || true
-  timeout --signal=TERM --kill-after=1s 5s command adb logcat -d -v threadtime > "$RESULTS/logcat-after-failure.txt" 2>&1 || true
-  timeout --signal=TERM --kill-after=1s 5s command adb shell dumpsys activity activities > "$RESULTS/activity-after-failure.txt" 2>&1 || true
-  timeout --signal=TERM --kill-after=1s 5s command adb shell dumpsys window > "$RESULTS/window-after-failure.txt" 2>&1 || true
+  timeout --signal=TERM --kill-after=1s 5s adb devices > "$RESULTS/adb-devices.txt" 2>&1 || true
+  timeout --signal=TERM --kill-after=1s 5s adb logcat -d -v threadtime > "$RESULTS/logcat-after-failure.txt" 2>&1 || true
+  timeout --signal=TERM --kill-after=1s 5s adb shell dumpsys activity activities > "$RESULTS/activity-after-failure.txt" 2>&1 || true
+  timeout --signal=TERM --kill-after=1s 5s adb shell dumpsys window > "$RESULTS/window-after-failure.txt" 2>&1 || true
 }
 
 fail() {
@@ -43,9 +43,9 @@ fail() {
 wait_for_device() {
   local attempt
   for attempt in 1 2 3; do
-    timeout --signal=TERM --kill-after=1s 4s command adb reconnect offline >/dev/null 2>&1 || true
-    timeout --signal=TERM --kill-after=1s 6s command adb wait-for-device >/dev/null 2>&1 || true
-    if timeout --signal=TERM --kill-after=1s 4s command adb devices 2>/dev/null | grep -Eq '^emulator-[0-9]+[[:space:]]+device$'; then
+    timeout --signal=TERM --kill-after=1s 4s adb reconnect offline >/dev/null 2>&1 || true
+    timeout --signal=TERM --kill-after=1s 6s adb wait-for-device >/dev/null 2>&1 || true
+    if timeout --signal=TERM --kill-after=1s 4s adb devices 2>/dev/null | grep -Eq '^emulator-[0-9]+[[:space:]]+device$'; then
       return 0
     fi
     echo "ADB not online on recovery attempt $attempt" >> "$RESULTS/adb-recovery.txt"
@@ -89,7 +89,7 @@ adb shell am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file:
 
 # Stream logs from before launch, so app/emulator crashes can be diagnosed even
 # when ADB drops offline before a screenshot is captured.
-timeout --signal=TERM --kill-after=2s 150s command adb logcat -v threadtime > "$RESULTS/live-logcat.txt" 2>&1 &
+timeout --signal=TERM --kill-after=2s 150s adb logcat -v threadtime > "$RESULTS/live-logcat.txt" 2>&1 &
 LOGCAT_PID=$!
 
 adb shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1 > "$RESULTS/app-launch.txt" 2>&1
@@ -170,8 +170,8 @@ if ! grep -Fq 'video-studio-video-qa.webm' <(adb shell ls /sdcard/Download 2>/de
   fail "The deterministic video fixture is not present in Downloads."
 fi
 stop_logcat
-timeout --signal=TERM --kill-after=1s 5s command adb logcat -d -v threadtime > "$RESULTS/logcat.txt" 2>&1 || true
-timeout --signal=TERM --kill-after=1s 5s command adb shell dumpsys activity activities > "$RESULTS/activity.txt" 2>&1 || true
+timeout --signal=TERM --kill-after=1s 5s adb logcat -d -v threadtime > "$RESULTS/logcat.txt" 2>&1 || true
+timeout --signal=TERM --kill-after=1s 5s adb shell dumpsys activity activities > "$RESULTS/activity.txt" 2>&1 || true
 echo "App shell package: $PKG" > "$RESULTS/smoke-summary.txt"
 echo "Native ACTION_OPEN_DOCUMENT picker: visible" >> "$RESULTS/smoke-summary.txt"
 echo "Video fixture visible in Downloads: yes" >> "$RESULTS/smoke-summary.txt"
