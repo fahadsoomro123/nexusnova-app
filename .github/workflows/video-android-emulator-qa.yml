@@ -132,6 +132,18 @@ jobs:
           PY
 
 
+      - name: Check Android smoke script syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n qa/scripts/run-android-emulator-smoke.sh
+          python3 - <<'PY'
+          import re
+          bounds = r"\\[(\\d+),(\\d+)\\]\\[(\\d+),(\\d+)\\]"
+          assert re.fullmatch(bounds, "[0,84][196,252]"), "UI bounds parser regex did not match Android bounds"
+          print("Android smoke script syntax and UI-bounds regex PASS")
+          PY
+
       - name: Build Android QA APK
         run: |
           set -euo pipefail
