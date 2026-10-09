@@ -6,8 +6,10 @@
  * create or modify any global application namespace.
  */
 
+export const NOVACUT_PIXELS_PER_SECOND = 36;
+
 const DEFAULT_INTERACTION = Object.freeze({
-  pixelsPerSecond: 36,
+  pixelsPerSecond: NOVACUT_PIXELS_PER_SECOND,
   longPressMs: 160,
   moveThresholdPx: 6,
   minFrameMs: 1000 / 30,
