@@ -136,7 +136,7 @@ jobs:
       - name: Build app and Android test APKs
         run: |
           set -euo pipefail
-          gradle -p NexusNovaAndroid :app:assembleDebug :app:assembleDebugAndroidTest --stacktrace --no-daemon
+          gradle -p NexusNovaAndroid :app:clean :app:assembleDebug :app:assembleDebugAndroidTest --stacktrace --no-daemon
 
       - name: Inspect Android instrumentation test payload
         shell: bash
@@ -146,9 +146,10 @@ jobs:
           test -s "$apk"
           echo "Tracked instrumentation source files:"
           find NexusNovaAndroid/app/src/androidTest -type f -maxdepth 8 -print 2>/dev/null | sort || true
-          echo "Packaged NovaCut instrumentation test symbols:"
-          unzip -p "$apk" classes.dex | strings | grep -E 'VideoStudioEmulatorQaTest|videoStudioFullscreenScopedDockAndNativeMediaPicker' || true
+          echo "Packaged self-contained Android smoke-test symbols:"
+          unzip -p "$apk" classes.dex | strings | grep -E 'NovaCutAndroidShellSmokeTest|androidShellLaunchesAndNativeVideoPickerOpens'
           unzip -l "$apk" | tail -n 8
+          grep -Fq 'class NovaCutAndroidShellSmokeTest' NexusNovaAndroid/app/src/androidTest/java/com/nexusnova/app/NovaCutAndroidShellSmokeTest.java
 
       - name: Cache Android emulator
         uses: actions/cache@v4
@@ -196,16 +197,22 @@ jobs:
             fi
 
             test -s "$GITHUB_WORKSPACE/qa/fixtures/video-studio-video-qa.webm"
-            timeout --signal=TERM --kill-after=10s 150s adb shell am instrument -w -r -e class com.nexusnova.app.VideoStudioEmulatorQaTest#videoStudioFullscreenScopedDockAndNativeMediaPicker com.nexusnova.app.test/androidx.test.runner.AndroidJUnitRunner 2>&1 | tee "$RESULTS/instrumentation.txt"
+            timeout --signal=TERM --kill-after=10s 150s adb shell am instrument -w -r -e class com.nexusnova.app.NovaCutAndroidShellSmokeTest#androidShellLaunchesAndNativeVideoPickerOpens com.nexusnova.app.test/androidx.test.runner.AndroidJUnitRunner 2>&1 | tee "$RESULTS/instrumentation.txt"
             instrumentation_status=${PIPESTATUS[0]}
+            if grep -Eq 'FAILURES!!!|INSTRUMENTATION_STATUS_CODE: -2|Tests run: [0-9]+, Failures: [1-9]' "$RESULTS/instrumentation.txt"; then
+              instrumentation_status=1
+            fi
+            if ! grep -Eq 'OK \(1 test\)|OK \(1 tests\)' "$RESULTS/instrumentation.txt"; then
+              instrumentation_status=1
+            fi
             echo "$instrumentation_status" > "$RESULTS/instrumentation-exit-code.txt"
 
             adb logcat -d -v threadtime > "$RESULTS/logcat.txt" 2>&1 || true
             adb shell dumpsys activity activities > "$RESULTS/activity.txt" 2>&1 || true
             adb shell dumpsys window > "$RESULTS/window.txt" 2>&1 || true
             adb shell getprop > "$RESULTS/device-properties.txt" 2>&1 || true
-            adb shell ls -la /sdcard/Android/data/com.nexusnova.app/files/Pictures/ > "$RESULTS/pictures-directory.txt" 2>&1 || true
-            adb pull /sdcard/Android/data/com.nexusnova.app/files/Pictures "$RESULTS/" > "$RESULTS/pictures-pull.txt" 2>&1 || true
+            adb shell ls -la /sdcard/Android/data/com.nexusnova.app.novacutqa/files/Pictures/ > "$RESULTS/pictures-directory.txt" 2>&1 || true
+            adb pull /sdcard/Android/data/com.nexusnova.app.novacutqa/files/Pictures "$RESULTS/" > "$RESULTS/pictures-pull.txt" 2>&1 || true
 
             if [ "$instrumentation_status" -ne 0 ]; then
               echo "Android instrumentation failed (exit $instrumentation_status). Captured logs under $RESULTS."
