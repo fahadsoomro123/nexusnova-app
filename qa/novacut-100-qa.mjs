@@ -53,7 +53,7 @@ check("render avoids per-frame decoder seeking", () => assert(has(engine, "media
 check("undo API present", () => assert(has(engine, "undo()"), "undo API missing"));
 check("redo API present", () => assert(has(engine, "redo()"), "redo API missing"));
 check("cycleRatio restored", () => assert(/\n  cycleRatio\(\) \{/.test(engine), "cycleRatio missing"));
-check("ratio action updates mobile preview geometry", () => assert(has(engine, 'bind("ratio", () => this.cycleRatio());') && has(suite, "syncPreviewFrame") && has(suite, "canvasShell.dataset.ratio") && has(studioCss, '[data-ratio="9:16"]') && has(engine, "applyInitialAspectRatio"), "ratio control or portrait detection missing"));
+check("ratio action updates mobile preview geometry and duration ruler", () => assert(has(engine, 'bind("ratio", () => this.cycleRatio());') && has(suite, "syncPreviewFrame") && has(suite, "canvasShell.dataset.ratio") && has(suite, "renderTimelineRuler") && has(suite, "--nc-content-width") && has(studioCss, '[data-ratio="9:16"]') && has(studioCss, "var(--nc-ruler-px-per-second, 36px)") && has(engine, "applyInitialAspectRatio"), "ratio control, ruler scale or portrait detection missing"));
 
 // 26-40: media ingestion
 check("media parser class present", () => assert(has(media, "export class NovaCutMediaParser"), "parser class missing"));
@@ -76,7 +76,7 @@ check("audio injection calls engine", () => assert(has(media, "engine.addAudioSe
 check("NovaCut renderer present", () => assert(has(suite, "function renderNovaCut()"), "renderer missing"));
 check("preview canvas present", () => assert(/data-role=['"]preview-canvas['"]/.test(suite), "preview canvas missing"));
 check("play button and visible transport icon", () => assert(has(suite, "data-action='play'") && has(suite, "data-role='play-icon'") && has(suite, "M8 5.2v13.6L19 12 8 5.2Z") && has(studioCss, '.nx-novacut-host .nx-novacut__play svg path[fill="currentColor"]') && has(studioCss, '.nx-novacut-host .nx-novacut__play svg path:not([fill])'), "play/pause glyph or visible SVG styling missing"));
-check("export button present", () => assert(/data-action=['"]export['"]/.test(suite), "export missing"));
+check("mobile export action remains clearly labeled", () => assert(/data-action=['"]export['"]/.test(suite) && has(suite, "<span>Export</span>") && has(studioCss, ".nx-novacut__export-button span") && has(studioCss, "display: inline !important"), "mobile export label missing"));
 check("video lane present", () => assert(has(suite, "data-role='video-lane'"), "video lane missing"));
 check("audio lane present", () => assert(has(suite, "data-role='audio-lane'"), "audio lane missing"));
 check("text lane present", () => assert(has(suite, "data-role='text-lane'"), "text lane missing"));
@@ -91,7 +91,7 @@ check("decode error detail is visible", () => assert(has(suite, "Decode failed: 
 
 // 56-65: interaction/history correctness
 check("pointer interaction present", () => assert(has(engine, "pointerdown"), "pointerdown missing"));
-check("pointer move present", () => assert(has(engine, "pointermove"), "pointermove missing"));
+check("playhead stays aligned during horizontal timeline scrolling", () => assert(has(studio, "this.timeline.scrollLeft") && has(studio, "this.timeline.scrollWidth") && has(studio, "laneRect.left"), "scroll-aware playhead positioning missing"));
 check("pointer up present", () => assert(has(engine, "pointerup"), "pointerup missing"));
 check("pointer cancel present", () => assert(has(engine, "pointercancel"), "pointercancel missing"));
 check("history transaction begin present", () => assert(has(studio, "beginHistoryTransaction"), "history begin wiring missing"));
