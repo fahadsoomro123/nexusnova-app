@@ -51,26 +51,71 @@ for attempt in $(seq 1 15); do
   sleep 2
 done
 if [ "$app_visible" -ne 1 ]; then fail "QA app activity did not appear in Android activity state."; fi
+# Give the native shell/WebView a moment to leave its first-frame splash before capturing evidence.
+sleep 6
 adb shell screencap -p /sdcard/novacut-shell-launch.png
 adb pull /sdcard/novacut-shell-launch.png "$RESULTS/novacut-shell-launch.png" > "$RESULTS/app-screenshot-pull.txt" 2>&1
 if [ $? -ne 0 ] || [ ! -s "$RESULTS/novacut-shell-launch.png" ]; then fail "Could not capture the launched app screenshot."; fi
+
+find_node_center() {
+  python3 - "$1" "$2" <<'PY'
+import re
+import sys
+import xml.etree.ElementTree as ET
+
+xml_path, target = sys.argv[1], sys.argv[2].strip().lower()
+root = ET.parse(xml_path).getroot()
+for node in root.iter("node"):
+    labels = (node.attrib.get("text", ""), node.attrib.get("content-desc", ""))
+    if not any(label.strip().lower() == target for label in labels):
+        continue
+    bounds = re.fullmatch(r"\\[(\\d+),(\\d+)\\]\\[(\\d+),(\\d+)\\]", node.attrib.get("bounds", ""))
+    if bounds:
+        x1, y1, x2, y2 = map(int, bounds.groups())
+        print((x1 + x2) // 2, (y1 + y2) // 2)
+        raise SystemExit(0)
+raise SystemExit(2)
+PY
+}
 
 # Exercise Android's real document picker with video MIME type.
 adb shell am start -W -a android.intent.action.OPEN_DOCUMENT \
   -c android.intent.category.OPENABLE -t video/* > "$RESULTS/picker-launch.txt" 2>&1
 if [ $? -ne 0 ]; then fail "Android refused the native video-picker intent."; fi
-sleep 3
+sleep 2
 adb shell dumpsys activity activities > "$RESULTS/activity-after-picker.txt" 2>&1
 adb shell uiautomator dump /sdcard/nova-picker-window.xml > "$RESULTS/picker-ui-dump.txt" 2>&1
 adb pull /sdcard/nova-picker-window.xml "$RESULTS/picker-window.xml" > "$RESULTS/picker-window-pull.txt" 2>&1
-adb shell screencap -p /sdcard/novacut-native-video-picker.png
-adb pull /sdcard/novacut-native-video-picker.png "$RESULTS/novacut-native-video-picker.png" > "$RESULTS/picker-screenshot-pull.txt" 2>&1
-
-if ! grep -Eqi 'com\.google\.android\.documentsui|com\.android\.documentsui|DocumentsUI|Recent|Browse|Downloads' \
+if ! grep -Eqi 'com\\.google\\.android\\.documentsui|com\\.android\\.documentsui|DocumentsUI' \
   "$RESULTS/activity-after-picker.txt" "$RESULTS/picker-window.xml"; then
   fail "Native video picker UI was not identifiable after opening ACTION_OPEN_DOCUMENT."
 fi
-if [ ! -s "$RESULTS/novacut-native-video-picker.png" ]; then
+
+# Open the picker's navigation drawer, enter Downloads, and verify the fixture is actually visible.
+if ! coordinates="$(find_node_center "$RESULTS/picker-window.xml" "Show roots")"; then
+  fail "Could not locate the native picker's navigation menu."
+fi
+read -r menu_x menu_y <<< "$coordinates"
+adb shell input tap "$menu_x" "$menu_y"
+sleep 1
+adb shell uiautomator dump /sdcard/nova-picker-roots.xml > "$RESULTS/picker-roots-dump.txt" 2>&1
+adb pull /sdcard/nova-picker-roots.xml "$RESULTS/picker-roots.xml" > "$RESULTS/picker-roots-pull.txt" 2>&1
+if ! coordinates="$(find_node_center "$RESULTS/picker-roots.xml" "Downloads")"; then
+  fail "Native picker navigation did not expose a Downloads location."
+fi
+read -r downloads_x downloads_y <<< "$coordinates"
+adb shell input tap "$downloads_x" "$downloads_y"
+sleep 2
+adb shell dumpsys activity activities > "$RESULTS/activity-after-downloads.txt" 2>&1
+adb shell uiautomator dump /sdcard/nova-picker-downloads.xml > "$RESULTS/picker-downloads-dump.txt" 2>&1
+adb pull /sdcard/nova-picker-downloads.xml "$RESULTS/picker-downloads-window.xml" > "$RESULTS/picker-downloads-pull.txt" 2>&1
+if ! grep -Fq 'video-studio-video-qa.webm' "$RESULTS/picker-downloads-window.xml"; then
+  fail "The native picker opened Downloads but did not show the deterministic video fixture."
+fi
+
+adb shell screencap -p /sdcard/novacut-native-video-picker.png
+adb pull /sdcard/novacut-native-video-picker.png "$RESULTS/novacut-native-video-picker.png" > "$RESULTS/picker-screenshot-pull.txt" 2>&1
+if [ $? -ne 0 ] || [ ! -s "$RESULTS/novacut-native-video-picker.png" ]; then
   fail "Could not capture the native video-picker screenshot."
 fi
 if ! grep -Fq 'video-studio-video-qa.webm' <(adb shell ls /sdcard/Download 2>/dev/null); then
