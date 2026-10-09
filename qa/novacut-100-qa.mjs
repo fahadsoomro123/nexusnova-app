@@ -86,7 +86,7 @@ check("redo button present", () => assert(has(suite, "data-action='redo'"), "red
 check("media parser wired", () => assert(has(suite, "createNovaCutMediaParser(root, engine"), "parser not wired"));
 check("interactions wired", () => assert(has(suite, "createNovaCutStudioInteractions(root, engine)"), "interactions not wired"));
 check("media injected status path", () => assert(has(suite, "status.textContent = 'Decoding'"), "decode status missing"));
-check("decode error status path", () => assert(has(suite, "status.textContent = 'Decode error'"), "decode error UI missing"));
+check("decode error detail is visible", () => assert(has(suite, "Decode failed: ") && has(suite, "status.title = message"), "decode error details missing"));
 
 // 56-65: interaction/history correctness
 check("pointer interaction present", () => assert(has(engine, "pointerdown"), "pointerdown missing"));
@@ -119,28 +119,28 @@ check("FileChooser parseResult used", () => assert(has(activity, "FileChooserPar
 check("callback stored", () => assert(has(activity, "fileChooserCallback = callback"), "callback storage missing"));
 check("accepted MIME types stored", () => assert(has(activity, "fileChooserAcceptTypes = params.acceptTypes"), "accept type storage missing"));
 check("result URI read grant", () => assert(has(activity, "grantPickedUriReadAccess(uri"), "URI grant missing"));
-check("picker URI acceptance logs", () => assert(has(activity, '"NexusNovaFilePicker"'), "picker diagnostics missing"));
+check("picker URI acceptance logs", () => assert(has(activity, '"NexusNovaFilePicker"') && has(activity, "parsedCount="), "picker diagnostics missing"));
 check("content URI guard present", () => assert(has(activity, 'uri.scheme != ContentResolver.SCHEME_CONTENT'), "content URI guard missing"));
 check("private app authority blocked", () => assert(has(activity, "uri.authority.equals(packageName"), "private authority guard missing"));
-check("size cap enforced", () => assert(has(activity, "MAX_PICKED_FILE_BYTES"), "file size cap missing"));
-check("batch cap enforced", () => assert(has(activity, "MAX_PICKED_TOTAL_BYTES"), "batch size cap missing"));
+check("256 MB per-file cap enforced", () => assert(has(activity, "const val MAX_PICKED_FILE_BYTES = 256L * 1024L * 1024L"), "256 MB file cap missing"));
+check("512 MB batch cap enforced", () => assert(has(activity, "const val MAX_PICKED_TOTAL_BYTES = 512L * 1024L * 1024L"), "512 MB batch cap missing"));
 check("readable URI fallback present", () => assert(has(activity, "isReadableContentUri"), "readable URI fallback missing"));
 check("display name fallback present", () => assert(has(activity, "pickedUriDisplayName"), "display name helper missing"));
 check("persistable permission attempt", () => assert(has(activity, "takePersistableUriPermission"), "persistable permission handling missing"));
-check("picker callback receives selected URIs", () => assert(has(activity, "callback.onReceiveValue(selected)"), "callback return missing"));
+check("picker callback receives selected URIs", () => assert(has(activity, "callback.onReceiveValue(selected)") && has(activity, "NovaCut could not read that file"), "callback return or visible empty-selection error missing"));
 
 // 91-96: Android package/release integrity
 check("production package ID correct", () => assert(has(gradle, 'applicationId = "com.nexusnova.app"'), "package ID changed"));
 check("production namespace correct", () => assert(has(gradle, 'namespace = "com.nexusnova.app"'), "namespace changed"));
-check("production version advanced", () => assert(has(gradle, "versionCode = 27010028"), "versionCode not advanced"));
-check("production version name advanced", () => assert(has(gradle, 'versionName = "1.0.45-ota-30"'), "versionName not advanced"));
+check("production version advanced", () => assert(has(gradle, "versionCode = 27010029"), "versionCode not advanced"));
+check("production version name advanced", () => assert(has(gradle, 'versionName = "1.0.45-ota-31"'), "versionName not advanced"));
 check("debug QA suffix preserved", () => assert(has(gradle, 'applicationIdSuffix = ".novacutqa"'), "QA suffix missing"));
 check("FileProvider remains present", () => assert(has(manifest, "androidx.core.content.FileProvider"), "FileProvider missing"));
 
 // 97-100: signed build gate + exact regression safety
-check("signed workflow pins current production version", () => assert(has(workflow, "versionCode = 27010028"), "signed workflow versionCode stale"));
-check("signed workflow pins current version name", () => assert(has(workflow, 'versionName = "1.0.45-ota-30"'), "signed workflow versionName stale"));
-check("signed workflow packages ota-30 artifact", () => assert(has(workflow, "NexusNova-v1.0.45-ota-30-SIGNED.apk"), "ota-30 artifact missing"));
+check("signed workflow pins current production version", () => assert(has(workflow, "versionCode = 27010029"), "signed workflow versionCode stale"));
+check("signed workflow pins current version name", () => assert(has(workflow, 'versionName = "1.0.45-ota-31"'), "signed workflow versionName stale"));
+check("signed workflow packages ota-31 artifact", () => assert(has(workflow, "NexusNova-v1.0.45-ota-31-SIGNED.apk"), "ota-31 artifact missing"));
 check("signed workflow validates signature before packaging", () => assert(/verify --verbose --print-certs/.test(workflow), "signature verification missing"));
 
 assert(tests.length === 100, "Expected exactly 100 QA checks, got " + tests.length);
