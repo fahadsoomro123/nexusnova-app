@@ -956,7 +956,11 @@ class NovaCutCommandCompiler {
       const end = begin + msToSec(clip.duration);
       const startAt = msToSec(clip.startTime);
       const vf = [
-        "scale=trunc(iw*" + scale + "/2)*2:trunc(ih*" + scale + "/2)*2:force_original_aspect_ratio=decrease"
+        // First fit to the selected output canvas, then apply the editor zoom.
+        // The previous code scaled by clip.zoom relative to source dimensions,
+        // which made previews and exported framing disagree.
+        "scale=" + width + ":" + height + ":force_original_aspect_ratio=decrease",
+        "scale=trunc(iw*" + scale + "/2)*2:trunc(ih*" + scale + "/2)*2"
       ];
       if (transform.flipX) vf.push("hflip");
       if (transform.flipY) vf.push("vflip");
@@ -970,7 +974,7 @@ class NovaCutCommandCompiler {
         ",setpts=PTS-STARTPTS+" + startAt.toFixed(3) + "/TB," + vf.join(",") + ",format=rgba[" + src + "]"
       );
       filters.push(
-        "[" + currentVideo + "][" + src + "]overlay=" + (Number(clip.x_offset) || 0) +
+        "[" + currentVideo + "][" + src + "]overlay=x=(W-w)/2+" + (Number(clip.x_offset) || 0) +
         ":y=(H-h)/2:eof_action=pass:shortest=0:repeatlast=0[" + out + "]"
       );
       currentVideo = out;
