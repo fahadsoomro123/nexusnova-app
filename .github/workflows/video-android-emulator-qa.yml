@@ -138,6 +138,18 @@ jobs:
           set -euo pipefail
           gradle -p NexusNovaAndroid :app:assembleDebug :app:assembleDebugAndroidTest --stacktrace --no-daemon
 
+      - name: Inspect Android instrumentation test payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk="NexusNovaAndroid/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk"
+          test -s "$apk"
+          echo "Tracked instrumentation source files:"
+          find NexusNovaAndroid/app/src/androidTest -type f -maxdepth 8 -print 2>/dev/null | sort || true
+          echo "Packaged NovaCut instrumentation test symbols:"
+          unzip -p "$apk" classes.dex | strings | grep -E 'VideoStudioEmulatorQaTest|videoStudioFullscreenScopedDockAndNativeMediaPicker' || true
+          unzip -l "$apk" | tail -n 8
+
       - name: Cache Android emulator
         uses: actions/cache@v4
         with:
@@ -169,20 +181,36 @@ jobs:
           emulator-boot-timeout: 300
           working-directory: NexusNovaAndroid
           script: |
-            set -u
+            set +e
+            RESULTS="$GITHUB_WORKSPACE/qa/android-emulator-results"
+            mkdir -p "$RESULTS"
+
             adb install -r app/build/outputs/apk/debug/app-debug.apk
+            app_install_status=$?
             adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+            test_install_status=$?
+            if [ "$app_install_status" -ne 0 ] || [ "$test_install_status" -ne 0 ]; then
+              echo "Instrumentation setup failed: app=$app_install_status test=$test_install_status" | tee "$RESULTS/setup-status.txt"
+              adb logcat -d -v threadtime > "$RESULTS/logcat.txt" 2>&1 || true
+              exit 1
+            fi
+
             test -s "$GITHUB_WORKSPACE/qa/fixtures/video-studio-video-qa.webm"
+            timeout --signal=TERM --kill-after=10s 150s adb shell am instrument -w -r -e class com.nexusnova.app.VideoStudioEmulatorQaTest#videoStudioFullscreenScopedDockAndNativeMediaPicker com.nexusnova.app.test/androidx.test.runner.AndroidJUnitRunner 2>&1 | tee "$RESULTS/instrumentation.txt"
+            instrumentation_status=${PIPESTATUS[0]}
+            echo "$instrumentation_status" > "$RESULTS/instrumentation-exit-code.txt"
 
-            adb shell am instrument -w -r -e class com.nexusnova.app.VideoStudioEmulatorQaTest#videoStudioFullscreenScopedDockAndNativeMediaPicker com.nexusnova.app.test/androidx.test.runner.AndroidJUnitRunner
-            status=$?
+            adb logcat -d -v threadtime > "$RESULTS/logcat.txt" 2>&1 || true
+            adb shell dumpsys activity activities > "$RESULTS/activity.txt" 2>&1 || true
+            adb shell dumpsys window > "$RESULTS/window.txt" 2>&1 || true
+            adb shell getprop > "$RESULTS/device-properties.txt" 2>&1 || true
+            adb shell ls -la /sdcard/Android/data/com.nexusnova.app/files/Pictures/ > "$RESULTS/pictures-directory.txt" 2>&1 || true
+            adb pull /sdcard/Android/data/com.nexusnova.app/files/Pictures "$RESULTS/" > "$RESULTS/pictures-pull.txt" 2>&1 || true
 
-            mkdir -p "$GITHUB_WORKSPACE/qa/android-emulator-results"
-            adb logcat -d -v threadtime > "$GITHUB_WORKSPACE/qa/android-emulator-results/logcat.txt" || true
-            adb shell ls -la /sdcard/Android/data/com.nexusnova.app/files/Pictures/ || true
-            adb pull /sdcard/Android/data/com.nexusnova.app/files/Pictures "$GITHUB_WORKSPACE/qa/android-emulator-results/" || true
-
-            exit $status
+            if [ "$instrumentation_status" -ne 0 ]; then
+              echo "Android instrumentation failed (exit $instrumentation_status). Captured logs under $RESULTS."
+            fi
+            exit "$instrumentation_status"
 
 
       - name: Upload Android emulator evidence
