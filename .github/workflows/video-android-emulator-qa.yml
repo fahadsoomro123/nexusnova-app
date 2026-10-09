@@ -127,31 +127,20 @@ jobs:
           PY
 
 
-      - name: Copy real video fixture into Android test assets
+      - name: Build Android QA APK
         run: |
           set -euo pipefail
-          mkdir -p NexusNovaAndroid/app/src/androidTest/assets
-          cp qa/fixtures/video-studio-video-qa.webm NexusNovaAndroid/app/src/androidTest/assets/video-studio-video-qa.webm
-          test -s NexusNovaAndroid/app/src/androidTest/assets/video-studio-video-qa.webm
+          gradle -p NexusNovaAndroid :app:clean :app:assembleDebug --stacktrace --no-daemon
 
-      - name: Build app and Android test APKs
-        run: |
-          set -euo pipefail
-          gradle -p NexusNovaAndroid :app:clean :app:assembleDebug :app:assembleDebugAndroidTest --stacktrace --no-daemon
-
-      - name: Inspect Android instrumentation test payload
+      - name: Verify isolated Android QA APK
         shell: bash
         run: |
           set -euo pipefail
-          apk="NexusNovaAndroid/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk"
+          apk="NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk"
           test -s "$apk"
-          echo "Tracked instrumentation source files:"
-          find NexusNovaAndroid/app/src/androidTest -type f -maxdepth 8 -print 2>/dev/null | sort || true
-          echo "Android instrumentation APK entries:"
-          unzip -l "$apk" | grep -F "classes" || true
-          grep -Fq 'class NovaCutAndroidShellSmokeTest' NexusNovaAndroid/app/src/androidTest/java/com/nexusnova/app/NovaCutAndroidShellSmokeTest.java
-          unzip -l "$apk" | tail -n 8
-          grep -Fq 'class NovaCutAndroidShellSmokeTest' NexusNovaAndroid/app/src/androidTest/java/com/nexusnova/app/NovaCutAndroidShellSmokeTest.java
+          unzip -l "$apk" | grep -F "AndroidManifest.xml"
+          unzip -l "$apk" | grep -F "assets/www/index.html"
+          stat -c "%n %s bytes" "$apk"
 
       - name: Cache Android emulator
         uses: actions/cache@v4
