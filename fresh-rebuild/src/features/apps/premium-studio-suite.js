@@ -109,9 +109,7 @@ function renderNovaCut() {
     '<section class="nx-novacut__timeline-shell">' +
       '<div class="nx-novacut__timeline-head"><div><span class="nx-novacut__eyebrow">TIMELINE</span><strong>Project sequence</strong></div><button type="button" class="nx-novacut__add-button" data-action="media"><span>' + SVG.media + '</span>Add media</button></div>' +
       '<div class="nx-novacut__timeline" aria-label="Multi-track timeline">' +
-        '<div class="nx-novacut__ruler"><div class="nx-novacut__ruler-pad"></div><div class="nx-novacut__ticks">' +
-          '<span style="--i:0">0:00</span><span style="--i:1">0:01</span><span style="--i:2">0:02</span><span style="--i:3">0:03</span><span style="--i:4">0:04</span><span style="--i:5">0:05</span><span style="--i:6">0:06</span><span style="--i:7">0:07</span><span style="--i:8">0:08</span>' +
-        '</div></div>' +
+        '<div class="nx-novacut__ruler"><div class="nx-novacut__ruler-pad"></div><div class="nx-novacut__ticks" data-role="timeline-ticks" aria-hidden="true"></div></div>' +
         '<div class="nx-novacut__track nx-novacut__track--video"><div class="nx-novacut__track-label"><span class="nx-novacut__track-index">01</span><span class="nx-novacut__track-name">Video</span></div><div class="nx-novacut__lane" data-role="video-lane"><button type="button" class="nx-novacut__lane-add" data-action="media">' + SVG.media + '<span>Add media</span></button></div></div>' +
         '<div class="nx-novacut__track nx-novacut__track--audio"><div class="nx-novacut__track-label"><span class="nx-novacut__track-index">02</span><span class="nx-novacut__track-name">Audio</span></div><div class="nx-novacut__lane" data-role="audio-lane"><span class="nx-novacut__lane-hint">Music and voice</span></div></div>' +
         '<div class="nx-novacut__track nx-novacut__track--text"><div class="nx-novacut__track-label"><span class="nx-novacut__track-index">03</span><span class="nx-novacut__track-name">Text</span></div><div class="nx-novacut__lane" data-role="text-lane"><button type="button" class="nx-novacut__lane-tool" data-action="text">' + SVG.text + '<span>Add text</span></button></div></div>' +
@@ -135,6 +133,8 @@ function renderNovaCut() {
   const textLane = root.querySelector("[data-role='text-lane']");
   const overlayLane = root.querySelector("[data-role='overlay-lane']");
   const effectLane = root.querySelector("[data-role='effect-lane']");
+  const timeline = root.querySelector(".nx-novacut__timeline");
+  const rulerTicks = root.querySelector("[data-role='timeline-ticks']");
   const canvasArea = root.querySelector(".nx-novacut__canvas-area");
   const canvasShell = root.querySelector(".nx-novacut__canvas-shell");
   const transport = root.querySelector(".nx-novacut__transport");
@@ -178,8 +178,34 @@ function renderNovaCut() {
   }
   syncPreviewFrame();
 
+  const RULER_PX_PER_SECOND = 36;
+  const renderTimelineRuler = () => {
+    if (!timeline || !rulerTicks) return;
+    const durationMs = Math.max(0, Number(engine.registry.durationMs()) || 0);
+    const durationSeconds = Math.max(8, Math.ceil(durationMs / 1000));
+    const tickEvery = durationSeconds <= 120 ? 1 : durationSeconds <= 600 ? 5 : 10;
+    const lastTick = Math.ceil(durationSeconds / tickEvery) * tickEvery;
+    const contentWidth = Math.max(640, lastTick * RULER_PX_PER_SECOND + 72);
+    timeline.style.setProperty("--nc-content-width", contentWidth + "px");
+    timeline.style.setProperty("--nc-ruler-px-per-second", RULER_PX_PER_SECOND + "px");
+
+    const ticks = [];
+    for (let seconds = 0; seconds <= lastTick; seconds += tickEvery) {
+      const minutes = Math.floor(seconds / 60);
+      const remainder = String(seconds % 60).padStart(2, "0");
+      const label = minutes + ":" + remainder;
+      ticks.push(
+        '<span data-time-seconds="' + seconds + '" style="--tick-x:' +
+        (seconds * RULER_PX_PER_SECOND) + 'px">' + label + '</span>'
+      );
+    }
+    rulerTicks.innerHTML = ticks.join("");
+    rulerTicks.setAttribute("aria-label", "Timeline ruler, " + tickEvery + " second intervals");
+  };
+
   const renderTimeline = (state = {}) => {
     if (!videoLane || !audioLane || !textLane || !overlayLane || !effectLane) return;
+    renderTimelineRuler();
     const videos = state.videoTracks || [];
     const audios = state.audioTracks || [];
     const texts = state.textTracks || [];
@@ -228,6 +254,8 @@ function renderNovaCut() {
 
   engine.on('playheadchange', ({ timestamp }) => {
     const duration = engine.registry.durationMs();
+    // Keep ruler range aligned if trimming changes the effective sequence length.
+    renderTimelineRuler();
     const currentNode = root.querySelector("[data-role='current-time']");
     const durationNode = root.querySelector("[data-role='duration']");
     if (currentNode) currentNode.textContent = engine.format(timestamp);
