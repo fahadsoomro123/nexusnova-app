@@ -142,6 +142,13 @@ jobs:
           bounds = r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]"
           assert re.fullmatch(bounds, "[0,84][196,252]"), "UI bounds parser regex did not match Android bounds"
           script = Path("qa/scripts/run-android-emulator-smoke.sh").read_text(encoding="utf-8")
+          class FakeNode:
+              attrib = {"text": "  Show ", "content-desc": " roots  "}
+          node = FakeNode()
+          normalized_label = " ".join(" ".join((node.attrib.get("text", ""), node.attrib.get("content-desc", ""))).split())
+          assert normalized_label == "Show roots", f"native picker label normalization failed: {normalized_label!r}"
+          assert 'text = " ".join(" ".join((node.attrib.get("text", ""), node.attrib.get("content-desc", ""))).split())' in script, "native picker label normalization regression detected"
+          print("Native picker label-normalization regression PASS")
           assert "command adb" not in script, "timeout must invoke adb as an executable, not a shell builtin"
           assert 'timeout --signal=TERM --kill-after=2s 15s adb "$@"' in script, "bounded adb wrapper is missing"
           assert "live-logcat.txt" in script and "capture_screenshot()" in script, "bounded recovery/log capture missing"
