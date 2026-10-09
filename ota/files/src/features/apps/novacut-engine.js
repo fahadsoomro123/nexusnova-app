@@ -22,6 +22,10 @@ export const RATIO_PRESETS = Object.freeze({
 });
 
 const clamp = (value, min, max) => Math.min(Math.max(Number(value) || 0, min), max);
+export const isAndroidWebViewUserAgent = (value) => {
+  const userAgent = String(value || "");
+  return /Android/i.test(userAgent) && /\bwv\b/i.test(userAgent);
+};
 const msToSec = (value) => Math.max(0, Number(value) || 0) / 1000;
 const uid = (prefix) => prefix + "-" + (globalThis.crypto?.randomUUID?.() || (Date.now() + "-" + Math.random().toString(36).slice(2)));
 const safeName = (value, fallback) => String(value || fallback).replace(/[<>:"/\\|?*\u0000-\u001F]/g, "_").replace(/\s+/g, "_").slice(0, 120) || fallback;
@@ -218,7 +222,7 @@ export class NovaCutCanvasPreview {
     // Android System WebView may advance the HTMLVideoElement clock while
     // drawImage(video) yields black pixels. Use its native compositor directly
     // on Android WebView; keep Canvas video rendering for ordinary browsers.
-    this.forceNativeVideoLayer = /Android/i.test(userAgent) && /\\bwv\\b/i.test(userAgent);
+    this.forceNativeVideoLayer = isAndroidWebViewUserAgent(userAgent);
     this.nativeFallbackActive = this.forceNativeVideoLayer;
     this.nativePreviewMedia = null;
     this.renderTick = 0;
@@ -283,7 +287,7 @@ export class NovaCutCanvasPreview {
   enableNativePreviewFallback(media, clip, reason) {
     if (this.nativeFallbackActive) return;
     this.nativeFallbackActive = true;
-    this.mountNativePreview(media);
+    this.mountNativePreview(media, clip);
     this.engine.setStatus("Native video preview fallback");
     this.engine.events.emit("preview:fallback", {
       clip,
