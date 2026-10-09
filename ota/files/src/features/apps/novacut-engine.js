@@ -201,7 +201,9 @@ export class NovaCutCanvasPreview {
   constructor(engine, canvas) {
     this.engine = engine;
     this.canvas = canvas;
-    this.ctx = canvas?.getContext("2d", { alpha: false, desynchronized: true }) || null;
+    // Avoid desynchronized video-to-canvas presentation on Android WebView.
+    // It can report playback progress while the Canvas preview remains black.
+    this.ctx = canvas?.getContext("2d", { alpha: false }) || null;
     this.sourceCanvas = document.createElement("canvas");
     this.sourceCtx = this.sourceCanvas.getContext("2d");
     this.media = new Map();
@@ -239,33 +241,62 @@ export class NovaCutCanvasPreview {
   }
 
   async waitForVideoReady(video, timeoutMs) {
-    if (video.readyState >= 2) return;
+    const hasDrawableFrame = () =>
+      video.readyState >= 2 &&
+      Number(video.videoWidth) > 0 &&
+      Number(video.videoHeight) > 0;
+
+    const describeVideo = () => {
+      const mediaError = video.error;
+      const code = Number(mediaError?.code) || 0;
+      return [
+        "readyState=" + Number(video.readyState || 0),
+        "size=" + Number(video.videoWidth || 0) + "x" + Number(video.videoHeight || 0),
+        "networkState=" + Number(video.networkState || 0),
+        "mediaError=" + code
+      ].join(", ");
+    };
+
+    if (hasDrawableFrame()) return;
     await new Promise((resolve, reject) => {
-      let timer = window.setTimeout(() => {
-        cleanup();
-        reject(new Error("NovaCut video decoder timed out before the first frame."));
-      }, timeoutMs);
+      let settled = false;
       const cleanup = () => {
         clearTimeout(timer);
-        video.removeEventListener("loadeddata", onReady);
-        video.removeEventListener("canplay", onReady);
+        ["loadedmetadata", "loadeddata", "canplay", "canplaythrough", "resize", "playing"].forEach((name) =>
+          video.removeEventListener(name, onReady)
+        );
         video.removeEventListener("error", onError);
       };
-      const onReady = () => { cleanup(); resolve(); };
-      const onError = () => {
+      const finish = (error) => {
+        if (settled) return;
+        settled = true;
         cleanup();
+        if (error) reject(error);
+        else resolve();
+      };
+      const timer = window.setTimeout(() => {
+        finish(new Error("NovaCut received no drawable video frame before timeout (" + describeVideo() + ")."));
+      }, timeoutMs);
+      const onReady = () => {
+        // HAVE_CURRENT_DATA alone is not sufficient: Android can advance the
+        // playhead while exposing a zero-sized frame to CanvasRenderingContext2D.
+        if (hasDrawableFrame()) finish();
+      };
+      const onError = () => {
         const mediaError = video.error;
         const code = Number(mediaError?.code) || 0;
         const detail = String(mediaError?.message || "");
-        reject(new Error(
+        finish(new Error(
           "NovaCut video decoder rejected the media" +
           (code ? " (MediaError " + code + (detail ? ": " + detail : "") + ")" : "") +
-          "."
+          " (" + describeVideo() + ")."
         ));
       };
-      video.addEventListener("loadeddata", onReady, { once: true });
-      video.addEventListener("canplay", onReady, { once: true });
+      ["loadedmetadata", "loadeddata", "canplay", "canplaythrough", "resize", "playing"].forEach((name) =>
+        video.addEventListener(name, onReady)
+      );
       video.addEventListener("error", onError, { once: true });
+      onReady();
     });
   }
 
@@ -525,8 +556,15 @@ export class NovaCutCanvasPreview {
         }
       }
 
-      const sw = media.videoWidth || media.naturalWidth || 1;
-      const sh = media.videoHeight || media.naturalHeight || 1;
+      const isVideoElement = media instanceof HTMLVideoElement;
+      const sw = isVideoElement ? Number(media.videoWidth) : Number(media.naturalWidth);
+      const sh = isVideoElement ? Number(media.videoHeight) : Number(media.naturalHeight);
+      // Never pretend a not-yet-decoded video is a 1x1 image. That masked the
+      // decoder failure and let the UI display PLAYING over a black preview.
+      if (isVideoElement && (media.readyState < 2 || sw <= 0 || sh <= 0)) {
+        continue;
+      }
+      if (!(sw > 0 && sh > 0)) continue;
       const clipScale = Math.max(0.05, Number(clip.transform?.scale ?? clip.scale) || 1);
       const scaledW = sw * clipScale;
       const scaledH = sh * clipScale;
