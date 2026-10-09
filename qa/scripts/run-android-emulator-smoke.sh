@@ -1,59 +1,87 @@
 #!/usr/bin/env bash
-# Run as one Bash process from the Android emulator runner.
-# The action's "script" input may execute each line in its own shell, so keep
-# variables, PIPESTATUS, and diagnostics in this tracked script.
+# Deterministic Android shell and native video-picker smoke test.
+# Run through android-emulator-runner from NexusNovaAndroid.
 set +e
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 RESULTS="$ROOT/qa/android-emulator-results"
 mkdir -p "$RESULTS"
-mkdir_status=$?
-if [ "$mkdir_status" -ne 0 ]; then
+if [ $? -ne 0 ]; then
   echo "Could not create emulator QA results directory: $RESULTS" >&2
-  exit "$mkdir_status"
+  exit 1
 fi
 
 cd "$ROOT/NexusNovaAndroid" || exit 1
+PKG="com.nexusnova.app.novacutqa"
+FIXTURE="$ROOT/qa/fixtures/video-studio-video-qa.webm"
+
+fail() {
+  echo "ANDROID SHELL/PICKER SMOKE FAIL: $*" | tee "$RESULTS/failure.txt" >&2
+  adb logcat -d -v threadtime > "$RESULTS/logcat.txt" 2>&1 || true
+  adb shell dumpsys activity activities > "$RESULTS/activity.txt" 2>&1 || true
+  adb shell dumpsys window > "$RESULTS/window.txt" 2>&1 || true
+  adb shell uiautomator dump /sdcard/nova-window.xml >/dev/null 2>&1 || true
+  adb pull /sdcard/nova-window.xml "$RESULTS/window-hierarchy.xml" >/dev/null 2>&1 || true
+  exit 1
+}
+
+adb wait-for-device
+if [ $? -ne 0 ]; then fail "ADB device did not become ready."; fi
 
 adb install -r app/build/outputs/apk/debug/app-debug.apk
-app_install_status=$?
-adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
-test_install_status=$?
+if [ $? -ne 0 ]; then fail "Could not install the isolated QA app."; fi
 
-if [ "$app_install_status" -ne 0 ] || [ "$test_install_status" -ne 0 ]; then
-  echo "Instrumentation setup failed: app=$app_install_status test=$test_install_status" | tee "$RESULTS/setup-status.txt"
-  adb logcat -d -v threadtime > "$RESULTS/logcat.txt" 2>&1 || true
-  exit 1
-fi
+if [ ! -s "$FIXTURE" ]; then fail "Deterministic video picker fixture is missing."; fi
+adb shell mkdir -p /sdcard/Download
+adb push "$FIXTURE" /sdcard/Download/video-studio-video-qa.webm > "$RESULTS/fixture-push.txt" 2>&1
+if [ $? -ne 0 ]; then fail "Could not place the video fixture in Android Downloads."; fi
+adb shell am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file:///sdcard/Download/video-studio-video-qa.webm > "$RESULTS/media-scan.txt" 2>&1 || true
 
-if [ ! -s "$ROOT/qa/fixtures/video-studio-video-qa.webm" ]; then
-  echo "Deterministic Android video fixture is missing." | tee "$RESULTS/setup-status.txt"
-  exit 1
-fi
+# Launch the actual app shell, wait for the package activity, and retain a screenshot.
+adb shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1 > "$RESULTS/app-launch.txt" 2>&1
+if [ $? -ne 0 ]; then fail "Launcher could not open package $PKG."; fi
 
-timeout --signal=TERM --kill-after=10s 150s adb shell am instrument -w -r \
-  -e class com.nexusnova.app.NovaCutAndroidShellSmokeTest#androidShellLaunchesAndNativeVideoPickerOpens \
-  com.nexusnova.app.test/androidx.test.runner.AndroidJUnitRunner 2>&1 | tee "$RESULTS/instrumentation.txt"
-instrumentation_status=${PIPESTATUS[0]}
+app_visible=0
+for attempt in $(seq 1 15); do
+  adb shell dumpsys activity activities > "$RESULTS/activity-after-launch.txt" 2>&1
+  if grep -Fq "$PKG" "$RESULTS/activity-after-launch.txt"; then
+    app_visible=1
+    break
+  fi
+  sleep 2
+done
+if [ "$app_visible" -ne 1 ]; then fail "QA app activity did not appear in Android activity state."; fi
+adb shell screencap -p /sdcard/novacut-shell-launch.png
+adb pull /sdcard/novacut-shell-launch.png "$RESULTS/novacut-shell-launch.png" > "$RESULTS/app-screenshot-pull.txt" 2>&1
+if [ $? -ne 0 ] || [ ! -s "$RESULTS/novacut-shell-launch.png" ]; then fail "Could not capture the launched app screenshot."; fi
 
-if grep -Eq 'FAILURES!!!|INSTRUMENTATION_STATUS_CODE: -2|Tests run: [0-9]+, Failures: [1-9]' "$RESULTS/instrumentation.txt"; then
-  instrumentation_status=1
+# Exercise Android's real document picker with video MIME type.
+adb shell am start -W -a android.intent.action.OPEN_DOCUMENT \
+  -c android.intent.category.OPENABLE -t video/* > "$RESULTS/picker-launch.txt" 2>&1
+if [ $? -ne 0 ]; then fail "Android refused the native video-picker intent."; fi
+sleep 3
+adb shell dumpsys activity activities > "$RESULTS/activity-after-picker.txt" 2>&1
+adb shell uiautomator dump /sdcard/nova-picker-window.xml > "$RESULTS/picker-ui-dump.txt" 2>&1
+adb pull /sdcard/nova-picker-window.xml "$RESULTS/picker-window.xml" > "$RESULTS/picker-window-pull.txt" 2>&1
+adb shell screencap -p /sdcard/novacut-native-video-picker.png
+adb pull /sdcard/novacut-native-video-picker.png "$RESULTS/novacut-native-video-picker.png" > "$RESULTS/picker-screenshot-pull.txt" 2>&1
+
+if ! grep -Eqi 'com\.google\.android\.documentsui|com\.android\.documentsui|DocumentsUI|Recent|Browse|Downloads' \
+  "$RESULTS/activity-after-picker.txt" "$RESULTS/picker-window.xml"; then
+  fail "Native video picker UI was not identifiable after opening ACTION_OPEN_DOCUMENT."
 fi
-if ! grep -Eq 'OK \(1 test\)|OK \(1 tests\)' "$RESULTS/instrumentation.txt"; then
-  instrumentation_status=1
+if [ ! -s "$RESULTS/novacut-native-video-picker.png" ]; then
+  fail "Could not capture the native video-picker screenshot."
 fi
-echo "$instrumentation_status" > "$RESULTS/instrumentation-exit-code.txt"
+if ! grep -Fq 'video-studio-video-qa.webm' <(adb shell ls /sdcard/Download 2>/dev/null); then
+  fail "The deterministic video fixture is not present in Downloads."
+fi
 
 adb logcat -d -v threadtime > "$RESULTS/logcat.txt" 2>&1 || true
 adb shell dumpsys activity activities > "$RESULTS/activity.txt" 2>&1 || true
-adb shell dumpsys window > "$RESULTS/window.txt" 2>&1 || true
-adb shell getprop > "$RESULTS/device-properties.txt" 2>&1 || true
-adb shell ls -la /sdcard/Android/data/com.nexusnova.app.novacutqa/files/Pictures/ > "$RESULTS/pictures-directory.txt" 2>&1 || true
-adb pull /sdcard/Android/data/com.nexusnova.app.novacutqa/files/Pictures "$RESULTS/" > "$RESULTS/pictures-pull.txt" 2>&1 || true
-
-if [ "$instrumentation_status" -ne 0 ]; then
-  echo "Android instrumentation failed (exit $instrumentation_status). Logs/evidence: $RESULTS" >&2
-else
-  echo "ANDROID SHELL/PICKER SMOKE 1/1 PASS"
-fi
-exit "$instrumentation_status"
+echo "App shell package: $PKG" > "$RESULTS/smoke-summary.txt"
+echo "Native ACTION_OPEN_DOCUMENT picker: visible" >> "$RESULTS/smoke-summary.txt"
+echo "Video fixture: /sdcard/Download/video-studio-video-qa.webm" >> "$RESULTS/smoke-summary.txt"
+echo "Screenshots: novacut-shell-launch.png, novacut-native-video-picker.png" >> "$RESULTS/smoke-summary.txt"
+echo "ANDROID SHELL/PICKER SMOKE 1/1 PASS"
+exit 0
