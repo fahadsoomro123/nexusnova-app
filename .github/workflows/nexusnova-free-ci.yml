@@ -52,6 +52,43 @@ jobs:
         with:
           gradle-version: '8.13'
 
+      - name: Prepare isolated debug Firebase package config
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import copy
+          import json
+          from pathlib import Path
+
+          app_dir = Path("NexusNovaAndroid/app")
+          source = app_dir / "google-services.json"
+          target = app_dir / "src/debug/google-services.json"
+          data = json.loads(source.read_text(encoding="utf-8"))
+          clients = data.get("client", [])
+          package = "com.nexusnova.app.novacutqa"
+          if not any(
+              c.get("client_info", {}).get("android_client_info", {}).get("package_name") == package
+              for c in clients
+          ):
+              template = next(
+                  (
+                      c for c in clients
+                      if c.get("client_info", {}).get("android_client_info", {}).get("package_name") == "com.nexusnova.app"
+                  ),
+                  clients[0] if clients else None
+              )
+              if template is None:
+                  raise SystemExit("No Firebase client template found for isolated QA build.")
+              qa_client = copy.deepcopy(template)
+              qa_client["client_info"]["android_client_info"]["package_name"] = package
+              data["client"].append(qa_client)
+          target.parent.mkdir(parents=True, exist_ok=True)
+          target.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+          print("Generated temporary debug-only Firebase client for " + package)
+          print("Production app/google-services.json left unchanged.")
+          PY
+
       - name: Android preflight
         working-directory: NexusNovaAndroid
         shell: bash
@@ -59,31 +96,33 @@ jobs:
           set -euo pipefail
           test -f settings.gradle.kts
           test -d app
-          test -d autopilot
-          echo "Android project structure: PASS"
+          test -d tracker
+          grep -Fq 'include(":app")' settings.gradle.kts
+          grep -Fq 'include(":tracker")' settings.gradle.kts
+          echo "Android project structure (app + tracker): PASS"
 
       - name: Compile and test without signing
         working-directory: NexusNovaAndroid
         shell: bash
         run: |
           set -euo pipefail
-          gradle --no-daemon :app:assembleDebug :autopilot:assembleDebug :tracker:assembleDebug
+          gradle --no-daemon :app:assembleDebug :tracker:assembleDebug
           gradle --no-daemon test
           echo "Unsigned debug builds + tests: PASS"
 
-      - name: Autopilot module verification
+      - name: Tracker module verification
         working-directory: NexusNovaAndroid
         shell: bash
         run: |
           set -euo pipefail
-          apk='autopilot/build/outputs/apk/debug/autopilot-debug.apk'
+          apk='tracker/build/outputs/apk/debug/tracker-debug.apk'
           test -s "$apk"
           AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)"
           test -n "$AAPT"
           badging="$($AAPT dump badging "$apk" | head -n 1)"
           echo "$badging"
-          echo "$badging" | grep -q "name='com.nexusnova.autopilot'"
-          echo "Autopilot debug APK identity: PASS"
+          echo "$badging" | grep -q "name='com.nexusnova.tracker'"
+          echo "Tracker debug APK identity: PASS"
 
       - name: CI summary
         if: always()
@@ -93,7 +132,7 @@ jobs:
             echo "- Android structure checked"
             echo "- Unsigned debug builds checked"
             echo "- Tests executed"
-            echo "- Autopilot APK identity checked"
+            echo "- Tracker APK identity checked"
             echo "- No signing credentials required"
           } >> "$GITHUB_STEP_SUMMARY"
 
