@@ -5,7 +5,7 @@ import { renderAiTranscribeStudio } from './ai-transcribe-studio.js';
 import { renderAiWritingStudio } from './ai-writing-studio.js';
 import { renderDigitalSignStudio } from './digital-sign-studio.js';
 import { createNovaCutEngine } from './novacut-engine.js';
-import { createNovaCutStudioInteractions } from './novacut-studio.js';
+import { createNovaCutStudioInteractions, NOVACUT_PIXELS_PER_SECOND } from './novacut-studio.js';
 import { createNovaCutMediaParser } from './novacut-media.js';
 
 const NOVACUT_CSS = new URL('./novacut-studio.css', import.meta.url).href;
@@ -178,7 +178,7 @@ function renderNovaCut() {
   }
   syncPreviewFrame();
 
-  const RULER_PX_PER_SECOND = 36;
+  const RULER_PX_PER_SECOND = NOVACUT_PIXELS_PER_SECOND;
   const renderTimelineRuler = () => {
     if (!timeline || !rulerTicks) return;
     const durationMs = Math.max(0, Number(engine.registry.durationMs()) || 0);
