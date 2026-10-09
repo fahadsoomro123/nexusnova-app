@@ -48,7 +48,7 @@ check("effect add API present", () => assert(has(engine, "addEffect(input"), "ef
 check("delete API present", () => assert(has(engine, "removeSelected()"), "delete API missing"));
 check("duplicate API present", () => assert(has(engine, "duplicateSelected()"), "duplicate API missing"));
 check("playback follows decoded video clock", () => assert(has(engine, "mediaTimelineTime = clockClip.startTime") && has(engine, "media.currentTime * 1000"), "media clock sync missing"));
-check("render avoids per-frame decoder seeking", () => assert(has(engine, "Seek only while paused or when a new clip becomes active") && !has(engine, "else if (this.engine.isPlaying && Math.abs(media.currentTime - target) > 0.3)"), "per-frame seek thrash still present"));
+check("render avoids per-frame decoder seeking", () => assert(/Seek only while paused or when a new\s+clip becomes active/.test(engine) && !has(engine, "else if (this.engine.isPlaying && Math.abs(media.currentTime - target) > 0.3)"), "per-frame seek thrash still present"));
 check("undo API present", () => assert(has(engine, "undo()"), "undo API missing"));
 check("redo API present", () => assert(has(engine, "redo()"), "redo API missing"));
 check("cycleRatio restored", () => assert(/\n  cycleRatio\(\) \{/.test(engine), "cycleRatio missing"));
