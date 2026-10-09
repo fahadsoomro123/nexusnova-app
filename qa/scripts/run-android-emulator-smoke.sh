@@ -137,7 +137,7 @@ except (OSError, ET.ParseError) as exc:
 
 candidates = []
 for node in root.iter("node"):
-    text = " ".join((node.attrib.get("text", ""), node.attrib.get("content-desc", "")).split())
+    text = " ".join(" ".join((node.attrib.get("text", ""), node.attrib.get("content-desc", ""))).split())
     if wanted not in text.casefold():
         continue
     bounds = re.fullmatch(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]", node.attrib.get("bounds", ""))
