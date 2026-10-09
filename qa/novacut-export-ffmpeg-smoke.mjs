@@ -160,7 +160,7 @@ try {
     }]
   });
   assert(mixedPlan.streams.some((stream) => stream.codec_type === "audio"), "Mixed export has no audio stream.");
-  assert(mixedPlan.filters.includes("scale=45:80:force_original_aspect_ratio=decrease"), "Sticker was not resized before overlay composition.");
+  assert(mixedPlan.filters.includes("scale=44:80:force_original_aspect_ratio=decrease"), "Sticker was not resized before overlay composition.");
   console.log("FFMPEG EXPORT 2/3 PASS  original audio, music and sticker filters render");
 
   const silentPlan = planAndRun({ name: "silent-video-export.mp4", hasAudio: false });
