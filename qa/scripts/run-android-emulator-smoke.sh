@@ -105,9 +105,27 @@ for attempt in $(seq 1 12); do
   sleep 1
 done
 if [ "$app_visible" -ne 1 ]; then fail "QA app activity did not appear in Android activity state."; fi
-sleep 3
+# Do not mistake the Android native splash screen for the loaded app UI.
+page_loaded=0
+for attempt in $(seq 1 30); do
+  if grep -Fq 'NexusNovaDiagnostic: runtimeBuildCommit=' "$RESULTS/live-logcat.txt"; then
+    page_loaded=1
+    break
+  fi
+  sleep 1
+done
+if [ "$page_loaded" -ne 1 ]; then
+  fail "MainActivity did not report WebView onPageFinished within 30 seconds."
+fi
+# Let the bundled web splash finish its minimum display period before inspecting UI.
+sleep 4
+adb shell uiautomator dump /sdcard/nova-app-window.xml > "$RESULTS/app-ui-dump.txt" 2>&1
+adb pull /sdcard/nova-app-window.xml "$RESULTS/app-window.xml" > "$RESULTS/app-ui-pull.txt" 2>&1
+if ! grep -Eqi 'text="NEXUSNOVA|text="nexusnovatools\\.com|content-desc="Open nexusnovatools\\.com in Nova Browser"' "$RESULTS/app-window.xml"; then
+  fail "WebView page-finished event occurred, but expected NexusNova portal content was not accessible. Refusing a splash-only screenshot."
+fi
 if ! capture_screenshot "$RESULTS/novacut-shell-launch.png"; then
-  fail "App activity was recorded but screenshot capture failed after three bounded ADB recovery attempts."
+  fail "Loaded app screenshot capture failed after three bounded ADB recovery attempts."
 fi
 
 find_node_center() {
