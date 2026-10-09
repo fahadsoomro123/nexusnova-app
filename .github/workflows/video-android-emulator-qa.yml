@@ -148,6 +148,7 @@ jobs:
           assert "pull_remote_file()" in script, "UI hierarchy pull recovery helper is missing"
           assert "adb logcat -c" in script, "stale emulator logcat must be cleared before launch"
           assert "adb shell screencap -p" in script, "remote screencap path is missing"
+          assert "find_node_center() {" in script, "UIAutomator label-center helper is missing"
           assert 'capture_screenshot "$RESULTS/novacut-shell-launch.png"' in script and script.index('capture_screenshot "$RESULTS/novacut-shell-launch.png"') < script.index("uiautomator dump /sdcard/nova-app-window.xml"), "capture the loaded app screen before optional UIAutomator dump"
           assert "UIAutomator hierarchy unavailable" in script, "main app UIAutomator dump must be optional on API 35"
           assert script.count("pull_remote_file /sdcard/nova-") >= 4, "UI hierarchy pulls must use bounded reconnect/retry helper"
