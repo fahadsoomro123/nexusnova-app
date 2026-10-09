@@ -146,6 +146,8 @@ jobs:
           assert "command adb" not in script, "timeout must invoke adb as an executable, not a shell builtin"
           assert 'timeout --signal=TERM --kill-after=2s 15s adb "$@"' in script, "bounded adb wrapper is missing"
           assert "live-logcat.txt" in script and "capture_screenshot()" in script, "bounded recovery/log capture missing"
+          assert "pull_remote_file()" in script, "UI hierarchy pull recovery helper is missing"
+          assert script.count("pull_remote_file /sdcard/nova-") >= 4, "UI hierarchy pulls must use bounded reconnect/retry helper"
           print("Android smoke script syntax, ADB wrapper, and UI-bounds checks PASS")
           PY
 
