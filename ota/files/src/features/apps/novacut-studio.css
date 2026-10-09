@@ -187,6 +187,16 @@
   display: block !important;
 }
 
+/* The native-video fallback keeps the canvas transparent so decoded WebView
+   video remains visible below text/sticker overlays instead of a black canvas. */
+.nx-novacut__canvas.nx-novacut__canvas--native-preview {
+  z-index: 1 !important;
+  background: transparent !important;
+}
+.nx-novacut__native-preview-video {
+  z-index: 0 !important;
+}
+
 .nx-novacut__canvas-empty {
   position: absolute !important;
   inset: 0 !important;

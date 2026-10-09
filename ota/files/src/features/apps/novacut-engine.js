@@ -680,7 +680,16 @@ export class NovaCutCanvasPreview {
       ctx.translate(x + dw / 2, y + dh / 2);
       ctx.rotate(rotation);
       ctx.scale(clip.transform?.flipX ? -1 : 1, clip.transform?.flipY ? -1 : 1);
-      ctx.drawImage(media, -dw / 2, -dh / 2, dw, dh);
+      try {
+        ctx.drawImage(media, -dw / 2, -dh / 2, dw, dh);
+      } catch (error) {
+        ctx.restore();
+        if (isVideoElement) {
+          this.enableNativePreviewFallback(media, clip, "Canvas drawImage failed: " + (error?.message || error));
+          continue;
+        }
+        throw error;
+      }
       ctx.restore();
       if (isVideoElement) this.probeVideoCanvasOutput(clip, media, x, y, dw, dh);
     }
