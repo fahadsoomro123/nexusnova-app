@@ -39,7 +39,7 @@ check("engine exports ratio presets", () => assert(has(engine, "export const RAT
 
 // 11-25: engine behavior
 check("Android WebView compositor detector exists", () => assert(has(engine, "export const isAndroidWebViewUserAgent") && has(engine, "this.forceNativeVideoLayer = isAndroidWebViewUserAgent(userAgent)"), "Android WebView detector missing"));
-check("native video compositor renders through DOM layer", () => assert(has(engine, "mountNativePreview(media, clip)") && has(engine, "nx-novacut__canvas--native-preview") && has(engine, "Playing · native video layer"), "native preview layer wiring missing"));
+check("native preview and source-audio playback wiring", () => assert(has(engine, "mountNativePreview(media, clip)") && has(engine, "nx-novacut__canvas--native-preview") && has(engine, "Playing · native video layer") && has(engine, "media.muted = false") && has(engine, "this.preview?.enableActiveVideoAudio()"), "native preview or source-audio wiring missing"));
 check("video add API present", () => assert(has(engine, "addVideoClip(input)"), "addVideoClip missing"));
 check("audio add API present", () => assert(has(engine, "addAudioSegment(input)"), "addAudioSegment missing"));
 check("text add API present", () => assert(has(engine, "addTextCue(input)"), "addTextCue missing"));
@@ -132,15 +132,15 @@ check("picker callback receives selected URIs", () => assert(has(activity, "call
 // 91-96: Android package/release integrity
 check("production package ID correct", () => assert(has(gradle, 'applicationId = "com.nexusnova.app"'), "package ID changed"));
 check("production namespace correct", () => assert(has(gradle, 'namespace = "com.nexusnova.app"'), "namespace changed"));
-check("production version advanced", () => assert(has(gradle, "versionCode = 27010032"), "versionCode not advanced"));
-check("production version name advanced", () => assert(has(gradle, 'versionName = "1.0.45-ota-34"'), "versionName not advanced"));
+check("production version advanced", () => assert(has(gradle, "versionCode = 27010033"), "versionCode not advanced"));
+check("production version name advanced", () => assert(has(gradle, 'versionName = "1.0.46-ota-35"'), "versionName not advanced"));
 check("debug QA suffix preserved", () => assert(has(gradle, 'applicationIdSuffix = ".novacutqa"'), "QA suffix missing"));
 check("FileProvider remains present", () => assert(has(manifest, "androidx.core.content.FileProvider"), "FileProvider missing"));
 
 // 97-100: signed build gate + exact regression safety
-check("signed workflow pins current production version", () => assert(has(workflow, "versionCode = 27010032"), "signed workflow versionCode stale"));
-check("signed workflow pins current version name", () => assert(has(workflow, 'versionName = "1.0.45-ota-34"'), "signed workflow versionName stale"));
-check("signed workflow packages ota-34 artifact", () => assert(has(workflow, "NexusNova-v1.0.45-ota-34-SIGNED.apk"), "ota-34 artifact missing"));
+check("signed workflow pins current production version", () => assert(has(workflow, "versionCode = 27010033"), "signed workflow versionCode stale"));
+check("signed workflow pins current version name", () => assert(has(workflow, 'versionName = "1.0.46-ota-35"'), "signed workflow versionName stale"));
+check("signed workflow packages ota-35 artifact", () => assert(has(workflow, "NexusNova-v1.0.46-ota-35-SIGNED.apk"), "ota-35 artifact missing"));
 check("signed workflow validates signature before packaging", () => assert(/verify --verbose --print-certs/.test(workflow), "signature verification missing"));
 
 assert(tests.length === 100, "Expected exactly 100 QA checks, got " + tests.length);
@@ -169,7 +169,7 @@ const androidWebViewUA = "Mozilla/5.0 (Linux; Android 13; Test Device; wv) Apple
 const androidChromeUA = "Mozilla/5.0 (Linux; Android 13; Test Device) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
 if (!isAndroidWebViewUserAgent(androidWebViewUA)) throw new Error("Android WebView user agent did not select the native compositor.");
 if (isAndroidWebViewUserAgent(androidChromeUA)) throw new Error("Regular Android Chrome was incorrectly forced into WebView native mode.");
-console.log("PLAYBACK BEHAVIOUR 1/6 PASS  Android WebView selects native compositor");
+console.log("PLAYBACK BEHAVIOUR 1/7 PASS  Android WebView selects native compositor");
 
 class FakeVideoElement {
   constructor({ readyState = 2, videoWidth = 0, videoHeight = 0, error = null } = {}) {
@@ -179,6 +179,11 @@ class FakeVideoElement {
     this.networkState = 2;
     this.currentTime = 1;
     this.error = error;
+    this.muted = true;
+    this.defaultMuted = true;
+    this.volume = 0;
+    this.paused = true;
+    this.playCalls = 0;
     this.listeners = new Map();
     this.style = {};
     this.classList = { add() {}, remove() {} };
@@ -190,7 +195,8 @@ class FakeVideoElement {
   }
   removeEventListener(name, fn) { this.listeners.get(name)?.delete(fn); }
   dispatch(name) { this.listeners.get(name)?.forEach(fn => fn()); }
-  pause() {}
+  async play() { this.paused = false; this.playCalls += 1; }
+  pause() { this.paused = true; }
   remove() {}
 }
 globalThis.HTMLVideoElement ??= FakeVideoElement;
@@ -211,11 +217,11 @@ noFrame.videoWidth = 1280;
 noFrame.videoHeight = 720;
 noFrame.dispatch("resize");
 await noFramePromise;
-console.log("PLAYBACK BEHAVIOUR 1/4 PASS  zero-sized frame remains unready");
+console.log("PLAYBACK BEHAVIOUR 2/7 PASS  zero-sized frame remains unready");
 
 const readyVideo = new FakeVideoElement({ readyState: 2, videoWidth: 1920, videoHeight: 1080 });
 await testPreview.waitForVideoReady(readyVideo, 50);
-console.log("PLAYBACK BEHAVIOUR 3/6 PASS  decoded dimensions resolve readiness");
+console.log("PLAYBACK BEHAVIOUR 3/7 PASS  decoded dimensions resolve readiness");
 
 const brokenVideo = new FakeVideoElement({ error: { code: 4, message: "decoder unsupported" } });
 const brokenPromise = testPreview.waitForVideoReady(brokenVideo, 100)
@@ -227,7 +233,7 @@ if (!String(brokenError?.message || "").includes("MediaError 4") ||
     !String(brokenError?.message || "").includes("size=0x0")) {
   throw new Error("Decoder failure did not expose MediaError/dimension diagnostics: " + brokenError?.message);
 }
-console.log("PLAYBACK BEHAVIOUR 4/6 PASS  decoder errors include useful diagnostics");
+console.log("PLAYBACK BEHAVIOUR 4/7 PASS  decoder errors include useful diagnostics");
 
 const probe = Object.create(NovaCutCanvasPreview.prototype);
 probe.nativeFallbackActive = false;
@@ -238,7 +244,7 @@ probe.engine = { setStatus() {}, events: { emit() {} } };
 const blackVideo = new FakeVideoElement({ readyState: 2, videoWidth: 640, videoHeight: 360 });
 for (let i = 0; i < 24; i++) probe.probeVideoCanvasOutput({ id: "black-probe" }, blackVideo, 0, 0, 100, 100);
 if (!probe.nativeFallbackActive) throw new Error("Persistently black Canvas output did not enable native video fallback.");
-console.log("PLAYBACK BEHAVIOUR 5/6 PASS  black Canvas output enables native preview fallback");
+console.log("PLAYBACK BEHAVIOUR 5/7 PASS  black Canvas output enables native preview fallback");
 const nativeShell = { insertBefore(node) { node.parentElement = this; } };
 const nativeCanvas = {
   parentElement: nativeShell,
@@ -253,7 +259,31 @@ nativePreview.mountNativePreview(mountedVideo, { id: "native-mount", scale: 1 })
 if (mountedVideo.parentElement !== nativeShell || !nativeCanvas.classNames.has("nx-novacut__canvas--native-preview")) {
   throw new Error("Native video element was not mounted behind the transparent overlay canvas.");
 }
-console.log("PLAYBACK BEHAVIOUR 6/6 PASS  native video layer attaches behind transparent canvas");
+console.log("PLAYBACK BEHAVIOUR 6/7 PASS  native video layer attaches behind transparent canvas");
+
+const sourceAudioClip = { id: "source-audio-test", startTime: 0, duration: 5000, sourceStartTime: 0, volume: 0.35 };
+const sourceAudioVideo = new FakeVideoElement({ readyState: 2, videoWidth: 640, videoHeight: 360 });
+const audioPreview = Object.create(NovaCutCanvasPreview.prototype);
+audioPreview.engine = {
+  currentTimestamp: 0,
+  getActiveVideoClips: () => [sourceAudioClip],
+  registry: { audioTracks: [] }
+};
+audioPreview.media = new Map([[sourceAudioClip.id, sourceAudioVideo]]);
+audioPreview.audioMedia = new Map();
+audioPreview.resolve = async () => sourceAudioVideo;
+audioPreview.enableActiveVideoAudio();
+if (sourceAudioVideo.muted || sourceAudioVideo.defaultMuted || sourceAudioVideo.volume !== 0.35) {
+  throw new Error("User-requested playback did not restore source audio and clip volume.");
+}
+sourceAudioVideo.muted = true;
+sourceAudioVideo.defaultMuted = true;
+sourceAudioVideo.volume = 0;
+await audioPreview.playActive();
+if (sourceAudioVideo.muted || sourceAudioVideo.defaultMuted || sourceAudioVideo.volume !== 0.35 || sourceAudioVideo.playCalls !== 1) {
+  throw new Error("playActive() did not unmute and start the source video with clip volume.");
+}
+console.log("PLAYBACK BEHAVIOUR 7/7 PASS  source video audio is restored during playback");
 
 
 const syntaxFiles = [
