@@ -214,7 +214,12 @@ export class NovaCutCanvasPreview {
     this.stickerMedia = new Map();
     this.stickerPending = new Map();
     this.frameProbe = new Map();
-    this.nativeFallbackActive = false;
+    const userAgent = String(globalThis.navigator?.userAgent || "");
+    // Android System WebView may advance the HTMLVideoElement clock while
+    // drawImage(video) yields black pixels. Use its native compositor directly
+    // on Android WebView; keep Canvas video rendering for ordinary browsers.
+    this.forceNativeVideoLayer = /Android/i.test(userAgent) && /\\bwv\\b/i.test(userAgent);
+    this.nativeFallbackActive = this.forceNativeVideoLayer;
     this.nativePreviewMedia = null;
     this.renderTick = 0;
     this.frameId = 0;
@@ -239,7 +244,7 @@ export class NovaCutCanvasPreview {
     this.sourceCanvas.height = height;
   }
 
-  mountNativePreview(media) {
+  mountNativePreview(media, clip = null) {
     if (!(media instanceof HTMLVideoElement) || !this.canvas) return;
     const shell = this.canvas.parentElement;
     if (!shell) return;
@@ -262,7 +267,14 @@ export class NovaCutCanvasPreview {
       zIndex: "0",
       pointerEvents: "none",
       background: "#050507",
-      display: "block"
+      display: "block",
+      transformOrigin: "center center",
+      transform: [
+        "translateX(" + (Number(clip?.x_offset || 0) / Math.max(1, Number(globalThis.devicePixelRatio) || 1)) + "px)",
+        "rotate(" + (Number(clip?.transform?.rotation || 0)) + "deg)",
+        "scale(" + (Math.max(0.05, Number(clip?.transform?.scale ?? clip?.scale) || 1) * (clip?.transform?.flipX ? -1 : 1)) + "," +
+          (Math.max(0.05, Number(clip?.transform?.scale ?? clip?.scale) || 1) * (clip?.transform?.flipY ? -1 : 1)) + ")"
+      ].join(" ")
     });
     if (media.parentElement !== shell) shell.insertBefore(media, this.canvas);
     this.canvas.classList.add("nx-novacut__canvas--native-preview");
@@ -671,7 +683,7 @@ export class NovaCutCanvasPreview {
       const rotation = (Number(clip.transform?.rotation) || 0) * Math.PI / 180;
 
       if (isVideoElement && this.nativeFallbackActive) {
-        this.mountNativePreview(media);
+        this.mountNativePreview(media, clip);
         continue;
       }
 
@@ -1327,7 +1339,7 @@ export class NovaCutEngine {
       return;
     }
     this.isPlaying = true;
-    this.setStatus("Playing");
+    this.setStatus(this.preview?.nativeFallbackActive ? "Playing · native video layer" : "Playing");
     let last = performance.now();
     const tick = (now) => {
       if (!this.isPlaying) return;
@@ -1376,7 +1388,7 @@ export class NovaCutEngine {
     cancelAnimationFrame(this.playbackFrame);
     this.playbackFrame = 0;
     this.preview?.pauseAll();
-    this.setStatus("Paused");
+    this.setStatus(this.preview?.nativeFallbackActive ? "Paused · native video layer" : "Paused");
   }
 
   getActiveVideoClips() {
