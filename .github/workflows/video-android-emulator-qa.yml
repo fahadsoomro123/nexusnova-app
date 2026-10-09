@@ -190,7 +190,7 @@ jobs:
           emulator-boot-timeout: 300
           working-directory: NexusNovaAndroid
           script: |
-            bash ../qa/scripts/run-android-emulator-smoke.sh
+            timeout --signal=TERM --kill-after=10s 180s bash ../qa/scripts/run-android-emulator-smoke.sh
 
 
       - name: Upload Android emulator evidence
