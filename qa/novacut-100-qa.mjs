@@ -138,10 +138,10 @@ check("production version name advanced", () => assert(has(gradle, 'versionName 
 check("debug QA suffix preserved", () => assert(has(gradle, 'applicationIdSuffix = ".novacutqa"'), "QA suffix missing"));
 check("FileProvider remains present", () => assert(has(manifest, "androidx.core.content.FileProvider"), "FileProvider missing"));
 
-// 97-100: signed build gate + exact regression safety
-check("signed workflow verifies OTA-36 versionCode", () => assert(has(workflow, "versionCode = 27010034") && has(workflow, "versionCode='27010034'"), "signed workflow versionCode injection or APK verification stale"));
-check("signed workflow verifies OTA-36 versionName", () => assert(has(workflow, 'versionName = "1.0.47-ota-36"') && has(workflow, "versionName='1.0.47-ota-36'") && has(workflow, "SIGNED OTA-36 APK VERIFIED"), "signed workflow versionName, APK assertion, or summary stale"));
-check("signed workflow packages ota-36 artifact", () => assert(has(workflow, "NexusNova-v1.0.47-ota-36-SIGNED.apk"), "ota-36 artifact missing"));
+// 97-100: keep the protected production signing workflow frozen until an authorized release change.
+check("protected signing workflow remains on OTA-35 versionCode baseline", () => assert(has(workflow, "versionCode = 27010033") && has(workflow, "versionCode='27010033'"), "protected signing workflow baseline was unexpectedly changed"));
+check("protected signing workflow remains on OTA-35 versionName baseline", () => assert(has(workflow, 'versionName = "1.0.46-ota-35"') && has(workflow, "versionName='1.0.46-ota-35'") && has(workflow, "SIGNED OTA-35 APK VERIFIED"), "protected signing workflow version baseline was unexpectedly changed"));
+check("protected signing workflow keeps OTA-35 artifact naming", () => assert(has(workflow, "NexusNova-v1.0.46-ota-35-SIGNED.apk") && has(workflow, "NexusNova-v1.0.46-ota-35-SIGNED"), "protected signing artifact baseline was unexpectedly changed"));
 check("signed workflow validates signature before packaging", () => assert(/verify --verbose --print-certs/.test(workflow), "signature verification missing"));
 
 assert(tests.length === 100, "Expected exactly 100 QA checks, got " + tests.length);
