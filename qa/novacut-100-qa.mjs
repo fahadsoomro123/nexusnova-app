@@ -38,8 +38,8 @@ check("engine imports effects", () => assert(has(engine, 'import { drawNovaCutEf
 check("engine exports ratio presets", () => assert(has(engine, "export const RATIO_PRESETS"), "ratio presets missing"));
 
 // 11-25: engine behavior
-check("drawable video frame requires intrinsic dimensions", () => assert(has(engine, "Number(video.videoWidth) > 0") && has(engine, "Number(video.videoHeight) > 0"), "zero-sized decoder output can be treated as ready"));
-check("black canvas frames activate native video fallback", () => assert(has(engine, "probeVideoCanvasOutput") && has(engine, "enableNativePreviewFallback") && has(engine, "nx-novacut__canvas--native-preview"), "native preview fallback missing"));
+check("Android WebView compositor detector exists", () => assert(has(engine, "export const isAndroidWebViewUserAgent") && has(engine, "this.forceNativeVideoLayer = isAndroidWebViewUserAgent(userAgent)"), "Android WebView detector missing"));
+check("native video compositor renders through DOM layer", () => assert(has(engine, "mountNativePreview(media, clip)") && has(engine, "nx-novacut__canvas--native-preview") && has(engine, "Playing · native video layer"), "native preview layer wiring missing"));
 check("video add API present", () => assert(has(engine, "addVideoClip(input)"), "addVideoClip missing"));
 check("audio add API present", () => assert(has(engine, "addAudioSegment(input)"), "addAudioSegment missing"));
 check("text add API present", () => assert(has(engine, "addTextCue(input)"), "addTextCue missing"));
@@ -132,15 +132,15 @@ check("picker callback receives selected URIs", () => assert(has(activity, "call
 // 91-96: Android package/release integrity
 check("production package ID correct", () => assert(has(gradle, 'applicationId = "com.nexusnova.app"'), "package ID changed"));
 check("production namespace correct", () => assert(has(gradle, 'namespace = "com.nexusnova.app"'), "namespace changed"));
-check("production version advanced", () => assert(has(gradle, "versionCode = 27010031"), "versionCode not advanced"));
-check("production version name advanced", () => assert(has(gradle, 'versionName = "1.0.45-ota-33"'), "versionName not advanced"));
+check("production version advanced", () => assert(has(gradle, "versionCode = 27010032"), "versionCode not advanced"));
+check("production version name advanced", () => assert(has(gradle, 'versionName = "1.0.45-ota-34"'), "versionName not advanced"));
 check("debug QA suffix preserved", () => assert(has(gradle, 'applicationIdSuffix = ".novacutqa"'), "QA suffix missing"));
 check("FileProvider remains present", () => assert(has(manifest, "androidx.core.content.FileProvider"), "FileProvider missing"));
 
 // 97-100: signed build gate + exact regression safety
-check("signed workflow pins current production version", () => assert(has(workflow, "versionCode = 27010031"), "signed workflow versionCode stale"));
-check("signed workflow pins current version name", () => assert(has(workflow, 'versionName = "1.0.45-ota-33"'), "signed workflow versionName stale"));
-check("signed workflow packages ota-31 artifact", () => assert(has(workflow, "NexusNova-v1.0.45-ota-33-SIGNED.apk"), "ota-31 artifact missing"));
+check("signed workflow pins current production version", () => assert(has(workflow, "versionCode = 27010032"), "signed workflow versionCode stale"));
+check("signed workflow pins current version name", () => assert(has(workflow, 'versionName = "1.0.45-ota-34"'), "signed workflow versionName stale"));
+check("signed workflow packages ota-34 artifact", () => assert(has(workflow, "NexusNova-v1.0.45-ota-34-SIGNED.apk"), "ota-34 artifact missing"));
 check("signed workflow validates signature before packaging", () => assert(/verify --verbose --print-certs/.test(workflow), "signature verification missing"));
 
 assert(tests.length === 100, "Expected exactly 100 QA checks, got " + tests.length);
@@ -163,7 +163,13 @@ if (passed !== 100) {
 
 // Behavioural unit tests for the exact blank-preview failure path.
 globalThis.window ??= globalThis;
-const { NovaCutCanvasPreview } = await import("../fresh-rebuild/src/features/apps/novacut-engine.js");
+const { NovaCutCanvasPreview, isAndroidWebViewUserAgent } = await import("../fresh-rebuild/src/features/apps/novacut-engine.js");
+
+const androidWebViewUA = "Mozilla/5.0 (Linux; Android 13; Test Device; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/120.0.0.0 Mobile Safari/537.36";
+const androidChromeUA = "Mozilla/5.0 (Linux; Android 13; Test Device) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
+if (!isAndroidWebViewUserAgent(androidWebViewUA)) throw new Error("Android WebView user agent did not select the native compositor.");
+if (isAndroidWebViewUserAgent(androidChromeUA)) throw new Error("Regular Android Chrome was incorrectly forced into WebView native mode.");
+console.log("PLAYBACK BEHAVIOUR 1/6 PASS  Android WebView selects native compositor");
 
 class FakeVideoElement {
   constructor({ readyState = 2, videoWidth = 0, videoHeight = 0, error = null } = {}) {
@@ -209,7 +215,7 @@ console.log("PLAYBACK BEHAVIOUR 1/4 PASS  zero-sized frame remains unready");
 
 const readyVideo = new FakeVideoElement({ readyState: 2, videoWidth: 1920, videoHeight: 1080 });
 await testPreview.waitForVideoReady(readyVideo, 50);
-console.log("PLAYBACK BEHAVIOUR 2/4 PASS  decoded dimensions resolve readiness");
+console.log("PLAYBACK BEHAVIOUR 3/6 PASS  decoded dimensions resolve readiness");
 
 const brokenVideo = new FakeVideoElement({ error: { code: 4, message: "decoder unsupported" } });
 const brokenPromise = testPreview.waitForVideoReady(brokenVideo, 100)
@@ -221,7 +227,7 @@ if (!String(brokenError?.message || "").includes("MediaError 4") ||
     !String(brokenError?.message || "").includes("size=0x0")) {
   throw new Error("Decoder failure did not expose MediaError/dimension diagnostics: " + brokenError?.message);
 }
-console.log("PLAYBACK BEHAVIOUR 3/4 PASS  decoder errors include useful diagnostics");
+console.log("PLAYBACK BEHAVIOUR 4/6 PASS  decoder errors include useful diagnostics");
 
 const probe = Object.create(NovaCutCanvasPreview.prototype);
 probe.nativeFallbackActive = false;
@@ -232,7 +238,23 @@ probe.engine = { setStatus() {}, events: { emit() {} } };
 const blackVideo = new FakeVideoElement({ readyState: 2, videoWidth: 640, videoHeight: 360 });
 for (let i = 0; i < 24; i++) probe.probeVideoCanvasOutput({ id: "black-probe" }, blackVideo, 0, 0, 100, 100);
 if (!probe.nativeFallbackActive) throw new Error("Persistently black Canvas output did not enable native video fallback.");
-console.log("PLAYBACK BEHAVIOUR 4/4 PASS  black Canvas output enables native preview fallback");
+console.log("PLAYBACK BEHAVIOUR 5/6 PASS  black Canvas output enables native preview fallback");
+const nativeShell = { insertBefore(node) { node.parentElement = this; } };
+const nativeCanvas = {
+  parentElement: nativeShell,
+  classNames: new Set(),
+  classList: { add(name) { nativeCanvas.classNames.add(name); }, remove(name) { nativeCanvas.classNames.delete(name); } }
+};
+const nativePreview = Object.create(NovaCutCanvasPreview.prototype);
+nativePreview.canvas = nativeCanvas;
+nativePreview.nativePreviewMedia = null;
+const mountedVideo = new FakeVideoElement({ readyState: 2, videoWidth: 640, videoHeight: 360 });
+nativePreview.mountNativePreview(mountedVideo, { id: "native-mount", scale: 1 });
+if (mountedVideo.parentElement !== nativeShell || !nativeCanvas.classNames.has("nx-novacut__canvas--native-preview")) {
+  throw new Error("Native video element was not mounted behind the transparent overlay canvas.");
+}
+console.log("PLAYBACK BEHAVIOUR 6/6 PASS  native video layer attaches behind transparent canvas");
+
 
 const syntaxFiles = [
   "fresh-rebuild/src/features/apps/novacut-engine.js",
