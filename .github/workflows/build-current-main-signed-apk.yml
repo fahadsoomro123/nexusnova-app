@@ -213,8 +213,8 @@ jobs:
           badging="$($AAPT dump badging "$apk" | head -n 1)"
           echo "$badging"
           echo "$badging" | grep -q "name='com.nexusnova.app'"
-          echo "$badging" | grep -q "versionCode='27010033'"
-          echo "$badging" | grep -q "versionName='1.0.46-ota-35'"
+          echo "$badging" | grep -q "versionCode='27010034'"
+          echo "$badging" | grep -q "versionName='1.0.47-ota-36'"
 
           unzip -l "$apk" > /tmp/apk-list.txt
           grep -Fq 'assets/www/assets/icons/nova-hub/travel.webp' /tmp/apk-list.txt
@@ -238,7 +238,7 @@ jobs:
           ! grep -Fq 'src/features/apps/travel-' "$d/assets/www/index.html"
           grep -q 'waitForFirebaseUser' "$d/assets/www/src/core/firebase-backend.js"
           grep -q 'signInWithEmailAndPassword' "$d/assets/www/src/core/auth-service.js"
-          echo "SIGNED OTA-35 APK VERIFIED from $PUBLIC_SHA"
+          echo "SIGNED OTA-36 APK VERIFIED from $PUBLIC_SHA"
 
       - name: Package verified APK
         shell: bash
@@ -253,7 +253,7 @@ jobs:
       - name: Upload verified APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: NexusNova-v1.0.46-ota-35-SIGNED
+          name: NexusNova-v1.0.47-ota-36-SIGNED
           path: build-src/NexusNovaAndroid/signed-output/*
           if-no-files-found: error
           retention-days: 7
