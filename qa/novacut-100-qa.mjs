@@ -38,8 +38,8 @@ check("engine imports effects", () => assert(has(engine, 'import { drawNovaCutEf
 check("engine exports ratio presets", () => assert(has(engine, "export const RATIO_PRESETS"), "ratio presets missing"));
 
 // 11-25: engine behavior
-check("engine class present", () => assert(has(engine, "export class NovaCutEngine"), "engine class missing"));
-check("track registry present", () => assert(has(engine, "export class NovaCutTrackRegistry"), "track registry missing"));
+check("drawable video frame requires intrinsic dimensions", () => assert(has(engine, "Number(video.videoWidth) > 0") && has(engine, "Number(video.videoHeight) > 0"), "zero-sized decoder output can be treated as ready"));
+check("black canvas frames activate native video fallback", () => assert(has(engine, "probeVideoCanvasOutput") && has(engine, "enableNativePreviewFallback") && has(engine, "nx-novacut__canvas--native-preview"), "native preview fallback missing"));
 check("video add API present", () => assert(has(engine, "addVideoClip(input)"), "addVideoClip missing"));
 check("audio add API present", () => assert(has(engine, "addAudioSegment(input)"), "addAudioSegment missing"));
 check("text add API present", () => assert(has(engine, "addTextCue(input)"), "addTextCue missing"));
@@ -160,6 +160,79 @@ if (passed !== 100) {
   console.error(`NOVACUT 100 QA FAILED: ${passed}/100`);
   process.exit(1);
 }
+
+// Behavioural unit tests for the exact blank-preview failure path.
+globalThis.window ??= globalThis;
+const { NovaCutCanvasPreview } = await import("../fresh-rebuild/src/features/apps/novacut-engine.js");
+
+class FakeVideoElement {
+  constructor({ readyState = 2, videoWidth = 0, videoHeight = 0, error = null } = {}) {
+    this.readyState = readyState;
+    this.videoWidth = videoWidth;
+    this.videoHeight = videoHeight;
+    this.networkState = 2;
+    this.currentTime = 1;
+    this.error = error;
+    this.listeners = new Map();
+    this.style = {};
+    this.classList = { add() {}, remove() {} };
+    this.parentElement = null;
+  }
+  addEventListener(name, fn) {
+    if (!this.listeners.has(name)) this.listeners.set(name, new Set());
+    this.listeners.get(name).add(fn);
+  }
+  removeEventListener(name, fn) { this.listeners.get(name)?.delete(fn); }
+  dispatch(name) { this.listeners.get(name)?.forEach(fn => fn()); }
+  pause() {}
+  remove() {}
+}
+globalThis.HTMLVideoElement ??= FakeVideoElement;
+
+const testPreview = Object.create(NovaCutCanvasPreview.prototype);
+const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+const noFrame = new FakeVideoElement();
+let zeroDimensionResolved = false;
+const noFramePromise = testPreview.waitForVideoReady(noFrame, 300).then(() => {
+  zeroDimensionResolved = true;
+});
+await wait(10);
+noFrame.dispatch("loadeddata");
+await wait(10);
+if (zeroDimensionResolved) throw new Error("Playback readiness accepted readyState=2 with 0x0 dimensions.");
+noFrame.videoWidth = 1280;
+noFrame.videoHeight = 720;
+noFrame.dispatch("resize");
+await noFramePromise;
+console.log("PLAYBACK BEHAVIOUR 1/4 PASS  zero-sized frame remains unready");
+
+const readyVideo = new FakeVideoElement({ readyState: 2, videoWidth: 1920, videoHeight: 1080 });
+await testPreview.waitForVideoReady(readyVideo, 50);
+console.log("PLAYBACK BEHAVIOUR 2/4 PASS  decoded dimensions resolve readiness");
+
+const brokenVideo = new FakeVideoElement({ error: { code: 4, message: "decoder unsupported" } });
+const brokenPromise = testPreview.waitForVideoReady(brokenVideo, 100)
+  .then(() => { throw new Error("Broken decoder unexpectedly resolved."); })
+  .catch(error => error);
+brokenVideo.dispatch("error");
+const brokenError = await brokenPromise;
+if (!String(brokenError?.message || "").includes("MediaError 4") ||
+    !String(brokenError?.message || "").includes("size=0x0")) {
+  throw new Error("Decoder failure did not expose MediaError/dimension diagnostics: " + brokenError?.message);
+}
+console.log("PLAYBACK BEHAVIOUR 3/4 PASS  decoder errors include useful diagnostics");
+
+const probe = Object.create(NovaCutCanvasPreview.prototype);
+probe.nativeFallbackActive = false;
+probe.frameProbe = new Map();
+probe.canvas = { width: 100, height: 100, parentElement: null };
+probe.ctx = { getImageData: () => ({ data: new Uint8ClampedArray([0, 0, 0, 255]) }) };
+probe.engine = { setStatus() {}, events: { emit() {} } };
+const blackVideo = new FakeVideoElement({ readyState: 2, videoWidth: 640, videoHeight: 360 });
+for (let i = 0; i < 24; i++) probe.probeVideoCanvasOutput({ id: "black-probe" }, blackVideo, 0, 0, 100, 100);
+if (!probe.nativeFallbackActive) throw new Error("Persistently black Canvas output did not enable native video fallback.");
+console.log("PLAYBACK BEHAVIOUR 4/4 PASS  black Canvas output enables native preview fallback");
 
 const syntaxFiles = [
   "fresh-rebuild/src/features/apps/novacut-engine.js",
