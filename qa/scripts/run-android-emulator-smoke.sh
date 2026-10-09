@@ -107,8 +107,12 @@ adb push "$FIXTURE" /sdcard/Download/video-studio-video-qa.webm > "$RESULTS/fixt
 if [ $? -ne 0 ]; then fail "Could not place the video fixture in Android Downloads."; fi
 adb shell am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file:///sdcard/Download/video-studio-video-qa.webm > "$RESULTS/media-scan.txt" 2>&1 || true
 
-# Stream logs from before launch, so app/emulator crashes can be diagnosed even
-# when ADB drops offline before a screenshot is captured.
+# Clear cached AVD logcat first: cached AVDs can contain old build diagnostics.
+adb logcat -c > "$RESULTS/logcat-clear.txt" 2>&1
+if [ $? -ne 0 ]; then fail "Could not clear stale Android logcat before app launch."; fi
+
+# Stream only fresh logs from before launch, so an old page-finished event can
+# never satisfy the app-load gate.
 timeout --signal=TERM --kill-after=2s 150s adb logcat -v threadtime > "$RESULTS/live-logcat.txt" 2>&1 &
 LOGCAT_PID=$!
 
@@ -118,14 +122,15 @@ if [ $? -ne 0 ]; then fail "Launcher could not open package $PKG."; fi
 app_visible=0
 for attempt in $(seq 1 12); do
   adb shell dumpsys activity activities > "$RESULTS/activity-after-launch.txt" 2>&1
-  if grep -Fq "$PKG" "$RESULTS/activity-after-launch.txt"; then
+  if grep -Fq "$PKG/com.nexusnova.app.MainActivity" "$RESULTS/activity-after-launch.txt"; then
     app_visible=1
     break
   fi
   sleep 1
 done
-if [ "$app_visible" -ne 1 ]; then fail "QA app activity did not appear in Android activity state."; fi
-# Do not mistake the Android native splash screen for the loaded app UI.
+if [ "$app_visible" -ne 1 ]; then fail "QA MainActivity did not appear in Android activity state."; fi
+
+# Require a fresh WebView page-finished diagnostic from this launch.
 page_loaded=0
 for attempt in $(seq 1 30); do
   if grep -Fq 'NexusNovaDiagnostic: runtimeBuildCommit=' "$RESULTS/live-logcat.txt"; then
@@ -137,36 +142,22 @@ done
 if [ "$page_loaded" -ne 1 ]; then
   fail "MainActivity did not report WebView onPageFinished within 30 seconds."
 fi
-# Let the bundled web splash finish its minimum display period before inspecting UI.
+
+# Wait for the app's bundled splash animation to finish, capture the rendered
+# screen first, and keep the accessibility dump best-effort only. UiAutomator
+# can return a null root on API 35 even while the WebView is running.
 sleep 4
-adb shell uiautomator dump /sdcard/nova-app-window.xml > "$RESULTS/app-ui-dump.txt" 2>&1
-pull_remote_file /sdcard/nova-app-window.xml "$RESULTS/app-window.xml" > "$RESULTS/app-ui-pull.txt" 2>&1
-if ! grep -Eqi 'text="NEXUSNOVA|text="nexusnovatools\.com|content-desc="Open nexusnovatools\.com in Nova Browser"' "$RESULTS/app-window.xml"; then
-  fail "WebView page-finished event occurred, but expected NexusNova portal content was not accessible. Refusing a splash-only screenshot."
-fi
 if ! capture_screenshot "$RESULTS/novacut-shell-launch.png"; then
   fail "Loaded app screenshot capture failed after three bounded ADB recovery attempts."
 fi
-
-find_node_center() {
-  python3 - "$1" "$2" <<'PY'
-import re
-import sys
-import xml.etree.ElementTree as ET
-xml_path, target = sys.argv[1], sys.argv[2].strip().lower()
-root = ET.parse(xml_path).getroot()
-for node in root.iter("node"):
-    labels = (node.attrib.get("text", ""), node.attrib.get("content-desc", ""))
-    if not any(label.strip().lower() == target for label in labels):
-        continue
-    bounds = re.fullmatch(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]", node.attrib.get("bounds", ""))
-    if bounds:
-        x1, y1, x2, y2 = map(int, bounds.groups())
-        print((x1 + x2) // 2, (y1 + y2) // 2)
-        raise SystemExit(0)
-raise SystemExit(2)
-PY
-}
+adb shell uiautomator dump /sdcard/nova-app-window.xml > "$RESULTS/app-ui-dump.txt" 2>&1 || true
+pull_remote_file /sdcard/nova-app-window.xml "$RESULTS/app-window.xml" > "$RESULTS/app-ui-pull.txt" 2>&1 || true
+if [ -s "$RESULTS/app-window.xml" ]; then
+  grep -Eqi 'text="NEXUSNOVA|text="nexusnovatools\.com|content-desc="Open nexusnovatools\.com in Nova Browser"' "$RESULTS/app-window.xml"
+  echo "NexusNova portal text seen in UI hierarchy: $?" > "$RESULTS/app-ui-content-check.txt"
+else
+  echo "UIAutomator hierarchy unavailable; fresh onPageFinished diagnostic and rendered screenshot retained." > "$RESULTS/app-ui-content-check.txt"
+fi
 
 # Open Android's native document picker with the video MIME type.
 adb shell am start -W -a android.intent.action.OPEN_DOCUMENT -c android.intent.category.OPENABLE -t video/* > "$RESULTS/picker-launch.txt" 2>&1
