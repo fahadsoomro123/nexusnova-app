@@ -85,7 +85,7 @@ check("undo button present", () => assert(has(suite, "data-action='undo'"), "und
 check("redo button present", () => assert(has(suite, "data-action='redo'"), "redo button missing"));
 check("media parser wired", () => assert(has(suite, "createNovaCutMediaParser(root, engine"), "parser not wired"));
 check("interactions wired", () => assert(has(suite, "createNovaCutStudioInteractions(root, engine)"), "interactions not wired"));
-check("media injected status path", () => assert(has(suite, "status.textContent = 'Decoding'"), "decode status missing"));
+check("media injected status path", () => assert(has(suite, "Checking video decoder…"), "decode status missing"));
 check("decode error detail is visible", () => assert(has(suite, "Decode failed: ") && has(suite, "status.title = message"), "decode error details missing"));
 
 // 56-65: interaction/history correctness
