@@ -69,7 +69,7 @@ for node in root.iter("node"):
     labels = (node.attrib.get("text", ""), node.attrib.get("content-desc", ""))
     if not any(label.strip().lower() == target for label in labels):
         continue
-    bounds = re.fullmatch(r"\\[(\\d+),(\\d+)\\]\\[(\\d+),(\\d+)\\]", node.attrib.get("bounds", ""))
+    bounds = re.fullmatch(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]", node.attrib.get("bounds", ""))
     if bounds:
         x1, y1, x2, y2 = map(int, bounds.groups())
         print((x1 + x2) // 2, (y1 + y2) // 2)
@@ -86,7 +86,7 @@ sleep 2
 adb shell dumpsys activity activities > "$RESULTS/activity-after-picker.txt" 2>&1
 adb shell uiautomator dump /sdcard/nova-picker-window.xml > "$RESULTS/picker-ui-dump.txt" 2>&1
 adb pull /sdcard/nova-picker-window.xml "$RESULTS/picker-window.xml" > "$RESULTS/picker-window-pull.txt" 2>&1
-if ! grep -Eqi 'com\\.google\\.android\\.documentsui|com\\.android\\.documentsui|DocumentsUI' \
+if ! grep -Eqi 'com\.google\.android\.documentsui|com\.android\.documentsui|DocumentsUI' \
   "$RESULTS/activity-after-picker.txt" "$RESULTS/picker-window.xml"; then
   fail "Native video picker UI was not identifiable after opening ACTION_OPEN_DOCUMENT."
 fi
