@@ -11,6 +11,7 @@ import androidx.test.uiautomator.UiDevice;
 import androidx.test.uiautomator.Until;
 
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import java.io.File;
 
