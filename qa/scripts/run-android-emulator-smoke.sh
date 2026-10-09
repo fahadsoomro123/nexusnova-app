@@ -106,6 +106,50 @@ PY
   return 1
 }
 
+# Find the center of a visible UIAutomator node by its text/content description.
+# Prints "x y" for adb input tap, or returns non-zero with a useful diagnostic.
+find_node_center() {
+  local xml_path="$1"
+  local label="$2"
+  python3 - "$xml_path" "$label" <<'PY'
+import re
+import sys
+import xml.etree.ElementTree as ET
+
+xml_path, wanted = sys.argv[1], " ".join(sys.argv[2].split()).casefold()
+try:
+    root = ET.parse(xml_path).getroot()
+except (OSError, ET.ParseError) as exc:
+    print(f"Cannot read UI hierarchy {xml_path}: {exc}", file=sys.stderr)
+    raise SystemExit(1)
+
+candidates = []
+for node in root.iter("node"):
+    text = " ".join((node.attrib.get("text", ""), node.attrib.get("content-desc", "")).split())
+    if wanted not in text.casefold():
+        continue
+    bounds = re.fullmatch(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]", node.attrib.get("bounds", ""))
+    if not bounds:
+        continue
+    x1, y1, x2, y2 = map(int, bounds.groups())
+    if x2 <= x1 or y2 <= y1:
+        continue
+    exact = text.casefold() == wanted
+    clickable = node.attrib.get("clickable", "false").casefold() == "true"
+    area = (x2 - x1) * (y2 - y1)
+    candidates.append((exact, clickable, area, (x1 + x2) // 2, (y1 + y2) // 2))
+
+if not candidates:
+    print(f"No bounded UIAutomator node matched: {sys.argv[2]}", file=sys.stderr)
+    raise SystemExit(1)
+
+# Prefer an exact, clickable node. Area breaks ties when a label appears more than once.
+candidates.sort(key=lambda candidate: (candidate[0], candidate[1], candidate[2]), reverse=True)
+_, _, _, center_x, center_y = candidates[0]
+print(center_x, center_y)
+PY
+}
+
 if [ ! -s "$FIXTURE" ]; then fail "Deterministic video picker fixture is missing."; fi
 wait_for_device || fail "ADB device did not become ready."
 adb install -r app/build/outputs/apk/debug/app-debug.apk > "$RESULTS/app-install.txt" 2>&1
