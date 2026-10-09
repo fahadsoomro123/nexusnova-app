@@ -165,7 +165,8 @@
 .nx-novacut__canvas-shell {
   position: relative !important;
   min-height: 0 !important;
-  margin: 12px !important;
+  place-self: center !important;
+  margin: 0 !important;
   overflow: hidden !important;
   border: 1px solid rgba(255,255,255,.11) !important;
   border-radius: 20px !important;
@@ -176,6 +177,12 @@
     inset 0 0 0 1px rgba(255,255,255,.018),
     inset 0 30px 80px rgba(0,0,0,.28) !important;
 }
+
+.nx-novacut__canvas-shell[data-ratio="16:9"] { aspect-ratio: 16 / 9; }
+.nx-novacut__canvas-shell[data-ratio="9:16"] { aspect-ratio: 9 / 16; }
+.nx-novacut__canvas-shell[data-ratio="1:1"] { aspect-ratio: 1 / 1; }
+.nx-novacut__canvas-shell[data-ratio="4:5"] { aspect-ratio: 4 / 5; }
+.nx-novacut__canvas-shell[data-ratio="4:3"] { aspect-ratio: 4 / 3; }
 
 .nx-novacut__canvas {
   position: absolute !important;
@@ -727,7 +734,7 @@
   }
 
   .nx-novacut__canvas-shell {
-    margin: 8px !important;
+    margin: 0 !important;
     border-radius: 16px !important;
   }
 

@@ -22,6 +22,14 @@ export const RATIO_PRESETS = Object.freeze({
 });
 
 const clamp = (value, min, max) => Math.min(Math.max(Number(value) || 0, min), max);
+function closestRatioPreset(width, height) {
+  const aspect = Number(width) / Number(height);
+  if (!Number.isFinite(aspect) || aspect <= 0) return null;
+  return Object.entries(RATIO_PRESETS).reduce((best, [name, size]) => {
+    const error = Math.abs(Math.log(aspect / (size.width / size.height)));
+    return !best || error < best.error ? { name, error } : best;
+  }, null)?.name || null;
+}
 export const isAndroidWebViewUserAgent = (value) => {
   const userAgent = String(value || "");
   return /Android/i.test(userAgent) && /\bwv\b/i.test(userAgent);
@@ -288,7 +296,7 @@ export class NovaCutCanvasPreview {
     if (this.nativeFallbackActive) return;
     this.nativeFallbackActive = true;
     this.mountNativePreview(media, clip);
-    this.engine.setStatus("Native video preview fallback");
+    this.engine.setStatus("Preview adjusted");
     this.engine.events.emit("preview:fallback", {
       clip,
       reason: String(reason || "Canvas did not show video pixels.")
@@ -969,19 +977,44 @@ class NovaCutCommandCompiler {
     });
 
     let currentAudio = null;
-    if (audios.length) {
-      const labels = [];
-      audios.forEach(({ segment, input }, index) => {
-        const label = "asrc" + index;
-        const delay = Math.max(0, Math.round(Number(segment.startTime) || 0));
-        filters.push(
-          "[" + input.index + ":a:0]atrim=duration=" + msToSec(segment.duration).toFixed(3) +
-          ",asetpts=PTS-STARTPTS,volume=" + clamp(segment.volume ?? 1, 0, 4).toFixed(3) +
-          ",adelay=" + delay + "|" + delay + "[" + label + "]"
-        );
-        labels.push("[" + label + "]");
-      });
-      filters.push(labels.join("") + "amix=inputs=" + labels.length + ":duration=longest:dropout_transition=0:normalize=0,aresample=async=1:first_pts=0[aout]");
+    const audioLabels = [];
+
+    // Include source audio only when the parser positively identified an
+    // audio stream, avoiding references to a missing [input:a:0] stream.
+    videos.forEach(({ clip, input }, index) => {
+      if (clip.metadata?.hasAudio !== true) return;
+      const label = "vsrcaudio" + index;
+      const sourceStart = msToSec(clip.sourceStartTime);
+      const clipDuration = msToSec(clip.duration);
+      const delay = Math.max(0, Math.round(Number(clip.startTime) || 0));
+      filters.push(
+        "[" + input.index + ":a:0]atrim=start=" + sourceStart.toFixed(3) +
+        ":duration=" + clipDuration.toFixed(3) +
+        ",asetpts=PTS-STARTPTS,volume=" + clamp(clip.volume ?? 1, 0, 4).toFixed(3) +
+        ",adelay=" + delay + "|" + delay + "[" + label + "]"
+      );
+      audioLabels.push(label);
+    });
+
+    audios.forEach(({ segment, input }, index) => {
+      const label = "asrc" + index;
+      const delay = Math.max(0, Math.round(Number(segment.startTime) || 0));
+      filters.push(
+        "[" + input.index + ":a:0]atrim=duration=" + msToSec(segment.duration).toFixed(3) +
+        ",asetpts=PTS-STARTPTS,volume=" + clamp(segment.volume ?? 1, 0, 4).toFixed(3) +
+        ",adelay=" + delay + "|" + delay + "[" + label + "]"
+      );
+      audioLabels.push(label);
+    });
+
+    if (audioLabels.length === 1) {
+      currentAudio = audioLabels[0];
+    } else if (audioLabels.length > 1) {
+      filters.push(
+        audioLabels.map((label) => "[" + label + "]").join("") +
+        "amix=inputs=" + audioLabels.length +
+        ":duration=longest:dropout_transition=0:normalize=0,aresample=async=1:first_pts=0[aout]"
+      );
       currentAudio = "aout";
     }
 
@@ -1052,12 +1085,16 @@ class NovaCutCommandCompiler {
       const h = clamp(Number(overlay.height || 0.2) * Number(overlay.scale || 1), 0.02, 1);
       const x = clamp(Number(overlay.x || 0.5) - w / 2, 0, Math.max(0, 1 - w));
       const y = clamp(Number(overlay.y || 0.5) - h / 2, 0, Math.max(0, 1 - h));
-      filters.push("[" + input.index + ":v:0]format=rgba[" + src + "]");
+      const targetWidth = Math.max(2, Math.floor(width * w) & ~1);
+      const targetHeight = Math.max(2, Math.floor(height * h) & ~1);
+      filters.push(
+        "[" + input.index + ":v:0]format=rgba,scale=" + targetWidth + ":" + targetHeight +
+        ":force_original_aspect_ratio=decrease,pad=" + targetWidth + ":" + targetHeight +
+        ":(ow-iw)/2:(oh-ih)/2:color=black@0[" + src + "]"
+      );
       filters.push(
         "[" + currentVideo + "][" + src + "]overlay=x=main_w*" + x.toFixed(5) +
         ":y=main_h*" + y.toFixed(5) +
-        ":w=main_w*" + w.toFixed(5) +
-        ":h=main_h*" + h.toFixed(5) +
         ":enable='between(t," + start.toFixed(3) + "," + end.toFixed(3) + ")':eof_action=pass:shortest=0:repeatlast=0[" + out + "]"
       );
       currentVideo = out;
@@ -1090,6 +1127,7 @@ export class NovaCutEngine {
     this.events = new NovaCutEventBus();
     this.history = new NovaCutHistory(this, { limit: 100 });
     this.aspectRatio = RATIO_PRESETS[options.aspectRatio] ? options.aspectRatio : "16:9";
+    this.aspectRatioExplicit = Boolean(RATIO_PRESETS[options.aspectRatio]);
     this.currentTimestamp = 0;
     this.activeTrackId = null;
     this.isPlaying = false;
@@ -1319,11 +1357,27 @@ export class NovaCutEngine {
     return result;
   }
 
+  applyInitialAspectRatio(clip, metadata = clip?.metadata) {
+    if (this.aspectRatioExplicit || this.registry.videoTracks.length !== 1) return null;
+    const inferredRatio = closestRatioPreset(metadata?.width, metadata?.height);
+    if (!inferredRatio || inferredRatio === this.aspectRatio) return inferredRatio;
+    this.aspectRatio = inferredRatio;
+    this.events.emit("ratio", {
+      ratio: inferredRatio,
+      size: RATIO_PRESETS[inferredRatio],
+      automatic: true,
+      clipId: clip?.id || null
+    });
+    this.refresh();
+    return inferredRatio;
+  }
+
   cycleRatio() {
     const ratios = Object.keys(RATIO_PRESETS);
     const currentIndex = Math.max(0, ratios.indexOf(this.aspectRatio));
     const nextRatio = ratios[(currentIndex + 1) % ratios.length];
     this.aspectRatio = nextRatio;
+    this.aspectRatioExplicit = true;
     this.events.emit("ratio", {
       ratio: nextRatio,
       size: RATIO_PRESETS[nextRatio]
@@ -1364,7 +1418,7 @@ export class NovaCutEngine {
       return;
     }
     this.isPlaying = true;
-    this.setStatus(this.preview?.nativeFallbackActive ? "Playing · native video layer" : "Playing");
+    this.setStatus("Playing");
     let last = performance.now();
     const tick = (now) => {
       if (!this.isPlaying) return;
@@ -1413,7 +1467,7 @@ export class NovaCutEngine {
     cancelAnimationFrame(this.playbackFrame);
     this.playbackFrame = 0;
     this.preview?.pauseAll();
-    this.setStatus(this.preview?.nativeFallbackActive ? "Paused · native video layer" : "Paused");
+    this.setStatus("Paused");
   }
 
   getActiveVideoClips() {
@@ -1475,12 +1529,50 @@ export class NovaCutEngine {
     this.root.appendChild(input);
     input.addEventListener("change", () => {
       const file = input.files?.[0];
-      if (file) {
-        const segment = this.addAudioSegment({ file, startTime: this.currentTimestamp, duration: 5000, volume: 1 });
-        this.events.emit("audio", { segment });
+      if (!file) {
+        input.remove();
+        return;
       }
-      input.remove();
+
+      const probe = document.createElement("audio");
+      const url = URL.createObjectURL(file);
+      let timer = 0;
+      let settled = false;
+      const cleanup = () => {
+        if (timer) window.clearTimeout(timer);
+        probe.removeEventListener("loadedmetadata", onMetadata);
+        probe.removeEventListener("error", onError);
+        try { probe.pause(); probe.removeAttribute("src"); probe.load(); } catch (_) {}
+        try { URL.revokeObjectURL(url); } catch (_) {}
+        input.remove();
+      };
+      const finish = (error = null) => {
+        if (settled) return;
+        settled = true;
+        const durationSeconds = Number(probe.duration);
+        cleanup();
+        if (error || !Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+          this.reportError("audio-import", error || new Error("NovaCut could not read the selected audio duration."));
+          return;
+        }
+        const segment = this.addAudioSegment({
+          file,
+          startTime: this.currentTimestamp,
+          duration: Math.round(durationSeconds * 1000),
+          volume: 1
+        });
+        this.events.emit("audio", { segment });
+      };
+      const onMetadata = () => finish();
+      const onError = () => finish(new Error("NovaCut could not decode the selected audio file."));
+      probe.preload = "metadata";
+      probe.addEventListener("loadedmetadata", onMetadata, { once: true });
+      probe.addEventListener("error", onError, { once: true });
+      timer = window.setTimeout(() => finish(new Error("NovaCut audio duration probe timed out.")), 15000);
+      probe.src = url;
+      try { probe.load(); } catch (error) { finish(error); }
     }, { once: true });
+    input.addEventListener("cancel", () => input.remove(), { once: true });
     input.click();
   }
 

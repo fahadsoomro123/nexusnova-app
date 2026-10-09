@@ -179,8 +179,8 @@ jobs:
           import re
           p=Path('app/build.gradle.kts')
           s=p.read_text(encoding='utf-8')
-          s,n1=re.subn(r'versionCode\s*=\s*\d+','versionCode = 27010033',s,count=1)
-          s,n2=re.subn(r'versionName\s*=\s*"[^"]+"','versionName = "1.0.46-ota-35"',s,count=1)
+          s,n1=re.subn(r'versionCode\s*=\s*\d+','versionCode = 27010034',s,count=1)
+          s,n2=re.subn(r'versionName\s*=\s*"[^"]+"','versionName = "1.0.47-ota-36"',s,count=1)
           if n1 != 1 or n2 != 1:
               raise SystemExit('Version injection failed')
           signing='''    signingConfigs {\n        create("release") {\n            storeFile = file("nexusnova-release.jks")\n            storePassword = System.getenv("KEYSTORE_PASSWORD")\n            keyAlias = System.getenv("KEY_ALIAS")\n            keyPassword = System.getenv("KEY_PASSWORD")\n        }\n    }\n\n'''
@@ -246,8 +246,8 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p signed-output
-          cp app/build/outputs/apk/release/app-release.apk signed-output/NexusNova-v1.0.46-ota-35-SIGNED.apk
-          sha256sum signed-output/NexusNova-v1.0.46-ota-35-SIGNED.apk > signed-output/NexusNova-v1.0.46-ota-35-SIGNED.apk.sha256
+          cp app/build/outputs/apk/release/app-release.apk signed-output/NexusNova-v1.0.47-ota-36-SIGNED.apk
+          sha256sum signed-output/NexusNova-v1.0.47-ota-36-SIGNED.apk > signed-output/NexusNova-v1.0.47-ota-36-SIGNED.apk.sha256
           printf '%s\n' "$PUBLIC_SHA" > signed-output/PUBLIC-SOURCE-SHA.txt
 
       - name: Upload verified APK artifact

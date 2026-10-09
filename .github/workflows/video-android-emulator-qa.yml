@@ -68,6 +68,7 @@ jobs:
           node qa/novacut-100-qa.mjs
           echo "NOVA CUT 100/100 QA GATE PASS"
           echo "NOVA CUT PLAYBACK BEHAVIOUR 7/7 PASS"
+          echo "NOVA CUT EXPORT BEHAVIOUR 4/4 PASS"
           echo "NOVA CUT JS SYNTAX 7/7 PASS"
 
       - name: Set up Java 17

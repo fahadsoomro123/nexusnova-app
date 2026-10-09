@@ -135,12 +135,48 @@ function renderNovaCut() {
   const textLane = root.querySelector("[data-role='text-lane']");
   const overlayLane = root.querySelector("[data-role='overlay-lane']");
   const effectLane = root.querySelector("[data-role='effect-lane']");
+  const canvasArea = root.querySelector(".nx-novacut__canvas-area");
+  const canvasShell = root.querySelector(".nx-novacut__canvas-shell");
+  const transport = root.querySelector(".nx-novacut__transport");
   const canvasEmpty = root.querySelector("[data-role='canvas-empty']");
   const status = root.querySelector("[data-role='status']");
   const playButton = root.querySelector("[data-action='play']");
   const playIcon = root.querySelector("[data-role='play-icon']");
+  const PREVIEW_ASPECTS = Object.freeze({
+    "16:9": 16 / 9,
+    "9:16": 9 / 16,
+    "1:1": 1,
+    "4:5": 4 / 5,
+    "4:3": 4 / 3
+  });
+  let previewRatio = "16:9";
+  const syncPreviewFrame = () => {
+    if (!canvasArea || !canvasShell) return;
+    const bounds = canvasArea.getBoundingClientRect();
+    const style = globalThis.getComputedStyle?.(canvasArea);
+    const rowGap = Math.max(0, Number.parseFloat(style?.rowGap || "0") || 0);
+    const transportHeight = transport?.getBoundingClientRect().height || 46;
+    const maxWidth = Math.max(0, bounds.width - 24);
+    const maxHeight = Math.max(0, bounds.height - transportHeight - rowGap - 12);
+    if (maxWidth < 2 || maxHeight < 2) return;
+    const aspect = PREVIEW_ASPECTS[previewRatio] || PREVIEW_ASPECTS["16:9"];
+    const width = Math.floor(Math.min(maxWidth, maxHeight * aspect));
+    const height = Math.floor(width / aspect);
+    canvasShell.dataset.ratio = previewRatio;
+    canvasShell.style.setProperty("width", width + "px", "important");
+    canvasShell.style.setProperty("height", height + "px", "important");
+  };
 
   const engine = createNovaCutEngine({ root });
+  previewRatio = engine.aspectRatio;
+  if (canvasShell) canvasShell.dataset.ratio = previewRatio;
+  let previewFrameObserver = null;
+  if (canvasArea && typeof ResizeObserver !== "undefined") {
+    previewFrameObserver = new ResizeObserver(syncPreviewFrame);
+    previewFrameObserver.observe(canvasArea);
+    root.__novaCutPreviewFrameObserver = previewFrameObserver;
+  }
+  syncPreviewFrame();
 
   const renderTimeline = (state = {}) => {
     if (!videoLane || !audioLane || !textLane || !overlayLane || !effectLane) return;
@@ -202,8 +238,10 @@ function renderNovaCut() {
     if (canvasEmpty) canvasEmpty.hidden = Boolean(state.videoTracks?.length);
   });
 
-  engine.on('ratio', ({ ratio }) => {
-    if (status) status.textContent = ratio;
+  engine.on('ratio', ({ ratio, automatic }) => {
+    previewRatio = ratio;
+    syncPreviewFrame();
+    if (status) status.textContent = automatic ? 'Preview fitted' : ratio;
   });
 
   engine.on('export:progress', ({ progress }) => {
