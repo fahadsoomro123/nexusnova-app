@@ -184,7 +184,7 @@ jobs:
           working-directory: NexusNovaAndroid
           script: |
             set +e
-            RESULTS="$GITHUB_WORKSPACE/qa/android-emulator-results"
+            RESULTS="../qa/android-emulator-results"
             mkdir -p "$RESULTS"
 
             adb install -r app/build/outputs/apk/debug/app-debug.apk
@@ -197,7 +197,7 @@ jobs:
               exit 1
             fi
 
-            test -s "$GITHUB_WORKSPACE/qa/fixtures/video-studio-video-qa.webm"
+            test -s "../qa/fixtures/video-studio-video-qa.webm"
             timeout --signal=TERM --kill-after=10s 150s adb shell am instrument -w -r -e class com.nexusnova.app.NovaCutAndroidShellSmokeTest#androidShellLaunchesAndNativeVideoPickerOpens com.nexusnova.app.test/androidx.test.runner.AndroidJUnitRunner 2>&1 | tee "$RESULTS/instrumentation.txt"
             instrumentation_status=${PIPESTATUS[0]}
             if grep -Eq 'FAILURES!!!|INSTRUMENTATION_STATUS_CODE: -2|Tests run: [0-9]+, Failures: [1-9]' "$RESULTS/instrumentation.txt"; then
