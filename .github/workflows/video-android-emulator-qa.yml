@@ -6,6 +6,11 @@ on:
     paths:
       - "fresh-rebuild/src/features/apps/ai-video-studio-flagship.js"
       - "fresh-rebuild/src/features/apps/novacut-engine.js"
+      - "fresh-rebuild/src/features/apps/novacut-media.js"
+      - "fresh-rebuild/src/features/apps/novacut-studio.js"
+      - "fresh-rebuild/src/features/apps/novacut-studio.css"
+      - "fresh-rebuild/src/features/apps/premium-studio-suite.js"
+      - "qa/novacut-100-qa.mjs"
       - "NexusNovaAndroid/app/**"
       - ".github/workflows/video-android-emulator-qa.yml"
       - "NexusNovaAndroid/gradle/**"
