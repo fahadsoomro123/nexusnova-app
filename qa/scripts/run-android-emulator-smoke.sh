@@ -54,7 +54,6 @@ wait_for_device() {
   return 1
 }
 
-
 pull_remote_file() {
   local remote="$1" output="$2" attempt status
   for attempt in 1 2 3; do
@@ -76,23 +75,32 @@ pull_remote_file() {
 
 capture_screenshot() {
   local output="$1"
+  local remote="/sdcard/nova-$(basename "$output")"
   local attempt status
   for attempt in 1 2 3; do
     if ! wait_for_device; then
       echo "Device offline before screenshot attempt $attempt" >> "$RESULTS/screenshot-retries.txt"
       continue
     fi
-    adb exec-out screencap -p > "$output" 2> "$output.adb.txt"
+    adb shell screencap -p "$remote" > "$output.shell.txt" 2>&1
     status=$?
-    if [ "$status" -eq 0 ] && [ -s "$output" ] && python3 - "$output" <<'PY'
+    if [ "$status" -ne 0 ]; then
+      echo "Remote screencap attempt $attempt failed (status=$status)" >> "$RESULTS/screenshot-retries.txt"
+      sleep 1
+      continue
+    fi
+    if pull_remote_file "$remote" "$output"; then
+      if python3 - "$output" <<'PY'
 import sys
 from pathlib import Path
 raise SystemExit(0 if Path(sys.argv[1]).read_bytes().startswith(bytes.fromhex("89504e470d0a1a0a")) else 1)
 PY
-    then
-      return 0
+      then
+        adb shell rm -f "$remote" >/dev/null 2>&1 || true
+        return 0
+      fi
     fi
-    echo "Screenshot attempt $attempt failed (status=$status)" >> "$RESULTS/screenshot-retries.txt"
+    echo "Screenshot validation attempt $attempt failed" >> "$RESULTS/screenshot-retries.txt"
     sleep 1
   done
   return 1
