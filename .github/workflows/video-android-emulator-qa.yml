@@ -197,6 +197,7 @@ jobs:
           fi
 
       - name: Run real Android emulator QA
+        timeout-minutes: 5
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
