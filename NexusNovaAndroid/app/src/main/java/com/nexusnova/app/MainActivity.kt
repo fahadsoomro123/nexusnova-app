@@ -108,9 +108,15 @@ class MainActivity : AppCompatActivity() {
         val selected = try {
             val acceptedUris = ArrayList<Uri>(MAX_PICKED_FILES)
             var totalBytes = 0L
-            WebChromeClient.FileChooserParams
+            val parsedUris = WebChromeClient.FileChooserParams
                 .parseResult(result.resultCode, result.data)
-                ?.forEach { uri ->
+            android.util.Log.i(
+                "NexusNovaFilePicker",
+                "Picker result code=${result.resultCode} dataUri=${result.data?.data} " +
+                    "clipCount=${result.data?.clipData?.itemCount ?: 0} parsedCount=${parsedUris?.size ?: 0} " +
+                    "accept=$acceptedTypes"
+            )
+            parsedUris?.forEach { uri ->
                     if (acceptedUris.size >= MAX_PICKED_FILES) return@forEach
                     grantPickedUriReadAccess(uri, result.data?.flags ?: 0)
 
@@ -154,6 +160,19 @@ class MainActivity : AppCompatActivity() {
             null
         }
 
+        if (result.resultCode == android.app.Activity.RESULT_OK && selected.isNullOrEmpty()) {
+            android.util.Log.e(
+                "NexusNovaFilePicker",
+                "Picker returned RESULT_OK but no media URI survived validation."
+            )
+            runOnUiThread {
+                android.widget.Toast.makeText(
+                    this,
+                    "NovaCut could not read that file. Try a video under 256 MB.",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+            }
+        }
         callback.onReceiveValue(selected)
     }
 
@@ -1647,8 +1666,8 @@ class MainActivity : AppCompatActivity() {
         const val MAX_VPN_AUTH_TOKEN_CHARS = 7_000
         const val MAX_EXTERNAL_URL_CHARS = 2_000
         const val MAX_PICKED_FILES = 5
-        const val MAX_PICKED_FILE_BYTES = 20L * 1024L * 1024L
-        const val MAX_PICKED_TOTAL_BYTES = 20L * 1024L * 1024L
+        const val MAX_PICKED_FILE_BYTES = 256L * 1024L * 1024L
+        const val MAX_PICKED_TOTAL_BYTES = 512L * 1024L * 1024L
 
         const val MAIN_FRAME_LOAD_TIMEOUT_MS = 12_000L
         const val BLANK_SCREEN_GRACE_MS = 3_500L
