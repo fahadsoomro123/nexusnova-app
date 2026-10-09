@@ -53,7 +53,7 @@ check("render avoids per-frame decoder seeking", () => assert(has(engine, "media
 check("undo API present", () => assert(has(engine, "undo()"), "undo API missing"));
 check("redo API present", () => assert(has(engine, "redo()"), "redo API missing"));
 check("cycleRatio restored", () => assert(/\n  cycleRatio\(\) \{/.test(engine), "cycleRatio missing"));
-check("ratio action updates mobile preview geometry and duration ruler", () => assert(has(engine, 'bind("ratio", () => this.cycleRatio());') && has(suite, "syncPreviewFrame") && has(suite, "canvasShell.dataset.ratio") && has(suite, "renderTimelineRuler") && has(suite, "--nc-content-width") && has(studioCss, '[data-ratio="9:16"]') && has(studioCss, "var(--nc-ruler-px-per-second, 36px)") && has(engine, "applyInitialAspectRatio"), "ratio control, ruler scale or portrait detection missing"));
+check("ratio action updates mobile preview geometry and duration ruler", () => assert(has(engine, 'bind("ratio", () => this.cycleRatio());') && has(suite, "syncPreviewFrame") && has(suite, "canvasShell.dataset.ratio") && has(suite, "renderTimelineRuler") && has(suite, "--nc-content-width") && has(suite, "NOVACUT_PIXELS_PER_SECOND") && has(studio, "export const NOVACUT_PIXELS_PER_SECOND = 36") && has(studioCss, '[data-ratio="9:16"]') && has(studioCss, "var(--nc-ruler-px-per-second, 36px)") && has(engine, "applyInitialAspectRatio"), "ratio control, ruler scale or portrait detection missing"));
 
 // 26-40: media ingestion
 check("media parser class present", () => assert(has(media, "export class NovaCutMediaParser"), "parser class missing"));
