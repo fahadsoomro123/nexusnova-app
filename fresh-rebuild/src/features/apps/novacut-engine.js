@@ -432,26 +432,27 @@ export class NovaCutCanvasPreview {
     ].join(" ");
     const filter = clipCssFilter(clip);
     const opacity = clipOpacityAt(clip, Number(this.engine?.currentTimestamp) || 0);
-    const signature = [
+    if (!media.dataset) {
+      try { media.dataset = {}; } catch (_) {}
+    }
+    const readSignature = (key) => media.dataset?.[key] ?? media["__" + key];
+    const writeSignature = (key, value) => {
+      if (media.dataset) media.dataset[key] = value;
+      else media["__" + key] = value;
+    };
+    const layoutSignature = [
       clip?.id || "",
       fitMode,
-      transform,
-      filter,
-      opacity.toFixed(3),
       canvasWidth,
       canvasHeight,
       clientWidth,
       clientHeight
     ].join("|");
 
-    // Rewriting video layout styles on every preview tick invalidates WebView
-    // layout while the hardware decoder is trying to present frames. Only update
-    // the native layer when its clip or framing actually changes.
-    if (!media.dataset) {
-      try { media.dataset = {}; } catch (_) {}
-    }
-    const previousSignature = media.dataset?.novacutPreviewSignature ?? media.__novacutPreviewSignature;
-    if (previousSignature !== signature) {
+    // Split layout state from animated properties. Keyframes may change the
+    // transform on each decoded frame; those changes must not rewrite width,
+    // height, position, or object-fit and trigger a synchronous WebView layout.
+    if (readSignature("novacutPreviewLayoutSignature") !== layoutSignature) {
       Object.assign(media.style, {
         position: "absolute",
         inset: "0",
@@ -464,13 +465,20 @@ export class NovaCutCanvasPreview {
         pointerEvents: "none",
         background: "#050507",
         display: "block",
-        transformOrigin: "center center",
-        transform,
-        filter,
-        opacity: String(opacity)
+        transformOrigin: "center center"
       });
-      if (media.dataset) media.dataset.novacutPreviewSignature = signature;
-      else media.__novacutPreviewSignature = signature;
+      writeSignature("novacutPreviewLayoutSignature", layoutSignature);
+    }
+
+    const animatedStyles = [
+      ["transform", "novacutPreviewTransformSignature", transform],
+      ["filter", "novacutPreviewFilterSignature", filter],
+      ["opacity", "novacutPreviewOpacitySignature", String(opacity)]
+    ];
+    for (const [property, signatureKey, value] of animatedStyles) {
+      if (readSignature(signatureKey) === value) continue;
+      media.style[property] = value;
+      writeSignature(signatureKey, value);
     }
     if (media.parentElement !== shell) shell.insertBefore(media, this.canvas);
     this.canvas.classList.add("nx-novacut__canvas--native-preview");
@@ -2028,10 +2036,15 @@ export class NovaCutEngine {
     this.isPlaying = true;
     this.setStatus("Playing");
     let last = performance.now();
+    let lastPreloadAt = 0;
     const tick = (now) => {
       if (!this.isPlaying) return;
       const delta = Math.max(0, now - last);
       last = now;
+      if (now - lastPreloadAt >= 250) {
+        lastPreloadAt = now;
+        this.preloadUpcomingMedia(this.currentTimestamp, 1800);
+      }
       const duration = this.registry.durationMs();
       const active = this.getActiveVideoClips()
         .slice()
@@ -2081,6 +2094,40 @@ export class NovaCutEngine {
   getActiveVideoClips() {
     const t = this.currentTimestamp;
     return this.registry.videoTracks.filter((clip) => t >= clip.startTime && t < clip.startTime + clip.duration);
+  }
+
+  preloadUpcomingMedia(timestamp = this.currentTimestamp, preloadWindowMs = 1800) {
+    if (!this.preview || !this.isPlaying) return;
+    const horizon = Number(timestamp) + Math.max(250, Number(preloadWindowMs) || 1800);
+    const nextVideo = this.registry.videoTracks
+      .filter((clip) => clip.file && Number(clip.startTime) > Number(timestamp) + 20 &&
+        Number(clip.startTime) <= horizon)
+      .sort((a, b) => Number(a.startTime) - Number(b.startTime))[0];
+    if (nextVideo && !this.preview.media.has(nextVideo.id) && !this.preview.pending.has(nextVideo.id)) {
+      // Begin decoding the next clip before its timeline boundary. Resolution is
+      // deduplicated by the preview cache and deliberately does not block RAF.
+      void this.preview.resolve(nextVideo).then((media) => {
+        if (!(media instanceof HTMLVideoElement)) return;
+        const sourceStart = msToSec(nextVideo.sourceStartTime);
+        try {
+          if (Math.abs(media.currentTime - sourceStart) > 0.03) media.currentTime = sourceStart;
+        } catch (_) {}
+      }).catch((error) => this.reportError("preload-video", error));
+    }
+
+    const nextAudio = this.registry.audioTracks
+      .filter((segment) => segment.file && Number(segment.startTime) > Number(timestamp) + 20 &&
+        Number(segment.startTime) <= horizon)
+      .sort((a, b) => Number(a.startTime) - Number(b.startTime))[0];
+    if (nextAudio && !this.preview.audioMedia.has(nextAudio.id) && !this.preview.audioPending.has(nextAudio.id)) {
+      void this.preview.resolveAudio(nextAudio).then((audio) => {
+        if (!audio) return;
+        const sourceStart = msToSec(nextAudio.sourceStartTime || 0);
+        try {
+          if (Math.abs(audio.currentTime - sourceStart) > 0.03) audio.currentTime = sourceStart;
+        } catch (_) {}
+      }).catch((error) => this.reportError("preload-audio", error));
+    }
   }
 
   async prepareClip(clip) {
