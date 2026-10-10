@@ -359,10 +359,14 @@ export class NovaCutStudioInteractions {
     if (!point || !shell || this.timeline?.contains(target)) return false;
     if (String(event.type || "").startsWith("pointer") && event.button !== 0) return false;
 
-    const bounds = shell.getBoundingClientRect();
-    const normalized = novaCutCanvasPointFromClient(point.clientX, point.clientY, bounds);
     const canvas = shell.querySelector("[data-role='preview-canvas']");
-    if (!normalized || !canvas) return false;
+    if (!canvas) return false;
+    const bounds = canvas.getBoundingClientRect();
+    const insideCanvas = point.clientX >= bounds.left && point.clientX <= bounds.right &&
+      point.clientY >= bounds.top && point.clientY <= bounds.bottom;
+    if (!insideCanvas) return false;
+    const normalized = novaCutCanvasPointFromClient(point.clientX, point.clientY, bounds);
+    if (!normalized) return false;
     const canvasWidth = Math.max(1, finite(canvas.width, bounds.width));
     const canvasHeight = Math.max(1, finite(canvas.height, bounds.height));
     const now = finite(this.engine.currentTimestamp);
@@ -417,6 +421,7 @@ export class NovaCutStudioInteractions {
       item: selected,
       type,
       shell,
+      canvas,
       pointerId: Number.isFinite(event.pointerId) ? event.pointerId : null,
       originalX,
       originalY
@@ -432,8 +437,12 @@ export class NovaCutStudioInteractions {
     if (state.pointerId !== null && Number.isFinite(event.pointerId) && event.pointerId !== state.pointerId) return true;
     const point = getTouch(event);
     if (!point) return true;
-    const bounds = state.shell.getBoundingClientRect();
-    this.pendingOverlayPoint = novaCutCanvasPointFromClient(point.clientX, point.clientY, bounds);
+    const bounds = state.canvas.getBoundingClientRect();
+    const insideCanvas = point.clientX >= bounds.left && point.clientX <= bounds.right &&
+      point.clientY >= bounds.top && point.clientY <= bounds.bottom;
+    this.pendingOverlayPoint = insideCanvas
+      ? novaCutCanvasPointFromClient(point.clientX, point.clientY, bounds)
+      : null;
     event.preventDefault?.();
     if (!this.pendingOverlayFrame) {
       this.pendingOverlayFrame = requestAnimationFrame(() => {
