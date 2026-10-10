@@ -177,7 +177,17 @@ function renderNovaCut() {
       '<div class="nx-novacut__transport"><span data-role="current-time">00:00:00</span><button type="button" class="nx-novacut__play" data-action="play" aria-label="Play"><span data-role="play-icon">' + SVG.play + '</span></button><span data-role="duration">00:00:00</span></div>' +
     '</section>' +
     '<section class="nx-novacut__timeline-shell">' +
-      '<div class="nx-novacut__timeline-head"><div><span class="nx-novacut__eyebrow">TIMELINE</span><strong>Project sequence</strong></div><button type="button" class="nx-novacut__add-button" data-action="media"><span>' + SVG.media + '</span>Add media</button></div>' +
+      '<div class="nx-novacut__timeline-head"><div><span class="nx-novacut__eyebrow">TIMELINE</span><strong>Project sequence</strong></div>' +
+        '<div class="nx-novacut__timeline-head-actions">' +
+          '<div class="nx-novacut__timeline-controls" role="group" aria-label="Timeline zoom">' +
+            '<button type="button" data-timeline-action="zoom-out" aria-label="Zoom timeline out" title="Zoom out">−</button>' +
+            '<span data-role="timeline-zoom-value" aria-live="polite">100%</span>' +
+            '<button type="button" data-timeline-action="zoom-in" aria-label="Zoom timeline in" title="Zoom in">+</button>' +
+            '<button type="button" data-timeline-action="zoom-fit" aria-label="Fit timeline to screen" title="Fit timeline">Fit</button>' +
+            '<button type="button" data-timeline-action="snap" aria-pressed="true" title="Toggle clip snapping">Snap</button>' +
+          '</div>' +
+          '<button type="button" class="nx-novacut__add-button" data-action="media"><span>' + SVG.media + '</span>Add media</button>' +
+        '</div></div>' +
       '<div class="nx-novacut__timeline" aria-label="Multi-track timeline">' +
         '<div class="nx-novacut__ruler"><div class="nx-novacut__ruler-pad"></div><div class="nx-novacut__ticks" data-role="timeline-ticks" aria-hidden="true"></div></div>' +
         '<div class="nx-novacut__track nx-novacut__track--video"><div class="nx-novacut__track-label"><span class="nx-novacut__track-index">01</span><span class="nx-novacut__track-name">Video</span></div><div class="nx-novacut__lane" data-role="video-lane"><button type="button" class="nx-novacut__lane-add" data-action="media">' + SVG.media + '<span>Add media</span></button></div></div>' +
@@ -248,29 +258,78 @@ function renderNovaCut() {
   }
   syncPreviewFrame();
 
-  const RULER_PX_PER_SECOND = NOVACUT_PIXELS_PER_SECOND;
+  let timelinePixelsPerSecond = NOVACUT_PIXELS_PER_SECOND;
+  let timelineSnapEnabled = true;
+
+  const layoutTimelineClips = () => {
+    const tracks = [
+      [videoLane, engine.registry.videoTracks],
+      [audioLane, engine.registry.audioTracks],
+      [textLane, engine.registry.textTracks],
+      [overlayLane, engine.registry.overlayTracks],
+      [effectLane, engine.registry.effectTracks]
+    ];
+    for (const [lane, items] of tracks) {
+      if (!lane) continue;
+      const byId = new Map(items.map((item) => [String(item.id), item]));
+      lane.querySelectorAll("[data-clip-id]").forEach((element) => {
+        const item = byId.get(String(element.dataset.clipId || ""));
+        if (!item) return;
+        const left = Math.max(0, Number(item.startTime) || 0) * timelinePixelsPerSecond / 1000;
+        const duration = Math.max(0, Number(item.duration) || 0);
+        const width = Math.max(54, duration * timelinePixelsPerSecond / 1000);
+        element.style.setProperty("position", "absolute", "important");
+        element.style.setProperty("left", left + "px", "important");
+        element.style.setProperty("top", "2px", "important");
+        element.style.setProperty("width", width + "px", "important");
+        element.style.setProperty("min-width", width + "px", "important");
+        element.style.setProperty("max-width", width + "px", "important");
+        element.style.setProperty("height", "46px", "important");
+        element.style.setProperty("overflow", "hidden", "important");
+      });
+    }
+  };
+
+  const updateTimelineZoomLabel = () => {
+    const label = root.querySelector("[data-role='timeline-zoom-value']");
+    if (label) label.textContent = Math.round(timelinePixelsPerSecond / NOVACUT_PIXELS_PER_SECOND * 100) + "%";
+    const snap = root.querySelector("[data-timeline-action='snap']");
+    if (snap) {
+      snap.setAttribute("aria-pressed", String(timelineSnapEnabled));
+      snap.classList.toggle("is-active", timelineSnapEnabled);
+    }
+  };
+
   const renderTimelineRuler = () => {
     if (!timeline || !rulerTicks) return;
     const durationMs = Math.max(0, Number(engine.registry.durationMs()) || 0);
     const durationSeconds = Math.max(8, Math.ceil(durationMs / 1000));
-    const tickEvery = durationSeconds <= 120 ? 1 : durationSeconds <= 600 ? 5 : 10;
+    const minimumTick = 48 / timelinePixelsPerSecond;
+    const tickSteps = [0.25, 0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600];
+    const tickEvery = tickSteps.find((step) => step >= minimumTick) || 600;
     const lastTick = Math.ceil(durationSeconds / tickEvery) * tickEvery;
-    const contentWidth = Math.max(640, lastTick * RULER_PX_PER_SECOND + 72);
+    const contentWidth = Math.max(640, lastTick * timelinePixelsPerSecond + 72);
     timeline.style.setProperty("--nc-content-width", contentWidth + "px");
-    timeline.style.setProperty("--nc-ruler-px-per-second", RULER_PX_PER_SECOND + "px");
+    timeline.style.setProperty("--nc-ruler-px-per-second", timelinePixelsPerSecond + "px");
 
     const ticks = [];
-    for (let seconds = 0; seconds <= lastTick; seconds += tickEvery) {
+    const tickCount = Math.ceil(lastTick / tickEvery);
+    for (let index = 0; index <= tickCount; index += 1) {
+      const seconds = Number((index * tickEvery).toFixed(3));
       const minutes = Math.floor(seconds / 60);
-      const remainder = String(seconds % 60).padStart(2, "0");
-      const label = minutes + ":" + remainder;
+      const remainder = Math.floor(seconds % 60);
+      const label = tickEvery < 1
+        ? (seconds === 0 ? "0" : seconds.toFixed(2).replace(/0+$/, "").replace(/\\.$/, "") + "s")
+        : minutes + ":" + String(remainder).padStart(2, "0");
       ticks.push(
         '<span data-time-seconds="' + seconds + '" style="--tick-x:' +
-        (seconds * RULER_PX_PER_SECOND) + 'px">' + label + '</span>'
+        (seconds * timelinePixelsPerSecond) + 'px">' + label + '</span>'
       );
     }
     rulerTicks.innerHTML = ticks.join("");
     rulerTicks.setAttribute("aria-label", "Timeline ruler, " + tickEvery + " second intervals");
+    updateTimelineZoomLabel();
+    layoutTimelineClips();
   };
 
   const renderTimeline = (state = {}) => {
@@ -312,12 +371,39 @@ function renderNovaCut() {
       ? effects.map((item) => renderTrackClip(item, 'effect')).join('')
       : '<button type="button" class="nx-novacut__lane-tool" data-action="effects">' + SVG.effects + '<span>Add effect</span></button>';
 
+    layoutTimelineClips();
     if (canvasEmpty) canvasEmpty.hidden = videos.length > 0;
     const selected = engine.activeTrackId;
     root.querySelectorAll("[data-clip-id]").forEach((element) => {
       element.classList.toggle('is-selected', element.dataset.clipId === String(selected || ''));
     });
   };
+
+  const applyTimelineZoom = (nextScale) => {
+    timelinePixelsPerSecond = Math.max(12, Math.min(144, Number(nextScale) || NOVACUT_PIXELS_PER_SECOND));
+    renderTimelineRuler();
+    layoutTimelineClips();
+    root.__novaCutInteractions?.scheduleSync?.();
+  };
+
+  root.addEventListener("click", (event) => {
+    const control = event.target?.closest?.("[data-timeline-action]");
+    if (!control) return;
+    const action = control.dataset.timelineAction;
+    if (action === "zoom-in") {
+      applyTimelineZoom(timelinePixelsPerSecond * 1.25);
+    } else if (action === "zoom-out") {
+      applyTimelineZoom(timelinePixelsPerSecond / 1.25);
+    } else if (action === "zoom-fit") {
+      const availableWidth = Math.max(160, timeline.clientWidth - 120);
+      const durationSeconds = Math.max(8, engine.registry.durationMs() / 1000);
+      applyTimelineZoom(availableWidth / durationSeconds);
+      timeline.scrollLeft = 0;
+    } else if (action === "snap") {
+      timelineSnapEnabled = !timelineSnapEnabled;
+      updateTimelineZoomLabel();
+    }
+  });
 
   engine.on('statechange', renderTimeline);
   engine.on('split', renderTimeline);
@@ -431,7 +517,10 @@ function renderNovaCut() {
 
   root.__novaCutEngine = engine;
   root.__novaCutMediaParser = mediaParser;
-  root.__novaCutInteractions = createNovaCutStudioInteractions(root, engine);
+  root.__novaCutInteractions = createNovaCutStudioInteractions(root, engine, {
+    getPixelsPerSecond: () => timelinePixelsPerSecond,
+    getSnapEnabled: () => timelineSnapEnabled
+  });
 
   renderTimeline(engine.getState());
 
