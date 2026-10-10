@@ -313,6 +313,8 @@ export class NovaCutCanvasPreview {
   enableNativePreviewFallback(media, clip, reason) {
     if (this.nativeFallbackActive) return;
     this.nativeFallbackActive = true;
+    if (this.previewQuality === "sharp") this.setPreviewQuality("balanced");
+    this.markDirty();
     this.mountNativePreview(media, clip);
     this.engine.setStatus("Preview adjusted");
     this.engine.events.emit("preview:fallback", {
@@ -657,7 +659,7 @@ export class NovaCutCanvasPreview {
     this.running = true;
     const loop = (now = 0) => {
       if (!this.running) return;
-      const nativePlayback = this.forceNativeVideoLayer && this.engine.isPlaying;
+      const nativePlayback = (this.forceNativeVideoLayer || this.nativeFallbackActive) && this.engine.isPlaying;
       const frameInterval = nativePlayback ? 1000 / 30 : 0;
       const intervalElapsed = !nativePlayback || now - this.lastRenderAt >= frameInterval;
       if (intervalElapsed && (this.needsRender || this.engine.isPlaying)) {
