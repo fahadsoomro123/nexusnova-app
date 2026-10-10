@@ -113,13 +113,16 @@ check("pointer interaction includes direct video framing without detaching timel
   assert(has(suite, "const updateTimelineSelection") && has(suite, "engine.on('selectionchange', updateTimelineSelection);"), "selection handler still fully rerenders timeline");
   assert(has(engine, "pointerdown") && has(engine, 'return { type: "videoTracks", item: activeVideos[0] }') && has(engine, "record.item.y_offset =") && has(engine, "this.preview?.markDirty();"), "video preview drag framing or live canvas refresh missing");
 });
-check("playhead stays smooth without per-frame clip layout or observer churn", () => {
+check("playhead stays aligned and smooth without per-frame clip layout or observer churn", () => {
   const syncStart = studio.indexOf("  syncTimeline()");
   const syncEnd = studio.indexOf("  syncPlayhead()", syncStart);
   const syncMethod = studio.slice(syncStart, syncEnd);
   const installStart = studio.indexOf("  installPlayhead()");
   const installEnd = studio.indexOf("  bind()", installStart);
   const installMethod = studio.slice(installStart, installEnd);
+  const playheadStart = studioCss.indexOf(".nx-novacut__interaction-playhead {");
+  const playheadEnd = studioCss.indexOf("}", playheadStart);
+  const playheadRule = studioCss.slice(playheadStart, playheadEnd);
   assert(
     has(studio, "this.timeline.scrollLeft") &&
     has(studio, "this.timeline.scrollWidth") &&
@@ -135,8 +138,11 @@ check("playhead stays smooth without per-frame clip layout or observer churn", (
     !syncMethod.includes("decorateVideoClips()") &&
     installStart >= 0 && installEnd > installStart &&
     !installMethod.includes("this.resizeObserver?.disconnect()") &&
-    installMethod.includes("!this.resizeObserver"),
-    "timeline geometry, scroll alignment, or playback-hot-path regression"
+    installMethod.includes("!this.resizeObserver") &&
+    playheadStart >= 0 && /position:\\s*absolute/.test(playheadRule) &&
+    has(studioCss, '.nx-novacut__interaction-playhead::before') &&
+    has(studioCss, 'content: "" !important'),
+    "timeline geometry, visible playhead positioning, or playback-hot-path regression"
   );
 });
 check("pointer up present", () => assert(has(engine, "pointerup"), "pointerup missing"));
