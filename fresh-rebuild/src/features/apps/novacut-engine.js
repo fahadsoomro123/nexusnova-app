@@ -107,6 +107,21 @@ export function sampleNovaCutAudioGain(segment, timestamp) {
   return clamp(gain, 0, 1);
 }
 
+function keyframeEasingAmount(easing, amount) {
+  const t = clamp(amount, 0, 1);
+  if (easing === "ease-in") return t * t;
+  if (easing === "ease-out") return 1 - (1 - t) * (1 - t);
+  if (easing === "ease-in-out") return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+  return t;
+}
+
+function ffmpegKeyframeEasingExpression(easing, amount) {
+  if (easing === "ease-in") return "pow(" + amount + ",2)";
+  if (easing === "ease-out") return "1-pow(1-(" + amount + "),2)";
+  if (easing === "ease-in-out") return "if(lt(" + amount + ",0.5),2*pow(" + amount + ",2),1-pow(-2*(" + amount + ")+2,2)/2)";
+  return amount;
+}
+
 function normalizeVideoKeyframes(frames, durationMs, clip = {}) {
   const duration = Math.max(1, Number(durationMs) || Number(clip.duration) || 1);
   const baseScale = Math.max(0.05, Number(clip.transform?.scale ?? clip.scale) || 1);
@@ -122,7 +137,8 @@ function normalizeVideoKeyframes(frames, durationMs, clip = {}) {
       scale: clamp(frame.scale ?? baseScale, 0.05, 4),
       rotation: clamp(frame.rotation ?? baseRotation, -360, 360),
       x_offset: clamp(frame.x_offset ?? baseX, -2000, 2000),
-      y_offset: clamp(frame.y_offset ?? baseY, -2000, 2000)
+      y_offset: clamp(frame.y_offset ?? baseY, -2000, 2000),
+      easing: ["linear", "ease-in", "ease-out", "ease-in-out"].includes(frame.easing) ? frame.easing : "linear"
     });
   });
   return [...byTime.values()].sort((a, b) => a.timeMs - b.timeMs);
@@ -144,7 +160,8 @@ export function sampleNovaCutVideoKeyframes(clip, timestamp) {
     scale: frame.scale,
     rotation: frame.rotation,
     x_offset: frame.x_offset,
-    y_offset: frame.y_offset
+    y_offset: frame.y_offset,
+    easing: frame.easing || "linear"
   });
   if (localTimeMs <= frames[0].timeMs) return values(frames[0]);
   if (localTimeMs >= frames[frames.length - 1].timeMs) return values(frames[frames.length - 1]);
@@ -153,12 +170,13 @@ export function sampleNovaCutVideoKeyframes(clip, timestamp) {
   const left = frames[rightIndex - 1];
   const right = frames[rightIndex];
   const span = Math.max(1, right.timeMs - left.timeMs);
-  const amount = clamp((localTimeMs - left.timeMs) / span, 0, 1);
+  const amount = keyframeEasingAmount(left.easing, clamp((localTimeMs - left.timeMs) / span, 0, 1));
   return {
     scale: left.scale + (right.scale - left.scale) * amount,
     rotation: left.rotation + (right.rotation - left.rotation) * amount,
     x_offset: left.x_offset + (right.x_offset - left.x_offset) * amount,
-    y_offset: left.y_offset + (right.y_offset - left.y_offset) * amount
+    y_offset: left.y_offset + (right.y_offset - left.y_offset) * amount,
+    easing: left.easing || "linear"
   };
 }
 
@@ -179,7 +197,9 @@ function ffmpegVideoKeyframeExpression(clip, property, fallback, clipStartSecond
     const denominator = Math.max(0.001, right.time - left.time).toFixed(4);
     const leftValue = left.value.toFixed(4);
     const rightValue = right.value.toFixed(4);
-    const segment = leftValue + "+(" + rightValue + "-" + leftValue + ")*(t-" + leftTime + ")/" + denominator;
+    const amount = "clip((t-" + leftTime + ")/" + denominator + ",0,1)";
+    const easedAmount = ffmpegKeyframeEasingExpression(left.easing, amount);
+    const segment = leftValue + "+(" + rightValue + "-" + leftValue + ")*(" + easedAmount + ")";
     expression = "if(lt(t," + rightTime + "),if(lt(t," + leftTime + ")," + leftValue + "," + segment + ")," + expression + ")";
   }
   return expression;
@@ -1998,7 +2018,8 @@ export class NovaCutEngine {
         scale: clamp(values.scale ?? frameValues.scale, 0.05, 4),
         rotation: clamp(values.rotation ?? frameValues.rotation, -360, 360),
         x_offset: clamp(values.x_offset ?? frameValues.x_offset, -2000, 2000),
-        y_offset: clamp(values.y_offset ?? frameValues.y_offset, -2000, 2000)
+        y_offset: clamp(values.y_offset ?? frameValues.y_offset, -2000, 2000),
+        easing: ["linear", "ease-in", "ease-out", "ease-in-out"].includes(values.easing) ? values.easing : (frameValues.easing || "linear")
       };
       clip.scale = frameValues.scale;
       clip.x_offset = frameValues.x_offset;
@@ -2753,8 +2774,19 @@ export class NovaCutEngine {
     }
 
     const sheet = this.openSheet(titleByType[type] || "Clip settings");
+    const playheadLocalMs = clamp(this.currentTimestamp - Number(item.startTime || 0), 0, Math.max(1, Number(item.duration) || 1));
+    const nearbyKeyframe = type === "videoTracks"
+      ? normalizeVideoKeyframes(item.keyframes, item.duration, item).find((frame) => Math.abs(frame.timeMs - playheadLocalMs) <= 34)
+      : null;
+    const keyframeEasing = nearbyKeyframe?.easing || "linear";
     const keyframeControls = type === "videoTracks"
       ? '<div class="nx-novacut__keyframe-actions">' +
+        '<label>Interpolation to next<select data-clip-prop="keyframeEasing">' +
+          '<option value="linear"' + (keyframeEasing === "linear" ? " selected" : "") + '>Linear</option>' +
+          '<option value="ease-in"' + (keyframeEasing === "ease-in" ? " selected" : "") + '>Ease in</option>' +
+          '<option value="ease-out"' + (keyframeEasing === "ease-out" ? " selected" : "") + '>Ease out</option>' +
+          '<option value="ease-in-out"' + (keyframeEasing === "ease-in-out" ? " selected" : "") + '>Ease in-out</option>' +
+        '</select></label>' +
         '<span data-keyframe-count>Keyframes: ' + (Array.isArray(item.keyframes) ? item.keyframes.length : 0) + '</span>' +
         '<button type="button" class="nx-novacut__secondary" data-clip-keyframe-set>Set keyframe at playhead</button>' +
         '<button type="button" class="nx-novacut__secondary" data-clip-keyframe-remove>Remove keyframe here</button>' +
@@ -2792,7 +2824,8 @@ export class NovaCutEngine {
         scale: clamp(value("scale", Number(transform.scale ?? item.scale) * 100) / 100, 0.05, 4),
         rotation: clamp(value("rotation", Number(transform.rotation) || 0), -360, 360),
         x_offset: clamp(value("x", Number(item.x_offset) || 0), -2000, 2000),
-        y_offset: clamp(value("y", Number(item.y_offset) || 0), -2000, 2000)
+        y_offset: clamp(value("y", Number(item.y_offset) || 0), -2000, 2000),
+        easing: sheet.body.querySelector('[data-clip-prop="keyframeEasing"]')?.value || "linear"
       });
       const count = sheet.body.querySelector("[data-keyframe-count]");
       if (count) count.textContent = "Keyframes: " + (item.keyframes?.length || 0);

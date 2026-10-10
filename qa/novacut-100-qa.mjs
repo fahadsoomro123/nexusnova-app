@@ -53,6 +53,9 @@ check("video add API and visual controls are normalized", () => assert(
   has(engine, "fadeOutMs: clamp(input.fadeOutMs ?? 0, 0, duration)") &&
   has(engine, "keyframes: []") &&
   has(engine, "normalizeVideoKeyframes(input.keyframes, duration, clip)") &&
+  has(engine, 'easing: ["linear", "ease-in", "ease-out", "ease-in-out"].includes(frame.easing) ? frame.easing : "linear"') &&
+  has(engine, "ffmpegKeyframeEasingExpression(left.easing, amount)") &&
+  has(engine, 'data-clip-prop="keyframeEasing"') &&
   has(engine, "ffmpegVideoKeyframeExpression(clip, \"scale\"") &&
   has(engine, "eval=frame") &&
   has(engine, "setVideoKeyframeAtPlayhead(values = null)") &&
@@ -101,6 +104,29 @@ check("playback follows decoded video clock", () => {
   assert(Math.abs(sample.scale - 1.5) < 0.001 && Math.abs(sample.rotation - 45) < 0.001 &&
     Math.abs(sample.x_offset - 60) < 0.001 && Math.abs(sample.y_offset + 30) < 0.001,
     "keyframes did not interpolate transform properties at the requested playhead");
+  const easedClip = { startTime: 0, duration: 1000, scale: 1, transform: { scale: 1, rotation: 0 }, keyframes: [
+    { timeMs: 0, scale: 1, rotation: 0, x_offset: 0, y_offset: 0, easing: "ease-in" },
+    { timeMs: 1000, scale: 2, rotation: 90, x_offset: 100, y_offset: 50 }
+  ] };
+  const easeInQuarter = sampleNovaCutVideoKeyframes(easedClip, 250);
+  const linearQuarter = sampleNovaCutVideoKeyframes({ ...easedClip, keyframes: easedClip.keyframes.map(frame => ({ ...frame, easing: "linear" })) }, 250);
+  const easeOutQuarter = sampleNovaCutVideoKeyframes({ ...easedClip, keyframes: easedClip.keyframes.map(frame => ({ ...frame, easing: "ease-out" })) }, 250);
+  const easeInOutQuarter = sampleNovaCutVideoKeyframes({ ...easedClip, keyframes: easedClip.keyframes.map(frame => ({ ...frame, easing: "ease-in-out" })) }, 250);
+  assert(Math.abs(easeInQuarter.scale - 1.0625) < 0.001 &&
+    Math.abs(linearQuarter.scale - 1.25) < 0.001 &&
+    Math.abs(easeOutQuarter.scale - 1.4375) < 0.001 &&
+    Math.abs(easeInOutQuarter.scale - 1.125) < 0.001,
+    "keyframe interpolation curves diverged from linear/ease-in/ease-out/ease-in-out expectations");
+  const easedExport = new NovaCutCommandCompiler(makeCompilerEngine({
+    videos: [compilerVideo({ keyframes: [
+      { timeMs: 0, scale: 1, easing: "ease-in-out" },
+      { timeMs: 1000, scale: 2 }
+    ] })]
+  })).compile();
+  const easedExportFilter = easedExport.args[easedExport.args.indexOf("-filter_complex") + 1];
+  if (!easedExportFilter.includes("pow(") || !easedExportFilter.includes("lt(clip((t-0.0000)/1.0000,0,1),0.5)")) {
+    throw new Error("Export transform expressions omitted the selected keyframe easing curve.");
+  }
   const audioFade = { startTime: 1000, duration: 4000, fadeInMs: 1000, fadeOutMs: 1000 };
   assert(sampleNovaCutAudioGain(audioFade, 1000) === 0 &&
     Math.abs(sampleNovaCutAudioGain(audioFade, 1500) - 0.5) < 0.001 &&
