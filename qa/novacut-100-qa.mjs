@@ -44,6 +44,8 @@ check("Android WebView compositor detector exists", () => assert(has(engine, "ex
 check("native preview and clean playback status", () => assert(has(engine, "mountNativePreview(media, clip)") && has(engine, "nx-novacut__canvas--native-preview") && has(engine, 'this.setStatus("Playing")') && has(engine, 'this.setStatus("Paused")') && !has(engine, "Playing · native video layer") && !has(engine, "Paused · native video layer") && has(engine, "media.muted = false") && has(engine, "this.preview?.enableActiveVideoAudio()"), "native preview, clean status or source-audio wiring missing"));
 check("video add API and visual controls are normalized", () => assert(
   has(engine, "addVideoClip(input)") &&
+  has(engine, "const speed = clamp(input.speed ?? 1, 0.25, 4);") &&
+  has(engine, "sourceDuration: Math.max(1, Number(input.sourceDuration) || duration * speed)") &&
   has(engine, "brightness: clamp(input.brightness ?? 100, 0, 200)") &&
   has(engine, "contrast: clamp(input.contrast ?? 100, 0, 200)") &&
   has(engine, "saturation: clamp(input.saturation ?? 100, 0, 300)") &&
@@ -65,7 +67,10 @@ check("delete API present", () => assert(has(engine, "removeSelected()"), "delet
 check("Split works across all timeline track types", () => assert(
   has(engine, "executeSplitAction(activeTrackId, currentTimestamp)") &&
   has(engine, "const tracks = this.registry[record.type]") &&
-  has(engine, "sourceStartTime + left") &&
+  has(engine, "sourceStartTime + left * clipSpeed") &&
+  has(engine, "second.sourceDuration = Math.max(1, right * clipSpeed)") &&
+  has(studio, "actualDelta * sourceRate") &&
+  has(studio, "clip.sourceDuration = Math.max(1, clip.duration * sourceRate)") &&
   has(engine, "duplicateSelected()") &&
   has(engine, "findTransitionPairNearPlayhead()") &&
   has(engine, "applyTransitionAtPlayhead(durationMs = 500, type = \"fade-through-black\")") &&
@@ -108,7 +113,7 @@ check("preview uses decoded-frame cadence on Android and avoids per-frame decode
 check("undo API present", () => assert(has(engine, "undo()"), "undo API missing"));
 check("redo API present", () => assert(has(engine, "redo()"), "redo API missing"));
 check("cycleRatio restored", () => assert(/\n  cycleRatio\(\) \{/.test(engine), "cycleRatio missing"));
-check("ratio, Fit/Fill, preview quality and selected-clip controls are wired", () => assert(has(engine, 'bind("ratio", () => this.openCanvasRatioPicker());') && has(engine, "openCanvasRatioPicker()") && has(engine, "setSelectedFitMode(mode)") && has(engine, "setPreviewQuality(mode)") && has(engine, "openSelectedClipInspector()") && has(engine, 'data-tool-action="clip-settings"') && has(engine, "const previewWidth = Math.max(1, Number(this.engine.preview?.canvas?.width) || width)") && has(engine, "const xOffset = (Number(clip.x_offset) || 0) * width / previewWidth") && has(engine, "const qualityScale = { draft: 0.7, balanced: 0.9, sharp: 1.25 }") && has(engine, "function clipCssFilter(clip)") && has(engine, "function clipOpacityAt(clip, timestamp)") && has(engine, "ctx.filter = clipCssFilter(renderClip)") && has(engine, "ctx.globalAlpha = clipOpacityAt(renderClip, now)") && has(engine, "novacutPreviewLayoutSignature") && has(engine, "novacutPreviewTransformSignature") && has(engine, "novacutPreviewFilterSignature") && has(engine, "novacutPreviewOpacitySignature") && has(engine, 'input("Brightness (%)", "brightness"') && has(engine, 'input("Fade in (seconds)", "fadeIn"') && has(engine, 'input("Fade out (seconds)", "fadeOut"') && has(engine, 'data-color-preset="original"') && has(engine, 'data-color-preset="vivid"') && has(engine, 'data-color-preset="muted"') && has(engine, 'data-color-preset="dramatic"') && has(engine, 'data-color-preset="mono"') && has(engine, "colorPresetValues") && has(engine, 'lutrgb=r=\'min(255,val*' ) && has(engine, 'fade=t=in:st=') && has(engine, 'fade=t=out:st=') && has(engine, 'const fitMode = clip?.fitMode === "fill" ? "cover" : "contain"') && has(engine, "objectFit: fitMode") && has(engine, "novacutPreviewLayoutSignature") && has(engine, 'clip.fitMode === "fill" ? "increase" : "decrease"') && has(suite, "syncPreviewFrame") && has(suite, "canvasShell.dataset.ratio") && has(suite, "renderTimelineRuler") && has(suite, "--nc-content-width") && has(studioCss, '[data-ratio="9:16"]') && has(engine, "applyInitialAspectRatio"), "ratio, framing, inspector, export offset or preview quality control missing"));
+check("ratio, Fit/Fill, preview quality and selected-clip controls are wired", () => assert(has(engine, 'bind("ratio", () => this.openCanvasRatioPicker());') && has(engine, "openCanvasRatioPicker()") && has(engine, "setSelectedFitMode(mode)") && has(engine, "setPreviewQuality(mode)") && has(engine, "openSelectedClipInspector()") && has(engine, 'input("Speed (x)", "speed"') && has(engine, "ffmpegAtempoChain(speed)") && has(engine, 'data-tool-action="clip-settings"') && has(engine, "const previewWidth = Math.max(1, Number(this.engine.preview?.canvas?.width) || width)") && has(engine, "const xOffset = (Number(clip.x_offset) || 0) * width / previewWidth") && has(engine, "const qualityScale = { draft: 0.7, balanced: 0.9, sharp: 1.25 }") && has(engine, "function clipCssFilter(clip)") && has(engine, "function clipOpacityAt(clip, timestamp)") && has(engine, "ctx.filter = clipCssFilter(renderClip)") && has(engine, "ctx.globalAlpha = clipOpacityAt(renderClip, now)") && has(engine, "novacutPreviewLayoutSignature") && has(engine, "novacutPreviewTransformSignature") && has(engine, "novacutPreviewFilterSignature") && has(engine, "novacutPreviewOpacitySignature") && has(engine, 'input("Brightness (%)", "brightness"') && has(engine, 'input("Fade in (seconds)", "fadeIn"') && has(engine, 'input("Fade out (seconds)", "fadeOut"') && has(engine, 'data-color-preset="original"') && has(engine, 'data-color-preset="vivid"') && has(engine, 'data-color-preset="muted"') && has(engine, 'data-color-preset="dramatic"') && has(engine, 'data-color-preset="mono"') && has(engine, "colorPresetValues") && has(engine, 'lutrgb=r=\'min(255,val*' ) && has(engine, 'fade=t=in:st=') && has(engine, 'fade=t=out:st=') && has(engine, 'const fitMode = clip?.fitMode === "fill" ? "cover" : "contain"') && has(engine, "objectFit: fitMode") && has(engine, "novacutPreviewLayoutSignature") && has(engine, 'clip.fitMode === "fill" ? "increase" : "decrease"') && has(suite, "syncPreviewFrame") && has(suite, "canvasShell.dataset.ratio") && has(suite, "renderTimelineRuler") && has(suite, "--nc-content-width") && has(studioCss, '[data-ratio="9:16"]') && has(engine, "applyInitialAspectRatio"), "ratio, framing, inspector, export offset or preview quality control missing"));
 
 // 26-40: media ingestion
 check("media parser class present", () => assert(has(media, "export class NovaCutMediaParser"), "parser class missing"));
@@ -285,6 +290,14 @@ if (!textSplit.success || textSplit.firstClip.duration !== 1000 || textSplit.sec
   throw new Error("NovaCut text split failed.");
 }
 console.log("TIMELINE BEHAVIOUR 3/3 PASS  video, audio source offsets, and text split");
+const speedSplitEngine = new NovaCutEngine();
+speedSplitEngine.registry.addVideoClip({ id: "qa-speed-split", startTime: 0, duration: 4000, sourceStartTime: 500, speed: 2, sourceDuration: 8000 });
+const speedSplit = speedSplitEngine.executeSplitAction("qa-speed-split", 2000);
+if (!speedSplit.success || speedSplit.firstClip.sourceDuration !== 4000 || speedSplit.secondClip.sourceDuration !== 4000 ||
+    speedSplit.secondClip.sourceStartTime !== 4500 || speedSplit.secondClip.speed !== 2) {
+  throw new Error("Speed-adjusted split lost source duration, source offset, or playback speed.");
+}
+console.log("SPEED BEHAVIOUR 1/2 PASS  split preserves source-time offsets at 2x speed");
 console.log("PLAYBACK BEHAVIOUR 1/7 PASS  Android WebView selects native compositor");
 
 class FakeVideoElement {
@@ -474,6 +487,16 @@ if (!stickerFilter.includes("scale=384:270:force_original_aspect_ratio=decrease"
   throw new Error("Sticker export does not scale the sticker before overlay composition.");
 }
 console.log("EXPORT BEHAVIOUR 4/4 PASS  sticker assets scale before overlay");
+const speedPlan = new NovaCutCommandCompiler(makeCompilerEngine({
+  videos: [compilerVideo({ duration: 2500, speed: 2, sourceDuration: 5000 })]
+})).compile();
+const speedFilter = speedPlan.args[speedPlan.args.indexOf("-filter_complex") + 1];
+if (!speedFilter.includes("trim=start=0.000:end=5.000") ||
+    !speedFilter.includes("setpts=(PTS-STARTPTS)/2.000+0.000/TB") ||
+    !speedFilter.includes("atrim=start=0.000:duration=5.000") || !speedFilter.includes("atempo=2.000")) {
+  throw new Error("2x speed export did not preserve the source span and synchronize video/audio duration.");
+}
+console.log("SPEED BEHAVIOUR 2/2 PASS  FFmpeg video and source audio remain synchronized at 2x");
 
 
 const syntaxFiles = [

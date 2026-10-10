@@ -969,9 +969,11 @@ export class NovaCutStudioInteractions {
 
     clip.startTime = nextStart;
     clip.duration = state.originalDuration - actualDelta;
+    const sourceRate = isVideo ? clamp(clip.speed ?? 1, 0.25, 4) : 1;
     if ("sourceStartTime" in clip) {
-      clip.sourceStartTime = Math.max(0, state.originalSourceStartTime + actualDelta);
+      clip.sourceStartTime = Math.max(0, state.originalSourceStartTime + actualDelta * sourceRate);
     }
+    if (isVideo) clip.sourceDuration = Math.max(1, clip.duration * sourceRate);
     if (isVideo && state.originalKeyframes.length) {
       const originalClip = {
         ...clip,
@@ -1019,6 +1021,9 @@ export class NovaCutStudioInteractions {
     );
 
     clip.duration = Math.max(minimum, targetEnd - originalStart);
+    if (state.recordType === "videoTracks") {
+      clip.sourceDuration = Math.max(1, clip.duration * clamp(clip.speed ?? 1, 0.25, 4));
+    }
     if (state.recordType === "videoTracks" && state.originalKeyframes.length) {
       const originalClip = {
         ...clip,

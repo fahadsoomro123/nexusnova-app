@@ -35,6 +35,14 @@ export const isAndroidWebViewUserAgent = (value) => {
   return /Android/i.test(userAgent) && /\bwv\b/i.test(userAgent);
 };
 const msToSec = (value) => Math.max(0, Number(value) || 0) / 1000;
+function ffmpegAtempoChain(value) {
+  let speed = clamp(value, 0.25, 4);
+  const filters = [];
+  while (speed < 0.5) { filters.push("atempo=0.5"); speed /= 0.5; }
+  while (speed > 2) { filters.push("atempo=2"); speed /= 2; }
+  filters.push("atempo=" + speed.toFixed(3));
+  return filters.join(",");
+}
 const uid = (prefix) => prefix + "-" + (globalThis.crypto?.randomUUID?.() || (Date.now() + "-" + Math.random().toString(36).slice(2)));
 const safeName = (value, fallback) => String(value || fallback).replace(/[<>:"/\\|?*\u0000-\u001F]/g, "_").replace(/\s+/g, "_").slice(0, 120) || fallback;
 const ext = (value, fallback = "bin") => String(value || "").match(/\.([a-z0-9]{1,8})$/i)?.[1]?.toLowerCase() || fallback;
@@ -203,11 +211,14 @@ export class NovaCutTrackRegistry {
   addVideoClip(input = {}) {
     const transform = input.transform || {};
     const duration = Math.max(1, Number(input.duration) || 1);
+    const speed = clamp(input.speed ?? 1, 0.25, 4);
     const clip = {
       id: String(input.id || uid("video")),
       file: input.file || null,
       startTime: Math.max(0, Number(input.startTime) || 0),
       duration,
+      speed,
+      sourceDuration: Math.max(1, Number(input.sourceDuration) || duration * speed),
       sourceStartTime: Math.max(0, Number(input.sourceStartTime) || 0),
       x_offset: Number(input.x_offset) || 0,
       y_offset: Number(input.y_offset) || 0,
@@ -710,7 +721,9 @@ export class NovaCutCanvasPreview {
       });
       if (!(media instanceof HTMLVideoElement)) return;
       const local = Math.max(0, timestamp - clip.startTime);
-      const target = Math.max(0, msToSec(clip.sourceStartTime + local));
+      const speed = clamp(clip.speed ?? 1, 0.25, 4);
+      media.playbackRate = speed;
+      const target = Math.max(0, msToSec(clip.sourceStartTime + local * speed));
       try {
         if (Math.abs(media.currentTime - target) > 0.025) media.currentTime = target;
       } catch (_) {}
@@ -733,6 +746,7 @@ export class NovaCutCanvasPreview {
 
   enableVideoAudio(media, clip) {
     if (!(media instanceof HTMLVideoElement)) return;
+    media.playbackRate = clamp(clip?.speed ?? 1, 0.25, 4);
     // Videos stay muted while preloading; restore source audio for user-requested playback.
     media.defaultMuted = false;
     media.muted = false;
@@ -754,7 +768,9 @@ export class NovaCutCanvasPreview {
       if (!(media instanceof HTMLVideoElement)) return;
       this.enableVideoAudio(media, clip);
       const local = Math.max(0, this.engine.currentTimestamp - clip.startTime);
-      const target = Math.max(0, msToSec(clip.sourceStartTime + local));
+      const speed = clamp(clip.speed ?? 1, 0.25, 4);
+      media.playbackRate = speed;
+      const target = Math.max(0, msToSec(clip.sourceStartTime + local * speed));
       try {
         if (Math.abs(media.currentTime - target) > 0.12) media.currentTime = target;
         await media.play();
@@ -987,7 +1003,9 @@ export class NovaCutCanvasPreview {
       }
       if (media instanceof HTMLVideoElement) {
         const local = Math.max(0, now - clip.startTime);
-        const target = msToSec(clip.sourceStartTime + local);
+        const speed = clamp(clip.speed ?? 1, 0.25, 4);
+        media.playbackRate = speed;
+        const target = msToSec(clip.sourceStartTime + local * speed);
         // Seeking on every RAF while playing repeatedly flushes the decoder on
         // slower Android/WebView devices. Seek only while paused or when a new
         // clip becomes active and needs its initial timeline position.
@@ -1370,7 +1388,9 @@ class NovaCutCommandCompiler {
       const scaleExpression = ffmpegVideoKeyframeExpression(clip, "scale", scale, msToSec(clip.startTime));
       const rotationExpression = ffmpegVideoKeyframeExpression(clip, "rotation", Number(transform.rotation) || 0, msToSec(clip.startTime));
       const begin = msToSec(clip.sourceStartTime);
-      const end = begin + msToSec(clip.duration);
+      const speed = clamp(clip.speed ?? 1, 0.25, 4);
+      const sourceDuration = Math.max(1, Number(clip.sourceDuration) || Number(clip.duration) * speed);
+      const end = begin + msToSec(sourceDuration);
       const startAt = msToSec(clip.startTime);
       const previewWidth = Math.max(1, Number(this.engine.preview?.canvas?.width) || width);
       const previewHeight = Math.max(1, Number(this.engine.preview?.canvas?.height) || height);
@@ -1420,7 +1440,7 @@ class NovaCutCommandCompiler {
       else if (rotation !== 0) vf.push("rotate=" + (rotation * Math.PI / 180).toFixed(6) + ":c=black@0:ow=rotw(iw):oh=roth(ih)");
       filters.push(
         "[" + input.index + ":v:0]trim=start=" + begin.toFixed(3) + ":end=" + end.toFixed(3) +
-        ",setpts=PTS-STARTPTS+" + startAt.toFixed(3) + "/TB," + vf.join(",") + "[" + src + "]"
+        ",setpts=(PTS-STARTPTS)/" + speed.toFixed(3) + "+" + startAt.toFixed(3) + "/TB," + vf.join(",") + "[" + src + "]"
       );
       const xPosition = hasKeyframes
         ? "'(W-w)/2+(" + ffmpegVideoKeyframeExpression(clip, "x_offset", Number(clip.x_offset) || 0, startAt) + ")*" + (width / previewWidth).toFixed(6) + "'"
@@ -1444,12 +1464,14 @@ class NovaCutCommandCompiler {
       if (clip.metadata?.hasAudio !== true) return;
       const label = "vsrcaudio" + index;
       const sourceStart = msToSec(clip.sourceStartTime);
-      const clipDuration = msToSec(clip.duration);
+      const speed = clamp(clip.speed ?? 1, 0.25, 4);
+      const sourceDuration = Math.max(1, Number(clip.sourceDuration) || Number(clip.duration) * speed);
+      const clipDuration = msToSec(sourceDuration);
       const delay = Math.max(0, Math.round(Number(clip.startTime) || 0));
       filters.push(
         "[" + input.index + ":a:0]atrim=start=" + sourceStart.toFixed(3) +
         ":duration=" + clipDuration.toFixed(3) +
-        ",asetpts=PTS-STARTPTS,volume=" + clamp(clip.volume ?? 1, 0, 4).toFixed(3) +
+        ",asetpts=PTS-STARTPTS," + ffmpegAtempoChain(speed) + ",volume=" + clamp(clip.volume ?? 1, 0, 4).toFixed(3) +
         ",adelay=" + delay + "|" + delay + "[" + label + "]"
       );
       audioLabels.push(label);
@@ -2057,9 +2079,9 @@ export class NovaCutEngine {
       });
       if (clockClip) {
         const media = this.preview.media.get(clockClip.id);
+        const clipSpeed = clamp(clockClip.speed ?? 1, 0.25, 4);
         const mediaTimelineTime = clockClip.startTime +
-          media.currentTime * 1000 -
-          Math.max(0, Number(clockClip.sourceStartTime) || 0);
+          (media.currentTime * 1000 - Math.max(0, Number(clockClip.sourceStartTime) || 0)) / clipSpeed;
         // Use the actual decoder clock, not RAF wall time. The previous
         // implementation advanced playhead and aggressively re-seeked when a
         // MediaTek/WebView decoder lagged, which could keep the preview black.
@@ -2136,6 +2158,7 @@ export class NovaCutEngine {
     try {
       const media = await this.preview.resolve(clip);
       if (media instanceof HTMLVideoElement) {
+        media.playbackRate = clamp(clip.speed ?? 1, 0.25, 4);
         try { media.currentTime = msToSec(clip.sourceStartTime); } catch (_) {}
       }
       this.events.emit("media:ready", { clip, media });
@@ -2179,6 +2202,7 @@ export class NovaCutEngine {
       effectTracks: "effect"
     }[record.type] || "clip";
     const sourceStartTime = Math.max(0, Number(item.sourceStartTime) || 0);
+    const clipSpeed = record.type === "videoTracks" ? clamp(item.speed ?? 1, 0.25, 4) : 1;
     const first = { ...cloneObject(item), duration: left };
     const second = {
       ...cloneObject(item),
@@ -2186,7 +2210,11 @@ export class NovaCutEngine {
       startTime: timestamp,
       duration: right
     };
-    if ("sourceStartTime" in item) second.sourceStartTime = sourceStartTime + left;
+    if ("sourceStartTime" in item) second.sourceStartTime = sourceStartTime + left * clipSpeed;
+    if (record.type === "videoTracks") {
+      first.sourceDuration = Math.max(1, left * clipSpeed);
+      second.sourceDuration = Math.max(1, right * clipSpeed);
+    }
     if (record.type === "videoTracks" && Array.isArray(item.keyframes) && item.keyframes.length) {
       const splitValues = sampleNovaCutVideoKeyframes(item, timestamp);
       const originalFrames = normalizeVideoKeyframes(item.keyframes, item.duration, item);
@@ -2557,6 +2585,7 @@ export class NovaCutEngine {
       const transform = item.transform || {};
       fields +=
         '<label>Frame mode<select data-clip-prop="fitMode"><option value="fit"' + (item.fitMode !== "fill" ? " selected" : "") + '>Fit</option><option value="fill"' + (item.fitMode === "fill" ? " selected" : "") + '>Fill canvas</option></select></label>' +
+        input("Speed (x)", "speed", finite(item.speed, 1), 'min="0.25" max="4" step="0.25"') +
         input("Scale (%)", "scale", Math.round(Math.max(0.05, finite(transform.scale ?? item.scale, 1)) * 100), 'min="25" max="400" step="5"') +
         input("Position X (preview px)", "x", finite(item.x_offset), 'min="-2000" max="2000" step="1"') +
         input("Position Y (preview px)", "y", finite(item.y_offset), 'min="-2000" max="2000" step="1"') +
@@ -2672,8 +2701,21 @@ export class NovaCutEngine {
       };
       const before = this.history.capture();
       item.startTime = Math.round(clamp(value("start", finite(item.startTime) / 1000), 0, 3600) * 1000);
-      item.duration = Math.round(clamp(value("duration", finite(item.duration, 3000) / 1000), 0.03, 3600) * 1000);
+      const priorDuration = Math.max(1, finite(item.duration, 3000));
+      const requestedDuration = Math.round(clamp(value("duration", priorDuration / 1000), 0.03, 3600) * 1000);
       if (type === "videoTracks") {
+        const priorSpeed = clamp(item.speed ?? 1, 0.25, 4);
+        const nextSpeed = clamp(value("speed", priorSpeed), 0.25, 4);
+        const durationChanged = Math.abs(requestedDuration - priorDuration) > 1;
+        const speedChanged = Math.abs(nextSpeed - priorSpeed) > 0.001;
+        item.speed = nextSpeed;
+        if (speedChanged && !durationChanged) {
+          const sourceDuration = Math.max(1, Number(item.sourceDuration) || priorDuration * priorSpeed);
+          item.duration = Math.max(30, Math.round(sourceDuration / nextSpeed));
+        } else {
+          item.duration = requestedDuration;
+          item.sourceDuration = Math.max(1, item.duration * nextSpeed);
+        }
         const scale = clamp(value("scale", 100) / 100, 0.25, 4);
         item.scale = scale;
         item.transform = { ...(item.transform || {}), scale, rotation: clamp(value("rotation", 0), -360, 360) };
@@ -2687,8 +2729,10 @@ export class NovaCutEngine {
         item.volume = clamp(value("volume", 100) / 100, 0, 4);
         item.fitMode = sheet.body.querySelector('[data-clip-prop="fitMode"]')?.value === "fill" ? "fill" : "fit";
       } else if (type === "audioTracks") {
+        item.duration = requestedDuration;
         item.volume = clamp(value("volume", 100) / 100, 0, 4);
       } else if (type === "textTracks") {
+        item.duration = requestedDuration;
         item.text = String(textInput?.value || "").slice(0, 240);
         item.style = {
           ...(item.style || {}),
@@ -2699,6 +2743,7 @@ export class NovaCutEngine {
           rotation: clamp(value("rotation", 0), -360, 360)
         };
       } else if (type === "overlayTracks") {
+        item.duration = requestedDuration;
         item.width = clamp(value("width", 20) / 100, 0.03, 1);
         item.height = clamp(value("height", 20) / 100, 0.03, 1);
         item.x = clamp(value("x", 50) / 100, 0, Math.max(0, 1 - item.width));
@@ -2706,6 +2751,7 @@ export class NovaCutEngine {
         item.scale = clamp(value("scale", 100) / 100, 0.1, 5);
         item.rotation = clamp(value("rotation", 0), -360, 360);
       } else if (type === "effectTracks") {
+        item.duration = requestedDuration;
         item.width = clamp(value("width", 50) / 100, 0.06, 1);
         item.height = clamp(value("height", 50) / 100, 0.06, 1);
         item.x = clamp(value("x", 25) / 100, 0, Math.max(0, 1 - item.width));
