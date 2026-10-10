@@ -766,7 +766,7 @@ export class NovaCutCanvasPreview {
     // Videos stay muted while preloading; restore source audio for user-requested playback.
     media.defaultMuted = false;
     media.muted = false;
-    media.volume = clamp(clip?.volume ?? 1, 0, 1);
+    media.volume = clamp(clip?.volume ?? 1, 0, 1) * sampleNovaCutAudioGain(clip, this.engine.currentTimestamp);
   }
 
   enableActiveVideoAudio() {
@@ -1058,6 +1058,9 @@ export class NovaCutCanvasPreview {
 
       const renderClip = videoClipAtTimestamp(clip, now);
       const isVideoElement = media instanceof HTMLVideoElement;
+      if (isVideoElement && this.engine.isPlaying) {
+        media.volume = clamp(clip.volume ?? 1, 0, 1) * sampleNovaCutAudioGain(clip, now);
+      }
       const sw = isVideoElement ? Number(media.videoWidth) : Number(media.naturalWidth);
       const sh = isVideoElement ? Number(media.videoHeight) : Number(media.naturalHeight);
       // Never pretend a not-yet-decoded video is a 1x1 image. That masked the
