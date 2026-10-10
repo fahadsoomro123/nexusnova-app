@@ -26,7 +26,11 @@ function clamp(value, min, max) {
 }
 
 function getTouch(event) {
-  return event.changedTouches?.[0] || event.touches?.[0] || null;
+  return event.changedTouches?.[0] ||
+    event.touches?.[0] ||
+    (Number.isFinite(Number(event?.clientX)) && Number.isFinite(Number(event?.clientY))
+      ? event
+      : null);
 }
 
 function isPrimaryInteractiveTarget(target) {
@@ -234,6 +238,25 @@ export class NovaCutStudioInteractions {
       }
     );
 
+    // Keep the existing touch path for Android. Pointer events fill the
+    // Windows/desktop gap without double-handling touch-generated pointers.
+    this.root.addEventListener("pointerdown", (event) => {
+      if (event.pointerType === "touch") return;
+      this.onTouchStart(event);
+    }, { signal, passive: false });
+    this.root.ownerDocument.addEventListener("pointermove", (event) => {
+      if (event.pointerType === "touch") return;
+      this.onTouchMove(event);
+    }, { signal, passive: false });
+    this.root.ownerDocument.addEventListener("pointerup", (event) => {
+      if (event.pointerType === "touch") return;
+      this.onTouchEnd(event);
+    }, { signal, passive: false });
+    this.root.ownerDocument.addEventListener("pointercancel", (event) => {
+      if (event.pointerType === "touch") return;
+      this.onTouchCancel(event);
+    }, { signal, passive: false });
+
     this.root.addEventListener(
       "click",
       (event) => {
@@ -409,16 +432,14 @@ export class NovaCutStudioInteractions {
           clipId
         );
 
-      if (
-        record &&
-        record.type === "videoTracks"
-      ) {
+      if (record && record.item) {
         this.beginClipTouch(
           event,
           touch,
           clipElement,
           record.item,
-          edge
+          edge,
+          record.type
         );
 
         return;
@@ -440,7 +461,8 @@ export class NovaCutStudioInteractions {
     touch,
     element,
     clip,
-    edge
+    edge,
+    recordType = "videoTracks"
   ) {
     this.cancelLongPress();
 
@@ -455,6 +477,7 @@ export class NovaCutStudioInteractions {
       element,
       clip,
       clipId: clip.id,
+      recordType,
       edge,
       originalStartTime:
         finite(clip.startTime),
@@ -722,11 +745,13 @@ export class NovaCutStudioInteractions {
       this.engine.cancelHistoryTransaction?.();
     }
 
-    if (
-      mode === "timeline"
-    ) {
+    if (mode === "timeline") {
       event.preventDefault();
       this.flushTimelineSeek();
+    } else if (mode === "timeline-pending") {
+      // A tap/click on empty timeline space must seek too; previously only a
+      // horizontal move entered scrub mode, so tapping the ruler did nothing.
+      this.engine.setPlayhead(this.timestampFromClientX(state.lastX));
     }
 
     this.cleanupGesture();
@@ -779,21 +804,9 @@ export class NovaCutStudioInteractions {
           return;
         }
 
-        const scrollDelta =
-          dx * -0.55;
-
-        this.timeline.scrollLeft =
-          clamp(
-            this.touchState.timelineScrollLeft +
-              scrollDelta,
-            0,
-            Math.max(
-              0,
-              this.timeline.scrollWidth -
-                this.timeline.clientWidth
-            )
-          );
-
+        // Scrubbing follows the finger/pointer. Panning the whole timeline is
+        // handled by the scroll container instead of silently shifting the
+        // time origin while the user is trying to choose a frame.
         const timestamp =
           this.timestampFromClientX(
             currentX
@@ -849,9 +862,7 @@ export class NovaCutStudioInteractions {
       viewportX +
       this.timeline.scrollLeft;
 
-    const pxPerMs =
-      this.options.pixelsPerSecond /
-      1000;
+    const pxPerMs = this.pixelsPerMs();
 
     return Math.max(
       0,
@@ -888,15 +899,16 @@ export class NovaCutStudioInteractions {
           ) /
           this.pixelsPerMs();
 
-        const candidate =
-          this.clampedDragStart(
-            state.clip,
-            state.originalStartTime +
-              deltaMs
-          );
+        const desiredStart = state.originalStartTime + deltaMs;
+        const boundedStart = state.recordType === "videoTracks"
+          ? this.clampedDragStart(state.clip, desiredStart)
+          : Math.max(0, desiredStart);
+        const snappedStart = this.snapToTimeline(boundedStart, state.clip.id);
+        const candidate = state.recordType === "videoTracks"
+          ? this.clampedDragStart(state.clip, snappedStart)
+          : Math.max(0, snappedStart);
 
-        state.clip.startTime =
-          candidate;
+        state.clip.startTime = candidate;
 
         this.applyClipGeometry(
           state.element,
@@ -936,18 +948,10 @@ export class NovaCutStudioInteractions {
           ) /
           this.pixelsPerMs();
 
-        if (
-          edge === "start"
-        ) {
-          this.applyStartTrim(
-            state,
-            deltaMs
-          );
+        if (edge === "start") {
+          this.applyStartTrim(state, deltaMs);
         } else {
-          this.applyEndTrim(
-            state,
-            deltaMs
-          );
+          this.applyEndTrim(state, deltaMs);
         }
 
         this.applyClipGeometry(
@@ -974,52 +978,21 @@ export class NovaCutStudioInteractions {
       originalStart +
       state.originalDuration;
 
-    const previous =
-      this.getPreviousVideoClip(
-        clip
-      );
+    const isVideo = state.recordType === "videoTracks";
+    const previous = isVideo ? this.getPreviousVideoClip(clip) : null;
+    const previousEnd = previous ? previous.startTime + previous.duration : 0;
+    const lower = isVideo ? Math.max(previousEnd, 0) : 0;
+    const upper = originalEnd - minimum;
+    const desiredStart = clamp(originalStart + deltaMs, lower, upper);
+    const snappedStart = this.snapToTimeline(desiredStart, clip.id);
+    const nextStart = clamp(snappedStart, lower, upper);
+    const actualDelta = nextStart - originalStart;
 
-    const previousEnd =
-      previous
-        ? previous.startTime +
-          previous.duration
-        : 0;
-
-    const lower =
-      Math.max(
-        previousEnd,
-        0
-      );
-
-    const upper =
-      originalEnd -
-      minimum;
-
-    const nextStart =
-      clamp(
-        originalStart +
-          deltaMs,
-        lower,
-        upper
-      );
-
-    const actualDelta =
-      nextStart -
-      originalStart;
-
-    clip.startTime =
-      nextStart;
-
-    clip.duration =
-      state.originalDuration -
-      actualDelta;
-
-    clip.sourceStartTime =
-      Math.max(
-        0,
-        state.originalSourceStartTime +
-          actualDelta
-      );
+    clip.startTime = nextStart;
+    clip.duration = state.originalDuration - actualDelta;
+    if ("sourceStartTime" in clip) {
+      clip.sourceStartTime = Math.max(0, state.originalSourceStartTime + actualDelta);
+    }
   }
 
   applyEndTrim(
@@ -1035,38 +1008,28 @@ export class NovaCutStudioInteractions {
     const originalStart =
       state.originalStartTime;
 
-    const next =
-      this.getNextVideoClip(
-        clip
-      );
+    const next = state.recordType === "videoTracks" ? this.getNextVideoClip(clip) : null;
+    const maximumEnd = next ? next.startTime : Infinity;
+    const desiredEnd = clamp(
+      originalStart + state.originalDuration + deltaMs,
+      originalStart + minimum,
+      maximumEnd
+    );
+    const targetEnd = clamp(
+      this.snapToTimeline(desiredEnd, clip.id),
+      originalStart + minimum,
+      maximumEnd
+    );
 
-    const maximumEnd =
-      next
-        ? next.startTime
-        : Infinity;
-
-    const targetEnd =
-      clamp(
-        originalStart +
-          state.originalDuration +
-          deltaMs,
-        originalStart +
-          minimum,
-        maximumEnd
-      );
-
-    clip.duration =
-      Math.max(
-        minimum,
-        targetEnd -
-          originalStart
-      );
+    clip.duration = Math.max(minimum, targetEnd - originalStart);
   }
 
   clampedDragStart(
     clip,
     desiredStart
   ) {
+    const record = this.engine.registry.getById(clip?.id);
+    if (record?.type !== "videoTracks") return Math.max(0, finite(desiredStart));
     const minimum =
       this.options.minFrameMs;
 
@@ -1286,17 +1249,9 @@ export class NovaCutStudioInteractions {
             clipId
           );
 
-        if (
-          !record ||
-          record.type !==
-            "videoTracks"
-        ) {
-          return;
-        }
+        if (!record || !record.item) return;
 
-        this.ensureTrimHandles(
-          element
-        );
+        this.ensureTrimHandles(element);
 
         this.applyClipGeometry(
           element,
@@ -1388,16 +1343,8 @@ export class NovaCutStudioInteractions {
       return;
     }
 
-    const scale =
-      this.options.pixelsPerSecond /
-      1000;
-
-    const width =
-      Math.max(
-        46,
-        finite(clip.duration) *
-          scale
-      );
+    const scale = this.pixelsPerMs();
+    const width = Math.max(54, finite(clip.duration) * scale);
 
     const start =
       Math.max(
@@ -1503,10 +1450,42 @@ export class NovaCutStudioInteractions {
   }
 
   pixelsPerMs() {
-    return (
-      this.options.pixelsPerSecond /
-      1000
-    );
+    const dynamicScale = typeof this.options.getPixelsPerSecond === "function"
+      ? finite(this.options.getPixelsPerSecond(), this.options.pixelsPerSecond)
+      : this.options.pixelsPerSecond;
+    return Math.max(1, finite(dynamicScale, NOVACUT_PIXELS_PER_SECOND)) / 1000;
+  }
+
+  snapToTimeline(timestamp, excludeId = null) {
+    const getEnabled = this.options.getSnapEnabled;
+    if (typeof getEnabled === "function" && !getEnabled()) return Math.max(0, finite(timestamp));
+    const pps = this.pixelsPerMs();
+    const thresholdMs = 7 / Math.max(0.001, pps);
+    const candidates = [0, finite(this.engine.currentTimestamp)];
+    const registry = this.engine.registry;
+    const all = [
+      ...(registry.videoTracks || []),
+      ...(registry.audioTracks || []),
+      ...(registry.textTracks || []),
+      ...(registry.overlayTracks || []),
+      ...(registry.effectTracks || [])
+    ];
+    for (const item of all) {
+      if (!item || item.id === excludeId) continue;
+      const start = Math.max(0, finite(item.startTime));
+      const end = start + Math.max(0, finite(item.duration));
+      candidates.push(start, end);
+    }
+    let nearest = Math.max(0, finite(timestamp));
+    let nearestDistance = thresholdMs;
+    for (const candidate of candidates) {
+      const distance = Math.abs(candidate - nearest);
+      if (distance <= nearestDistance) {
+        nearestDistance = distance;
+        nearest = candidate;
+      }
+    }
+    return Math.max(0, nearest);
   }
 
   cancelLongPress() {
