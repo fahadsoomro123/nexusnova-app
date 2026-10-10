@@ -239,9 +239,13 @@ export class NovaCutCanvasPreview {
     this.nativePreviewMedia = null;
     this.renderTick = 0;
     this.frameId = 0;
+    this.videoFrameId = 0;
+    this.videoFrameElement = null;
+    this.videoFramePending = false;
+    this.schedulerLoop = null;
+    this.lastRenderAt = 0;
     this.running = false;
     this.needsRender = true;
-    this.lastRenderAt = 0;
     this.previewQuality = this.forceNativeVideoLayer ? "balanced" : "sharp";
     this.renderUnsubscribers = [];
     if (typeof this.engine.on === "function") {
@@ -676,8 +680,81 @@ export class NovaCutCanvasPreview {
     }
   }
 
+  getNativeFrameMedia() {
+    if (!(this.forceNativeVideoLayer || this.nativeFallbackActive) || !this.engine.isPlaying) return null;
+    const active = this.engine.getActiveVideoClips().slice().sort((a, b) => b.startTime - a.startTime);
+    for (const clip of active) {
+      const media = this.media.get(clip.id);
+      if (
+        media instanceof HTMLVideoElement &&
+        media.readyState >= 2 &&
+        !media.paused &&
+        typeof media.requestVideoFrameCallback === "function"
+      ) return media;
+    }
+    return null;
+  }
+
+  cancelVideoFramePaint() {
+    const media = this.videoFrameElement;
+    if (this.videoFramePending && media && typeof media.cancelVideoFrameCallback === "function") {
+      try { media.cancelVideoFrameCallback(this.videoFrameId); } catch (_) {}
+    }
+    this.videoFrameId = 0;
+    this.videoFramePending = false;
+    this.videoFrameElement = null;
+  }
+
+  requestVideoFramePaint(media) {
+    if (!this.running || !media || typeof media.requestVideoFrameCallback !== "function") return;
+    if (this.videoFrameElement !== media) this.cancelVideoFramePaint();
+    if (this.videoFramePending) return;
+    this.videoFrameElement = media;
+    this.videoFramePending = true;
+    try {
+      this.videoFrameId = media.requestVideoFrameCallback((now) => {
+        this.videoFrameId = 0;
+        this.videoFramePending = false;
+        if (!this.running) {
+          this.videoFrameElement = null;
+          return;
+        }
+        if (this.getNativeFrameMedia() !== media) {
+          this.videoFrameElement = null;
+          if (!this.frameId && this.schedulerLoop) this.frameId = requestAnimationFrame(this.schedulerLoop);
+          return;
+        }
+        if (this.needsRender || this.engine.isPlaying) {
+          this.needsRender = false;
+          this.lastRenderAt = now;
+          try {
+            this.render();
+          } catch (error) {
+            this.needsRender = true;
+            this.engine.reportError("preview", error);
+          }
+        }
+        this.requestVideoFramePaint(media);
+      });
+    } catch (_) {
+      this.videoFramePending = false;
+      this.videoFrameElement = null;
+      if (!this.frameId && this.schedulerLoop) this.frameId = requestAnimationFrame(this.schedulerLoop);
+    }
+  }
+
   markDirty() {
     this.needsRender = true;
+    if (!this.running) return;
+    const nativeMedia = this.getNativeFrameMedia();
+    if (nativeMedia) {
+      if (this.videoFrameElement === nativeMedia && this.videoFramePending) return;
+      this.cancelVideoFramePaint();
+      this.requestVideoFramePaint(nativeMedia);
+      return;
+    }
+    this.cancelVideoFramePaint();
+    if (!this.frameId && this.schedulerLoop) this.frameId = requestAnimationFrame(this.schedulerLoop);
   }
 
   setPreviewQuality(mode) {
@@ -696,7 +773,18 @@ export class NovaCutCanvasPreview {
     if (this.running) return;
     this.running = true;
     const loop = (now = 0) => {
+      this.frameId = 0;
       if (!this.running) return;
+
+      const nativeMedia = this.getNativeFrameMedia();
+      if (nativeMedia) {
+        // Paint overlays only when the hardware-decoded video sends a frame to
+        // the compositor, rather than doing a second 30/60 Hz busy render loop.
+        this.requestVideoFramePaint(nativeMedia);
+        return;
+      }
+
+      this.cancelVideoFramePaint();
       const nativePlayback = (this.forceNativeVideoLayer || this.nativeFallbackActive) && this.engine.isPlaying;
       const frameInterval = nativePlayback ? 1000 / 30 : 0;
       const intervalElapsed = !nativePlayback || now - this.lastRenderAt >= frameInterval;
@@ -710,8 +798,12 @@ export class NovaCutCanvasPreview {
           this.engine.reportError("preview", error);
         }
       }
-      this.frameId = requestAnimationFrame(loop);
+
+      // While paused, one dirty render is enough. markDirty() schedules the
+      // next RAF when a setting, clip, resize, or playhead actually changes.
+      if (this.engine.isPlaying || this.needsRender) this.frameId = requestAnimationFrame(loop);
     };
+    this.schedulerLoop = loop;
     this.frameId = requestAnimationFrame(loop);
   }
 
@@ -719,6 +811,8 @@ export class NovaCutCanvasPreview {
     this.running = false;
     cancelAnimationFrame(this.frameId);
     this.frameId = 0;
+    this.cancelVideoFramePaint();
+    this.schedulerLoop = null;
   }
 
   render() {
@@ -1779,28 +1873,57 @@ export class NovaCutEngine {
   executeSplitAction(activeTrackId, currentTimestamp) {
     const targetId = activeTrackId || this.activeTrackId;
     const record = this.registry.getById(targetId);
-    if (!record || record.type !== "videoTracks") {
-      this.setStatus("Select a video clip before using Split.");
+    if (!record) {
+      this.setStatus("Select a timeline clip before using Split.");
       return { success: false };
     }
+    const tracks = this.registry[record.type];
+    if (!Array.isArray(tracks)) {
+      this.setStatus("This timeline item cannot be split.");
+      return { success: false };
+    }
+
     const before = this.history.capture();
-    const clip = record.item;
-    const timestamp = clamp(currentTimestamp, clip.startTime, clip.startTime + clip.duration);
-    const left = timestamp - clip.startTime;
-    const right = clip.duration - left;
+    const item = record.item;
+    const timestamp = clamp(currentTimestamp, item.startTime, item.startTime + item.duration);
+    const left = timestamp - item.startTime;
+    const right = item.startTime + item.duration - timestamp;
     const frame = 1000 / 30;
     if (left <= frame || right <= frame) {
       this.setStatus("Move the playhead away from the clip edge.");
       return { success: false, reason: "split-point-too-close-to-boundary" };
     }
-    const index = this.registry.videoTracks.findIndex((item) => item.id === clip.id);
-    const first = { ...cloneObject(clip), id: uid("video"), duration: left };
-    const second = { ...cloneObject(clip), id: uid("video"), startTime: timestamp, duration: right, sourceStartTime: clip.sourceStartTime + left };
-    this.registry.videoTracks.splice(index, 1, first, second);
+
+    const idPrefix = {
+      videoTracks: "video",
+      audioTracks: "audio",
+      textTracks: "text",
+      overlayTracks: "sticker",
+      effectTracks: "effect"
+    }[record.type] || "clip";
+    const sourceStartTime = Math.max(0, Number(item.sourceStartTime) || 0);
+    const first = { ...cloneObject(item), duration: left };
+    const second = {
+      ...cloneObject(item),
+      id: uid(idPrefix),
+      startTime: timestamp,
+      duration: right
+    };
+    if ("sourceStartTime" in item) second.sourceStartTime = sourceStartTime + left;
+
+    const index = tracks.findIndex((entry) => entry.id === item.id);
+    if (index < 0) return { success: false, reason: "timeline-item-not-found" };
+    tracks.splice(index, 1, first, second);
     this.activeTrackId = second.id;
     this.history.record(before, "Split");
     this.refresh();
-    this.events.emit("split", { originalClipId: clip.id, firstClip: first, secondClip: second, splitTimestamp: timestamp });
+    this.events.emit("split", {
+      type: record.type,
+      originalClipId: item.id,
+      firstClip: first,
+      secondClip: second,
+      splitTimestamp: timestamp
+    });
     return { success: true, firstClip: first, secondClip: second };
   }
 
@@ -2215,6 +2338,9 @@ export class NovaCutEngine {
         record.item.x_offset = (Number(state.original.x_offset) || 0) + dx * (canvas.width || width);
         record.item.y_offset = (Number(state.original.y_offset) || 0) + dy * (canvas.height || height);
       }
+      // Keep the canvas/native video layer in sync while the user is dragging,
+      // not just after pointerup commits the history transaction.
+      this.preview?.markDirty();
       event.preventDefault();
     }, { signal: this.abort.signal });
 

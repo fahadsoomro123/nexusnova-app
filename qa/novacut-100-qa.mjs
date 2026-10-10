@@ -47,9 +47,24 @@ check("text add API present", () => assert(has(engine, "addTextCue(input)"), "ad
 check("sticker add API present", () => assert(has(engine, "addSticker(sticker"), "sticker API missing"));
 check("effect add API present", () => assert(has(engine, "addEffect(input"), "effect API missing"));
 check("delete API present", () => assert(has(engine, "removeSelected()"), "delete API missing"));
-check("duplicate API present", () => assert(has(engine, "duplicateSelected()"), "duplicate API missing"));
+check("Split works across all timeline track types", () => assert(
+  has(engine, "executeSplitAction(activeTrackId, currentTimestamp)") &&
+  has(engine, "const tracks = this.registry[record.type]") &&
+  has(engine, "sourceStartTime + left") &&
+  has(engine, "duplicateSelected()"),
+  "split must support selected video, audio, text, sticker, and effect clips without losing source offsets"
+));
 check("playback follows decoded video clock", () => assert(has(engine, "mediaTimelineTime = clockClip.startTime") && has(engine, "media.currentTime * 1000"), "media clock sync missing"));
-check("render avoids per-frame decoder seeking and canvas resets", () => assert(has(engine, "media.currentTime = target") && !has(engine, "this.engine.isPlaying && Math.abs(media.currentTime - target) > 0.3") && has(engine, "if (this.sourceCanvas.width !== width) this.sourceCanvas.width = width;") && has(engine, "if (this.sourceCanvas.height !== height) this.sourceCanvas.height = height;"), "decoder seek thrash or per-frame backing canvas reset still present"));
+check("preview uses decoded-frame cadence on Android and avoids per-frame decoder seeking", () => assert(
+  has(engine, "requestVideoFrameCallback") &&
+  has(engine, "cancelVideoFrameCallback") &&
+  has(engine, "getNativeFrameMedia()") &&
+  has(engine, "media.currentTime = target") &&
+  !has(engine, "this.engine.isPlaying && Math.abs(media.currentTime - target) > 0.3") &&
+  has(engine, "if (this.sourceCanvas.width !== width) this.sourceCanvas.width = width;") &&
+  has(engine, "if (this.sourceCanvas.height !== height) this.sourceCanvas.height = height;"),
+  "decoded-frame scheduling, decoder seek guard, or backing canvas reset regression"
+));
 check("undo API present", () => assert(has(engine, "undo()"), "undo API missing"));
 check("redo API present", () => assert(has(engine, "redo()"), "redo API missing"));
 check("cycleRatio restored", () => assert(/\n  cycleRatio\(\) \{/.test(engine), "cycleRatio missing"));
@@ -96,7 +111,7 @@ check("pointer interaction includes direct video framing without detaching timel
   assert(selectStart >= 0 && addStart > selectStart, "selectClip method is missing");
   assert(!engine.slice(selectStart, addStart).includes("this.refresh()"), "selection refresh recreates timeline DOM during dragging");
   assert(has(suite, "const updateTimelineSelection") && has(suite, "engine.on('selectionchange', updateTimelineSelection);"), "selection handler still fully rerenders timeline");
-  assert(has(engine, "pointerdown") && has(engine, 'return { type: "videoTracks", item: activeVideos[0] }') && has(engine, "record.item.y_offset ="), "video preview drag framing missing");
+  assert(has(engine, "pointerdown") && has(engine, 'return { type: "videoTracks", item: activeVideos[0] }') && has(engine, "record.item.y_offset =") && has(engine, "this.preview?.markDirty();"), "video preview drag framing or live canvas refresh missing");
 });
 check("playhead and clips use absolute scroll-aware timeline positions", () => assert(has(studio, "this.timeline.scrollLeft") && has(studio, "this.timeline.scrollWidth") && has(studio, "targetRect.left") && has(studio, "timeline-pan") && has(studio, "Math.abs(candidate - target)") && has(studio, 'element.style.left = start * scale + "px"') && has(studio, 'element.style.marginLeft = "0px"') && has(studio, 'element.style.setProperty("min-width", width + "px", "important")') && has(suite, "layoutTimelineClips") && has(suite, "sort(byStartTime)"), "timeline geometry, duration width or chronological ordering regression"));
 check("pointer up present", () => assert(has(engine, "pointerup"), "pointerup missing"));
@@ -171,12 +186,34 @@ if (passed !== 100) {
 
 // Behavioural unit tests for the exact blank-preview failure path.
 globalThis.window ??= globalThis;
-const { NovaCutCanvasPreview, NovaCutCommandCompiler, isAndroidWebViewUserAgent } = await import("../fresh-rebuild/src/features/apps/novacut-engine.js");
+const { NovaCutEngine, NovaCutCanvasPreview, NovaCutCommandCompiler, isAndroidWebViewUserAgent } = await import("../fresh-rebuild/src/features/apps/novacut-engine.js");
 
 const androidWebViewUA = "Mozilla/5.0 (Linux; Android 13; Test Device; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/120.0.0.0 Mobile Safari/537.36";
 const androidChromeUA = "Mozilla/5.0 (Linux; Android 13; Test Device) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
 if (!isAndroidWebViewUserAgent(androidWebViewUA)) throw new Error("Android WebView user agent did not select the native compositor.");
 if (isAndroidWebViewUserAgent(androidChromeUA)) throw new Error("Regular Android Chrome was incorrectly forced into WebView native mode.");
+// Timeline split behavior is exercised through the real engine registry/history APIs.
+const splitEngine = new NovaCutEngine();
+splitEngine.registry.addVideoClip({ id: "qa-split-video", startTime: 1000, duration: 4000, sourceStartTime: 250 });
+const videoSplit = splitEngine.executeSplitAction("qa-split-video", 2500);
+if (!videoSplit.success || splitEngine.registry.videoTracks.length !== 2 ||
+    videoSplit.firstClip.id !== "qa-split-video" || videoSplit.firstClip.duration !== 1500 ||
+    videoSplit.secondClip.startTime !== 2500 || videoSplit.secondClip.duration !== 2500 ||
+    videoSplit.secondClip.sourceStartTime !== 1750) {
+  throw new Error("NovaCut video split did not preserve timeline duration/source offset.");
+}
+splitEngine.registry.addAudioSegment({ id: "qa-split-audio", startTime: 5000, duration: 3000, sourceStartTime: 750 });
+const audioSplit = splitEngine.executeSplitAction("qa-split-audio", 6500);
+if (!audioSplit.success || audioSplit.firstClip.duration !== 1500 ||
+    audioSplit.secondClip.startTime !== 6500 || audioSplit.secondClip.sourceStartTime !== 2250) {
+  throw new Error("NovaCut audio split did not preserve source offset.");
+}
+splitEngine.registry.addTextCue({ id: "qa-split-text", text: "QA", startTime: 9000, duration: 2000 });
+const textSplit = splitEngine.executeSplitAction("qa-split-text", 10000);
+if (!textSplit.success || textSplit.firstClip.duration !== 1000 || textSplit.secondClip.duration !== 1000) {
+  throw new Error("NovaCut text split failed.");
+}
+console.log("TIMELINE BEHAVIOUR 3/3 PASS  video, audio source offsets, and text split");
 console.log("PLAYBACK BEHAVIOUR 1/7 PASS  Android WebView selects native compositor");
 
 class FakeVideoElement {
