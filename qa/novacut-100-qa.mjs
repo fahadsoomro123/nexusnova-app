@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
-import { sampleNovaCutVideoKeyframes } from "../fresh-rebuild/src/features/apps/novacut-engine.js";
+import { sampleNovaCutVideoKeyframes, sampleNovaCutAudioGain } from "../fresh-rebuild/src/features/apps/novacut-engine.js";
 
 const ROOT = process.cwd();
 const read = (file) => fs.readFileSync(path.join(ROOT, file), "utf8");
@@ -59,7 +59,7 @@ check("video add API and visual controls are normalized", () => assert(
   has(engine, "removeVideoKeyframeAtPlayhead()"),
   "video clip visual properties or keyframe animation are missing"
 ));
-check("audio add API and source-audio export mapping", () => assert(has(engine, "addAudioSegment(input)") && has(engine, "clip.metadata?.hasAudio !== true") && has(engine, "vsrcaudio") && has(engine, "audioLabels.map"), "source audio mapping missing"));
+check("audio add API and source-audio export mapping", () => assert(has(engine, "addAudioSegment(input)") && has(engine, "fadeInMs: clamp(input.fadeInMs ?? 0, 0, Math.max(250, Number(input.duration) || 250))") && has(engine, "sampleNovaCutAudioGain(segment, timestamp)") && has(engine, "sampleNovaCutAudioGain(segment, now)") && has(engine, 'afade=t=in:st=0:d=') && has(engine, "clip.metadata?.hasAudio !== true") && has(engine, "vsrcaudio") && has(engine, "audioLabels.map"), "source audio mapping or synchronized audio fade envelope missing"));
 check("text add API present", () => assert(has(engine, "addTextCue(input)"), "addTextCue missing"));
 check("sticker add API present", () => assert(has(engine, "addSticker(sticker"), "sticker API missing"));
 check("effect add API present", () => assert(has(engine, "addEffect(input"), "effect API missing"));
@@ -101,6 +101,14 @@ check("playback follows decoded video clock", () => {
   assert(Math.abs(sample.scale - 1.5) < 0.001 && Math.abs(sample.rotation - 45) < 0.001 &&
     Math.abs(sample.x_offset - 60) < 0.001 && Math.abs(sample.y_offset + 30) < 0.001,
     "keyframes did not interpolate transform properties at the requested playhead");
+  const audioFade = { startTime: 1000, duration: 4000, fadeInMs: 1000, fadeOutMs: 1000 };
+  assert(sampleNovaCutAudioGain(audioFade, 1000) === 0 &&
+    Math.abs(sampleNovaCutAudioGain(audioFade, 1500) - 0.5) < 0.001 &&
+    sampleNovaCutAudioGain(audioFade, 2500) === 1 &&
+    Math.abs(sampleNovaCutAudioGain(audioFade, 4500) - 0.5) < 0.001 &&
+    sampleNovaCutAudioGain(audioFade, 5000) === 0 &&
+    sampleNovaCutAudioGain({ startTime: 0, duration: 1000 }, 500) === 1,
+    "audio clip gain did not follow fade-in/fade-out envelopes at the playhead");
 });
 check("preview uses decoded-frame cadence on Android and avoids per-frame decoder seeking", () => assert(
   has(engine, "requestVideoFrameCallback") &&

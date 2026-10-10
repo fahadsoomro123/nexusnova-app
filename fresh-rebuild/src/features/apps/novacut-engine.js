@@ -93,6 +93,20 @@ function clipOpacityAt(clip, timestamp) {
   return clamp(opacity, 0, 1);
 }
 
+export function sampleNovaCutAudioGain(segment, timestamp) {
+  const duration = Math.max(1, Number(segment?.duration) || 1);
+  const start = Math.max(0, Number(segment?.startTime) || 0);
+  const local = clamp(Number(timestamp) - start, 0, duration);
+  const fadeIn = clamp(Number(segment?.fadeInMs) || 0, 0, duration);
+  const fadeOut = clamp(Number(segment?.fadeOutMs) || 0, 0, duration);
+  let gain = 1;
+  if (fadeIn > 0) gain = Math.min(gain, local / fadeIn);
+  if (fadeOut > 0 && duration - local < fadeOut) {
+    gain = Math.min(gain, (duration - local) / fadeOut);
+  }
+  return clamp(gain, 0, 1);
+}
+
 function normalizeVideoKeyframes(frames, durationMs, clip = {}) {
   const duration = Math.max(1, Number(durationMs) || Number(clip.duration) || 1);
   const baseScale = Math.max(0.05, Number(clip.transform?.scale ?? clip.scale) || 1);
@@ -250,7 +264,9 @@ export class NovaCutTrackRegistry {
       startTime: Math.max(0, Number(input.startTime) || 0),
       sourceStartTime: Math.max(0, Number(input.sourceStartTime) || 0),
       duration: Math.max(250, Number(input.duration) || 250),
-      volume: clamp(input.volume ?? 1, 0, 4)
+      volume: clamp(input.volume ?? 1, 0, 4),
+      fadeInMs: clamp(input.fadeInMs ?? 0, 0, Math.max(250, Number(input.duration) || 250)),
+      fadeOutMs: clamp(input.fadeOutMs ?? 0, 0, Math.max(250, Number(input.duration) || 250))
     };
     this.audioTracks.push(segment);
     return segment;
@@ -740,7 +756,7 @@ export class NovaCutCanvasPreview {
       if (!audio) return;
       const local = Math.max(0, timestamp - segment.startTime);
       try { audio.currentTime = msToSec((Number(segment.sourceStartTime) || 0) + local); } catch (_) {}
-      audio.volume = clamp(segment.volume ?? 1, 0, 1);
+      audio.volume = clamp(segment.volume ?? 1, 0, 1) * sampleNovaCutAudioGain(segment, timestamp);
     }));
   }
 
@@ -789,7 +805,7 @@ export class NovaCutCanvasPreview {
       const audioTarget = msToSec((Number(segment.sourceStartTime) || 0) + local);
       try {
         if (Math.abs(audio.currentTime - audioTarget) > 0.12) audio.currentTime = audioTarget;
-        audio.volume = clamp(segment.volume ?? 1, 0, 1);
+        audio.volume = clamp(segment.volume ?? 1, 0, 1) * sampleNovaCutAudioGain(segment, this.engine.currentTimestamp);
         await audio.play();
       } catch (error) {
         throw new Error("NovaCut could not start audio playback: " + (error?.message || error));
@@ -1113,7 +1129,7 @@ export class NovaCutCanvasPreview {
       activeAudio.forEach((segment) => {
         const audio = this.audioMedia.get(segment.id);
         if (audio) {
-          audio.volume = clamp(segment.volume ?? 1, 0, 1);
+          audio.volume = clamp(segment.volume ?? 1, 0, 1) * sampleNovaCutAudioGain(segment, now);
           if (audio.paused) audio.play().catch(() => {});
         }
       });
@@ -1489,10 +1505,17 @@ class NovaCutCommandCompiler {
       const sourceDuration = Math.max(1, Number(clip.sourceDuration) || Number(clip.duration) * speed);
       const clipDuration = msToSec(sourceDuration);
       const delay = Math.max(0, Math.round(Number(clip.startTime) || 0));
+      const fadeInSeconds = Math.min(msToSec(clip.fadeInMs || 0), msToSec(clip.duration));
+      const fadeOutSeconds = Math.min(msToSec(clip.fadeOutMs || 0), msToSec(clip.duration));
+      const audioFades = [];
+      if (fadeInSeconds > 0) audioFades.push("afade=t=in:st=0:d=" + fadeInSeconds.toFixed(3));
+      if (fadeOutSeconds > 0) audioFades.push("afade=t=out:st=" + Math.max(0, msToSec(clip.duration) - fadeOutSeconds).toFixed(3) + ":d=" + fadeOutSeconds.toFixed(3));
       filters.push(
         "[" + input.index + ":a:0]atrim=start=" + sourceStart.toFixed(3) +
         ":duration=" + clipDuration.toFixed(3) +
-        ",asetpts=PTS-STARTPTS," + ffmpegAtempoChain(speed) + ",volume=" + clamp(clip.volume ?? 1, 0, 4).toFixed(3) +
+        ",asetpts=PTS-STARTPTS," + ffmpegAtempoChain(speed) +
+        (audioFades.length ? "," + audioFades.join(",") : "") +
+        ",volume=" + clamp(clip.volume ?? 1, 0, 4).toFixed(3) +
         ",adelay=" + delay + "|" + delay + "[" + label + "]"
       );
       audioLabels.push(label);
@@ -1501,10 +1524,17 @@ class NovaCutCommandCompiler {
     audios.forEach(({ segment, input }, index) => {
       const label = "asrc" + index;
       const delay = Math.max(0, Math.round(Number(segment.startTime) || 0));
+      const clipDurationSeconds = msToSec(segment.duration);
+      const fadeInSeconds = Math.min(msToSec(segment.fadeInMs || 0), clipDurationSeconds);
+      const fadeOutSeconds = Math.min(msToSec(segment.fadeOutMs || 0), clipDurationSeconds);
+      const audioFades = [];
+      if (fadeInSeconds > 0) audioFades.push("afade=t=in:st=0:d=" + fadeInSeconds.toFixed(3));
+      if (fadeOutSeconds > 0) audioFades.push("afade=t=out:st=" + Math.max(0, clipDurationSeconds - fadeOutSeconds).toFixed(3) + ":d=" + fadeOutSeconds.toFixed(3));
       filters.push(
         "[" + input.index + ":a:0]atrim=start=" + msToSec(segment.sourceStartTime || 0).toFixed(3) +
-        ":duration=" + msToSec(segment.duration).toFixed(3) +
-        ",asetpts=PTS-STARTPTS,volume=" + clamp(segment.volume ?? 1, 0, 4).toFixed(3) +
+        ":duration=" + clipDurationSeconds.toFixed(3) +
+        ",asetpts=PTS-STARTPTS" + (audioFades.length ? "," + audioFades.join(",") : "") +
+        ",volume=" + clamp(segment.volume ?? 1, 0, 4).toFixed(3) +
         ",adelay=" + delay + "|" + delay + "[" + label + "]"
       );
       audioLabels.push(label);
@@ -2684,7 +2714,10 @@ export class NovaCutEngine {
         input("Fade out (seconds)", "fadeOut", seconds(item.fadeOutMs), 'min="0" max="60" step="0.05"') +
         input("Source audio volume (%)", "volume", Math.round(finite(item.volume, 1) * 100), 'min="0" max="400" step="5"');
     } else if (type === "audioTracks") {
-      fields += input("Audio volume (%)", "volume", Math.round(finite(item.volume, 1) * 100), 'min="0" max="400" step="5"');
+      fields +=
+        input("Audio volume (%)", "volume", Math.round(finite(item.volume, 1) * 100), 'min="0" max="400" step="5"') +
+        input("Fade in (seconds)", "fadeIn", seconds(item.fadeInMs), 'min="0" max="60" step="0.05"') +
+        input("Fade out (seconds)", "fadeOut", seconds(item.fadeOutMs), 'min="0" max="60" step="0.05"');
     } else if (type === "textTracks") {
       const style = item.style || {};
       fields += '<label>Text<textarea data-clip-prop="text" maxlength="240"></textarea></label>' +
@@ -2818,6 +2851,8 @@ export class NovaCutEngine {
       } else if (type === "audioTracks") {
         item.duration = requestedDuration;
         item.volume = clamp(value("volume", 100) / 100, 0, 4);
+        item.fadeInMs = Math.min(item.duration, Math.round(clamp(value("fadeIn", finite(item.fadeInMs) / 1000), 0, 60) * 1000));
+        item.fadeOutMs = Math.min(item.duration, Math.round(clamp(value("fadeOut", finite(item.fadeOutMs) / 1000), 0, 60) * 1000));
       } else if (type === "textTracks") {
         item.duration = requestedDuration;
         item.text = String(textInput?.value || "").slice(0, 240);
