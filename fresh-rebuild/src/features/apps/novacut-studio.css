@@ -537,6 +537,16 @@
     repeating-linear-gradient(135deg, rgba(255,255,255,.11) 0 3px, transparent 3px 7px) !important;
 }
 
+.nx-novacut__clip-thumb img {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
+  border-radius: inherit !important;
+  pointer-events: none !important;
+}
+
+
 .nx-novacut__clip-copy {
   min-width: 42px !important;
   display: grid !important;

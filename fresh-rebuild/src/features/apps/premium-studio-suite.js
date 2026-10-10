@@ -9,6 +9,76 @@ import { createNovaCutStudioInteractions, NOVACUT_PIXELS_PER_SECOND } from './no
 import { createNovaCutMediaParser } from './novacut-media.js';
 
 const NOVACUT_CSS = new URL('./novacut-studio.css', import.meta.url).href;
+const VIDEO_THUMBNAIL_CACHE = new WeakMap();
+
+function getVideoThumbnail(file) {
+  if (!file || typeof file !== 'object') return Promise.resolve(null);
+  const cached = VIDEO_THUMBNAIL_CACHE.get(file);
+  if (cached) return cached;
+
+  const promise = new Promise((resolve) => {
+    const video = document.createElement('video');
+    let objectUrl = '';
+    let timer = 0;
+    let settled = false;
+    const cleanup = (dataUrl) => {
+      if (settled) return;
+      settled = true;
+      if (timer) globalThis.clearTimeout?.(timer);
+      video.removeEventListener('loadedmetadata', onMetadata);
+      video.removeEventListener('loadeddata', onReady);
+      video.removeEventListener('seeked', onReady);
+      video.removeEventListener('error', onError);
+      try { video.pause(); video.removeAttribute('src'); video.load(); } catch (_) {}
+      if (objectUrl) {
+        try { URL.revokeObjectURL(objectUrl); } catch (_) {}
+      }
+      resolve(dataUrl || null);
+    };
+    const onReady = () => {
+      if (!video.videoWidth || !video.videoHeight) return;
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = 96;
+        canvas.height = 54;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return cleanup(null);
+        ctx.fillStyle = '#111216';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        const scale = Math.min(canvas.width / video.videoWidth, canvas.height / video.videoHeight);
+        const width = video.videoWidth * scale;
+        const height = video.videoHeight * scale;
+        ctx.drawImage(video, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height);
+        cleanup(canvas.toDataURL('image/webp', 0.72));
+      } catch (_) {
+        cleanup(null);
+      }
+    };
+    const onMetadata = () => {
+      const duration = Number(video.duration);
+      const target = Number.isFinite(duration) && duration > 0 ? Math.min(0.75, duration * 0.1) : 0.05;
+      try { video.currentTime = Math.max(0, target); } catch (_) {}
+    };
+    const onError = () => cleanup(null);
+    video.preload = 'metadata';
+    video.muted = true;
+    video.playsInline = true;
+    video.addEventListener('loadedmetadata', onMetadata);
+    video.addEventListener('loadeddata', onReady);
+    video.addEventListener('seeked', onReady);
+    video.addEventListener('error', onError);
+    timer = globalThis.setTimeout?.(() => cleanup(null), 4000) || 0;
+    try {
+      objectUrl = URL.createObjectURL(file);
+      video.src = objectUrl;
+      video.load();
+    } catch (_) {
+      cleanup(null);
+    }
+  });
+  VIDEO_THUMBNAIL_CACHE.set(file, promise);
+  return promise;
+}
 
 function ensureNovaCutStyles() {
   if (document.querySelector('link[data-novacut-styles]')) return;
@@ -51,8 +121,8 @@ function renderTrackClip(clip, type) {
 
   if (type === 'video') {
     return '<button type="button" class="nx-novacut__clip nx-novacut__clip--video' + selected + '" data-clip-id="' + id + '">' +
-      '<span class="nx-novacut__clip-thumb" aria-hidden="true"></span>' +
-      '<span class="nx-novacut__clip-copy"><strong>Video</strong><small>' + seconds + 's</small></span>' +
+      '<span class="nx-novacut__clip-thumb" data-video-thumb="' + id + '" aria-hidden="true"></span>' +
+      '<span class="nx-novacut__clip-copy"><strong>' + escapeHtml(clip?.file?.name || 'Video') + '</strong><small>' + seconds + 's</small></span>' +
       '<span class="nx-novacut__clip-wave" aria-hidden="true"></span></button>';
   }
 
@@ -216,6 +286,19 @@ function renderNovaCut() {
     videoLane.innerHTML = videos.length
       ? videos.map((clip) => renderTrackClip(clip, 'video')).join('')
       : '<button type="button" class="nx-novacut__lane-add" data-action="media">' + SVG.media + '<span>Add media</span></button>';
+    videoLane.querySelectorAll('[data-video-thumb]').forEach((thumb) => {
+      const clip = videos.find((item) => String(item.id) === thumb.dataset.videoThumb);
+      if (!clip?.file) return;
+      getVideoThumbnail(clip.file).then((dataUrl) => {
+        if (!dataUrl || !thumb.isConnected) return;
+        const image = document.createElement('img');
+        image.alt = '';
+        image.decoding = 'async';
+        image.draggable = false;
+        image.src = dataUrl;
+        thumb.replaceChildren(image);
+      }).catch(() => {});
+    });
     audioLane.innerHTML = audios.length
       ? audios.map((segment) => renderTrackClip(segment, 'audio')).join('')
       : '<span class="nx-novacut__lane-hint">Music and voice</span>';
