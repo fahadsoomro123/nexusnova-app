@@ -113,7 +113,32 @@ check("pointer interaction includes direct video framing without detaching timel
   assert(has(suite, "const updateTimelineSelection") && has(suite, "engine.on('selectionchange', updateTimelineSelection);"), "selection handler still fully rerenders timeline");
   assert(has(engine, "pointerdown") && has(engine, 'return { type: "videoTracks", item: activeVideos[0] }') && has(engine, "record.item.y_offset =") && has(engine, "this.preview?.markDirty();"), "video preview drag framing or live canvas refresh missing");
 });
-check("playhead and clips use absolute scroll-aware timeline positions", () => assert(has(studio, "this.timeline.scrollLeft") && has(studio, "this.timeline.scrollWidth") && has(studio, "targetRect.left") && has(studio, "timeline-pan") && has(studio, "Math.abs(candidate - target)") && has(studio, 'element.style.left = start * scale + "px"') && has(studio, 'element.style.marginLeft = "0px"') && has(studio, 'element.style.setProperty("min-width", width + "px", "important")') && has(suite, "layoutTimelineClips") && has(suite, "sort(byStartTime)"), "timeline geometry, duration width or chronological ordering regression"));
+check("playhead stays smooth without per-frame clip layout or observer churn", () => {
+  const syncStart = studio.indexOf("  syncTimeline()");
+  const syncEnd = studio.indexOf("  syncPlayhead()", syncStart);
+  const syncMethod = studio.slice(syncStart, syncEnd);
+  const installStart = studio.indexOf("  installPlayhead()");
+  const installEnd = studio.indexOf("  bind()", installStart);
+  const installMethod = studio.slice(installStart, installEnd);
+  assert(
+    has(studio, "this.timeline.scrollLeft") &&
+    has(studio, "this.timeline.scrollWidth") &&
+    has(studio, "targetRect.left") &&
+    has(studio, "timeline-pan") &&
+    has(studio, "Math.abs(candidate - target)") &&
+    has(studio, 'element.style.left = start * scale + "px"') &&
+    has(studio, 'element.style.marginLeft = "0px"') &&
+    has(studio, 'element.style.setProperty("min-width", width + "px", "important")') &&
+    has(suite, "layoutTimelineClips") &&
+    has(suite, "sort(byStartTime)") &&
+    syncStart >= 0 && syncEnd > syncStart &&
+    !syncMethod.includes("decorateVideoClips()") &&
+    installStart >= 0 && installEnd > installStart &&
+    !installMethod.includes("this.resizeObserver?.disconnect()") &&
+    installMethod.includes("!this.resizeObserver"),
+    "timeline geometry, scroll alignment, or playback-hot-path regression"
+  );
+});
 check("pointer up present", () => assert(has(engine, "pointerup"), "pointerup missing"));
 check("pointer cancel present", () => assert(has(engine, "pointercancel"), "pointercancel missing"));
 check("history transaction begin present", () => assert(has(studio, "beginHistoryTransaction"), "history begin wiring missing"));

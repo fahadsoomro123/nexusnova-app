@@ -154,13 +154,14 @@ export class NovaCutStudioInteractions {
   }
 
   installPlayhead() {
-    if (!this.timeline) {
-      return;
-    }
+    if (!this.timeline) return;
 
-    let element = this.timeline.querySelector(
-      ".nx-novacut__interaction-playhead"
-    );
+    // Keep the same playhead node and ResizeObserver across playback ticks.
+    // Recreating either on every playhead update creates needless DOM work and
+    // ResizeObserver churn on mobile.
+    let element = this.playhead?.isConnected
+      ? this.playhead
+      : this.timeline.querySelector(".nx-novacut__interaction-playhead");
 
     if (!element) {
       element = this.root.ownerDocument.createElement("span");
@@ -168,19 +169,10 @@ export class NovaCutStudioInteractions {
       element.setAttribute("aria-hidden", "true");
       this.timeline.appendChild(element);
     }
-
     this.playhead = element;
 
-    if (
-      typeof ResizeObserver !== "undefined"
-    ) {
-      this.resizeObserver?.disconnect();
-
-      this.resizeObserver =
-        new ResizeObserver(() => {
-          this.scheduleSync();
-        });
-
+    if (typeof ResizeObserver !== "undefined" && !this.resizeObserver) {
+      this.resizeObserver = new ResizeObserver(() => this.scheduleSync());
       this.resizeObserver.observe(this.timeline);
     }
   }
@@ -1349,12 +1341,12 @@ export class NovaCutStudioInteractions {
   }
 
   syncTimeline() {
-    if (!this.timeline) {
-      return;
-    }
-
+    if (!this.timeline) return;
     this.installPlayhead();
-    this.decorateVideoClips();
+
+    // playheadchange fires continuously during playback. Clip DOM geometry
+    // is changed only by timeline edits/DOM mutations, not by video time.
+    // Do not walk every clip, inspect handles or rewrite clip CSS per frame.
     this.syncPlayhead();
   }
 
