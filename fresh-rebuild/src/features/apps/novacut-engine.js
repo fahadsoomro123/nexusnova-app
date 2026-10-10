@@ -1405,7 +1405,7 @@ class NovaCutCommandCompiler {
       if (transform.flipY) vf.push("vflip");
       const rotation = ((Number(transform.rotation) || 0) % 360 + 360) % 360;
       if (hasKeyframes) {
-        vf.push("rotate=angle='(" + rotationExpression + ")*PI/180':c=black@0:ow=iw:oh=ih:eval=frame");
+        vf.push("rotate=angle='(" + rotationExpression + ")*PI/180':c=black@0:ow=iw:oh=ih");
       } else if (rotation === 90) vf.push("transpose=1");
       else if (rotation === 180) vf.push("hflip,vflip");
       else if (rotation === 270) vf.push("transpose=2");
