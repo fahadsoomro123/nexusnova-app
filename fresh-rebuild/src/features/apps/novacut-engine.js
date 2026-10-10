@@ -1095,6 +1095,8 @@ class NovaCutCommandCompiler {
       const previewHeight = Math.max(1, Number(this.engine.preview?.canvas?.height) || height);
       const xOffset = (Number(clip.x_offset) || 0) * width / previewWidth;
       const yOffset = (Number(clip.y_offset) || 0) * height / previewHeight;
+      const xOffsetArg = Math.abs(xOffset) < 0.001 ? "0" : xOffset.toFixed(2);
+      const yOffsetArg = Math.abs(yOffset) < 0.001 ? "0" : yOffset.toFixed(2);
       const aspectRatioMode = clip.fitMode === "fill" ? "increase" : "decrease";
       const vf = [
         // Match the editor's Fit/Fill framing before applying clip zoom.
@@ -1113,8 +1115,8 @@ class NovaCutCommandCompiler {
         ",setpts=PTS-STARTPTS+" + startAt.toFixed(3) + "/TB," + vf.join(",") + ",format=rgba[" + src + "]"
       );
       filters.push(
-        "[" + currentVideo + "][" + src + "]overlay=x=(W-w)/2+" + xOffset.toFixed(2) +
-        ":y=(H-h)/2+" + yOffset.toFixed(2) + ":eof_action=pass:shortest=0:repeatlast=0[" + out + "]"
+        "[" + currentVideo + "][" + src + "]overlay=x=(W-w)/2+" + xOffsetArg +
+        ":y=(H-h)/2+" + yOffsetArg + ":eof_action=pass:shortest=0:repeatlast=0[" + out + "]"
       );
       currentVideo = out;
     });
