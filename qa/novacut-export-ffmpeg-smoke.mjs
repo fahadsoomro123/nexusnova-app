@@ -45,7 +45,7 @@ function probeDuration(file) {
   return Number(output.trim());
 }
 
-function makeEngine({ videoName, hasAudio, audios = [], stickers = [] }) {
+function makeEngine({ videoName, hasAudio, audios = [], stickers = [], clipOptions = {} }) {
   const video = {
     id: "source-video",
     file: { name: videoName, type: "video/mp4" },
@@ -56,7 +56,13 @@ function makeEngine({ videoName, hasAudio, audios = [], stickers = [] }) {
     x_offset: 0,
     scale: 1,
     transform: { scale: 1, rotation: 0, flipX: false, flipY: false },
-    metadata: { hasAudio, width: 90, height: 160 }
+    brightness: 100,
+    contrast: 100,
+    saturation: 100,
+    fadeInMs: 0,
+    fadeOutMs: 0,
+    metadata: { hasAudio, width: 90, height: 160 },
+    ...clipOptions
   };
   const tracks = [video, ...audios, ...stickers];
   return {
@@ -74,8 +80,8 @@ function makeEngine({ videoName, hasAudio, audios = [], stickers = [] }) {
   };
 }
 
-function planAndRun({ name, hasAudio, audios = [], stickers = [] }) {
-  const engine = makeEngine({ videoName: hasAudio ? "source-with-audio.mp4" : "source-silent.mp4", hasAudio, audios, stickers });
+function planAndRun({ name, hasAudio, audios = [], stickers = [], clipOptions = {} }) {
+  const engine = makeEngine({ videoName: hasAudio ? "source-with-audio.mp4" : "source-silent.mp4", hasAudio, audios, stickers, clipOptions });
   const output = path.join(temp, name);
   const compiled = new NovaCutCommandCompiler(engine).compile({
     ratio: "9:16",
@@ -146,6 +152,7 @@ try {
   const mixedPlan = planAndRun({
     name: "mixed-audio-sticker-export.mp4",
     hasAudio: true,
+    clipOptions: { brightness: 115, contrast: 125, saturation: 135, fadeInMs: 250, fadeOutMs: 500 },
     audios: [{
       id: "music-track",
       file: { name: "music.mp3", type: "audio/mpeg" },
@@ -161,6 +168,10 @@ try {
   });
   assert(mixedPlan.streams.some((stream) => stream.codec_type === "audio"), "Mixed export has no audio stream.");
   assert(mixedPlan.filters.includes("scale=44:80:force_original_aspect_ratio=decrease"), "Sticker was not resized before overlay composition.");
+  assert(mixedPlan.filters.includes("lutrgb=r='min(255,val*1.150)':g='min(255,val*1.150)':b='min(255,val*1.150)'"), "Brightness adjustment filter is missing from export.");
+  assert(mixedPlan.filters.includes("eq=contrast=1.250:saturation=1.350"), "Contrast/saturation filters are missing from export.");
+  assert(mixedPlan.filters.includes("fade=t=in:st=0.000:d=0.250:alpha=1"), "Fade-in alpha transition is missing from export.");
+  assert(mixedPlan.filters.includes("fade=t=out:st=1.500:d=0.500:alpha=1"), "Fade-out alpha transition is missing from export.");
   console.log("FFMPEG EXPORT 2/3 PASS  original audio, music and sticker filters render");
 
   const silentPlan = planAndRun({ name: "silent-video-export.mp4", hasAudio: false });

@@ -64,6 +64,27 @@ function rgba(hex, alpha) {
   return "rgba(" + r + "," + g + "," + b + "," + clamp(alpha == null ? 1 : alpha, 0, 1) + ")";
 }
 
+function clipCssFilter(clip) {
+  const brightness = clamp(Number(clip?.brightness ?? 100) / 100, 0, 2);
+  const contrast = clamp(Number(clip?.contrast ?? 100) / 100, 0, 2);
+  const saturation = clamp(Number(clip?.saturation ?? 100) / 100, 0, 3);
+  if (brightness === 1 && contrast === 1 && saturation === 1) return "none";
+  return "brightness(" + brightness.toFixed(3) + ") contrast(" + contrast.toFixed(3) + ") saturate(" + saturation.toFixed(3) + ")";
+}
+
+function clipOpacityAt(clip, timestamp) {
+  const duration = Math.max(1, Number(clip?.duration) || 1);
+  const local = clamp(Number(timestamp) - (Number(clip?.startTime) || 0), 0, duration);
+  const fadeIn = clamp(Number(clip?.fadeInMs) || 0, 0, duration);
+  const fadeOut = clamp(Number(clip?.fadeOutMs) || 0, 0, duration);
+  let opacity = 1;
+  if (fadeIn > 0) opacity = Math.min(opacity, local / fadeIn);
+  if (fadeOut > 0 && duration - local < fadeOut) {
+    opacity = Math.min(opacity, (duration - local) / fadeOut);
+  }
+  return clamp(opacity, 0, 1);
+}
+
 class NovaCutEventBus {
   constructor() { this.map = new Map(); }
   on(name, fn) {
@@ -91,11 +112,12 @@ export class NovaCutTrackRegistry {
 
   addVideoClip(input = {}) {
     const transform = input.transform || {};
+    const duration = Math.max(1, Number(input.duration) || 1);
     const clip = {
       id: String(input.id || uid("video")),
       file: input.file || null,
       startTime: Math.max(0, Number(input.startTime) || 0),
-      duration: Math.max(1, Number(input.duration) || 1),
+      duration,
       sourceStartTime: Math.max(0, Number(input.sourceStartTime) || 0),
       x_offset: Number(input.x_offset) || 0,
       y_offset: Number(input.y_offset) || 0,
@@ -107,6 +129,11 @@ export class NovaCutTrackRegistry {
         flipX: Boolean(transform.flipX),
         flipY: Boolean(transform.flipY)
       },
+      brightness: clamp(input.brightness ?? 100, 0, 200),
+      contrast: clamp(input.contrast ?? 100, 0, 200),
+      saturation: clamp(input.saturation ?? 100, 0, 300),
+      fadeInMs: clamp(input.fadeInMs ?? 0, 0, duration),
+      fadeOutMs: clamp(input.fadeOutMs ?? 0, 0, duration),
       volume: clamp(input.volume ?? 1, 0, 4)
     };
     this.videoTracks.push(clip);
@@ -311,10 +338,14 @@ export class NovaCutCanvasPreview {
       "scale(" + (transformScale * (clip?.transform?.flipX ? -1 : 1)) + "," +
         (transformScale * (clip?.transform?.flipY ? -1 : 1)) + ")"
     ].join(" ");
+    const filter = clipCssFilter(clip);
+    const opacity = clipOpacityAt(clip, this.engine.currentTimestamp);
     const signature = [
       clip?.id || "",
       fitMode,
       transform,
+      filter,
+      opacity.toFixed(3),
       canvasWidth,
       canvasHeight,
       clientWidth,
@@ -342,7 +373,9 @@ export class NovaCutCanvasPreview {
         background: "#050507",
         display: "block",
         transformOrigin: "center center",
-        transform
+        transform,
+        filter,
+        opacity: String(opacity)
       });
       if (media.dataset) media.dataset.novacutPreviewSignature = signature;
       else media.__novacutPreviewSignature = signature;
@@ -898,6 +931,8 @@ export class NovaCutCanvasPreview {
       }
 
       ctx.save();
+      ctx.filter = clipCssFilter(clip);
+      ctx.globalAlpha = clipOpacityAt(clip, now);
       ctx.translate(x + dw / 2, y + dh / 2);
       ctx.rotate(rotation);
       ctx.scale(clip.transform?.flipX ? -1 : 1, clip.transform?.flipY ? -1 : 1);
@@ -1245,6 +1280,29 @@ class NovaCutCommandCompiler {
         "scale=" + width + ":" + height + ":force_original_aspect_ratio=" + aspectRatioMode,
         "scale=trunc(iw*" + scale + "/2)*2:trunc(ih*" + scale + "/2)*2"
       ];
+      const brightness = clamp(Number(clip.brightness ?? 100) / 100, 0, 2);
+      const contrast = clamp(Number(clip.contrast ?? 100) / 100, 0, 2);
+      const saturation = clamp(Number(clip.saturation ?? 100) / 100, 0, 3);
+      if (brightness !== 1) {
+        const factor = brightness.toFixed(3);
+        vf.push("lutrgb=r='min(255,val*" + factor + ")':g='min(255,val*" + factor + ")':b='min(255,val*" + factor + ")'");
+      }
+      if (contrast !== 1 || saturation !== 1) {
+        vf.push("eq=contrast=" + contrast.toFixed(3) + ":saturation=" + saturation.toFixed(3));
+      }
+      // Keep the alpha channel through the compositor so the preview and export
+      // use the same timed fade envelopes for each clip.
+      vf.push("format=rgba");
+      const clipDurationSeconds = msToSec(clip.duration);
+      const fadeInSeconds = Math.min(clipDurationSeconds, msToSec(clip.fadeInMs || 0));
+      const fadeOutSeconds = Math.min(clipDurationSeconds, msToSec(clip.fadeOutMs || 0));
+      if (fadeInSeconds > 0) {
+        vf.push("fade=t=in:st=" + startAt.toFixed(3) + ":d=" + fadeInSeconds.toFixed(3) + ":alpha=1");
+      }
+      if (fadeOutSeconds > 0) {
+        vf.push("fade=t=out:st=" + Math.max(startAt, startAt + clipDurationSeconds - fadeOutSeconds).toFixed(3) +
+          ":d=" + fadeOutSeconds.toFixed(3) + ":alpha=1");
+      }
       if (transform.flipX) vf.push("hflip");
       if (transform.flipY) vf.push("vflip");
       const rotation = ((Number(transform.rotation) || 0) % 360 + 360) % 360;
@@ -1254,7 +1312,7 @@ class NovaCutCommandCompiler {
       else if (rotation !== 0) vf.push("rotate=" + (rotation * Math.PI / 180).toFixed(6) + ":c=black@0:ow=rotw(iw):oh=roth(ih)");
       filters.push(
         "[" + input.index + ":v:0]trim=start=" + begin.toFixed(3) + ":end=" + end.toFixed(3) +
-        ",setpts=PTS-STARTPTS+" + startAt.toFixed(3) + "/TB," + vf.join(",") + ",format=rgba[" + src + "]"
+        ",setpts=PTS-STARTPTS+" + startAt.toFixed(3) + "/TB," + vf.join(",") + "[" + src + "]"
       );
       filters.push(
         "[" + currentVideo + "][" + src + "]overlay=x=(W-w)/2+" + xOffsetArg +
@@ -2153,6 +2211,11 @@ export class NovaCutEngine {
         input("Position X (preview px)", "x", finite(item.x_offset), 'min="-2000" max="2000" step="1"') +
         input("Position Y (preview px)", "y", finite(item.y_offset), 'min="-2000" max="2000" step="1"') +
         input("Rotation (degrees)", "rotation", finite(transform.rotation), 'min="-360" max="360" step="1"') +
+        input("Brightness (%)", "brightness", finite(item.brightness, 100), 'min="0" max="200" step="5"') +
+        input("Contrast (%)", "contrast", finite(item.contrast, 100), 'min="0" max="200" step="5"') +
+        input("Saturation (%)", "saturation", finite(item.saturation, 100), 'min="0" max="300" step="5"') +
+        input("Fade in (seconds)", "fadeIn", seconds(item.fadeInMs), 'min="0" max="60" step="0.05"') +
+        input("Fade out (seconds)", "fadeOut", seconds(item.fadeOutMs), 'min="0" max="60" step="0.05"') +
         input("Source audio volume (%)", "volume", Math.round(finite(item.volume, 1) * 100), 'min="0" max="400" step="5"');
     } else if (type === "audioTracks") {
       fields += input("Audio volume (%)", "volume", Math.round(finite(item.volume, 1) * 100), 'min="0" max="400" step="5"');
@@ -2208,6 +2271,11 @@ export class NovaCutEngine {
         item.transform = { ...(item.transform || {}), scale, rotation: clamp(value("rotation", 0), -360, 360) };
         item.x_offset = clamp(value("x", finite(item.x_offset)), -2000, 2000);
         item.y_offset = clamp(value("y", finite(item.y_offset)), -2000, 2000);
+        item.brightness = clamp(value("brightness", finite(item.brightness, 100)), 0, 200);
+        item.contrast = clamp(value("contrast", finite(item.contrast, 100)), 0, 200);
+        item.saturation = clamp(value("saturation", finite(item.saturation, 100)), 0, 300);
+        item.fadeInMs = Math.min(item.duration, Math.round(clamp(value("fadeIn", finite(item.fadeInMs) / 1000), 0, 60) * 1000));
+        item.fadeOutMs = Math.min(item.duration, Math.round(clamp(value("fadeOut", finite(item.fadeOutMs) / 1000), 0, 60) * 1000));
         item.volume = clamp(value("volume", 100) / 100, 0, 4);
         item.fitMode = sheet.body.querySelector('[data-clip-prop="fitMode"]')?.value === "fill" ? "fill" : "fit";
       } else if (type === "audioTracks") {
