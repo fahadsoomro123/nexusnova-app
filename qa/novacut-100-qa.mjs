@@ -139,7 +139,7 @@ check("playhead stays aligned and smooth without per-frame clip layout or observ
     installStart >= 0 && installEnd > installStart &&
     !installMethod.includes("this.resizeObserver?.disconnect()") &&
     installMethod.includes("!this.resizeObserver") &&
-    playheadStart >= 0 && has(playheadRule, "position: absolute !important").test(playheadRule) &&
+    playheadStart >= 0 && has(playheadRule, "position: absolute !important") &&
     has(studioCss, '.nx-novacut__interaction-playhead::before') &&
     has(studioCss, 'content: "" !important'),
     "timeline geometry, visible playhead positioning, or playback-hot-path regression"
