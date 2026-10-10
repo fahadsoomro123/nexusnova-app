@@ -339,7 +339,7 @@ export class NovaCutCanvasPreview {
         (transformScale * (clip?.transform?.flipY ? -1 : 1)) + ")"
     ].join(" ");
     const filter = clipCssFilter(clip);
-    const opacity = clipOpacityAt(clip, this.engine.currentTimestamp);
+    const opacity = clipOpacityAt(clip, Number(this.engine?.currentTimestamp) || 0);
     const signature = [
       clip?.id || "",
       fitMode,
