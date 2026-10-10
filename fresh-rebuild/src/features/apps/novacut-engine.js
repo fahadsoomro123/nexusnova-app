@@ -118,6 +118,7 @@ export class NovaCutTrackRegistry {
       id: String(input.id || uid("audio")),
       file: input.file || null,
       startTime: Math.max(0, Number(input.startTime) || 0),
+      sourceStartTime: Math.max(0, Number(input.sourceStartTime) || 0),
       duration: Math.max(250, Number(input.duration) || 250),
       volume: clamp(input.volume ?? 1, 0, 4)
     };
@@ -285,27 +286,51 @@ export class NovaCutCanvasPreview {
     }
     this.nativePreviewMedia = media;
     media.classList.add("nx-novacut__native-preview-video");
-    Object.assign(media.style, {
-      position: "absolute",
-      inset: "0",
-      width: "100%",
-      height: "100%",
-      maxWidth: "100%",
-      maxHeight: "100%",
-      objectFit: clip?.fitMode === "fill" ? "cover" : "contain",
-      zIndex: "0",
-      pointerEvents: "none",
-      background: "#050507",
-      display: "block",
-      transformOrigin: "center center",
-      transform: [
-        "translateX(" + (Number(clip?.x_offset || 0) / Math.max(0.1, (Number(this.canvas?.width) || 1) / Math.max(1, Number(this.canvas?.clientWidth) || 1))) + "px)",
-        "translateY(" + (Number(clip?.y_offset || 0) / Math.max(0.1, (Number(this.canvas?.height) || 1) / Math.max(1, Number(this.canvas?.clientHeight) || 1))) + "px)",
-        "rotate(" + (Number(clip?.transform?.rotation || 0)) + "deg)",
-        "scale(" + (Math.max(0.05, Number(clip?.transform?.scale ?? clip?.scale) || 1) * (clip?.transform?.flipX ? -1 : 1)) + "," +
-          (Math.max(0.05, Number(clip?.transform?.scale ?? clip?.scale) || 1) * (clip?.transform?.flipY ? -1 : 1)) + ")"
-      ].join(" ")
-    });
+
+    const canvasWidth = Math.max(1, Number(this.canvas.width) || 1);
+    const canvasHeight = Math.max(1, Number(this.canvas.height) || 1);
+    const clientWidth = Math.max(1, Number(this.canvas.clientWidth) || 1);
+    const clientHeight = Math.max(1, Number(this.canvas.clientHeight) || 1);
+    const transformScale = Math.max(0.05, Number(clip?.transform?.scale ?? clip?.scale) || 1);
+    const fitMode = clip?.fitMode === "fill" ? "cover" : "contain";
+    const transform = [
+      "translateX(" + (Number(clip?.x_offset || 0) / Math.max(0.1, canvasWidth / clientWidth)) + "px)",
+      "translateY(" + (Number(clip?.y_offset || 0) / Math.max(0.1, canvasHeight / clientHeight)) + "px)",
+      "rotate(" + (Number(clip?.transform?.rotation || 0)) + "deg)",
+      "scale(" + (transformScale * (clip?.transform?.flipX ? -1 : 1)) + "," +
+        (transformScale * (clip?.transform?.flipY ? -1 : 1)) + ")"
+    ].join(" ");
+    const signature = [
+      clip?.id || "",
+      fitMode,
+      transform,
+      canvasWidth,
+      canvasHeight,
+      clientWidth,
+      clientHeight
+    ].join("|");
+
+    // Rewriting video layout styles on every preview tick invalidates WebView
+    // layout while the hardware decoder is trying to present frames. Only update
+    // the native layer when its clip or framing actually changes.
+    if (media.dataset.novacutPreviewSignature !== signature) {
+      Object.assign(media.style, {
+        position: "absolute",
+        inset: "0",
+        width: "100%",
+        height: "100%",
+        maxWidth: "100%",
+        maxHeight: "100%",
+        objectFit: fitMode,
+        zIndex: "0",
+        pointerEvents: "none",
+        background: "#050507",
+        display: "block",
+        transformOrigin: "center center",
+        transform
+      });
+      media.dataset.novacutPreviewSignature = signature;
+    }
     if (media.parentElement !== shell) shell.insertBefore(media, this.canvas);
     this.canvas.classList.add("nx-novacut__canvas--native-preview");
   }
@@ -552,7 +577,7 @@ export class NovaCutCanvasPreview {
       });
       if (!audio) return;
       const local = Math.max(0, timestamp - segment.startTime);
-      try { audio.currentTime = msToSec(local); } catch (_) {}
+      try { audio.currentTime = msToSec((Number(segment.sourceStartTime) || 0) + local); } catch (_) {}
       audio.volume = clamp(segment.volume ?? 1, 0, 1);
     }));
   }
@@ -596,8 +621,9 @@ export class NovaCutCanvasPreview {
     await Promise.all(activeAudio.map(async (segment) => {
       const audio = await this.resolveAudio(segment);
       const local = Math.max(0, this.engine.currentTimestamp - segment.startTime);
+      const audioTarget = msToSec((Number(segment.sourceStartTime) || 0) + local);
       try {
-        if (Math.abs(audio.currentTime - msToSec(local)) > 0.12) audio.currentTime = msToSec(local);
+        if (Math.abs(audio.currentTime - audioTarget) > 0.12) audio.currentTime = audioTarget;
         audio.volume = clamp(segment.volume ?? 1, 0, 1);
         await audio.play();
       } catch (error) {
@@ -685,7 +711,6 @@ export class NovaCutCanvasPreview {
 
   render() {
     if (!this.ctx || !this.canvas) return;
-    this.resize();
     const width = this.canvas.width;
     const height = this.canvas.height;
     const ctx = this.ctx;
@@ -784,9 +809,11 @@ export class NovaCutCanvasPreview {
       if (isVideoElement) this.probeVideoCanvasOutput(clip, media, x, y, dw, dh);
     }
 
-    this.sourceCtx?.setTransform(1, 0, 0, 1, 0, 0);
-    this.sourceCtx?.clearRect(0, 0, width, height);
-    this.sourceCtx?.drawImage(this.canvas, 0, 0, width, height);
+    if (!this.nativeFallbackActive) {
+      this.sourceCtx?.setTransform(1, 0, 0, 1, 0, 0);
+      this.sourceCtx?.clearRect(0, 0, width, height);
+      this.sourceCtx?.drawImage(this.canvas, 0, 0, width, height);
+    }
 
     const effects = this.engine.registry.effectTracks
       .filter((effect) => now >= effect.startTime && now < effect.startTime + effect.duration)
@@ -1147,7 +1174,8 @@ class NovaCutCommandCompiler {
       const label = "asrc" + index;
       const delay = Math.max(0, Math.round(Number(segment.startTime) || 0));
       filters.push(
-        "[" + input.index + ":a:0]atrim=duration=" + msToSec(segment.duration).toFixed(3) +
+        "[" + input.index + ":a:0]atrim=start=" + msToSec(segment.sourceStartTime || 0).toFixed(3) +
+        ":duration=" + msToSec(segment.duration).toFixed(3) +
         ",asetpts=PTS-STARTPTS,volume=" + clamp(segment.volume ?? 1, 0, 4).toFixed(3) +
         ",adelay=" + delay + "|" + delay + "[" + label + "]"
       );
@@ -1324,7 +1352,9 @@ export class NovaCutEngine {
     bind("redo", () => this.redo());
     bind("split", () => this.executeSplitAction(this.activeTrackId, this.currentTimestamp));
     bind("audio", () => this.importAudio());
-    bind("text", () => this.addTextOverlay());
+    // Text actions are delegated below because timeline lane buttons are
+    // re-created during renderTimeline and therefore cannot keep direct
+    // listeners attached at mount time.
     bind("ratio", () => this.openCanvasRatioPicker());
     bind("export", () => this.compileAndExportVideo());
     bind("play", () => this.togglePlayback());
@@ -1334,6 +1364,7 @@ export class NovaCutEngine {
       if (!target) return;
       const action = target.dataset.action;
       if (action === "sticker") this.openStickerPicker();
+      else if (action === "text") this.openTextEditor();
       else if (action === "effects") this.openEffectsEditor();
       else if (action === "more") this.openToolMenu();
     }, { signal });
