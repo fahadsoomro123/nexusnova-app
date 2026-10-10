@@ -302,6 +302,39 @@ if (!speedSplit.success || speedSplit.firstClip.sourceDuration !== 4000 || speed
   throw new Error("Speed-adjusted split lost source duration, source offset, or playback speed.");
 }
 console.log("SPEED BEHAVIOUR 1/2 PASS  split preserves source-time offsets at 2x speed");
+const transitionEngine = new NovaCutEngine();
+const transitionLeft = transitionEngine.registry.addVideoClip({ id: "qa-transition-left", startTime: 0, duration: 4000 });
+const transitionRight = transitionEngine.registry.addVideoClip({ id: "qa-transition-right", startTime: 4000, duration: 3000 });
+const transitionNext = transitionEngine.registry.addVideoClip({ id: "qa-transition-next", startTime: 7000, duration: 2500 });
+transitionEngine.registry.textTracks.push({ id: "qa-transition-caption", startTime: 4500, duration: 1200 });
+transitionEngine.registry.overlayTracks.push({ id: "qa-transition-sticker", startTime: 5000, duration: 1200 });
+transitionEngine.registry.effectTracks.push({ id: "qa-transition-effect", startTime: 5200, duration: 1200 });
+transitionEngine.registry.audioTracks.push({ id: "qa-transition-music", startTime: 4500, duration: 3000, volume: 0.5 });
+transitionEngine.currentTimestamp = 4000;
+transitionEngine.activeTrackId = transitionRight.id;
+const transitionApply = transitionEngine.applyTransitionAtPlayhead(500, "cross-dissolve");
+if (!transitionApply.success || transitionRight.startTime !== 3500 ||
+    transitionRight.transitionIn?.type !== "cross-dissolve" || transitionRight.fadeInMs !== 500 ||
+    transitionLeft.fadeOutMs !== 0 || transitionNext.startTime !== 6500 ||
+    transitionEngine.registry.textTracks[0].startTime !== 4000 ||
+    transitionEngine.registry.overlayTracks[0].startTime !== 4500 ||
+    transitionEngine.registry.effectTracks[0].startTime !== 4700 ||
+    transitionEngine.registry.audioTracks[0].startTime !== 4500) {
+  throw new Error("Cross dissolve must overlap the incoming clip, ripple later visual tracks, and leave independent music anchored.");
+}
+const transitionPair = transitionEngine.findTransitionPairNearPlayhead();
+if (transitionPair?.left.id !== transitionLeft.id || transitionPair?.right.id !== transitionRight.id) {
+  throw new Error("Cross-dissolve cut was not discoverable after its timeline overlap was applied.");
+}
+const transitionClear = transitionEngine.clearTransitionAtPlayhead();
+if (!transitionClear.success || transitionRight.startTime !== 4000 || transitionNext.startTime !== 7000 ||
+    transitionRight.transitionIn || transitionRight.fadeInMs !== 0 ||
+    transitionEngine.registry.textTracks[0].startTime !== 4500 ||
+    transitionEngine.registry.overlayTracks[0].startTime !== 5000 ||
+    transitionEngine.registry.effectTracks[0].startTime !== 5200) {
+  throw new Error("Removing cross dissolve did not restore original clip and visual overlay timing.");
+}
+console.log("TRANSITION BEHAVIOUR 2/2 PASS  cross dissolve preview model and reversible visual ripple");
 console.log("PLAYBACK BEHAVIOUR 1/7 PASS  Android WebView selects native compositor");
 
 class FakeVideoElement {

@@ -992,7 +992,8 @@ export class NovaCutCanvasPreview {
       }
       const shell = this.canvas?.parentElement;
       const orderSignature = active.map((clip) => clip.id).join("|");
-      if (shell && orderSignature !== this.nativeLayerOrderSignature) {
+      const layersReady = active.every((clip) => this.nativePreviewLayers.has(clip.id));
+      if (shell && layersReady && orderSignature !== this.nativeLayerOrderSignature) {
         for (const clip of active) {
           const media = this.nativePreviewLayers.get(clip.id);
           if (media?.parentElement === shell) shell.insertBefore(media, this.canvas);
@@ -2345,7 +2346,8 @@ export class NovaCutEngine {
       for (const trackType of ["videoTracks", "textTracks", "overlayTracks", "effectTracks"]) {
         for (const item of this.registry[trackType] || []) {
           if (item.id === pair.left.id || item.id === pair.right.id) continue;
-          if (Number(item.startTime) < rippleFrom - 1) continue;
+          const rippleThreshold = trackType === "videoTracks" ? rippleFrom : rightOrigin;
+          if (Number(item.startTime) < rippleThreshold - 1) continue;
           const originalStartTime = Number(item.startTime) || 0;
           item.startTime = Math.max(0, originalStartTime - duration);
           rippledItems.push({ trackType, id: item.id, originalStartTime, appliedStartTime: item.startTime });
