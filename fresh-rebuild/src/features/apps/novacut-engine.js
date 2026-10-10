@@ -2251,10 +2251,40 @@ export class NovaCutEngine {
     }
 
     const sheet = this.openSheet(titleByType[type] || "Clip settings");
+    const colorPresets = type === "videoTracks"
+      ? '<div class="nx-novacut__color-presets" role="group" aria-label="Color presets">' +
+        '<button type="button" data-color-preset="original">Original</button>' +
+        '<button type="button" data-color-preset="vivid">Vivid</button>' +
+        '<button type="button" data-color-preset="muted">Muted</button>' +
+        '<button type="button" data-color-preset="dramatic">Dramatic</button>' +
+        '<button type="button" data-color-preset="mono">Mono</button>' +
+        '</div>'
+      : '';
     sheet.body.innerHTML =
       '<div class="nx-novacut__form-grid">' + fields + '</div>' +
+      colorPresets +
       '<p class="nx-novacut__sheet-copy">Edits apply to the selected timeline item and are included in Undo.</p>' +
       '<div class="nx-novacut__sheet-actions"><button type="button" class="nx-novacut__secondary" data-sheet-close>Cancel</button><button type="button" class="nx-novacut__primary" data-apply-clip-settings>Apply changes</button></div>';
+    const colorPresetValues = {
+      original: { brightness: 100, contrast: 100, saturation: 100 },
+      vivid: { brightness: 105, contrast: 115, saturation: 140 },
+      muted: { brightness: 100, contrast: 95, saturation: 70 },
+      dramatic: { brightness: 96, contrast: 140, saturation: 115 },
+      mono: { brightness: 100, contrast: 110, saturation: 0 }
+    };
+    sheet.body.querySelectorAll("[data-color-preset]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const preset = colorPresetValues[button.dataset.colorPreset];
+        if (!preset) return;
+        Object.entries(preset).forEach(([name, value]) => {
+          const control = sheet.body.querySelector('[data-clip-prop="' + name + '"]');
+          if (control) control.value = String(value);
+        });
+        sheet.body.querySelectorAll("[data-color-preset]").forEach((other) => {
+          other.classList.toggle("is-active", other === button);
+        });
+      });
+    });
     const textInput = sheet.body.querySelector('[data-clip-prop="text"]');
     if (textInput) textInput.value = String(item.text || "");
     sheet.body.querySelector("[data-apply-clip-settings]")?.addEventListener("click", () => {

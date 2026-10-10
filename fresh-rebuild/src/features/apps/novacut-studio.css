@@ -938,6 +938,32 @@
   .nx-novacut__dock{grid-template-columns:repeat(6,minmax(0,1fr))!important}
 }
 
+/* Fast color looks applied to the selected clip inspector. */
+.nx-novacut__color-presets {
+  display: grid !important;
+  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  gap: 6px !important;
+}
+.nx-novacut__color-presets button {
+  min-width: 0 !important;
+  min-height: 36px !important;
+  padding: 0 4px !important;
+  border: 1px solid rgba(255,255,255,.09) !important;
+  border-radius: 9px !important;
+  background: rgba(255,255,255,.045) !important;
+  color: #b8c0cc !important;
+  font-size: 9px !important;
+  font-weight: 850 !important;
+}
+.nx-novacut__color-presets button.is-active {
+  border-color: rgba(99,185,255,.62) !important;
+  background: rgba(99,185,255,.13) !important;
+  color: #eef8ff !important;
+}
+@media (max-width: 520px) {
+  .nx-novacut__color-presets { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+}
+
 /* Keep transport glyphs visible even when app-wide SVG rules disable fills. */
 .nx-novacut-host .nx-novacut__play svg {
   display: block !important;
