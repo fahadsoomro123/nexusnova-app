@@ -76,6 +76,10 @@ check("Split works across all timeline track types", () => assert(
   has(engine, "applyTransitionAtPlayhead(durationMs = 500, type = \"fade-through-black\")") &&
   has(engine, "clearTransitionAtPlayhead()") &&
   has(engine, "openTransitionEditor()") &&
+  has(engine, 'type === "cross-dissolve"') &&
+  has(engine, 'right.transitionIn = { type: "cross-dissolve"') &&
+  has(engine, "this.nativePreviewLayers = new Map()") &&
+  has(engine, 'data-transition-type') &&
   has(engine, 'data-tool-action="transition"') &&
   has(engine, 'data-transition-duration'),
   "split must support selected video, audio, text, sticker, and effect clips without losing source offsets"

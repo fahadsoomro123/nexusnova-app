@@ -367,6 +367,8 @@ export class NovaCutCanvasPreview {
     this.forceNativeVideoLayer = isAndroidWebViewUserAgent(userAgent);
     this.nativeFallbackActive = this.forceNativeVideoLayer;
     this.nativePreviewMedia = null;
+    this.nativePreviewLayers = new Map();
+    this.nativeLayerOrderSignature = "";
     this.renderTick = 0;
     this.frameId = 0;
     this.videoFrameId = 0;
@@ -417,13 +419,9 @@ export class NovaCutCanvasPreview {
     if (!(media instanceof HTMLVideoElement) || !this.canvas) return;
     const shell = this.canvas.parentElement;
     if (!shell) return;
-    if (this.nativePreviewMedia && this.nativePreviewMedia !== media) {
-      try {
-        this.nativePreviewMedia.pause();
-        this.nativePreviewMedia.remove();
-      } catch (_) {}
-    }
     this.nativePreviewMedia = media;
+    const layerId = String(clip?.id || [...this.media.entries()].find(([, candidate]) => candidate === media)?.[0] || "");
+    if (layerId) this.nativePreviewLayers.set(layerId, media);
     media.classList.add("nx-novacut__native-preview-video");
 
     const canvasWidth = Math.max(1, Number(this.canvas.width) || 1);
@@ -986,6 +984,23 @@ export class NovaCutCanvasPreview {
         try { media.pause(); } catch (_) {}
       }
     }
+    if (this.nativeFallbackActive) {
+      for (const [id, media] of this.nativePreviewLayers.entries()) {
+        if (activeIds.has(id)) continue;
+        try { media.pause(); media.remove(); } catch (_) {}
+        this.nativePreviewLayers.delete(id);
+      }
+      const shell = this.canvas?.parentElement;
+      const orderSignature = active.map((clip) => clip.id).join("|");
+      if (shell && orderSignature !== this.nativeLayerOrderSignature) {
+        for (const clip of active) {
+          const media = this.nativePreviewLayers.get(clip.id);
+          if (media?.parentElement === shell) shell.insertBefore(media, this.canvas);
+        }
+        this.nativeLayerOrderSignature = orderSignature;
+      }
+      this.nativePreviewMedia = Array.from(this.nativePreviewLayers.values()).pop() || null;
+    }
     for (const [id, audio] of this.audioMedia.entries()) {
       if (!this.engine.registry.audioTracks.some((segment) =>
         segment.id === id &&
@@ -1256,6 +1271,8 @@ export class NovaCutCanvasPreview {
       try { media.pause?.(); media.removeAttribute?.("src"); media.load?.(); media.remove?.(); } catch (_) {}
     });
     this.nativePreviewMedia = null;
+    this.nativePreviewLayers.clear();
+    this.nativeLayerOrderSignature = "";
     this.canvas?.classList.remove("nx-novacut__canvas--native-preview");
     this.urls.forEach((url) => { try { URL.revokeObjectURL(url); } catch (_) {} });
     this.media.clear();
@@ -1353,7 +1370,8 @@ class NovaCutCommandCompiler {
     };
 
     const videos = this.engine.registry.videoTracks.filter((clip) => clip.file)
-      .map((clip) => ({ clip, input: addInput(clip.file, sourceKind(clip.file), "video") }));
+      .map((clip) => ({ clip, input: addInput(clip.file, sourceKind(clip.file), "video") }))
+      .sort((a, b) => Number(a.clip.startTime) - Number(b.clip.startTime));
     const audios = this.engine.registry.audioTracks.filter((segment) => segment.file)
       .map((segment) => ({ segment, input: addInput(segment.file, "audio", "audio") }));
     const textAssets = this.engine.registry.textTracks.map((cue, index) => ({
@@ -2256,7 +2274,13 @@ export class NovaCutEngine {
       const left = clips[index];
       const right = clips[index + 1];
       const cutTime = Number(left.startTime) + Number(left.duration);
-      if (Math.abs(cutTime - Number(right.startTime)) <= toleranceMs) {
+      const contiguous = Math.abs(cutTime - Number(right.startTime)) <= toleranceMs;
+      const transition = right.transitionIn;
+      const overlappingTransition = Boolean(
+        transition?.type === "cross-dissolve" &&
+        Math.abs(cutTime - (Number(right.startTime) + Number(transition.durationMs))) <= toleranceMs
+      );
+      if (contiguous || overlappingTransition) {
         pairs.push({ left, right, cutTime, distance: Math.abs(cutTime - this.currentTimestamp) });
       }
     }
@@ -2265,6 +2289,10 @@ export class NovaCutEngine {
     const selected = this.registry.getById(this.activeTrackId);
     if (selected?.type === "videoTracks") {
       const selectedIndex = clips.findIndex((clip) => clip.id === selected.item.id);
+      const incomingTransition = pairs.find((pair) =>
+        pair.right.id === selected.item.id && pair.right.transitionIn?.type === "cross-dissolve"
+      );
+      if (incomingTransition) return incomingTransition;
       const adjacent = pairs.filter((pair) =>
         pair.left.id === selected.item.id || pair.right.id === selected.item.id
       );
@@ -2282,8 +2310,8 @@ export class NovaCutEngine {
   }
 
   applyTransitionAtPlayhead(durationMs = 500, type = "fade-through-black") {
-    if (type !== "fade-through-black") {
-      this.setStatus("This transition type is not available yet.");
+    if (!["fade-through-black", "cross-dissolve"].includes(type)) {
+      this.setStatus("Choose a supported transition.");
       return { success: false, reason: "unsupported-transition" };
     }
     const pair = this.findTransitionPairNearPlayhead();
@@ -2291,16 +2319,52 @@ export class NovaCutEngine {
       this.setStatus("Select a video clip beside a cut between two adjacent clips.");
       return { success: false, reason: "no-adjacent-video-cut" };
     }
+    const previousTransition = pair.right.transitionIn;
+    const originalRightStart = previousTransition ? Number(previousTransition.originalStartTime) : Number(pair.right.startTime);
     const maximum = Math.max(50, Math.min(Number(pair.left.duration) || 50, Number(pair.right.duration) || 50));
     const duration = clamp(durationMs, 50, maximum);
     const before = this.history.capture();
-    pair.left.fadeOutMs = duration;
-    pair.right.fadeInMs = duration;
+
+    if (previousTransition) {
+      pair.right.startTime = Number.isFinite(originalRightStart) ? originalRightStart : pair.cutTime;
+      for (const moved of previousTransition.rippledItems || []) {
+        const track = this.registry[moved.trackType];
+        const item = Array.isArray(track) ? track.find((candidate) => candidate.id === moved.id) : null;
+        if (item && Math.abs(Number(item.startTime) - Number(moved.appliedStartTime)) <= 1) {
+          item.startTime = Number(moved.originalStartTime);
+        }
+      }
+      delete pair.right.transitionIn;
+    }
+
+    if (type === "cross-dissolve") {
+      const cutTime = Number(pair.left.startTime) + Number(pair.left.duration);
+      const rightOrigin = previousTransition && Number.isFinite(originalRightStart) ? originalRightStart : Number(pair.right.startTime);
+      const rippleFrom = rightOrigin + Number(pair.right.duration);
+      const rippledItems = [];
+      for (const trackType of ["videoTracks", "textTracks", "overlayTracks", "effectTracks"]) {
+        for (const item of this.registry[trackType] || []) {
+          if (item.id === pair.left.id || item.id === pair.right.id) continue;
+          if (Number(item.startTime) < rippleFrom - 1) continue;
+          const originalStartTime = Number(item.startTime) || 0;
+          item.startTime = Math.max(0, originalStartTime - duration);
+          rippledItems.push({ trackType, id: item.id, originalStartTime, appliedStartTime: item.startTime });
+        }
+      }
+      pair.left.fadeOutMs = 0;
+      pair.right.fadeInMs = duration;
+      pair.right.startTime = Math.max(Number(pair.left.startTime) + 1, cutTime - duration);
+      pair.right.transitionIn = { type: "cross-dissolve", durationMs: duration, originalStartTime: rightOrigin, rippledItems };
+    } else {
+      pair.left.fadeOutMs = duration;
+      pair.right.fadeInMs = duration;
+    }
     this.activeTrackId = pair.right.id;
-    this.history.record(before, "Fade through black");
+    const label = type === "cross-dissolve" ? "Cross dissolve" : "Fade through black";
+    this.history.record(before, label);
     this.refresh();
-    this.setStatus("Fade through black · " + (duration / 1000).toFixed(2) + "s");
-    return { success: true, leftClipId: pair.left.id, rightClipId: pair.right.id, durationMs: duration };
+    this.setStatus(label + " · " + (duration / 1000).toFixed(2) + "s");
+    return { success: true, leftClipId: pair.left.id, rightClipId: pair.right.id, durationMs: duration, type };
   }
 
   clearTransitionAtPlayhead() {
@@ -2309,11 +2373,24 @@ export class NovaCutEngine {
       this.setStatus("Select a video clip beside a cut between two adjacent clips.");
       return { success: false, reason: "no-adjacent-video-cut" };
     }
-    if (!(Number(pair.left.fadeOutMs) > 0) && !(Number(pair.right.fadeInMs) > 0)) {
-      this.setStatus("No fade transition exists at this cut.");
+    if (!(Number(pair.left.fadeOutMs) > 0) && !(Number(pair.right.fadeInMs) > 0) && !pair.right.transitionIn) {
+      this.setStatus("No transition exists at this cut.");
       return { success: false, reason: "no-transition-at-cut" };
     }
     const before = this.history.capture();
+    if (pair.right.transitionIn) {
+      const transition = pair.right.transitionIn;
+      const originalStartTime = Number(transition.originalStartTime);
+      pair.right.startTime = Number.isFinite(originalStartTime) ? originalStartTime : pair.cutTime;
+      for (const moved of transition.rippledItems || []) {
+        const track = this.registry[moved.trackType];
+        const item = Array.isArray(track) ? track.find((candidate) => candidate.id === moved.id) : null;
+        if (item && Math.abs(Number(item.startTime) - Number(moved.appliedStartTime)) <= 1) {
+          item.startTime = Number(moved.originalStartTime);
+        }
+      }
+      delete pair.right.transitionIn;
+    }
     pair.left.fadeOutMs = 0;
     pair.right.fadeInMs = 0;
     this.history.record(before, "Remove transition");
@@ -2328,13 +2405,18 @@ export class NovaCutEngine {
       this.setStatus("Select a video clip next to a cut first.");
       return false;
     }
-    const existing = Math.max(Number(pair.left.fadeOutMs) || 0, Number(pair.right.fadeInMs) || 0);
+    const existingType = pair.right.transitionIn?.type || "fade-through-black";
+    const existing = Math.max(Number(pair.right.transitionIn?.durationMs) || 0, Number(pair.left.fadeOutMs) || 0, Number(pair.right.fadeInMs) || 0);
     const defaultMs = existing || 500;
     const maximumSeconds = Math.max(0.05, Math.min(Number(pair.left.duration) || 50, Number(pair.right.duration) || 50) / 1000);
     const sheet = this.openSheet("Transition at cut");
     sheet.body.innerHTML =
-      '<p class="nx-novacut__sheet-copy">Fade through black applies a fade-out to the first clip and a fade-in to the next. It does not overlap the clips.</p>' +
+      '<p class="nx-novacut__sheet-copy">Cross dissolve blends both clips over an overlap. Fade through black fades the outgoing clip down and incoming clip up through black.</p>' +
       '<div class="nx-novacut__form-grid">' +
+        '<label>Transition type<select data-transition-type>' +
+          '<option value="cross-dissolve"' + (existingType === "cross-dissolve" ? " selected" : "") + '>Cross dissolve</option>' +
+          '<option value="fade-through-black"' + (existingType === "fade-through-black" ? " selected" : "") + '>Fade through black</option>' +
+        '</select></label>' +
         '<label>Duration (seconds)<input data-transition-duration type="number" min="0.05" max="' + maximumSeconds.toFixed(2) + '" step="0.05" value="' + Math.min(defaultMs / 1000, maximumSeconds).toFixed(2) + '"></label>' +
       '</div>' +
       '<div class="nx-novacut__sheet-actions">' +
@@ -2347,7 +2429,8 @@ export class NovaCutEngine {
         this.setStatus("Transition duration must be at least 0.05 seconds.");
         return;
       }
-      const result = this.applyTransitionAtPlayhead(input * 1000, "fade-through-black");
+      const type = sheet.body.querySelector("[data-transition-type]")?.value || "fade-through-black";
+      const result = this.applyTransitionAtPlayhead(input * 1000, type);
       if (result.success) this.closeSheet(sheet.root);
     });
     sheet.body.querySelector("[data-transition-clear]")?.addEventListener("click", () => {
