@@ -347,6 +347,56 @@
   border-bottom: 1px solid var(--nc-line) !important;
 }
 
+.nx-novacut__timeline-head-actions {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 7px !important;
+  min-width: 0 !important;
+}
+
+.nx-novacut__timeline-controls {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 3px !important;
+  flex: 0 0 auto !important;
+  min-height: 30px !important;
+  padding: 2px !important;
+  border: 1px solid rgba(255,255,255,.09) !important;
+  border-radius: 10px !important;
+  background: rgba(0,0,0,.2) !important;
+}
+
+.nx-novacut__timeline-controls button {
+  min-width: 27px !important;
+  min-height: 26px !important;
+  padding: 0 6px !important;
+  border: 1px solid transparent !important;
+  border-radius: 7px !important;
+  background: transparent !important;
+  color: #c9cad3 !important;
+  font-size: 10px !important;
+  font-weight: 900 !important;
+  touch-action: manipulation !important;
+}
+
+.nx-novacut__timeline-controls button:active,
+.nx-novacut__timeline-controls button.is-active {
+  border-color: rgba(99,185,255,.32) !important;
+  background: rgba(69,168,255,.13) !important;
+  color: #e7f6ff !important;
+}
+
+.nx-novacut__timeline-controls [data-role="timeline-zoom-value"] {
+  min-width: 34px !important;
+  color: #a6a6b2 !important;
+  font-size: 8px !important;
+  font-weight: 850 !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+}
+
 .nx-novacut__add-button {
   display: inline-flex !important;
   align-items: center !important;
@@ -899,4 +949,12 @@
 
 @media (max-width: 360px) {
   .nx-novacut__export-button span { display: none !important; }
+}
+
+@media (max-width: 420px) {
+  .nx-novacut__timeline-head { padding-right: 7px !important; padding-left: 7px !important; gap: 5px !important; }
+  .nx-novacut__timeline-head-actions { gap: 4px !important; }
+  .nx-novacut__timeline-controls { gap: 1px !important; }
+  .nx-novacut__timeline-controls button { min-width: 24px !important; padding: 0 4px !important; }
+  .nx-novacut__timeline-controls [data-role="timeline-zoom-value"] { min-width: 30px !important; }
 }
