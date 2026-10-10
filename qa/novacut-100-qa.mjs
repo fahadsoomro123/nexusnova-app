@@ -510,9 +510,13 @@ const compilerVideo = (overrides = {}) => ({
   metadata: { hasAudio: true, width: 720, height: 1280 },
   ...overrides
 });
-const videoAudioPlan = new NovaCutCommandCompiler(makeCompilerEngine({ videos: [compilerVideo()] })).compile();
+const videoAudioPlan = new NovaCutCommandCompiler(makeCompilerEngine({
+  videos: [compilerVideo({ fadeInMs: 1000, fadeOutMs: 500 })]
+})).compile();
 const videoAudioFilter = videoAudioPlan.args[videoAudioPlan.args.indexOf("-filter_complex") + 1];
 if (!videoAudioFilter.includes("[0:a:0]atrim=start=0.000:duration=5.000") ||
+    !videoAudioFilter.includes("afade=t=in:st=0:d=1.000") ||
+    !videoAudioFilter.includes("afade=t=out:st=4.500:d=0.500") ||
     !videoAudioPlan.args.includes("[vsrcaudio0]") ||
     !videoAudioFilter.includes("scale=1920:1080:force_original_aspect_ratio=decrease") ||
     !videoAudioFilter.includes("overlay=x=(W-w)/2+0:y=(H-h)/2")) {
@@ -522,10 +526,12 @@ console.log("EXPORT BEHAVIOUR 1/4 PASS  source video audio maps to MP4 output");
 
 const mixedAudioPlan = new NovaCutCommandCompiler(makeCompilerEngine({
   videos: [compilerVideo()],
-  audios: [{ id: "music-track", file: { name: "music.mp3", type: "audio/mpeg" }, startTime: 1000, duration: 3000, volume: 0.8 }]
+  audios: [{ id: "music-track", file: { name: "music.mp3", type: "audio/mpeg" }, startTime: 1000, duration: 3000, volume: 0.8, fadeInMs: 750, fadeOutMs: 500 }]
 })).compile();
 const mixedAudioFilter = mixedAudioPlan.args[mixedAudioPlan.args.indexOf("-filter_complex") + 1];
 if (!mixedAudioFilter.includes("[0:a:0]") || !mixedAudioFilter.includes("[1:a:0]") ||
+    !mixedAudioFilter.includes("afade=t=in:st=0:d=0.750") ||
+    !mixedAudioFilter.includes("afade=t=out:st=2.500:d=0.500") ||
     !mixedAudioFilter.includes("amix=inputs=2") || !mixedAudioPlan.args.includes("[aout]")) {
   throw new Error("Export command failed to mix source audio with imported music.");
 }
