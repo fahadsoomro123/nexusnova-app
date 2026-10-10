@@ -111,7 +111,11 @@ function planAndRun({ name, hasAudio, audios = [], stickers = [], clipOptions = 
 
   const videoFilters = args[args.indexOf("-filter_complex") + 1];
   assert(videoFilters.includes("scale=180:320:force_original_aspect_ratio=decrease"), "Export graph does not fit source media to the selected portrait canvas.");
-  assert(videoFilters.includes("overlay=x=(W-w)/2+0:y=(H-h)/2"), "Export graph does not center the fitted source video.");
+  assert(
+    videoFilters.includes("overlay=x=(W-w)/2+0:y=(H-h)/2") ||
+      videoFilters.includes("overlay=x='(W-w)/2+("),
+    "Export graph does not center the fitted source video or express its animated offset."
+  );
   run("ffmpeg", args);
   assert(fs.existsSync(output) && fs.statSync(output).size > 0, "FFmpeg returned without a usable exported file.");
   const streams = probeStreams(output);
