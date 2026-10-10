@@ -149,7 +149,7 @@ check("effects lane present", () => assert(has(suite, "data-role='effect-lane'")
 check("undo button present", () => assert(has(suite, "data-action='undo'"), "undo button missing"));
 check("redo button present", () => assert(has(suite, "data-action='redo'"), "redo button missing"));
 check("media parser wired", () => assert(has(suite, "createNovaCutMediaParser(root, engine"), "parser not wired"));
-check("interactions wired", () => assert(has(suite, "createNovaCutStudioInteractions(root, engine, {") && has(suite, "getPixelsPerSecond: () => timelinePixelsPerSecond") && has(suite, "getSnapEnabled: () => timelineSnapEnabled") && has(suite, 'data-timeline-action="zoom-in"') && has(suite, "layoutTimelineClips") && has(engine, 'else if (action === "text") this.openTextEditor();'), "timeline zoom, track geometry, or re-rendered text action not wired"));
+check("interactions wired", () => assert(has(suite, "createNovaCutStudioInteractions(root, engine, {") && has(suite, "getPixelsPerSecond: () => timelinePixelsPerSecond") && has(suite, "getSnapEnabled: () => timelineSnapEnabled") && has(suite, 'data-timeline-action="zoom-in"') && has(suite, "layoutTimelineClips") && has(studio, "beginCanvasOverlayDrag(event)") && has(studio, "flushCanvasOverlayPoint()") && has(studio, "moveNovaCutCanvasOverlay") && has(engine, 'else if (action === "text") this.openTextEditor();'), "timeline zoom, track geometry, or re-rendered text action not wired"));
 check("media injected status path", () => assert(has(suite, "Checking video decoder…"), "decode status missing"));
 check("decode error detail is visible", () => assert(has(suite, "Decode failed: ") && has(suite, "status.title = message"), "decode error details missing"));
 
@@ -181,7 +181,7 @@ check("playhead stays aligned and smooth without per-frame clip layout or observ
     has(studio, 'element.style.left = start * scale + "px"') &&
     has(studio, 'element.style.marginLeft = "0px"') &&
     has(studio, 'element.style.setProperty("min-width", width + "px", "important")') &&
-    has(suite, "layoutTimelineClips") &&
+    has(suite, "layoutTimelineClips") && has(studio, "beginCanvasOverlayDrag(event)") && has(studio, "flushCanvasOverlayPoint()") && has(studio, "moveNovaCutCanvasOverlay") &&
     has(suite, "sort(byStartTime)") &&
     syncStart >= 0 && syncEnd > syncStart &&
     !syncMethod.includes("decorateVideoClips()") &&
@@ -267,6 +267,21 @@ if (passed !== 100) {
 // Behavioural unit tests for the exact blank-preview failure path.
 globalThis.window ??= globalThis;
 const { NovaCutEngine, NovaCutCanvasPreview, NovaCutCommandCompiler, isAndroidWebViewUserAgent } = await import("../fresh-rebuild/src/features/apps/novacut-engine.js");
+const { novaCutCanvasPointFromClient, moveNovaCutCanvasOverlay } = await import("../fresh-rebuild/src/features/apps/novacut-studio.js");
+const centerPoint = novaCutCanvasPointFromClient(110, 70, { left: 10, top: 20, width: 200, height: 100 });
+if (centerPoint?.x !== 0.5 || centerPoint?.y !== 0.5 ||
+    novaCutCanvasPointFromClient(10, 20, { left: 0, top: 0, width: 0, height: 100 }) !== null) {
+  throw new Error("Canvas overlay pointer mapping failed for centered or zero-sized preview bounds.");
+}
+const movableText = { style: { x: 0.5, y: 0.5 } };
+const movedText = moveNovaCutCanvasOverlay(movableText, "textTracks", -5, 4);
+const movableSticker = { x: 0.5, y: 0.5, width: 0.2, height: 0.3, scale: 1 };
+const movedSticker = moveNovaCutCanvasOverlay(movableSticker, "overlayTracks", 0, 1);
+if (movedText?.x !== 0.02 || movedText?.y !== 0.98 ||
+    Math.abs(movedSticker?.x - 0.1) > 1e-9 || Math.abs(movedSticker?.y - 0.85) > 1e-9) {
+  throw new Error("Canvas drag did not clamp text safely or keep the scaled sticker inside the frame.");
+}
+console.log("CANVAS OVERLAY BEHAVIOUR 2/2 PASS  normalized drag mapping, bounds clamp, and scaled sticker frame");
 
 const androidWebViewUA = "Mozilla/5.0 (Linux; Android 13; Test Device; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/120.0.0.0 Mobile Safari/537.36";
 const androidChromeUA = "Mozilla/5.0 (Linux; Android 13; Test Device) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
