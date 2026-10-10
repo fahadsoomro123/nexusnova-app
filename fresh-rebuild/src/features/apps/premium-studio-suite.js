@@ -5,10 +5,144 @@ import { renderAiTranscribeStudio } from './ai-transcribe-studio.js';
 import { renderAiWritingStudio } from './ai-writing-studio.js';
 import { renderDigitalSignStudio } from './digital-sign-studio.js';
 import { createNovaCutEngine } from './novacut-engine.js';
-import { createNovaCutStudioInteractions } from './novacut-studio.js';
+import { createNovaCutStudioInteractions, createNovaCutWaveformPeaks, NOVACUT_PIXELS_PER_SECOND } from './novacut-studio.js';
 import { createNovaCutMediaParser } from './novacut-media.js';
 
 const NOVACUT_CSS = new URL('./novacut-studio.css', import.meta.url).href;
+const VIDEO_THUMBNAIL_CACHE = new WeakMap();
+const AUDIO_WAVEFORM_CACHE = new WeakMap();
+
+function getVideoThumbnail(file) {
+  if (!file || typeof file !== 'object') return Promise.resolve(null);
+  const cached = VIDEO_THUMBNAIL_CACHE.get(file);
+  if (cached) return cached;
+
+  const promise = new Promise((resolve) => {
+    const video = document.createElement('video');
+    let objectUrl = '';
+    let timer = 0;
+    let settled = false;
+    const cleanup = (dataUrl) => {
+      if (settled) return;
+      settled = true;
+      if (timer) globalThis.clearTimeout?.(timer);
+      video.removeEventListener('loadedmetadata', onMetadata);
+      video.removeEventListener('loadeddata', onReady);
+      video.removeEventListener('seeked', onReady);
+      video.removeEventListener('error', onError);
+      try { video.pause(); video.removeAttribute('src'); video.load(); } catch (_) {}
+      if (objectUrl) {
+        try { URL.revokeObjectURL(objectUrl); } catch (_) {}
+      }
+      resolve(dataUrl || null);
+    };
+    const onReady = () => {
+      if (!video.videoWidth || !video.videoHeight) return;
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = 96;
+        canvas.height = 54;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return cleanup(null);
+        ctx.fillStyle = '#111216';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        const scale = Math.min(canvas.width / video.videoWidth, canvas.height / video.videoHeight);
+        const width = video.videoWidth * scale;
+        const height = video.videoHeight * scale;
+        ctx.drawImage(video, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height);
+        cleanup(canvas.toDataURL('image/webp', 0.72));
+      } catch (_) {
+        cleanup(null);
+      }
+    };
+    const onMetadata = () => {
+      const duration = Number(video.duration);
+      const target = Number.isFinite(duration) && duration > 0 ? Math.min(0.75, duration * 0.1) : 0.05;
+      try { video.currentTime = Math.max(0, target); } catch (_) {}
+    };
+    const onError = () => cleanup(null);
+    video.preload = 'metadata';
+    video.muted = true;
+    video.playsInline = true;
+    video.addEventListener('loadedmetadata', onMetadata);
+    video.addEventListener('loadeddata', onReady);
+    video.addEventListener('seeked', onReady);
+    video.addEventListener('error', onError);
+    timer = globalThis.setTimeout?.(() => cleanup(null), 4000) || 0;
+    try {
+      objectUrl = URL.createObjectURL(file);
+      video.src = objectUrl;
+      video.load();
+    } catch (_) {
+      cleanup(null);
+    }
+  });
+  VIDEO_THUMBNAIL_CACHE.set(file, promise);
+  return promise;
+}
+
+function getAudioWaveform(file) {
+  if (!file || typeof file !== 'object' || typeof file.arrayBuffer !== 'function') return Promise.resolve(null);
+  if (Number(file.size) > 20 * 1024 * 1024) return Promise.resolve(null);
+  const cached = AUDIO_WAVEFORM_CACHE.get(file);
+  if (cached) return cached;
+  const ContextClass = globalThis.AudioContext || globalThis.webkitAudioContext;
+  if (!ContextClass || typeof document === 'undefined' || typeof URL?.createObjectURL !== 'function') return Promise.resolve(null);
+
+  const task = (async () => {
+    let objectUrl = '';
+    let context = null;
+    let probe = null;
+    let timeout = 0;
+    try {
+      objectUrl = URL.createObjectURL(file);
+      const duration = await new Promise((resolve) => {
+        probe = document.createElement('audio');
+        let settled = false;
+        const finish = (value) => {
+          if (settled) return;
+          settled = true;
+          if (timeout) globalThis.clearTimeout(timeout);
+          probe.removeEventListener('loadedmetadata', onMetadata);
+          probe.removeEventListener('error', onError);
+          resolve(value);
+        };
+        const onMetadata = () => finish(Number.isFinite(probe.duration) && probe.duration > 0 ? probe.duration : null);
+        const onError = () => finish(null);
+        probe.preload = 'metadata';
+        probe.addEventListener('loadedmetadata', onMetadata);
+        probe.addEventListener('error', onError);
+        timeout = globalThis.setTimeout(() => finish(null), 3500);
+        probe.src = objectUrl;
+        probe.load();
+      });
+      if (!duration || duration > 300) return null;
+
+      context = new ContextClass();
+      const bytes = await file.arrayBuffer();
+      const decoded = await context.decodeAudioData(bytes);
+      if (!decoded || decoded.duration > 300 || !decoded.length) return null;
+      const channels = [];
+      for (let index = 0; index < Math.min(2, decoded.numberOfChannels); index += 1) {
+        channels.push(decoded.getChannelData(index));
+      }
+      return createNovaCutWaveformPeaks(channels, 72);
+    } catch (_) {
+      return null;
+    } finally {
+      if (timeout) globalThis.clearTimeout(timeout);
+      try { probe?.pause(); probe?.removeAttribute('src'); probe?.load(); } catch (_) {}
+      if (objectUrl) {
+        try { URL.revokeObjectURL(objectUrl); } catch (_) {}
+      }
+      if (context && context.state !== 'closed') {
+        try { await context.close(); } catch (_) {}
+      }
+    }
+  })();
+  AUDIO_WAVEFORM_CACHE.set(file, task);
+  return task;
+}
 
 function ensureNovaCutStyles() {
   if (document.querySelector('link[data-novacut-styles]')) return;
@@ -50,17 +184,25 @@ function renderTrackClip(clip, type) {
   const selected = clip?.id === clip?.engineActiveId ? ' is-selected' : '';
 
   if (type === 'video') {
+    const keyframes = Array.isArray(clip?.keyframes) ? clip.keyframes : [];
+    const keyframeMarkers = keyframes.map((frame) => {
+      const percent = Math.max(0, Math.min(1, (Number(frame?.timeMs) || 0) / duration)) * 100;
+      return '<i class="nx-novacut__keyframe-marker" style="--keyframe-x:' + percent.toFixed(2) + '%"></i>';
+    }).join('');
+    const markerLayer = keyframes.length
+      ? '<span class="nx-novacut__keyframe-markers" aria-label="' + keyframes.length + ' keyframes">' + keyframeMarkers + '</span>'
+      : '';
     return '<button type="button" class="nx-novacut__clip nx-novacut__clip--video' + selected + '" data-clip-id="' + id + '">' +
-      '<span class="nx-novacut__clip-thumb" aria-hidden="true"></span>' +
-      '<span class="nx-novacut__clip-copy"><strong>Video</strong><small>' + seconds + 's</small></span>' +
-      '<span class="nx-novacut__clip-wave" aria-hidden="true"></span></button>';
+      '<span class="nx-novacut__clip-thumb" data-video-thumb="' + id + '" aria-hidden="true"></span>' +
+      '<span class="nx-novacut__clip-copy"><strong>' + escapeHtml(clip?.file?.name || 'Video') + '</strong><small>' + seconds + 's</small></span>' +
+      '<span class="nx-novacut__clip-wave" aria-hidden="true"></span>' + markerLayer + '</button>';
   }
 
   if (type === 'audio') {
     return '<button type="button" class="nx-novacut__clip nx-novacut__clip--audio' + selected + '" data-clip-id="' + id + '">' +
       '<span class="nx-novacut__track-icon">' + SVG.audio + '</span>' +
       '<span class="nx-novacut__clip-copy"><strong>Audio</strong><small>' + seconds + 's</small></span>' +
-      '<span class="nx-novacut__audio-bars" aria-hidden="true"></span></button>';
+      '<span class="nx-novacut__audio-bars" data-audio-waveform="' + id + '" aria-hidden="true"></span></button>';
   }
 
   if (type === 'sticker') {
@@ -107,11 +249,19 @@ function renderNovaCut() {
       '<div class="nx-novacut__transport"><span data-role="current-time">00:00:00</span><button type="button" class="nx-novacut__play" data-action="play" aria-label="Play"><span data-role="play-icon">' + SVG.play + '</span></button><span data-role="duration">00:00:00</span></div>' +
     '</section>' +
     '<section class="nx-novacut__timeline-shell">' +
-      '<div class="nx-novacut__timeline-head"><div><span class="nx-novacut__eyebrow">TIMELINE</span><strong>Project sequence</strong></div><button type="button" class="nx-novacut__add-button" data-action="media"><span>' + SVG.media + '</span>Add media</button></div>' +
-      '<div class="nx-novacut__timeline" aria-label="Multi-track timeline">' +
-        '<div class="nx-novacut__ruler"><div class="nx-novacut__ruler-pad"></div><div class="nx-novacut__ticks">' +
-          '<span style="--i:0">0:00</span><span style="--i:1">0:01</span><span style="--i:2">0:02</span><span style="--i:3">0:03</span><span style="--i:4">0:04</span><span style="--i:5">0:05</span><span style="--i:6">0:06</span><span style="--i:7">0:07</span><span style="--i:8">0:08</span>' +
+      '<div class="nx-novacut__timeline-head"><div><span class="nx-novacut__eyebrow">TIMELINE</span><strong>Project sequence</strong></div>' +
+        '<div class="nx-novacut__timeline-head-actions">' +
+          '<div class="nx-novacut__timeline-controls" role="group" aria-label="Timeline zoom">' +
+            '<button type="button" data-timeline-action="zoom-out" aria-label="Zoom timeline out" title="Zoom out">−</button>' +
+            '<span data-role="timeline-zoom-value" aria-live="polite">100%</span>' +
+            '<button type="button" data-timeline-action="zoom-in" aria-label="Zoom timeline in" title="Zoom in">+</button>' +
+            '<button type="button" data-timeline-action="zoom-fit" aria-label="Fit timeline to screen" title="Fit timeline">Fit</button>' +
+            '<button type="button" data-timeline-action="snap" aria-pressed="true" title="Toggle clip snapping">Snap</button>' +
+          '</div>' +
+          '<button type="button" class="nx-novacut__add-button" data-action="media"><span>' + SVG.media + '</span>Add media</button>' +
         '</div></div>' +
+      '<div class="nx-novacut__timeline" aria-label="Multi-track timeline">' +
+        '<div class="nx-novacut__ruler"><div class="nx-novacut__ruler-pad"></div><div class="nx-novacut__ticks" data-role="timeline-ticks" aria-hidden="true"></div></div>' +
         '<div class="nx-novacut__track nx-novacut__track--video"><div class="nx-novacut__track-label"><span class="nx-novacut__track-index">01</span><span class="nx-novacut__track-name">Video</span></div><div class="nx-novacut__lane" data-role="video-lane"><button type="button" class="nx-novacut__lane-add" data-action="media">' + SVG.media + '<span>Add media</span></button></div></div>' +
         '<div class="nx-novacut__track nx-novacut__track--audio"><div class="nx-novacut__track-label"><span class="nx-novacut__track-index">02</span><span class="nx-novacut__track-name">Audio</span></div><div class="nx-novacut__lane" data-role="audio-lane"><span class="nx-novacut__lane-hint">Music and voice</span></div></div>' +
         '<div class="nx-novacut__track nx-novacut__track--text"><div class="nx-novacut__track-label"><span class="nx-novacut__track-index">03</span><span class="nx-novacut__track-name">Text</span></div><div class="nx-novacut__lane" data-role="text-lane"><button type="button" class="nx-novacut__lane-tool" data-action="text">' + SVG.text + '<span>Add text</span></button></div></div>' +
@@ -135,27 +285,163 @@ function renderNovaCut() {
   const textLane = root.querySelector("[data-role='text-lane']");
   const overlayLane = root.querySelector("[data-role='overlay-lane']");
   const effectLane = root.querySelector("[data-role='effect-lane']");
+  const timeline = root.querySelector(".nx-novacut__timeline");
+  const rulerTicks = root.querySelector("[data-role='timeline-ticks']");
+  const canvasArea = root.querySelector(".nx-novacut__canvas-area");
+  const canvasShell = root.querySelector(".nx-novacut__canvas-shell");
+  const transport = root.querySelector(".nx-novacut__transport");
   const canvasEmpty = root.querySelector("[data-role='canvas-empty']");
   const status = root.querySelector("[data-role='status']");
   const playButton = root.querySelector("[data-action='play']");
   const playIcon = root.querySelector("[data-role='play-icon']");
+  const PREVIEW_ASPECTS = Object.freeze({
+    "16:9": 16 / 9,
+    "9:16": 9 / 16,
+    "1:1": 1,
+    "4:5": 4 / 5,
+    "4:3": 4 / 3
+  });
+  let previewRatio = "16:9";
+  const syncPreviewFrame = () => {
+    if (!canvasArea || !canvasShell) return;
+    const bounds = canvasArea.getBoundingClientRect();
+    const style = globalThis.getComputedStyle?.(canvasArea);
+    const rowGap = Math.max(0, Number.parseFloat(style?.rowGap || "0") || 0);
+    const transportHeight = transport?.getBoundingClientRect().height || 46;
+    const maxWidth = Math.max(0, bounds.width - 24);
+    const maxHeight = Math.max(0, bounds.height - transportHeight - rowGap - 12);
+    if (maxWidth < 2 || maxHeight < 2) return;
+    const aspect = PREVIEW_ASPECTS[previewRatio] || PREVIEW_ASPECTS["16:9"];
+    const width = Math.floor(Math.min(maxWidth, maxHeight * aspect));
+    const height = Math.floor(width / aspect);
+    canvasShell.dataset.ratio = previewRatio;
+    canvasShell.style.setProperty("width", width + "px", "important");
+    canvasShell.style.setProperty("height", height + "px", "important");
+  };
 
   const engine = createNovaCutEngine({ root });
+  previewRatio = engine.aspectRatio;
+  if (canvasShell) canvasShell.dataset.ratio = previewRatio;
+  let previewFrameObserver = null;
+  if (canvasArea && typeof ResizeObserver !== "undefined") {
+    previewFrameObserver = new ResizeObserver(syncPreviewFrame);
+    previewFrameObserver.observe(canvasArea);
+    root.__novaCutPreviewFrameObserver = previewFrameObserver;
+  }
+  syncPreviewFrame();
+
+  let timelinePixelsPerSecond = NOVACUT_PIXELS_PER_SECOND;
+  let timelineSnapEnabled = true;
+
+  const layoutTimelineClips = () => {
+    const tracks = [
+      [videoLane, engine.registry.videoTracks],
+      [audioLane, engine.registry.audioTracks],
+      [textLane, engine.registry.textTracks],
+      [overlayLane, engine.registry.overlayTracks],
+      [effectLane, engine.registry.effectTracks]
+    ];
+    for (const [lane, items] of tracks) {
+      if (!lane) continue;
+      const byId = new Map(items.map((item) => [String(item.id), item]));
+      lane.querySelectorAll("[data-clip-id]").forEach((element) => {
+        const item = byId.get(String(element.dataset.clipId || ""));
+        if (!item) return;
+        const left = Math.max(0, Number(item.startTime) || 0) * timelinePixelsPerSecond / 1000;
+        const duration = Math.max(0, Number(item.duration) || 0);
+        const width = Math.max(54, duration * timelinePixelsPerSecond / 1000);
+        element.style.setProperty("position", "absolute", "important");
+        element.style.setProperty("left", left + "px", "important");
+        element.style.setProperty("top", "2px", "important");
+        element.style.setProperty("width", width + "px", "important");
+        element.style.setProperty("min-width", width + "px", "important");
+        element.style.setProperty("max-width", width + "px", "important");
+        element.style.setProperty("height", "46px", "important");
+        element.style.setProperty("overflow", "hidden", "important");
+      });
+    }
+  };
+
+  const updateTimelineZoomLabel = () => {
+    const label = root.querySelector("[data-role='timeline-zoom-value']");
+    if (label) label.textContent = Math.round(timelinePixelsPerSecond / NOVACUT_PIXELS_PER_SECOND * 100) + "%";
+    const snap = root.querySelector("[data-timeline-action='snap']");
+    if (snap) {
+      snap.setAttribute("aria-pressed", String(timelineSnapEnabled));
+      snap.classList.toggle("is-active", timelineSnapEnabled);
+    }
+  };
+
+  const renderTimelineRuler = () => {
+    if (!timeline || !rulerTicks) return;
+    const durationMs = Math.max(0, Number(engine.registry.durationMs()) || 0);
+    const durationSeconds = Math.max(8, Math.ceil(durationMs / 1000));
+    const minimumTick = 48 / timelinePixelsPerSecond;
+    const tickSteps = [0.25, 0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600];
+    const tickEvery = tickSteps.find((step) => step >= minimumTick) || 600;
+    const lastTick = Math.ceil(durationSeconds / tickEvery) * tickEvery;
+    const contentWidth = Math.max(640, lastTick * timelinePixelsPerSecond + 72);
+    timeline.style.setProperty("--nc-content-width", contentWidth + "px");
+    timeline.style.setProperty("--nc-ruler-px-per-second", timelinePixelsPerSecond + "px");
+
+    const ticks = [];
+    const tickCount = Math.ceil(lastTick / tickEvery);
+    for (let index = 0; index <= tickCount; index += 1) {
+      const seconds = Number((index * tickEvery).toFixed(3));
+      const minutes = Math.floor(seconds / 60);
+      const remainder = Math.floor(seconds % 60);
+      const label = tickEvery < 1
+        ? (seconds === 0 ? "0" : seconds.toFixed(2).replace(/0+$/, "").replace(/\.$/, "") + "s")
+        : minutes + ":" + String(remainder).padStart(2, "0");
+      ticks.push(
+        '<span data-time-seconds="' + seconds + '" style="--tick-x:' +
+        (seconds * timelinePixelsPerSecond) + 'px">' + label + '</span>'
+      );
+    }
+    rulerTicks.innerHTML = ticks.join("");
+    rulerTicks.setAttribute("aria-label", "Timeline ruler, " + tickEvery + " second intervals");
+    updateTimelineZoomLabel();
+    layoutTimelineClips();
+  };
 
   const renderTimeline = (state = {}) => {
     if (!videoLane || !audioLane || !textLane || !overlayLane || !effectLane) return;
-    const videos = state.videoTracks || [];
-    const audios = state.audioTracks || [];
-    const texts = state.textTracks || [];
-    const overlays = state.overlayTracks || [];
-    const effects = state.effectTracks || [];
+    renderTimelineRuler();
+    const byStartTime = (a, b) => (Number(a.startTime) || 0) - (Number(b.startTime) || 0);
+    const videos = [...(state.videoTracks || [])].sort(byStartTime);
+    const audios = [...(state.audioTracks || [])].sort(byStartTime);
+    const texts = [...(state.textTracks || [])].sort(byStartTime);
+    const overlays = [...(state.overlayTracks || [])].sort(byStartTime);
+    const effects = [...(state.effectTracks || [])].sort(byStartTime);
 
     videoLane.innerHTML = videos.length
       ? videos.map((clip) => renderTrackClip(clip, 'video')).join('')
       : '<button type="button" class="nx-novacut__lane-add" data-action="media">' + SVG.media + '<span>Add media</span></button>';
+    videoLane.querySelectorAll('[data-video-thumb]').forEach((thumb) => {
+      const clip = videos.find((item) => String(item.id) === thumb.dataset.videoThumb);
+      if (!clip?.file) return;
+      getVideoThumbnail(clip.file).then((dataUrl) => {
+        if (!dataUrl || !thumb.isConnected) return;
+        const image = document.createElement('img');
+        image.alt = '';
+        image.decoding = 'async';
+        image.draggable = false;
+        image.src = dataUrl;
+        thumb.replaceChildren(image);
+      }).catch(() => {});
+    });
     audioLane.innerHTML = audios.length
       ? audios.map((segment) => renderTrackClip(segment, 'audio')).join('')
       : '<span class="nx-novacut__lane-hint">Music and voice</span>';
+    audioLane.querySelectorAll('[data-audio-waveform]').forEach((node) => {
+      const segment = audios.find((item) => String(item.id) === node.dataset.audioWaveform);
+      if (!segment?.file) return;
+      getAudioWaveform(segment.file).then((peaks) => {
+        if (!Array.isArray(peaks) || !peaks.length || !node.isConnected) return;
+        node.innerHTML = peaks.map((peak) => '<i style="--audio-peak:' + Math.max(4, Math.min(100, Math.round(peak))) + '%"></i>').join('');
+        node.dataset.waveformReady = 'true';
+      }).catch(() => {});
+    });
     textLane.innerHTML = texts.length
       ? texts.map((cue) => renderTrackClip(cue, 'text')).join('')
       : '<button type="button" class="nx-novacut__lane-tool" data-action="text">' + SVG.text + '<span>Add text</span></button>';
@@ -166,6 +452,7 @@ function renderNovaCut() {
       ? effects.map((item) => renderTrackClip(item, 'effect')).join('')
       : '<button type="button" class="nx-novacut__lane-tool" data-action="effects">' + SVG.effects + '<span>Add effect</span></button>';
 
+    layoutTimelineClips();
     if (canvasEmpty) canvasEmpty.hidden = videos.length > 0;
     const selected = engine.activeTrackId;
     root.querySelectorAll("[data-clip-id]").forEach((element) => {
@@ -173,11 +460,46 @@ function renderNovaCut() {
     });
   };
 
+  const updateTimelineSelection = ({ id } = {}) => {
+    const selectedId = String(id ?? engine.activeTrackId ?? "");
+    root.querySelectorAll("[data-clip-id]").forEach((element) => {
+      const selected = element.dataset.clipId === selectedId;
+      element.classList.toggle("is-selected", selected);
+      element.classList.toggle("novacut-selected", selected);
+    });
+  };
+
+  const applyTimelineZoom = (nextScale) => {
+    timelinePixelsPerSecond = Math.max(12, Math.min(144, Number(nextScale) || NOVACUT_PIXELS_PER_SECOND));
+    renderTimelineRuler();
+    layoutTimelineClips();
+    root.__novaCutInteractions?.scheduleSync?.();
+  };
+
+  root.addEventListener("click", (event) => {
+    const control = event.target?.closest?.("[data-timeline-action]");
+    if (!control) return;
+    const action = control.dataset.timelineAction;
+    if (action === "zoom-in") {
+      applyTimelineZoom(timelinePixelsPerSecond * 1.25);
+    } else if (action === "zoom-out") {
+      applyTimelineZoom(timelinePixelsPerSecond / 1.25);
+    } else if (action === "zoom-fit") {
+      const availableWidth = Math.max(160, timeline.clientWidth - 120);
+      const durationSeconds = Math.max(8, engine.registry.durationMs() / 1000);
+      applyTimelineZoom(availableWidth / durationSeconds);
+      timeline.scrollLeft = 0;
+    } else if (action === "snap") {
+      timelineSnapEnabled = !timelineSnapEnabled;
+      updateTimelineZoomLabel();
+    }
+  });
+
   engine.on('statechange', renderTimeline);
   engine.on('split', renderTimeline);
   engine.on('audio', renderTimeline);
   engine.on('text', renderTimeline);
-  engine.on('selectionchange', renderTimeline);
+  engine.on('selectionchange', updateTimelineSelection);
 
   engine.on('historystatechange', ({ canUndo, canRedo }) => {
     root.querySelectorAll("[data-action='undo']").forEach((node) => {
@@ -202,8 +524,10 @@ function renderNovaCut() {
     if (canvasEmpty) canvasEmpty.hidden = Boolean(state.videoTracks?.length);
   });
 
-  engine.on('ratio', ({ ratio }) => {
-    if (status) status.textContent = ratio;
+  engine.on('ratio', ({ ratio, automatic }) => {
+    previewRatio = ratio;
+    syncPreviewFrame();
+    if (status) status.textContent = automatic ? 'Preview fitted' : ratio;
   });
 
   engine.on('export:progress', ({ progress }) => {
@@ -283,7 +607,10 @@ function renderNovaCut() {
 
   root.__novaCutEngine = engine;
   root.__novaCutMediaParser = mediaParser;
-  root.__novaCutInteractions = createNovaCutStudioInteractions(root, engine);
+  root.__novaCutInteractions = createNovaCutStudioInteractions(root, engine, {
+    getPixelsPerSecond: () => timelinePixelsPerSecond,
+    getSnapEnabled: () => timelineSnapEnabled
+  });
 
   renderTimeline(engine.getState());
 

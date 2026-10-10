@@ -1,3 +1,5 @@
+import { sampleNovaCutVideoKeyframes } from "./novacut-engine.js";
+
 /*
  * NovaCut Studio Interaction Core
  * Touch seek, clip drag, and dual-edge trim handlers.
@@ -6,8 +8,10 @@
  * create or modify any global application namespace.
  */
 
+export const NOVACUT_PIXELS_PER_SECOND = 36;
+
 const DEFAULT_INTERACTION = Object.freeze({
-  pixelsPerSecond: 36,
+  pixelsPerSecond: NOVACUT_PIXELS_PER_SECOND,
   longPressMs: 160,
   moveThresholdPx: 6,
   minFrameMs: 1000 / 30,
@@ -23,8 +27,64 @@ function clamp(value, min, max) {
   return Math.min(Math.max(finite(value), min), max);
 }
 
+export function novaCutCanvasPointFromClient(clientX, clientY, bounds) {
+  const width = finite(bounds?.width);
+  const height = finite(bounds?.height);
+  if (width <= 0 || height <= 0) return null;
+  return {
+    x: clamp((finite(clientX) - finite(bounds.left)) / width, 0, 1),
+    y: clamp((finite(clientY) - finite(bounds.top)) / height, 0, 1)
+  };
+}
+
+export function createNovaCutWaveformPeaks(channels, barCount = 72) {
+  const sources = (Array.isArray(channels) ? channels : []).filter((channel) =>
+    channel && Number.isFinite(Number(channel.length)) && Number(channel.length) > 0
+  );
+  const sampleLength = Math.max(0, ...sources.map((channel) => Number(channel.length) || 0));
+  const count = Math.round(clamp(barCount, 8, 128));
+  if (!sources.length || !sampleLength) return [];
+  const peaks = [];
+  for (let bar = 0; bar < count; bar += 1) {
+    const start = Math.floor(bar * sampleLength / count);
+    const end = Math.min(sampleLength, Math.max(start + 1, Math.ceil((bar + 1) * sampleLength / count)));
+    const stride = Math.max(1, Math.floor((end - start) / 160));
+    let peak = 0;
+    for (let index = start; index < end; index += stride) {
+      for (const channel of sources) {
+        if (index < channel.length) peak = Math.max(peak, Math.abs(Number(channel[index]) || 0));
+      }
+    }
+    peaks.push(Math.round(clamp(peak, 0.035, 1) * 100));
+  }
+  return peaks;
+}
+
+export function moveNovaCutCanvasOverlay(item, type, x, y) {
+  if (!item) return null;
+  if (type === "textTracks") {
+    item.style = item.style || {};
+    item.style.x = clamp(x, 0.02, 0.98);
+    item.style.y = clamp(y, 0.02, 0.98);
+    return { x: item.style.x, y: item.style.y };
+  }
+  if (type === "overlayTracks") {
+    const scale = Math.max(0.1, finite(item.scale, 1));
+    const halfX = clamp(finite(item.width, 0.2) * scale / 2, 0.02, 0.48);
+    const halfY = clamp(finite(item.height, 0.2) * scale / 2, 0.02, 0.48);
+    item.x = clamp(x, halfX, 1 - halfX);
+    item.y = clamp(y, halfY, 1 - halfY);
+    return { x: item.x, y: item.y };
+  }
+  return null;
+}
+
 function getTouch(event) {
-  return event.changedTouches?.[0] || event.touches?.[0] || null;
+  return event.changedTouches?.[0] ||
+    event.touches?.[0] ||
+    (Number.isFinite(Number(event?.clientX)) && Number.isFinite(Number(event?.clientY))
+      ? event
+      : null);
 }
 
 function isPrimaryInteractiveTarget(target) {
@@ -84,6 +144,7 @@ function ensureStyle(root) {
     ".nx-novacut__interaction-playhead::before{content:'';position:absolute;top:-1px;left:50%;width:9px;height:9px;border-radius:3px;background:#45a8ff;border:1px solid #fff;transform:translate(-50%,-50%);box-shadow:0 0 10px rgba(69,168,255,.5);}",
     ".nx-novacut__clip[data-novacut-dragging='true']{z-index:8;opacity:.92;}",
     ".nx-novacut__clip[data-novacut-trimming='true']{z-index:9;}",
+    ".nx-novacut__canvas-shell.novacut-overlay-dragging{cursor:move;touch-action:none;user-select:none;-webkit-user-select:none;}",
     "@media (prefers-reduced-motion:no-preference){.nx-novacut__interaction-playhead{transition:left 40ms linear;}}"
   ].join("");
 
@@ -113,6 +174,9 @@ export class NovaCutStudioInteractions {
 
     this.mode = "idle";
     this.touchState = null;
+    this.overlayDragState = null;
+    this.pendingOverlayPoint = null;
+    this.pendingOverlayFrame = 0;
 
     this.pendingFrame = 0;
     this.pendingMutationFrame = 0;
@@ -148,13 +212,14 @@ export class NovaCutStudioInteractions {
   }
 
   installPlayhead() {
-    if (!this.timeline) {
-      return;
-    }
+    if (!this.timeline) return;
 
-    let element = this.timeline.querySelector(
-      ".nx-novacut__interaction-playhead"
-    );
+    // Keep the same playhead node and ResizeObserver across playback ticks.
+    // Recreating either on every playhead update creates needless DOM work and
+    // ResizeObserver churn on mobile.
+    let element = this.playhead?.isConnected
+      ? this.playhead
+      : this.timeline.querySelector(".nx-novacut__interaction-playhead");
 
     if (!element) {
       element = this.root.ownerDocument.createElement("span");
@@ -162,19 +227,10 @@ export class NovaCutStudioInteractions {
       element.setAttribute("aria-hidden", "true");
       this.timeline.appendChild(element);
     }
-
     this.playhead = element;
 
-    if (
-      typeof ResizeObserver !== "undefined"
-    ) {
-      this.resizeObserver?.disconnect();
-
-      this.resizeObserver =
-        new ResizeObserver(() => {
-          this.scheduleSync();
-        });
-
+    if (typeof ResizeObserver !== "undefined" && !this.resizeObserver) {
+      this.resizeObserver = new ResizeObserver(() => this.scheduleSync());
       this.resizeObserver.observe(this.timeline);
     }
   }
@@ -191,6 +247,7 @@ export class NovaCutStudioInteractions {
     this.root.addEventListener(
       "touchstart",
       (event) => {
+        if (this.beginCanvasOverlayDrag(event)) return;
         this.onTouchStart(event);
       },
       {
@@ -202,6 +259,7 @@ export class NovaCutStudioInteractions {
     this.root.addEventListener(
       "touchmove",
       (event) => {
+        if (this.updateCanvasOverlayDrag(event)) return;
         this.onTouchMove(event);
       },
       {
@@ -213,6 +271,7 @@ export class NovaCutStudioInteractions {
     this.root.addEventListener(
       "touchend",
       (event) => {
+        if (this.finishCanvasOverlayDrag(event)) return;
         this.onTouchEnd(event);
       },
       {
@@ -224,6 +283,7 @@ export class NovaCutStudioInteractions {
     this.root.addEventListener(
       "touchcancel",
       (event) => {
+        if (this.cancelCanvasOverlayDrag(event)) return;
         this.onTouchCancel(event);
       },
       {
@@ -231,6 +291,29 @@ export class NovaCutStudioInteractions {
         passive: false
       }
     );
+
+    // Keep the existing touch path for Android. Pointer events fill the
+    // Windows/desktop gap without double-handling touch-generated pointers.
+    this.root.addEventListener("pointerdown", (event) => {
+      if (event.pointerType === "touch") return;
+      if (this.beginCanvasOverlayDrag(event)) return;
+      this.onTouchStart(event);
+    }, { signal, passive: false });
+    this.root.ownerDocument.addEventListener("pointermove", (event) => {
+      if (event.pointerType === "touch") return;
+      if (this.updateCanvasOverlayDrag(event)) return;
+      this.onTouchMove(event);
+    }, { signal, passive: false });
+    this.root.ownerDocument.addEventListener("pointerup", (event) => {
+      if (event.pointerType === "touch") return;
+      if (this.finishCanvasOverlayDrag(event)) return;
+      this.onTouchEnd(event);
+    }, { signal, passive: false });
+    this.root.ownerDocument.addEventListener("pointercancel", (event) => {
+      if (event.pointerType === "touch") return;
+      if (this.cancelCanvasOverlayDrag(event)) return;
+      this.onTouchCancel(event);
+    }, { signal, passive: false });
 
     this.root.addEventListener(
       "click",
@@ -266,6 +349,155 @@ export class NovaCutStudioInteractions {
         () => this.scheduleSync()
       )
     );
+  }
+
+  beginCanvasOverlayDrag(event) {
+    if (this.overlayDragState) return true;
+    const point = getTouch(event);
+    const target = event.target instanceof Element ? event.target : null;
+    const shell = target?.closest(".nx-novacut__canvas-shell");
+    if (!point || !shell || this.timeline?.contains(target)) return false;
+    if (String(event.type || "").startsWith("pointer") && event.button !== 0) return false;
+
+    const canvas = shell.querySelector("[data-role='preview-canvas']");
+    if (!canvas) return false;
+    const bounds = canvas.getBoundingClientRect();
+    const insideCanvas = point.clientX >= bounds.left && point.clientX <= bounds.right &&
+      point.clientY >= bounds.top && point.clientY <= bounds.bottom;
+    if (!insideCanvas) return false;
+    const normalized = novaCutCanvasPointFromClient(point.clientX, point.clientY, bounds);
+    if (!normalized) return false;
+    const canvasWidth = Math.max(1, finite(canvas.width, bounds.width));
+    const canvasHeight = Math.max(1, finite(canvas.height, bounds.height));
+    const now = finite(this.engine.currentTimestamp);
+    const activeAtPlayhead = (item) =>
+      now >= finite(item.startTime) && now < finite(item.startTime) + finite(item.duration);
+
+    const isHit = (item, type) => {
+      const isText = type === "textTracks";
+      const x = isText ? finite(item.style?.x, 0.5) : finite(item.x, 0.5);
+      const y = isText ? finite(item.style?.y, 0.82) : finite(item.y, 0.5);
+      const dx = (normalized.x - x) * canvasWidth;
+      const dy = (normalized.y - y) * canvasHeight;
+      const rotation = -(finite(isText ? item.style?.rotation : item.rotation) * Math.PI / 180);
+      const cos = Math.cos(rotation);
+      const sin = Math.sin(rotation);
+      const rotatedX = dx * cos - dy * sin;
+      const rotatedY = dx * sin + dy * cos;
+      let halfWidth;
+      let halfHeight;
+      if (isText) {
+        const style = item.style || {};
+        const size = Math.max(8, finite(style.fontSize, 48));
+        const lines = String(item.text || "").split(/\r?\n/).slice(0, 8);
+        const longest = Math.max(1, ...lines.map((line) => line.length));
+        halfWidth = Math.max(size * 0.55, longest * size * 0.32) + (style.background ? size * 0.35 : 0);
+        halfHeight = Math.max(size * 0.6, lines.length * size * 0.6) + (style.background ? size * 0.2 : 0);
+      } else {
+        const scale = Math.max(0.1, finite(item.scale, 1));
+        halfWidth = Math.max(12, canvasWidth * finite(item.width, 0.2) * scale / 2);
+        halfHeight = Math.max(12, canvasHeight * finite(item.height, 0.2) * scale / 2);
+      }
+      return Math.abs(rotatedX) <= halfWidth + 10 && Math.abs(rotatedY) <= halfHeight + 10;
+    };
+
+    const texts = (this.engine.registry.textTracks || [])
+      .filter(activeAtPlayhead).slice().sort((a, b) => finite(b.zIndex) - finite(a.zIndex));
+    const stickers = (this.engine.registry.overlayTracks || [])
+      .filter(activeAtPlayhead).slice().sort((a, b) => finite(b.zIndex) - finite(a.zIndex));
+    let selected = texts.find((item) => isHit(item, "textTracks"));
+    let type = "textTracks";
+    if (!selected) {
+      selected = stickers.find((item) => isHit(item, "overlayTracks"));
+      type = "overlayTracks";
+    }
+    if (!selected) return false;
+
+    const originalX = type === "textTracks" ? finite(selected.style?.x, 0.5) : finite(selected.x, 0.5);
+    const originalY = type === "textTracks" ? finite(selected.style?.y, 0.82) : finite(selected.y, 0.5);
+    this.engine.beginHistoryTransaction?.("Move canvas overlay");
+    this.engine.activeTrackId = selected.id;
+    this.overlayDragState = {
+      item: selected,
+      type,
+      shell,
+      canvas,
+      pointerId: Number.isFinite(event.pointerId) ? event.pointerId : null,
+      originalX,
+      originalY
+    };
+    shell.classList.add("novacut-overlay-dragging");
+    event.preventDefault?.();
+    return true;
+  }
+
+  updateCanvasOverlayDrag(event) {
+    const state = this.overlayDragState;
+    if (!state) return false;
+    if (state.pointerId !== null && Number.isFinite(event.pointerId) && event.pointerId !== state.pointerId) return true;
+    const point = getTouch(event);
+    if (!point) return true;
+    const bounds = state.canvas.getBoundingClientRect();
+    const insideCanvas = point.clientX >= bounds.left && point.clientX <= bounds.right &&
+      point.clientY >= bounds.top && point.clientY <= bounds.bottom;
+    this.pendingOverlayPoint = insideCanvas
+      ? novaCutCanvasPointFromClient(point.clientX, point.clientY, bounds)
+      : null;
+    event.preventDefault?.();
+    if (!this.pendingOverlayFrame) {
+      this.pendingOverlayFrame = requestAnimationFrame(() => {
+        this.pendingOverlayFrame = 0;
+        this.flushCanvasOverlayPoint();
+      });
+    }
+    return true;
+  }
+
+  flushCanvasOverlayPoint() {
+    if (this.pendingOverlayFrame) {
+      cancelAnimationFrame(this.pendingOverlayFrame);
+      this.pendingOverlayFrame = 0;
+    }
+    const state = this.overlayDragState;
+    const point = this.pendingOverlayPoint;
+    this.pendingOverlayPoint = null;
+    if (!state || !point) return;
+    moveNovaCutCanvasOverlay(state.item, state.type, point.x, point.y);
+    this.engine.preview?.markDirty();
+  }
+
+  finishCanvasOverlayDrag(event) {
+    if (!this.overlayDragState) return false;
+    if (event) this.updateCanvasOverlayDrag(event);
+    this.flushCanvasOverlayPoint();
+    const state = this.overlayDragState;
+    this.overlayDragState = null;
+    state.shell.classList.remove("novacut-overlay-dragging");
+    try {
+      this.engine.refresh();
+      this.engine.commitHistoryTransaction?.();
+      this.engine.preview?.markDirty();
+    } catch (error) {
+      this.engine.reportError("canvas-overlay-commit", error);
+    }
+    event?.preventDefault?.();
+    return true;
+  }
+
+  cancelCanvasOverlayDrag(event) {
+    const state = this.overlayDragState;
+    if (!state) return false;
+    if (this.pendingOverlayFrame) cancelAnimationFrame(this.pendingOverlayFrame);
+    this.pendingOverlayFrame = 0;
+    this.pendingOverlayPoint = null;
+    moveNovaCutCanvasOverlay(state.item, state.type, state.originalX, state.originalY);
+    this.overlayDragState = null;
+    state.shell.classList.remove("novacut-overlay-dragging");
+    this.engine.cancelHistoryTransaction?.();
+    this.engine.refresh();
+    this.engine.preview?.markDirty();
+    event?.preventDefault?.();
+    return true;
   }
 
   observeDom() {
@@ -407,16 +639,14 @@ export class NovaCutStudioInteractions {
           clipId
         );
 
-      if (
-        record &&
-        record.type === "videoTracks"
-      ) {
+      if (record && record.item) {
         this.beginClipTouch(
           event,
           touch,
           clipElement,
           record.item,
-          edge
+          edge,
+          record.type
         );
 
         return;
@@ -438,7 +668,8 @@ export class NovaCutStudioInteractions {
     touch,
     element,
     clip,
-    edge
+    edge,
+    recordType = "videoTracks"
   ) {
     this.cancelLongPress();
 
@@ -453,6 +684,7 @@ export class NovaCutStudioInteractions {
       element,
       clip,
       clipId: clip.id,
+      recordType,
       edge,
       originalStartTime:
         finite(clip.startTime),
@@ -463,6 +695,7 @@ export class NovaCutStudioInteractions {
           0,
           finite(clip.sourceStartTime)
         ),
+      originalKeyframes: Array.isArray(clip.keyframes) ? clip.keyframes.map((frame) => ({ ...frame })) : [],
       timelineScrollLeft:
         this.timeline.scrollLeft,
       mode: edge
@@ -512,10 +745,9 @@ export class NovaCutStudioInteractions {
       startedAt: performance.now(),
       timelineScrollLeft:
         this.timeline.scrollLeft,
-      mode: "timeline-pending"
+      mode: "timeline-pending",
+      gestureMode: String(event?.type || "").startsWith("pointer") ? "scrub" : "pan"
     };
-
-    void event;
   }
 
   enterClipMode(mode) {
@@ -579,14 +811,10 @@ export class NovaCutStudioInteractions {
       return;
     }
 
-    if (
-      state.mode === "timeline-pending"
-    ) {
-      if (
-        Math.abs(dx) >
-        Math.abs(dy)
-      ) {
-        this.enterTimelineMode();
+    if (state.mode === "timeline-pending") {
+      if (Math.abs(dx) > Math.abs(dy)) {
+        if (state.gestureMode === "pan") this.enterTimelinePanMode();
+        else this.enterTimelineMode();
       } else {
         return;
       }
@@ -618,12 +846,18 @@ export class NovaCutStudioInteractions {
     switch (state.mode) {
       case "timeline":
         event.preventDefault();
-        this.pendingTimelineSeekX =
-          touch.clientX;
-        this.scheduleTimelineGesture(
-          touch.clientX,
-          dx
+        this.pendingTimelineSeekX = touch.clientX;
+        this.scheduleTimelineGesture(touch.clientX, dx);
+        break;
+
+      case "timeline-pan":
+        event.preventDefault();
+        this.timeline.scrollLeft = clamp(
+          state.timelineScrollLeft - dx,
+          0,
+          Math.max(0, this.timeline.scrollWidth - this.timeline.clientWidth)
         );
+        this.scheduleSync();
         break;
 
       case "drag":
@@ -666,18 +900,18 @@ export class NovaCutStudioInteractions {
   }
 
   enterTimelineMode() {
-    if (!this.touchState) {
-      return;
-    }
-
+    if (!this.touchState) return;
     this.mode = "timeline";
-    this.touchState.mode =
-      "timeline";
+    this.touchState.mode = "timeline";
+    this.timeline.classList.add("novacut-gesture-active");
+    this.cancelLongPress();
+  }
 
-    this.timeline.classList.add(
-      "novacut-gesture-active"
-    );
-
+  enterTimelinePanMode() {
+    if (!this.touchState) return;
+    this.mode = "timeline-pan";
+    this.touchState.mode = "timeline-pan";
+    this.timeline.classList.add("novacut-gesture-active");
     this.cancelLongPress();
   }
 
@@ -720,11 +954,15 @@ export class NovaCutStudioInteractions {
       this.engine.cancelHistoryTransaction?.();
     }
 
-    if (
-      mode === "timeline"
-    ) {
+    if (mode === "timeline") {
       event.preventDefault();
       this.flushTimelineSeek();
+    } else if (mode === "timeline-pan") {
+      event.preventDefault();
+    } else if (mode === "timeline-pending") {
+      // A tap/click on empty timeline space must seek too; previously only a
+      // horizontal move entered scrub mode, so tapping the ruler did nothing.
+      this.engine.setPlayhead(this.timestampFromClientX(state.lastX));
     }
 
     this.cleanupGesture();
@@ -777,21 +1015,9 @@ export class NovaCutStudioInteractions {
           return;
         }
 
-        const scrollDelta =
-          dx * -0.55;
-
-        this.timeline.scrollLeft =
-          clamp(
-            this.touchState.timelineScrollLeft +
-              scrollDelta,
-            0,
-            Math.max(
-              0,
-              this.timeline.scrollWidth -
-                this.timeline.clientWidth
-            )
-          );
-
+        // Scrubbing follows the finger/pointer. Panning the whole timeline is
+        // handled by the scroll container instead of silently shifting the
+        // time origin while the user is trying to choose a frame.
         const timestamp =
           this.timestampFromClientX(
             currentX
@@ -827,35 +1053,14 @@ export class NovaCutStudioInteractions {
   timestampFromClientX(
     clientX
   ) {
-    const rect =
-      this.timeline.getBoundingClientRect();
-
-    const target =
-      this.timeline.querySelector(
-        "[data-role='video-lane'], .nx-novacut__lane"
-      ) ||
-      this.timeline;
-
-    const targetRect =
-      target.getBoundingClientRect();
-
-    const viewportX =
-      clientX -
-      targetRect.left;
-
-    const contentX =
-      viewportX +
-      this.timeline.scrollLeft;
-
-    const pxPerMs =
-      this.options.pixelsPerSecond /
-      1000;
-
-    return Math.max(
-      0,
-      contentX /
-        pxPerMs
-    );
+    const target = this.timeline.querySelector(
+      "[data-role='video-lane'], .nx-novacut__lane"
+    ) || this.timeline;
+    const targetRect = target.getBoundingClientRect();
+    // targetRect already moves with scrollLeft. Adding scrollLeft again caused
+    // a doubled time offset when users scrubbed after panning.
+    const contentX = clientX - targetRect.left;
+    return Math.max(0, contentX / this.pixelsPerMs());
   }
 
   scheduleClipDrag() {
@@ -886,15 +1091,16 @@ export class NovaCutStudioInteractions {
           ) /
           this.pixelsPerMs();
 
-        const candidate =
-          this.clampedDragStart(
-            state.clip,
-            state.originalStartTime +
-              deltaMs
-          );
+        const desiredStart = state.originalStartTime + deltaMs;
+        const boundedStart = state.recordType === "videoTracks"
+          ? this.clampedDragStart(state.clip, desiredStart)
+          : Math.max(0, desiredStart);
+        const snappedStart = this.snapToTimeline(boundedStart, state.clip.id);
+        const candidate = state.recordType === "videoTracks"
+          ? this.clampedDragStart(state.clip, snappedStart)
+          : Math.max(0, snappedStart);
 
-        state.clip.startTime =
-          candidate;
+        state.clip.startTime = candidate;
 
         this.applyClipGeometry(
           state.element,
@@ -934,18 +1140,10 @@ export class NovaCutStudioInteractions {
           ) /
           this.pixelsPerMs();
 
-        if (
-          edge === "start"
-        ) {
-          this.applyStartTrim(
-            state,
-            deltaMs
-          );
+        if (edge === "start") {
+          this.applyStartTrim(state, deltaMs);
         } else {
-          this.applyEndTrim(
-            state,
-            deltaMs
-          );
+          this.applyEndTrim(state, deltaMs);
         }
 
         this.applyClipGeometry(
@@ -972,52 +1170,41 @@ export class NovaCutStudioInteractions {
       originalStart +
       state.originalDuration;
 
-    const previous =
-      this.getPreviousVideoClip(
-        clip
-      );
+    const isVideo = state.recordType === "videoTracks";
+    const previous = isVideo ? this.getPreviousVideoClip(clip) : null;
+    const previousEnd = previous ? previous.startTime + previous.duration : 0;
+    const lower = isVideo ? Math.max(previousEnd, 0) : 0;
+    const upper = originalEnd - minimum;
+    const desiredStart = clamp(originalStart + deltaMs, lower, upper);
+    const snappedStart = this.snapToTimeline(desiredStart, clip.id);
+    const nextStart = clamp(snappedStart, lower, upper);
+    const actualDelta = nextStart - originalStart;
 
-    const previousEnd =
-      previous
-        ? previous.startTime +
-          previous.duration
-        : 0;
-
-    const lower =
-      Math.max(
-        previousEnd,
-        0
-      );
-
-    const upper =
-      originalEnd -
-      minimum;
-
-    const nextStart =
-      clamp(
-        originalStart +
-          deltaMs,
-        lower,
-        upper
-      );
-
-    const actualDelta =
-      nextStart -
-      originalStart;
-
-    clip.startTime =
-      nextStart;
-
-    clip.duration =
-      state.originalDuration -
-      actualDelta;
-
-    clip.sourceStartTime =
-      Math.max(
-        0,
-        state.originalSourceStartTime +
-          actualDelta
-      );
+    clip.startTime = nextStart;
+    clip.duration = state.originalDuration - actualDelta;
+    const sourceRate = isVideo ? clamp(clip.speed ?? 1, 0.25, 4) : 1;
+    if ("sourceStartTime" in clip) {
+      clip.sourceStartTime = Math.max(0, state.originalSourceStartTime + actualDelta * sourceRate);
+    }
+    if (isVideo) clip.sourceDuration = Math.max(1, clip.duration * sourceRate);
+    if (isVideo && state.originalKeyframes.length) {
+      const originalClip = {
+        ...clip,
+        startTime: originalStart,
+        duration: state.originalDuration,
+        keyframes: state.originalKeyframes
+      };
+      const startValues = sampleNovaCutVideoKeyframes(originalClip, originalStart + actualDelta);
+      const endValues = sampleNovaCutVideoKeyframes(originalClip, originalStart + actualDelta + clip.duration);
+      clip.keyframes = [
+        { timeMs: 0, ...startValues },
+        ...state.originalKeyframes
+          .filter((frame) => Number(frame.timeMs) > actualDelta + 1 &&
+            Number(frame.timeMs) < actualDelta + clip.duration - 1)
+          .map((frame) => ({ ...frame, timeMs: Number(frame.timeMs) - actualDelta })),
+        { timeMs: clip.duration, ...endValues }
+      ];
+    }
   }
 
   applyEndTrim(
@@ -1033,38 +1220,48 @@ export class NovaCutStudioInteractions {
     const originalStart =
       state.originalStartTime;
 
-    const next =
-      this.getNextVideoClip(
-        clip
-      );
+    const next = state.recordType === "videoTracks" ? this.getNextVideoClip(clip) : null;
+    const maximumEnd = next ? next.startTime : Infinity;
+    const desiredEnd = clamp(
+      originalStart + state.originalDuration + deltaMs,
+      originalStart + minimum,
+      maximumEnd
+    );
+    const targetEnd = clamp(
+      this.snapToTimeline(desiredEnd, clip.id),
+      originalStart + minimum,
+      maximumEnd
+    );
 
-    const maximumEnd =
-      next
-        ? next.startTime
-        : Infinity;
-
-    const targetEnd =
-      clamp(
-        originalStart +
-          state.originalDuration +
-          deltaMs,
-        originalStart +
-          minimum,
-        maximumEnd
-      );
-
-    clip.duration =
-      Math.max(
-        minimum,
-        targetEnd -
-          originalStart
-      );
+    clip.duration = Math.max(minimum, targetEnd - originalStart);
+    if (state.recordType === "videoTracks") {
+      clip.sourceDuration = Math.max(1, clip.duration * clamp(clip.speed ?? 1, 0.25, 4));
+    }
+    if (state.recordType === "videoTracks" && state.originalKeyframes.length) {
+      const originalClip = {
+        ...clip,
+        startTime: originalStart,
+        duration: state.originalDuration,
+        keyframes: state.originalKeyframes
+      };
+      const startValues = sampleNovaCutVideoKeyframes(originalClip, originalStart);
+      const endValues = sampleNovaCutVideoKeyframes(originalClip, originalStart + clip.duration);
+      clip.keyframes = [
+        { timeMs: 0, ...startValues },
+        ...state.originalKeyframes
+          .filter((frame) => Number(frame.timeMs) > 1 && Number(frame.timeMs) < clip.duration - 1)
+          .map((frame) => ({ ...frame })),
+        { timeMs: clip.duration, ...endValues }
+      ];
+    }
   }
 
   clampedDragStart(
     clip,
     desiredStart
   ) {
+    const record = this.engine.registry.getById(clip?.id);
+    if (record?.type !== "videoTracks") return Math.max(0, finite(desiredStart));
     const minimum =
       this.options.minFrameMs;
 
@@ -1219,6 +1416,10 @@ export class NovaCutStudioInteractions {
     state.clip.sourceStartTime =
       state.originalSourceStartTime;
 
+    if (Array.isArray(state.clip.keyframes)) {
+      state.clip.keyframes = state.originalKeyframes.map((frame) => ({ ...frame }));
+    }
+
     this.applyClipGeometry(
       state.element,
       state.clip
@@ -1284,17 +1485,9 @@ export class NovaCutStudioInteractions {
             clipId
           );
 
-        if (
-          !record ||
-          record.type !==
-            "videoTracks"
-        ) {
-          return;
-        }
+        if (!record || !record.item) return;
 
-        this.ensureTrimHandles(
-          element
-        );
+        this.ensureTrimHandles(element);
 
         this.applyClipGeometry(
           element,
@@ -1386,16 +1579,8 @@ export class NovaCutStudioInteractions {
       return;
     }
 
-    const scale =
-      this.options.pixelsPerSecond /
-      1000;
-
-    const width =
-      Math.max(
-        46,
-        finite(clip.duration) *
-          scale
-      );
+    const scale = this.pixelsPerMs();
+    const width = Math.max(54, finite(clip.duration) * scale);
 
     const start =
       Math.max(
@@ -1406,26 +1591,22 @@ export class NovaCutStudioInteractions {
     element.style.width =
       width + "px";
 
-    element.style.minWidth =
-      width + "px";
-
-    element.style.flex =
-      "0 0 " + width + "px";
-
-    element.style.marginLeft =
-      start * scale + "px";
-
-    element.style.transform =
-      "translate3d(0,0,0)";
+    element.style.setProperty("min-width", width + "px", "important");
+    element.style.setProperty("position", "absolute", "important");
+    element.style.left = start * scale + "px";
+    element.style.top = "2px";
+    element.style.flex = "0 0 auto";
+    element.style.marginLeft = "0px";
+    element.style.transform = "translate3d(0,0,0)";
   }
 
   syncTimeline() {
-    if (!this.timeline) {
-      return;
-    }
-
+    if (!this.timeline) return;
     this.installPlayhead();
-    this.decorateVideoClips();
+
+    // playheadchange fires continuously during playback. Clip DOM geometry
+    // is changed only by timeline edits/DOM mutations, not by video time.
+    // Do not walk every clip, inspect handles or rewrite clip CSS per frame.
     this.syncPlayhead();
   }
 
@@ -1459,9 +1640,13 @@ export class NovaCutStudioInteractions {
       this.engine.currentTimestamp *
       pxPerMs;
 
+    // The playhead's absolute left is in scroll-content coordinates, not
+    // viewport coordinates. Account for horizontal scroll or it drifts as the
+    // user pans a long sequence on mobile.
     const viewportX =
       laneRect.left -
       timelineRect.left +
+      this.timeline.scrollLeft +
       contentX;
 
     const boundedX =
@@ -1470,7 +1655,7 @@ export class NovaCutStudioInteractions {
         0,
         Math.max(
           0,
-          this.timeline.clientWidth
+          this.timeline.scrollWidth
         )
       );
 
@@ -1501,10 +1686,43 @@ export class NovaCutStudioInteractions {
   }
 
   pixelsPerMs() {
-    return (
-      this.options.pixelsPerSecond /
-      1000
-    );
+    const dynamicScale = typeof this.options.getPixelsPerSecond === "function"
+      ? finite(this.options.getPixelsPerSecond(), this.options.pixelsPerSecond)
+      : this.options.pixelsPerSecond;
+    return Math.max(1, finite(dynamicScale, NOVACUT_PIXELS_PER_SECOND)) / 1000;
+  }
+
+  snapToTimeline(timestamp, excludeId = null) {
+    const getEnabled = this.options.getSnapEnabled;
+    if (typeof getEnabled === "function" && !getEnabled()) return Math.max(0, finite(timestamp));
+    const pps = this.pixelsPerMs();
+    const thresholdMs = 7 / Math.max(0.001, pps);
+    const candidates = [0, finite(this.engine.currentTimestamp)];
+    const registry = this.engine.registry;
+    const all = [
+      ...(registry.videoTracks || []),
+      ...(registry.audioTracks || []),
+      ...(registry.textTracks || []),
+      ...(registry.overlayTracks || []),
+      ...(registry.effectTracks || [])
+    ];
+    for (const item of all) {
+      if (!item || item.id === excludeId) continue;
+      const start = Math.max(0, finite(item.startTime));
+      const end = start + Math.max(0, finite(item.duration));
+      candidates.push(start, end);
+    }
+    const target = Math.max(0, finite(timestamp));
+    let nearest = target;
+    let nearestDistance = thresholdMs;
+    for (const candidate of candidates) {
+      const distance = Math.abs(candidate - target);
+      if (distance <= nearestDistance) {
+        nearestDistance = distance;
+        nearest = candidate;
+      }
+    }
+    return Math.max(0, nearest);
   }
 
   cancelLongPress() {
@@ -1552,6 +1770,12 @@ export class NovaCutStudioInteractions {
 
   dispose() {
     this.cancelLongPress();
+    this.cancelCanvasOverlayDrag();
+
+    if (this.pendingOverlayFrame) {
+      cancelAnimationFrame(this.pendingOverlayFrame);
+      this.pendingOverlayFrame = 0;
+    }
 
     if (
       this.pendingFrame

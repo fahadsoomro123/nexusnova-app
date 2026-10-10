@@ -22,11 +22,27 @@ export const RATIO_PRESETS = Object.freeze({
 });
 
 const clamp = (value, min, max) => Math.min(Math.max(Number(value) || 0, min), max);
+function closestRatioPreset(width, height) {
+  const aspect = Number(width) / Number(height);
+  if (!Number.isFinite(aspect) || aspect <= 0) return null;
+  return Object.entries(RATIO_PRESETS).reduce((best, [name, size]) => {
+    const error = Math.abs(Math.log(aspect / (size.width / size.height)));
+    return !best || error < best.error ? { name, error } : best;
+  }, null)?.name || null;
+}
 export const isAndroidWebViewUserAgent = (value) => {
   const userAgent = String(value || "");
   return /Android/i.test(userAgent) && /\bwv\b/i.test(userAgent);
 };
 const msToSec = (value) => Math.max(0, Number(value) || 0) / 1000;
+function ffmpegAtempoChain(value) {
+  let speed = clamp(value, 0.25, 4);
+  const filters = [];
+  while (speed < 0.5) { filters.push("atempo=0.5"); speed /= 0.5; }
+  while (speed > 2) { filters.push("atempo=2"); speed /= 2; }
+  filters.push("atempo=" + speed.toFixed(3));
+  return filters.join(",");
+}
 const uid = (prefix) => prefix + "-" + (globalThis.crypto?.randomUUID?.() || (Date.now() + "-" + Math.random().toString(36).slice(2)));
 const safeName = (value, fallback) => String(value || fallback).replace(/[<>:"/\\|?*\u0000-\u001F]/g, "_").replace(/\s+/g, "_").slice(0, 120) || fallback;
 const ext = (value, fallback = "bin") => String(value || "").match(/\.([a-z0-9]{1,8})$/i)?.[1]?.toLowerCase() || fallback;
@@ -56,6 +72,152 @@ function rgba(hex, alpha) {
   return "rgba(" + r + "," + g + "," + b + "," + clamp(alpha == null ? 1 : alpha, 0, 1) + ")";
 }
 
+function clipCssFilter(clip) {
+  const brightness = clamp(Number(clip?.brightness ?? 100) / 100, 0, 2);
+  const contrast = clamp(Number(clip?.contrast ?? 100) / 100, 0, 2);
+  const saturation = clamp(Number(clip?.saturation ?? 100) / 100, 0, 3);
+  if (brightness === 1 && contrast === 1 && saturation === 1) return "none";
+  return "brightness(" + brightness.toFixed(3) + ") contrast(" + contrast.toFixed(3) + ") saturate(" + saturation.toFixed(3) + ")";
+}
+
+function clipOpacityAt(clip, timestamp) {
+  const duration = Math.max(1, Number(clip?.duration) || 1);
+  const local = clamp(Number(timestamp) - (Number(clip?.startTime) || 0), 0, duration);
+  const fadeIn = clamp(Number(clip?.fadeInMs) || 0, 0, duration);
+  const fadeOut = clamp(Number(clip?.fadeOutMs) || 0, 0, duration);
+  let opacity = 1;
+  if (fadeIn > 0) opacity = Math.min(opacity, local / fadeIn);
+  if (fadeOut > 0 && duration - local < fadeOut) {
+    opacity = Math.min(opacity, (duration - local) / fadeOut);
+  }
+  return clamp(opacity, 0, 1);
+}
+
+export function sampleNovaCutAudioGain(segment, timestamp) {
+  const duration = Math.max(1, Number(segment?.duration) || 1);
+  const start = Math.max(0, Number(segment?.startTime) || 0);
+  const local = clamp(Number(timestamp) - start, 0, duration);
+  const fadeIn = clamp(Number(segment?.fadeInMs) || 0, 0, duration);
+  const fadeOut = clamp(Number(segment?.fadeOutMs) || 0, 0, duration);
+  let gain = 1;
+  if (fadeIn > 0) gain = Math.min(gain, local / fadeIn);
+  if (fadeOut > 0 && duration - local < fadeOut) {
+    gain = Math.min(gain, (duration - local) / fadeOut);
+  }
+  return clamp(gain, 0, 1);
+}
+
+function keyframeEasingAmount(easing, amount) {
+  const t = clamp(amount, 0, 1);
+  if (easing === "ease-in") return t * t;
+  if (easing === "ease-out") return 1 - (1 - t) * (1 - t);
+  if (easing === "ease-in-out") return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+  return t;
+}
+
+function ffmpegKeyframeEasingExpression(easing, amount) {
+  if (easing === "ease-in") return "pow(" + amount + ",2)";
+  if (easing === "ease-out") return "1-pow(1-(" + amount + "),2)";
+  if (easing === "ease-in-out") return "if(lt(" + amount + ",0.5),2*pow(" + amount + ",2),1-pow(-2*(" + amount + ")+2,2)/2)";
+  return amount;
+}
+
+function normalizeVideoKeyframes(frames, durationMs, clip = {}) {
+  const duration = Math.max(1, Number(durationMs) || Number(clip.duration) || 1);
+  const baseScale = Math.max(0.05, Number(clip.transform?.scale ?? clip.scale) || 1);
+  const baseRotation = Number(clip.transform?.rotation) || 0;
+  const baseX = Number(clip.x_offset) || 0;
+  const baseY = Number(clip.y_offset) || 0;
+  const byTime = new Map();
+  (Array.isArray(frames) ? frames : []).forEach((frame) => {
+    if (!frame || !Number.isFinite(Number(frame.timeMs))) return;
+    const timeMs = clamp(frame.timeMs, 0, duration);
+    byTime.set(timeMs, {
+      timeMs,
+      scale: clamp(frame.scale ?? baseScale, 0.05, 4),
+      rotation: clamp(frame.rotation ?? baseRotation, -360, 360),
+      x_offset: clamp(frame.x_offset ?? baseX, -2000, 2000),
+      y_offset: clamp(frame.y_offset ?? baseY, -2000, 2000),
+      easing: ["linear", "ease-in", "ease-out", "ease-in-out"].includes(frame.easing) ? frame.easing : "linear"
+    });
+  });
+  return [...byTime.values()].sort((a, b) => a.timeMs - b.timeMs);
+}
+
+export function sampleNovaCutVideoKeyframes(clip, timestamp) {
+  const duration = Math.max(1, Number(clip?.duration) || 1);
+  const startTime = Math.max(0, Number(clip?.startTime) || 0);
+  const localTimeMs = clamp(Number(timestamp) - startTime, 0, duration);
+  const base = {
+    scale: Math.max(0.05, Number(clip?.transform?.scale ?? clip?.scale) || 1),
+    rotation: Number(clip?.transform?.rotation) || 0,
+    x_offset: Number(clip?.x_offset) || 0,
+    y_offset: Number(clip?.y_offset) || 0
+  };
+  const frames = normalizeVideoKeyframes(clip?.keyframes, duration, clip || {});
+  if (!frames.length) return base;
+  const values = (frame) => ({
+    scale: frame.scale,
+    rotation: frame.rotation,
+    x_offset: frame.x_offset,
+    y_offset: frame.y_offset,
+    easing: frame.easing || "linear"
+  });
+  if (localTimeMs <= frames[0].timeMs) return values(frames[0]);
+  if (localTimeMs >= frames[frames.length - 1].timeMs) return values(frames[frames.length - 1]);
+  let rightIndex = frames.findIndex((frame) => frame.timeMs >= localTimeMs);
+  if (rightIndex <= 0) return values(frames[0]);
+  const left = frames[rightIndex - 1];
+  const right = frames[rightIndex];
+  const span = Math.max(1, right.timeMs - left.timeMs);
+  const amount = keyframeEasingAmount(left.easing, clamp((localTimeMs - left.timeMs) / span, 0, 1));
+  return {
+    scale: left.scale + (right.scale - left.scale) * amount,
+    rotation: left.rotation + (right.rotation - left.rotation) * amount,
+    x_offset: left.x_offset + (right.x_offset - left.x_offset) * amount,
+    y_offset: left.y_offset + (right.y_offset - left.y_offset) * amount,
+    easing: left.easing || "linear"
+  };
+}
+
+function ffmpegVideoKeyframeExpression(clip, property, fallback, clipStartSeconds) {
+  const frames = normalizeVideoKeyframes(clip?.keyframes, clip?.duration, clip || {});
+  if (!frames.length) return Number(fallback || 0).toFixed(4);
+  const points = frames.map((frame) => ({
+    time: (Number(clipStartSeconds) || 0) + frame.timeMs / 1000,
+    value: Number(frame[property]) || 0,
+    easing: frame.easing || "linear"
+  }));
+  if (points.length === 1) return points[0].value.toFixed(4);
+  let expression = points[points.length - 1].value.toFixed(4);
+  for (let index = points.length - 2; index >= 0; index -= 1) {
+    const left = points[index];
+    const right = points[index + 1];
+    const leftTime = left.time.toFixed(4);
+    const rightTime = right.time.toFixed(4);
+    const denominator = Math.max(0.001, right.time - left.time).toFixed(4);
+    const leftValue = left.value.toFixed(4);
+    const rightValue = right.value.toFixed(4);
+    const amount = "clip((t-" + leftTime + ")/" + denominator + ",0,1)";
+    const easedAmount = ffmpegKeyframeEasingExpression(left.easing, amount);
+    const segment = leftValue + "+(" + rightValue + "-" + leftValue + ")*(" + easedAmount + ")";
+    expression = "if(lt(t," + rightTime + "),if(lt(t," + leftTime + ")," + leftValue + "," + segment + ")," + expression + ")";
+  }
+  return expression;
+}
+
+function videoClipAtTimestamp(clip, timestamp) {
+  if (!Array.isArray(clip?.keyframes) || !clip.keyframes.length) return clip;
+  const values = sampleNovaCutVideoKeyframes(clip, timestamp);
+  return {
+    ...clip,
+    scale: values.scale,
+    x_offset: values.x_offset,
+    y_offset: values.y_offset,
+    transform: { ...(clip.transform || {}), scale: values.scale, rotation: values.rotation }
+  };
+}
+
 class NovaCutEventBus {
   constructor() { this.map = new Map(); }
   on(name, fn) {
@@ -83,13 +245,19 @@ export class NovaCutTrackRegistry {
 
   addVideoClip(input = {}) {
     const transform = input.transform || {};
+    const duration = Math.max(1, Number(input.duration) || 1);
+    const speed = clamp(input.speed ?? 1, 0.25, 4);
     const clip = {
       id: String(input.id || uid("video")),
       file: input.file || null,
       startTime: Math.max(0, Number(input.startTime) || 0),
-      duration: Math.max(1, Number(input.duration) || 1),
+      duration,
+      speed,
+      sourceDuration: Math.max(1, Number(input.sourceDuration) || duration * speed),
       sourceStartTime: Math.max(0, Number(input.sourceStartTime) || 0),
       x_offset: Number(input.x_offset) || 0,
+      y_offset: Number(input.y_offset) || 0,
+      fitMode: input.fitMode === "fill" ? "fill" : "fit",
       scale: Math.max(0.05, Number(input.scale) || Number(transform.scale) || 1),
       transform: {
         scale: Math.max(0.05, Number(transform.scale ?? input.scale) || 1),
@@ -97,8 +265,15 @@ export class NovaCutTrackRegistry {
         flipX: Boolean(transform.flipX),
         flipY: Boolean(transform.flipY)
       },
+      brightness: clamp(input.brightness ?? 100, 0, 200),
+      contrast: clamp(input.contrast ?? 100, 0, 200),
+      saturation: clamp(input.saturation ?? 100, 0, 300),
+      fadeInMs: clamp(input.fadeInMs ?? 0, 0, duration),
+      fadeOutMs: clamp(input.fadeOutMs ?? 0, 0, duration),
+      keyframes: [],
       volume: clamp(input.volume ?? 1, 0, 4)
     };
+    clip.keyframes = normalizeVideoKeyframes(input.keyframes, duration, clip);
     this.videoTracks.push(clip);
     return clip;
   }
@@ -108,8 +283,11 @@ export class NovaCutTrackRegistry {
       id: String(input.id || uid("audio")),
       file: input.file || null,
       startTime: Math.max(0, Number(input.startTime) || 0),
+      sourceStartTime: Math.max(0, Number(input.sourceStartTime) || 0),
       duration: Math.max(250, Number(input.duration) || 250),
-      volume: clamp(input.volume ?? 1, 0, 4)
+      volume: clamp(input.volume ?? 1, 0, 4),
+      fadeInMs: clamp(input.fadeInMs ?? 0, 0, Math.max(250, Number(input.duration) || 250)),
+      fadeOutMs: clamp(input.fadeOutMs ?? 0, 0, Math.max(250, Number(input.duration) || 250))
     };
     this.audioTracks.push(segment);
     return segment;
@@ -217,6 +395,7 @@ export class NovaCutCanvasPreview {
     this.urls = new Map();
     this.stickerMedia = new Map();
     this.stickerPending = new Map();
+    this.nativeEffectElements = new Map();
     this.frameProbe = new Map();
     const userAgent = String(globalThis.navigator?.userAgent || "");
     // Android System WebView may advance the HTMLVideoElement clock while
@@ -225,12 +404,32 @@ export class NovaCutCanvasPreview {
     this.forceNativeVideoLayer = isAndroidWebViewUserAgent(userAgent);
     this.nativeFallbackActive = this.forceNativeVideoLayer;
     this.nativePreviewMedia = null;
+    this.nativePreviewLayers = new Map();
+    this.nativeLayerOrderSignature = "";
     this.renderTick = 0;
     this.frameId = 0;
+    this.videoFrameId = 0;
+    this.videoFrameElement = null;
+    this.videoFramePending = false;
+    this.schedulerLoop = null;
+    this.lastRenderAt = 0;
     this.running = false;
+    this.needsRender = true;
+    this.previewQuality = this.forceNativeVideoLayer ? "balanced" : "sharp";
+    this.renderUnsubscribers = [];
+    if (typeof this.engine.on === "function") {
+      ["statechange", "playheadchange", "ratio", "selectionchange", "preview:fallback"].forEach((name) => {
+        const unsubscribe = this.engine.on(name, () => this.markDirty());
+        if (typeof unsubscribe === "function") this.renderUnsubscribers.push(unsubscribe);
+      });
+    }
     this.resizeObserver = null;
+    this.canvasLayout = { width: 1, height: 1 };
     if (canvas && globalThis.ResizeObserver) {
-      this.resizeObserver = new ResizeObserver(() => this.resize());
+      this.resizeObserver = new ResizeObserver(() => {
+        this.resize();
+        this.markDirty();
+      });
       this.resizeObserver.observe(canvas);
     }
     this.resize();
@@ -239,47 +438,96 @@ export class NovaCutCanvasPreview {
   resize() {
     if (!this.canvas || !this.ctx) return;
     const rect = this.canvas.getBoundingClientRect();
-    const dpr = clamp(globalThis.devicePixelRatio || 1, 1, 2);
+    const qualityScale = { draft: 0.7, balanced: 0.9, sharp: 1.25 }[this.previewQuality] || 1;
+    const dpr = clamp((globalThis.devicePixelRatio || 1) * qualityScale, 0.7, 2);
+    this.canvasLayout = {
+      width: Math.max(1, Number(rect.width) || 1),
+      height: Math.max(1, Number(rect.height) || 1)
+    };
     const width = Math.max(2, Math.round(rect.width * dpr));
     const height = Math.max(2, Math.round(rect.height * dpr));
     if (this.canvas.width !== width) this.canvas.width = width;
     if (this.canvas.height !== height) this.canvas.height = height;
-    this.sourceCanvas.width = width;
-    this.sourceCanvas.height = height;
+    if (this.sourceCanvas.width !== width) this.sourceCanvas.width = width;
+    if (this.sourceCanvas.height !== height) this.sourceCanvas.height = height;
   }
 
   mountNativePreview(media, clip = null) {
     if (!(media instanceof HTMLVideoElement) || !this.canvas) return;
+    if (!(this.nativePreviewLayers instanceof Map)) this.nativePreviewLayers = new Map();
+    if (typeof this.nativeLayerOrderSignature !== "string") this.nativeLayerOrderSignature = "";
     const shell = this.canvas.parentElement;
     if (!shell) return;
-    if (this.nativePreviewMedia && this.nativePreviewMedia !== media) {
-      try {
-        this.nativePreviewMedia.pause();
-        this.nativePreviewMedia.remove();
-      } catch (_) {}
-    }
     this.nativePreviewMedia = media;
+    const layerId = String(clip?.id || [...this.media.entries()].find(([, candidate]) => candidate === media)?.[0] || "");
+    if (layerId) this.nativePreviewLayers.set(layerId, media);
     media.classList.add("nx-novacut__native-preview-video");
-    Object.assign(media.style, {
-      position: "absolute",
-      inset: "0",
-      width: "100%",
-      height: "100%",
-      maxWidth: "100%",
-      maxHeight: "100%",
-      objectFit: "contain",
-      zIndex: "0",
-      pointerEvents: "none",
-      background: "#050507",
-      display: "block",
-      transformOrigin: "center center",
-      transform: [
-        "translateX(" + (Number(clip?.x_offset || 0) / Math.max(1, Number(globalThis.devicePixelRatio) || 1)) + "px)",
-        "rotate(" + (Number(clip?.transform?.rotation || 0)) + "deg)",
-        "scale(" + (Math.max(0.05, Number(clip?.transform?.scale ?? clip?.scale) || 1) * (clip?.transform?.flipX ? -1 : 1)) + "," +
-          (Math.max(0.05, Number(clip?.transform?.scale ?? clip?.scale) || 1) * (clip?.transform?.flipY ? -1 : 1)) + ")"
-      ].join(" ")
-    });
+
+    const canvasWidth = Math.max(1, Number(this.canvas.width) || 1);
+    const canvasHeight = Math.max(1, Number(this.canvas.height) || 1);
+    // Reuse ResizeObserver measurements instead of forcing WebView layout reads
+    // during native video frame presentation.
+    const clientWidth = Math.max(1, Number(this.canvasLayout?.width) || 1);
+    const clientHeight = Math.max(1, Number(this.canvasLayout?.height) || 1);
+    const transformScale = Math.max(0.05, Number(clip?.transform?.scale ?? clip?.scale) || 1);
+    const fitMode = clip?.fitMode === "fill" ? "cover" : "contain";
+    const transform = [
+      "translateX(" + (Number(clip?.x_offset || 0) / Math.max(0.1, canvasWidth / clientWidth)) + "px)",
+      "translateY(" + (Number(clip?.y_offset || 0) / Math.max(0.1, canvasHeight / clientHeight)) + "px)",
+      "rotate(" + (Number(clip?.transform?.rotation || 0)) + "deg)",
+      "scale(" + (transformScale * (clip?.transform?.flipX ? -1 : 1)) + "," +
+        (transformScale * (clip?.transform?.flipY ? -1 : 1)) + ")"
+    ].join(" ");
+    const filter = clipCssFilter(clip);
+    const opacity = clipOpacityAt(clip, Number(this.engine?.currentTimestamp) || 0);
+    if (!media.dataset) {
+      try { media.dataset = {}; } catch (_) {}
+    }
+    const readSignature = (key) => media.dataset?.[key] ?? media["__" + key];
+    const writeSignature = (key, value) => {
+      if (media.dataset) media.dataset[key] = value;
+      else media["__" + key] = value;
+    };
+    const layoutSignature = [
+      clip?.id || "",
+      fitMode,
+      canvasWidth,
+      canvasHeight,
+      clientWidth,
+      clientHeight
+    ].join("|");
+
+    // Split layout state from animated properties. Keyframes may change the
+    // transform on each decoded frame; those changes must not rewrite width,
+    // height, position, or object-fit and trigger a synchronous WebView layout.
+    if (readSignature("novacutPreviewLayoutSignature") !== layoutSignature) {
+      Object.assign(media.style, {
+        position: "absolute",
+        inset: "0",
+        width: "100%",
+        height: "100%",
+        maxWidth: "100%",
+        maxHeight: "100%",
+        objectFit: fitMode,
+        zIndex: "0",
+        pointerEvents: "none",
+        background: "#050507",
+        display: "block",
+        transformOrigin: "center center"
+      });
+      writeSignature("novacutPreviewLayoutSignature", layoutSignature);
+    }
+
+    const animatedStyles = [
+      ["transform", "novacutPreviewTransformSignature", transform],
+      ["filter", "novacutPreviewFilterSignature", filter],
+      ["opacity", "novacutPreviewOpacitySignature", String(opacity)]
+    ];
+    for (const [property, signatureKey, value] of animatedStyles) {
+      if (readSignature(signatureKey) === value) continue;
+      media.style[property] = value;
+      writeSignature(signatureKey, value);
+    }
     if (media.parentElement !== shell) shell.insertBefore(media, this.canvas);
     this.canvas.classList.add("nx-novacut__canvas--native-preview");
   }
@@ -287,8 +535,10 @@ export class NovaCutCanvasPreview {
   enableNativePreviewFallback(media, clip, reason) {
     if (this.nativeFallbackActive) return;
     this.nativeFallbackActive = true;
+    if (this.previewQuality === "sharp") this.setPreviewQuality("balanced");
+    this.markDirty();
     this.mountNativePreview(media, clip);
-    this.engine.setStatus("Native video preview fallback");
+    this.engine.setStatus("Preview adjusted");
     this.engine.events.emit("preview:fallback", {
       clip,
       reason: String(reason || "Canvas did not show video pixels.")
@@ -508,7 +758,9 @@ export class NovaCutCanvasPreview {
       });
       if (!(media instanceof HTMLVideoElement)) return;
       const local = Math.max(0, timestamp - clip.startTime);
-      const target = Math.max(0, msToSec(clip.sourceStartTime + local));
+      const speed = clamp(clip.speed ?? 1, 0.25, 4);
+      media.playbackRate = speed;
+      const target = Math.max(0, msToSec(clip.sourceStartTime + local * speed));
       try {
         if (Math.abs(media.currentTime - target) > 0.025) media.currentTime = target;
       } catch (_) {}
@@ -524,17 +776,18 @@ export class NovaCutCanvasPreview {
       });
       if (!audio) return;
       const local = Math.max(0, timestamp - segment.startTime);
-      try { audio.currentTime = msToSec(local); } catch (_) {}
-      audio.volume = clamp(segment.volume ?? 1, 0, 1);
+      try { audio.currentTime = msToSec((Number(segment.sourceStartTime) || 0) + local); } catch (_) {}
+      audio.volume = clamp(segment.volume ?? 1, 0, 1) * sampleNovaCutAudioGain(segment, timestamp);
     }));
   }
 
   enableVideoAudio(media, clip) {
     if (!(media instanceof HTMLVideoElement)) return;
+    media.playbackRate = clamp(clip?.speed ?? 1, 0.25, 4);
     // Videos stay muted while preloading; restore source audio for user-requested playback.
     media.defaultMuted = false;
     media.muted = false;
-    media.volume = clamp(clip?.volume ?? 1, 0, 1);
+    media.volume = clamp(clip?.volume ?? 1, 0, 1) * sampleNovaCutAudioGain(clip, this.engine.currentTimestamp);
   }
 
   enableActiveVideoAudio() {
@@ -552,7 +805,9 @@ export class NovaCutCanvasPreview {
       if (!(media instanceof HTMLVideoElement)) return;
       this.enableVideoAudio(media, clip);
       const local = Math.max(0, this.engine.currentTimestamp - clip.startTime);
-      const target = Math.max(0, msToSec(clip.sourceStartTime + local));
+      const speed = clamp(clip.speed ?? 1, 0.25, 4);
+      media.playbackRate = speed;
+      const target = Math.max(0, msToSec(clip.sourceStartTime + local * speed));
       try {
         if (Math.abs(media.currentTime - target) > 0.12) media.currentTime = target;
         await media.play();
@@ -568,9 +823,10 @@ export class NovaCutCanvasPreview {
     await Promise.all(activeAudio.map(async (segment) => {
       const audio = await this.resolveAudio(segment);
       const local = Math.max(0, this.engine.currentTimestamp - segment.startTime);
+      const audioTarget = msToSec((Number(segment.sourceStartTime) || 0) + local);
       try {
-        if (Math.abs(audio.currentTime - msToSec(local)) > 0.12) audio.currentTime = msToSec(local);
-        audio.volume = clamp(segment.volume ?? 1, 0, 1);
+        if (Math.abs(audio.currentTime - audioTarget) > 0.12) audio.currentTime = audioTarget;
+        audio.volume = clamp(segment.volume ?? 1, 0, 1) * sampleNovaCutAudioGain(segment, this.engine.currentTimestamp);
         await audio.play();
       } catch (error) {
         throw new Error("NovaCut could not start audio playback: " + (error?.message || error));
@@ -610,14 +866,130 @@ export class NovaCutCanvasPreview {
     }
   }
 
+  getNativeFrameMedia() {
+    if (!(this.forceNativeVideoLayer || this.nativeFallbackActive) || !this.engine.isPlaying) return null;
+    const active = this.engine.getActiveVideoClips().slice().sort((a, b) => b.startTime - a.startTime);
+    for (const clip of active) {
+      const media = this.media.get(clip.id);
+      if (
+        media instanceof HTMLVideoElement &&
+        media.readyState >= 2 &&
+        !media.paused &&
+        typeof media.requestVideoFrameCallback === "function"
+      ) return media;
+    }
+    return null;
+  }
+
+  cancelVideoFramePaint() {
+    const media = this.videoFrameElement;
+    if (this.videoFramePending && media && typeof media.cancelVideoFrameCallback === "function") {
+      try { media.cancelVideoFrameCallback(this.videoFrameId); } catch (_) {}
+    }
+    this.videoFrameId = 0;
+    this.videoFramePending = false;
+    this.videoFrameElement = null;
+  }
+
+  requestVideoFramePaint(media) {
+    if (!this.running || !media || typeof media.requestVideoFrameCallback !== "function") return;
+    if (this.videoFrameElement !== media) this.cancelVideoFramePaint();
+    if (this.videoFramePending) return;
+    this.videoFrameElement = media;
+    this.videoFramePending = true;
+    try {
+      this.videoFrameId = media.requestVideoFrameCallback((now) => {
+        this.videoFrameId = 0;
+        this.videoFramePending = false;
+        if (!this.running) {
+          this.videoFrameElement = null;
+          return;
+        }
+        if (this.getNativeFrameMedia() !== media) {
+          this.videoFrameElement = null;
+          if (!this.frameId && this.schedulerLoop) this.frameId = requestAnimationFrame(this.schedulerLoop);
+          return;
+        }
+        if (this.needsRender || this.engine.isPlaying) {
+          this.needsRender = false;
+          this.lastRenderAt = now;
+          try {
+            this.render();
+          } catch (error) {
+            this.needsRender = true;
+            this.engine.reportError("preview", error);
+          }
+        }
+        this.requestVideoFramePaint(media);
+      });
+    } catch (_) {
+      this.videoFramePending = false;
+      this.videoFrameElement = null;
+      if (!this.frameId && this.schedulerLoop) this.frameId = requestAnimationFrame(this.schedulerLoop);
+    }
+  }
+
+  markDirty() {
+    this.needsRender = true;
+    if (!this.running) return;
+    const nativeMedia = this.getNativeFrameMedia();
+    if (nativeMedia) {
+      if (this.videoFrameElement === nativeMedia && this.videoFramePending) return;
+      this.cancelVideoFramePaint();
+      this.requestVideoFramePaint(nativeMedia);
+      return;
+    }
+    this.cancelVideoFramePaint();
+    if (!this.frameId && this.schedulerLoop) this.frameId = requestAnimationFrame(this.schedulerLoop);
+  }
+
+  setPreviewQuality(mode) {
+    const next = ["draft", "balanced", "sharp"].includes(mode) ? mode : "balanced";
+    if (next === this.previewQuality) {
+      this.markDirty();
+      return next;
+    }
+    this.previewQuality = next;
+    this.resize();
+    this.markDirty();
+    return next;
+  }
+
   start() {
     if (this.running) return;
     this.running = true;
-    const loop = () => {
+    const loop = (now = 0) => {
+      this.frameId = 0;
       if (!this.running) return;
-      try { this.render(); } catch (error) { this.engine.reportError("preview", error); }
-      this.frameId = requestAnimationFrame(loop);
+
+      const nativeMedia = this.getNativeFrameMedia();
+      if (nativeMedia) {
+        // Paint overlays only when the hardware-decoded video sends a frame to
+        // the compositor, rather than doing a second 30/60 Hz busy render loop.
+        this.requestVideoFramePaint(nativeMedia);
+        return;
+      }
+
+      this.cancelVideoFramePaint();
+      const nativePlayback = (this.forceNativeVideoLayer || this.nativeFallbackActive) && this.engine.isPlaying;
+      const frameInterval = nativePlayback ? 1000 / 30 : 0;
+      const intervalElapsed = !nativePlayback || now - this.lastRenderAt >= frameInterval;
+      if (intervalElapsed && (this.needsRender || this.engine.isPlaying)) {
+        this.needsRender = false;
+        this.lastRenderAt = now;
+        try {
+          this.render();
+        } catch (error) {
+          this.needsRender = true;
+          this.engine.reportError("preview", error);
+        }
+      }
+
+      // While paused, one dirty render is enough. markDirty() schedules the
+      // next RAF when a setting, clip, resize, or playhead actually changes.
+      if (this.engine.isPlaying || this.needsRender) this.frameId = requestAnimationFrame(loop);
     };
+    this.schedulerLoop = loop;
     this.frameId = requestAnimationFrame(loop);
   }
 
@@ -625,11 +997,12 @@ export class NovaCutCanvasPreview {
     this.running = false;
     cancelAnimationFrame(this.frameId);
     this.frameId = 0;
+    this.cancelVideoFramePaint();
+    this.schedulerLoop = null;
   }
 
   render() {
     if (!this.ctx || !this.canvas) return;
-    this.resize();
     const width = this.canvas.width;
     const height = this.canvas.height;
     const ctx = this.ctx;
@@ -650,6 +1023,24 @@ export class NovaCutCanvasPreview {
         try { media.pause(); } catch (_) {}
       }
     }
+    if (this.nativeFallbackActive) {
+      for (const [id, media] of this.nativePreviewLayers.entries()) {
+        if (activeIds.has(id)) continue;
+        try { media.pause(); media.remove(); } catch (_) {}
+        this.nativePreviewLayers.delete(id);
+      }
+      const shell = this.canvas?.parentElement;
+      const orderSignature = active.map((clip) => clip.id).join("|");
+      const layersReady = active.every((clip) => this.nativePreviewLayers.has(clip.id));
+      if (shell && layersReady && orderSignature !== this.nativeLayerOrderSignature) {
+        for (const clip of active) {
+          const media = this.nativePreviewLayers.get(clip.id);
+          if (media?.parentElement === shell) shell.insertBefore(media, this.canvas);
+        }
+        this.nativeLayerOrderSignature = orderSignature;
+      }
+      this.nativePreviewMedia = Array.from(this.nativePreviewLayers.values()).pop() || null;
+    }
     for (const [id, audio] of this.audioMedia.entries()) {
       if (!this.engine.registry.audioTracks.some((segment) =>
         segment.id === id &&
@@ -667,7 +1058,9 @@ export class NovaCutCanvasPreview {
       }
       if (media instanceof HTMLVideoElement) {
         const local = Math.max(0, now - clip.startTime);
-        const target = msToSec(clip.sourceStartTime + local);
+        const speed = clamp(clip.speed ?? 1, 0.25, 4);
+        media.playbackRate = speed;
+        const target = msToSec(clip.sourceStartTime + local * speed);
         // Seeking on every RAF while playing repeatedly flushes the decoder on
         // slower Android/WebView devices. Seek only while paused or when a new
         // clip becomes active and needs its initial timeline position.
@@ -684,7 +1077,11 @@ export class NovaCutCanvasPreview {
         }
       }
 
+      const renderClip = videoClipAtTimestamp(clip, now);
       const isVideoElement = media instanceof HTMLVideoElement;
+      if (isVideoElement && this.engine.isPlaying) {
+        media.volume = clamp(clip.volume ?? 1, 0, 1) * sampleNovaCutAudioGain(clip, now);
+      }
       const sw = isVideoElement ? Number(media.videoWidth) : Number(media.naturalWidth);
       const sh = isVideoElement ? Number(media.videoHeight) : Number(media.naturalHeight);
       // Never pretend a not-yet-decoded video is a 1x1 image. That masked the
@@ -693,25 +1090,29 @@ export class NovaCutCanvasPreview {
         continue;
       }
       if (!(sw > 0 && sh > 0)) continue;
-      const clipScale = Math.max(0.05, Number(clip.transform?.scale ?? clip.scale) || 1);
+      const clipScale = Math.max(0.05, Number(renderClip.transform?.scale ?? renderClip.scale) || 1);
       const scaledW = sw * clipScale;
       const scaledH = sh * clipScale;
-      const fit = Math.min(width / scaledW, height / scaledH);
+      const fit = renderClip.fitMode === "fill"
+        ? Math.max(width / scaledW, height / scaledH)
+        : Math.min(width / scaledW, height / scaledH);
       const dw = scaledW * fit;
       const dh = scaledH * fit;
-      const x = (width - dw) / 2 + (Number(clip.x_offset) || 0);
-      const y = (height - dh) / 2;
-      const rotation = (Number(clip.transform?.rotation) || 0) * Math.PI / 180;
+      const x = (width - dw) / 2 + (Number(renderClip.x_offset) || 0);
+      const y = (height - dh) / 2 + (Number(renderClip.y_offset) || 0);
+      const rotation = (Number(renderClip.transform?.rotation) || 0) * Math.PI / 180;
 
       if (isVideoElement && this.nativeFallbackActive) {
-        this.mountNativePreview(media, clip);
+        this.mountNativePreview(media, renderClip);
         continue;
       }
 
       ctx.save();
+      ctx.filter = clipCssFilter(renderClip);
+      ctx.globalAlpha = clipOpacityAt(renderClip, now);
       ctx.translate(x + dw / 2, y + dh / 2);
       ctx.rotate(rotation);
-      ctx.scale(clip.transform?.flipX ? -1 : 1, clip.transform?.flipY ? -1 : 1);
+      ctx.scale(renderClip.transform?.flipX ? -1 : 1, renderClip.transform?.flipY ? -1 : 1);
       try {
         ctx.drawImage(media, -dw / 2, -dh / 2, dw, dh);
       } catch (error) {
@@ -726,14 +1127,21 @@ export class NovaCutCanvasPreview {
       if (isVideoElement) this.probeVideoCanvasOutput(clip, media, x, y, dw, dh);
     }
 
-    this.sourceCtx?.setTransform(1, 0, 0, 1, 0, 0);
-    this.sourceCtx?.clearRect(0, 0, width, height);
-    this.sourceCtx?.drawImage(this.canvas, 0, 0, width, height);
+    if (!this.nativeFallbackActive) {
+      this.sourceCtx?.setTransform(1, 0, 0, 1, 0, 0);
+      this.sourceCtx?.clearRect(0, 0, width, height);
+      this.sourceCtx?.drawImage(this.canvas, 0, 0, width, height);
+    }
 
     const effects = this.engine.registry.effectTracks
       .filter((effect) => now >= effect.startTime && now < effect.startTime + effect.duration)
       .sort((a, b) => Number(a.zIndex || 0) - Number(b.zIndex || 0));
-    for (const effect of effects) drawNovaCutEffect(ctx, this.sourceCanvas, effect, width, height);
+    if (this.nativeFallbackActive) {
+      this.syncNativeEffectOverlays(effects);
+    } else {
+      this.clearNativeEffectOverlays();
+      for (const effect of effects) drawNovaCutEffect(ctx, this.sourceCanvas, effect, width, height);
+    }
 
     const stickers = this.engine.registry.overlayTracks
       .filter((item) => now >= item.startTime && now < item.startTime + item.duration)
@@ -745,7 +1153,7 @@ export class NovaCutCanvasPreview {
       activeAudio.forEach((segment) => {
         const audio = this.audioMedia.get(segment.id);
         if (audio) {
-          audio.volume = clamp(segment.volume ?? 1, 0, 1);
+          audio.volume = clamp(segment.volume ?? 1, 0, 1) * sampleNovaCutAudioGain(segment, now);
           if (audio.paused) audio.play().catch(() => {});
         }
       });
@@ -759,6 +1167,91 @@ export class NovaCutCanvasPreview {
     for (const cue of texts) this.drawText(ctx, cue, width, height);
   }
 
+  syncNativeEffectOverlays(effects = []) {
+    const parent = this.canvas?.parentElement;
+    if (!parent || !this.nativeFallbackActive) {
+      this.clearNativeEffectOverlays();
+      return;
+    }
+    const activeIds = new Set(effects.map((effect) => String(effect.id)));
+    for (const [id, element] of this.nativeEffectElements) {
+      if (!activeIds.has(id)) {
+        element.remove();
+        this.nativeEffectElements.delete(id);
+      }
+    }
+    for (const effect of effects) {
+      const id = String(effect.id);
+      let element = this.nativeEffectElements.get(id);
+      if (!element) {
+        element = document.createElement("div");
+        element.className = "nx-novacut__native-effect-region";
+        element.setAttribute("aria-hidden", "true");
+        Object.assign(element.style, {
+          position: "absolute",
+          zIndex: "1",
+          pointerEvents: "none",
+          boxSizing: "border-box",
+          overflow: "hidden",
+          borderRadius: "2px"
+        });
+        // Insert immediately before the transparent canvas: the effect is above
+        // the native video layer but the canvas can still draw text/stickers over it.
+        parent.insertBefore(element, this.canvas);
+        this.nativeEffectElements.set(id, element);
+      }
+      const x = clamp(effect.x, 0, 0.94);
+      const y = clamp(effect.y, 0, 0.94);
+      const w = clamp(effect.width, 0.06, 1);
+      const h = clamp(effect.height, 0.06, 1);
+      const intensity = clamp(effect.intensity, 1, 64);
+      const signature = [
+        effect.type, x, y, w, h, intensity, effect.color || "#000000",
+        clamp(effect.opacity ?? 0.96, 0, 1)
+      ].join("|");
+      if (element.dataset.novacutEffectSignature === signature) continue;
+
+      element.style.left = (x * 100) + "%";
+      element.style.top = (y * 100) + "%";
+      element.style.width = (w * 100) + "%";
+      element.style.height = (h * 100) + "%";
+      element.style.backgroundImage = "none";
+      element.style.backgroundColor = "transparent";
+      element.style.backdropFilter = "none";
+      element.style.webkitBackdropFilter = "none";
+      if (effect.type === "blur") {
+        const blur = Math.max(1, Math.min(28, intensity * 0.5));
+        element.style.backdropFilter = "blur(" + blur + "px)";
+        element.style.webkitBackdropFilter = "blur(" + blur + "px)";
+        element.style.backgroundColor = "rgba(255,255,255,0.025)";
+      } else if (effect.type === "mosaic") {
+        const cell = Math.max(4, Math.min(18, Math.round(intensity / 2)));
+        element.style.backdropFilter = "blur(1px) saturate(0.65)";
+        element.style.webkitBackdropFilter = "blur(1px) saturate(0.65)";
+        element.style.backgroundColor = "rgba(90,90,90,0.06)";
+        element.style.backgroundImage =
+          "repeating-linear-gradient(0deg,rgba(255,255,255,.12) 0 1px,transparent 1px " + cell + "px)," +
+          "repeating-linear-gradient(90deg,rgba(0,0,0,.15) 0 1px,transparent 1px " + cell + "px)";
+      } else if (effect.type === "scramble") {
+        const stripe = Math.max(3, Math.min(16, Math.round(intensity / 2)));
+        element.style.backdropFilter = "blur(1px) contrast(1.35) saturate(.55)";
+        element.style.webkitBackdropFilter = "blur(1px) contrast(1.35) saturate(.55)";
+        element.style.backgroundColor = "rgba(30,30,30,0.08)";
+        element.style.backgroundImage =
+          "repeating-linear-gradient(0deg,rgba(255,255,255,.18) 0 2px,transparent 2px " + stripe + "px)," +
+          "repeating-linear-gradient(90deg,rgba(0,0,0,.16) 0 2px,transparent 2px " + (stripe * 2) + "px)";
+      } else if (effect.type === "censor") {
+        element.style.backgroundColor = rgba(effect.color || "#000000", clamp(effect.opacity ?? 0.96, 0, 1));
+      }
+      element.dataset.novacutEffectSignature = signature;
+    }
+  }
+
+  clearNativeEffectOverlays() {
+    for (const element of this.nativeEffectElements.values()) element.remove();
+    this.nativeEffectElements.clear();
+  }
+
   drawSticker(ctx, overlay, width, height) {
     let image = this.stickerMedia.get(overlay.id);
     if (!image) {
@@ -766,6 +1259,7 @@ export class NovaCutCanvasPreview {
         const task = loadNovaCutImageAsset(overlay.asset).then((value) => {
           this.stickerMedia.set(overlay.id, value);
           this.stickerPending.delete(overlay.id);
+          this.markDirty();
         }).catch((error) => {
           this.stickerPending.delete(overlay.id);
           this.engine.reportError("sticker", error);
@@ -812,10 +1306,16 @@ export class NovaCutCanvasPreview {
   dispose() {
     this.stop();
     this.resizeObserver?.disconnect();
+    this.clearNativeEffectOverlays();
+    this.renderUnsubscribers.splice(0).forEach((unsubscribe) => {
+      try { unsubscribe(); } catch (_) {}
+    });
     this.media.forEach((media) => {
       try { media.pause?.(); media.removeAttribute?.("src"); media.load?.(); media.remove?.(); } catch (_) {}
     });
     this.nativePreviewMedia = null;
+    this.nativePreviewLayers.clear();
+    this.nativeLayerOrderSignature = "";
     this.canvas?.classList.remove("nx-novacut__canvas--native-preview");
     this.urls.forEach((url) => { try { URL.revokeObjectURL(url); } catch (_) {} });
     this.media.clear();
@@ -913,7 +1413,8 @@ class NovaCutCommandCompiler {
     };
 
     const videos = this.engine.registry.videoTracks.filter((clip) => clip.file)
-      .map((clip) => ({ clip, input: addInput(clip.file, sourceKind(clip.file), "video") }));
+      .map((clip) => ({ clip, input: addInput(clip.file, sourceKind(clip.file), "video") }))
+      .sort((a, b) => Number(a.clip.startTime) - Number(b.clip.startTime));
     const audios = this.engine.registry.audioTracks.filter((segment) => segment.file)
       .map((segment) => ({ segment, input: addInput(segment.file, "audio", "audio") }));
     const textAssets = this.engine.registry.textTracks.map((cue, index) => ({
@@ -944,44 +1445,133 @@ class NovaCutCommandCompiler {
       const out = "vout" + index;
       const transform = clip.transform || {};
       const scale = Math.max(0.05, Number(transform.scale ?? clip.scale) || 1);
+      const hasKeyframes = Array.isArray(clip.keyframes) && clip.keyframes.length > 0;
+      const scaleExpression = ffmpegVideoKeyframeExpression(clip, "scale", scale, msToSec(clip.startTime));
+      const rotationExpression = ffmpegVideoKeyframeExpression(clip, "rotation", Number(transform.rotation) || 0, msToSec(clip.startTime));
       const begin = msToSec(clip.sourceStartTime);
-      const end = begin + msToSec(clip.duration);
+      const speed = clamp(clip.speed ?? 1, 0.25, 4);
+      const sourceDuration = Math.max(1, Number(clip.sourceDuration) || Number(clip.duration) * speed);
+      const end = begin + msToSec(sourceDuration);
       const startAt = msToSec(clip.startTime);
+      const previewWidth = Math.max(1, Number(this.engine.preview?.canvas?.width) || width);
+      const previewHeight = Math.max(1, Number(this.engine.preview?.canvas?.height) || height);
+      const xOffset = (Number(clip.x_offset) || 0) * width / previewWidth;
+      const yOffset = (Number(clip.y_offset) || 0) * height / previewHeight;
+      const xOffsetArg = Math.abs(xOffset) < 0.001 ? "0" : xOffset.toFixed(2);
+      const yOffsetArg = Math.abs(yOffset) < 0.001 ? "0" : yOffset.toFixed(2);
+      const aspectRatioMode = clip.fitMode === "fill" ? "increase" : "decrease";
       const vf = [
-        "scale=trunc(iw*" + scale + "/2)*2:trunc(ih*" + scale + "/2)*2:force_original_aspect_ratio=decrease"
+        // Match the editor's Fit/Fill framing before applying clip zoom.
+        "scale=" + width + ":" + height + ":force_original_aspect_ratio=" + aspectRatioMode,
+        hasKeyframes
+          ? "scale=w='trunc(iw*(" + scaleExpression + ")/2)*2':h='trunc(ih*(" + scaleExpression + ")/2)*2':eval=frame"
+          : "scale=trunc(iw*" + scale + "/2)*2:trunc(ih*" + scale + "/2)*2"
       ];
+      const brightness = clamp(Number(clip.brightness ?? 100) / 100, 0, 2);
+      const contrast = clamp(Number(clip.contrast ?? 100) / 100, 0, 2);
+      const saturation = clamp(Number(clip.saturation ?? 100) / 100, 0, 3);
+      if (brightness !== 1) {
+        const factor = brightness.toFixed(3);
+        vf.push("lutrgb=r='min(255,val*" + factor + ")':g='min(255,val*" + factor + ")':b='min(255,val*" + factor + ")'");
+      }
+      if (contrast !== 1 || saturation !== 1) {
+        vf.push("eq=contrast=" + contrast.toFixed(3) + ":saturation=" + saturation.toFixed(3));
+      }
+      // Keep the alpha channel through the compositor so the preview and export
+      // use the same timed fade envelopes for each clip.
+      vf.push("format=rgba");
+      const clipDurationSeconds = msToSec(clip.duration);
+      const fadeInSeconds = Math.min(clipDurationSeconds, msToSec(clip.fadeInMs || 0));
+      const fadeOutSeconds = Math.min(clipDurationSeconds, msToSec(clip.fadeOutMs || 0));
+      if (fadeInSeconds > 0) {
+        vf.push("fade=t=in:st=" + startAt.toFixed(3) + ":d=" + fadeInSeconds.toFixed(3) + ":alpha=1");
+      }
+      if (fadeOutSeconds > 0) {
+        vf.push("fade=t=out:st=" + Math.max(startAt, startAt + clipDurationSeconds - fadeOutSeconds).toFixed(3) +
+          ":d=" + fadeOutSeconds.toFixed(3) + ":alpha=1");
+      }
       if (transform.flipX) vf.push("hflip");
       if (transform.flipY) vf.push("vflip");
       const rotation = ((Number(transform.rotation) || 0) % 360 + 360) % 360;
-      if (rotation === 90) vf.push("transpose=1");
+      if (hasKeyframes) {
+        vf.push("rotate=angle='(" + rotationExpression + ")*PI/180':c=black@0:ow=iw:oh=ih");
+      } else if (rotation === 90) vf.push("transpose=1");
       else if (rotation === 180) vf.push("hflip,vflip");
       else if (rotation === 270) vf.push("transpose=2");
       else if (rotation !== 0) vf.push("rotate=" + (rotation * Math.PI / 180).toFixed(6) + ":c=black@0:ow=rotw(iw):oh=roth(ih)");
       filters.push(
         "[" + input.index + ":v:0]trim=start=" + begin.toFixed(3) + ":end=" + end.toFixed(3) +
-        ",setpts=PTS-STARTPTS+" + startAt.toFixed(3) + "/TB," + vf.join(",") + ",format=rgba[" + src + "]"
+        ",setpts=(PTS-STARTPTS)/" + speed.toFixed(3) + "+" + startAt.toFixed(3) + "/TB," + vf.join(",") + "[" + src + "]"
       );
+      const xPosition = hasKeyframes
+        ? "'(W-w)/2+(" + ffmpegVideoKeyframeExpression(clip, "x_offset", Number(clip.x_offset) || 0, startAt) + ")*" + (width / previewWidth).toFixed(6) + "'"
+        : "(W-w)/2+" + xOffsetArg;
+      const yPosition = hasKeyframes
+        ? "'(H-h)/2+(" + ffmpegVideoKeyframeExpression(clip, "y_offset", Number(clip.y_offset) || 0, startAt) + ")*" + (height / previewHeight).toFixed(6) + "'"
+        : "(H-h)/2+" + yOffsetArg;
       filters.push(
-        "[" + currentVideo + "][" + src + "]overlay=" + (Number(clip.x_offset) || 0) +
-        ":y=(H-h)/2:eof_action=pass:shortest=0:repeatlast=0[" + out + "]"
+        "[" + currentVideo + "][" + src + "]overlay=x=" + xPosition +
+        ":y=" + yPosition + ":eof_action=pass:shortest=0:repeatlast=0[" + out + "]"
       );
       currentVideo = out;
     });
 
     let currentAudio = null;
-    if (audios.length) {
-      const labels = [];
-      audios.forEach(({ segment, input }, index) => {
-        const label = "asrc" + index;
-        const delay = Math.max(0, Math.round(Number(segment.startTime) || 0));
-        filters.push(
-          "[" + input.index + ":a:0]atrim=duration=" + msToSec(segment.duration).toFixed(3) +
-          ",asetpts=PTS-STARTPTS,volume=" + clamp(segment.volume ?? 1, 0, 4).toFixed(3) +
-          ",adelay=" + delay + "|" + delay + "[" + label + "]"
-        );
-        labels.push("[" + label + "]");
-      });
-      filters.push(labels.join("") + "amix=inputs=" + labels.length + ":duration=longest:dropout_transition=0:normalize=0,aresample=async=1:first_pts=0[aout]");
+    const audioLabels = [];
+
+    // Include source audio only when the parser positively identified an
+    // audio stream, avoiding references to a missing [input:a:0] stream.
+    videos.forEach(({ clip, input }, index) => {
+      if (clip.metadata?.hasAudio !== true) return;
+      const label = "vsrcaudio" + index;
+      const sourceStart = msToSec(clip.sourceStartTime);
+      const speed = clamp(clip.speed ?? 1, 0.25, 4);
+      const sourceDuration = Math.max(1, Number(clip.sourceDuration) || Number(clip.duration) * speed);
+      const clipDuration = msToSec(sourceDuration);
+      const delay = Math.max(0, Math.round(Number(clip.startTime) || 0));
+      const fadeInSeconds = Math.min(msToSec(clip.fadeInMs || 0), msToSec(clip.duration));
+      const fadeOutSeconds = Math.min(msToSec(clip.fadeOutMs || 0), msToSec(clip.duration));
+      const audioFades = [];
+      if (fadeInSeconds > 0) audioFades.push("afade=t=in:st=0:d=" + fadeInSeconds.toFixed(3));
+      if (fadeOutSeconds > 0) audioFades.push("afade=t=out:st=" + Math.max(0, msToSec(clip.duration) - fadeOutSeconds).toFixed(3) + ":d=" + fadeOutSeconds.toFixed(3));
+      filters.push(
+        "[" + input.index + ":a:0]atrim=start=" + sourceStart.toFixed(3) +
+        ":duration=" + clipDuration.toFixed(3) +
+        ",asetpts=PTS-STARTPTS," + ffmpegAtempoChain(speed) +
+        (audioFades.length ? "," + audioFades.join(",") : "") +
+        ",volume=" + clamp(clip.volume ?? 1, 0, 4).toFixed(3) +
+        ",adelay=" + delay + "|" + delay + "[" + label + "]"
+      );
+      audioLabels.push(label);
+    });
+
+    audios.forEach(({ segment, input }, index) => {
+      const label = "asrc" + index;
+      const delay = Math.max(0, Math.round(Number(segment.startTime) || 0));
+      const clipDurationSeconds = msToSec(segment.duration);
+      const fadeInSeconds = Math.min(msToSec(segment.fadeInMs || 0), clipDurationSeconds);
+      const fadeOutSeconds = Math.min(msToSec(segment.fadeOutMs || 0), clipDurationSeconds);
+      const audioFades = [];
+      if (fadeInSeconds > 0) audioFades.push("afade=t=in:st=0:d=" + fadeInSeconds.toFixed(3));
+      if (fadeOutSeconds > 0) audioFades.push("afade=t=out:st=" + Math.max(0, clipDurationSeconds - fadeOutSeconds).toFixed(3) + ":d=" + fadeOutSeconds.toFixed(3));
+      filters.push(
+        "[" + input.index + ":a:0]atrim=start=" + msToSec(segment.sourceStartTime || 0).toFixed(3) +
+        ":duration=" + clipDurationSeconds.toFixed(3) +
+        ",asetpts=PTS-STARTPTS" + (audioFades.length ? "," + audioFades.join(",") : "") +
+        ",volume=" + clamp(segment.volume ?? 1, 0, 4).toFixed(3) +
+        ",adelay=" + delay + "|" + delay + "[" + label + "]"
+      );
+      audioLabels.push(label);
+    });
+
+    if (audioLabels.length === 1) {
+      currentAudio = audioLabels[0];
+    } else if (audioLabels.length > 1) {
+      filters.push(
+        audioLabels.map((label) => "[" + label + "]").join("") +
+        "amix=inputs=" + audioLabels.length +
+        ":duration=longest:dropout_transition=0:normalize=0,aresample=async=1:first_pts=0[aout]"
+      );
       currentAudio = "aout";
     }
 
@@ -1052,12 +1642,16 @@ class NovaCutCommandCompiler {
       const h = clamp(Number(overlay.height || 0.2) * Number(overlay.scale || 1), 0.02, 1);
       const x = clamp(Number(overlay.x || 0.5) - w / 2, 0, Math.max(0, 1 - w));
       const y = clamp(Number(overlay.y || 0.5) - h / 2, 0, Math.max(0, 1 - h));
-      filters.push("[" + input.index + ":v:0]format=rgba[" + src + "]");
+      const targetWidth = Math.max(2, Math.floor(width * w) & ~1);
+      const targetHeight = Math.max(2, Math.floor(height * h) & ~1);
+      filters.push(
+        "[" + input.index + ":v:0]format=rgba,scale=" + targetWidth + ":" + targetHeight +
+        ":force_original_aspect_ratio=decrease,pad=" + targetWidth + ":" + targetHeight +
+        ":(ow-iw)/2:(oh-ih)/2:color=black@0[" + src + "]"
+      );
       filters.push(
         "[" + currentVideo + "][" + src + "]overlay=x=main_w*" + x.toFixed(5) +
         ":y=main_h*" + y.toFixed(5) +
-        ":w=main_w*" + w.toFixed(5) +
-        ":h=main_h*" + h.toFixed(5) +
         ":enable='between(t," + start.toFixed(3) + "," + end.toFixed(3) + ")':eof_action=pass:shortest=0:repeatlast=0[" + out + "]"
       );
       currentVideo = out;
@@ -1090,6 +1684,7 @@ export class NovaCutEngine {
     this.events = new NovaCutEventBus();
     this.history = new NovaCutHistory(this, { limit: 100 });
     this.aspectRatio = RATIO_PRESETS[options.aspectRatio] ? options.aspectRatio : "16:9";
+    this.aspectRatioExplicit = Boolean(RATIO_PRESETS[options.aspectRatio]);
     this.currentTimestamp = 0;
     this.activeTrackId = null;
     this.isPlaying = false;
@@ -1139,8 +1734,10 @@ export class NovaCutEngine {
     bind("redo", () => this.redo());
     bind("split", () => this.executeSplitAction(this.activeTrackId, this.currentTimestamp));
     bind("audio", () => this.importAudio());
-    bind("text", () => this.addTextOverlay());
-    bind("ratio", () => this.cycleRatio());
+    // Text actions are delegated below because timeline lane buttons are
+    // re-created during renderTimeline and therefore cannot keep direct
+    // listeners attached at mount time.
+    bind("ratio", () => this.openCanvasRatioPicker());
     bind("export", () => this.compileAndExportVideo());
     bind("play", () => this.togglePlayback());
 
@@ -1149,6 +1746,7 @@ export class NovaCutEngine {
       if (!target) return;
       const action = target.dataset.action;
       if (action === "sticker") this.openStickerPicker();
+      else if (action === "text") this.openTextEditor();
       else if (action === "effects") this.openEffectsEditor();
       else if (action === "more") this.openToolMenu();
     }, { signal });
@@ -1181,8 +1779,10 @@ export class NovaCutEngine {
 
   selectClip(id) {
     this.activeTrackId = this.registry.getById(id)?.item?.id || null;
+    // Selection is presentation state, not a timeline-model mutation. Emitting
+    // statechange/refresh here recreates every clip DOM node in the middle of
+    // a drag gesture, leaving the gesture attached to a detached element.
     this.events.emit("selectionchange", { id: this.activeTrackId });
-    this.refresh();
     return this.activeTrackId;
   }
 
@@ -1319,11 +1919,27 @@ export class NovaCutEngine {
     return result;
   }
 
+  applyInitialAspectRatio(clip, metadata = clip?.metadata) {
+    if (this.aspectRatioExplicit || this.registry.videoTracks.length !== 1) return null;
+    const inferredRatio = closestRatioPreset(metadata?.width, metadata?.height);
+    if (!inferredRatio || inferredRatio === this.aspectRatio) return inferredRatio;
+    this.aspectRatio = inferredRatio;
+    this.events.emit("ratio", {
+      ratio: inferredRatio,
+      size: RATIO_PRESETS[inferredRatio],
+      automatic: true,
+      clipId: clip?.id || null
+    });
+    this.refresh();
+    return inferredRatio;
+  }
+
   cycleRatio() {
     const ratios = Object.keys(RATIO_PRESETS);
     const currentIndex = Math.max(0, ratios.indexOf(this.aspectRatio));
     const nextRatio = ratios[(currentIndex + 1) % ratios.length];
     this.aspectRatio = nextRatio;
+    this.aspectRatioExplicit = true;
     this.events.emit("ratio", {
       ratio: nextRatio,
       size: RATIO_PRESETS[nextRatio]
@@ -1331,6 +1947,158 @@ export class NovaCutEngine {
     this.setStatus(nextRatio);
     this.refresh();
     return nextRatio;
+  }
+
+  openCanvasRatioPicker() {
+    const sheet = this.openSheet("Canvas ratio");
+    sheet.body.innerHTML =
+      '<div class="nx-novacut__tool-grid">' +
+      Object.keys(RATIO_PRESETS).map((ratio) =>
+        '<button type="button" data-ratio-value="' + ratio + '"' +
+        (ratio === this.aspectRatio ? ' aria-pressed="true"' : ' aria-pressed="false"') +
+        '>' + ratio + '</button>'
+      ).join("") +
+      '</div>';
+    sheet.body.querySelectorAll("[data-ratio-value]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const ratio = button.dataset.ratioValue;
+        if (!RATIO_PRESETS[ratio]) return;
+        this.aspectRatio = ratio;
+        this.aspectRatioExplicit = true;
+        this.events.emit("ratio", { ratio, size: RATIO_PRESETS[ratio] });
+        this.setStatus("Canvas " + ratio);
+        this.refresh();
+        this.closeSheet(sheet.root);
+      });
+    });
+  }
+
+  setPreviewQuality(mode) {
+    const quality = ["draft", "balanced", "sharp"].includes(mode) ? mode : "balanced";
+    const applied = this.preview?.setPreviewQuality(quality) || quality;
+    this.setStatus("Preview quality: " + applied + " (export quality unchanged)");
+    return applied;
+  }
+
+  setSelectedFitMode(mode) {
+    const selected = this.registry.getById(this.activeTrackId);
+    if (!selected || selected.type !== "videoTracks") {
+      this.setStatus("Select a video clip first.");
+      return false;
+    }
+    const fitMode = mode === "fill" ? "fill" : "fit";
+    if (selected.item.fitMode === fitMode) {
+      this.setStatus(fitMode === "fill" ? "Fill canvas" : "Fit video");
+      return true;
+    }
+    const before = this.history.capture();
+    selected.item.fitMode = fitMode;
+    this.history.record(before, fitMode === "fill" ? "Fill canvas" : "Fit video");
+    this.setStatus(fitMode === "fill" ? "Fill canvas" : "Fit video");
+    this.refresh();
+    return true;
+  }
+
+  setVideoKeyframeAtPlayhead(values = null) {
+    const selected = this.registry.getById(this.activeTrackId);
+    if (!selected || selected.type !== "videoTracks") {
+      this.setStatus("Select a video clip first.");
+      return false;
+    }
+    const clip = selected.item;
+    const localTimeMs = this.currentTimestamp - clip.startTime;
+    if (localTimeMs < 0 || localTimeMs >= clip.duration) {
+      this.setStatus("Move the playhead inside the selected video clip.");
+      return false;
+    }
+
+    const before = this.history.capture();
+    let frameValues = sampleNovaCutVideoKeyframes(clip, this.currentTimestamp);
+    if (values && typeof values === "object") {
+      frameValues = {
+        scale: clamp(values.scale ?? frameValues.scale, 0.05, 4),
+        rotation: clamp(values.rotation ?? frameValues.rotation, -360, 360),
+        x_offset: clamp(values.x_offset ?? frameValues.x_offset, -2000, 2000),
+        y_offset: clamp(values.y_offset ?? frameValues.y_offset, -2000, 2000),
+        easing: ["linear", "ease-in", "ease-out", "ease-in-out"].includes(values.easing) ? values.easing : (frameValues.easing || "linear")
+      };
+      clip.scale = frameValues.scale;
+      clip.x_offset = frameValues.x_offset;
+      clip.y_offset = frameValues.y_offset;
+      clip.transform = { ...(clip.transform || {}), scale: frameValues.scale, rotation: frameValues.rotation };
+    }
+    const keyframe = { timeMs: clamp(localTimeMs, 0, clip.duration), ...frameValues };
+    const frames = normalizeVideoKeyframes(clip.keyframes, clip.duration, clip);
+    const existingIndex = frames.findIndex((frame) => Math.abs(frame.timeMs - keyframe.timeMs) <= 20);
+    if (existingIndex >= 0) frames.splice(existingIndex, 1, keyframe);
+    else frames.push(keyframe);
+    clip.keyframes = normalizeVideoKeyframes(frames, clip.duration, clip);
+    this.history.record(before, "Set keyframe");
+    this.refresh();
+    this.setStatus("Keyframe set at " + (keyframe.timeMs / 1000).toFixed(2) + "s");
+    return true;
+  }
+
+  removeVideoKeyframeAtPlayhead() {
+    const selected = this.registry.getById(this.activeTrackId);
+    if (!selected || selected.type !== "videoTracks") {
+      this.setStatus("Select a video clip first.");
+      return false;
+    }
+    const clip = selected.item;
+    const localTimeMs = this.currentTimestamp - clip.startTime;
+    if (localTimeMs < 0 || localTimeMs >= clip.duration) {
+      this.setStatus("Move the playhead inside the selected video clip.");
+      return false;
+    }
+    const frames = normalizeVideoKeyframes(clip.keyframes, clip.duration, clip);
+    const index = frames.findIndex((frame) => Math.abs(frame.timeMs - localTimeMs) <= 34);
+    if (index < 0) {
+      this.setStatus("There is no keyframe at the current playhead.");
+      return false;
+    }
+    const before = this.history.capture();
+    frames.splice(index, 1);
+    clip.keyframes = frames;
+    this.history.record(before, "Remove keyframe");
+    this.refresh();
+    this.setStatus("Keyframe removed");
+    return true;
+  }
+
+  adjustSelectedVideoScale(multiplier) {
+    const selected = this.registry.getById(this.activeTrackId);
+    if (!selected || selected.type !== "videoTracks") {
+      this.setStatus("Select a video clip first.");
+      return false;
+    }
+    const before = this.history.capture();
+    const oldScale = Math.max(0.05, Number(selected.item.transform?.scale ?? selected.item.scale) || 1);
+    const nextScale = clamp(oldScale * (Number(multiplier) || 1), 0.25, 4);
+    selected.item.transform = { ...(selected.item.transform || {}), scale: nextScale };
+    selected.item.scale = nextScale;
+    this.history.record(before, "Resize video");
+    this.setStatus("Video scale " + Math.round(nextScale * 100) + "%");
+    this.refresh();
+    return true;
+  }
+
+  resetSelectedVideoFraming() {
+    const selected = this.registry.getById(this.activeTrackId);
+    if (!selected || selected.type !== "videoTracks") {
+      this.setStatus("Select a video clip first.");
+      return false;
+    }
+    const before = this.history.capture();
+    selected.item.fitMode = "fit";
+    selected.item.x_offset = 0;
+    selected.item.y_offset = 0;
+    selected.item.scale = 1;
+    selected.item.transform = { ...(selected.item.transform || {}), scale: 1 };
+    this.history.record(before, "Reset video framing");
+    this.setStatus("Video framing reset");
+    this.refresh();
+    return true;
   }
 
   setPlayhead(timestamp) {
@@ -1364,12 +2132,17 @@ export class NovaCutEngine {
       return;
     }
     this.isPlaying = true;
-    this.setStatus(this.preview?.nativeFallbackActive ? "Playing · native video layer" : "Playing");
+    this.setStatus("Playing");
     let last = performance.now();
+    let lastPreloadAt = 0;
     const tick = (now) => {
       if (!this.isPlaying) return;
       const delta = Math.max(0, now - last);
       last = now;
+      if (now - lastPreloadAt >= 250) {
+        lastPreloadAt = now;
+        this.preloadUpcomingMedia(this.currentTimestamp, 1800);
+      }
       const duration = this.registry.durationMs();
       const active = this.getActiveVideoClips()
         .slice()
@@ -1382,9 +2155,9 @@ export class NovaCutEngine {
       });
       if (clockClip) {
         const media = this.preview.media.get(clockClip.id);
+        const clipSpeed = clamp(clockClip.speed ?? 1, 0.25, 4);
         const mediaTimelineTime = clockClip.startTime +
-          media.currentTime * 1000 -
-          Math.max(0, Number(clockClip.sourceStartTime) || 0);
+          (media.currentTime * 1000 - Math.max(0, Number(clockClip.sourceStartTime) || 0)) / clipSpeed;
         // Use the actual decoder clock, not RAF wall time. The previous
         // implementation advanced playhead and aggressively re-seeked when a
         // MediaTek/WebView decoder lagged, which could keep the preview black.
@@ -1413,12 +2186,46 @@ export class NovaCutEngine {
     cancelAnimationFrame(this.playbackFrame);
     this.playbackFrame = 0;
     this.preview?.pauseAll();
-    this.setStatus(this.preview?.nativeFallbackActive ? "Paused · native video layer" : "Paused");
+    this.setStatus("Paused");
   }
 
   getActiveVideoClips() {
     const t = this.currentTimestamp;
     return this.registry.videoTracks.filter((clip) => t >= clip.startTime && t < clip.startTime + clip.duration);
+  }
+
+  preloadUpcomingMedia(timestamp = this.currentTimestamp, preloadWindowMs = 1800) {
+    if (!this.preview || !this.isPlaying) return;
+    const horizon = Number(timestamp) + Math.max(250, Number(preloadWindowMs) || 1800);
+    const nextVideo = this.registry.videoTracks
+      .filter((clip) => clip.file && Number(clip.startTime) > Number(timestamp) + 20 &&
+        Number(clip.startTime) <= horizon)
+      .sort((a, b) => Number(a.startTime) - Number(b.startTime))[0];
+    if (nextVideo && !this.preview.media.has(nextVideo.id) && !this.preview.pending.has(nextVideo.id)) {
+      // Begin decoding the next clip before its timeline boundary. Resolution is
+      // deduplicated by the preview cache and deliberately does not block RAF.
+      void this.preview.resolve(nextVideo).then((media) => {
+        if (!(media instanceof HTMLVideoElement)) return;
+        const sourceStart = msToSec(nextVideo.sourceStartTime);
+        try {
+          if (Math.abs(media.currentTime - sourceStart) > 0.03) media.currentTime = sourceStart;
+        } catch (_) {}
+      }).catch((error) => this.reportError("preload-video", error));
+    }
+
+    const nextAudio = this.registry.audioTracks
+      .filter((segment) => segment.file && Number(segment.startTime) > Number(timestamp) + 20 &&
+        Number(segment.startTime) <= horizon)
+      .sort((a, b) => Number(a.startTime) - Number(b.startTime))[0];
+    if (nextAudio && !this.preview.audioMedia.has(nextAudio.id) && !this.preview.audioPending.has(nextAudio.id)) {
+      void this.preview.resolveAudio(nextAudio).then((audio) => {
+        if (!audio) return;
+        const sourceStart = msToSec(nextAudio.sourceStartTime || 0);
+        try {
+          if (Math.abs(audio.currentTime - sourceStart) > 0.03) audio.currentTime = sourceStart;
+        } catch (_) {}
+      }).catch((error) => this.reportError("preload-audio", error));
+    }
   }
 
   async prepareClip(clip) {
@@ -1427,6 +2234,7 @@ export class NovaCutEngine {
     try {
       const media = await this.preview.resolve(clip);
       if (media instanceof HTMLVideoElement) {
+        media.playbackRate = clamp(clip.speed ?? 1, 0.25, 4);
         try { media.currentTime = msToSec(clip.sourceStartTime); } catch (_) {}
       }
       this.events.emit("media:ready", { clip, media });
@@ -1441,29 +2249,254 @@ export class NovaCutEngine {
   executeSplitAction(activeTrackId, currentTimestamp) {
     const targetId = activeTrackId || this.activeTrackId;
     const record = this.registry.getById(targetId);
-    if (!record || record.type !== "videoTracks") {
-      this.setStatus("Select a video clip before using Split.");
+    if (!record) {
+      this.setStatus("Select a timeline clip before using Split.");
       return { success: false };
     }
+    const tracks = this.registry[record.type];
+    if (!Array.isArray(tracks)) {
+      this.setStatus("This timeline item cannot be split.");
+      return { success: false };
+    }
+
     const before = this.history.capture();
-    const clip = record.item;
-    const timestamp = clamp(currentTimestamp, clip.startTime, clip.startTime + clip.duration);
-    const left = timestamp - clip.startTime;
-    const right = clip.duration - left;
+    const item = record.item;
+    const timestamp = clamp(currentTimestamp, item.startTime, item.startTime + item.duration);
+    const left = timestamp - item.startTime;
+    const right = item.startTime + item.duration - timestamp;
     const frame = 1000 / 30;
     if (left <= frame || right <= frame) {
       this.setStatus("Move the playhead away from the clip edge.");
       return { success: false, reason: "split-point-too-close-to-boundary" };
     }
-    const index = this.registry.videoTracks.findIndex((item) => item.id === clip.id);
-    const first = { ...cloneObject(clip), id: uid("video"), duration: left };
-    const second = { ...cloneObject(clip), id: uid("video"), startTime: timestamp, duration: right, sourceStartTime: clip.sourceStartTime + left };
-    this.registry.videoTracks.splice(index, 1, first, second);
+
+    const idPrefix = {
+      videoTracks: "video",
+      audioTracks: "audio",
+      textTracks: "text",
+      overlayTracks: "sticker",
+      effectTracks: "effect"
+    }[record.type] || "clip";
+    const sourceStartTime = Math.max(0, Number(item.sourceStartTime) || 0);
+    const clipSpeed = record.type === "videoTracks" ? clamp(item.speed ?? 1, 0.25, 4) : 1;
+    const first = { ...cloneObject(item), duration: left };
+    const second = {
+      ...cloneObject(item),
+      id: uid(idPrefix),
+      startTime: timestamp,
+      duration: right
+    };
+    if ("sourceStartTime" in item) second.sourceStartTime = sourceStartTime + left * clipSpeed;
+    if (record.type === "videoTracks") {
+      first.sourceDuration = Math.max(1, left * clipSpeed);
+      second.sourceDuration = Math.max(1, right * clipSpeed);
+    }
+    if (record.type === "videoTracks" && Array.isArray(item.keyframes) && item.keyframes.length) {
+      const splitValues = sampleNovaCutVideoKeyframes(item, timestamp);
+      const originalFrames = normalizeVideoKeyframes(item.keyframes, item.duration, item);
+      first.keyframes = normalizeVideoKeyframes([
+        ...originalFrames.filter((frame) => frame.timeMs < left - 1),
+        { timeMs: left, ...splitValues }
+      ], left, first);
+      second.keyframes = normalizeVideoKeyframes([
+        { timeMs: 0, ...splitValues },
+        ...originalFrames.filter((frame) => frame.timeMs > left + 1).map((frame) => ({
+          ...frame,
+          timeMs: frame.timeMs - left
+        }))
+      ], right, second);
+    }
+
+    const index = tracks.findIndex((entry) => entry.id === item.id);
+    if (index < 0) return { success: false, reason: "timeline-item-not-found" };
+    tracks.splice(index, 1, first, second);
     this.activeTrackId = second.id;
     this.history.record(before, "Split");
     this.refresh();
-    this.events.emit("split", { originalClipId: clip.id, firstClip: first, secondClip: second, splitTimestamp: timestamp });
+    this.events.emit("split", {
+      type: record.type,
+      originalClipId: item.id,
+      firstClip: first,
+      secondClip: second,
+      splitTimestamp: timestamp
+    });
     return { success: true, firstClip: first, secondClip: second };
+  }
+
+  findTransitionPairNearPlayhead() {
+    const clips = [...this.registry.videoTracks].sort((a, b) => a.startTime - b.startTime);
+    if (clips.length < 2) return null;
+    const toleranceMs = 80;
+    const pairs = [];
+    for (let index = 0; index < clips.length - 1; index += 1) {
+      const left = clips[index];
+      const right = clips[index + 1];
+      const cutTime = Number(left.startTime) + Number(left.duration);
+      const contiguous = Math.abs(cutTime - Number(right.startTime)) <= toleranceMs;
+      const transition = right.transitionIn;
+      const overlappingTransition = Boolean(
+        transition?.type === "cross-dissolve" &&
+        Math.abs(cutTime - (Number(right.startTime) + Number(transition.durationMs))) <= toleranceMs
+      );
+      if (contiguous || overlappingTransition) {
+        pairs.push({ left, right, cutTime, distance: Math.abs(cutTime - this.currentTimestamp) });
+      }
+    }
+    if (!pairs.length) return null;
+
+    const selected = this.registry.getById(this.activeTrackId);
+    if (selected?.type === "videoTracks") {
+      const selectedIndex = clips.findIndex((clip) => clip.id === selected.item.id);
+      const incomingTransition = pairs.find((pair) =>
+        pair.right.id === selected.item.id && pair.right.transitionIn?.type === "cross-dissolve"
+      );
+      if (incomingTransition) return incomingTransition;
+      const adjacent = pairs.filter((pair) =>
+        pair.left.id === selected.item.id || pair.right.id === selected.item.id
+      );
+      if (adjacent.length) {
+        adjacent.sort((a, b) => a.distance - b.distance);
+        return adjacent[0];
+      }
+      // A selected clip with no adjacent cut should not silently affect a
+      // distant edit elsewhere in the sequence.
+      return null;
+    }
+
+    const nearest = pairs.sort((a, b) => a.distance - b.distance)[0];
+    return nearest && nearest.distance <= 2000 ? nearest : null;
+  }
+
+  applyTransitionAtPlayhead(durationMs = 500, type = "fade-through-black") {
+    if (!["fade-through-black", "cross-dissolve"].includes(type)) {
+      this.setStatus("Choose a supported transition.");
+      return { success: false, reason: "unsupported-transition" };
+    }
+    const pair = this.findTransitionPairNearPlayhead();
+    if (!pair) {
+      this.setStatus("Select a video clip beside a cut between two adjacent clips.");
+      return { success: false, reason: "no-adjacent-video-cut" };
+    }
+    const previousTransition = pair.right.transitionIn;
+    const originalRightStart = previousTransition ? Number(previousTransition.originalStartTime) : Number(pair.right.startTime);
+    const maximum = Math.max(50, Math.min(Number(pair.left.duration) || 50, Number(pair.right.duration) || 50));
+    const duration = clamp(durationMs, 50, maximum);
+    const before = this.history.capture();
+
+    if (previousTransition) {
+      pair.right.startTime = Number.isFinite(originalRightStart) ? originalRightStart : pair.cutTime;
+      for (const moved of previousTransition.rippledItems || []) {
+        const track = this.registry[moved.trackType];
+        const item = Array.isArray(track) ? track.find((candidate) => candidate.id === moved.id) : null;
+        if (item && Math.abs(Number(item.startTime) - Number(moved.appliedStartTime)) <= 1) {
+          item.startTime = Number(moved.originalStartTime);
+        }
+      }
+      delete pair.right.transitionIn;
+    }
+
+    if (type === "cross-dissolve") {
+      const cutTime = Number(pair.left.startTime) + Number(pair.left.duration);
+      const rightOrigin = previousTransition && Number.isFinite(originalRightStart) ? originalRightStart : Number(pair.right.startTime);
+      const rippleFrom = rightOrigin + Number(pair.right.duration);
+      const rippledItems = [];
+      for (const trackType of ["videoTracks", "textTracks", "overlayTracks", "effectTracks"]) {
+        for (const item of this.registry[trackType] || []) {
+          if (item.id === pair.left.id || item.id === pair.right.id) continue;
+          const rippleThreshold = trackType === "videoTracks" ? rippleFrom : rightOrigin;
+          if (Number(item.startTime) < rippleThreshold - 1) continue;
+          const originalStartTime = Number(item.startTime) || 0;
+          item.startTime = Math.max(0, originalStartTime - duration);
+          rippledItems.push({ trackType, id: item.id, originalStartTime, appliedStartTime: item.startTime });
+        }
+      }
+      pair.left.fadeOutMs = 0;
+      pair.right.fadeInMs = duration;
+      pair.right.startTime = Math.max(Number(pair.left.startTime) + 1, cutTime - duration);
+      pair.right.transitionIn = { type: "cross-dissolve", durationMs: duration, originalStartTime: rightOrigin, rippledItems };
+    } else {
+      pair.left.fadeOutMs = duration;
+      pair.right.fadeInMs = duration;
+    }
+    this.activeTrackId = pair.right.id;
+    const label = type === "cross-dissolve" ? "Cross dissolve" : "Fade through black";
+    this.history.record(before, label);
+    this.refresh();
+    this.setStatus(label + " · " + (duration / 1000).toFixed(2) + "s");
+    return { success: true, leftClipId: pair.left.id, rightClipId: pair.right.id, durationMs: duration, type };
+  }
+
+  clearTransitionAtPlayhead() {
+    const pair = this.findTransitionPairNearPlayhead();
+    if (!pair) {
+      this.setStatus("Select a video clip beside a cut between two adjacent clips.");
+      return { success: false, reason: "no-adjacent-video-cut" };
+    }
+    if (!(Number(pair.left.fadeOutMs) > 0) && !(Number(pair.right.fadeInMs) > 0) && !pair.right.transitionIn) {
+      this.setStatus("No transition exists at this cut.");
+      return { success: false, reason: "no-transition-at-cut" };
+    }
+    const before = this.history.capture();
+    if (pair.right.transitionIn) {
+      const transition = pair.right.transitionIn;
+      const originalStartTime = Number(transition.originalStartTime);
+      pair.right.startTime = Number.isFinite(originalStartTime) ? originalStartTime : pair.cutTime;
+      for (const moved of transition.rippledItems || []) {
+        const track = this.registry[moved.trackType];
+        const item = Array.isArray(track) ? track.find((candidate) => candidate.id === moved.id) : null;
+        if (item && Math.abs(Number(item.startTime) - Number(moved.appliedStartTime)) <= 1) {
+          item.startTime = Number(moved.originalStartTime);
+        }
+      }
+      delete pair.right.transitionIn;
+    }
+    pair.left.fadeOutMs = 0;
+    pair.right.fadeInMs = 0;
+    this.history.record(before, "Remove transition");
+    this.refresh();
+    this.setStatus("Transition removed");
+    return { success: true, leftClipId: pair.left.id, rightClipId: pair.right.id };
+  }
+
+  openTransitionEditor() {
+    const pair = this.findTransitionPairNearPlayhead();
+    if (!pair) {
+      this.setStatus("Select a video clip next to a cut first.");
+      return false;
+    }
+    const existingType = pair.right.transitionIn?.type || "fade-through-black";
+    const existing = Math.max(Number(pair.right.transitionIn?.durationMs) || 0, Number(pair.left.fadeOutMs) || 0, Number(pair.right.fadeInMs) || 0);
+    const defaultMs = existing || 500;
+    const maximumSeconds = Math.max(0.05, Math.min(Number(pair.left.duration) || 50, Number(pair.right.duration) || 50) / 1000);
+    const sheet = this.openSheet("Transition at cut");
+    sheet.body.innerHTML =
+      '<p class="nx-novacut__sheet-copy">Cross dissolve blends both clips over an overlap. Fade through black fades the outgoing clip down and incoming clip up through black.</p>' +
+      '<div class="nx-novacut__form-grid">' +
+        '<label>Transition type<select data-transition-type>' +
+          '<option value="cross-dissolve"' + (existingType === "cross-dissolve" ? " selected" : "") + '>Cross dissolve</option>' +
+          '<option value="fade-through-black"' + (existingType === "fade-through-black" ? " selected" : "") + '>Fade through black</option>' +
+        '</select></label>' +
+        '<label>Duration (seconds)<input data-transition-duration type="number" min="0.05" max="' + maximumSeconds.toFixed(2) + '" step="0.05" value="' + Math.min(defaultMs / 1000, maximumSeconds).toFixed(2) + '"></label>' +
+      '</div>' +
+      '<div class="nx-novacut__sheet-actions">' +
+        '<button type="button" class="nx-novacut__secondary" data-transition-clear>Remove transition</button>' +
+        '<button type="button" class="nx-novacut__primary" data-transition-apply>Apply transition</button>' +
+      '</div>';
+    sheet.body.querySelector("[data-transition-apply]")?.addEventListener("click", () => {
+      const input = Number(sheet.body.querySelector("[data-transition-duration]")?.value);
+      if (!Number.isFinite(input) || input < 0.05) {
+        this.setStatus("Transition duration must be at least 0.05 seconds.");
+        return;
+      }
+      const type = sheet.body.querySelector("[data-transition-type]")?.value || "fade-through-black";
+      const result = this.applyTransitionAtPlayhead(input * 1000, type);
+      if (result.success) this.closeSheet(sheet.root);
+    });
+    sheet.body.querySelector("[data-transition-clear]")?.addEventListener("click", () => {
+      const result = this.clearTransitionAtPlayhead();
+      if (result.success) this.closeSheet(sheet.root);
+    });
+    return true;
   }
 
   importAudio() {
@@ -1475,12 +2508,50 @@ export class NovaCutEngine {
     this.root.appendChild(input);
     input.addEventListener("change", () => {
       const file = input.files?.[0];
-      if (file) {
-        const segment = this.addAudioSegment({ file, startTime: this.currentTimestamp, duration: 5000, volume: 1 });
-        this.events.emit("audio", { segment });
+      if (!file) {
+        input.remove();
+        return;
       }
-      input.remove();
+
+      const probe = document.createElement("audio");
+      const url = URL.createObjectURL(file);
+      let timer = 0;
+      let settled = false;
+      const cleanup = () => {
+        if (timer) window.clearTimeout(timer);
+        probe.removeEventListener("loadedmetadata", onMetadata);
+        probe.removeEventListener("error", onError);
+        try { probe.pause(); probe.removeAttribute("src"); probe.load(); } catch (_) {}
+        try { URL.revokeObjectURL(url); } catch (_) {}
+        input.remove();
+      };
+      const finish = (error = null) => {
+        if (settled) return;
+        settled = true;
+        const durationSeconds = Number(probe.duration);
+        cleanup();
+        if (error || !Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+          this.reportError("audio-import", error || new Error("NovaCut could not read the selected audio duration."));
+          return;
+        }
+        const segment = this.addAudioSegment({
+          file,
+          startTime: this.currentTimestamp,
+          duration: Math.round(durationSeconds * 1000),
+          volume: 1
+        });
+        this.events.emit("audio", { segment });
+      };
+      const onMetadata = () => finish();
+      const onError = () => finish(new Error("NovaCut could not decode the selected audio file."));
+      probe.preload = "metadata";
+      probe.addEventListener("loadedmetadata", onMetadata, { once: true });
+      probe.addEventListener("error", onError, { once: true });
+      timer = window.setTimeout(() => finish(new Error("NovaCut audio duration probe timed out.")), 15000);
+      probe.src = url;
+      try { probe.load(); } catch (error) { finish(error); }
     }, { once: true });
+    input.addEventListener("cancel", () => input.remove(), { once: true });
     input.click();
   }
 
@@ -1584,6 +2655,18 @@ export class NovaCutEngine {
       '<button type="button" data-tool-action="sticker">Sticker</button>' +
       '<button type="button" data-tool-action="text">Text</button>' +
       '<button type="button" data-tool-action="effects">Effects</button>' +
+      '<button type="button" data-tool-action="transition">Transition at cut</button>' +
+      '<button type="button" data-tool-action="keyframe-add">Set keyframe</button>' +
+      '<button type="button" data-tool-action="keyframe-remove">Remove keyframe</button>' +
+      '<button type="button" data-tool-action="clip-settings">Edit selected clip</button>' +
+      '<button type="button" data-tool-action="fit-video">Fit video</button>' +
+      '<button type="button" data-tool-action="fill-canvas">Fill canvas</button>' +
+      '<button type="button" data-tool-action="zoom-in">Zoom in</button>' +
+      '<button type="button" data-tool-action="zoom-out">Zoom out</button>' +
+      '<button type="button" data-tool-action="reset-frame">Reset frame</button>' +
+      '<button type="button" data-tool-action="preview-draft">Preview: Draft</button>' +
+      '<button type="button" data-tool-action="preview-balanced">Preview: Balanced</button>' +
+      '<button type="button" data-tool-action="preview-sharp">Preview: Sharp</button>' +
       '<button type="button" data-tool-action="duplicate">Duplicate</button>' +
       '<button type="button" data-tool-action="delete">Delete</button>' +
       '<button type="button" data-tool-action="rotate">Rotate</button>' +
@@ -1597,6 +2680,18 @@ export class NovaCutEngine {
         if (action === "sticker") this.openStickerPicker();
         else if (action === "text") this.openTextEditor();
         else if (action === "effects") this.openEffectsEditor();
+        else if (action === "transition") this.openTransitionEditor();
+        else if (action === "keyframe-add") this.setVideoKeyframeAtPlayhead();
+        else if (action === "keyframe-remove") this.removeVideoKeyframeAtPlayhead();
+        else if (action === "clip-settings") this.openSelectedClipInspector();
+        else if (action === "fit-video") this.setSelectedFitMode("fit");
+        else if (action === "fill-canvas") this.setSelectedFitMode("fill");
+        else if (action === "zoom-in") this.adjustSelectedVideoScale(1.12);
+        else if (action === "zoom-out") this.adjustSelectedVideoScale(1 / 1.12);
+        else if (action === "reset-frame") this.resetSelectedVideoFraming();
+        else if (action === "preview-draft") this.setPreviewQuality("draft");
+        else if (action === "preview-balanced") this.setPreviewQuality("balanced");
+        else if (action === "preview-sharp") this.setPreviewQuality("sharp");
         else if (action === "duplicate") this.duplicateSelected();
         else if (action === "delete") this.removeSelected();
         else if (action === "rotate") this.rotateSelected();
@@ -1604,6 +2699,234 @@ export class NovaCutEngine {
         else if (action === "flip-y") this.flipSelected("y");
       });
     });
+  }
+
+  openSelectedClipInspector() {
+    const selected = this.registry.getById(this.activeTrackId);
+    if (!selected?.item) {
+      this.setStatus("Select a timeline clip first.");
+      return false;
+    }
+    const { type, item } = selected;
+    const titleByType = {
+      videoTracks: "Video clip settings",
+      audioTracks: "Audio clip settings",
+      textTracks: "Text clip settings",
+      overlayTracks: "Sticker settings",
+      effectTracks: "Effect settings"
+    };
+    const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
+    const seconds = (value) => (Math.max(0, finite(value)) / 1000).toFixed(2);
+    const input = (label, name, value, attrs = "") =>
+      '<label>' + label + '<input data-clip-prop="' + name + '" type="number" value="' + value + '" ' + attrs + '></label>';
+    let fields =
+      input("Start (seconds)", "start", seconds(item.startTime), 'min="0" max="3600" step="0.05"') +
+      input("Duration (seconds)", "duration", seconds(item.duration), 'min="0.03" max="3600" step="0.05"');
+
+    if (type === "videoTracks") {
+      const transform = item.transform || {};
+      fields +=
+        '<label>Frame mode<select data-clip-prop="fitMode"><option value="fit"' + (item.fitMode !== "fill" ? " selected" : "") + '>Fit</option><option value="fill"' + (item.fitMode === "fill" ? " selected" : "") + '>Fill canvas</option></select></label>' +
+        input("Speed (x)", "speed", finite(item.speed, 1), 'min="0.25" max="4" step="0.25"') +
+        input("Scale (%)", "scale", Math.round(Math.max(0.05, finite(transform.scale ?? item.scale, 1)) * 100), 'min="25" max="400" step="5"') +
+        input("Position X (preview px)", "x", finite(item.x_offset), 'min="-2000" max="2000" step="1"') +
+        input("Position Y (preview px)", "y", finite(item.y_offset), 'min="-2000" max="2000" step="1"') +
+        input("Rotation (degrees)", "rotation", finite(transform.rotation), 'min="-360" max="360" step="1"') +
+        input("Brightness (%)", "brightness", finite(item.brightness, 100), 'min="0" max="200" step="5"') +
+        input("Contrast (%)", "contrast", finite(item.contrast, 100), 'min="0" max="200" step="5"') +
+        input("Saturation (%)", "saturation", finite(item.saturation, 100), 'min="0" max="300" step="5"') +
+        input("Fade in (seconds)", "fadeIn", seconds(item.fadeInMs), 'min="0" max="60" step="0.05"') +
+        input("Fade out (seconds)", "fadeOut", seconds(item.fadeOutMs), 'min="0" max="60" step="0.05"') +
+        input("Source audio volume (%)", "volume", Math.round(finite(item.volume, 1) * 100), 'min="0" max="400" step="5"');
+    } else if (type === "audioTracks") {
+      fields +=
+        input("Audio volume (%)", "volume", Math.round(finite(item.volume, 1) * 100), 'min="0" max="400" step="5"') +
+        input("Fade in (seconds)", "fadeIn", seconds(item.fadeInMs), 'min="0" max="60" step="0.05"') +
+        input("Fade out (seconds)", "fadeOut", seconds(item.fadeOutMs), 'min="0" max="60" step="0.05"');
+    } else if (type === "textTracks") {
+      const style = item.style || {};
+      fields += '<label>Text<textarea data-clip-prop="text" maxlength="240"></textarea></label>' +
+        input("Font size", "fontSize", finite(style.fontSize, 48), 'min="8" max="180" step="1"') +
+        input("Position X (%)", "x", Math.round(finite(style.x, 0.5) * 100), 'min="0" max="100" step="1"') +
+        input("Position Y (%)", "y", Math.round(finite(style.y, 0.82) * 100), 'min="0" max="100" step="1"') +
+        '<label>Text color<input data-clip-prop="color" type="color" value="' + (/^#[0-9a-f]{6}$/i.test(String(style.color || "")) ? style.color : "#ffffff") + '"></label>' +
+        input("Rotation (degrees)", "rotation", finite(style.rotation), 'min="-360" max="360" step="1"');
+    } else if (type === "overlayTracks") {
+      fields +=
+        input("Position X (%)", "x", Math.round(finite(item.x, 0.5) * 100), 'min="0" max="100" step="1"') +
+        input("Position Y (%)", "y", Math.round(finite(item.y, 0.5) * 100), 'min="0" max="100" step="1"') +
+        input("Width (%)", "width", Math.round(finite(item.width, 0.2) * 100), 'min="3" max="100" step="1"') +
+        input("Height (%)", "height", Math.round(finite(item.height, 0.2) * 100), 'min="3" max="100" step="1"') +
+        input("Scale (%)", "scale", Math.round(finite(item.scale, 1) * 100), 'min="10" max="500" step="5"') +
+        input("Rotation (degrees)", "rotation", finite(item.rotation), 'min="-360" max="360" step="1"');
+    } else if (type === "effectTracks") {
+      fields +=
+        '<label>Effect<select data-clip-prop="effectType">' +
+        ["blur", "mosaic", "scramble", "censor"].map((name) => '<option value="' + name + '"' + (item.type === name ? " selected" : "") + '>' + name + '</option>').join("") +
+        '</select></label>' +
+        input("Position X (%)", "x", Math.round(finite(item.x, 0.25) * 100), 'min="0" max="94" step="1"') +
+        input("Position Y (%)", "y", Math.round(finite(item.y, 0.25) * 100), 'min="0" max="94" step="1"') +
+        input("Width (%)", "width", Math.round(finite(item.width, 0.5) * 100), 'min="6" max="100" step="1"') +
+        input("Height (%)", "height", Math.round(finite(item.height, 0.5) * 100), 'min="6" max="100" step="1"') +
+        input("Intensity", "intensity", finite(item.intensity, 12), 'min="1" max="64" step="1"');
+    } else {
+      this.setStatus("This selection cannot be edited here.");
+      return false;
+    }
+
+    const sheet = this.openSheet(titleByType[type] || "Clip settings");
+    const playheadLocalMs = clamp(this.currentTimestamp - Number(item.startTime || 0), 0, Math.max(1, Number(item.duration) || 1));
+    const nearbyKeyframe = type === "videoTracks"
+      ? normalizeVideoKeyframes(item.keyframes, item.duration, item).find((frame) => Math.abs(frame.timeMs - playheadLocalMs) <= 34)
+      : null;
+    const keyframeEasing = nearbyKeyframe?.easing || "linear";
+    const keyframeControls = type === "videoTracks"
+      ? '<div class="nx-novacut__keyframe-actions">' +
+        '<label>Interpolation to next<select data-clip-prop="keyframeEasing">' +
+          '<option value="linear"' + (keyframeEasing === "linear" ? " selected" : "") + '>Linear</option>' +
+          '<option value="ease-in"' + (keyframeEasing === "ease-in" ? " selected" : "") + '>Ease in</option>' +
+          '<option value="ease-out"' + (keyframeEasing === "ease-out" ? " selected" : "") + '>Ease out</option>' +
+          '<option value="ease-in-out"' + (keyframeEasing === "ease-in-out" ? " selected" : "") + '>Ease in-out</option>' +
+        '</select></label>' +
+        '<span data-keyframe-count>Keyframes: ' + (Array.isArray(item.keyframes) ? item.keyframes.length : 0) + '</span>' +
+        '<button type="button" class="nx-novacut__secondary" data-clip-keyframe-set>Set keyframe at playhead</button>' +
+        '<button type="button" class="nx-novacut__secondary" data-clip-keyframe-remove>Remove keyframe here</button>' +
+        '</div>'
+      : '';
+    const colorPresets = type === "videoTracks"
+      ? '<div class="nx-novacut__color-presets" role="group" aria-label="Color presets">' +
+        '<button type="button" data-color-preset="original">Original</button>' +
+        '<button type="button" data-color-preset="vivid">Vivid</button>' +
+        '<button type="button" data-color-preset="muted">Muted</button>' +
+        '<button type="button" data-color-preset="dramatic">Dramatic</button>' +
+        '<button type="button" data-color-preset="mono">Mono</button>' +
+        '</div>'
+      : '';
+    sheet.body.innerHTML =
+      '<div class="nx-novacut__form-grid">' + fields + '</div>' +
+      colorPresets +
+      keyframeControls +
+      '<p class="nx-novacut__sheet-copy">Apply transform values, then set a keyframe at the playhead. Two or more keyframes animate between positions.</p>' +
+      '<div class="nx-novacut__sheet-actions"><button type="button" class="nx-novacut__secondary" data-sheet-close>Cancel</button><button type="button" class="nx-novacut__primary" data-apply-clip-settings>Apply changes</button></div>';
+    const colorPresetValues = {
+      original: { brightness: 100, contrast: 100, saturation: 100 },
+      vivid: { brightness: 105, contrast: 115, saturation: 140 },
+      muted: { brightness: 100, contrast: 95, saturation: 70 },
+      dramatic: { brightness: 96, contrast: 140, saturation: 115 },
+      mono: { brightness: 100, contrast: 110, saturation: 0 }
+    };
+    sheet.body.querySelector("[data-clip-keyframe-set]")?.addEventListener("click", () => {
+      const value = (name, fallback) => {
+        const parsed = Number(sheet.body.querySelector('[data-clip-prop="' + name + '"]')?.value);
+        return Number.isFinite(parsed) ? parsed : fallback;
+      };
+      const transform = item.transform || {};
+      this.setVideoKeyframeAtPlayhead({
+        scale: clamp(value("scale", Number(transform.scale ?? item.scale) * 100) / 100, 0.05, 4),
+        rotation: clamp(value("rotation", Number(transform.rotation) || 0), -360, 360),
+        x_offset: clamp(value("x", Number(item.x_offset) || 0), -2000, 2000),
+        y_offset: clamp(value("y", Number(item.y_offset) || 0), -2000, 2000),
+        easing: sheet.body.querySelector('[data-clip-prop="keyframeEasing"]')?.value || "linear"
+      });
+      const count = sheet.body.querySelector("[data-keyframe-count]");
+      if (count) count.textContent = "Keyframes: " + (item.keyframes?.length || 0);
+    });
+    sheet.body.querySelector("[data-clip-keyframe-remove]")?.addEventListener("click", () => {
+      this.removeVideoKeyframeAtPlayhead();
+      const count = sheet.body.querySelector("[data-keyframe-count]");
+      if (count) count.textContent = "Keyframes: " + (item.keyframes?.length || 0);
+    });
+    sheet.body.querySelectorAll("[data-color-preset]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const preset = colorPresetValues[button.dataset.colorPreset];
+        if (!preset) return;
+        Object.entries(preset).forEach(([name, value]) => {
+          const control = sheet.body.querySelector('[data-clip-prop="' + name + '"]');
+          if (control) control.value = String(value);
+        });
+        sheet.body.querySelectorAll("[data-color-preset]").forEach((other) => {
+          other.classList.toggle("is-active", other === button);
+        });
+      });
+    });
+    const textInput = sheet.body.querySelector('[data-clip-prop="text"]');
+    if (textInput) textInput.value = String(item.text || "");
+    sheet.body.querySelector("[data-apply-clip-settings]")?.addEventListener("click", () => {
+      const value = (name, fallback) => {
+        const parsed = Number(sheet.body.querySelector('[data-clip-prop="' + name + '"]')?.value);
+        return Number.isFinite(parsed) ? parsed : fallback;
+      };
+      const before = this.history.capture();
+      item.startTime = Math.round(clamp(value("start", finite(item.startTime) / 1000), 0, 3600) * 1000);
+      const priorDuration = Math.max(1, finite(item.duration, 3000));
+      const requestedDuration = Math.round(clamp(value("duration", priorDuration / 1000), 0.03, 3600) * 1000);
+      if (type === "videoTracks") {
+        const priorSpeed = clamp(item.speed ?? 1, 0.25, 4);
+        const nextSpeed = clamp(value("speed", priorSpeed), 0.25, 4);
+        const durationChanged = Math.abs(requestedDuration - priorDuration) > 1;
+        const speedChanged = Math.abs(nextSpeed - priorSpeed) > 0.001;
+        item.speed = nextSpeed;
+        if (speedChanged && !durationChanged) {
+          const sourceDuration = Math.max(1, Number(item.sourceDuration) || priorDuration * priorSpeed);
+          item.duration = Math.max(30, Math.round(sourceDuration / nextSpeed));
+        } else {
+          item.duration = requestedDuration;
+          item.sourceDuration = Math.max(1, item.duration * nextSpeed);
+        }
+        const scale = clamp(value("scale", 100) / 100, 0.25, 4);
+        item.scale = scale;
+        item.transform = { ...(item.transform || {}), scale, rotation: clamp(value("rotation", 0), -360, 360) };
+        item.x_offset = clamp(value("x", finite(item.x_offset)), -2000, 2000);
+        item.y_offset = clamp(value("y", finite(item.y_offset)), -2000, 2000);
+        item.brightness = clamp(value("brightness", finite(item.brightness, 100)), 0, 200);
+        item.contrast = clamp(value("contrast", finite(item.contrast, 100)), 0, 200);
+        item.saturation = clamp(value("saturation", finite(item.saturation, 100)), 0, 300);
+        item.fadeInMs = Math.min(item.duration, Math.round(clamp(value("fadeIn", finite(item.fadeInMs) / 1000), 0, 60) * 1000));
+        item.fadeOutMs = Math.min(item.duration, Math.round(clamp(value("fadeOut", finite(item.fadeOutMs) / 1000), 0, 60) * 1000));
+        item.volume = clamp(value("volume", 100) / 100, 0, 4);
+        item.fitMode = sheet.body.querySelector('[data-clip-prop="fitMode"]')?.value === "fill" ? "fill" : "fit";
+      } else if (type === "audioTracks") {
+        item.duration = requestedDuration;
+        item.volume = clamp(value("volume", 100) / 100, 0, 4);
+        item.fadeInMs = Math.min(item.duration, Math.round(clamp(value("fadeIn", finite(item.fadeInMs) / 1000), 0, 60) * 1000));
+        item.fadeOutMs = Math.min(item.duration, Math.round(clamp(value("fadeOut", finite(item.fadeOutMs) / 1000), 0, 60) * 1000));
+      } else if (type === "textTracks") {
+        item.duration = requestedDuration;
+        item.text = String(textInput?.value || "").slice(0, 240);
+        item.style = {
+          ...(item.style || {}),
+          fontSize: clamp(value("fontSize", 48), 8, 180),
+          x: clamp(value("x", 50) / 100, 0, 1),
+          y: clamp(value("y", 82) / 100, 0, 1),
+          color: sheet.body.querySelector('[data-clip-prop="color"]')?.value || "#ffffff",
+          rotation: clamp(value("rotation", 0), -360, 360)
+        };
+      } else if (type === "overlayTracks") {
+        item.duration = requestedDuration;
+        item.width = clamp(value("width", 20) / 100, 0.03, 1);
+        item.height = clamp(value("height", 20) / 100, 0.03, 1);
+        item.scale = clamp(value("scale", 100) / 100, 0.1, 5);
+        const halfWidth = clamp(item.width * item.scale / 2, 0.02, 0.48);
+        const halfHeight = clamp(item.height * item.scale / 2, 0.02, 0.48);
+        item.x = clamp(value("x", 50) / 100, halfWidth, 1 - halfWidth);
+        item.y = clamp(value("y", 50) / 100, halfHeight, 1 - halfHeight);
+        item.rotation = clamp(value("rotation", 0), -360, 360);
+      } else if (type === "effectTracks") {
+        item.duration = requestedDuration;
+        item.width = clamp(value("width", 50) / 100, 0.06, 1);
+        item.height = clamp(value("height", 50) / 100, 0.06, 1);
+        item.x = clamp(value("x", 25) / 100, 0, Math.max(0, 1 - item.width));
+        item.y = clamp(value("y", 25) / 100, 0, Math.max(0, 1 - item.height));
+        item.intensity = clamp(value("intensity", 12), 1, 64);
+        const nextType = sheet.body.querySelector('[data-clip-prop="effectType"]')?.value;
+        if (["blur", "mosaic", "scramble", "censor"].includes(nextType)) item.type = nextType;
+      }
+      this.history.record(before, "Edit " + type.replace("Tracks", "").replace(/s$/, ""));
+      this.closeSheet(sheet.root);
+      this.refresh();
+      this.setStatus("Updated selected clip");
+    });
+    return true;
   }
 
   openSheet(title) {
@@ -1646,6 +2969,8 @@ export class NovaCutEngine {
       for (const item of active(this.registry.textTracks)) {
         if (Math.abs(x - Number(item.style?.x || 0.5)) <= 0.25 && Math.abs(y - Number(item.style?.y || 0.82)) <= 0.18) return { type: "textTracks", item };
       }
+      const activeVideos = this.getActiveVideoClips().slice().sort((a, b) => b.startTime - a.startTime);
+      if (activeVideos.length) return { type: "videoTracks", item: activeVideos[0] };
       return null;
     };
     const localPoint = (event) => {
@@ -1692,8 +3017,13 @@ export class NovaCutEngine {
       } else if (record.type === "effectTracks") {
         record.item.x = clamp((state.original.x || 0.25) + dx, 0, Math.max(0, 1 - record.item.width));
         record.item.y = clamp((state.original.y || 0.25) + dy, 0, Math.max(0, 1 - record.item.height));
+      } else if (record.type === "videoTracks") {
+        record.item.x_offset = (Number(state.original.x_offset) || 0) + dx * (canvas.width || width);
+        record.item.y_offset = (Number(state.original.y_offset) || 0) + dy * (canvas.height || height);
       }
-      this.refresh();
+      // Keep the canvas/native video layer in sync while the user is dragging,
+      // not just after pointerup commits the history transaction.
+      this.preview?.markDirty();
       event.preventDefault();
     }, { signal: this.abort.signal });
 
@@ -1702,6 +3032,7 @@ export class NovaCutEngine {
       if (!state || state.pointerId !== event.pointerId) return;
       this.canvasPointerState = null;
       this.history.commit();
+      this.refresh();
       canvas.releasePointerCapture?.(event.pointerId);
       event.preventDefault();
     };
@@ -1710,6 +3041,7 @@ export class NovaCutEngine {
       if (!this.canvasPointerState) return;
       this.canvasPointerState = null;
       this.history.cancel();
+      this.refresh();
       event.preventDefault();
     }, { signal: this.abort.signal });
   }

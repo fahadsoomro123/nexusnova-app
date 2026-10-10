@@ -33,6 +33,47 @@ function seeded(seed) {
   let state = (Number(seed) >>> 0) || 1;
   return () => { state ^= state << 13; state ^= state >>> 17; state ^= state << 5; return ((state >>> 0) % 1000000) / 1000000; };
 }
+
+const mosaicSurfaceCache = new WeakMap();
+const scramblePermutationCache = new WeakMap();
+
+function getMosaicSurface(effect, width, height, block) {
+  let surface = mosaicSurfaceCache.get(effect);
+  if (!surface) {
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    surface = { canvas, ctx, width: 0, height: 0, block: 0 };
+    mosaicSurfaceCache.set(effect, surface);
+  }
+  const smallWidth = Math.max(1, Math.floor(width / block));
+  const smallHeight = Math.max(1, Math.floor(height / block));
+  if (surface.width !== smallWidth) {
+    surface.canvas.width = smallWidth;
+    surface.width = smallWidth;
+  }
+  if (surface.height !== smallHeight) {
+    surface.canvas.height = smallHeight;
+    surface.height = smallHeight;
+  }
+  surface.block = block;
+  return surface;
+}
+
+function getScramblePermutation(effect, tilesX, tilesY) {
+  const key = String(effect.seed) + ":" + tilesX + "x" + tilesY;
+  let cached = scramblePermutationCache.get(effect);
+  if (cached?.key === key) return cached.cells;
+  const cells = Array.from({ length: tilesX * tilesY }, (_, i) => i);
+  const random = seeded(effect.seed);
+  for (let i = cells.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(random() * (i + 1));
+    [cells[i], cells[j]] = [cells[j], cells[i]];
+  }
+  scramblePermutationCache.set(effect, { key, cells });
+  return cells;
+}
+
 export function drawNovaCutEffect(ctx, source, effect, width, height) {
   if (!ctx || !source || !effect) return;
   const r = rectOf(effect, width, height);
@@ -44,21 +85,19 @@ export function drawNovaCutEffect(ctx, source, effect, width, height) {
   }
   if (effect.type === 'mosaic') {
     const block = Math.max(2, Math.floor(clamp(effect.intensity, 2, 64)));
-    const small = document.createElement('canvas');
-    small.width = Math.max(1, Math.floor(r.width / block));
-    small.height = Math.max(1, Math.floor(r.height / block));
-    const sctx = small.getContext('2d');
-    if (!sctx) return;
+    const surface = getMosaicSurface(effect, r.width, r.height, block);
+    if (!surface) return;
+    const { canvas: small, ctx: sctx } = surface;
     sctx.imageSmoothingEnabled = false;
-    sctx.drawImage(source, r.x, r.y, r.width, r.height, 0, 0, small.width, small.height);
-    ctx.save(); ctx.imageSmoothingEnabled = false; ctx.drawImage(small, 0, 0, small.width, small.height, r.x, r.y, r.width, r.height); ctx.restore(); return;
+    sctx.clearRect(0, 0, surface.width, surface.height);
+    sctx.drawImage(source, r.x, r.y, r.width, r.height, 0, 0, surface.width, surface.height);
+    ctx.save(); ctx.imageSmoothingEnabled = false; ctx.drawImage(small, 0, 0, surface.width, surface.height, r.x, r.y, r.width, r.height); ctx.restore(); return;
   }
   if (effect.type === 'scramble') {
     const tilesX = Math.max(2, Math.min(12, Math.floor(r.width / Math.max(8, effect.intensity))));
     const tilesY = Math.max(2, Math.min(12, Math.floor(r.height / Math.max(8, effect.intensity))));
     const tileW = r.width / tilesX; const tileH = r.height / tilesY;
-    const cells = Array.from({ length: tilesX * tilesY }, (_, i) => i); const random = seeded(effect.seed);
-    for (let i = cells.length - 1; i > 0; i -= 1) { const j = Math.floor(random() * (i + 1)); [cells[i], cells[j]] = [cells[j], cells[i]]; }
+    const cells = getScramblePermutation(effect, tilesX, tilesY);
     ctx.save(); ctx.beginPath(); ctx.rect(r.x, r.y, r.width, r.height); ctx.clip();
     for (let d = 0; d < cells.length; d += 1) {
       const s = cells[d];

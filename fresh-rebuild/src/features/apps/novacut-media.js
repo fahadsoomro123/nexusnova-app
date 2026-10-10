@@ -1304,7 +1304,8 @@ function parseMp4Moov(
       video?.codec ||
       "",
     trackCount:
-      tracks.length
+      tracks.length,
+    hasAudio: Boolean(audio)
   };
 }
 
@@ -1951,6 +1952,7 @@ function parseMatroskaHeader(
   let defaultDuration = 0;
   let trackType = 0;
   let trackCount = 0;
+  let hasAudio = false;
 
   if (tracks) {
     let offset =
@@ -2164,6 +2166,8 @@ function parseMatroskaHeader(
           defaultDuration =
             localDefaultDuration ||
             defaultDuration;
+        } else if (localTrackType === 2) {
+          hasAudio = true;
         }
       }
 
@@ -2224,7 +2228,8 @@ function parseMatroskaHeader(
         : 0,
     codec: "",
     trackCount,
-    trackType
+    trackType,
+    hasAudio
   };
 }
 
@@ -2775,11 +2780,13 @@ function mergeMetadata(
   decoded,
   options
 ) {
-  const durationMs =
-    positive(
-      decoded?.durationMs,
-      binary?.durationMs
-    );
+  const decodedDurationMs = positive(decoded?.durationMs, 0);
+  const binaryDurationMs = positive(binary?.durationMs, 0);
+  // Some Android decoders expose a shorter duration than the container's
+  // sample table. Prefer the longer credible value for video to prevent cut-off.
+  const durationMs = kind === "video"
+    ? Math.max(decodedDurationMs, binaryDurationMs)
+    : positive(decodedDurationMs, binaryDurationMs);
 
   const width =
     Math.max(
@@ -2882,6 +2889,7 @@ function mergeMetadata(
     codec:
       binary?.codec ||
       "",
+    hasAudio: binary?.hasAudio === true,
     width,
     height,
     durationMs:
@@ -3242,6 +3250,10 @@ function injectMetadataRecord(
 
   clip.metadata =
     metadata;
+
+  if (metadata.kind === "video" && typeof engine.applyInitialAspectRatio === "function") {
+    engine.applyInitialAspectRatio(clip, metadata);
+  }
 
   record.track =
     clip;

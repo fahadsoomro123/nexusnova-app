@@ -165,7 +165,8 @@
 .nx-novacut__canvas-shell {
   position: relative !important;
   min-height: 0 !important;
-  margin: 12px !important;
+  place-self: center !important;
+  margin: 0 !important;
   overflow: hidden !important;
   border: 1px solid rgba(255,255,255,.11) !important;
   border-radius: 20px !important;
@@ -176,6 +177,12 @@
     inset 0 0 0 1px rgba(255,255,255,.018),
     inset 0 30px 80px rgba(0,0,0,.28) !important;
 }
+
+.nx-novacut__canvas-shell[data-ratio="16:9"] { aspect-ratio: 16 / 9; }
+.nx-novacut__canvas-shell[data-ratio="9:16"] { aspect-ratio: 9 / 16; }
+.nx-novacut__canvas-shell[data-ratio="1:1"] { aspect-ratio: 1 / 1; }
+.nx-novacut__canvas-shell[data-ratio="4:5"] { aspect-ratio: 4 / 5; }
+.nx-novacut__canvas-shell[data-ratio="4:3"] { aspect-ratio: 4 / 3; }
 
 .nx-novacut__canvas {
   position: absolute !important;
@@ -250,8 +257,13 @@
 .nx-novacut__canvas-overlay {
   position: absolute !important;
   z-index: 3 !important;
-  top: 10px !important;
-  right: 10px !important;
+  top: auto !important;
+  right: 8px !important;
+  bottom: 8px !important;
+  max-width: calc(100% - 16px) !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
   display: inline-flex !important;
   align-items: center !important;
   gap: 6px !important;
@@ -335,6 +347,56 @@
   border-bottom: 1px solid var(--nc-line) !important;
 }
 
+.nx-novacut__timeline-head-actions {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 7px !important;
+  min-width: 0 !important;
+}
+
+.nx-novacut__timeline-controls {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 3px !important;
+  flex: 0 0 auto !important;
+  min-height: 30px !important;
+  padding: 2px !important;
+  border: 1px solid rgba(255,255,255,.09) !important;
+  border-radius: 10px !important;
+  background: rgba(0,0,0,.2) !important;
+}
+
+.nx-novacut__timeline-controls button {
+  min-width: 27px !important;
+  min-height: 26px !important;
+  padding: 0 6px !important;
+  border: 1px solid transparent !important;
+  border-radius: 7px !important;
+  background: transparent !important;
+  color: #c9cad3 !important;
+  font-size: 10px !important;
+  font-weight: 900 !important;
+  touch-action: manipulation !important;
+}
+
+.nx-novacut__timeline-controls button:active,
+.nx-novacut__timeline-controls button.is-active {
+  border-color: rgba(99,185,255,.32) !important;
+  background: rgba(69,168,255,.13) !important;
+  color: #e7f6ff !important;
+}
+
+.nx-novacut__timeline-controls [data-role="timeline-zoom-value"] {
+  min-width: 34px !important;
+  color: #a6a6b2 !important;
+  font-size: 8px !important;
+  font-weight: 850 !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+}
+
 .nx-novacut__add-button {
   display: inline-flex !important;
   align-items: center !important;
@@ -367,8 +429,8 @@
 .nx-novacut__ruler,
 .nx-novacut__track {
   display: grid !important;
-  grid-template-columns: 72px minmax(640px, 1fr) !important;
-  min-width: 712px !important;
+  grid-template-columns: 84px minmax(var(--nc-content-width, 640px), 1fr) !important;
+  min-width: calc(84px + var(--nc-content-width, 640px)) !important;
 }
 
 .nx-novacut__ruler {
@@ -385,22 +447,25 @@
 .nx-novacut__ticks {
   position: relative !important;
   background:
-    repeating-linear-gradient(90deg, rgba(255,255,255,.05) 0 1px, transparent 1px 40px) !important;
+    repeating-linear-gradient(90deg, rgba(255,255,255,.05) 0 1px, transparent 1px var(--nc-ruler-px-per-second, 36px)) !important;
 }
 
 .nx-novacut__ticks span {
   position: absolute !important;
   top: 9px !important;
-  left: calc(var(--i) * 12.5%) !important;
+  left: var(--tick-x, 0px) !important;
   transform: translateX(-50%) !important;
-  color: #676773 !important;
-  font-size: 7px !important;
+  color: #8a8a96 !important;
+  font-size: 8px !important;
   font-weight: 800 !important;
 }
 
+.nx-novacut__ticks span:first-child {
+  transform: translateX(0) !important;
+}
 .nx-novacut__track {
-  min-height: 62px !important;
-  padding: 5px 0 !important;
+  min-height: 56px !important;
+  padding: 3px 0 !important;
   border-bottom: 1px solid rgba(255,255,255,.07) !important;
 }
 
@@ -437,11 +502,9 @@
 
 .nx-novacut__lane {
   position: relative !important;
-  display: flex !important;
-  align-items: center !important;
-  gap: 6px !important;
+  display: block !important;
   min-width: 0 !important;
-  padding: 5px 8px !important;
+  padding: 3px 0 !important;
   border-radius: 13px !important;
   background:
     linear-gradient(90deg, rgba(255,255,255,.02), rgba(255,255,255,.035)) !important;
@@ -461,6 +524,7 @@
 .nx-novacut__lane-tool {
   position: relative !important;
   z-index: 1 !important;
+  margin-left: 8px !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -478,6 +542,7 @@
 .nx-novacut__lane-hint {
   position: relative !important;
   z-index: 1 !important;
+  padding-left: 8px !important;
   color: #666670 !important;
   font-size: 7px !important;
   font-weight: 750 !important;
@@ -486,7 +551,7 @@
 }
 
 .nx-novacut__clip {
-  position: relative !important;
+  position: absolute !important;
   z-index: 2 !important;
   display: flex !important;
   align-items: center !important;
@@ -507,6 +572,26 @@
   text-align: left !important;
 }
 
+.nx-novacut__keyframe-markers {
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: 3 !important;
+  pointer-events: none !important;
+}
+
+.nx-novacut__keyframe-marker {
+  position: absolute !important;
+  left: var(--keyframe-x, 0%) !important;
+  top: 4px !important;
+  width: 7px !important;
+  height: 7px !important;
+  border: 1px solid rgba(0,0,0,.7) !important;
+  border-radius: 1px !important;
+  background: #f5d66e !important;
+  box-shadow: 0 0 0 1px rgba(255,255,255,.32), 0 1px 4px rgba(0,0,0,.4) !important;
+  transform: translateX(-50%) rotate(45deg) !important;
+}
+
 .nx-novacut__clip.is-selected {
   border-color: rgba(99,185,255,.85) !important;
   box-shadow: 0 0 0 2px rgba(99,185,255,.11), 0 8px 20px rgba(0,0,0,.2) !important;
@@ -521,6 +606,16 @@
     linear-gradient(135deg, rgba(99,185,255,.22), rgba(160,112,255,.18)),
     repeating-linear-gradient(135deg, rgba(255,255,255,.11) 0 3px, transparent 3px 7px) !important;
 }
+
+.nx-novacut__clip-thumb img {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
+  border-radius: inherit !important;
+  pointer-events: none !important;
+}
+
 
 .nx-novacut__clip-copy {
   min-width: 42px !important;
@@ -577,36 +672,39 @@
 }
 
 .nx-novacut__audio-bars {
-  width: 58px !important;
-  height: 20px !important;
+  width: clamp(42px, 30%, 112px) !important;
+  min-width: 30px !important;
+  height: 22px !important;
   margin-left: auto !important;
-  opacity: .68 !important;
-  background:
-    linear-gradient(90deg,
-      transparent 0 3px,
-      #63f1bd 3px 5px,
-      transparent 5px 8px,
-      #63f1bd 8px 11px,
-      transparent 11px 14px,
-      #63f1bd 14px 16px,
-      transparent 16px 20px,
-      #63f1bd 20px 24px,
-      transparent 24px 28px,
-      #63f1bd 28px 31px,
-      transparent 31px 35px,
-      #63f1bd 35px 39px,
-      transparent 39px 44px,
-      #63f1bd 44px 47px,
-      transparent 47px 52px,
-      #63f1bd 52px 56px,
-      transparent 56px 58px) !important;
-  border-radius: 5px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 1px !important;
+  overflow: hidden !important;
+  opacity: .82 !important;
+  background: repeating-linear-gradient(90deg, transparent 0 2px, rgba(99,241,189,.34) 2px 3px) !important;
+  border-radius: 4px !important;
+}
+.nx-novacut__audio-bars[data-waveform-ready="true"] {
+  background: none !important;
+  opacity: .96 !important;
+}
+.nx-novacut__audio-bars i {
+  display: block !important;
+  flex: 1 1 0 !important;
+  min-width: 1px !important;
+  max-width: 3px !important;
+  height: var(--audio-peak, 4%) !important;
+  min-height: 2px !important;
+  border-radius: 2px !important;
+  background: #63f1bd !important;
+  transform-origin: center !important;
 }
 
 .nx-novacut__interaction-surface {
   position: absolute !important;
   top: 28px !important;
-  left: 72px !important;
+  left: 84px !important;
   right: 0 !important;
   bottom: 0 !important;
   pointer-events: none !important;
@@ -645,10 +743,15 @@
 }
 
 .nx-novacut__dock-item strong {
-  font-size: 7px !important;
+  font-size: 8px !important;
   line-height: 1 !important;
   font-weight: 850 !important;
-  letter-spacing: .03em !important;
+  letter-spacing: .02em !important;
+}
+
+.nx-novacut-host button:focus-visible {
+  outline: 2px solid rgba(99,185,255,.95) !important;
+  outline-offset: 2px !important;
 }
 
 .nx-novacut__dock-item--active,
@@ -664,15 +767,24 @@
 }
 
 .nx-novacut__interaction-playhead {
+  position: absolute !important;
+  left: 0;
   top: 28px !important;
   bottom: 0 !important;
   z-index: 30 !important;
   width: 1px !important;
+  pointer-events: none !important;
   background: linear-gradient(180deg, #63b9ff 0%, rgba(99,185,255,.24) 100%) !important;
   box-shadow: 0 0 10px rgba(99,185,255,.36) !important;
+  will-change: left;
 }
 
 .nx-novacut__interaction-playhead::before {
+  position: absolute !important;
+  content: "" !important;
+  display: block !important;
+  left: -5px !important;
+  top: -5px !important;
   width: 10px !important;
   height: 10px !important;
   border-radius: 3px !important;
@@ -716,18 +828,24 @@
     border-radius: 10px !important;
   }
 
+  .nx-novacut__top-actions {
+    gap: 4px !important;
+  }
+
   .nx-novacut__export-button {
     min-height: 34px !important;
-    padding: 0 9px !important;
+    padding: 0 8px !important;
+    gap: 4px !important;
     border-radius: 10px !important;
+    font-size: 9px !important;
   }
 
   .nx-novacut__export-button span {
-    display: none !important;
+    display: inline !important;
   }
 
   .nx-novacut__canvas-shell {
-    margin: 8px !important;
+    margin: 0 !important;
     border-radius: 16px !important;
   }
 
@@ -743,12 +861,17 @@
 
   .nx-novacut__ruler,
   .nx-novacut__track {
-    grid-template-columns: 66px minmax(580px, 1fr) !important;
-    min-width: 646px !important;
+    grid-template-columns: 84px minmax(var(--nc-content-width, 640px), 1fr) !important;
+    min-width: calc(84px + var(--nc-content-width, 640px)) !important;
   }
 
-  .nx-novacut__interaction-playhead {
-    left: 66px !important;
+  .nx-novacut__interaction-surface {
+    left: 84px !important;
+  }
+
+  .nx-novacut__track-name {
+    white-space: nowrap !important;
+    font-size: 7.5px !important;
   }
 
   .nx-novacut__dock-item {
@@ -836,4 +959,60 @@
   .nx-novacut__form-grid{grid-template-columns:1fr!important}
   .nx-novacut__effect-pills{grid-template-columns:repeat(2,minmax(0,1fr))!important}
   .nx-novacut__dock{grid-template-columns:repeat(6,minmax(0,1fr))!important}
+}
+
+/* Fast color looks applied to the selected clip inspector. */
+.nx-novacut__color-presets {
+  display: grid !important;
+  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  gap: 6px !important;
+}
+.nx-novacut__color-presets button {
+  min-width: 0 !important;
+  min-height: 36px !important;
+  padding: 0 4px !important;
+  border: 1px solid rgba(255,255,255,.09) !important;
+  border-radius: 9px !important;
+  background: rgba(255,255,255,.045) !important;
+  color: #b8c0cc !important;
+  font-size: 9px !important;
+  font-weight: 850 !important;
+}
+.nx-novacut__color-presets button.is-active {
+  border-color: rgba(99,185,255,.62) !important;
+  background: rgba(99,185,255,.13) !important;
+  color: #eef8ff !important;
+}
+@media (max-width: 520px) {
+  .nx-novacut__color-presets { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+}
+
+/* Keep transport glyphs visible even when app-wide SVG rules disable fills. */
+.nx-novacut-host .nx-novacut__play svg {
+  display: block !important;
+  width: 20px !important;
+  height: 20px !important;
+  overflow: visible !important;
+}
+.nx-novacut-host .nx-novacut__play svg path[fill="currentColor"] {
+  fill: currentColor !important;
+  stroke: none !important;
+}
+.nx-novacut-host .nx-novacut__play svg path:not([fill]) {
+  fill: none !important;
+  stroke: currentColor !important;
+  stroke-width: 2.2 !important;
+  stroke-linecap: round !important;
+}
+
+@media (max-width: 360px) {
+  .nx-novacut__export-button span { display: none !important; }
+}
+
+@media (max-width: 420px) {
+  .nx-novacut__timeline-head { padding-right: 7px !important; padding-left: 7px !important; gap: 5px !important; }
+  .nx-novacut__timeline-head-actions { gap: 4px !important; }
+  .nx-novacut__timeline-controls { gap: 1px !important; }
+  .nx-novacut__timeline-controls button { min-width: 24px !important; padding: 0 4px !important; }
+  .nx-novacut__timeline-controls [data-role="timeline-zoom-value"] { min-width: 30px !important; }
 }
