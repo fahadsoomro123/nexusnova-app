@@ -90,6 +90,13 @@ check("media injected status path", () => assert(has(suite, "Checking video deco
 check("decode error detail is visible", () => assert(has(suite, "Decode failed: ") && has(suite, "status.title = message"), "decode error details missing"));
 
 // 56-65: interaction/history correctness
+check("clip selection does not detach active timeline gesture", () => {
+  const selectStart = engine.indexOf("  selectClip(id)");
+  const addStart = engine.indexOf("\\n  addVideoClip", selectStart);
+  assert(selectStart >= 0 && addStart > selectStart, "selectClip method is missing");
+  assert(!engine.slice(selectStart, addStart).includes("this.refresh()"), "selection refresh recreates timeline DOM during dragging");
+  assert(has(suite, "const updateTimelineSelection") && has(suite, "engine.on('selectionchange', updateTimelineSelection);"), "selection handler still fully rerenders timeline");
+});
 check("pointer interaction includes direct video framing", () => assert(has(engine, "pointerdown") && has(engine, 'return { type: "videoTracks", item: activeVideos[0] }') && has(engine, "record.item.y_offset ="), "video preview drag framing missing"));
 check("playhead and clips use absolute scroll-aware timeline positions", () => assert(has(studio, "this.timeline.scrollLeft") && has(studio, "this.timeline.scrollWidth") && has(studio, "targetRect.left") && has(studio, "timeline-pan") && has(studio, "Math.abs(candidate - target)") && has(studio, 'element.style.left = start * scale + "px"') && has(studio, 'element.style.marginLeft = "0px"') && has(studio, 'element.style.setProperty("min-width", width + "px", "important")') && has(suite, "layoutTimelineClips") && has(suite, "sort(byStartTime)"), "timeline geometry, duration width or chronological ordering regression"));
 check("pointer up present", () => assert(has(engine, "pointerup"), "pointerup missing"));

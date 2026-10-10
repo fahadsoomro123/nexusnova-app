@@ -379,6 +379,15 @@ function renderNovaCut() {
     });
   };
 
+  const updateTimelineSelection = ({ id } = {}) => {
+    const selectedId = String(id ?? engine.activeTrackId ?? "");
+    root.querySelectorAll("[data-clip-id]").forEach((element) => {
+      const selected = element.dataset.clipId === selectedId;
+      element.classList.toggle("is-selected", selected);
+      element.classList.toggle("novacut-selected", selected);
+    });
+  };
+
   const applyTimelineZoom = (nextScale) => {
     timelinePixelsPerSecond = Math.max(12, Math.min(144, Number(nextScale) || NOVACUT_PIXELS_PER_SECOND));
     renderTimelineRuler();
@@ -409,7 +418,7 @@ function renderNovaCut() {
   engine.on('split', renderTimeline);
   engine.on('audio', renderTimeline);
   engine.on('text', renderTimeline);
-  engine.on('selectionchange', renderTimeline);
+  engine.on('selectionchange', updateTimelineSelection);
 
   engine.on('historystatechange', ({ canUndo, canRedo }) => {
     root.querySelectorAll("[data-action='undo']").forEach((node) => {

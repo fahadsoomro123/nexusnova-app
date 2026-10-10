@@ -1416,8 +1416,10 @@ export class NovaCutEngine {
 
   selectClip(id) {
     this.activeTrackId = this.registry.getById(id)?.item?.id || null;
+    // Selection is presentation state, not a timeline-model mutation. Emitting
+    // statechange/refresh here recreates every clip DOM node in the middle of
+    // a drag gesture, leaving the gesture attached to a detached element.
     this.events.emit("selectionchange", { id: this.activeTrackId });
-    this.refresh();
     return this.activeTrackId;
   }
 
