@@ -142,7 +142,7 @@ check("preview canvas present", () => assert(/data-role=['"]preview-canvas['"]/.
 check("play button and visible transport icon", () => assert(has(suite, "data-action='play'") && has(suite, "data-role='play-icon'") && has(suite, "M8 5.2v13.6L19 12 8 5.2Z") && has(studioCss, '.nx-novacut-host .nx-novacut__play svg path[fill="currentColor"]') && has(studioCss, '.nx-novacut-host .nx-novacut__play svg path:not([fill])'), "play/pause glyph or visible SVG styling missing"));
 check("mobile export action remains clearly labeled", () => assert(/data-action=['"]export['"]/.test(suite) && has(suite, "<span>Export</span>") && has(studioCss, ".nx-novacut__export-button span") && has(studioCss, "display: inline !important"), "mobile export label missing"));
 check("video lane uses cached thumbnails and visible animation keyframes", () => assert(has(suite, "data-role='video-lane'") && has(suite, "const VIDEO_THUMBNAIL_CACHE = new WeakMap();") && has(suite, "getVideoThumbnail(clip.file)") && has(suite, "data-video-thumb") && has(suite, "nx-novacut__keyframe-marker") && has(studioCss, ".nx-novacut__clip-thumb img") && has(studioCss, ".nx-novacut__keyframe-marker"), "timeline thumbnails or keyframe diamonds are missing"));
-check("audio lane present", () => assert(has(suite, "data-role='audio-lane'"), "audio lane missing"));
+check("audio lane present", () => assert(has(suite, "data-role='audio-lane'") && has(suite, "getAudioWaveform(segment.file)") && has(suite, "createNovaCutWaveformPeaks(channels, 72)") && has(suite, 'data-audio-waveform="'), "audio lane, decoded waveform extraction, or waveform rendering missing"));
 check("text lane present", () => assert(has(suite, "data-role='text-lane'"), "text lane missing"));
 check("overlay lane present", () => assert(has(suite, "data-role='overlay-lane'"), "overlay lane missing"));
 check("effects lane present", () => assert(has(suite, "data-role='effect-lane'"), "effects lane missing"));
@@ -267,7 +267,7 @@ if (passed !== 100) {
 // Behavioural unit tests for the exact blank-preview failure path.
 globalThis.window ??= globalThis;
 const { NovaCutEngine, NovaCutCanvasPreview, NovaCutCommandCompiler, isAndroidWebViewUserAgent } = await import("../fresh-rebuild/src/features/apps/novacut-engine.js");
-const { novaCutCanvasPointFromClient, moveNovaCutCanvasOverlay } = await import("../fresh-rebuild/src/features/apps/novacut-studio.js");
+const { novaCutCanvasPointFromClient, moveNovaCutCanvasOverlay, createNovaCutWaveformPeaks } = await import("../fresh-rebuild/src/features/apps/novacut-studio.js");
 const centerPoint = novaCutCanvasPointFromClient(110, 70, { left: 10, top: 20, width: 200, height: 100 });
 if (centerPoint?.x !== 0.5 || centerPoint?.y !== 0.5 ||
     novaCutCanvasPointFromClient(10, 20, { left: 0, top: 0, width: 0, height: 100 }) !== null) {
@@ -281,6 +281,12 @@ if (movedText?.x !== 0.02 || movedText?.y !== 0.98 ||
     Math.abs(movedSticker?.x - 0.1) > 1e-9 || Math.abs(movedSticker?.y - 0.85) > 1e-9) {
   throw new Error("Canvas drag did not clamp text safely or keep the scaled sticker inside the frame.");
 }
+const waveformPeaks = createNovaCutWaveformPeaks([Float32Array.from([0, 0.1, -0.2, 0.3, -0.4, 0.5, -0.6, 0.7])], 8);
+if (waveformPeaks.length !== 8 || waveformPeaks[0] !== 4 || waveformPeaks[7] !== 70 ||
+    createNovaCutWaveformPeaks([], 72).length !== 0) {
+  throw new Error("Audio waveform peak sampler failed for silence, signal peaks, or empty input.");
+}
+console.log("AUDIO WAVEFORM BEHAVIOUR 1/1 PASS  bounded peak sampling and empty-input handling");
 console.log("CANVAS OVERLAY BEHAVIOUR 2/2 PASS  normalized drag mapping, bounds clamp, and scaled sticker frame");
 
 const androidWebViewUA = "Mozilla/5.0 (Linux; Android 13; Test Device; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/120.0.0.0 Mobile Safari/537.36";

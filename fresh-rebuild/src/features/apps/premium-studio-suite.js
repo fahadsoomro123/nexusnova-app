@@ -5,11 +5,12 @@ import { renderAiTranscribeStudio } from './ai-transcribe-studio.js';
 import { renderAiWritingStudio } from './ai-writing-studio.js';
 import { renderDigitalSignStudio } from './digital-sign-studio.js';
 import { createNovaCutEngine } from './novacut-engine.js';
-import { createNovaCutStudioInteractions, NOVACUT_PIXELS_PER_SECOND } from './novacut-studio.js';
+import { createNovaCutStudioInteractions, createNovaCutWaveformPeaks, NOVACUT_PIXELS_PER_SECOND } from './novacut-studio.js';
 import { createNovaCutMediaParser } from './novacut-media.js';
 
 const NOVACUT_CSS = new URL('./novacut-studio.css', import.meta.url).href;
 const VIDEO_THUMBNAIL_CACHE = new WeakMap();
+const AUDIO_WAVEFORM_CACHE = new WeakMap();
 
 function getVideoThumbnail(file) {
   if (!file || typeof file !== 'object') return Promise.resolve(null);
@@ -80,6 +81,69 @@ function getVideoThumbnail(file) {
   return promise;
 }
 
+function getAudioWaveform(file) {
+  if (!file || typeof file !== 'object' || typeof file.arrayBuffer !== 'function') return Promise.resolve(null);
+  if (Number(file.size) > 20 * 1024 * 1024) return Promise.resolve(null);
+  const cached = AUDIO_WAVEFORM_CACHE.get(file);
+  if (cached) return cached;
+  const ContextClass = globalThis.AudioContext || globalThis.webkitAudioContext;
+  if (!ContextClass || typeof document === 'undefined' || typeof URL?.createObjectURL !== 'function') return Promise.resolve(null);
+
+  const task = (async () => {
+    let objectUrl = '';
+    let context = null;
+    let probe = null;
+    let timeout = 0;
+    try {
+      objectUrl = URL.createObjectURL(file);
+      const duration = await new Promise((resolve) => {
+        probe = document.createElement('audio');
+        let settled = false;
+        const finish = (value) => {
+          if (settled) return;
+          settled = true;
+          if (timeout) globalThis.clearTimeout(timeout);
+          probe.removeEventListener('loadedmetadata', onMetadata);
+          probe.removeEventListener('error', onError);
+          resolve(value);
+        };
+        const onMetadata = () => finish(Number.isFinite(probe.duration) && probe.duration > 0 ? probe.duration : null);
+        const onError = () => finish(null);
+        probe.preload = 'metadata';
+        probe.addEventListener('loadedmetadata', onMetadata);
+        probe.addEventListener('error', onError);
+        timeout = globalThis.setTimeout(() => finish(null), 3500);
+        probe.src = objectUrl;
+        probe.load();
+      });
+      if (!duration || duration > 300) return null;
+
+      context = new ContextClass();
+      const bytes = await file.arrayBuffer();
+      const decoded = await context.decodeAudioData(bytes);
+      if (!decoded || decoded.duration > 300 || !decoded.length) return null;
+      const channels = [];
+      for (let index = 0; index < Math.min(2, decoded.numberOfChannels); index += 1) {
+        channels.push(decoded.getChannelData(index));
+      }
+      return createNovaCutWaveformPeaks(channels, 72);
+    } catch (_) {
+      return null;
+    } finally {
+      if (timeout) globalThis.clearTimeout(timeout);
+      try { probe?.pause(); probe?.removeAttribute('src'); probe?.load(); } catch (_) {}
+      if (objectUrl) {
+        try { URL.revokeObjectURL(objectUrl); } catch (_) {}
+      }
+      if (context && context.state !== 'closed') {
+        try { await context.close(); } catch (_) {}
+      }
+    }
+  })();
+  AUDIO_WAVEFORM_CACHE.set(file, task);
+  return task;
+}
+
 function ensureNovaCutStyles() {
   if (document.querySelector('link[data-novacut-styles]')) return;
   const link = document.createElement('link');
@@ -138,7 +202,7 @@ function renderTrackClip(clip, type) {
     return '<button type="button" class="nx-novacut__clip nx-novacut__clip--audio' + selected + '" data-clip-id="' + id + '">' +
       '<span class="nx-novacut__track-icon">' + SVG.audio + '</span>' +
       '<span class="nx-novacut__clip-copy"><strong>Audio</strong><small>' + seconds + 's</small></span>' +
-      '<span class="nx-novacut__audio-bars" aria-hidden="true"></span></button>';
+      '<span class="nx-novacut__audio-bars" data-audio-waveform="' + id + '" aria-hidden="true"></span></button>';
   }
 
   if (type === 'sticker') {
@@ -369,6 +433,15 @@ function renderNovaCut() {
     audioLane.innerHTML = audios.length
       ? audios.map((segment) => renderTrackClip(segment, 'audio')).join('')
       : '<span class="nx-novacut__lane-hint">Music and voice</span>';
+    audioLane.querySelectorAll('[data-audio-waveform]').forEach((node) => {
+      const segment = audios.find((item) => String(item.id) === node.dataset.audioWaveform);
+      if (!segment?.file) return;
+      getAudioWaveform(segment.file).then((peaks) => {
+        if (!Array.isArray(peaks) || !peaks.length || !node.isConnected) return;
+        node.innerHTML = peaks.map((peak) => '<i style="--audio-peak:' + Math.max(4, Math.min(100, Math.round(peak))) + '%"></i>').join('');
+        node.dataset.waveformReady = 'true';
+      }).catch(() => {});
+    });
     textLane.innerHTML = texts.length
       ? texts.map((cue) => renderTrackClip(cue, 'text')).join('')
       : '<button type="button" class="nx-novacut__lane-tool" data-action="text">' + SVG.text + '<span>Add text</span></button>';

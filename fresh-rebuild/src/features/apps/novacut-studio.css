@@ -672,30 +672,33 @@
 }
 
 .nx-novacut__audio-bars {
-  width: 58px !important;
-  height: 20px !important;
+  width: clamp(42px, 30%, 112px) !important;
+  min-width: 30px !important;
+  height: 22px !important;
   margin-left: auto !important;
-  opacity: .68 !important;
-  background:
-    linear-gradient(90deg,
-      transparent 0 3px,
-      #63f1bd 3px 5px,
-      transparent 5px 8px,
-      #63f1bd 8px 11px,
-      transparent 11px 14px,
-      #63f1bd 14px 16px,
-      transparent 16px 20px,
-      #63f1bd 20px 24px,
-      transparent 24px 28px,
-      #63f1bd 28px 31px,
-      transparent 31px 35px,
-      #63f1bd 35px 39px,
-      transparent 39px 44px,
-      #63f1bd 44px 47px,
-      transparent 47px 52px,
-      #63f1bd 52px 56px,
-      transparent 56px 58px) !important;
-  border-radius: 5px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 1px !important;
+  overflow: hidden !important;
+  opacity: .82 !important;
+  background: repeating-linear-gradient(90deg, transparent 0 2px, rgba(99,241,189,.34) 2px 3px) !important;
+  border-radius: 4px !important;
+}
+.nx-novacut__audio-bars[data-waveform-ready="true"] {
+  background: none !important;
+  opacity: .96 !important;
+}
+.nx-novacut__audio-bars i {
+  display: block !important;
+  flex: 1 1 0 !important;
+  min-width: 1px !important;
+  max-width: 3px !important;
+  height: var(--audio-peak, 4%) !important;
+  min-height: 2px !important;
+  border-radius: 2px !important;
+  background: #63f1bd !important;
+  transform-origin: center !important;
 }
 
 .nx-novacut__interaction-surface {

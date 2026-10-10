@@ -37,6 +37,29 @@ export function novaCutCanvasPointFromClient(clientX, clientY, bounds) {
   };
 }
 
+export function createNovaCutWaveformPeaks(channels, barCount = 72) {
+  const sources = (Array.isArray(channels) ? channels : []).filter((channel) =>
+    channel && Number.isFinite(Number(channel.length)) && Number(channel.length) > 0
+  );
+  const sampleLength = Math.max(0, ...sources.map((channel) => Number(channel.length) || 0));
+  const count = Math.round(clamp(barCount, 8, 128));
+  if (!sources.length || !sampleLength) return [];
+  const peaks = [];
+  for (let bar = 0; bar < count; bar += 1) {
+    const start = Math.floor(bar * sampleLength / count);
+    const end = Math.min(sampleLength, Math.max(start + 1, Math.ceil((bar + 1) * sampleLength / count)));
+    const stride = Math.max(1, Math.floor((end - start) / 160));
+    let peak = 0;
+    for (let index = start; index < end; index += stride) {
+      for (const channel of sources) {
+        if (index < channel.length) peak = Math.max(peak, Math.abs(Number(channel[index]) || 0));
+      }
+    }
+    peaks.push(Math.round(clamp(peak, 0.035, 1) * 100));
+  }
+  return peaks;
+}
+
 export function moveNovaCutCanvasOverlay(item, type, x, y) {
   if (!item) return null;
   if (type === "textTracks") {
