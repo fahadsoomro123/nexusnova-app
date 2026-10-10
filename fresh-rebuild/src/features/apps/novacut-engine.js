@@ -227,6 +227,7 @@ export class NovaCutCanvasPreview {
     this.urls = new Map();
     this.stickerMedia = new Map();
     this.stickerPending = new Map();
+    this.nativeEffectElements = new Map();
     this.frameProbe = new Map();
     const userAgent = String(globalThis.navigator?.userAgent || "");
     // Android System WebView may advance the HTMLVideoElement clock while
@@ -298,8 +299,8 @@ export class NovaCutCanvasPreview {
       display: "block",
       transformOrigin: "center center",
       transform: [
-        "translateX(" + (Number(clip?.x_offset || 0) / Math.max(1, Number(globalThis.devicePixelRatio) || 1)) + "px)",
-        "translateY(" + (Number(clip?.y_offset || 0) / Math.max(1, Number(globalThis.devicePixelRatio) || 1)) + "px)",
+        "translateX(" + (Number(clip?.x_offset || 0) / Math.max(0.1, (Number(this.canvas?.width) || 1) / Math.max(1, Number(this.canvas?.clientWidth) || 1))) + "px)",
+        "translateY(" + (Number(clip?.y_offset || 0) / Math.max(0.1, (Number(this.canvas?.height) || 1) / Math.max(1, Number(this.canvas?.clientHeight) || 1))) + "px)",
         "rotate(" + (Number(clip?.transform?.rotation || 0)) + "deg)",
         "scale(" + (Math.max(0.05, Number(clip?.transform?.scale ?? clip?.scale) || 1) * (clip?.transform?.flipX ? -1 : 1)) + "," +
           (Math.max(0.05, Number(clip?.transform?.scale ?? clip?.scale) || 1) * (clip?.transform?.flipY ? -1 : 1)) + ")"
@@ -788,7 +789,12 @@ export class NovaCutCanvasPreview {
     const effects = this.engine.registry.effectTracks
       .filter((effect) => now >= effect.startTime && now < effect.startTime + effect.duration)
       .sort((a, b) => Number(a.zIndex || 0) - Number(b.zIndex || 0));
-    for (const effect of effects) drawNovaCutEffect(ctx, this.sourceCanvas, effect, width, height);
+    if (this.nativeFallbackActive) {
+      this.syncNativeEffectOverlays(effects);
+    } else {
+      this.clearNativeEffectOverlays();
+      for (const effect of effects) drawNovaCutEffect(ctx, this.sourceCanvas, effect, width, height);
+    }
 
     const stickers = this.engine.registry.overlayTracks
       .filter((item) => now >= item.startTime && now < item.startTime + item.duration)
@@ -812,6 +818,84 @@ export class NovaCutCanvasPreview {
       .filter((cue) => now >= cue.startTime && now < cue.startTime + cue.duration)
       .sort((a, b) => Number(a.zIndex || 0) - Number(b.zIndex || 0));
     for (const cue of texts) this.drawText(ctx, cue, width, height);
+  }
+
+  syncNativeEffectOverlays(effects = []) {
+    const parent = this.canvas?.parentElement;
+    if (!parent || !this.nativeFallbackActive) {
+      this.clearNativeEffectOverlays();
+      return;
+    }
+    const activeIds = new Set(effects.map((effect) => String(effect.id)));
+    for (const [id, element] of this.nativeEffectElements) {
+      if (!activeIds.has(id)) {
+        element.remove();
+        this.nativeEffectElements.delete(id);
+      }
+    }
+    for (const effect of effects) {
+      const id = String(effect.id);
+      let element = this.nativeEffectElements.get(id);
+      if (!element) {
+        element = document.createElement("div");
+        element.className = "nx-novacut__native-effect-region";
+        element.setAttribute("aria-hidden", "true");
+        Object.assign(element.style, {
+          position: "absolute",
+          zIndex: "1",
+          pointerEvents: "none",
+          boxSizing: "border-box",
+          overflow: "hidden",
+          borderRadius: "2px"
+        });
+        // Insert immediately before the transparent canvas: the effect is above
+        // the native video layer but the canvas can still draw text/stickers over it.
+        parent.insertBefore(element, this.canvas);
+        this.nativeEffectElements.set(id, element);
+      }
+      const x = clamp(effect.x, 0, 0.94);
+      const y = clamp(effect.y, 0, 0.94);
+      const w = clamp(effect.width, 0.06, 1);
+      const h = clamp(effect.height, 0.06, 1);
+      element.style.left = (x * 100) + "%";
+      element.style.top = (y * 100) + "%";
+      element.style.width = (w * 100) + "%";
+      element.style.height = (h * 100) + "%";
+      element.style.backgroundImage = "none";
+      element.style.backgroundColor = "transparent";
+      element.style.backdropFilter = "none";
+      element.style.webkitBackdropFilter = "none";
+      const intensity = clamp(effect.intensity, 1, 64);
+      if (effect.type === "blur") {
+        const blur = Math.max(1, Math.min(28, intensity * 0.5));
+        element.style.backdropFilter = "blur(" + blur + "px)";
+        element.style.webkitBackdropFilter = "blur(" + blur + "px)";
+        element.style.backgroundColor = "rgba(255,255,255,0.025)";
+      } else if (effect.type === "mosaic") {
+        const cell = Math.max(4, Math.min(18, Math.round(intensity / 2)));
+        element.style.backdropFilter = "blur(1px) saturate(0.65)";
+        element.style.webkitBackdropFilter = "blur(1px) saturate(0.65)";
+        element.style.backgroundColor = "rgba(90,90,90,0.06)";
+        element.style.backgroundImage =
+          "repeating-linear-gradient(0deg,rgba(255,255,255,.12) 0 1px,transparent 1px " + cell + "px)," +
+          "repeating-linear-gradient(90deg,rgba(0,0,0,.15) 0 1px,transparent 1px " + cell + "px)";
+      } else if (effect.type === "scramble") {
+        const stripe = Math.max(3, Math.min(16, Math.round(intensity / 2)));
+        element.style.backdropFilter = "blur(1px) contrast(1.35) saturate(.55)";
+        element.style.webkitBackdropFilter = "blur(1px) contrast(1.35) saturate(.55)";
+        element.style.backgroundColor = "rgba(30,30,30,0.08)";
+        element.style.backgroundImage =
+          "repeating-linear-gradient(0deg,rgba(255,255,255,.18) 0 2px,transparent 2px " + stripe + "px)," +
+          "repeating-linear-gradient(90deg,rgba(0,0,0,.16) 0 2px,transparent 2px " + (stripe * 2) + "px)";
+      } else if (effect.type === "censor") {
+        element.style.backgroundColor = rgba(effect.color || "#000000", clamp(effect.opacity ?? 0.96, 0, 1));
+      }
+    }
+  }
+
+  clearNativeEffectOverlays() {
+    for (const element of this.nativeEffectElements.values()) element.remove();
+    this.nativeEffectElements.clear();
   }
 
   drawSticker(ctx, overlay, width, height) {
@@ -868,6 +952,7 @@ export class NovaCutCanvasPreview {
   dispose() {
     this.stop();
     this.resizeObserver?.disconnect();
+    this.clearNativeEffectOverlays();
     this.renderUnsubscribers.splice(0).forEach((unsubscribe) => {
       try { unsubscribe(); } catch (_) {}
     });
@@ -1006,6 +1091,10 @@ class NovaCutCommandCompiler {
       const begin = msToSec(clip.sourceStartTime);
       const end = begin + msToSec(clip.duration);
       const startAt = msToSec(clip.startTime);
+      const previewWidth = Math.max(1, Number(this.engine.preview?.canvas?.width) || width);
+      const previewHeight = Math.max(1, Number(this.engine.preview?.canvas?.height) || height);
+      const xOffset = (Number(clip.x_offset) || 0) * width / previewWidth;
+      const yOffset = (Number(clip.y_offset) || 0) * height / previewHeight;
       const aspectRatioMode = clip.fitMode === "fill" ? "increase" : "decrease";
       const vf = [
         // Match the editor's Fit/Fill framing before applying clip zoom.
@@ -1024,8 +1113,8 @@ class NovaCutCommandCompiler {
         ",setpts=PTS-STARTPTS+" + startAt.toFixed(3) + "/TB," + vf.join(",") + ",format=rgba[" + src + "]"
       );
       filters.push(
-        "[" + currentVideo + "][" + src + "]overlay=x=(W-w)/2+" + (Number(clip.x_offset) || 0) +
-        ":y=(H-h)/2+" + (Number(clip.y_offset) || 0) + ":eof_action=pass:shortest=0:repeatlast=0[" + out + "]"
+        "[" + currentVideo + "][" + src + "]overlay=x=(W-w)/2+" + xOffset.toFixed(2) +
+        ":y=(H-h)/2+" + yOffset.toFixed(2) + ":eof_action=pass:shortest=0:repeatlast=0[" + out + "]"
       );
       currentVideo = out;
     });
@@ -1815,6 +1904,7 @@ export class NovaCutEngine {
       '<button type="button" data-tool-action="sticker">Sticker</button>' +
       '<button type="button" data-tool-action="text">Text</button>' +
       '<button type="button" data-tool-action="effects">Effects</button>' +
+      '<button type="button" data-tool-action="clip-settings">Edit selected clip</button>' +
       '<button type="button" data-tool-action="fit-video">Fit video</button>' +
       '<button type="button" data-tool-action="fill-canvas">Fill canvas</button>' +
       '<button type="button" data-tool-action="zoom-in">Zoom in</button>' +
@@ -1836,6 +1926,7 @@ export class NovaCutEngine {
         if (action === "sticker") this.openStickerPicker();
         else if (action === "text") this.openTextEditor();
         else if (action === "effects") this.openEffectsEditor();
+        else if (action === "clip-settings") this.openSelectedClipInspector();
         else if (action === "fit-video") this.setSelectedFitMode("fit");
         else if (action === "fill-canvas") this.setSelectedFitMode("fill");
         else if (action === "zoom-in") this.adjustSelectedVideoScale(1.12);
@@ -1851,6 +1942,129 @@ export class NovaCutEngine {
         else if (action === "flip-y") this.flipSelected("y");
       });
     });
+  }
+
+  openSelectedClipInspector() {
+    const selected = this.registry.getById(this.activeTrackId);
+    if (!selected?.item) {
+      this.setStatus("Select a timeline clip first.");
+      return false;
+    }
+    const { type, item } = selected;
+    const titleByType = {
+      videoTracks: "Video clip settings",
+      audioTracks: "Audio clip settings",
+      textTracks: "Text clip settings",
+      overlayTracks: "Sticker settings",
+      effectTracks: "Effect settings"
+    };
+    const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
+    const seconds = (value) => (Math.max(0, finite(value)) / 1000).toFixed(2);
+    const input = (label, name, value, attrs = "") =>
+      '<label>' + label + '<input data-clip-prop="' + name + '" type="number" value="' + value + '" ' + attrs + '></label>';
+    let fields =
+      input("Start (seconds)", "start", seconds(item.startTime), 'min="0" max="3600" step="0.05"') +
+      input("Duration (seconds)", "duration", seconds(item.duration), 'min="0.03" max="3600" step="0.05"');
+
+    if (type === "videoTracks") {
+      const transform = item.transform || {};
+      fields +=
+        '<label>Frame mode<select data-clip-prop="fitMode"><option value="fit"' + (item.fitMode !== "fill" ? " selected" : "") + '>Fit</option><option value="fill"' + (item.fitMode === "fill" ? " selected" : "") + '>Fill canvas</option></select></label>' +
+        input("Scale (%)", "scale", Math.round(Math.max(0.05, finite(transform.scale ?? item.scale, 1)) * 100), 'min="25" max="400" step="5"') +
+        input("Position X (preview px)", "x", finite(item.x_offset), 'min="-2000" max="2000" step="1"') +
+        input("Position Y (preview px)", "y", finite(item.y_offset), 'min="-2000" max="2000" step="1"') +
+        input("Rotation (degrees)", "rotation", finite(transform.rotation), 'min="-360" max="360" step="1"') +
+        input("Source audio volume (%)", "volume", Math.round(finite(item.volume, 1) * 100), 'min="0" max="400" step="5"');
+    } else if (type === "audioTracks") {
+      fields += input("Audio volume (%)", "volume", Math.round(finite(item.volume, 1) * 100), 'min="0" max="400" step="5"');
+    } else if (type === "textTracks") {
+      const style = item.style || {};
+      fields += '<label>Text<textarea data-clip-prop="text" maxlength="240"></textarea></label>' +
+        input("Font size", "fontSize", finite(style.fontSize, 48), 'min="8" max="180" step="1"') +
+        input("Position X (%)", "x", Math.round(finite(style.x, 0.5) * 100), 'min="0" max="100" step="1"') +
+        input("Position Y (%)", "y", Math.round(finite(style.y, 0.82) * 100), 'min="0" max="100" step="1"') +
+        '<label>Text color<input data-clip-prop="color" type="color" value="' + (/^#[0-9a-f]{6}$/i.test(String(style.color || "")) ? style.color : "#ffffff") + '"></label>' +
+        input("Rotation (degrees)", "rotation", finite(style.rotation), 'min="-360" max="360" step="1"');
+    } else if (type === "overlayTracks") {
+      fields +=
+        input("Position X (%)", "x", Math.round(finite(item.x, 0.5) * 100), 'min="0" max="100" step="1"') +
+        input("Position Y (%)", "y", Math.round(finite(item.y, 0.5) * 100), 'min="0" max="100" step="1"') +
+        input("Width (%)", "width", Math.round(finite(item.width, 0.2) * 100), 'min="3" max="100" step="1"') +
+        input("Height (%)", "height", Math.round(finite(item.height, 0.2) * 100), 'min="3" max="100" step="1"') +
+        input("Scale (%)", "scale", Math.round(finite(item.scale, 1) * 100), 'min="10" max="500" step="5"') +
+        input("Rotation (degrees)", "rotation", finite(item.rotation), 'min="-360" max="360" step="1"');
+    } else if (type === "effectTracks") {
+      fields +=
+        '<label>Effect<select data-clip-prop="effectType">' +
+        ["blur", "mosaic", "scramble", "censor"].map((name) => '<option value="' + name + '"' + (item.type === name ? " selected" : "") + '>' + name + '</option>').join("") +
+        '</select></label>' +
+        input("Position X (%)", "x", Math.round(finite(item.x, 0.25) * 100), 'min="0" max="94" step="1"') +
+        input("Position Y (%)", "y", Math.round(finite(item.y, 0.25) * 100), 'min="0" max="94" step="1"') +
+        input("Width (%)", "width", Math.round(finite(item.width, 0.5) * 100), 'min="6" max="100" step="1"') +
+        input("Height (%)", "height", Math.round(finite(item.height, 0.5) * 100), 'min="6" max="100" step="1"') +
+        input("Intensity", "intensity", finite(item.intensity, 12), 'min="1" max="64" step="1"');
+    } else {
+      this.setStatus("This selection cannot be edited here.");
+      return false;
+    }
+
+    const sheet = this.openSheet(titleByType[type] || "Clip settings");
+    sheet.body.innerHTML =
+      '<div class="nx-novacut__form-grid">' + fields + '</div>' +
+      '<p class="nx-novacut__sheet-copy">Edits apply to the selected timeline item and are included in Undo.</p>' +
+      '<div class="nx-novacut__sheet-actions"><button type="button" class="nx-novacut__secondary" data-sheet-close>Cancel</button><button type="button" class="nx-novacut__primary" data-apply-clip-settings>Apply changes</button></div>';
+    const textInput = sheet.body.querySelector('[data-clip-prop="text"]');
+    if (textInput) textInput.value = String(item.text || "");
+    sheet.body.querySelector("[data-apply-clip-settings]")?.addEventListener("click", () => {
+      const value = (name, fallback) => {
+        const parsed = Number(sheet.body.querySelector('[data-clip-prop="' + name + '"]')?.value);
+        return Number.isFinite(parsed) ? parsed : fallback;
+      };
+      const before = this.history.capture();
+      item.startTime = Math.round(clamp(value("start", finite(item.startTime) / 1000), 0, 3600) * 1000);
+      item.duration = Math.round(clamp(value("duration", finite(item.duration, 3000) / 1000), 0.03, 3600) * 1000);
+      if (type === "videoTracks") {
+        const scale = clamp(value("scale", 100) / 100, 0.25, 4);
+        item.scale = scale;
+        item.transform = { ...(item.transform || {}), scale, rotation: clamp(value("rotation", 0), -360, 360) };
+        item.x_offset = clamp(value("x", finite(item.x_offset)), -2000, 2000);
+        item.y_offset = clamp(value("y", finite(item.y_offset)), -2000, 2000);
+        item.volume = clamp(value("volume", 100) / 100, 0, 4);
+        item.fitMode = sheet.body.querySelector('[data-clip-prop="fitMode"]')?.value === "fill" ? "fill" : "fit";
+      } else if (type === "audioTracks") {
+        item.volume = clamp(value("volume", 100) / 100, 0, 4);
+      } else if (type === "textTracks") {
+        item.text = String(textInput?.value || "").slice(0, 240);
+        item.style = {
+          ...(item.style || {}),
+          fontSize: clamp(value("fontSize", 48), 8, 180),
+          x: clamp(value("x", 50) / 100, 0, 1),
+          y: clamp(value("y", 82) / 100, 0, 1),
+          color: sheet.body.querySelector('[data-clip-prop="color"]')?.value || "#ffffff",
+          rotation: clamp(value("rotation", 0), -360, 360)
+        };
+      } else if (type === "overlayTracks") {
+        item.width = clamp(value("width", 20) / 100, 0.03, 1);
+        item.height = clamp(value("height", 20) / 100, 0.03, 1);
+        item.x = clamp(value("x", 50) / 100, 0, Math.max(0, 1 - item.width));
+        item.y = clamp(value("y", 50) / 100, 0, Math.max(0, 1 - item.height));
+        item.scale = clamp(value("scale", 100) / 100, 0.1, 5);
+        item.rotation = clamp(value("rotation", 0), -360, 360);
+      } else if (type === "effectTracks") {
+        item.width = clamp(value("width", 50) / 100, 0.06, 1);
+        item.height = clamp(value("height", 50) / 100, 0.06, 1);
+        item.x = clamp(value("x", 25) / 100, 0, Math.max(0, 1 - item.width));
+        item.y = clamp(value("y", 25) / 100, 0, Math.max(0, 1 - item.height));
+        item.intensity = clamp(value("intensity", 12), 1, 64);
+        const nextType = sheet.body.querySelector('[data-clip-prop="effectType"]')?.value;
+        if (["blur", "mosaic", "scramble", "censor"].includes(nextType)) item.type = nextType;
+      }
+      this.history.record(before, "Edit " + type.replace("Tracks", "").replace(/s$/, ""));
+      this.closeSheet(sheet.root);
+      this.refresh();
+      this.setStatus("Updated selected clip");
+    });
+    return true;
   }
 
   openSheet(title) {
