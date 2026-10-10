@@ -1408,17 +1408,13 @@ export class NovaCutStudioInteractions {
     element.style.width =
       width + "px";
 
-    element.style.minWidth =
-      width + "px";
-
-    element.style.flex =
-      "0 0 " + width + "px";
-
-    element.style.marginLeft =
-      start * scale + "px";
-
-    element.style.transform =
-      "translate3d(0,0,0)";
+    element.style.setProperty("min-width", width + "px", "important");
+    element.style.setProperty("position", "absolute", "important");
+    element.style.left = start * scale + "px";
+    element.style.top = "2px";
+    element.style.flex = "0 0 auto";
+    element.style.marginLeft = "0px";
+    element.style.transform = "translate3d(0,0,0)";
   }
 
   syncTimeline() {

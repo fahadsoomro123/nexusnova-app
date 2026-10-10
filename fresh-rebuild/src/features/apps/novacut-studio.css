@@ -452,11 +452,9 @@
 
 .nx-novacut__lane {
   position: relative !important;
-  display: flex !important;
-  align-items: center !important;
-  gap: 6px !important;
+  display: block !important;
   min-width: 0 !important;
-  padding: 5px 8px !important;
+  padding: 3px 0 !important;
   border-radius: 13px !important;
   background:
     linear-gradient(90deg, rgba(255,255,255,.02), rgba(255,255,255,.035)) !important;
@@ -476,6 +474,7 @@
 .nx-novacut__lane-tool {
   position: relative !important;
   z-index: 1 !important;
+  margin-left: 8px !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -493,6 +492,7 @@
 .nx-novacut__lane-hint {
   position: relative !important;
   z-index: 1 !important;
+  padding-left: 8px !important;
   color: #666670 !important;
   font-size: 7px !important;
   font-weight: 750 !important;
@@ -501,7 +501,7 @@
 }
 
 .nx-novacut__clip {
-  position: relative !important;
+  position: absolute !important;
   z-index: 2 !important;
   display: flex !important;
   align-items: center !important;

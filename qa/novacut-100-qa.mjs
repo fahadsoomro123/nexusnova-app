@@ -49,11 +49,11 @@ check("effect add API present", () => assert(has(engine, "addEffect(input"), "ef
 check("delete API present", () => assert(has(engine, "removeSelected()"), "delete API missing"));
 check("duplicate API present", () => assert(has(engine, "duplicateSelected()"), "duplicate API missing"));
 check("playback follows decoded video clock", () => assert(has(engine, "mediaTimelineTime = clockClip.startTime") && has(engine, "media.currentTime * 1000"), "media clock sync missing"));
-check("render avoids per-frame decoder seeking", () => assert(has(engine, "media.currentTime = target") && !has(engine, "this.engine.isPlaying && Math.abs(media.currentTime - target) > 0.3"), "per-frame seek thrash still present"));
+check("render avoids per-frame decoder seeking and canvas resets", () => assert(has(engine, "media.currentTime = target") && !has(engine, "this.engine.isPlaying && Math.abs(media.currentTime - target) > 0.3") && has(engine, "if (this.sourceCanvas.width !== width) this.sourceCanvas.width = width;") && has(engine, "if (this.sourceCanvas.height !== height) this.sourceCanvas.height = height;"), "decoder seek thrash or per-frame backing canvas reset still present"));
 check("undo API present", () => assert(has(engine, "undo()"), "undo API missing"));
 check("redo API present", () => assert(has(engine, "redo()"), "redo API missing"));
 check("cycleRatio restored", () => assert(/\n  cycleRatio\(\) \{/.test(engine), "cycleRatio missing"));
-check("ratio action updates mobile preview geometry and duration ruler", () => assert(has(engine, 'bind("ratio", () => this.cycleRatio());') && has(suite, "syncPreviewFrame") && has(suite, "canvasShell.dataset.ratio") && has(suite, "renderTimelineRuler") && has(suite, "--nc-content-width") && has(suite, "NOVACUT_PIXELS_PER_SECOND") && has(studio, "export const NOVACUT_PIXELS_PER_SECOND = 36") && has(studioCss, '[data-ratio="9:16"]') && has(studioCss, "var(--nc-ruler-px-per-second, 36px)") && has(engine, "applyInitialAspectRatio"), "ratio control, ruler scale or portrait detection missing"));
+check("ratio picker and video fit/fill update preview and export", () => assert(has(engine, 'bind("ratio", () => this.openCanvasRatioPicker());') && has(engine, "openCanvasRatioPicker()") && has(engine, "setSelectedFitMode(mode)") && has(engine, 'objectFit: clip?.fitMode === "fill" ? "cover" : "contain"') && has(engine, 'clip.fitMode === "fill" ? "increase" : "decrease"') && has(suite, "syncPreviewFrame") && has(suite, "canvasShell.dataset.ratio") && has(suite, "renderTimelineRuler") && has(suite, "--nc-content-width") && has(studioCss, '[data-ratio="9:16"]') && has(engine, "applyInitialAspectRatio"), "ratio picker, Fit/Fill, ruler scale or portrait detection missing"));
 
 // 26-40: media ingestion
 check("media parser class present", () => assert(has(media, "export class NovaCutMediaParser"), "parser class missing"));
@@ -90,8 +90,8 @@ check("media injected status path", () => assert(has(suite, "Checking video deco
 check("decode error detail is visible", () => assert(has(suite, "Decode failed: ") && has(suite, "status.title = message"), "decode error details missing"));
 
 // 56-65: interaction/history correctness
-check("pointer interaction present", () => assert(has(engine, "pointerdown"), "pointerdown missing"));
-check("playhead stays aligned during horizontal timeline scrolling", () => assert(has(studio, "this.timeline.scrollLeft") && has(studio, "this.timeline.scrollWidth") && has(studio, "laneRect.left"), "scroll-aware playhead positioning missing"));
+check("pointer interaction includes direct video framing", () => assert(has(engine, "pointerdown") && has(engine, 'return { type: "videoTracks", item: activeVideos[0] }') && has(engine, "record.item.y_offset ="), "video preview drag framing missing"));
+check("playhead and clips use absolute scroll-aware timeline positions", () => assert(has(studio, "this.timeline.scrollLeft") && has(studio, "this.timeline.scrollWidth") && has(studio, "laneRect.left") && has(studio, 'element.style.left = start * scale + "px"') && has(studio, 'element.style.marginLeft = "0px"') && has(studio, 'element.style.setProperty("min-width", width + "px", "important")') && has(suite, "sort(byStartTime)"), "timeline geometry, duration width or chronological ordering regression"));
 check("pointer up present", () => assert(has(engine, "pointerup"), "pointerup missing"));
 check("pointer cancel present", () => assert(has(engine, "pointercancel"), "pointercancel missing"));
 check("history transaction begin present", () => assert(has(studio, "beginHistoryTransaction"), "history begin wiring missing"));

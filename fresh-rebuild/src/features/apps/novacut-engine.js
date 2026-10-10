@@ -98,6 +98,8 @@ export class NovaCutTrackRegistry {
       duration: Math.max(1, Number(input.duration) || 1),
       sourceStartTime: Math.max(0, Number(input.sourceStartTime) || 0),
       x_offset: Number(input.x_offset) || 0,
+      y_offset: Number(input.y_offset) || 0,
+      fitMode: input.fitMode === "fill" ? "fill" : "fit",
       scale: Math.max(0.05, Number(input.scale) || Number(transform.scale) || 1),
       transform: {
         scale: Math.max(0.05, Number(transform.scale ?? input.scale) || 1),
@@ -252,8 +254,8 @@ export class NovaCutCanvasPreview {
     const height = Math.max(2, Math.round(rect.height * dpr));
     if (this.canvas.width !== width) this.canvas.width = width;
     if (this.canvas.height !== height) this.canvas.height = height;
-    this.sourceCanvas.width = width;
-    this.sourceCanvas.height = height;
+    if (this.sourceCanvas.width !== width) this.sourceCanvas.width = width;
+    if (this.sourceCanvas.height !== height) this.sourceCanvas.height = height;
   }
 
   mountNativePreview(media, clip = null) {
@@ -275,7 +277,7 @@ export class NovaCutCanvasPreview {
       height: "100%",
       maxWidth: "100%",
       maxHeight: "100%",
-      objectFit: "contain",
+      objectFit: clip?.fitMode === "fill" ? "cover" : "contain",
       zIndex: "0",
       pointerEvents: "none",
       background: "#050507",
@@ -283,6 +285,7 @@ export class NovaCutCanvasPreview {
       transformOrigin: "center center",
       transform: [
         "translateX(" + (Number(clip?.x_offset || 0) / Math.max(1, Number(globalThis.devicePixelRatio) || 1)) + "px)",
+        "translateY(" + (Number(clip?.y_offset || 0) / Math.max(1, Number(globalThis.devicePixelRatio) || 1)) + "px)",
         "rotate(" + (Number(clip?.transform?.rotation || 0)) + "deg)",
         "scale(" + (Math.max(0.05, Number(clip?.transform?.scale ?? clip?.scale) || 1) * (clip?.transform?.flipX ? -1 : 1)) + "," +
           (Math.max(0.05, Number(clip?.transform?.scale ?? clip?.scale) || 1) * (clip?.transform?.flipY ? -1 : 1)) + ")"
@@ -704,11 +707,13 @@ export class NovaCutCanvasPreview {
       const clipScale = Math.max(0.05, Number(clip.transform?.scale ?? clip.scale) || 1);
       const scaledW = sw * clipScale;
       const scaledH = sh * clipScale;
-      const fit = Math.min(width / scaledW, height / scaledH);
+      const fit = clip.fitMode === "fill"
+        ? Math.max(width / scaledW, height / scaledH)
+        : Math.min(width / scaledW, height / scaledH);
       const dw = scaledW * fit;
       const dh = scaledH * fit;
       const x = (width - dw) / 2 + (Number(clip.x_offset) || 0);
-      const y = (height - dh) / 2;
+      const y = (height - dh) / 2 + (Number(clip.y_offset) || 0);
       const rotation = (Number(clip.transform?.rotation) || 0) * Math.PI / 180;
 
       if (isVideoElement && this.nativeFallbackActive) {
@@ -955,11 +960,10 @@ class NovaCutCommandCompiler {
       const begin = msToSec(clip.sourceStartTime);
       const end = begin + msToSec(clip.duration);
       const startAt = msToSec(clip.startTime);
+      const aspectRatioMode = clip.fitMode === "fill" ? "increase" : "decrease";
       const vf = [
-        // First fit to the selected output canvas, then apply the editor zoom.
-        // The previous code scaled by clip.zoom relative to source dimensions,
-        // which made previews and exported framing disagree.
-        "scale=" + width + ":" + height + ":force_original_aspect_ratio=decrease",
+        // Match the editor's Fit/Fill framing before applying clip zoom.
+        "scale=" + width + ":" + height + ":force_original_aspect_ratio=" + aspectRatioMode,
         "scale=trunc(iw*" + scale + "/2)*2:trunc(ih*" + scale + "/2)*2"
       ];
       if (transform.flipX) vf.push("hflip");
@@ -975,7 +979,7 @@ class NovaCutCommandCompiler {
       );
       filters.push(
         "[" + currentVideo + "][" + src + "]overlay=x=(W-w)/2+" + (Number(clip.x_offset) || 0) +
-        ":y=(H-h)/2:eof_action=pass:shortest=0:repeatlast=0[" + out + "]"
+        ":y=(H-h)/2+" + (Number(clip.y_offset) || 0) + ":eof_action=pass:shortest=0:repeatlast=0[" + out + "]"
       );
       currentVideo = out;
     });
@@ -1182,7 +1186,7 @@ export class NovaCutEngine {
     bind("split", () => this.executeSplitAction(this.activeTrackId, this.currentTimestamp));
     bind("audio", () => this.importAudio());
     bind("text", () => this.addTextOverlay());
-    bind("ratio", () => this.cycleRatio());
+    bind("ratio", () => this.openCanvasRatioPicker());
     bind("export", () => this.compileAndExportVideo());
     bind("play", () => this.togglePlayback());
 
@@ -1389,6 +1393,84 @@ export class NovaCutEngine {
     this.setStatus(nextRatio);
     this.refresh();
     return nextRatio;
+  }
+
+  openCanvasRatioPicker() {
+    const sheet = this.openSheet("Canvas ratio");
+    sheet.body.innerHTML =
+      '<div class="nx-novacut__tool-grid">' +
+      Object.keys(RATIO_PRESETS).map((ratio) =>
+        '<button type="button" data-ratio-value="' + ratio + '"' +
+        (ratio === this.aspectRatio ? ' aria-pressed="true"' : ' aria-pressed="false"') +
+        '>' + ratio + '</button>'
+      ).join("") +
+      '</div>';
+    sheet.body.querySelectorAll("[data-ratio-value]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const ratio = button.dataset.ratioValue;
+        if (!RATIO_PRESETS[ratio]) return;
+        this.aspectRatio = ratio;
+        this.aspectRatioExplicit = true;
+        this.events.emit("ratio", { ratio, size: RATIO_PRESETS[ratio] });
+        this.setStatus("Canvas " + ratio);
+        this.refresh();
+        this.closeSheet(sheet.root);
+      });
+    });
+  }
+
+  setSelectedFitMode(mode) {
+    const selected = this.registry.getById(this.activeTrackId);
+    if (!selected || selected.type !== "videoTracks") {
+      this.setStatus("Select a video clip first.");
+      return false;
+    }
+    const fitMode = mode === "fill" ? "fill" : "fit";
+    if (selected.item.fitMode === fitMode) {
+      this.setStatus(fitMode === "fill" ? "Fill canvas" : "Fit video");
+      return true;
+    }
+    const before = this.history.capture();
+    selected.item.fitMode = fitMode;
+    this.history.record(before, fitMode === "fill" ? "Fill canvas" : "Fit video");
+    this.setStatus(fitMode === "fill" ? "Fill canvas" : "Fit video");
+    this.refresh();
+    return true;
+  }
+
+  adjustSelectedVideoScale(multiplier) {
+    const selected = this.registry.getById(this.activeTrackId);
+    if (!selected || selected.type !== "videoTracks") {
+      this.setStatus("Select a video clip first.");
+      return false;
+    }
+    const before = this.history.capture();
+    const oldScale = Math.max(0.05, Number(selected.item.transform?.scale ?? selected.item.scale) || 1);
+    const nextScale = clamp(oldScale * (Number(multiplier) || 1), 0.25, 4);
+    selected.item.transform = { ...(selected.item.transform || {}), scale: nextScale };
+    selected.item.scale = nextScale;
+    this.history.record(before, "Resize video");
+    this.setStatus("Video scale " + Math.round(nextScale * 100) + "%");
+    this.refresh();
+    return true;
+  }
+
+  resetSelectedVideoFraming() {
+    const selected = this.registry.getById(this.activeTrackId);
+    if (!selected || selected.type !== "videoTracks") {
+      this.setStatus("Select a video clip first.");
+      return false;
+    }
+    const before = this.history.capture();
+    selected.item.fitMode = "fit";
+    selected.item.x_offset = 0;
+    selected.item.y_offset = 0;
+    selected.item.scale = 1;
+    selected.item.transform = { ...(selected.item.transform || {}), scale: 1 };
+    this.history.record(before, "Reset video framing");
+    this.setStatus("Video framing reset");
+    this.refresh();
+    return true;
   }
 
   setPlayhead(timestamp) {
@@ -1680,6 +1762,11 @@ export class NovaCutEngine {
       '<button type="button" data-tool-action="sticker">Sticker</button>' +
       '<button type="button" data-tool-action="text">Text</button>' +
       '<button type="button" data-tool-action="effects">Effects</button>' +
+      '<button type="button" data-tool-action="fit-video">Fit video</button>' +
+      '<button type="button" data-tool-action="fill-canvas">Fill canvas</button>' +
+      '<button type="button" data-tool-action="zoom-in">Zoom in</button>' +
+      '<button type="button" data-tool-action="zoom-out">Zoom out</button>' +
+      '<button type="button" data-tool-action="reset-frame">Reset frame</button>' +
       '<button type="button" data-tool-action="duplicate">Duplicate</button>' +
       '<button type="button" data-tool-action="delete">Delete</button>' +
       '<button type="button" data-tool-action="rotate">Rotate</button>' +
@@ -1693,6 +1780,11 @@ export class NovaCutEngine {
         if (action === "sticker") this.openStickerPicker();
         else if (action === "text") this.openTextEditor();
         else if (action === "effects") this.openEffectsEditor();
+        else if (action === "fit-video") this.setSelectedFitMode("fit");
+        else if (action === "fill-canvas") this.setSelectedFitMode("fill");
+        else if (action === "zoom-in") this.adjustSelectedVideoScale(1.12);
+        else if (action === "zoom-out") this.adjustSelectedVideoScale(1 / 1.12);
+        else if (action === "reset-frame") this.resetSelectedVideoFraming();
         else if (action === "duplicate") this.duplicateSelected();
         else if (action === "delete") this.removeSelected();
         else if (action === "rotate") this.rotateSelected();
@@ -1742,6 +1834,8 @@ export class NovaCutEngine {
       for (const item of active(this.registry.textTracks)) {
         if (Math.abs(x - Number(item.style?.x || 0.5)) <= 0.25 && Math.abs(y - Number(item.style?.y || 0.82)) <= 0.18) return { type: "textTracks", item };
       }
+      const activeVideos = this.getActiveVideoClips().slice().sort((a, b) => b.startTime - a.startTime);
+      if (activeVideos.length) return { type: "videoTracks", item: activeVideos[0] };
       return null;
     };
     const localPoint = (event) => {
@@ -1788,8 +1882,10 @@ export class NovaCutEngine {
       } else if (record.type === "effectTracks") {
         record.item.x = clamp((state.original.x || 0.25) + dx, 0, Math.max(0, 1 - record.item.width));
         record.item.y = clamp((state.original.y || 0.25) + dy, 0, Math.max(0, 1 - record.item.height));
+      } else if (record.type === "videoTracks") {
+        record.item.x_offset = (Number(state.original.x_offset) || 0) + dx * (canvas.width || width);
+        record.item.y_offset = (Number(state.original.y_offset) || 0) + dy * (canvas.height || height);
       }
-      this.refresh();
       event.preventDefault();
     }, { signal: this.abort.signal });
 
@@ -1798,6 +1894,7 @@ export class NovaCutEngine {
       if (!state || state.pointerId !== event.pointerId) return;
       this.canvasPointerState = null;
       this.history.commit();
+      this.refresh();
       canvas.releasePointerCapture?.(event.pointerId);
       event.preventDefault();
     };
@@ -1806,6 +1903,7 @@ export class NovaCutEngine {
       if (!this.canvasPointerState) return;
       this.canvasPointerState = null;
       this.history.cancel();
+      this.refresh();
       event.preventDefault();
     }, { signal: this.abort.signal });
   }

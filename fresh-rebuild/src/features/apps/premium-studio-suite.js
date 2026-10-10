@@ -206,11 +206,12 @@ function renderNovaCut() {
   const renderTimeline = (state = {}) => {
     if (!videoLane || !audioLane || !textLane || !overlayLane || !effectLane) return;
     renderTimelineRuler();
-    const videos = state.videoTracks || [];
-    const audios = state.audioTracks || [];
-    const texts = state.textTracks || [];
-    const overlays = state.overlayTracks || [];
-    const effects = state.effectTracks || [];
+    const byStartTime = (a, b) => (Number(a.startTime) || 0) - (Number(b.startTime) || 0);
+    const videos = [...(state.videoTracks || [])].sort(byStartTime);
+    const audios = [...(state.audioTracks || [])].sort(byStartTime);
+    const texts = [...(state.textTracks || [])].sort(byStartTime);
+    const overlays = [...(state.overlayTracks || [])].sort(byStartTime);
+    const effects = [...(state.effectTracks || [])].sort(byStartTime);
 
     videoLane.innerHTML = videos.length
       ? videos.map((clip) => renderTrackClip(clip, 'video')).join('')
