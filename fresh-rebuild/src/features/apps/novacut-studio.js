@@ -27,6 +27,35 @@ function clamp(value, min, max) {
   return Math.min(Math.max(finite(value), min), max);
 }
 
+export function novaCutCanvasPointFromClient(clientX, clientY, bounds) {
+  const width = finite(bounds?.width);
+  const height = finite(bounds?.height);
+  if (width <= 0 || height <= 0) return null;
+  return {
+    x: clamp((finite(clientX) - finite(bounds.left)) / width, 0, 1),
+    y: clamp((finite(clientY) - finite(bounds.top)) / height, 0, 1)
+  };
+}
+
+export function moveNovaCutCanvasOverlay(item, type, x, y) {
+  if (!item) return null;
+  if (type === "textTracks") {
+    item.style = item.style || {};
+    item.style.x = clamp(x, 0.02, 0.98);
+    item.style.y = clamp(y, 0.02, 0.98);
+    return { x: item.style.x, y: item.style.y };
+  }
+  if (type === "overlayTracks") {
+    const scale = Math.max(0.1, finite(item.scale, 1));
+    const halfX = clamp(finite(item.width, 0.2) * scale / 2, 0.02, 0.48);
+    const halfY = clamp(finite(item.height, 0.2) * scale / 2, 0.02, 0.48);
+    item.x = clamp(x, halfX, 1 - halfX);
+    item.y = clamp(y, halfY, 1 - halfY);
+    return { x: item.x, y: item.y };
+  }
+  return null;
+}
+
 function getTouch(event) {
   return event.changedTouches?.[0] ||
     event.touches?.[0] ||
@@ -92,6 +121,7 @@ function ensureStyle(root) {
     ".nx-novacut__interaction-playhead::before{content:'';position:absolute;top:-1px;left:50%;width:9px;height:9px;border-radius:3px;background:#45a8ff;border:1px solid #fff;transform:translate(-50%,-50%);box-shadow:0 0 10px rgba(69,168,255,.5);}",
     ".nx-novacut__clip[data-novacut-dragging='true']{z-index:8;opacity:.92;}",
     ".nx-novacut__clip[data-novacut-trimming='true']{z-index:9;}",
+    ".nx-novacut__canvas-shell.novacut-overlay-dragging{cursor:move;touch-action:none;user-select:none;-webkit-user-select:none;}",
     "@media (prefers-reduced-motion:no-preference){.nx-novacut__interaction-playhead{transition:left 40ms linear;}}"
   ].join("");
 
@@ -121,6 +151,9 @@ export class NovaCutStudioInteractions {
 
     this.mode = "idle";
     this.touchState = null;
+    this.overlayDragState = null;
+    this.pendingOverlayPoint = null;
+    this.pendingOverlayFrame = 0;
 
     this.pendingFrame = 0;
     this.pendingMutationFrame = 0;
@@ -191,6 +224,7 @@ export class NovaCutStudioInteractions {
     this.root.addEventListener(
       "touchstart",
       (event) => {
+        if (this.beginCanvasOverlayDrag(event)) return;
         this.onTouchStart(event);
       },
       {
@@ -202,6 +236,7 @@ export class NovaCutStudioInteractions {
     this.root.addEventListener(
       "touchmove",
       (event) => {
+        if (this.updateCanvasOverlayDrag(event)) return;
         this.onTouchMove(event);
       },
       {
@@ -213,6 +248,7 @@ export class NovaCutStudioInteractions {
     this.root.addEventListener(
       "touchend",
       (event) => {
+        if (this.finishCanvasOverlayDrag(event)) return;
         this.onTouchEnd(event);
       },
       {
@@ -224,6 +260,7 @@ export class NovaCutStudioInteractions {
     this.root.addEventListener(
       "touchcancel",
       (event) => {
+        if (this.cancelCanvasOverlayDrag(event)) return;
         this.onTouchCancel(event);
       },
       {
@@ -236,18 +273,22 @@ export class NovaCutStudioInteractions {
     // Windows/desktop gap without double-handling touch-generated pointers.
     this.root.addEventListener("pointerdown", (event) => {
       if (event.pointerType === "touch") return;
+      if (this.beginCanvasOverlayDrag(event)) return;
       this.onTouchStart(event);
     }, { signal, passive: false });
     this.root.ownerDocument.addEventListener("pointermove", (event) => {
       if (event.pointerType === "touch") return;
+      if (this.updateCanvasOverlayDrag(event)) return;
       this.onTouchMove(event);
     }, { signal, passive: false });
     this.root.ownerDocument.addEventListener("pointerup", (event) => {
       if (event.pointerType === "touch") return;
+      if (this.finishCanvasOverlayDrag(event)) return;
       this.onTouchEnd(event);
     }, { signal, passive: false });
     this.root.ownerDocument.addEventListener("pointercancel", (event) => {
       if (event.pointerType === "touch") return;
+      if (this.cancelCanvasOverlayDrag(event)) return;
       this.onTouchCancel(event);
     }, { signal, passive: false });
 
@@ -285,6 +326,146 @@ export class NovaCutStudioInteractions {
         () => this.scheduleSync()
       )
     );
+  }
+
+  beginCanvasOverlayDrag(event) {
+    if (this.overlayDragState) return true;
+    const point = getTouch(event);
+    const target = event.target instanceof Element ? event.target : null;
+    const shell = target?.closest(".nx-novacut__canvas-shell");
+    if (!point || !shell || this.timeline?.contains(target)) return false;
+    if (String(event.type || "").startsWith("pointer") && event.button !== 0) return false;
+
+    const bounds = shell.getBoundingClientRect();
+    const normalized = novaCutCanvasPointFromClient(point.clientX, point.clientY, bounds);
+    const canvas = shell.querySelector("[data-role='preview-canvas']");
+    if (!normalized || !canvas) return false;
+    const canvasWidth = Math.max(1, finite(canvas.width, bounds.width));
+    const canvasHeight = Math.max(1, finite(canvas.height, bounds.height));
+    const now = finite(this.engine.currentTimestamp);
+    const activeAtPlayhead = (item) =>
+      now >= finite(item.startTime) && now < finite(item.startTime) + finite(item.duration);
+
+    const isHit = (item, type) => {
+      const isText = type === "textTracks";
+      const x = isText ? finite(item.style?.x, 0.5) : finite(item.x, 0.5);
+      const y = isText ? finite(item.style?.y, 0.82) : finite(item.y, 0.5);
+      const dx = (normalized.x - x) * canvasWidth;
+      const dy = (normalized.y - y) * canvasHeight;
+      const rotation = -(finite(isText ? item.style?.rotation : item.rotation) * Math.PI / 180);
+      const cos = Math.cos(rotation);
+      const sin = Math.sin(rotation);
+      const rotatedX = dx * cos - dy * sin;
+      const rotatedY = dx * sin + dy * cos;
+      let halfWidth;
+      let halfHeight;
+      if (isText) {
+        const style = item.style || {};
+        const size = Math.max(8, finite(style.fontSize, 48));
+        const lines = String(item.text || "").split(/\r?\n/).slice(0, 8);
+        const longest = Math.max(1, ...lines.map((line) => line.length));
+        halfWidth = Math.max(size * 0.55, longest * size * 0.32) + (style.background ? size * 0.35 : 0);
+        halfHeight = Math.max(size * 0.6, lines.length * size * 0.6) + (style.background ? size * 0.2 : 0);
+      } else {
+        const scale = Math.max(0.1, finite(item.scale, 1));
+        halfWidth = Math.max(12, canvasWidth * finite(item.width, 0.2) * scale / 2);
+        halfHeight = Math.max(12, canvasHeight * finite(item.height, 0.2) * scale / 2);
+      }
+      return Math.abs(rotatedX) <= halfWidth + 10 && Math.abs(rotatedY) <= halfHeight + 10;
+    };
+
+    const texts = (this.engine.registry.textTracks || [])
+      .filter(activeAtPlayhead).slice().sort((a, b) => finite(b.zIndex) - finite(a.zIndex));
+    const stickers = (this.engine.registry.overlayTracks || [])
+      .filter(activeAtPlayhead).slice().sort((a, b) => finite(b.zIndex) - finite(a.zIndex));
+    let selected = texts.find((item) => isHit(item, "textTracks"));
+    let type = "textTracks";
+    if (!selected) {
+      selected = stickers.find((item) => isHit(item, "overlayTracks"));
+      type = "overlayTracks";
+    }
+    if (!selected) return false;
+
+    const originalX = type === "textTracks" ? finite(selected.style?.x, 0.5) : finite(selected.x, 0.5);
+    const originalY = type === "textTracks" ? finite(selected.style?.y, 0.82) : finite(selected.y, 0.5);
+    this.engine.beginHistoryTransaction?.("Move canvas overlay");
+    this.engine.activeTrackId = selected.id;
+    this.overlayDragState = {
+      item: selected,
+      type,
+      shell,
+      pointerId: Number.isFinite(event.pointerId) ? event.pointerId : null,
+      originalX,
+      originalY
+    };
+    shell.classList.add("novacut-overlay-dragging");
+    event.preventDefault?.();
+    return true;
+  }
+
+  updateCanvasOverlayDrag(event) {
+    const state = this.overlayDragState;
+    if (!state) return false;
+    if (state.pointerId !== null && Number.isFinite(event.pointerId) && event.pointerId !== state.pointerId) return true;
+    const point = getTouch(event);
+    if (!point) return true;
+    const bounds = state.shell.getBoundingClientRect();
+    this.pendingOverlayPoint = novaCutCanvasPointFromClient(point.clientX, point.clientY, bounds);
+    event.preventDefault?.();
+    if (!this.pendingOverlayFrame) {
+      this.pendingOverlayFrame = requestAnimationFrame(() => {
+        this.pendingOverlayFrame = 0;
+        this.flushCanvasOverlayPoint();
+      });
+    }
+    return true;
+  }
+
+  flushCanvasOverlayPoint() {
+    if (this.pendingOverlayFrame) {
+      cancelAnimationFrame(this.pendingOverlayFrame);
+      this.pendingOverlayFrame = 0;
+    }
+    const state = this.overlayDragState;
+    const point = this.pendingOverlayPoint;
+    this.pendingOverlayPoint = null;
+    if (!state || !point) return;
+    moveNovaCutCanvasOverlay(state.item, state.type, point.x, point.y);
+    this.engine.preview?.markDirty();
+  }
+
+  finishCanvasOverlayDrag(event) {
+    if (!this.overlayDragState) return false;
+    if (event) this.updateCanvasOverlayDrag(event);
+    this.flushCanvasOverlayPoint();
+    const state = this.overlayDragState;
+    this.overlayDragState = null;
+    state.shell.classList.remove("novacut-overlay-dragging");
+    try {
+      this.engine.refresh();
+      this.engine.commitHistoryTransaction?.();
+      this.engine.preview?.markDirty();
+    } catch (error) {
+      this.engine.reportError("canvas-overlay-commit", error);
+    }
+    event?.preventDefault?.();
+    return true;
+  }
+
+  cancelCanvasOverlayDrag(event) {
+    const state = this.overlayDragState;
+    if (!state) return false;
+    if (this.pendingOverlayFrame) cancelAnimationFrame(this.pendingOverlayFrame);
+    this.pendingOverlayFrame = 0;
+    this.pendingOverlayPoint = null;
+    moveNovaCutCanvasOverlay(state.item, state.type, state.originalX, state.originalY);
+    this.overlayDragState = null;
+    state.shell.classList.remove("novacut-overlay-dragging");
+    this.engine.cancelHistoryTransaction?.();
+    this.engine.refresh();
+    this.engine.preview?.markDirty();
+    event?.preventDefault?.();
+    return true;
   }
 
   observeDom() {
@@ -1557,6 +1738,12 @@ export class NovaCutStudioInteractions {
 
   dispose() {
     this.cancelLongPress();
+    this.cancelCanvasOverlayDrag();
+
+    if (this.pendingOverlayFrame) {
+      cancelAnimationFrame(this.pendingOverlayFrame);
+      this.pendingOverlayFrame = 0;
+    }
 
     if (
       this.pendingFrame
