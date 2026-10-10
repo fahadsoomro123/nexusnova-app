@@ -238,9 +238,22 @@ export class NovaCutCanvasPreview {
     this.renderTick = 0;
     this.frameId = 0;
     this.running = false;
+    this.needsRender = true;
+    this.lastRenderAt = 0;
+    this.previewQuality = this.forceNativeVideoLayer ? "balanced" : "sharp";
+    this.renderUnsubscribers = [];
+    if (typeof this.engine.on === "function") {
+      ["statechange", "playheadchange", "ratio", "selectionchange", "preview:fallback"].forEach((name) => {
+        const unsubscribe = this.engine.on(name, () => this.markDirty());
+        if (typeof unsubscribe === "function") this.renderUnsubscribers.push(unsubscribe);
+      });
+    }
     this.resizeObserver = null;
     if (canvas && globalThis.ResizeObserver) {
-      this.resizeObserver = new ResizeObserver(() => this.resize());
+      this.resizeObserver = new ResizeObserver(() => {
+        this.resize();
+        this.markDirty();
+      });
       this.resizeObserver.observe(canvas);
     }
     this.resize();
@@ -249,7 +262,8 @@ export class NovaCutCanvasPreview {
   resize() {
     if (!this.canvas || !this.ctx) return;
     const rect = this.canvas.getBoundingClientRect();
-    const dpr = clamp(globalThis.devicePixelRatio || 1, 1, 2);
+    const qualityScale = { draft: 0.7, balanced: 0.9, sharp: 1.25 }[this.previewQuality] || 1;
+    const dpr = clamp((globalThis.devicePixelRatio || 1) * qualityScale, 0.7, 2);
     const width = Math.max(2, Math.round(rect.width * dpr));
     const height = Math.max(2, Math.round(rect.height * dpr));
     if (this.canvas.width !== width) this.canvas.width = width;
@@ -621,12 +635,40 @@ export class NovaCutCanvasPreview {
     }
   }
 
+  markDirty() {
+    this.needsRender = true;
+  }
+
+  setPreviewQuality(mode) {
+    const next = ["draft", "balanced", "sharp"].includes(mode) ? mode : "balanced";
+    if (next === this.previewQuality) {
+      this.markDirty();
+      return next;
+    }
+    this.previewQuality = next;
+    this.resize();
+    this.markDirty();
+    return next;
+  }
+
   start() {
     if (this.running) return;
     this.running = true;
-    const loop = () => {
+    const loop = (now = 0) => {
       if (!this.running) return;
-      try { this.render(); } catch (error) { this.engine.reportError("preview", error); }
+      const nativePlayback = this.forceNativeVideoLayer && this.engine.isPlaying;
+      const frameInterval = nativePlayback ? 1000 / 30 : 0;
+      const intervalElapsed = !nativePlayback || now - this.lastRenderAt >= frameInterval;
+      if (intervalElapsed && (this.needsRender || this.engine.isPlaying)) {
+        this.needsRender = false;
+        this.lastRenderAt = now;
+        try {
+          this.render();
+        } catch (error) {
+          this.needsRender = true;
+          this.engine.reportError("preview", error);
+        }
+      }
       this.frameId = requestAnimationFrame(loop);
     };
     this.frameId = requestAnimationFrame(loop);
@@ -779,6 +821,7 @@ export class NovaCutCanvasPreview {
         const task = loadNovaCutImageAsset(overlay.asset).then((value) => {
           this.stickerMedia.set(overlay.id, value);
           this.stickerPending.delete(overlay.id);
+          this.markDirty();
         }).catch((error) => {
           this.stickerPending.delete(overlay.id);
           this.engine.reportError("sticker", error);
@@ -825,6 +868,9 @@ export class NovaCutCanvasPreview {
   dispose() {
     this.stop();
     this.resizeObserver?.disconnect();
+    this.renderUnsubscribers.splice(0).forEach((unsubscribe) => {
+      try { unsubscribe(); } catch (_) {}
+    });
     this.media.forEach((media) => {
       try { media.pause?.(); media.removeAttribute?.("src"); media.load?.(); media.remove?.(); } catch (_) {}
     });
@@ -1419,6 +1465,13 @@ export class NovaCutEngine {
     });
   }
 
+  setPreviewQuality(mode) {
+    const quality = ["draft", "balanced", "sharp"].includes(mode) ? mode : "balanced";
+    const applied = this.preview?.setPreviewQuality(quality) || quality;
+    this.setStatus("Preview quality: " + applied + " (export quality unchanged)");
+    return applied;
+  }
+
   setSelectedFitMode(mode) {
     const selected = this.registry.getById(this.activeTrackId);
     if (!selected || selected.type !== "videoTracks") {
@@ -1767,6 +1820,9 @@ export class NovaCutEngine {
       '<button type="button" data-tool-action="zoom-in">Zoom in</button>' +
       '<button type="button" data-tool-action="zoom-out">Zoom out</button>' +
       '<button type="button" data-tool-action="reset-frame">Reset frame</button>' +
+      '<button type="button" data-tool-action="preview-draft">Preview: Draft</button>' +
+      '<button type="button" data-tool-action="preview-balanced">Preview: Balanced</button>' +
+      '<button type="button" data-tool-action="preview-sharp">Preview: Sharp</button>' +
       '<button type="button" data-tool-action="duplicate">Duplicate</button>' +
       '<button type="button" data-tool-action="delete">Delete</button>' +
       '<button type="button" data-tool-action="rotate">Rotate</button>' +
@@ -1785,6 +1841,9 @@ export class NovaCutEngine {
         else if (action === "zoom-in") this.adjustSelectedVideoScale(1.12);
         else if (action === "zoom-out") this.adjustSelectedVideoScale(1 / 1.12);
         else if (action === "reset-frame") this.resetSelectedVideoFraming();
+        else if (action === "preview-draft") this.setPreviewQuality("draft");
+        else if (action === "preview-balanced") this.setPreviewQuality("balanced");
+        else if (action === "preview-sharp") this.setPreviewQuality("sharp");
         else if (action === "duplicate") this.duplicateSelected();
         else if (action === "delete") this.removeSelected();
         else if (action === "rotate") this.rotateSelected();
