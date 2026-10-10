@@ -2871,9 +2871,11 @@ export class NovaCutEngine {
         item.duration = requestedDuration;
         item.width = clamp(value("width", 20) / 100, 0.03, 1);
         item.height = clamp(value("height", 20) / 100, 0.03, 1);
-        item.x = clamp(value("x", 50) / 100, 0, Math.max(0, 1 - item.width));
-        item.y = clamp(value("y", 50) / 100, 0, Math.max(0, 1 - item.height));
         item.scale = clamp(value("scale", 100) / 100, 0.1, 5);
+        const halfWidth = clamp(item.width * item.scale / 2, 0.02, 0.48);
+        const halfHeight = clamp(item.height * item.scale / 2, 0.02, 0.48);
+        item.x = clamp(value("x", 50) / 100, halfWidth, 1 - halfWidth);
+        item.y = clamp(value("y", 50) / 100, halfHeight, 1 - halfHeight);
         item.rotation = clamp(value("rotation", 0), -360, 360);
       } else if (type === "effectTracks") {
         item.duration = requestedDuration;
