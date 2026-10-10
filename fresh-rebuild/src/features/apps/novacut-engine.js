@@ -251,6 +251,7 @@ export class NovaCutCanvasPreview {
       });
     }
     this.resizeObserver = null;
+    this.canvasLayout = { width: 1, height: 1 };
     if (canvas && globalThis.ResizeObserver) {
       this.resizeObserver = new ResizeObserver(() => {
         this.resize();
@@ -266,6 +267,10 @@ export class NovaCutCanvasPreview {
     const rect = this.canvas.getBoundingClientRect();
     const qualityScale = { draft: 0.7, balanced: 0.9, sharp: 1.25 }[this.previewQuality] || 1;
     const dpr = clamp((globalThis.devicePixelRatio || 1) * qualityScale, 0.7, 2);
+    this.canvasLayout = {
+      width: Math.max(1, Number(rect.width) || 1),
+      height: Math.max(1, Number(rect.height) || 1)
+    };
     const width = Math.max(2, Math.round(rect.width * dpr));
     const height = Math.max(2, Math.round(rect.height * dpr));
     if (this.canvas.width !== width) this.canvas.width = width;
@@ -289,8 +294,10 @@ export class NovaCutCanvasPreview {
 
     const canvasWidth = Math.max(1, Number(this.canvas.width) || 1);
     const canvasHeight = Math.max(1, Number(this.canvas.height) || 1);
-    const clientWidth = Math.max(1, Number(this.canvas.clientWidth) || 1);
-    const clientHeight = Math.max(1, Number(this.canvas.clientHeight) || 1);
+    // Reuse ResizeObserver measurements instead of forcing WebView layout reads
+    // during native video frame presentation.
+    const clientWidth = Math.max(1, Number(this.canvasLayout?.width) || 1);
+    const clientHeight = Math.max(1, Number(this.canvasLayout?.height) || 1);
     const transformScale = Math.max(0.05, Number(clip?.transform?.scale ?? clip?.scale) || 1);
     const fitMode = clip?.fitMode === "fill" ? "cover" : "contain";
     const transform = [
@@ -313,7 +320,11 @@ export class NovaCutCanvasPreview {
     // Rewriting video layout styles on every preview tick invalidates WebView
     // layout while the hardware decoder is trying to present frames. Only update
     // the native layer when its clip or framing actually changes.
-    if (media.dataset.novacutPreviewSignature !== signature) {
+    if (!media.dataset) {
+      try { media.dataset = {}; } catch (_) {}
+    }
+    const previousSignature = media.dataset?.novacutPreviewSignature ?? media.__novacutPreviewSignature;
+    if (previousSignature !== signature) {
       Object.assign(media.style, {
         position: "absolute",
         inset: "0",
@@ -329,7 +340,8 @@ export class NovaCutCanvasPreview {
         transformOrigin: "center center",
         transform
       });
-      media.dataset.novacutPreviewSignature = signature;
+      if (media.dataset) media.dataset.novacutPreviewSignature = signature;
+      else media.__novacutPreviewSignature = signature;
     }
     if (media.parentElement !== shell) shell.insertBefore(media, this.canvas);
     this.canvas.classList.add("nx-novacut__canvas--native-preview");
@@ -886,6 +898,13 @@ export class NovaCutCanvasPreview {
       const y = clamp(effect.y, 0, 0.94);
       const w = clamp(effect.width, 0.06, 1);
       const h = clamp(effect.height, 0.06, 1);
+      const intensity = clamp(effect.intensity, 1, 64);
+      const signature = [
+        effect.type, x, y, w, h, intensity, effect.color || "#000000",
+        clamp(effect.opacity ?? 0.96, 0, 1)
+      ].join("|");
+      if (element.dataset.novacutEffectSignature === signature) continue;
+
       element.style.left = (x * 100) + "%";
       element.style.top = (y * 100) + "%";
       element.style.width = (w * 100) + "%";
@@ -894,7 +913,6 @@ export class NovaCutCanvasPreview {
       element.style.backgroundColor = "transparent";
       element.style.backdropFilter = "none";
       element.style.webkitBackdropFilter = "none";
-      const intensity = clamp(effect.intensity, 1, 64);
       if (effect.type === "blur") {
         const blur = Math.max(1, Math.min(28, intensity * 0.5));
         element.style.backdropFilter = "blur(" + blur + "px)";
@@ -919,6 +937,7 @@ export class NovaCutCanvasPreview {
       } else if (effect.type === "censor") {
         element.style.backgroundColor = rgba(effect.color || "#000000", clamp(effect.opacity ?? 0.96, 0, 1));
       }
+      element.dataset.novacutEffectSignature = signature;
     }
   }
 

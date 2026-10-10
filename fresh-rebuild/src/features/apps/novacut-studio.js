@@ -537,10 +537,9 @@ export class NovaCutStudioInteractions {
       startedAt: performance.now(),
       timelineScrollLeft:
         this.timeline.scrollLeft,
-      mode: "timeline-pending"
+      mode: "timeline-pending",
+      gestureMode: String(event?.type || "").startsWith("pointer") ? "scrub" : "pan"
     };
-
-    void event;
   }
 
   enterClipMode(mode) {
@@ -604,14 +603,10 @@ export class NovaCutStudioInteractions {
       return;
     }
 
-    if (
-      state.mode === "timeline-pending"
-    ) {
-      if (
-        Math.abs(dx) >
-        Math.abs(dy)
-      ) {
-        this.enterTimelineMode();
+    if (state.mode === "timeline-pending") {
+      if (Math.abs(dx) > Math.abs(dy)) {
+        if (state.gestureMode === "pan") this.enterTimelinePanMode();
+        else this.enterTimelineMode();
       } else {
         return;
       }
@@ -643,12 +638,18 @@ export class NovaCutStudioInteractions {
     switch (state.mode) {
       case "timeline":
         event.preventDefault();
-        this.pendingTimelineSeekX =
-          touch.clientX;
-        this.scheduleTimelineGesture(
-          touch.clientX,
-          dx
+        this.pendingTimelineSeekX = touch.clientX;
+        this.scheduleTimelineGesture(touch.clientX, dx);
+        break;
+
+      case "timeline-pan":
+        event.preventDefault();
+        this.timeline.scrollLeft = clamp(
+          state.timelineScrollLeft - dx,
+          0,
+          Math.max(0, this.timeline.scrollWidth - this.timeline.clientWidth)
         );
+        this.scheduleSync();
         break;
 
       case "drag":
@@ -691,18 +692,18 @@ export class NovaCutStudioInteractions {
   }
 
   enterTimelineMode() {
-    if (!this.touchState) {
-      return;
-    }
-
+    if (!this.touchState) return;
     this.mode = "timeline";
-    this.touchState.mode =
-      "timeline";
+    this.touchState.mode = "timeline";
+    this.timeline.classList.add("novacut-gesture-active");
+    this.cancelLongPress();
+  }
 
-    this.timeline.classList.add(
-      "novacut-gesture-active"
-    );
-
+  enterTimelinePanMode() {
+    if (!this.touchState) return;
+    this.mode = "timeline-pan";
+    this.touchState.mode = "timeline-pan";
+    this.timeline.classList.add("novacut-gesture-active");
     this.cancelLongPress();
   }
 
@@ -748,6 +749,8 @@ export class NovaCutStudioInteractions {
     if (mode === "timeline") {
       event.preventDefault();
       this.flushTimelineSeek();
+    } else if (mode === "timeline-pan") {
+      event.preventDefault();
     } else if (mode === "timeline-pending") {
       // A tap/click on empty timeline space must seek too; previously only a
       // horizontal move entered scrub mode, so tapping the ruler did nothing.
@@ -842,33 +845,14 @@ export class NovaCutStudioInteractions {
   timestampFromClientX(
     clientX
   ) {
-    const rect =
-      this.timeline.getBoundingClientRect();
-
-    const target =
-      this.timeline.querySelector(
-        "[data-role='video-lane'], .nx-novacut__lane"
-      ) ||
-      this.timeline;
-
-    const targetRect =
-      target.getBoundingClientRect();
-
-    const viewportX =
-      clientX -
-      targetRect.left;
-
-    const contentX =
-      viewportX +
-      this.timeline.scrollLeft;
-
-    const pxPerMs = this.pixelsPerMs();
-
-    return Math.max(
-      0,
-      contentX /
-        pxPerMs
-    );
+    const target = this.timeline.querySelector(
+      "[data-role='video-lane'], .nx-novacut__lane"
+    ) || this.timeline;
+    const targetRect = target.getBoundingClientRect();
+    // targetRect already moves with scrollLeft. Adding scrollLeft again caused
+    // a doubled time offset when users scrubbed after panning.
+    const contentX = clientX - targetRect.left;
+    return Math.max(0, contentX / this.pixelsPerMs());
   }
 
   scheduleClipDrag() {
@@ -1476,10 +1460,11 @@ export class NovaCutStudioInteractions {
       const end = start + Math.max(0, finite(item.duration));
       candidates.push(start, end);
     }
-    let nearest = Math.max(0, finite(timestamp));
+    const target = Math.max(0, finite(timestamp));
+    let nearest = target;
     let nearestDistance = thresholdMs;
     for (const candidate of candidates) {
-      const distance = Math.abs(candidate - nearest);
+      const distance = Math.abs(candidate - target);
       if (distance <= nearestDistance) {
         nearestDistance = distance;
         nearest = candidate;

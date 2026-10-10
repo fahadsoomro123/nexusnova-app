@@ -319,7 +319,7 @@ function renderNovaCut() {
       const minutes = Math.floor(seconds / 60);
       const remainder = Math.floor(seconds % 60);
       const label = tickEvery < 1
-        ? (seconds === 0 ? "0" : seconds.toFixed(2).replace(/0+$/, "").replace(/\\.$/, "") + "s")
+        ? (seconds === 0 ? "0" : seconds.toFixed(2).replace(/0+$/, "").replace(/\.$/, "") + "s")
         : minutes + ":" + String(remainder).padStart(2, "0");
       ticks.push(
         '<span data-time-seconds="' + seconds + '" style="--tick-x:' +
