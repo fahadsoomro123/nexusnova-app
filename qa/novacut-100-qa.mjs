@@ -59,7 +59,13 @@ check("Split works across all timeline track types", () => assert(
   has(engine, "executeSplitAction(activeTrackId, currentTimestamp)") &&
   has(engine, "const tracks = this.registry[record.type]") &&
   has(engine, "sourceStartTime + left") &&
-  has(engine, "duplicateSelected()"),
+  has(engine, "duplicateSelected()") &&
+  has(engine, "findTransitionPairNearPlayhead()") &&
+  has(engine, "applyTransitionAtPlayhead(durationMs = 500, type = \"fade-through-black\")") &&
+  has(engine, "clearTransitionAtPlayhead()") &&
+  has(engine, "openTransitionEditor()") &&
+  has(engine, 'data-tool-action="transition"') &&
+  has(engine, 'data-transition-duration'),
   "split must support selected video, audio, text, sticker, and effect clips without losing source offsets"
 ));
 check("playback follows decoded video clock", () => assert(has(engine, "mediaTimelineTime = clockClip.startTime") && has(engine, "media.currentTime * 1000"), "media clock sync missing"));

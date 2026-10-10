@@ -1985,6 +1985,116 @@ export class NovaCutEngine {
     return { success: true, firstClip: first, secondClip: second };
   }
 
+  findTransitionPairNearPlayhead() {
+    const clips = [...this.registry.videoTracks].sort((a, b) => a.startTime - b.startTime);
+    if (clips.length < 2) return null;
+    const toleranceMs = 80;
+    const pairs = [];
+    for (let index = 0; index < clips.length - 1; index += 1) {
+      const left = clips[index];
+      const right = clips[index + 1];
+      const cutTime = Number(left.startTime) + Number(left.duration);
+      if (Math.abs(cutTime - Number(right.startTime)) <= toleranceMs) {
+        pairs.push({ left, right, cutTime, distance: Math.abs(cutTime - this.currentTimestamp) });
+      }
+    }
+    if (!pairs.length) return null;
+
+    const selected = this.registry.getById(this.activeTrackId);
+    if (selected?.type === "videoTracks") {
+      const selectedIndex = clips.findIndex((clip) => clip.id === selected.item.id);
+      const adjacent = pairs.filter((pair) =>
+        pair.left.id === selected.item.id || pair.right.id === selected.item.id
+      );
+      if (adjacent.length) {
+        adjacent.sort((a, b) => a.distance - b.distance);
+        return adjacent[0];
+      }
+      // A selected clip with no adjacent cut should not silently affect a
+      // distant edit elsewhere in the sequence.
+      return null;
+    }
+
+    const nearest = pairs.sort((a, b) => a.distance - b.distance)[0];
+    return nearest && nearest.distance <= 2000 ? nearest : null;
+  }
+
+  applyTransitionAtPlayhead(durationMs = 500, type = "fade-through-black") {
+    if (type !== "fade-through-black") {
+      this.setStatus("This transition type is not available yet.");
+      return { success: false, reason: "unsupported-transition" };
+    }
+    const pair = this.findTransitionPairNearPlayhead();
+    if (!pair) {
+      this.setStatus("Select a video clip beside a cut between two adjacent clips.");
+      return { success: false, reason: "no-adjacent-video-cut" };
+    }
+    const maximum = Math.max(50, Math.min(Number(pair.left.duration) || 50, Number(pair.right.duration) || 50));
+    const duration = clamp(durationMs, 50, maximum);
+    const before = this.history.capture();
+    pair.left.fadeOutMs = duration;
+    pair.right.fadeInMs = duration;
+    this.activeTrackId = pair.right.id;
+    this.history.record(before, "Fade through black");
+    this.refresh();
+    this.setStatus("Fade through black · " + (duration / 1000).toFixed(2) + "s");
+    return { success: true, leftClipId: pair.left.id, rightClipId: pair.right.id, durationMs: duration };
+  }
+
+  clearTransitionAtPlayhead() {
+    const pair = this.findTransitionPairNearPlayhead();
+    if (!pair) {
+      this.setStatus("Select a video clip beside a cut between two adjacent clips.");
+      return { success: false, reason: "no-adjacent-video-cut" };
+    }
+    if (!(Number(pair.left.fadeOutMs) > 0) && !(Number(pair.right.fadeInMs) > 0)) {
+      this.setStatus("No fade transition exists at this cut.");
+      return { success: false, reason: "no-transition-at-cut" };
+    }
+    const before = this.history.capture();
+    pair.left.fadeOutMs = 0;
+    pair.right.fadeInMs = 0;
+    this.history.record(before, "Remove transition");
+    this.refresh();
+    this.setStatus("Transition removed");
+    return { success: true, leftClipId: pair.left.id, rightClipId: pair.right.id };
+  }
+
+  openTransitionEditor() {
+    const pair = this.findTransitionPairNearPlayhead();
+    if (!pair) {
+      this.setStatus("Select a video clip next to a cut first.");
+      return false;
+    }
+    const existing = Math.max(Number(pair.left.fadeOutMs) || 0, Number(pair.right.fadeInMs) || 0);
+    const defaultMs = existing || 500;
+    const maximumSeconds = Math.max(0.05, Math.min(Number(pair.left.duration) || 50, Number(pair.right.duration) || 50) / 1000);
+    const sheet = this.openSheet("Transition at cut");
+    sheet.body.innerHTML =
+      '<p class="nx-novacut__sheet-copy">Fade through black applies a fade-out to the first clip and a fade-in to the next. It does not overlap the clips.</p>' +
+      '<div class="nx-novacut__form-grid">' +
+        '<label>Duration (seconds)<input data-transition-duration type="number" min="0.05" max="' + maximumSeconds.toFixed(2) + '" step="0.05" value="' + Math.min(defaultMs / 1000, maximumSeconds).toFixed(2) + '"></label>' +
+      '</div>' +
+      '<div class="nx-novacut__sheet-actions">' +
+        '<button type="button" class="nx-novacut__secondary" data-transition-clear>Remove transition</button>' +
+        '<button type="button" class="nx-novacut__primary" data-transition-apply>Apply transition</button>' +
+      '</div>';
+    sheet.body.querySelector("[data-transition-apply]")?.addEventListener("click", () => {
+      const input = Number(sheet.body.querySelector("[data-transition-duration]")?.value);
+      if (!Number.isFinite(input) || input < 0.05) {
+        this.setStatus("Transition duration must be at least 0.05 seconds.");
+        return;
+      }
+      const result = this.applyTransitionAtPlayhead(input * 1000, "fade-through-black");
+      if (result.success) this.closeSheet(sheet.root);
+    });
+    sheet.body.querySelector("[data-transition-clear]")?.addEventListener("click", () => {
+      const result = this.clearTransitionAtPlayhead();
+      if (result.success) this.closeSheet(sheet.root);
+    });
+    return true;
+  }
+
   importAudio() {
     if (!this.root) return;
     const input = document.createElement("input");
@@ -2141,6 +2251,7 @@ export class NovaCutEngine {
       '<button type="button" data-tool-action="sticker">Sticker</button>' +
       '<button type="button" data-tool-action="text">Text</button>' +
       '<button type="button" data-tool-action="effects">Effects</button>' +
+      '<button type="button" data-tool-action="transition">Transition at cut</button>' +
       '<button type="button" data-tool-action="clip-settings">Edit selected clip</button>' +
       '<button type="button" data-tool-action="fit-video">Fit video</button>' +
       '<button type="button" data-tool-action="fill-canvas">Fill canvas</button>' +
@@ -2163,6 +2274,7 @@ export class NovaCutEngine {
         if (action === "sticker") this.openStickerPicker();
         else if (action === "text") this.openTextEditor();
         else if (action === "effects") this.openEffectsEditor();
+        else if (action === "transition") this.openTransitionEditor();
         else if (action === "clip-settings") this.openSelectedClipInspector();
         else if (action === "fit-video") this.setSelectedFitMode("fit");
         else if (action === "fill-canvas") this.setSelectedFitMode("fill");
