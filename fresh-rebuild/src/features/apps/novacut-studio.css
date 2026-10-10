@@ -572,6 +572,26 @@
   text-align: left !important;
 }
 
+.nx-novacut__keyframe-markers {
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: 3 !important;
+  pointer-events: none !important;
+}
+
+.nx-novacut__keyframe-marker {
+  position: absolute !important;
+  left: var(--keyframe-x, 0%) !important;
+  top: 4px !important;
+  width: 7px !important;
+  height: 7px !important;
+  border: 1px solid rgba(0,0,0,.7) !important;
+  border-radius: 1px !important;
+  background: #f5d66e !important;
+  box-shadow: 0 0 0 1px rgba(255,255,255,.32), 0 1px 4px rgba(0,0,0,.4) !important;
+  transform: translateX(-50%) rotate(45deg) !important;
+}
+
 .nx-novacut__clip.is-selected {
   border-color: rgba(99,185,255,.85) !important;
   box-shadow: 0 0 0 2px rgba(99,185,255,.11), 0 8px 20px rgba(0,0,0,.2) !important;

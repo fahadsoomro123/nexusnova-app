@@ -120,10 +120,18 @@ function renderTrackClip(clip, type) {
   const selected = clip?.id === clip?.engineActiveId ? ' is-selected' : '';
 
   if (type === 'video') {
+    const keyframes = Array.isArray(clip?.keyframes) ? clip.keyframes : [];
+    const keyframeMarkers = keyframes.map((frame) => {
+      const percent = Math.max(0, Math.min(1, (Number(frame?.timeMs) || 0) / duration)) * 100;
+      return '<i class="nx-novacut__keyframe-marker" style="--keyframe-x:' + percent.toFixed(2) + '%"></i>';
+    }).join('');
+    const markerLayer = keyframes.length
+      ? '<span class="nx-novacut__keyframe-markers" aria-label="' + keyframes.length + ' keyframes">' + keyframeMarkers + '</span>'
+      : '';
     return '<button type="button" class="nx-novacut__clip nx-novacut__clip--video' + selected + '" data-clip-id="' + id + '">' +
       '<span class="nx-novacut__clip-thumb" data-video-thumb="' + id + '" aria-hidden="true"></span>' +
       '<span class="nx-novacut__clip-copy"><strong>' + escapeHtml(clip?.file?.name || 'Video') + '</strong><small>' + seconds + 's</small></span>' +
-      '<span class="nx-novacut__clip-wave" aria-hidden="true"></span></button>';
+      '<span class="nx-novacut__clip-wave" aria-hidden="true"></span>' + markerLayer + '</button>';
   }
 
   if (type === 'audio') {
