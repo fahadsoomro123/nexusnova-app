@@ -117,16 +117,6 @@ check("playback follows decoded video clock", () => {
     Math.abs(easeOutQuarter.scale - 1.4375) < 0.001 &&
     Math.abs(easeInOutQuarter.scale - 1.125) < 0.001,
     "keyframe interpolation curves diverged from linear/ease-in/ease-out/ease-in-out expectations");
-  const easedExport = new NovaCutCommandCompiler(makeCompilerEngine({
-    videos: [compilerVideo({ keyframes: [
-      { timeMs: 0, scale: 1, easing: "ease-in-out" },
-      { timeMs: 1000, scale: 2 }
-    ] })]
-  })).compile();
-  const easedExportFilter = easedExport.args[easedExport.args.indexOf("-filter_complex") + 1];
-  if (!easedExportFilter.includes("pow(") || !easedExportFilter.includes("lt(clip((t-0.0000)/1.0000,0,1),0.5)")) {
-    throw new Error("Export transform expressions omitted the selected keyframe easing curve.");
-  }
   const audioFade = { startTime: 1000, duration: 4000, fadeInMs: 1000, fadeOutMs: 1000 };
   assert(sampleNovaCutAudioGain(audioFade, 1000) === 0 &&
     Math.abs(sampleNovaCutAudioGain(audioFade, 1500) - 0.5) < 0.001 &&
@@ -595,6 +585,17 @@ if (!speedFilter.includes("trim=start=0.000:end=5.000") ||
   throw new Error("2x speed export did not preserve the source span and synchronize video/audio duration.");
 }
 console.log("SPEED BEHAVIOUR 2/2 PASS  FFmpeg video and source audio remain synchronized at 2x");
+const easedExport = new NovaCutCommandCompiler(makeCompilerEngine({
+  videos: [compilerVideo({ keyframes: [
+    { timeMs: 0, scale: 1, easing: "ease-in-out" },
+    { timeMs: 1000, scale: 2 }
+  ] })]
+})).compile();
+const easedExportFilter = easedExport.args[easedExport.args.indexOf("-filter_complex") + 1];
+if (!easedExportFilter.includes("pow(") || !easedExportFilter.includes("lt(clip((t-0.0000)/1.0000,0,1),0.5)")) {
+  throw new Error("Export transform expressions omitted the selected keyframe easing curve.");
+}
+console.log("KEYFRAME EXPORT BEHAVIOUR 1/1 PASS  easing curve appears in FFmpeg expression");
 
 
 const syntaxFiles = [
