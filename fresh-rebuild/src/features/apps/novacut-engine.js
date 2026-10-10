@@ -185,7 +185,8 @@ function ffmpegVideoKeyframeExpression(clip, property, fallback, clipStartSecond
   if (!frames.length) return Number(fallback || 0).toFixed(4);
   const points = frames.map((frame) => ({
     time: (Number(clipStartSeconds) || 0) + frame.timeMs / 1000,
-    value: Number(frame[property]) || 0
+    value: Number(frame[property]) || 0,
+    easing: frame.easing || "linear"
   }));
   if (points.length === 1) return points[0].value.toFixed(4);
   let expression = points[points.length - 1].value.toFixed(4);
