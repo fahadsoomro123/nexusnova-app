@@ -1,3 +1,5 @@
+import { sampleNovaCutVideoKeyframes } from "./novacut-engine.js";
+
 /*
  * NovaCut Studio Interaction Core
  * Touch seek, clip drag, and dual-edge trim handlers.
@@ -480,6 +482,7 @@ export class NovaCutStudioInteractions {
           0,
           finite(clip.sourceStartTime)
         ),
+      originalKeyframes: Array.isArray(clip.keyframes) ? clip.keyframes.map((frame) => ({ ...frame })) : [],
       timelineScrollLeft:
         this.timeline.scrollLeft,
       mode: edge
@@ -969,6 +972,24 @@ export class NovaCutStudioInteractions {
     if ("sourceStartTime" in clip) {
       clip.sourceStartTime = Math.max(0, state.originalSourceStartTime + actualDelta);
     }
+    if (isVideo && state.originalKeyframes.length) {
+      const originalClip = {
+        ...clip,
+        startTime: originalStart,
+        duration: state.originalDuration,
+        keyframes: state.originalKeyframes
+      };
+      const startValues = sampleNovaCutVideoKeyframes(originalClip, originalStart + actualDelta);
+      const endValues = sampleNovaCutVideoKeyframes(originalClip, originalStart + actualDelta + clip.duration);
+      clip.keyframes = [
+        { timeMs: 0, ...startValues },
+        ...state.originalKeyframes
+          .filter((frame) => Number(frame.timeMs) > actualDelta + 1 &&
+            Number(frame.timeMs) < actualDelta + clip.duration - 1)
+          .map((frame) => ({ ...frame, timeMs: Number(frame.timeMs) - actualDelta })),
+        { timeMs: clip.duration, ...endValues }
+      ];
+    }
   }
 
   applyEndTrim(
@@ -998,6 +1019,23 @@ export class NovaCutStudioInteractions {
     );
 
     clip.duration = Math.max(minimum, targetEnd - originalStart);
+    if (state.recordType === "videoTracks" && state.originalKeyframes.length) {
+      const originalClip = {
+        ...clip,
+        startTime: originalStart,
+        duration: state.originalDuration,
+        keyframes: state.originalKeyframes
+      };
+      const startValues = sampleNovaCutVideoKeyframes(originalClip, originalStart);
+      const endValues = sampleNovaCutVideoKeyframes(originalClip, originalStart + clip.duration);
+      clip.keyframes = [
+        { timeMs: 0, ...startValues },
+        ...state.originalKeyframes
+          .filter((frame) => Number(frame.timeMs) > 1 && Number(frame.timeMs) < clip.duration - 1)
+          .map((frame) => ({ ...frame })),
+        { timeMs: clip.duration, ...endValues }
+      ];
+    }
   }
 
   clampedDragStart(
@@ -1159,6 +1197,10 @@ export class NovaCutStudioInteractions {
 
     state.clip.sourceStartTime =
       state.originalSourceStartTime;
+
+    if (Array.isArray(state.clip.keyframes)) {
+      state.clip.keyframes = state.originalKeyframes.map((frame) => ({ ...frame }));
+    }
 
     this.applyClipGeometry(
       state.element,

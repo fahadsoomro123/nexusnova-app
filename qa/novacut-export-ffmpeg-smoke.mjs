@@ -61,6 +61,7 @@ function makeEngine({ videoName, hasAudio, audios = [], stickers = [], clipOptio
     saturation: 100,
     fadeInMs: 0,
     fadeOutMs: 0,
+    keyframes: [],
     metadata: { hasAudio, width: 90, height: 160 },
     ...clipOptions
   };
@@ -152,7 +153,13 @@ try {
   const mixedPlan = planAndRun({
     name: "mixed-audio-sticker-export.mp4",
     hasAudio: true,
-    clipOptions: { brightness: 115, contrast: 125, saturation: 135, fadeInMs: 250, fadeOutMs: 500 },
+    clipOptions: {
+      brightness: 115, contrast: 125, saturation: 135, fadeInMs: 250, fadeOutMs: 500,
+      keyframes: [
+        { timeMs: 0, scale: 1, rotation: 0, x_offset: 0, y_offset: 0 },
+        { timeMs: 2000, scale: 1.5, rotation: 30, x_offset: 18, y_offset: -12 }
+      ]
+    },
     audios: [{
       id: "music-track",
       file: { name: "music.mp3", type: "audio/mpeg" },
@@ -172,6 +179,9 @@ try {
   assert(mixedPlan.filters.includes("eq=contrast=1.250:saturation=1.350"), "Contrast/saturation filters are missing from export.");
   assert(mixedPlan.filters.includes("fade=t=in:st=0.000:d=0.250:alpha=1"), "Fade-in alpha transition is missing from export.");
   assert(mixedPlan.filters.includes("fade=t=out:st=1.500:d=0.500:alpha=1"), "Fade-out alpha transition is missing from export.");
+  assert(mixedPlan.filters.includes("eval=frame") && mixedPlan.filters.includes("rotate=angle='(") &&
+    mixedPlan.filters.includes("overlay=x='(W-w)/2+("),
+    "Animated scale, rotation, or position expressions are missing from FFmpeg export.");
   console.log("FFMPEG EXPORT 2/3 PASS  original audio, music and sticker filters render");
 
   const silentPlan = planAndRun({ name: "silent-video-export.mp4", hasAudio: false });

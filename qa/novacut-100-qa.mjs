@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
+import { sampleNovaCutVideoKeyframes } from "../fresh-rebuild/src/features/apps/novacut-engine.js";
 
 const ROOT = process.cwd();
 const read = (file) => fs.readFileSync(path.join(ROOT, file), "utf8");
@@ -47,8 +48,14 @@ check("video add API and visual controls are normalized", () => assert(
   has(engine, "contrast: clamp(input.contrast ?? 100, 0, 200)") &&
   has(engine, "saturation: clamp(input.saturation ?? 100, 0, 300)") &&
   has(engine, "fadeInMs: clamp(input.fadeInMs ?? 0, 0, duration)") &&
-  has(engine, "fadeOutMs: clamp(input.fadeOutMs ?? 0, 0, duration)"),
-  "video clip visual properties are missing or not safely normalized"
+  has(engine, "fadeOutMs: clamp(input.fadeOutMs ?? 0, 0, duration)") &&
+  has(engine, "keyframes: []") &&
+  has(engine, "normalizeVideoKeyframes(input.keyframes, duration, clip)") &&
+  has(engine, "ffmpegVideoKeyframeExpression(clip, \"scale\"") &&
+  has(engine, "eval=frame") &&
+  has(engine, "setVideoKeyframeAtPlayhead(values = null)") &&
+  has(engine, "removeVideoKeyframeAtPlayhead()"),
+  "video clip visual properties or keyframe animation are missing"
 ));
 check("audio add API and source-audio export mapping", () => assert(has(engine, "addAudioSegment(input)") && has(engine, "clip.metadata?.hasAudio !== true") && has(engine, "vsrcaudio") && has(engine, "audioLabels.map"), "source audio mapping missing"));
 check("text add API present", () => assert(has(engine, "addTextCue(input)"), "addTextCue missing"));
@@ -68,7 +75,24 @@ check("Split works across all timeline track types", () => assert(
   has(engine, 'data-transition-duration'),
   "split must support selected video, audio, text, sticker, and effect clips without losing source offsets"
 ));
-check("playback follows decoded video clock", () => assert(has(engine, "mediaTimelineTime = clockClip.startTime") && has(engine, "media.currentTime * 1000"), "media clock sync missing"));
+check("playback follows decoded video clock", () => {
+  assert(has(engine, "mediaTimelineTime = clockClip.startTime") && has(engine, "media.currentTime * 1000"), "media clock sync missing");
+  const sample = sampleNovaCutVideoKeyframes({
+    startTime: 1000,
+    duration: 2000,
+    scale: 1,
+    x_offset: 0,
+    y_offset: 0,
+    transform: { scale: 1, rotation: 0 },
+    keyframes: [
+      { timeMs: 0, scale: 1, rotation: 0, x_offset: 0, y_offset: 0 },
+      { timeMs: 2000, scale: 2, rotation: 90, x_offset: 120, y_offset: -60 }
+    ]
+  }, 2000);
+  assert(Math.abs(sample.scale - 1.5) < 0.001 && Math.abs(sample.rotation - 45) < 0.001 &&
+    Math.abs(sample.x_offset - 60) < 0.001 && Math.abs(sample.y_offset + 30) < 0.001,
+    "keyframes did not interpolate transform properties at the requested playhead");
+});
 check("preview uses decoded-frame cadence on Android and avoids per-frame decoder seeking", () => assert(
   has(engine, "requestVideoFrameCallback") &&
   has(engine, "cancelVideoFrameCallback") &&
