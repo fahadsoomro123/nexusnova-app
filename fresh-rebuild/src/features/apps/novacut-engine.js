@@ -417,6 +417,8 @@ export class NovaCutCanvasPreview {
 
   mountNativePreview(media, clip = null) {
     if (!(media instanceof HTMLVideoElement) || !this.canvas) return;
+    if (!(this.nativePreviewLayers instanceof Map)) this.nativePreviewLayers = new Map();
+    if (typeof this.nativeLayerOrderSignature !== "string") this.nativeLayerOrderSignature = "";
     const shell = this.canvas.parentElement;
     if (!shell) return;
     this.nativePreviewMedia = media;
