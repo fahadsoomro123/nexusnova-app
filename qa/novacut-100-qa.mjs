@@ -81,6 +81,14 @@ check("video add API and visual controls are normalized", () => assert(
   "video clip visual properties or keyframe animation are missing"
 ));
 check("audio add API and source-audio export mapping", () => assert(has(engine, "addAudioSegment(input)") && has(engine, "fadeInMs: clamp(input.fadeInMs ?? 0, 0, Math.max(250, Number(input.duration) || 250))") && has(engine, "sampleNovaCutAudioGain(segment, timestamp)") && has(engine, "sampleNovaCutAudioGain(segment, now)") && has(engine, "sampleNovaCutAudioGain(clip, this.engine.currentTimestamp)") && has(engine, "sampleNovaCutAudioGain(clip, now)") && has(engine, 'afade=t=in:st=0:d=') && has(engine, "clip.metadata?.hasAudio !== true") && has(engine, "vsrcaudio") && has(engine, "audioLabels.map"), "source audio mapping or synchronized audio fade envelope missing"));
+check("text position, scale and rotation keyframes drive preview and export", () => assert(
+  has(engine, 'sampleNovaCutLayerKeyframes(cue, this.engine.currentTimestamp, "textTracks")') &&
+  has(engine, 'ffmpegNovaCutLayerKeyframeExpression(cue, "textTracks", "x"') &&
+  has(engine, 'ffmpegNovaCutLayerKeyframeExpression(cue, "textTracks", "scale"') &&
+  has(engine, 'const x = width / 2;') &&
+  has(engine, "overlay=x=\" + xPosition"),
+  "text-layer transform keyframes are missing from preview or export"
+));
 check("text add API present", () => assert(has(engine, "addTextCue(input)"), "addTextCue missing"));
 check("sticker add API present", () => assert(has(engine, "addSticker(sticker"), "sticker API missing"));
 check("effect add API present", () => assert(has(engine, "addEffect(input"), "effect API missing"));
@@ -416,6 +424,21 @@ if (Math.abs(sampledSticker.x - 0.5) > 0.001 || Math.abs(sampledSticker.y - 0.6)
   throw new Error("Sticker position/scale/rotation/opacity keyframe interpolation failed.");
 }
 console.log("STICKER TRANSFORM KEYFRAME BEHAVIOUR 1/1 PASS  position, scale, rotation and opacity interpolate at playhead");
+const animatedText = {
+  startTime: 1000, duration: 2000, opacity: 1,
+  style: { x: 0.2, y: 0.3, rotation: -10, fontSize: 48 },
+  keyframes: [
+    { timeMs: 0, x: 0.2, y: 0.3, scale: 1, rotation: -10, opacity: 1, easing: "linear" },
+    { timeMs: 2000, x: 0.8, y: 0.7, scale: 1.5, rotation: 30, opacity: 0.5, easing: "linear" }
+  ]
+};
+const sampledText = sampleNovaCutLayerKeyframes(animatedText, 2000, "textTracks");
+if (Math.abs(sampledText.x - 0.5) > 0.001 || Math.abs(sampledText.y - 0.5) > 0.001 ||
+    Math.abs(sampledText.scale - 1.25) > 0.001 || Math.abs(sampledText.rotation - 10) > 0.001 ||
+    Math.abs(sampledText.opacity - 0.75) > 0.001) {
+  throw new Error("Text position/scale/rotation/opacity did not interpolate at the playhead.");
+}
+console.log("TEXT TRANSFORM KEYFRAME BEHAVIOUR 1/1 PASS  position, scale, rotation and opacity interpolate at playhead");
 const speedSplitEngine = new NovaCutEngine();
 speedSplitEngine.registry.addVideoClip({ id: "qa-speed-split", startTime: 0, duration: 4000, sourceStartTime: 500, speed: 2, sourceDuration: 8000 });
 const speedSplit = speedSplitEngine.executeSplitAction("qa-speed-split", 2000);
@@ -575,16 +598,16 @@ console.log("PLAYBACK BEHAVIOUR 7/7 PASS  source video audio is restored during 
 
 // Command-plan regression tests. They exercise the export graph without
 // needing a phone or starting the WASM FFmpeg runtime.
-const makeCompilerEngine = ({ videos = [], audios = [], stickers = [] } = {}) => ({
+const makeCompilerEngine = ({ videos = [], audios = [], texts = [], stickers = [] } = {}) => ({
   aspectRatio: "16:9",
   registry: {
     videoTracks: videos,
     audioTracks: audios,
-    textTracks: [],
+    textTracks: texts,
     overlayTracks: stickers,
     effectTracks: [],
     durationMs() {
-      return Math.max(1, ...[...videos, ...audios, ...stickers].map(item =>
+      return Math.max(1, ...[...videos, ...audios, ...texts, ...stickers].map(item =>
         Math.max(0, Number(item.startTime) || 0) + Math.max(0, Number(item.duration) || 0)
       ));
     }
@@ -652,6 +675,26 @@ if (!stickerFilter.includes("scale=384:270:force_original_aspect_ratio=decrease"
   throw new Error("Sticker export does not scale the sticker before overlay composition.");
 }
 console.log("EXPORT BEHAVIOUR 4/4 PASS  sticker assets scale before overlay");
+const animatedTextPlan = new NovaCutCommandCompiler(makeCompilerEngine({
+  videos: [compilerVideo({ metadata: { hasAudio: false, width: 720, height: 1280 } })],
+  texts: [{
+    id: "animated-caption", text: "Move with the beat", startTime: 1000, duration: 2000, opacity: 1,
+    style: { x: 0.2, y: 0.3, rotation: -10, fontSize: 48, color: "#ffffff" },
+    keyframes: [
+      { timeMs: 0, x: 0.2, y: 0.3, scale: 1, rotation: -10, opacity: 1, easing: "linear" },
+      { timeMs: 2000, x: 0.8, y: 0.7, scale: 1.5, rotation: 30, opacity: 0.5, easing: "linear" }
+    ]
+  }]
+})).compile();
+const animatedTextFilter = animatedTextPlan.args[animatedTextPlan.args.indexOf("-filter_complex") + 1];
+if (!animatedTextFilter.includes("scale=w='trunc(iw*(") ||
+    !animatedTextFilter.includes("rotate=angle='(") ||
+    !animatedTextFilter.includes("overlay=x='(main_w-overlay_w)/2+((") ||
+    !animatedTextFilter.includes("clip((t-1.0000)/2.0000,0,1)") ||
+    !animatedTextFilter.includes("alpha(X,Y)*(")) {
+  throw new Error("Animated text geometry/opacity was not compiled into the FFmpeg filter graph.");
+}
+console.log("TEXT KEYFRAME EXPORT 1/1 PASS  animated geometry and opacity map into FFmpeg output");
 const speedPlan = new NovaCutCommandCompiler(makeCompilerEngine({
   videos: [compilerVideo({ duration: 2500, speed: 2, sourceDuration: 5000 })]
 })).compile();

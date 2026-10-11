@@ -1404,13 +1404,14 @@ export class NovaCutCanvasPreview {
 
   drawText(ctx, cue, width, height) {
     const style = cue.style || {};
-    const x = clamp(style.x, 0, 1) * width;
-    const y = clamp(style.y, 0, 1) * height;
-    const size = Math.max(8, Number(style.fontSize) || 48);
+    const animated = sampleNovaCutLayerKeyframes(cue, this.engine.currentTimestamp, "textTracks");
+    const x = clamp(animated.x, 0, 1) * width;
+    const y = clamp(animated.y, 0, 1) * height;
+    const size = Math.max(8, Number(style.fontSize) || 48) * clamp(animated.scale, 0.1, 4);
     ctx.save();
     ctx.globalAlpha = clipOpacityAt(cue, this.engine.currentTimestamp);
     ctx.translate(x, y);
-    ctx.rotate((Number(style.rotation) || 0) * Math.PI / 180);
+    ctx.rotate((Number(animated.rotation) || 0) * Math.PI / 180);
     ctx.font = (style.italic ? "italic " : "") + (style.bold ? "800 " : "600 ") + size + "px " + (style.fontFamily || "system-ui");
     ctx.textAlign = style.align || "center";
     ctx.textBaseline = "middle";
@@ -1789,9 +1790,32 @@ class NovaCutCommandCompiler {
       const out = "tout" + index;
       const start = msToSec(cue.startTime);
       const end = msToSec(cue.startTime + cue.duration);
-      filters.push("[" + input.index + ":v:0]" + layerAlphaFilters(cue) + "[" + src + "]");
+      const base = novaCutLayerBaseValues(cue, "textTracks");
+      const keyframes = normalizeNovaCutLayerKeyframes(cue, "textTracks");
+      const hasScaleKeyframes = keyframes.some((frame) =>
+        cue.keyframes?.some((raw) => Number(raw.timeMs) === frame.timeMs && raw.scale != null)
+      );
+      const hasRotationKeyframes = keyframes.some((frame) =>
+        cue.keyframes?.some((raw) => Number(raw.timeMs) === frame.timeMs && raw.rotation != null)
+      );
+      const scaleExpression = ffmpegNovaCutLayerKeyframeExpression(cue, "textTracks", "scale", base.scale, 0, "t");
+      const rotationExpression = ffmpegNovaCutLayerKeyframeExpression(cue, "textTracks", "rotation", base.rotation, 0, "t");
+      const xExpression = ffmpegNovaCutLayerKeyframeExpression(cue, "textTracks", "x", base.x, 0, "t");
+      const yExpression = ffmpegNovaCutLayerKeyframeExpression(cue, "textTracks", "y", base.y, 0, "t");
+      const textFilters = [layerAlphaFilters(cue)];
+      if (hasScaleKeyframes) {
+        textFilters.push("scale=w='trunc(iw*(" + scaleExpression + ")/2)*2':h='trunc(ih*(" +
+          scaleExpression + ")/2)*2':eval=frame");
+      }
+      if (hasRotationKeyframes || Math.abs(Number(base.rotation) || 0) > 0.001) {
+        textFilters.push("rotate=angle='(" + rotationExpression + ")*PI/180':c=black@0:ow=iw:oh=ih");
+      }
+      filters.push("[" + input.index + ":v:0]" + textFilters.join(",") + "[" + src + "]");
+      const xPosition = "'(main_w-overlay_w)/2+((" + xExpression + ")-0.5)*main_w'";
+      const yPosition = "'(main_h-overlay_h)/2+((" + yExpression + ")-0.5)*main_h'";
       filters.push(
-        "[" + currentVideo + "][" + src + "]overlay=0:0:enable='between(t," + start.toFixed(3) + "," + end.toFixed(3) +
+        "[" + currentVideo + "][" + src + "]overlay=x=" + xPosition +
+        ":y=" + yPosition + ":enable='between(t," + start.toFixed(3) + "," + end.toFixed(3) +
         ")':eof_action=pass:shortest=0:repeatlast=0[" + out + "]"
       );
       currentVideo = out;
@@ -2244,9 +2268,7 @@ export class NovaCutEngine {
       return false;
     }
     const layerType = selected.type === "overlayTracks" ? "overlayTracks" : "textTracks";
-    const sampled = layerType === "overlayTracks"
-      ? sampleNovaCutLayerKeyframes(item, this.currentTimestamp, layerType)
-      : sampleNovaCutVideoKeyframes(item, this.currentTimestamp);
+    const sampled = sampleNovaCutLayerKeyframes(item, this.currentTimestamp, layerType);
     const opacity = clamp(values?.opacity ?? sampled.opacity ?? item.opacity ?? 1, 0, 1);
     const easing = ["linear", "ease-in", "ease-out", "ease-in-out"].includes(values?.easing)
       ? values.easing
@@ -2258,7 +2280,7 @@ export class NovaCutEngine {
       frame.opacity != null && Math.abs(Number(frame.timeMs) - timeMs) <= 34
     );
     const keyframe = { timeMs, opacity, easing };
-    if (layerType === "overlayTracks") {
+    if (["textTracks", "overlayTracks"].includes(layerType)) {
       keyframe.x = clamp(values?.x ?? sampled.x, 0, 1);
       keyframe.y = clamp(values?.y ?? sampled.y, 0, 1);
       keyframe.scale = clamp(values?.scale ?? sampled.scale, 0.1, 4);
@@ -2977,7 +2999,7 @@ export class NovaCutEngine {
     const videoFrameValues = type === "videoTracks" ? sampleNovaCutVideoKeyframes(item, this.currentTimestamp) : null;
     const layerFrameValues = type === "overlayTracks"
       ? sampleNovaCutLayerKeyframes(item, this.currentTimestamp, "overlayTracks")
-      : type === "textTracks" ? sampleNovaCutVideoKeyframes(item, this.currentTimestamp) : null;
+      : type === "textTracks" ? sampleNovaCutLayerKeyframes(item, this.currentTimestamp, "textTracks") : null;
     const input = (label, name, value, attrs = "") =>
       '<label>' + label + '<input data-clip-prop="' + name + '" type="number" value="' + value + '" ' + attrs + '></label>';
     let fields =
@@ -3012,10 +3034,11 @@ export class NovaCutEngine {
         input("Fade in (seconds)", "fadeIn", seconds(item.fadeInMs), 'min="0" max="60" step="0.05"') +
         input("Fade out (seconds)", "fadeOut", seconds(item.fadeOutMs), 'min="0" max="60" step="0.05"') +
         input("Font size", "fontSize", finite(style.fontSize, 48), 'min="8" max="180" step="1"') +
-        input("Position X (%)", "x", Math.round(finite(style.x, 0.5) * 100), 'min="0" max="100" step="1"') +
-        input("Position Y (%)", "y", Math.round(finite(style.y, 0.82) * 100), 'min="0" max="100" step="1"') +
+        input("Scale (%)", "scale", Math.round(clamp(layerFrameValues?.scale ?? 1, 0.1, 4) * 100), 'min="10" max="400" step="5"') +
+        input("Position X (%)", "x", Math.round(clamp(layerFrameValues?.x ?? style.x ?? 0.5, 0, 1) * 100), 'min="0" max="100" step="1"') +
+        input("Position Y (%)", "y", Math.round(clamp(layerFrameValues?.y ?? style.y ?? 0.82, 0, 1) * 100), 'min="0" max="100" step="1"') +
         '<label>Text color<input data-clip-prop="color" type="color" value="' + (/^#[0-9a-f]{6}$/i.test(String(style.color || "")) ? style.color : "#ffffff") + '"></label>' +
-        input("Rotation (degrees)", "rotation", finite(style.rotation), 'min="-360" max="360" step="1"');
+        input("Rotation (degrees)", "rotation", finite(layerFrameValues?.rotation ?? style.rotation), 'min="-360" max="360" step="1"');
     } else if (type === "overlayTracks") {
       fields +=
         input("Position X (%)", "x", Math.round(clamp(layerFrameValues?.x ?? item.x ?? 0.5, 0, 1) * 100), 'min="0" max="100" step="1"') +
@@ -3065,15 +3088,15 @@ export class NovaCutEngine {
         '</div>'
       : ["textTracks", "overlayTracks"].includes(type)
         ? '<div class="nx-novacut__keyframe-actions">' +
-          '<label>Opacity interpolation<select data-clip-prop="keyframeEasing">' +
+          '<label>Layer interpolation<select data-clip-prop="keyframeEasing">' +
             '<option value="linear"' + (keyframeEasing === "linear" ? " selected" : "") + '>Linear</option>' +
             '<option value="ease-in"' + (keyframeEasing === "ease-in" ? " selected" : "") + '>Ease in</option>' +
             '<option value="ease-out"' + (keyframeEasing === "ease-out" ? " selected" : "") + '>Ease out</option>' +
             '<option value="ease-in-out"' + (keyframeEasing === "ease-in-out" ? " selected" : "") + '>Ease in-out</option>' +
           '</select></label>' +
-          '<span data-layer-opacity-keyframe-count>Opacity keyframes: ' + (item.keyframes || []).filter((frame) => frame.opacity != null).length + '</span>' +
-          '<button type="button" class="nx-novacut__secondary" data-layer-opacity-keyframe-set>Set opacity keyframe</button>' +
-          '<button type="button" class="nx-novacut__secondary" data-layer-opacity-keyframe-remove>Remove opacity keyframe</button>' +
+          '<span data-layer-opacity-keyframe-count>Layer keyframes: ' + (item.keyframes || []).filter((frame) => frame.opacity != null).length + '</span>' +
+          '<button type="button" class="nx-novacut__secondary" data-layer-opacity-keyframe-set>Set layer keyframe</button>' +
+          '<button type="button" class="nx-novacut__secondary" data-layer-opacity-keyframe-remove>Remove layer keyframe here</button>' +
           '</div>'
         : '';
     const colorPresets = type === "videoTracks"
@@ -3129,11 +3152,16 @@ export class NovaCutEngine {
       const layerValues = { opacity,
         easing: sheet.body.querySelector('[data-clip-prop="keyframeEasing"]')?.value || "linear"
       };
-      if (type === "overlayTracks") {
-        layerValues.x = clamp(readLayerValue("x", (layerFrameValues?.x ?? item.x ?? 0.5) * 100) / 100, 0, 1);
-        layerValues.y = clamp(readLayerValue("y", (layerFrameValues?.y ?? item.y ?? 0.5) * 100) / 100, 0, 1);
-        layerValues.scale = clamp(readLayerValue("scale", (layerFrameValues?.scale ?? item.scale ?? 1) * 100) / 100, 0.1, 4);
-        layerValues.rotation = clamp(readLayerValue("rotation", layerFrameValues?.rotation ?? item.rotation ?? 0), -360, 360);
+      if (["textTracks", "overlayTracks"].includes(type)) {
+        const layerStyle = item.style || {};
+        const defaultX = type === "textTracks" ? (layerStyle.x ?? 0.5) : (item.x ?? 0.5);
+        const defaultY = type === "textTracks" ? (layerStyle.y ?? 0.82) : (item.y ?? 0.5);
+        const defaultScale = type === "textTracks" ? 1 : (item.scale ?? 1);
+        const defaultRotation = type === "textTracks" ? (layerStyle.rotation ?? 0) : (item.rotation ?? 0);
+        layerValues.x = clamp(readLayerValue("x", (layerFrameValues?.x ?? defaultX) * 100) / 100, 0, 1);
+        layerValues.y = clamp(readLayerValue("y", (layerFrameValues?.y ?? defaultY) * 100) / 100, 0, 1);
+        layerValues.scale = clamp(readLayerValue("scale", (layerFrameValues?.scale ?? defaultScale) * 100) / 100, 0.1, 4);
+        layerValues.rotation = clamp(readLayerValue("rotation", layerFrameValues?.rotation ?? defaultRotation), -360, 360);
       }
       this.setLayerOpacityKeyframeAtPlayhead(layerValues);
       const count = sheet.body.querySelector("[data-layer-opacity-keyframe-count]");
@@ -3377,8 +3405,8 @@ export class NovaCutEngine {
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("NovaCut could not create text export canvas.");
     const style = cue.style || {};
-    const x = clamp(style.x, 0, 1) * width;
-    const y = clamp(style.y, 0, 1) * height;
+    const x = width / 2;
+    const y = height / 2;
     const size = Math.max(8, Number(style.fontSize) || 48);
     ctx.font = (style.italic ? "italic " : "") + (style.bold ? "800 " : "600 ") + size + "px " + (style.fontFamily || "system-ui");
     ctx.textAlign = style.align || "center";
@@ -3394,7 +3422,6 @@ export class NovaCutEngine {
     ctx.fillStyle = style.color || "#ffffff";
     ctx.save();
     ctx.translate(x, y);
-    ctx.rotate((Number(style.rotation) || 0) * Math.PI / 180);
     lines.forEach((line, lineIndex) => ctx.fillText(line, 0, -total / 2 + lineIndex * lh + lh / 2));
     ctx.restore();
     const blob = await new Promise((resolve, reject) => canvas.toBlob((value) => value ? resolve(value) : reject(new Error("NovaCut failed to encode text layer " + index + ".")), "image/png"));
