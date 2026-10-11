@@ -2328,11 +2328,11 @@ export class NovaCutEngine {
     }
     const state = draft.state;
     const trackNames = ["videoTracks", "audioTracks", "textTracks", "overlayTracks", "effectTracks"];
-    if (!trackNames.some((name) => Array.isArray(state[name]) && state[name].length)) {
+    if (!trackNames.every((name) => Array.isArray(state[name]))) {
       return { restored: false, available: true };
     }
     for (const name of trackNames) {
-      this.registry[name] = Array.isArray(state[name]) ? state[name] : [];
+      this.registry[name] = state[name];
     }
     if (RATIO_PRESETS[draft.aspectRatio]) this.aspectRatio = draft.aspectRatio;
     this.aspectRatioExplicit = Boolean(draft.aspectRatioExplicit);
