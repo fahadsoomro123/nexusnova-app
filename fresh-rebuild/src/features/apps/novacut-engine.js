@@ -2842,6 +2842,9 @@ export class NovaCutEngine {
     const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
     const seconds = (value) => (Math.max(0, finite(value)) / 1000).toFixed(2);
     const videoFrameValues = type === "videoTracks" ? sampleNovaCutVideoKeyframes(item, this.currentTimestamp) : null;
+    const layerFrameValues = ["textTracks", "overlayTracks"].includes(type)
+      ? sampleNovaCutVideoKeyframes(item, this.currentTimestamp)
+      : null;
     const input = (label, name, value, attrs = "") =>
       '<label>' + label + '<input data-clip-prop="' + name + '" type="number" value="' + value + '" ' + attrs + '></label>';
     let fields =
@@ -2872,7 +2875,7 @@ export class NovaCutEngine {
     } else if (type === "textTracks") {
       const style = item.style || {};
       fields += '<label>Text<textarea data-clip-prop="text" maxlength="240"></textarea></label>' +
-        input("Opacity (%)", "opacity", Math.round(clamp(item.opacity ?? 1, 0, 1) * 100), 'min="0" max="100" step="1"') +
+        input("Opacity (%)", "opacity", Math.round(clamp(layerFrameValues?.opacity ?? item.opacity ?? 1, 0, 1) * 100), 'min="0" max="100" step="1"') +
         input("Fade in (seconds)", "fadeIn", seconds(item.fadeInMs), 'min="0" max="60" step="0.05"') +
         input("Fade out (seconds)", "fadeOut", seconds(item.fadeOutMs), 'min="0" max="60" step="0.05"') +
         input("Font size", "fontSize", finite(style.fontSize, 48), 'min="8" max="180" step="1"') +
@@ -2884,7 +2887,7 @@ export class NovaCutEngine {
       fields +=
         input("Position X (%)", "x", Math.round(finite(item.x, 0.5) * 100), 'min="0" max="100" step="1"') +
         input("Position Y (%)", "y", Math.round(finite(item.y, 0.5) * 100), 'min="0" max="100" step="1"') +
-        input("Opacity (%)", "opacity", Math.round(clamp(item.opacity ?? 1, 0, 1) * 100), 'min="0" max="100" step="1"') +
+        input("Opacity (%)", "opacity", Math.round(clamp(layerFrameValues?.opacity ?? item.opacity ?? 1, 0, 1) * 100), 'min="0" max="100" step="1"') +
         input("Fade in (seconds)", "fadeIn", seconds(item.fadeInMs), 'min="0" max="60" step="0.05"') +
         input("Fade out (seconds)", "fadeOut", seconds(item.fadeOutMs), 'min="0" max="60" step="0.05"') +
         input("Width (%)", "width", Math.round(finite(item.width, 0.2) * 100), 'min="3" max="100" step="1"') +
@@ -2985,7 +2988,11 @@ export class NovaCutEngine {
       if (count) count.textContent = "Keyframes: " + (item.keyframes?.length || 0);
     });
     sheet.body.querySelector("[data-layer-opacity-keyframe-set]")?.addEventListener("click", () => {
-      const opacity = clamp(value("opacity", clamp(item.opacity ?? 1, 0, 1) * 100) / 100, 0, 1);
+      const readLayerValue = (name, fallback) => {
+        const parsed = Number(sheet.body.querySelector('[data-clip-prop="' + name + '"]')?.value);
+        return Number.isFinite(parsed) ? parsed : fallback;
+      };
+      const opacity = clamp(readLayerValue("opacity", clamp(layerFrameValues?.opacity ?? item.opacity ?? 1, 0, 1) * 100) / 100, 0, 1);
       this.setLayerOpacityKeyframeAtPlayhead({
         opacity,
         easing: sheet.body.querySelector('[data-clip-prop="keyframeEasing"]')?.value || "linear"
