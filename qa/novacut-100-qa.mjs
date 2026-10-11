@@ -78,6 +78,10 @@ check("video add API and visual controls are normalized", () => assert(
   has(engine, "eval=frame") &&
   has(engine, "setVideoKeyframeAtPlayhead(values = null)") &&
   has(engine, "removeVideoKeyframeAtPlayhead()") &&
+  has(engine, "setSelectedKeyframeAtPlayhead()") &&
+  has(engine, "removeSelectedKeyframeAtPlayhead()") &&
+  has(engine, 'else if (action === "keyframe-add") this.setSelectedKeyframeAtPlayhead();') &&
+  has(engine, 'else if (action === "keyframe-remove") this.removeSelectedKeyframeAtPlayhead();') &&
   has(engine, "normalizeNovaCutSpeedCurve") &&
   has(engine, "ffmpegNovaCutSpeedCurveExpression(clip)") &&
   has(engine, 'data-clip-prop="speedCurvePreset"') &&
@@ -341,6 +345,21 @@ if (passed !== 100) {
 globalThis.window ??= globalThis;
 const { NovaCutEngine, NovaCutCanvasPreview, NovaCutCommandCompiler, isAndroidWebViewUserAgent } = await import("../fresh-rebuild/src/features/apps/novacut-engine.js");
 const { novaCutCanvasPointFromClient, moveNovaCutCanvasOverlay, createNovaCutWaveformPeaks } = await import("../fresh-rebuild/src/features/apps/novacut-studio.js");
+const genericKeyframeEngine = new NovaCutEngine();
+const genericVideo = genericKeyframeEngine.registry.addVideoClip({ id: "qa-generic-keyframe-video", startTime: 0, duration: 3000 });
+const genericText = genericKeyframeEngine.registry.addTextCue({ id: "qa-generic-keyframe-text", startTime: 0, duration: 3000, text: "Keyframe" });
+const genericSticker = genericKeyframeEngine.registry.addOverlay({ id: "qa-generic-keyframe-sticker", startTime: 0, duration: 3000, x: 0.5, y: 0.5 });
+for (const item of [genericVideo, genericText, genericSticker]) {
+  genericKeyframeEngine.currentTimestamp = 1000;
+  genericKeyframeEngine.activeTrackId = item.id;
+  if (!genericKeyframeEngine.setSelectedKeyframeAtPlayhead() || !item.keyframes?.length) {
+    throw new Error("The generic keyframe tool did not create a keyframe for " + item.id + ".");
+  }
+  if (!genericKeyframeEngine.removeSelectedKeyframeAtPlayhead() || item.keyframes.length !== 0) {
+    throw new Error("The generic keyframe remove tool did not remove a keyframe for " + item.id + ".");
+  }
+}
+console.log("GENERIC KEYFRAME TOOL 3/3 PASS  video, text and sticker selection dispatch");
 const centerPoint = novaCutCanvasPointFromClient(110, 70, { left: 10, top: 20, width: 200, height: 100 });
 if (centerPoint?.x !== 0.5 || centerPoint?.y !== 0.5 ||
     novaCutCanvasPointFromClient(10, 20, { left: 0, top: 0, width: 0, height: 100 }) !== null) {
