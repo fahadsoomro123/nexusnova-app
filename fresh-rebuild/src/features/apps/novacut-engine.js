@@ -128,6 +128,35 @@ export function createNovaCutSpeedCurvePreset(preset, durationMs, sourceDuration
   })), duration, sourceDurationMs);
 }
 
+export function createNovaCutCustomSpeedCurve(points, durationMs, sourceDurationMs) {
+  const duration = Math.max(1, Number(durationMs) || 1);
+  if (!Array.isArray(points) || points.length < 2) return [];
+  const candidates = points
+    .filter((point) => point && Number.isFinite(Number(point.position)) && Number.isFinite(Number(point.speed)))
+    .map((point) => ({ position: clamp(point.position, 0, 100), speed: clamp(point.speed, 0.25, 4) }))
+    .sort((a, b) => a.position - b.position);
+  if (candidates.length < 2) return [];
+  const unique = [];
+  for (const point of candidates) {
+    const previous = unique[unique.length - 1];
+    if (previous && Math.abs(previous.position - point.position) < 0.001) previous.speed = point.speed;
+    else unique.push({ ...point });
+  }
+  if (unique.length < 2) return [];
+  if (unique[0].position > 0.001) unique.unshift({ position: 0, speed: unique[0].speed });
+  else unique[0].position = 0;
+  if (unique[unique.length - 1].position < 99.999) unique.push({ position: 100, speed: unique[unique.length - 1].speed });
+  else unique[unique.length - 1].position = 100;
+  const byTime = new Map();
+  unique.forEach((point) => {
+    const timeMs = Math.round(duration * point.position / 100);
+    byTime.set(timeMs, { timeMs, speed: point.speed });
+  });
+  byTime.set(0, { timeMs: 0, speed: unique[0].speed });
+  byTime.set(duration, { timeMs: duration, speed: unique[unique.length - 1].speed });
+  return normalizeNovaCutSpeedCurve([...byTime.values()].sort((a, b) => a.timeMs - b.timeMs), duration, sourceDurationMs);
+}
+
 export function sampleNovaCutSpeed(clip, timestamp) {
   const local = clamp((Number(timestamp) || 0) - (Number(clip?.startTime) || 0), 0, Math.max(1, Number(clip?.duration) || 1));
   return Array.isArray(clip?.speedCurve) && clip.speedCurve.length > 1
@@ -3581,6 +3610,36 @@ export class NovaCutEngine {
           '<button type="button" class="nx-novacut__secondary" data-layer-opacity-keyframe-remove>Remove layer keyframe here</button>' +
           '</div>'
         : '';
+    const renderSpeedCurveRows = (points) => points.map((point, index) => {
+      const endpoint = index === 0 || index === points.length - 1;
+      const position = endpoint ? (index === 0 ? 0 : 100) : clamp(point.position, 0, 100);
+      const speed = clamp(point.speed, 0.25, 4);
+      return '<div class="nx-novacut__speed-curve-point" data-speed-curve-row>' +
+        '<span class="nx-novacut__speed-curve-index">' + (index + 1) + '</span>' +
+        '<label>Position %<input data-speed-curve-position type="number" value="' + position.toFixed(1) + '" min="' + (endpoint ? position : '0.1') + '" max="' + (endpoint ? position : '99.9') + '" step="0.1" ' + (endpoint ? 'readonly' : '') + '></label>' +
+        '<label>Speed ×<input data-speed-curve-speed type="number" value="' + speed.toFixed(2) + '" min="0.25" max="4" step="0.05"></label>' +
+        (endpoint ? '' : '<button type="button" class="nx-novacut__secondary" data-speed-curve-remove="' + index + '" aria-label="Remove curve point ' + (index + 1) + '">Remove</button>') +
+        '</div>';
+    }).join('');
+    const initialSpeedCurve = Array.isArray(item.speedCurve) && item.speedCurve.length > 1
+      ? item.speedCurve
+      : [{ timeMs: 0, speed: finite(item.speed, 1) }, { timeMs: item.duration, speed: finite(item.speed, 1) }];
+    const speedCurveInitialPoints = initialSpeedCurve.map((point) => ({
+      position: clamp((Number(point.timeMs) || 0) / Math.max(1, Number(item.duration) || 1) * 100, 0, 100),
+      speed: clamp(point.speed, 0.25, 4)
+    }));
+    if (speedCurveInitialPoints.length > 1) {
+      speedCurveInitialPoints[0].position = 0;
+      speedCurveInitialPoints[speedCurveInitialPoints.length - 1].position = 100;
+    }
+    const speedCurveEditor = type === "videoTracks"
+      ? '<section class="nx-novacut__speed-curve-editor" data-speed-curve-editor' + (item.speedCurvePreset === "custom" ? '' : ' hidden') + '>' +
+        '<div class="nx-novacut__speed-curve-heading"><strong>Custom speed curve</strong><span>0.25×–4×</span></div>' +
+        '<div class="nx-novacut__speed-curve-points" data-speed-curve-points>' + renderSpeedCurveRows(speedCurveInitialPoints) + '</div>' +
+        '<button type="button" class="nx-novacut__secondary" data-speed-curve-add>Add curve point</button>' +
+        '<p class="nx-novacut__sheet-copy">Set the speed at each point. Endpoints stay fixed; up to 10 points are supported.</p>' +
+        '</section>'
+      : '';
     const colorPresets = type === "videoTracks"
       ? '<div class="nx-novacut__color-presets" role="group" aria-label="Color presets">' +
         '<button type="button" data-color-preset="original">Original</button>' +
@@ -3592,10 +3651,63 @@ export class NovaCutEngine {
       : '';
     sheet.body.innerHTML =
       '<div class="nx-novacut__form-grid">' + fields + '</div>' +
+      speedCurveEditor +
       colorPresets +
       keyframeControls +
       '<p class="nx-novacut__sheet-copy">Apply transform and opacity values, then set a keyframe at the playhead. Two or more keyframes animate position, scale, rotation, and opacity.</p>' +
       '<div class="nx-novacut__sheet-actions"><button type="button" class="nx-novacut__secondary" data-sheet-close>Cancel</button><button type="button" class="nx-novacut__primary" data-apply-clip-settings>Apply changes</button></div>';
+    const speedCurveSelect = sheet.body.querySelector('[data-clip-prop="speedCurvePreset"]');
+    const speedCurveEditorRoot = sheet.body.querySelector('[data-speed-curve-editor]');
+    const speedCurvePointsHost = sheet.body.querySelector('[data-speed-curve-points]');
+    const readCustomSpeedCurveDraft = () => Array.from(speedCurvePointsHost?.querySelectorAll('[data-speed-curve-row]') || [])
+      .map((row) => ({
+        position: Number(row.querySelector('[data-speed-curve-position]')?.value),
+        speed: Number(row.querySelector('[data-speed-curve-speed]')?.value)
+      }));
+    const renderCustomSpeedCurvePoints = (points) => {
+      if (!speedCurvePointsHost) return;
+      speedCurvePointsHost.innerHTML = renderSpeedCurveRows(points);
+      speedCurvePointsHost.querySelectorAll('[data-speed-curve-remove]').forEach((button) => {
+        button.addEventListener('click', () => {
+          const draft = readCustomSpeedCurveDraft();
+          const index = Number(button.dataset.speedCurveRemove);
+          if (index <= 0 || index >= draft.length - 1 || draft.length <= 2) return;
+          draft.splice(index, 1);
+          renderCustomSpeedCurvePoints(draft);
+        });
+      });
+    };
+    if (speedCurveSelect && speedCurveEditorRoot) {
+      speedCurveSelect.addEventListener('change', () => {
+        speedCurveEditorRoot.hidden = speedCurveSelect.value !== 'custom';
+      });
+      speedCurveEditorRoot.hidden = speedCurveSelect.value !== 'custom';
+      speedCurveEditorRoot.querySelector('[data-speed-curve-add]')?.addEventListener('click', () => {
+        const draft = readCustomSpeedCurveDraft().sort((a, b) => a.position - b.position);
+        if (draft.length >= 10) {
+          this.setStatus('A custom speed curve supports up to 10 points.');
+          return;
+        }
+        let gapIndex = 0;
+        let gapSize = -1;
+        for (let index = 0; index < draft.length - 1; index += 1) {
+          const gap = draft[index + 1].position - draft[index].position;
+          if (gap > gapSize) { gapSize = gap; gapIndex = index; }
+        }
+        if (gapSize < 0.2) {
+          this.setStatus('There is not enough space for another curve point.');
+          return;
+        }
+        const left = draft[gapIndex];
+        const right = draft[gapIndex + 1];
+        draft.splice(gapIndex + 1, 0, {
+          position: Math.round((left.position + right.position) * 5) / 10,
+          speed: clamp((left.speed + right.speed) / 2, 0.25, 4)
+        });
+        renderCustomSpeedCurvePoints(draft);
+      });
+      renderCustomSpeedCurvePoints(readCustomSpeedCurveDraft());
+    }
     const colorPresetValues = {
       original: { brightness: 100, contrast: 100, saturation: 100 },
       vivid: { brightness: 105, contrast: 115, saturation: 140 },
@@ -3674,6 +3786,23 @@ export class NovaCutEngine {
         const parsed = Number(sheet.body.querySelector('[data-clip-prop="' + name + '"]')?.value);
         return Number.isFinite(parsed) ? parsed : fallback;
       };
+      const requestedSpeedCurve = type === "videoTracks" ? (speedCurveSelect?.value || "none") : "none";
+      let customSpeedCurveDraft = [];
+      if (type === "videoTracks" && requestedSpeedCurve === "custom") {
+        customSpeedCurveDraft = readCustomSpeedCurveDraft().sort((a, b) => a.position - b.position);
+        const validPoints = customSpeedCurveDraft.length >= 2 &&
+          Math.abs(customSpeedCurveDraft[0].position) <= 0.01 &&
+          Math.abs(customSpeedCurveDraft[customSpeedCurveDraft.length - 1].position - 100) <= 0.01 &&
+          customSpeedCurveDraft.every((point, index) =>
+            Number.isFinite(point.position) && Number.isFinite(point.speed) &&
+            point.speed >= 0.25 && point.speed <= 4 &&
+            (index === 0 || point.position - customSpeedCurveDraft[index - 1].position >= 0.1)
+          );
+        if (!validPoints) {
+          this.setStatus('Custom speed curve needs 0% and 100% endpoints, unique positions, and speeds from 0.25× to 4×.');
+          return;
+        }
+      }
       const before = this.history.capture();
       item.startTime = Math.round(clamp(value("start", finite(item.startTime) / 1000), 0, 3600) * 1000);
       const priorDuration = Math.max(1, finite(item.duration, 3000));
@@ -3704,13 +3833,12 @@ export class NovaCutEngine {
         item.fadeOutMs = Math.min(item.duration, Math.round(clamp(value("fadeOut", finite(item.fadeOutMs) / 1000), 0, 60) * 1000));
         item.volume = clamp(value("volume", 100) / 100, 0, 4);
         item.fitMode = sheet.body.querySelector('[data-clip-prop="fitMode"]')?.value === "fill" ? "fill" : "fit";
-        const requestedSpeedCurve = sheet.body.querySelector('[data-clip-prop="speedCurvePreset"]')?.value || "none";
         if (requestedSpeedCurve === "none") {
           item.speedCurve = [];
           item.speedCurvePreset = "none";
-        } else if (requestedSpeedCurve === "custom" && Array.isArray(item.speedCurve) && item.speedCurve.length > 1) {
-          item.speedCurve = normalizeNovaCutSpeedCurve(item.speedCurve, item.duration, item.sourceDuration);
-          item.speedCurvePreset = "custom";
+        } else if (requestedSpeedCurve === "custom") {
+          item.speedCurve = createNovaCutCustomSpeedCurve(customSpeedCurveDraft, item.duration, item.sourceDuration);
+          item.speedCurvePreset = item.speedCurve.length > 1 ? "custom" : "none";
         } else if (["montage", "hero", "bullet", "flash-in", "flash-out"].includes(requestedSpeedCurve)) {
           item.speedCurve = createNovaCutSpeedCurvePreset(requestedSpeedCurve, item.duration, item.sourceDuration);
           item.speedCurvePreset = item.speedCurve.length ? requestedSpeedCurve : "none";

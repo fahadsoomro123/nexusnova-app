@@ -1016,3 +1016,18 @@
   .nx-novacut__timeline-controls button { min-width: 24px !important; padding: 0 4px !important; }
   .nx-novacut__timeline-controls [data-role="timeline-zoom-value"] { min-width: 30px !important; }
 }
+
+/* NovaCut custom speed curve editor */
+.nx-novacut__speed-curve-editor{display:grid!important;gap:9px!important;padding:12px!important;border:1px solid rgba(255,255,255,.08)!important;border-radius:14px!important;background:rgba(255,255,255,.025)!important}
+.nx-novacut__speed-curve-editor[hidden]{display:none!important}
+.nx-novacut__speed-curve-heading{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:8px!important;color:#e9edf5!important;font-size:12px!important}
+.nx-novacut__speed-curve-heading span{color:#8fceff!important;font-size:10px!important;font-weight:800!important}
+.nx-novacut__speed-curve-points{display:grid!important;gap:6px!important}
+.nx-novacut__speed-curve-point{display:grid!important;grid-template-columns:28px minmax(70px,1fr) minmax(70px,1fr) 58px!important;align-items:end!important;gap:6px!important}
+.nx-novacut__speed-curve-index{align-self:center!important;color:#9ca5b2!important;font-size:10px!important;font-weight:800!important;text-align:center!important}
+.nx-novacut__speed-curve-point label{display:grid!important;gap:4px!important;color:#9ca5b2!important;font-size:9px!important;font-weight:800!important}
+.nx-novacut__speed-curve-point input{width:100%!important;min-width:0!important;min-height:36px!important;box-sizing:border-box!important;border:1px solid rgba(255,255,255,.09)!important;border-radius:9px!important;padding:0 7px!important;background:#191b21!important;color:#fff!important}
+.nx-novacut__speed-curve-point input[readonly]{color:#7d8794!important;background:#121318!important}
+.nx-novacut__speed-curve-point button{min-height:36px!important;padding:0 7px!important;font-size:10px!important}
+.nx-novacut__speed-curve-editor>[data-speed-curve-add]{justify-self:start!important;min-height:36px!important}
+@media(max-width:380px){.nx-novacut__speed-curve-point{grid-template-columns:22px minmax(64px,1fr) minmax(64px,1fr) 52px!important;gap:4px!important}.nx-novacut__speed-curve-point button{padding:0 4px!important}}

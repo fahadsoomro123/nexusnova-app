@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
-import { sampleNovaCutVideoKeyframes, sampleNovaCutAudioGain, clipOpacityAt, sampleNovaCutLayerKeyframes, normalizeNovaCutSpeedCurve, createNovaCutSpeedCurvePreset, sampleNovaCutSpeed, novaCutSourceOffsetForTimeline, novaCutTimelineOffsetForSource } from "../fresh-rebuild/src/features/apps/novacut-engine.js";
+import { sampleNovaCutVideoKeyframes, sampleNovaCutAudioGain, clipOpacityAt, sampleNovaCutLayerKeyframes, normalizeNovaCutSpeedCurve, createNovaCutSpeedCurvePreset, createNovaCutCustomSpeedCurve, sampleNovaCutSpeed, novaCutSourceOffsetForTimeline, novaCutTimelineOffsetForSource } from "../fresh-rebuild/src/features/apps/novacut-engine.js";
 
 const ROOT = process.cwd();
 const read = (file) => fs.readFileSync(path.join(ROOT, file), "utf8");
@@ -94,6 +94,12 @@ check("video add API and visual controls are normalized", () => assert(
   has(engine, "normalizeNovaCutSpeedCurve") &&
   has(engine, "ffmpegNovaCutSpeedCurveExpression(clip)") &&
   has(engine, 'data-clip-prop="speedCurvePreset"') &&
+  has(engine, "export function createNovaCutCustomSpeedCurve") &&
+  has(engine, "data-speed-curve-editor") &&
+  has(engine, "data-speed-curve-add") &&
+  has(engine, "data-speed-curve-position") &&
+  has(engine, "data-speed-curve-speed") &&
+  has(engine, "createNovaCutCustomSpeedCurve(customSpeedCurveDraft, item.duration, item.sourceDuration)") &&
   has(engine, "sampleNovaCutSpeed"),
   "video clip visual properties, keyframe animation, or speed curve support are missing"
 ));
@@ -574,6 +580,20 @@ const montageCurve = createNovaCutSpeedCurvePreset("montage", 4000, 4000);
 if (montageCurve.length < 4 || Math.abs(novaCutSourceOffsetForTimeline({ ...speedCurveClip, speedCurve: montageCurve }, 4000) - 4000) > 0.5) {
   throw new Error("Montage speed curve preset does not preserve the clip's source span.");
 }
+const authoredCurve = createNovaCutCustomSpeedCurve([
+  { position: 0, speed: 1 },
+  { position: 20, speed: 2.5 },
+  { position: 70, speed: 0.5 },
+  { position: 100, speed: 1 }
+], 4000, 4000);
+if (authoredCurve.length < 4 ||
+    authoredCurve[0].timeMs !== 0 ||
+    authoredCurve[authoredCurve.length - 1].timeMs !== 4000 ||
+    Math.abs(novaCutSourceOffsetForTimeline({ ...speedCurveClip, speedCurve: authoredCurve }, 4000) - 4000) > 0.5 ||
+    new Set(authoredCurve.map((point) => Math.round(point.speed * 100))).size < 3) {
+  throw new Error("Custom speed curve authoring did not preserve endpoints, curve shape, and source duration.");
+}
+console.log("CUSTOM SPEED CURVE AUTHORING 1/1 PASS  editable points normalize to clip duration and preserve source span");
 console.log("SPEED CURVE MAPPING 1/1 PASS  smooth rate sampling, source integration/inversion, and duration preservation");
 const curveSplitEngine = new NovaCutEngine();
 curveSplitEngine.registry.addVideoClip({
