@@ -2164,6 +2164,16 @@ export class NovaCutEngine {
     this.compiler = new NovaCutCommandCompiler(this);
     this.preview = null;
     this.abort = null;
+    this.projectDbPromise = null;
+    this.projectReady = false;
+    this.projectHydrationStarted = false;
+    this.projectReadyPromise = Promise.resolve({ restored: false, available: false });
+    this.projectPersistenceDisabled = false;
+    this.projectSaveTimer = 0;
+    this.projectSaveQueue = Promise.resolve();
+    this.lastProjectSaveError = "";
+    this.events.on("statechange", () => this.scheduleProjectDraftSave());
+    this.events.on("ratio", () => this.scheduleProjectDraftSave());
     if (this.root) this.mount(this.root);
   }
 
@@ -2175,6 +2185,14 @@ export class NovaCutEngine {
     this.abort?.abort();
     this.abort = new AbortController();
     const signal = this.abort.signal;
+    const blockUntilDraftReady = (event) => {
+      if (this.projectReady) return;
+      event.preventDefault?.();
+      event.stopImmediatePropagation?.();
+    };
+    ["click", "pointerdown", "drop", "paste"].forEach((type) => {
+      root.addEventListener(type, blockUntilDraftReady, { capture: true, signal });
+    });
     const canvas = root.querySelector("[data-role='preview-canvas']");
     this.preview?.dispose();
     this.preview = new NovaCutCanvasPreview(this, canvas);
@@ -2217,7 +2235,155 @@ export class NovaCutEngine {
     this.installCanvasInteractions(canvas);
     this.events.emit("selectionchange", { id: this.activeTrackId });
     this.emitHistoryState();
+    if (!this.projectHydrationStarted) {
+      this.projectHydrationStarted = true;
+      this.setStatus("Restoring saved draft…");
+      this.projectReadyPromise = this.restoreProjectDraft().then((result) => {
+        this.projectReady = true;
+        if (root?.dataset) root.dataset.novacutProjectReady = "true";
+        if (result.restored) {
+          this.activeTrackId = this.findFirstExistingId(this.activeTrackId);
+          this.preview?.syncRegistry();
+          this.preview?.markDirty();
+          this.events.emit("ratio", {
+            ratio: this.aspectRatio,
+            size: RATIO_PRESETS[this.aspectRatio],
+            restored: true
+          });
+          this.setStatus("Draft restored");
+        } else if (!result.available) {
+          this.projectPersistenceDisabled = true;
+          this.setStatus("Draft autosave is unavailable in this browser");
+        } else {
+          this.setStatus("Ready");
+        }
+        this.events.emit("statechange", this.getState());
+        this.emitHistoryState();
+        return result;
+      }).catch((error) => {
+        this.projectReady = true;
+        this.projectPersistenceDisabled = true;
+        if (root?.dataset) root.dataset.novacutProjectReady = "true";
+        this.setStatus("Draft restore failed: " + String(error?.message || error).slice(0, 120));
+        this.events.emit("statechange", this.getState());
+        return { restored: false, available: false, error };
+      });
+    } else {
+      this.projectReady = true;
+      if (root?.dataset) root.dataset.novacutProjectReady = "true";
+    }
     return this;
+  }
+
+  openProjectDraftDatabase() {
+    if (this.projectPersistenceDisabled || !globalThis.indexedDB) {
+      return Promise.resolve(null);
+    }
+    if (this.projectDbPromise) return this.projectDbPromise;
+    this.projectDbPromise = new Promise((resolve, reject) => {
+      const request = globalThis.indexedDB.open("novacut-project-drafts", 1);
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains("drafts")) {
+          db.createObjectStore("drafts", { keyPath: "id" });
+        }
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error || new Error("Could not open local draft storage."));
+      request.onblocked = () => reject(new Error("Local draft storage is blocked by another editor tab."));
+    }).catch((error) => {
+      this.projectDbPromise = null;
+      throw error;
+    });
+    return this.projectDbPromise;
+  }
+
+  cloneProjectDraftValue(value) {
+    if (typeof Blob !== "undefined" && value instanceof Blob) return value;
+    if (value instanceof Date) return new Date(value.getTime());
+    if (Array.isArray(value)) return value.map((item) => this.cloneProjectDraftValue(item));
+    if (!value || typeof value !== "object") return value;
+    const result = {};
+    Object.keys(value).forEach((key) => {
+      if (value[key] !== undefined) result[key] = this.cloneProjectDraftValue(value[key]);
+    });
+    return result;
+  }
+
+  async restoreProjectDraft() {
+    if (!globalThis.indexedDB) {
+      return { restored: false, available: false };
+    }
+    const db = await this.openProjectDraftDatabase();
+    if (!db) return { restored: false, available: false };
+    const draft = await new Promise((resolve, reject) => {
+      const transaction = db.transaction("drafts", "readonly");
+      const request = transaction.objectStore("drafts").get("current");
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => reject(request.error || new Error("Could not read the last NovaCut draft."));
+      transaction.onabort = () => reject(transaction.error || new Error("Draft restore transaction was aborted."));
+    });
+    if (!draft?.state || typeof draft.state !== "object") {
+      return { restored: false, available: true };
+    }
+    const state = draft.state;
+    const trackNames = ["videoTracks", "audioTracks", "textTracks", "overlayTracks", "effectTracks"];
+    if (!trackNames.some((name) => Array.isArray(state[name]) && state[name].length)) {
+      return { restored: false, available: true };
+    }
+    for (const name of trackNames) {
+      this.registry[name] = Array.isArray(state[name]) ? state[name] : [];
+    }
+    if (RATIO_PRESETS[draft.aspectRatio]) this.aspectRatio = draft.aspectRatio;
+    this.aspectRatioExplicit = Boolean(draft.aspectRatioExplicit);
+    this.currentTimestamp = clamp(Number(draft.currentTimestamp) || 0, 0, this.registry.durationMs());
+    this.activeTrackId = this.findFirstExistingId(draft.activeTrackId);
+    this.preview?.syncRegistry();
+    return { restored: true, available: true, savedAt: Number(draft.savedAt) || 0 };
+  }
+
+  scheduleProjectDraftSave() {
+    if (!this.projectReady || this.projectPersistenceDisabled) return;
+    if (this.projectSaveTimer) clearTimeout(this.projectSaveTimer);
+    this.projectSaveTimer = setTimeout(() => {
+      this.projectSaveTimer = 0;
+      this.saveProjectDraft().catch((error) => {
+        const message = String(error?.message || error);
+        if (message !== this.lastProjectSaveError) {
+          this.lastProjectSaveError = message;
+          this.setStatus("Draft auto-save failed: " + message.slice(0, 110));
+        }
+      });
+    }, 900);
+  }
+
+  saveProjectDraft() {
+    if (!this.projectReady || this.projectPersistenceDisabled) return Promise.resolve(false);
+    const draft = this.cloneProjectDraftValue({
+      id: "current",
+      savedAt: Date.now(),
+      aspectRatio: this.aspectRatio,
+      aspectRatioExplicit: this.aspectRatioExplicit,
+      currentTimestamp: this.currentTimestamp,
+      activeTrackId: this.activeTrackId,
+      state: this.getState()
+    });
+    const persist = async () => {
+      const db = await this.openProjectDraftDatabase();
+      if (!db) throw new Error("IndexedDB is unavailable.");
+      await new Promise((resolve, reject) => {
+        const transaction = db.transaction("drafts", "readwrite");
+        transaction.objectStore("drafts").put(draft);
+        transaction.oncomplete = () => resolve(true);
+        transaction.onerror = () => reject(transaction.error || new Error("Could not save the NovaCut draft."));
+        transaction.onabort = () => reject(transaction.error || new Error("Draft save transaction was aborted."));
+      });
+      if (this.root?.dataset) this.root.dataset.novacutDraftSavedAt = String(draft.savedAt);
+      this.lastProjectSaveError = "";
+      return true;
+    };
+    this.projectSaveQueue = this.projectSaveQueue.catch(() => false).then(persist);
+    return this.projectSaveQueue;
   }
 
   getState() {
@@ -3840,6 +4006,13 @@ export class NovaCutEngine {
 
   async dispose() {
     this.pause();
+    if (this.projectSaveTimer) {
+      clearTimeout(this.projectSaveTimer);
+      this.projectSaveTimer = 0;
+    }
+    if (this.projectReady && !this.projectPersistenceDisabled) {
+      try { await this.saveProjectDraft(); } catch (_) {}
+    }
     this.abort?.abort();
     this.closeAllSheets();
     this.preview?.dispose();
