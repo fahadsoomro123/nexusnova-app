@@ -41,6 +41,7 @@ check("engine imports history and local project persistence", () => assert(
   has(engine, "restoreProjectDraft()") &&
   has(engine, "scheduleProjectDraftSave()") &&
   has(engine, "saveProjectDraft()") &&
+  has(engine, 'this.events.on("selectionchange", () => this.scheduleProjectDraftSave())') &&
   has(engine, '["click", "pointerdown", "drop", "paste"]'),
   "history import or autosaved draft recovery is missing"
 ));
