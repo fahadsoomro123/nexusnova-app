@@ -144,24 +144,6 @@ check("playback follows decoded video clock", () => {
     Math.abs(clipOpacityAt(opacityClip, 1500) - 0.6) < 0.001 &&
     Math.abs(clipOpacityAt({ ...opacityClip, fadeInMs: 1000 }, 1250) - 0.2) < 0.001,
     "opacity keyframes did not interpolate in preview or combine with the fade envelope");
-  const opacityLayerEngine = new NovaCutEngine();
-  const opacityTextLayer = opacityLayerEngine.registry.addTextCue({ id: "qa-opacity-text", startTime: 1000, duration: 2000 });
-  opacityLayerEngine.currentTimestamp = 1500;
-  opacityLayerEngine.activeTrackId = opacityTextLayer.id;
-  if (!opacityLayerEngine.setLayerOpacityKeyframeAtPlayhead({ opacity: 0.35, easing: "ease-in" }) ||
-      opacityTextLayer.keyframes.length !== 1 ||
-      opacityTextLayer.keyframes[0].opacity !== 0.35 ||
-      opacityTextLayer.keyframes[0].easing !== "ease-in") {
-    throw new Error("Text opacity keyframe did not persist the selected playhead value and easing.");
-  }
-  opacityLayerEngine.currentTimestamp = 1950;
-  if (Math.abs(clipOpacityAt(opacityTextLayer, opacityLayerEngine.currentTimestamp) - 0.35) > 0.001) {
-    throw new Error("Text opacity keyframe did not feed the preview alpha envelope.");
-  }
-  opacityLayerEngine.currentTimestamp = 1500;
-  if (!opacityLayerEngine.removeLayerOpacityKeyframeAtPlayhead() || opacityTextLayer.keyframes.length !== 0) {
-    throw new Error("Text opacity keyframe could not be removed at the playhead.");
-  }
   const layerFade = { startTime: 2000, duration: 2000, opacity: 0.5, fadeInMs: 1000, fadeOutMs: 500 };
   assert(clipOpacityAt(layerFade, 2000) === 0 &&
     Math.abs(clipOpacityAt(layerFade, 2500) - 0.25) < 0.001 &&
@@ -391,6 +373,25 @@ if (!textSplit.success || textSplit.firstClip.duration !== 1000 || textSplit.sec
   throw new Error("NovaCut text split failed.");
 }
 console.log("TIMELINE BEHAVIOUR 3/3 PASS  video, audio source offsets, and text split");
+  const opacityLayerEngine = new NovaCutEngine();
+  const opacityTextLayer = opacityLayerEngine.registry.addTextCue({ id: "qa-opacity-text", startTime: 1000, duration: 2000 });
+  opacityLayerEngine.currentTimestamp = 1500;
+  opacityLayerEngine.activeTrackId = opacityTextLayer.id;
+  if (!opacityLayerEngine.setLayerOpacityKeyframeAtPlayhead({ opacity: 0.35, easing: "ease-in" }) ||
+      opacityTextLayer.keyframes.length !== 1 ||
+      opacityTextLayer.keyframes[0].opacity !== 0.35 ||
+      opacityTextLayer.keyframes[0].easing !== "ease-in") {
+    throw new Error("Text opacity keyframe did not persist the selected playhead value and easing.");
+  }
+  opacityLayerEngine.currentTimestamp = 1950;
+  if (Math.abs(clipOpacityAt(opacityTextLayer, opacityLayerEngine.currentTimestamp) - 0.35) > 0.001) {
+    throw new Error("Text opacity keyframe did not feed the preview alpha envelope.");
+  }
+  opacityLayerEngine.currentTimestamp = 1500;
+  if (!opacityLayerEngine.removeLayerOpacityKeyframeAtPlayhead() || opacityTextLayer.keyframes.length !== 0) {
+    throw new Error("Text opacity keyframe could not be removed at the playhead.");
+  }
+console.log("LAYER OPACITY KEYFRAME BEHAVIOUR 1/1 PASS  text layer keyframe add, interpolation, and remove");
 const speedSplitEngine = new NovaCutEngine();
 speedSplitEngine.registry.addVideoClip({ id: "qa-speed-split", startTime: 0, duration: 4000, sourceStartTime: 500, speed: 2, sourceDuration: 8000 });
 const speedSplit = speedSplitEngine.executeSplitAction("qa-speed-split", 2000);
