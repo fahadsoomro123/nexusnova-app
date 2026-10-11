@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
-import { sampleNovaCutVideoKeyframes, sampleNovaCutAudioGain } from "../fresh-rebuild/src/features/apps/novacut-engine.js";
+import { sampleNovaCutVideoKeyframes, sampleNovaCutAudioGain, clipOpacityAt } from "../fresh-rebuild/src/features/apps/novacut-engine.js";
 
 const ROOT = process.cwd();
 const read = (file) => fs.readFileSync(path.join(ROOT, file), "utf8");
@@ -52,7 +52,12 @@ check("video add API and visual controls are normalized", () => assert(
   has(engine, "fadeInMs: clamp(input.fadeInMs ?? 0, 0, duration)") &&
   has(engine, "fadeOutMs: clamp(input.fadeOutMs ?? 0, 0, duration)") &&
   has(engine, "keyframes: []") &&
+  has(engine, "opacity: clamp(input.opacity ?? 1, 0, 1)") &&
+  has(engine, 'input("Opacity (%)", "opacity"') &&
   has(engine, "normalizeVideoKeyframes(input.keyframes, duration, clip)") &&
+  has(engine, "opacity: clamp(values.opacity ?? frameValues.opacity, 0, 1)") &&
+  has(engine, 'ffmpegVideoKeyframeExpression(clip, "opacity", baseOpacity, startAt, "T")') &&
+  has(engine, "geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='alpha(X,Y)*(') &&
   has(engine, 'easing: ["linear", "ease-in", "ease-out", "ease-in-out"].includes(frame.easing) ? frame.easing : "linear"') &&
   has(engine, "ffmpegKeyframeEasingExpression(left.easing, amount)") &&
   has(engine, 'data-clip-prop="keyframeEasing"') &&
@@ -117,6 +122,18 @@ check("playback follows decoded video clock", () => {
     Math.abs(easeOutQuarter.scale - 1.4375) < 0.001 &&
     Math.abs(easeInOutQuarter.scale - 1.125) < 0.001,
     "keyframe interpolation curves diverged from linear/ease-in/ease-out/ease-in-out expectations");
+  const opacityClip = {
+    startTime: 1000, duration: 1000, opacity: 1,
+    keyframes: [
+      { timeMs: 0, scale: 1, rotation: 0, x_offset: 0, y_offset: 0, opacity: 1 },
+      { timeMs: 1000, scale: 1, rotation: 0, x_offset: 0, y_offset: 0, opacity: 0.2 }
+    ]
+  };
+  const opacityMidpoint = sampleNovaCutVideoKeyframes(opacityClip, 1500).opacity;
+  assert(Math.abs(opacityMidpoint - 0.6) < 0.001 &&
+    Math.abs(clipOpacityAt(opacityClip, 1500) - 0.6) < 0.001 &&
+    Math.abs(clipOpacityAt({ ...opacityClip, fadeInMs: 1000 }, 1250) - 0.2) < 0.001,
+    "opacity keyframes did not interpolate in preview or combine with the fade envelope");
   const audioFade = { startTime: 1000, duration: 4000, fadeInMs: 1000, fadeOutMs: 1000 };
   assert(sampleNovaCutAudioGain(audioFade, 1000) === 0 &&
     Math.abs(sampleNovaCutAudioGain(audioFade, 1500) - 0.5) < 0.001 &&
@@ -596,6 +613,20 @@ if (!easedExportFilter.includes("pow(") || !easedExportFilter.includes("lt(clip(
   throw new Error("Export transform expressions omitted the selected keyframe easing curve.");
 }
 console.log("KEYFRAME EXPORT BEHAVIOUR 1/1 PASS  easing curve appears in FFmpeg expression");
+
+const opacityExport = new NovaCutCommandCompiler(makeCompilerEngine({
+  videos: [compilerVideo({ opacity: 1, keyframes: [
+    { timeMs: 0, scale: 1, opacity: 1, easing: "linear" },
+    { timeMs: 1000, scale: 1, opacity: 0.25 }
+  ] })]
+})).compile();
+const opacityExportFilter = opacityExport.args[opacityExport.args.indexOf("-filter_complex") + 1];
+if (!opacityExportFilter.includes("geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='alpha(X,Y)*(") ||
+    !opacityExportFilter.includes("if(lt(T,1.0000") ||
+    !opacityExportFilter.includes("0.2500")) {
+  throw new Error("Opacity keyframes were not mapped to a time-varying FFmpeg alpha expression.");
+}
+console.log("OPACITY KEYFRAME EXPORT 1/1 PASS  animated alpha curve is included in FFmpeg output");
 
 
 const syntaxFiles = [

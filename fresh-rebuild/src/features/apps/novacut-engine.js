@@ -80,17 +80,22 @@ function clipCssFilter(clip) {
   return "brightness(" + brightness.toFixed(3) + ") contrast(" + contrast.toFixed(3) + ") saturate(" + saturation.toFixed(3) + ")";
 }
 
-function clipOpacityAt(clip, timestamp) {
+export function clipOpacityAt(clip, timestamp) {
   const duration = Math.max(1, Number(clip?.duration) || 1);
   const local = clamp(Number(timestamp) - (Number(clip?.startTime) || 0), 0, duration);
   const fadeIn = clamp(Number(clip?.fadeInMs) || 0, 0, duration);
   const fadeOut = clamp(Number(clip?.fadeOutMs) || 0, 0, duration);
-  let opacity = 1;
-  if (fadeIn > 0) opacity = Math.min(opacity, local / fadeIn);
+  let fadeOpacity = 1;
+  if (fadeIn > 0) fadeOpacity = Math.min(fadeOpacity, local / fadeIn);
   if (fadeOut > 0 && duration - local < fadeOut) {
-    opacity = Math.min(opacity, (duration - local) / fadeOut);
+    fadeOpacity = Math.min(fadeOpacity, (duration - local) / fadeOut);
   }
-  return clamp(opacity, 0, 1);
+  const hasOpacityKeyframes = Array.isArray(clip?.keyframes) &&
+    clip.keyframes.some((frame) => frame?.opacity != null && Number.isFinite(Number(frame.opacity)));
+  const animatedOpacity = hasOpacityKeyframes
+    ? sampleNovaCutVideoKeyframes(clip, timestamp).opacity
+    : clamp(clip?.opacity ?? 1, 0, 1);
+  return clamp(fadeOpacity * animatedOpacity, 0, 1);
 }
 
 export function sampleNovaCutAudioGain(segment, timestamp) {
@@ -132,14 +137,19 @@ function normalizeVideoKeyframes(frames, durationMs, clip = {}) {
   (Array.isArray(frames) ? frames : []).forEach((frame) => {
     if (!frame || !Number.isFinite(Number(frame.timeMs))) return;
     const timeMs = clamp(frame.timeMs, 0, duration);
-    byTime.set(timeMs, {
+    const normalizedFrame = {
       timeMs,
       scale: clamp(frame.scale ?? baseScale, 0.05, 4),
       rotation: clamp(frame.rotation ?? baseRotation, -360, 360),
       x_offset: clamp(frame.x_offset ?? baseX, -2000, 2000),
       y_offset: clamp(frame.y_offset ?? baseY, -2000, 2000),
       easing: ["linear", "ease-in", "ease-out", "ease-in-out"].includes(frame.easing) ? frame.easing : "linear"
-    });
+    };
+    // Legacy transform-only frames inherit base clip opacity until opacity is keyed.
+    if (frame.opacity != null && Number.isFinite(Number(frame.opacity))) {
+      normalizedFrame.opacity = clamp(frame.opacity, 0, 1);
+    }
+    byTime.set(timeMs, normalizedFrame);
   });
   return [...byTime.values()].sort((a, b) => a.timeMs - b.timeMs);
 }
@@ -152,7 +162,8 @@ export function sampleNovaCutVideoKeyframes(clip, timestamp) {
     scale: Math.max(0.05, Number(clip?.transform?.scale ?? clip?.scale) || 1),
     rotation: Number(clip?.transform?.rotation) || 0,
     x_offset: Number(clip?.x_offset) || 0,
-    y_offset: Number(clip?.y_offset) || 0
+    y_offset: Number(clip?.y_offset) || 0,
+    opacity: clamp(clip?.opacity ?? 1, 0, 1)
   };
   const frames = normalizeVideoKeyframes(clip?.keyframes, duration, clip || {});
   if (!frames.length) return base;
@@ -161,6 +172,7 @@ export function sampleNovaCutVideoKeyframes(clip, timestamp) {
     rotation: frame.rotation,
     x_offset: frame.x_offset,
     y_offset: frame.y_offset,
+    opacity: frame.opacity != null ? clamp(frame.opacity, 0, 1) : base.opacity,
     easing: frame.easing || "linear"
   });
   if (localTimeMs <= frames[0].timeMs) return values(frames[0]);
@@ -171,21 +183,25 @@ export function sampleNovaCutVideoKeyframes(clip, timestamp) {
   const right = frames[rightIndex];
   const span = Math.max(1, right.timeMs - left.timeMs);
   const amount = keyframeEasingAmount(left.easing, clamp((localTimeMs - left.timeMs) / span, 0, 1));
+  const leftOpacity = left.opacity != null ? clamp(left.opacity, 0, 1) : base.opacity;
+  const rightOpacity = right.opacity != null ? clamp(right.opacity, 0, 1) : base.opacity;
   return {
     scale: left.scale + (right.scale - left.scale) * amount,
     rotation: left.rotation + (right.rotation - left.rotation) * amount,
     x_offset: left.x_offset + (right.x_offset - left.x_offset) * amount,
     y_offset: left.y_offset + (right.y_offset - left.y_offset) * amount,
+    opacity: leftOpacity + (rightOpacity - leftOpacity) * amount,
     easing: left.easing || "linear"
   };
 }
 
-function ffmpegVideoKeyframeExpression(clip, property, fallback, clipStartSeconds) {
+function ffmpegVideoKeyframeExpression(clip, property, fallback, clipStartSeconds, timeVariable = "t") {
   const frames = normalizeVideoKeyframes(clip?.keyframes, clip?.duration, clip || {});
-  if (!frames.length) return Number(fallback || 0).toFixed(4);
+  const fallbackValue = Number.isFinite(Number(fallback)) ? Number(fallback) : 0;
+  if (!frames.length) return fallbackValue.toFixed(4);
   const points = frames.map((frame) => ({
     time: (Number(clipStartSeconds) || 0) + frame.timeMs / 1000,
-    value: Number(frame[property]) || 0,
+    value: frame[property] != null && Number.isFinite(Number(frame[property])) ? Number(frame[property]) : fallbackValue,
     easing: frame.easing || "linear"
   }));
   if (points.length === 1) return points[0].value.toFixed(4);
@@ -198,10 +214,10 @@ function ffmpegVideoKeyframeExpression(clip, property, fallback, clipStartSecond
     const denominator = Math.max(0.001, right.time - left.time).toFixed(4);
     const leftValue = left.value.toFixed(4);
     const rightValue = right.value.toFixed(4);
-    const amount = "clip((t-" + leftTime + ")/" + denominator + ",0,1)";
+    const amount = "clip((" + timeVariable + "-" + leftTime + ")/" + denominator + ",0,1)";
     const easedAmount = ffmpegKeyframeEasingExpression(left.easing, amount);
     const segment = leftValue + "+(" + rightValue + "-" + leftValue + ")*(" + easedAmount + ")";
-    expression = "if(lt(t," + rightTime + "),if(lt(t," + leftTime + ")," + leftValue + "," + segment + ")," + expression + ")";
+    expression = "if(lt(" + timeVariable + "," + rightTime + "),if(lt(" + timeVariable + "," + leftTime + ")," + leftValue + "," + segment + ")," + expression + ")";
   }
   return expression;
 }
@@ -268,6 +284,7 @@ export class NovaCutTrackRegistry {
       brightness: clamp(input.brightness ?? 100, 0, 200),
       contrast: clamp(input.contrast ?? 100, 0, 200),
       saturation: clamp(input.saturation ?? 100, 0, 300),
+      opacity: clamp(input.opacity ?? 1, 0, 1),
       fadeInMs: clamp(input.fadeInMs ?? 0, 0, duration),
       fadeOutMs: clamp(input.fadeOutMs ?? 0, 0, duration),
       keyframes: [],
@@ -1490,6 +1507,15 @@ class NovaCutCommandCompiler {
         vf.push("fade=t=out:st=" + Math.max(startAt, startAt + clipDurationSeconds - fadeOutSeconds).toFixed(3) +
           ":d=" + fadeOutSeconds.toFixed(3) + ":alpha=1");
       }
+      const hasOpacityKeyframes = Array.isArray(clip.keyframes) &&
+        clip.keyframes.some((frame) => frame?.opacity != null && Number.isFinite(Number(frame.opacity)));
+      const baseOpacity = clamp(clip.opacity ?? 1, 0, 1);
+      if (hasOpacityKeyframes || Math.abs(baseOpacity - 1) > 0.0001) {
+        const opacityExpression = hasOpacityKeyframes
+          ? ffmpegVideoKeyframeExpression(clip, "opacity", baseOpacity, startAt, "T")
+          : baseOpacity.toFixed(4);
+        vf.push("geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='alpha(X,Y)*(" + opacityExpression + ")'");
+      }
       if (transform.flipX) vf.push("hflip");
       if (transform.flipY) vf.push("vflip");
       const rotation = ((Number(transform.rotation) || 0) % 360 + 360) % 360;
@@ -2020,6 +2046,7 @@ export class NovaCutEngine {
         rotation: clamp(values.rotation ?? frameValues.rotation, -360, 360),
         x_offset: clamp(values.x_offset ?? frameValues.x_offset, -2000, 2000),
         y_offset: clamp(values.y_offset ?? frameValues.y_offset, -2000, 2000),
+        opacity: clamp(values.opacity ?? frameValues.opacity, 0, 1),
         easing: ["linear", "ease-in", "ease-out", "ease-in-out"].includes(values.easing) ? values.easing : (frameValues.easing || "linear")
       };
       clip.scale = frameValues.scale;
@@ -2717,6 +2744,7 @@ export class NovaCutEngine {
     };
     const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
     const seconds = (value) => (Math.max(0, finite(value)) / 1000).toFixed(2);
+    const videoFrameValues = type === "videoTracks" ? sampleNovaCutVideoKeyframes(item, this.currentTimestamp) : null;
     const input = (label, name, value, attrs = "") =>
       '<label>' + label + '<input data-clip-prop="' + name + '" type="number" value="' + value + '" ' + attrs + '></label>';
     let fields =
@@ -2731,7 +2759,8 @@ export class NovaCutEngine {
         input("Scale (%)", "scale", Math.round(Math.max(0.05, finite(transform.scale ?? item.scale, 1)) * 100), 'min="25" max="400" step="5"') +
         input("Position X (preview px)", "x", finite(item.x_offset), 'min="-2000" max="2000" step="1"') +
         input("Position Y (preview px)", "y", finite(item.y_offset), 'min="-2000" max="2000" step="1"') +
-        input("Rotation (degrees)", "rotation", finite(transform.rotation), 'min="-360" max="360" step="1"') +
+        input("Rotation (degrees)", "rotation", finite(videoFrameValues?.rotation ?? transform.rotation), 'min="-360" max="360" step="1"') +
+        input("Opacity (%)", "opacity", Math.round(clamp(videoFrameValues?.opacity ?? item.opacity ?? 1, 0, 1) * 100), 'min="0" max="100" step="1"') +
         input("Brightness (%)", "brightness", finite(item.brightness, 100), 'min="0" max="200" step="5"') +
         input("Contrast (%)", "contrast", finite(item.contrast, 100), 'min="0" max="200" step="5"') +
         input("Saturation (%)", "saturation", finite(item.saturation, 100), 'min="0" max="300" step="5"') +
@@ -2806,7 +2835,7 @@ export class NovaCutEngine {
       '<div class="nx-novacut__form-grid">' + fields + '</div>' +
       colorPresets +
       keyframeControls +
-      '<p class="nx-novacut__sheet-copy">Apply transform values, then set a keyframe at the playhead. Two or more keyframes animate between positions.</p>' +
+      '<p class="nx-novacut__sheet-copy">Apply transform and opacity values, then set a keyframe at the playhead. Two or more keyframes animate position, scale, rotation, and opacity.</p>' +
       '<div class="nx-novacut__sheet-actions"><button type="button" class="nx-novacut__secondary" data-sheet-close>Cancel</button><button type="button" class="nx-novacut__primary" data-apply-clip-settings>Apply changes</button></div>';
     const colorPresetValues = {
       original: { brightness: 100, contrast: 100, saturation: 100 },
@@ -2826,6 +2855,7 @@ export class NovaCutEngine {
         rotation: clamp(value("rotation", Number(transform.rotation) || 0), -360, 360),
         x_offset: clamp(value("x", Number(item.x_offset) || 0), -2000, 2000),
         y_offset: clamp(value("y", Number(item.y_offset) || 0), -2000, 2000),
+        opacity: clamp(value("opacity", clamp(videoFrameValues?.opacity ?? item.opacity ?? 1, 0, 1) * 100) / 100, 0, 1),
         easing: sheet.body.querySelector('[data-clip-prop="keyframeEasing"]')?.value || "linear"
       });
       const count = sheet.body.querySelector("[data-keyframe-count]");
@@ -2881,6 +2911,7 @@ export class NovaCutEngine {
         item.brightness = clamp(value("brightness", finite(item.brightness, 100)), 0, 200);
         item.contrast = clamp(value("contrast", finite(item.contrast, 100)), 0, 200);
         item.saturation = clamp(value("saturation", finite(item.saturation, 100)), 0, 300);
+        item.opacity = clamp(value("opacity", finite(item.opacity, 1) * 100) / 100, 0, 1);
         item.fadeInMs = Math.min(item.duration, Math.round(clamp(value("fadeIn", finite(item.fadeInMs) / 1000), 0, 60) * 1000));
         item.fadeOutMs = Math.min(item.duration, Math.round(clamp(value("fadeOut", finite(item.fadeOutMs) / 1000), 0, 60) * 1000));
         item.volume = clamp(value("volume", 100) / 100, 0, 4);
