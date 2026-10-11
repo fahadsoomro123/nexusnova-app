@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { sampleNovaCutVideoKeyframes, sampleNovaCutAudioGain, clipOpacityAt, sampleNovaCutLayerKeyframes, normalizeNovaCutSpeedCurve, createNovaCutSpeedCurvePreset, createNovaCutCustomSpeedCurve, sampleNovaCutSpeed, novaCutSourceOffsetForTimeline, novaCutTimelineOffsetForSource } from "../fresh-rebuild/src/features/apps/novacut-engine.js";
+import { NovaCutStudioInteractions } from "../fresh-rebuild/src/features/apps/novacut-studio.js";
 
 const ROOT = process.cwd();
 const read = (file) => fs.readFileSync(path.join(ROOT, file), "utf8");
@@ -263,6 +264,55 @@ check("pointer interaction includes direct video framing without detaching timel
   assert(!engine.slice(selectStart, addStart).includes("this.refresh()"), "selection refresh recreates timeline DOM during dragging");
   assert(has(suite, "const updateTimelineSelection") && has(suite, "engine.on('selectionchange', updateTimelineSelection);"), "selection handler still fully rerenders timeline");
   assert(has(engine, "pointerdown") && has(engine, 'return { type: "videoTracks", item: activeVideos[0] }') && has(engine, "record.item.y_offset =") && has(engine, "this.preview?.markDirty();"), "video preview drag framing or live canvas refresh missing");
+  assert(has(studio, "this.flushClipMutation();") && has(studio, "cancelAnimationFrame(this.pendingFrame)"), "pointerup does not synchronously flush the last queued clip mutation");
+
+  const originalCancelAnimationFrame = globalThis.cancelAnimationFrame;
+  let cancelledFrame = null;
+  globalThis.cancelAnimationFrame = (handle) => { cancelledFrame = handle; };
+  try {
+    const dragClip = { id: "qa-final-drag-delta", startTime: 1000, duration: 2000 };
+    let dragGeometryUpdated = false;
+    const dragInteraction = Object.create(NovaCutStudioInteractions.prototype);
+    Object.assign(dragInteraction, {
+      touchState: { mode: "drag", clip: dragClip, element: {}, clipId: dragClip.id, recordType: "videoTracks", originalStartTime: 1000, originalDuration: 2000 },
+      pendingFrame: 77,
+      pendingClipDx: 18,
+      engine: { activeTrackId: null, registry: { getById: () => ({ type: "videoTracks" }) } },
+      pixelsPerMs: () => 0.036,
+      clampedDragStart: (_clip, start) => Math.max(0, start),
+      snapToTimeline: (start) => start,
+      applyClipGeometry: () => { dragGeometryUpdated = true; }
+    });
+    const dragFlushed = dragInteraction.flushClipMutation();
+    assert(dragFlushed && cancelledFrame === 77 && dragInteraction.pendingFrame === 0 &&
+      dragClip.startTime === 1500 && dragGeometryUpdated && dragInteraction.engine.activeTrackId === dragClip.id,
+      "Synchronous drag flush dropped the last move or failed to cancel its queued frame.");
+
+    const trimClip = { id: "qa-final-trim-delta", startTime: 1000, duration: 3000, sourceStartTime: 200, sourceDuration: 6000, speed: 2, speedCurve: [], keyframes: [] };
+    const trimInteraction = Object.create(NovaCutStudioInteractions.prototype);
+    Object.assign(trimInteraction, {
+      touchState: {
+        mode: "trim-start", clip: trimClip, element: {}, clipId: trimClip.id, recordType: "videoTracks",
+        originalStartTime: 1000, originalDuration: 3000, originalSourceStartTime: 200,
+        originalSourceDuration: 6000, originalSpeed: 2, originalSpeedCurve: [], originalKeyframes: []
+      },
+      pendingFrame: 0,
+      pendingClipDx: 36,
+      options: { minFrameMs: 1000 / 30 },
+      engine: { activeTrackId: trimClip.id, registry: { getById: () => ({ type: "videoTracks" }) } },
+      pixelsPerMs: () => 0.036,
+      getPreviousVideoClip: () => null,
+      snapToTimeline: (start) => start,
+      applyClipGeometry: () => {}
+    });
+    const trimFlushed = trimInteraction.flushClipMutation("start");
+    assert(trimFlushed && trimClip.startTime === 2000 && trimClip.duration === 2000 &&
+      trimClip.sourceStartTime === 2200 && trimClip.sourceDuration === 4000,
+      "Synchronous start-trim flush lost source-time continuity or the final pointer delta.");
+  } finally {
+    if (typeof originalCancelAnimationFrame === "function") globalThis.cancelAnimationFrame = originalCancelAnimationFrame;
+    else delete globalThis.cancelAnimationFrame;
+  }
 });
 check("playhead stays aligned and smooth without per-frame clip layout or observer churn", () => {
   const syncStart = studio.indexOf("  syncTimeline()");

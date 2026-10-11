@@ -942,6 +942,7 @@ export class NovaCutStudioInteractions {
       event.preventDefault();
 
       try {
+        this.flushClipMutation();
         this.commitClipMutation();
         this.engine.commitHistoryTransaction?.();
       } catch (error) {
@@ -1068,96 +1069,57 @@ export class NovaCutStudioInteractions {
   }
 
   scheduleClipDrag() {
-    if (
-      this.pendingFrame ||
-      !this.touchState
-    ) {
-      return;
-    }
-
-    this.pendingFrame =
-      requestAnimationFrame(() => {
-        this.pendingFrame = 0;
-
-        const state =
-          this.touchState;
-
-        if (
-          !state ||
-          state.mode !== "drag"
-        ) {
-          return;
-        }
-
-        const deltaMs =
-          finite(
-            this.pendingClipDx
-          ) /
-          this.pixelsPerMs();
-
-        const desiredStart = state.originalStartTime + deltaMs;
-        const boundedStart = state.recordType === "videoTracks"
-          ? this.clampedDragStart(state.clip, desiredStart)
-          : Math.max(0, desiredStart);
-        const snappedStart = this.snapToTimeline(boundedStart, state.clip.id);
-        const candidate = state.recordType === "videoTracks"
-          ? this.clampedDragStart(state.clip, snappedStart)
-          : Math.max(0, snappedStart);
-
-        state.clip.startTime = candidate;
-
-        this.applyClipGeometry(
-          state.element,
-          state.clip
-        );
-
-        this.engine.activeTrackId =
-          state.clip.id;
-      });
+    if (this.pendingFrame || !this.touchState) return;
+    this.pendingFrame = requestAnimationFrame(() => {
+      this.pendingFrame = 0;
+      this.flushClipMutation();
+    });
   }
 
   scheduleTrim(edge) {
-    if (
-      this.pendingFrame ||
-      !this.touchState
-    ) {
-      return;
-    }
-
-    this.pendingFrame =
-      requestAnimationFrame(() => {
-        this.pendingFrame = 0;
-
-        const state =
-          this.touchState;
-
-        if (
-          !state ||
-          !state.mode.startsWith("trim")
-        ) {
-          return;
-        }
-
-        const deltaMs =
-          finite(
-            this.pendingClipDx
-          ) /
-          this.pixelsPerMs();
-
-        if (edge === "start") {
-          this.applyStartTrim(state, deltaMs);
-        } else {
-          this.applyEndTrim(state, deltaMs);
-        }
-
-        this.applyClipGeometry(
-          state.element,
-          state.clip
-        );
-      });
+    if (this.pendingFrame || !this.touchState) return;
+    this.pendingFrame = requestAnimationFrame(() => {
+      this.pendingFrame = 0;
+      this.flushClipMutation(edge);
+    });
   }
 
-  applyStartTrim(
+  // Apply the latest drag/trim delta synchronously before pointerup commits
+  // history. Otherwise a queued animation-frame callback can be skipped on a
+  // quick release and the clip stops short of the user's final position.
+  flushClipMutation(edge = null) {
+    const state = this.touchState;
+    if (!state || !["drag", "trim-start", "trim-end"].includes(state.mode)) return false;
+
+    if (this.pendingFrame) {
+      cancelAnimationFrame(this.pendingFrame);
+      this.pendingFrame = 0;
+    }
+
+    const deltaMs = finite(this.pendingClipDx) / this.pixelsPerMs();
+    if (state.mode === "drag") {
+      const desiredStart = state.originalStartTime + deltaMs;
+      const boundedStart = state.recordType === "videoTracks"
+        ? this.clampedDragStart(state.clip, desiredStart)
+        : Math.max(0, desiredStart);
+      const snappedStart = this.snapToTimeline(boundedStart, state.clip.id);
+      const candidate = state.recordType === "videoTracks"
+        ? this.clampedDragStart(state.clip, snappedStart)
+        : Math.max(0, snappedStart);
+      state.clip.startTime = candidate;
+      this.engine.activeTrackId = state.clip.id;
+    } else {
+      const trimEdge = state.mode === "trim-start" ? "start" : state.mode === "trim-end" ? "end" : edge;
+      if (trimEdge === "start") this.applyStartTrim(state, deltaMs);
+      else if (trimEdge === "end") this.applyEndTrim(state, deltaMs);
+      else return false;
+    }
+
+    this.applyClipGeometry(state.element, state.clip);
+    return true;
+  }
+
+    applyStartTrim(
     state,
     deltaMs
   ) {
