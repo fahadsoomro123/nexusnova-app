@@ -177,6 +177,17 @@ function escapeHtml(value) {
     .replace(/'/g, '&#039;');
 }
 
+function renderKeyframeMarkers(clip, duration, label) {
+  const frames = (Array.isArray(clip?.keyframes) ? clip.keyframes : [])
+    .filter((frame) => Number.isFinite(Number(frame?.timeMs)));
+  if (!frames.length) return "";
+  const markers = frames.map((frame) => {
+    const percent = Math.max(0, Math.min(1, Number(frame.timeMs) / Math.max(1, duration))) * 100;
+    return '<i class="nx-novacut__keyframe-marker" style="--keyframe-x:' + percent.toFixed(2) + '%"></i>';
+  }).join("");
+  return '<span class="nx-novacut__keyframe-markers" aria-label="' + frames.length + " " + escapeHtml(label) + '">' + markers + '</span>';
+}
+
 function renderTrackClip(clip, type) {
   const duration = Math.max(1, Number(clip?.duration) || 1);
   const seconds = duration >= 1000 ? (duration / 1000).toFixed(1) : '0.0';
@@ -184,14 +195,7 @@ function renderTrackClip(clip, type) {
   const selected = clip?.id === clip?.engineActiveId ? ' is-selected' : '';
 
   if (type === 'video') {
-    const keyframes = Array.isArray(clip?.keyframes) ? clip.keyframes : [];
-    const keyframeMarkers = keyframes.map((frame) => {
-      const percent = Math.max(0, Math.min(1, (Number(frame?.timeMs) || 0) / duration)) * 100;
-      return '<i class="nx-novacut__keyframe-marker" style="--keyframe-x:' + percent.toFixed(2) + '%"></i>';
-    }).join('');
-    const markerLayer = keyframes.length
-      ? '<span class="nx-novacut__keyframe-markers" aria-label="' + keyframes.length + ' keyframes">' + keyframeMarkers + '</span>'
-      : '';
+    const markerLayer = renderKeyframeMarkers(clip, duration, 'video keyframes');
     return '<button type="button" class="nx-novacut__clip nx-novacut__clip--video' + selected + '" data-clip-id="' + id + '">' +
       '<span class="nx-novacut__clip-thumb" data-video-thumb="' + id + '" aria-hidden="true"></span>' +
       '<span class="nx-novacut__clip-copy"><strong>' + escapeHtml(clip?.file?.name || 'Video') + '</strong><small>' + seconds + 's</small></span>' +
@@ -206,9 +210,11 @@ function renderTrackClip(clip, type) {
   }
 
   if (type === 'sticker') {
+    const markerLayer = renderKeyframeMarkers(clip, duration, 'sticker keyframes');
     return '<button type="button" class="nx-novacut__clip nx-novacut__clip--sticker' + selected + '" data-clip-id="' + id + '">' +
       '<span class="nx-novacut__clip-glyph">' + escapeHtml(clip?.glyph || '★') + '</span>' +
-      '<span class="nx-novacut__clip-copy"><strong>' + escapeHtml(clip?.label || 'Sticker') + '</strong><small>' + seconds + 's</small></span></button>';
+      '<span class="nx-novacut__clip-copy"><strong>' + escapeHtml(clip?.label || 'Sticker') + '</strong><small>' + seconds + 's</small></span>' +
+      markerLayer + '</button>';
   }
 
   if (type === 'effect') {
@@ -217,9 +223,11 @@ function renderTrackClip(clip, type) {
       '<span class="nx-novacut__clip-copy"><strong>' + escapeHtml(String(clip?.type || 'Effect').toUpperCase()) + '</strong><small>' + seconds + 's</small></span></button>';
   }
 
+  const markerLayer = renderKeyframeMarkers(clip, duration, 'text keyframes');
   return '<button type="button" class="nx-novacut__clip nx-novacut__clip--text' + selected + '" data-clip-id="' + id + '">' +
     '<span class="nx-novacut__track-icon">' + SVG.text + '</span>' +
-    '<span class="nx-novacut__clip-copy"><strong>' + escapeHtml(clip?.text || 'Text') + '</strong><small>' + seconds + 's</small></span></button>';
+    '<span class="nx-novacut__clip-copy"><strong>' + escapeHtml(clip?.text || 'Text') + '</strong><small>' + seconds + 's</small></span>' +
+    markerLayer + '</button>';
 }
 
 function renderNovaCut() {
