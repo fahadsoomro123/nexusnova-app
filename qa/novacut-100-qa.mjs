@@ -54,6 +54,12 @@ check("video add API and visual controls are normalized", () => assert(
   has(engine, "keyframes: []") &&
   has(engine, "opacity: clamp(input.opacity ?? 1, 0, 1)") &&
   has(engine, 'input("Opacity (%)", "opacity"') &&
+  has(engine, "ctx.globalAlpha = clipOpacityAt(overlay, this.engine.currentTimestamp)") &&
+  has(engine, "ctx.globalAlpha = clipOpacityAt(cue, this.engine.currentTimestamp)") &&
+  has(engine, 'input("Fade in (seconds)", "fadeIn", seconds(item.fadeInMs)') &&
+  has(engine, 'input("Fade out (seconds)", "fadeOut", seconds(item.fadeOutMs)') &&
+  has(engine, "const layerAlphaFilters = (item) =>") &&
+  has(engine, "colorchannelmixer=aa=") &&
   has(engine, "normalizeVideoKeyframes(input.keyframes, duration, clip)") &&
   has(engine, "opacity: clamp(values.opacity ?? frameValues.opacity, 0, 1)") &&
   has(engine, 'ffmpegVideoKeyframeExpression(clip, "opacity", baseOpacity, startAt, "T")') &&
@@ -134,6 +140,13 @@ check("playback follows decoded video clock", () => {
     Math.abs(clipOpacityAt(opacityClip, 1500) - 0.6) < 0.001 &&
     Math.abs(clipOpacityAt({ ...opacityClip, fadeInMs: 1000 }, 1250) - 0.2) < 0.001,
     "opacity keyframes did not interpolate in preview or combine with the fade envelope");
+  const layerFade = { startTime: 2000, duration: 2000, opacity: 0.5, fadeInMs: 1000, fadeOutMs: 500 };
+  assert(clipOpacityAt(layerFade, 2000) === 0 &&
+    Math.abs(clipOpacityAt(layerFade, 2500) - 0.25) < 0.001 &&
+    Math.abs(clipOpacityAt(layerFade, 3000) - 0.5) < 0.001 &&
+    Math.abs(clipOpacityAt(layerFade, 3750) - 0.25) < 0.001 &&
+    clipOpacityAt(layerFade, 4000) === 0,
+    "text/sticker opacity and fade envelopes do not compose over the full clip span");
   const audioFade = { startTime: 1000, duration: 4000, fadeInMs: 1000, fadeOutMs: 1000 };
   assert(sampleNovaCutAudioGain(audioFade, 1000) === 0 &&
     Math.abs(sampleNovaCutAudioGain(audioFade, 1500) - 0.5) < 0.001 &&

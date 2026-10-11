@@ -317,6 +317,9 @@ export class NovaCutTrackRegistry {
       text: String(input.text || ""),
       startTime: Math.max(0, Number(input.startTime) || 0),
       duration: Math.max(250, Number(input.duration) || 250),
+      opacity: clamp(input.opacity ?? 1, 0, 1),
+      fadeInMs: clamp(input.fadeInMs ?? 0, 0, Math.max(250, Number(input.duration) || 250)),
+      fadeOutMs: clamp(input.fadeOutMs ?? 0, 0, Math.max(250, Number(input.duration) || 250)),
       style: {
         x: clamp(style.x ?? 0.5, 0, 1),
         y: clamp(style.y ?? 0.82, 0, 1),
@@ -350,6 +353,9 @@ export class NovaCutTrackRegistry {
       rotation: Number(input.rotation) || 0,
       startTime: Math.max(0, Number(input.startTime) || 0),
       duration: Math.max(250, Number(input.duration) || 3000),
+      opacity: clamp(input.opacity ?? 1, 0, 1),
+      fadeInMs: clamp(input.fadeInMs ?? 0, 0, Math.max(250, Number(input.duration) || 3000)),
+      fadeOutMs: clamp(input.fadeOutMs ?? 0, 0, Math.max(250, Number(input.duration) || 3000)),
       zIndex: Number(input.zIndex) || 20
     };
     this.overlayTracks.push(overlay);
@@ -1290,6 +1296,7 @@ export class NovaCutCanvasPreview {
     const x = clamp(overlay.x, 0, 1) * width;
     const y = clamp(overlay.y, 0, 1) * height;
     ctx.save();
+    ctx.globalAlpha = clipOpacityAt(overlay, this.engine.currentTimestamp);
     ctx.translate(x, y);
     ctx.rotate((Number(overlay.rotation) || 0) * Math.PI / 180);
     ctx.drawImage(image, -w / 2, -h / 2, w, h);
@@ -1302,6 +1309,7 @@ export class NovaCutCanvasPreview {
     const y = clamp(style.y, 0, 1) * height;
     const size = Math.max(8, Number(style.fontSize) || 48);
     ctx.save();
+    ctx.globalAlpha = clipOpacityAt(cue, this.engine.currentTimestamp);
     ctx.translate(x, y);
     ctx.rotate((Number(style.rotation) || 0) * Math.PI / 180);
     ctx.font = (style.italic ? "italic " : "") + (style.bold ? "800 " : "600 ") + size + "px " + (style.fontFamily || "system-ui");
@@ -1646,12 +1654,29 @@ class NovaCutCommandCompiler {
       currentVideo = out;
     });
 
+    const layerAlphaFilters = (item) => {
+      const durationMs = Math.max(1, Number(item.duration) || 1);
+      const fadeInMs = clamp(item.fadeInMs ?? 0, 0, durationMs);
+      const fadeOutMs = clamp(item.fadeOutMs ?? 0, 0, durationMs);
+      const opacityFilters = [];
+      if (fadeInMs > 0) {
+        opacityFilters.push("fade=t=in:st=0:d=" + msToSec(fadeInMs).toFixed(3) + ":alpha=1");
+      }
+      if (fadeOutMs > 0) {
+        opacityFilters.push("fade=t=out:st=" + msToSec(Math.max(0, durationMs - fadeOutMs)).toFixed(3) +
+          ":d=" + msToSec(fadeOutMs).toFixed(3) + ":alpha=1");
+      }
+      const opacity = clamp(item.opacity ?? 1, 0, 1);
+      if (opacity < 0.9999) opacityFilters.push("colorchannelmixer=aa=" + opacity.toFixed(3));
+      return ["format=rgba", ...opacityFilters].join(",");
+    };
+
     textAssets.forEach(({ cue, input }, index) => {
       const src = "tsrc" + index;
       const out = "tout" + index;
       const start = msToSec(cue.startTime);
       const end = msToSec(cue.startTime + cue.duration);
-      filters.push("[" + input.index + ":v:0]format=rgba[" + src + "]");
+      filters.push("[" + input.index + ":v:0]" + layerAlphaFilters(cue) + "[" + src + "]");
       filters.push(
         "[" + currentVideo + "][" + src + "]overlay=0:0:enable='between(t," + start.toFixed(3) + "," + end.toFixed(3) +
         ")':eof_action=pass:shortest=0:repeatlast=0[" + out + "]"
@@ -1671,7 +1696,7 @@ class NovaCutCommandCompiler {
       const targetWidth = Math.max(2, Math.floor(width * w) & ~1);
       const targetHeight = Math.max(2, Math.floor(height * h) & ~1);
       filters.push(
-        "[" + input.index + ":v:0]format=rgba,scale=" + targetWidth + ":" + targetHeight +
+        "[" + input.index + ":v:0]" + layerAlphaFilters(overlay) + ",scale=" + targetWidth + ":" + targetHeight +
         ":force_original_aspect_ratio=decrease,pad=" + targetWidth + ":" + targetHeight +
         ":(ow-iw)/2:(oh-ih)/2:color=black@0[" + src + "]"
       );
@@ -2775,6 +2800,9 @@ export class NovaCutEngine {
     } else if (type === "textTracks") {
       const style = item.style || {};
       fields += '<label>Text<textarea data-clip-prop="text" maxlength="240"></textarea></label>' +
+        input("Opacity (%)", "opacity", Math.round(clamp(item.opacity ?? 1, 0, 1) * 100), 'min="0" max="100" step="1"') +
+        input("Fade in (seconds)", "fadeIn", seconds(item.fadeInMs), 'min="0" max="60" step="0.05"') +
+        input("Fade out (seconds)", "fadeOut", seconds(item.fadeOutMs), 'min="0" max="60" step="0.05"') +
         input("Font size", "fontSize", finite(style.fontSize, 48), 'min="8" max="180" step="1"') +
         input("Position X (%)", "x", Math.round(finite(style.x, 0.5) * 100), 'min="0" max="100" step="1"') +
         input("Position Y (%)", "y", Math.round(finite(style.y, 0.82) * 100), 'min="0" max="100" step="1"') +
@@ -2784,6 +2812,9 @@ export class NovaCutEngine {
       fields +=
         input("Position X (%)", "x", Math.round(finite(item.x, 0.5) * 100), 'min="0" max="100" step="1"') +
         input("Position Y (%)", "y", Math.round(finite(item.y, 0.5) * 100), 'min="0" max="100" step="1"') +
+        input("Opacity (%)", "opacity", Math.round(clamp(item.opacity ?? 1, 0, 1) * 100), 'min="0" max="100" step="1"') +
+        input("Fade in (seconds)", "fadeIn", seconds(item.fadeInMs), 'min="0" max="60" step="0.05"') +
+        input("Fade out (seconds)", "fadeOut", seconds(item.fadeOutMs), 'min="0" max="60" step="0.05"') +
         input("Width (%)", "width", Math.round(finite(item.width, 0.2) * 100), 'min="3" max="100" step="1"') +
         input("Height (%)", "height", Math.round(finite(item.height, 0.2) * 100), 'min="3" max="100" step="1"') +
         input("Scale (%)", "scale", Math.round(finite(item.scale, 1) * 100), 'min="10" max="500" step="5"') +
@@ -2924,6 +2955,9 @@ export class NovaCutEngine {
       } else if (type === "textTracks") {
         item.duration = requestedDuration;
         item.text = String(textInput?.value || "").slice(0, 240);
+        item.opacity = clamp(value("opacity", finite(item.opacity, 1) * 100) / 100, 0, 1);
+        item.fadeInMs = Math.min(item.duration, Math.round(clamp(value("fadeIn", finite(item.fadeInMs) / 1000), 0, 60) * 1000));
+        item.fadeOutMs = Math.min(item.duration, Math.round(clamp(value("fadeOut", finite(item.fadeOutMs) / 1000), 0, 60) * 1000));
         item.style = {
           ...(item.style || {}),
           fontSize: clamp(value("fontSize", 48), 8, 180),
@@ -2934,6 +2968,9 @@ export class NovaCutEngine {
         };
       } else if (type === "overlayTracks") {
         item.duration = requestedDuration;
+        item.opacity = clamp(value("opacity", finite(item.opacity, 1) * 100) / 100, 0, 1);
+        item.fadeInMs = Math.min(item.duration, Math.round(clamp(value("fadeIn", finite(item.fadeInMs) / 1000), 0, 60) * 1000));
+        item.fadeOutMs = Math.min(item.duration, Math.round(clamp(value("fadeOut", finite(item.fadeOutMs) / 1000), 0, 60) * 1000));
         item.width = clamp(value("width", 20) / 100, 0.03, 1);
         item.height = clamp(value("height", 20) / 100, 0.03, 1);
         item.scale = clamp(value("scale", 100) / 100, 0.1, 5);
