@@ -54,6 +54,10 @@ check("video add API and visual controls are normalized", () => assert(
   has(engine, "keyframes: []") &&
   has(engine, "opacity: clamp(input.opacity ?? 1, 0, 1)") &&
   has(engine, 'input("Opacity (%)", "opacity"') &&
+  has(engine, "setLayerOpacityKeyframeAtPlayhead(values = null)") &&
+  has(engine, "removeLayerOpacityKeyframeAtPlayhead()") &&
+  has(engine, "data-layer-opacity-keyframe-set") &&
+  has(engine, "data-layer-opacity-keyframe-remove") &&
   has(engine, "ctx.globalAlpha = clipOpacityAt(overlay, this.engine.currentTimestamp)") &&
   has(engine, "ctx.globalAlpha = clipOpacityAt(cue, this.engine.currentTimestamp)") &&
   has(engine, 'input("Fade in (seconds)", "fadeIn", seconds(item.fadeInMs)') &&
@@ -140,6 +144,24 @@ check("playback follows decoded video clock", () => {
     Math.abs(clipOpacityAt(opacityClip, 1500) - 0.6) < 0.001 &&
     Math.abs(clipOpacityAt({ ...opacityClip, fadeInMs: 1000 }, 1250) - 0.2) < 0.001,
     "opacity keyframes did not interpolate in preview or combine with the fade envelope");
+  const opacityLayerEngine = new NovaCutEngine();
+  const opacityTextLayer = opacityLayerEngine.registry.addTextCue({ id: "qa-opacity-text", startTime: 1000, duration: 2000 });
+  opacityLayerEngine.currentTimestamp = 1500;
+  opacityLayerEngine.activeTrackId = opacityTextLayer.id;
+  if (!opacityLayerEngine.setLayerOpacityKeyframeAtPlayhead({ opacity: 0.35, easing: "ease-in" }) ||
+      opacityTextLayer.keyframes.length !== 1 ||
+      opacityTextLayer.keyframes[0].opacity !== 0.35 ||
+      opacityTextLayer.keyframes[0].easing !== "ease-in") {
+    throw new Error("Text opacity keyframe did not persist the selected playhead value and easing.");
+  }
+  opacityLayerEngine.currentTimestamp = 1950;
+  if (Math.abs(clipOpacityAt(opacityTextLayer, opacityLayerEngine.currentTimestamp) - 0.35) > 0.001) {
+    throw new Error("Text opacity keyframe did not feed the preview alpha envelope.");
+  }
+  opacityLayerEngine.currentTimestamp = 1500;
+  if (!opacityLayerEngine.removeLayerOpacityKeyframeAtPlayhead() || opacityTextLayer.keyframes.length !== 0) {
+    throw new Error("Text opacity keyframe could not be removed at the playhead.");
+  }
   const layerFade = { startTime: 2000, duration: 2000, opacity: 0.5, fadeInMs: 1000, fadeOutMs: 500 };
   assert(clipOpacityAt(layerFade, 2000) === 0 &&
     Math.abs(clipOpacityAt(layerFade, 2500) - 0.25) < 0.001 &&

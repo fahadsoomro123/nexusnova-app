@@ -204,15 +204,21 @@ try {
     stickers: [{
       id: "sticker-1", asset: "smoke-test", label: "Smoke sticker", glyph: "★",
       x: 0.5, y: 0.5, width: 0.25, height: 0.25, scale: 1,
-      rotation: 0, startTime: 250, duration: 1000, opacity: 0.5, fadeInMs: 250, fadeOutMs: 250, zIndex: 20
+      rotation: 0, startTime: 250, duration: 1000, opacity: 0.5, fadeInMs: 250, fadeOutMs: 250,
+      keyframes: [
+        { timeMs: 0, opacity: 1, easing: "linear" },
+        { timeMs: 1000, opacity: 0.2, easing: "ease-in" }
+      ],
+      zIndex: 20
     }]
   });
   assert(mixedPlan.streams.some((stream) => stream.codec_type === "audio"), "Mixed export has no audio stream.");
   assert(mixedPlan.filters.includes("scale=44:80:force_original_aspect_ratio=decrease"), "Sticker was not resized before overlay composition.");
   assert(mixedPlan.filters.includes("fade=t=in:st=0:d=0.250:alpha=1") &&
     mixedPlan.filters.includes("fade=t=out:st=0.750:d=0.250:alpha=1") &&
-    mixedPlan.filters.includes("colorchannelmixer=aa=0.500"),
-    "Text/sticker opacity and timed fade filters were not included in the real export graph.");
+    mixedPlan.filters.includes("if(lt(T,1.0000") &&
+    mixedPlan.filters.includes("0.2000"),
+    "Sticker opacity keyframes and timed fade filters were not included in the real export graph.");
   assert(mixedPlan.filters.includes("lutrgb=r='min(255,val*1.150)':g='min(255,val*1.150)':b='min(255,val*1.150)'"), "Brightness adjustment filter is missing from export.");
   assert(mixedPlan.filters.includes("eq=contrast=1.250:saturation=1.350"), "Contrast/saturation filters are missing from export.");
   assert(mixedPlan.filters.includes("fade=t=in:st=0.000:d=0.250:alpha=1"), "Fade-in alpha transition is missing from export.");

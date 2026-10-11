@@ -320,6 +320,7 @@ export class NovaCutTrackRegistry {
       opacity: clamp(input.opacity ?? 1, 0, 1),
       fadeInMs: clamp(input.fadeInMs ?? 0, 0, Math.max(250, Number(input.duration) || 250)),
       fadeOutMs: clamp(input.fadeOutMs ?? 0, 0, Math.max(250, Number(input.duration) || 250)),
+      keyframes: Array.isArray(input.keyframes) ? input.keyframes.map((frame) => ({ ...frame })) : [],
       style: {
         x: clamp(style.x ?? 0.5, 0, 1),
         y: clamp(style.y ?? 0.82, 0, 1),
@@ -356,6 +357,7 @@ export class NovaCutTrackRegistry {
       opacity: clamp(input.opacity ?? 1, 0, 1),
       fadeInMs: clamp(input.fadeInMs ?? 0, 0, Math.max(250, Number(input.duration) || 3000)),
       fadeOutMs: clamp(input.fadeOutMs ?? 0, 0, Math.max(250, Number(input.duration) || 3000)),
+      keyframes: Array.isArray(input.keyframes) ? input.keyframes.map((frame) => ({ ...frame })) : [],
       zIndex: Number(input.zIndex) || 20
     };
     this.overlayTracks.push(overlay);
@@ -1667,7 +1669,21 @@ class NovaCutCommandCompiler {
           ":d=" + msToSec(fadeOutMs).toFixed(3) + ":alpha=1");
       }
       const opacity = clamp(item.opacity ?? 1, 0, 1);
-      if (opacity < 0.9999) opacityFilters.push("colorchannelmixer=aa=" + opacity.toFixed(3));
+      const hasOpacityKeyframes = Array.isArray(item.keyframes) &&
+        item.keyframes.some((frame) => frame?.opacity != null && Number.isFinite(Number(frame.opacity)));
+      if (hasOpacityKeyframes) {
+        const opacityExpression = ffmpegVideoKeyframeExpression({
+          duration: durationMs,
+          scale: 1,
+          transform: { scale: 1, rotation: 0 },
+          x_offset: 0,
+          y_offset: 0,
+          keyframes: item.keyframes
+        }, "opacity", opacity, 0, "T");
+        opacityFilters.push("geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='alpha(X,Y)*(" + opacityExpression + ")'");
+      } else if (opacity < 0.9999) {
+        opacityFilters.push("colorchannelmixer=aa=" + opacity.toFixed(3));
+      }
       return ["format=rgba", ...opacityFilters].join(",");
     };
 
@@ -2088,6 +2104,62 @@ export class NovaCutEngine {
     this.history.record(before, "Set keyframe");
     this.refresh();
     this.setStatus("Keyframe set at " + (keyframe.timeMs / 1000).toFixed(2) + "s");
+    return true;
+  }
+
+  setLayerOpacityKeyframeAtPlayhead(values = null) {
+    const selected = this.registry.getById(this.activeTrackId);
+    if (!selected || !["textTracks", "overlayTracks"].includes(selected.type)) {
+      this.setStatus("Select a text or sticker layer first.");
+      return false;
+    }
+    const item = selected.item;
+    const localTimeMs = this.currentTimestamp - Number(item.startTime || 0);
+    if (localTimeMs < 0 || localTimeMs >= Number(item.duration || 0)) {
+      this.setStatus("Move the playhead inside the selected text or sticker layer.");
+      return false;
+    }
+    const sampled = sampleNovaCutVideoKeyframes(item, this.currentTimestamp);
+    const opacity = clamp(values?.opacity ?? sampled.opacity ?? item.opacity ?? 1, 0, 1);
+    const easing = ["linear", "ease-in", "ease-out", "ease-in-out"].includes(values?.easing)
+      ? values.easing
+      : "linear";
+    const before = this.history.capture();
+    const keyframes = Array.isArray(item.keyframes) ? item.keyframes.map((frame) => ({ ...frame })) : [];
+    const timeMs = clamp(localTimeMs, 0, Number(item.duration) || 1);
+    const existingIndex = keyframes.findIndex((frame) =>
+      frame.opacity != null && Math.abs(Number(frame.timeMs) - timeMs) <= 34
+    );
+    const keyframe = { timeMs, opacity, easing };
+    if (existingIndex >= 0) keyframes.splice(existingIndex, 1, keyframe);
+    else keyframes.push(keyframe);
+    item.keyframes = keyframes.sort((a, b) => Number(a.timeMs) - Number(b.timeMs));
+    this.history.record(before, "Set layer opacity keyframe");
+    this.refresh();
+    this.setStatus("Layer opacity keyframe set at " + (timeMs / 1000).toFixed(2) + "s");
+    return true;
+  }
+
+  removeLayerOpacityKeyframeAtPlayhead() {
+    const selected = this.registry.getById(this.activeTrackId);
+    if (!selected || !["textTracks", "overlayTracks"].includes(selected.type)) {
+      this.setStatus("Select a text or sticker layer first.");
+      return false;
+    }
+    const item = selected.item;
+    const localTimeMs = this.currentTimestamp - Number(item.startTime || 0);
+    const index = (item.keyframes || []).findIndex((frame) =>
+      frame.opacity != null && Math.abs(Number(frame.timeMs) - localTimeMs) <= 34
+    );
+    if (index < 0) {
+      this.setStatus("There is no opacity keyframe at the current playhead.");
+      return false;
+    }
+    const before = this.history.capture();
+    item.keyframes.splice(index, 1);
+    this.history.record(before, "Remove layer opacity keyframe");
+    this.refresh();
+    this.setStatus("Layer opacity keyframe removed");
     return true;
   }
 
@@ -2839,7 +2911,10 @@ export class NovaCutEngine {
     const nearbyKeyframe = type === "videoTracks"
       ? normalizeVideoKeyframes(item.keyframes, item.duration, item).find((frame) => Math.abs(frame.timeMs - playheadLocalMs) <= 34)
       : null;
-    const keyframeEasing = nearbyKeyframe?.easing || "linear";
+    const nearbyLayerOpacityKeyframe = ["textTracks", "overlayTracks"].includes(type)
+      ? (item.keyframes || []).find((frame) => frame.opacity != null && Math.abs(Number(frame.timeMs) - playheadLocalMs) <= 34)
+      : null;
+    const keyframeEasing = nearbyKeyframe?.easing || nearbyLayerOpacityKeyframe?.easing || "linear";
     const keyframeControls = type === "videoTracks"
       ? '<div class="nx-novacut__keyframe-actions">' +
         '<label>Interpolation to next<select data-clip-prop="keyframeEasing">' +
@@ -2852,7 +2927,19 @@ export class NovaCutEngine {
         '<button type="button" class="nx-novacut__secondary" data-clip-keyframe-set>Set keyframe at playhead</button>' +
         '<button type="button" class="nx-novacut__secondary" data-clip-keyframe-remove>Remove keyframe here</button>' +
         '</div>'
-      : '';
+      : ["textTracks", "overlayTracks"].includes(type)
+        ? '<div class="nx-novacut__keyframe-actions">' +
+          '<label>Opacity interpolation<select data-clip-prop="keyframeEasing">' +
+            '<option value="linear"' + (keyframeEasing === "linear" ? " selected" : "") + '>Linear</option>' +
+            '<option value="ease-in"' + (keyframeEasing === "ease-in" ? " selected" : "") + '>Ease in</option>' +
+            '<option value="ease-out"' + (keyframeEasing === "ease-out" ? " selected" : "") + '>Ease out</option>' +
+            '<option value="ease-in-out"' + (keyframeEasing === "ease-in-out" ? " selected" : "") + '>Ease in-out</option>' +
+          '</select></label>' +
+          '<span data-layer-opacity-keyframe-count>Opacity keyframes: ' + (item.keyframes || []).filter((frame) => frame.opacity != null).length + '</span>' +
+          '<button type="button" class="nx-novacut__secondary" data-layer-opacity-keyframe-set>Set opacity keyframe</button>' +
+          '<button type="button" class="nx-novacut__secondary" data-layer-opacity-keyframe-remove>Remove opacity keyframe</button>' +
+          '</div>'
+        : '';
     const colorPresets = type === "videoTracks"
       ? '<div class="nx-novacut__color-presets" role="group" aria-label="Color presets">' +
         '<button type="button" data-color-preset="original">Original</button>' +
@@ -2896,6 +2983,20 @@ export class NovaCutEngine {
       this.removeVideoKeyframeAtPlayhead();
       const count = sheet.body.querySelector("[data-keyframe-count]");
       if (count) count.textContent = "Keyframes: " + (item.keyframes?.length || 0);
+    });
+    sheet.body.querySelector("[data-layer-opacity-keyframe-set]")?.addEventListener("click", () => {
+      const opacity = clamp(value("opacity", clamp(item.opacity ?? 1, 0, 1) * 100) / 100, 0, 1);
+      this.setLayerOpacityKeyframeAtPlayhead({
+        opacity,
+        easing: sheet.body.querySelector('[data-clip-prop="keyframeEasing"]')?.value || "linear"
+      });
+      const count = sheet.body.querySelector("[data-layer-opacity-keyframe-count]");
+      if (count) count.textContent = "Opacity keyframes: " + (item.keyframes || []).filter((frame) => frame.opacity != null).length;
+    });
+    sheet.body.querySelector("[data-layer-opacity-keyframe-remove]")?.addEventListener("click", () => {
+      this.removeLayerOpacityKeyframeAtPlayhead();
+      const count = sheet.body.querySelector("[data-layer-opacity-keyframe-count]");
+      if (count) count.textContent = "Opacity keyframes: " + (item.keyframes || []).filter((frame) => frame.opacity != null).length;
     });
     sheet.body.querySelectorAll("[data-color-preset]").forEach((button) => {
       button.addEventListener("click", () => {
