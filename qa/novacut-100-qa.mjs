@@ -57,7 +57,7 @@ check("video add API and visual controls are normalized", () => assert(
   has(engine, "normalizeVideoKeyframes(input.keyframes, duration, clip)") &&
   has(engine, "opacity: clamp(values.opacity ?? frameValues.opacity, 0, 1)") &&
   has(engine, 'ffmpegVideoKeyframeExpression(clip, "opacity", baseOpacity, startAt, "T")') &&
-  has(engine, "geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='alpha(X,Y)*(') &&
+  has(engine, `geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='alpha(X,Y)*('`) &&
   has(engine, 'easing: ["linear", "ease-in", "ease-out", "ease-in-out"].includes(frame.easing) ? frame.easing : "linear"') &&
   has(engine, "ffmpegKeyframeEasingExpression(left.easing, amount)") &&
   has(engine, 'data-clip-prop="keyframeEasing"') &&
