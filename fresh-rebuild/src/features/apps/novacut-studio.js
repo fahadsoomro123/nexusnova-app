@@ -1,4 +1,4 @@
-import { sampleNovaCutVideoKeyframes } from "./novacut-engine.js";
+import { sampleNovaCutVideoKeyframes, novaCutSourceOffsetForTimeline, sliceNovaCutSpeedCurve } from "./novacut-engine.js";
 
 /*
  * NovaCut Studio Interaction Core
@@ -695,6 +695,10 @@ export class NovaCutStudioInteractions {
           0,
           finite(clip.sourceStartTime)
         ),
+      originalSourceDuration: Math.max(1, finite(clip.sourceDuration, finite(clip.duration) * finite(clip.speed, 1))),
+      originalSpeed: finite(clip.speed, 1),
+      originalSpeedCurve: Array.isArray(clip.speedCurve) ? clip.speedCurve.map((point) => ({ ...point })) : [],
+      originalSpeedCurvePreset: clip.speedCurvePreset || "none",
       originalKeyframes: Array.isArray(clip.keyframes) ? clip.keyframes.map((frame) => ({ ...frame })) : [],
       timelineScrollLeft:
         this.timeline.scrollLeft,
@@ -1182,11 +1186,32 @@ export class NovaCutStudioInteractions {
 
     clip.startTime = nextStart;
     clip.duration = state.originalDuration - actualDelta;
-    const sourceRate = isVideo ? clamp(clip.speed ?? 1, 0.25, 4) : 1;
+    const sourceRate = isVideo ? clamp(state.originalSpeed ?? clip.speed ?? 1, 0.25, 4) : 1;
+    const originalVideoClip = isVideo ? {
+      ...clip,
+      startTime: originalStart,
+      duration: state.originalDuration,
+      speed: state.originalSpeed,
+      sourceDuration: state.originalSourceDuration,
+      speedCurve: state.originalSpeedCurve
+    } : null;
+    const hasSpeedCurve = isVideo && Array.isArray(state.originalSpeedCurve) && state.originalSpeedCurve.length > 1;
+    const sourceDelta = hasSpeedCurve ? novaCutSourceOffsetForTimeline(originalVideoClip, actualDelta) : actualDelta * sourceRate;
     if ("sourceStartTime" in clip) {
-      clip.sourceStartTime = Math.max(0, state.originalSourceStartTime + actualDelta * sourceRate);
+      clip.sourceStartTime = Math.max(0, state.originalSourceStartTime + sourceDelta);
     }
-    if (isVideo) clip.sourceDuration = Math.max(1, clip.duration * sourceRate);
+    if (isVideo) {
+      if (hasSpeedCurve) {
+        clip.sourceDuration = Math.max(1, state.originalSourceDuration - sourceDelta);
+        clip.speedCurve = sliceNovaCutSpeedCurve(originalVideoClip, actualDelta, state.originalDuration, clip.sourceDuration);
+        clip.speed = clamp(clip.sourceDuration / clip.duration, 0.25, 4);
+        clip.speedCurvePreset = clip.speedCurve.length ? "custom" : "none";
+      } else {
+        clip.sourceDuration = Math.max(1, clip.duration * sourceRate);
+        clip.speedCurve = [];
+        clip.speedCurvePreset = "none";
+      }
+    }
     if (isVideo && state.originalKeyframes.length) {
       const originalClip = {
         ...clip,
@@ -1235,7 +1260,25 @@ export class NovaCutStudioInteractions {
 
     clip.duration = Math.max(minimum, targetEnd - originalStart);
     if (state.recordType === "videoTracks") {
-      clip.sourceDuration = Math.max(1, clip.duration * clamp(clip.speed ?? 1, 0.25, 4));
+      const hasSpeedCurve = Array.isArray(state.originalSpeedCurve) && state.originalSpeedCurve.length > 1;
+      if (hasSpeedCurve) {
+        const originalVideoClip = {
+          ...clip,
+          startTime: originalStart,
+          duration: state.originalDuration,
+          speed: state.originalSpeed,
+          sourceDuration: state.originalSourceDuration,
+          speedCurve: state.originalSpeedCurve
+        };
+        clip.sourceDuration = Math.max(1, novaCutSourceOffsetForTimeline(originalVideoClip, clip.duration));
+        clip.speedCurve = sliceNovaCutSpeedCurve(originalVideoClip, 0, clip.duration, clip.sourceDuration);
+        clip.speed = clamp(clip.sourceDuration / clip.duration, 0.25, 4);
+        clip.speedCurvePreset = clip.speedCurve.length ? "custom" : "none";
+      } else {
+        clip.sourceDuration = Math.max(1, clip.duration * clamp(clip.speed ?? 1, 0.25, 4));
+        clip.speedCurve = [];
+        clip.speedCurvePreset = "none";
+      }
     }
     if (state.recordType === "videoTracks" && state.originalKeyframes.length) {
       const originalClip = {

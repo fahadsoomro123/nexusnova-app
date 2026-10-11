@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
-import { sampleNovaCutVideoKeyframes, sampleNovaCutAudioGain, clipOpacityAt, sampleNovaCutLayerKeyframes } from "../fresh-rebuild/src/features/apps/novacut-engine.js";
+import { sampleNovaCutVideoKeyframes, sampleNovaCutAudioGain, clipOpacityAt, sampleNovaCutLayerKeyframes, normalizeNovaCutSpeedCurve, createNovaCutSpeedCurvePreset, sampleNovaCutSpeed, novaCutSourceOffsetForTimeline, novaCutTimelineOffsetForSource } from "../fresh-rebuild/src/features/apps/novacut-engine.js";
 
 const ROOT = process.cwd();
 const read = (file) => fs.readFileSync(path.join(ROOT, file), "utf8");
@@ -77,8 +77,12 @@ check("video add API and visual controls are normalized", () => assert(
   has(engine, "ffmpegVideoKeyframeExpression(clip, \"scale\"") &&
   has(engine, "eval=frame") &&
   has(engine, "setVideoKeyframeAtPlayhead(values = null)") &&
-  has(engine, "removeVideoKeyframeAtPlayhead()"),
-  "video clip visual properties or keyframe animation are missing"
+  has(engine, "removeVideoKeyframeAtPlayhead()") &&
+  has(engine, "normalizeNovaCutSpeedCurve") &&
+  has(engine, "ffmpegNovaCutSpeedCurveExpression(clip)") &&
+  has(engine, 'data-clip-prop="speedCurvePreset"') &&
+  has(engine, "sampleNovaCutSpeed"),
+  "video clip visual properties, keyframe animation, or speed curve support are missing"
 ));
 check("audio add API and source-audio export mapping", () => assert(has(engine, "addAudioSegment(input)") && has(engine, "fadeInMs: clamp(input.fadeInMs ?? 0, 0, Math.max(250, Number(input.duration) || 250))") && has(engine, "sampleNovaCutAudioGain(segment, timestamp)") && has(engine, "sampleNovaCutAudioGain(segment, now)") && has(engine, "sampleNovaCutAudioGain(clip, this.engine.currentTimestamp)") && has(engine, "sampleNovaCutAudioGain(clip, now)") && has(engine, 'afade=t=in:st=0:d=') && has(engine, "clip.metadata?.hasAudio !== true") && has(engine, "vsrcaudio") && has(engine, "audioLabels.map"), "source audio mapping or synchronized audio fade envelope missing"));
 check("text add API and transform animation", () => assert(
@@ -439,6 +443,43 @@ if (Math.abs(sampledText.x - 0.5) > 0.001 || Math.abs(sampledText.y - 0.5) > 0.0
   throw new Error("Text position/scale/rotation/opacity did not interpolate at the playhead.");
 }
 console.log("TEXT TRANSFORM KEYFRAME BEHAVIOUR 1/1 PASS  position, scale, rotation and opacity interpolate at playhead");
+const speedCurvePoints = normalizeNovaCutSpeedCurve([
+  { timeMs: 0, speed: 1 }, { timeMs: 1000, speed: 2 },
+  { timeMs: 3000, speed: 0.5 }, { timeMs: 4000, speed: 1 }
+], 4000, 4000);
+const speedCurveClip = { id: "qa-speed-curve", startTime: 1000, duration: 4000, speed: 1, sourceDuration: 4000, speedCurve: speedCurvePoints };
+if (Math.abs(novaCutSourceOffsetForTimeline(speedCurveClip, 4000) - 4000) > 0.5 ||
+    Math.abs(sampleNovaCutSpeed(speedCurveClip, 2000) - speedCurvePoints[1].speed) > 0.001) {
+  throw new Error("Speed curve normalization or playhead speed sampling failed.");
+}
+for (const localTime of [0, 250, 1000, 1800, 2500, 3999, 4000]) {
+  const sourceOffset = novaCutSourceOffsetForTimeline(speedCurveClip, localTime);
+  const timelineOffset = novaCutTimelineOffsetForSource(speedCurveClip, sourceOffset);
+  if (Math.abs(timelineOffset - localTime) > 0.2) {
+    throw new Error("Speed curve source/timeline inverse drifted at " + localTime + "ms: " + timelineOffset);
+  }
+}
+const montageCurve = createNovaCutSpeedCurvePreset("montage", 4000, 4000);
+if (montageCurve.length < 4 || Math.abs(novaCutSourceOffsetForTimeline({ ...speedCurveClip, speedCurve: montageCurve }, 4000) - 4000) > 0.5) {
+  throw new Error("Montage speed curve preset does not preserve the clip's source span.");
+}
+console.log("SPEED CURVE MAPPING 1/1 PASS  smooth rate sampling, source integration/inversion, and duration preservation");
+const curveSplitEngine = new NovaCutEngine();
+curveSplitEngine.registry.addVideoClip({
+  id: "qa-speed-curve-split", startTime: 0, duration: 4000, sourceStartTime: 500,
+  speed: 1, sourceDuration: 4000, speedCurve: speedCurvePoints, speedCurvePreset: "custom"
+});
+curveSplitEngine.currentTimestamp = 2000;
+curveSplitEngine.activeTrackId = "qa-speed-curve-split";
+const expectedCurveSplitOffset = novaCutSourceOffsetForTimeline(curveSplitEngine.registry.videoTracks[0], 2000);
+const curveSplit = curveSplitEngine.executeSplitAction("qa-speed-curve-split", 2000);
+if (!curveSplit.success ||
+    Math.abs(curveSplit.firstClip.sourceDuration + curveSplit.secondClip.sourceDuration - 4000) > 0.5 ||
+    Math.abs(curveSplit.secondClip.sourceStartTime - (500 + expectedCurveSplitOffset)) > 0.5 ||
+    curveSplit.firstClip.speedCurve.length < 2 || curveSplit.secondClip.speedCurve.length < 2) {
+  throw new Error("Splitting a speed-curved clip lost source offsets or its curve segments.");
+}
+console.log("SPEED CURVE SPLIT 1/1 PASS  source continuity and both curve segments survive split");
 const speedSplitEngine = new NovaCutEngine();
 speedSplitEngine.registry.addVideoClip({ id: "qa-speed-split", startTime: 0, duration: 4000, sourceStartTime: 500, speed: 2, sourceDuration: 8000 });
 const speedSplit = speedSplitEngine.executeSplitAction("qa-speed-split", 2000);
@@ -695,6 +736,24 @@ if (!animatedTextFilter.includes("scale=w='trunc(iw*(") ||
   throw new Error("Animated text geometry/opacity was not compiled into the FFmpeg filter graph.");
 }
 console.log("TEXT KEYFRAME EXPORT 1/1 PASS  animated geometry and opacity map into FFmpeg output");
+const speedCurveExport = new NovaCutCommandCompiler(makeCompilerEngine({
+  videos: [compilerVideo({
+    duration: 5000, sourceDuration: 5000, speed: 1,
+    speedCurve: normalizeNovaCutSpeedCurve([
+      { timeMs: 0, speed: 0.25 },
+      { timeMs: 2500, speed: 1.75 },
+      { timeMs: 5000, speed: 0.25 }
+    ], 5000, 5000)
+  })]
+})).compile();
+const speedCurveGraph = speedCurveExport.args[speedCurveExport.args.indexOf("-filter_complex") + 1];
+if (!speedCurveGraph.includes("setpts='(if(") ||
+    !speedCurveGraph.includes("sqrt(max(0") ||
+    !speedCurveGraph.includes("asplit=2") ||
+    !speedCurveGraph.includes("concat=n=2:v=0:a=1")) {
+  throw new Error("Speed curve export omitted variable video timing or source-audio synchronization.");
+}
+console.log("SPEED CURVE EXPORT 1/1 PASS  variable-rate video PTS and aligned source-audio segments compile");
 const speedPlan = new NovaCutCommandCompiler(makeCompilerEngine({
   videos: [compilerVideo({ duration: 2500, speed: 2, sourceDuration: 5000 })]
 })).compile();

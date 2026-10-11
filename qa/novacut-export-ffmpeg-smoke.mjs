@@ -192,6 +192,13 @@ try {
       keyframes: [
         { timeMs: 0, scale: 1, rotation: 0, x_offset: 0, y_offset: 0 },
         { timeMs: 2000, scale: 1.5, rotation: 30, x_offset: 18, y_offset: -12 }
+      ],
+      sourceDuration: 2000,
+      speedCurvePreset: "custom",
+      speedCurve: [
+        { timeMs: 0, speed: 0.25 },
+        { timeMs: 1000, speed: 1.75 },
+        { timeMs: 2000, speed: 0.25 }
       ]
     },
     audios: [{
@@ -212,6 +219,11 @@ try {
       zIndex: 20
     }]
   });
+  assert(mixedPlan.filters.includes("sqrt(max(0") &&
+    mixedPlan.filters.includes("asplit=2") &&
+    mixedPlan.filters.includes("concat=n=2:v=0:a=1"),
+    "Variable-speed export did not generate synchronized video/audio filter branches.");
+  console.log("SPEED CURVE FFmpeg GRAPH 1/1 PASS  variable rate mapping and source audio graph");
   assert(mixedPlan.streams.some((stream) => stream.codec_type === "audio"), "Mixed export has no audio stream.");
   assert(mixedPlan.filters.includes("scale=44:80:force_original_aspect_ratio=decrease"), "Sticker was not resized before overlay composition.");
   const stickerLayerGraph = mixedPlan.filters.match(/\[2:v:0\](.*?)\[ssrc0\]/)?.[1] || "";

@@ -35,6 +35,176 @@ export const isAndroidWebViewUserAgent = (value) => {
   return /Android/i.test(userAgent) && /\bwv\b/i.test(userAgent);
 };
 const msToSec = (value) => Math.max(0, Number(value) || 0) / 1000;
+
+const NOVACUT_SPEED_CURVE_PRESETS = Object.freeze({
+  montage: [
+    { position: 0, speed: 1 }, { position: 0.22, speed: 2.4 },
+    { position: 0.5, speed: 0.5 }, { position: 0.78, speed: 2.4 }, { position: 1, speed: 1 }
+  ],
+  hero: [
+    { position: 0, speed: 1 }, { position: 0.25, speed: 1.4 },
+    { position: 0.5, speed: 0.35 }, { position: 0.78, speed: 0.35 }, { position: 1, speed: 1 }
+  ],
+  bullet: [
+    { position: 0, speed: 0.8 }, { position: 0.28, speed: 3 },
+    { position: 0.5, speed: 0.35 }, { position: 0.75, speed: 0.35 }, { position: 1, speed: 1.2 }
+  ],
+  "flash-in": [
+    { position: 0, speed: 0.4 }, { position: 0.28, speed: 0.4 },
+    { position: 0.65, speed: 1.8 }, { position: 1, speed: 1.2 }
+  ],
+  "flash-out": [
+    { position: 0, speed: 1.2 }, { position: 0.38, speed: 1.8 },
+    { position: 0.72, speed: 0.4 }, { position: 1, speed: 0.4 }
+  ]
+});
+
+function speedCurveAtLocalTime(points, localTimeMs) {
+  if (!Array.isArray(points) || points.length < 2) return 1;
+  const t = Math.max(0, Number(localTimeMs) || 0);
+  if (t <= Number(points[0].timeMs)) return clamp(points[0].speed, 0.25, 4);
+  for (let i = 0; i < points.length - 1; i += 1) {
+    const left = points[i];
+    const right = points[i + 1];
+    if (t > Number(right.timeMs)) continue;
+    const span = Math.max(1, Number(right.timeMs) - Number(left.timeMs));
+    const amount = clamp((t - Number(left.timeMs)) / span, 0, 1);
+    return clamp(Number(left.speed) + (Number(right.speed) - Number(left.speed)) * amount, 0.25, 4);
+  }
+  return clamp(points[points.length - 1].speed, 0.25, 4);
+}
+
+export function normalizeNovaCutSpeedCurve(curve, durationMs, sourceDurationMs) {
+  const duration = Math.max(1, Number(durationMs) || 1);
+  if (!Array.isArray(curve) || !curve.length) return [];
+  const byTime = new Map();
+  curve.forEach((point) => {
+    if (!point || !Number.isFinite(Number(point.timeMs))) return;
+    const timeMs = clamp(point.timeMs, 0, duration);
+    byTime.set(timeMs, { timeMs, speed: clamp(point.speed ?? 1, 0.25, 4) });
+  });
+  let points = [...byTime.values()].sort((a, b) => a.timeMs - b.timeMs);
+  if (!points.length) return [];
+  if (points.length === 1) {
+    points = [
+      { timeMs: 0, speed: points[0].speed },
+      { timeMs: duration, speed: points[0].speed }
+    ];
+  } else {
+    if (points[0].timeMs > 0) points.unshift({ timeMs: 0, speed: points[0].speed });
+    if (points[points.length - 1].timeMs < duration) {
+      points.push({ timeMs: duration, speed: points[points.length - 1].speed });
+    }
+  }
+  const targetAverage = clamp((Number(sourceDurationMs) || duration) / duration, 0.25, 4);
+  const averageAt = (factor) => {
+    let area = 0;
+    for (let i = 0; i < points.length - 1; i += 1) {
+      const span = points[i + 1].timeMs - points[i].timeMs;
+      const left = clamp(points[i].speed * factor, 0.25, 4);
+      const right = clamp(points[i + 1].speed * factor, 0.25, 4);
+      area += span * (left + right) / 2;
+    }
+    return area / duration;
+  };
+  let low = 0;
+  let high = 64;
+  for (let i = 0; i < 48; i += 1) {
+    const middle = (low + high) / 2;
+    if (averageAt(middle) < targetAverage) low = middle;
+    else high = middle;
+  }
+  const factor = (low + high) / 2;
+  return points.map((point) => ({ timeMs: point.timeMs, speed: clamp(point.speed * factor, 0.25, 4) }));
+}
+
+export function createNovaCutSpeedCurvePreset(preset, durationMs, sourceDurationMs) {
+  const duration = Math.max(1, Number(durationMs) || 1);
+  const shape = NOVACUT_SPEED_CURVE_PRESETS[preset];
+  if (!shape) return [];
+  return normalizeNovaCutSpeedCurve(shape.map((point) => ({
+    timeMs: Math.round(duration * point.position),
+    speed: point.speed
+  })), duration, sourceDurationMs);
+}
+
+export function sampleNovaCutSpeed(clip, timestamp) {
+  const local = clamp((Number(timestamp) || 0) - (Number(clip?.startTime) || 0), 0, Math.max(1, Number(clip?.duration) || 1));
+  return Array.isArray(clip?.speedCurve) && clip.speedCurve.length > 1
+    ? speedCurveAtLocalTime(clip.speedCurve, local)
+    : clamp(clip?.speed ?? 1, 0.25, 4);
+}
+
+export function novaCutSourceOffsetForTimeline(clip, localTimeMs) {
+  const local = Math.max(0, Number(localTimeMs) || 0);
+  const points = clip?.speedCurve;
+  if (!Array.isArray(points) || points.length < 2) return local * clamp(clip?.speed ?? 1, 0.25, 4);
+  let sourceOffset = 0;
+  for (let i = 0; i < points.length - 1; i += 1) {
+    const left = points[i];
+    const right = points[i + 1];
+    const start = Number(left.timeMs) || 0;
+    const span = Math.max(1, Number(right.timeMs) - start);
+    if (local <= start) return sourceOffset;
+    const elapsed = Math.min(span, local - start);
+    const endRate = Number(left.speed) + (Number(right.speed) - Number(left.speed)) * (elapsed / span);
+    sourceOffset += elapsed * (Number(left.speed) + endRate) / 2;
+    if (local <= start + span) return sourceOffset;
+  }
+  const last = points[points.length - 1];
+  return sourceOffset + Math.max(0, local - Number(last.timeMs)) * clamp(last.speed, 0.25, 4);
+}
+
+export function novaCutTimelineOffsetForSource(clip, sourceOffsetMs) {
+  const points = clip?.speedCurve;
+  if (!Array.isArray(points) || points.length < 2) {
+    return Math.max(0, Number(sourceOffsetMs) || 0) / clamp(clip?.speed ?? 1, 0.25, 4);
+  }
+  const target = Math.max(0, Number(sourceOffsetMs) || 0);
+  const duration = Math.max(1, Number(clip?.duration) || Number(points[points.length - 1].timeMs) || 1);
+  const sourceDuration = Number(clip?.sourceDuration);
+  if (Number.isFinite(sourceDuration) && target >= sourceDuration) return duration;
+  let consumed = 0;
+  for (let i = 0; i < points.length - 1; i += 1) {
+    const left = points[i];
+    const right = points[i + 1];
+    const t0 = Number(left.timeMs) || 0;
+    const span = Math.max(1, Number(right.timeMs) - t0);
+    const v0 = clamp(left.speed, 0.25, 4);
+    const v1 = clamp(right.speed, 0.25, 4);
+    const sourceSpan = span * (v0 + v1) / 2;
+    if (target <= consumed + sourceSpan) {
+      const remaining = Math.max(0, target - consumed);
+      const slope = (v1 - v0) / span;
+      let elapsed;
+      if (Math.abs(slope) < 0.0000001) elapsed = remaining / v0;
+      else {
+        const discriminant = Math.max(0, v0 * v0 + 2 * slope * remaining);
+        const denominator = v0 + Math.sqrt(discriminant);
+        elapsed = denominator > 0.000001 ? (2 * remaining) / denominator : span;
+      }
+      return clamp(t0 + elapsed, 0, duration);
+    }
+    consumed += sourceSpan;
+  }
+  const last = points[points.length - 1];
+  return clamp(Number(last.timeMs) + (target - consumed) / clamp(last.speed, 0.25, 4), 0, duration);
+}
+
+export function sliceNovaCutSpeedCurve(clip, startLocalMs, endLocalMs, sourceDurationMs) {
+  if (!Array.isArray(clip?.speedCurve) || clip.speedCurve.length < 2) return [];
+  const start = Math.max(0, Number(startLocalMs) || 0);
+  const end = Math.max(start + 1, Number(endLocalMs) || 0);
+  const duration = end - start;
+  const original = normalizeNovaCutSpeedCurve(clip.speedCurve, clip.duration, clip.sourceDuration);
+  const points = [{ timeMs: 0, speed: speedCurveAtLocalTime(original, start) }];
+  original.forEach((point) => {
+    if (point.timeMs > start && point.timeMs < end) points.push({ timeMs: point.timeMs - start, speed: point.speed });
+  });
+  points.push({ timeMs: duration, speed: speedCurveAtLocalTime(original, end) });
+  return normalizeNovaCutSpeedCurve(points, duration, sourceDurationMs);
+}
+const msToSec = (value) => Math.max(0, Number(value) || 0) / 1000;
 function ffmpegAtempoChain(value) {
   let speed = clamp(value, 0.25, 4);
   const filters = [];
@@ -346,7 +516,39 @@ class NovaCutEventBus {
   clear() { this.map.clear(); }
 }
 
-export class NovaCutTrackRegistry {
+
+function ffmpegNovaCutSpeedCurveExpression(clip) {
+  const points = clip?.speedCurve;
+  if (!Array.isArray(points) || points.length < 2) return "((PTS-STARTPTS)*TB)/" + clamp(clip?.speed ?? 1, 0.25, 4).toFixed(6);
+  const sourceVariable = "((PTS-STARTPTS)*TB)";
+  const segments = [];
+  let sourceOffset = 0;
+  for (let i = 0; i < points.length - 1; i += 1) {
+    const left = points[i];
+    const right = points[i + 1];
+    const t0 = msToSec(left.timeMs);
+    const span = Math.max(0.001, msToSec(Number(right.timeMs) - Number(left.timeMs)));
+    const v0 = clamp(left.speed, 0.25, 4);
+    const v1 = clamp(right.speed, 0.25, 4);
+    const slope = (v1 - v0) / span;
+    const localSource = "(" + sourceVariable + "-" + sourceOffset.toFixed(6) + ")";
+    const expression = "(" + t0.toFixed(6) + "+(2*" + localSource + ")/(" +
+      v0.toFixed(6) + "+sqrt(max(0," + (v0 * v0).toFixed(6) + "+2*" +
+      slope.toFixed(6) + "*" + localSource + "))))";
+    sourceOffset += span * (v0 + v1) / 2;
+    segments.push({ endSource: sourceOffset, expression });
+  }
+  const last = points[points.length - 1];
+  let expression = "(" + msToSec(last.timeMs).toFixed(6) + "+(" + sourceVariable + "-" +
+    sourceOffset.toFixed(6) + ")/" + clamp(last.speed, 0.25, 4).toFixed(6) + ")";
+  for (let i = segments.length - 1; i >= 0; i -= 1) {
+    expression = "if(lt(" + sourceVariable + "," + segments[i].endSource.toFixed(6) + ")," +
+      segments[i].expression + "," + expression + ")";
+  }
+  return expression;
+}
+
+export class NovaCutTrackRegistry {export class NovaCutTrackRegistry {
   constructor() {
     this.videoTracks = [];
     this.audioTracks = [];
@@ -359,13 +561,23 @@ export class NovaCutTrackRegistry {
     const transform = input.transform || {};
     const duration = Math.max(1, Number(input.duration) || 1);
     const speed = clamp(input.speed ?? 1, 0.25, 4);
+    const sourceDuration = Math.max(1, Number(input.sourceDuration) || duration * speed);
+    const hasIncomingCurve = Array.isArray(input.speedCurve) && input.speedCurve.length > 1;
+    const speedCurvePreset = ["none", "montage", "hero", "bullet", "flash-in", "flash-out", "custom"].includes(input.speedCurvePreset)
+      ? input.speedCurvePreset
+      : hasIncomingCurve ? "custom" : "none";
+    const speedCurve = hasIncomingCurve
+      ? normalizeNovaCutSpeedCurve(input.speedCurve, duration, sourceDuration)
+      : createNovaCutSpeedCurvePreset(speedCurvePreset, duration, sourceDuration);
     const clip = {
       id: String(input.id || uid("video")),
       file: input.file || null,
       startTime: Math.max(0, Number(input.startTime) || 0),
       duration,
       speed,
-      sourceDuration: Math.max(1, Number(input.sourceDuration) || duration * speed),
+      sourceDuration,
+      speedCurve,
+      speedCurvePreset: speedCurve.length ? speedCurvePreset : "none",
       sourceStartTime: Math.max(0, Number(input.sourceStartTime) || 0),
       x_offset: Number(input.x_offset) || 0,
       y_offset: Number(input.y_offset) || 0,
@@ -879,9 +1091,8 @@ export class NovaCutCanvasPreview {
       });
       if (!(media instanceof HTMLVideoElement)) return;
       const local = Math.max(0, timestamp - clip.startTime);
-      const speed = clamp(clip.speed ?? 1, 0.25, 4);
-      media.playbackRate = speed;
-      const target = Math.max(0, msToSec(clip.sourceStartTime + local * speed));
+      media.playbackRate = sampleNovaCutSpeed(clip, timestamp);
+      const target = Math.max(0, msToSec(clip.sourceStartTime + novaCutSourceOffsetForTimeline(clip, local)));
       try {
         if (Math.abs(media.currentTime - target) > 0.025) media.currentTime = target;
       } catch (_) {}
@@ -926,9 +1137,8 @@ export class NovaCutCanvasPreview {
       if (!(media instanceof HTMLVideoElement)) return;
       this.enableVideoAudio(media, clip);
       const local = Math.max(0, this.engine.currentTimestamp - clip.startTime);
-      const speed = clamp(clip.speed ?? 1, 0.25, 4);
-      media.playbackRate = speed;
-      const target = Math.max(0, msToSec(clip.sourceStartTime + local * speed));
+      media.playbackRate = sampleNovaCutSpeed(clip, this.engine.currentTimestamp);
+      const target = Math.max(0, msToSec(clip.sourceStartTime + novaCutSourceOffsetForTimeline(clip, local)));
       try {
         if (Math.abs(media.currentTime - target) > 0.12) media.currentTime = target;
         await media.play();
@@ -1179,9 +1389,8 @@ export class NovaCutCanvasPreview {
       }
       if (media instanceof HTMLVideoElement) {
         const local = Math.max(0, now - clip.startTime);
-        const speed = clamp(clip.speed ?? 1, 0.25, 4);
-        media.playbackRate = speed;
-        const target = msToSec(clip.sourceStartTime + local * speed);
+        media.playbackRate = sampleNovaCutSpeed(clip, now);
+        const target = msToSec(clip.sourceStartTime + novaCutSourceOffsetForTimeline(clip, local));
         // Seeking on every RAF while playing repeatedly flushes the decoder on
         // slower Android/WebView devices. Seek only while paused or when a new
         // clip becomes active and needs its initial timeline position.
@@ -1575,6 +1784,7 @@ class NovaCutCommandCompiler {
       const rotationExpression = ffmpegVideoKeyframeExpression(clip, "rotation", Number(transform.rotation) || 0, msToSec(clip.startTime));
       const begin = msToSec(clip.sourceStartTime);
       const speed = clamp(clip.speed ?? 1, 0.25, 4);
+      const hasSpeedCurve = Array.isArray(clip.speedCurve) && clip.speedCurve.length > 1;
       const sourceDuration = Math.max(1, Number(clip.sourceDuration) || Number(clip.duration) * speed);
       const end = begin + msToSec(sourceDuration);
       const startAt = msToSec(clip.startTime);
@@ -1633,9 +1843,12 @@ class NovaCutCommandCompiler {
       else if (rotation === 180) vf.push("hflip,vflip");
       else if (rotation === 270) vf.push("transpose=2");
       else if (rotation !== 0) vf.push("rotate=" + (rotation * Math.PI / 180).toFixed(6) + ":c=black@0:ow=rotw(iw):oh=roth(ih)");
+      const setptsFilter = hasSpeedCurve
+        ? "setpts='(" + ffmpegNovaCutSpeedCurveExpression(clip) + "+" + startAt.toFixed(6) + ")/TB'"
+        : "setpts=(PTS-STARTPTS)/" + speed.toFixed(3) + "+" + startAt.toFixed(3) + "/TB";
       filters.push(
         "[" + input.index + ":v:0]trim=start=" + begin.toFixed(3) + ":end=" + end.toFixed(3) +
-        ",setpts=(PTS-STARTPTS)/" + speed.toFixed(3) + "+" + startAt.toFixed(3) + "/TB," + vf.join(",") + "[" + src + "]"
+        "," + setptsFilter + "," + vf.join(",") + "[" + src + "]"
       );
       const xPosition = hasKeyframes
         ? "'(W-w)/2+(" + ffmpegVideoKeyframeExpression(clip, "x_offset", Number(clip.x_offset) || 0, startAt) + ")*" + (width / previewWidth).toFixed(6) + "'"
@@ -1658,22 +1871,51 @@ class NovaCutCommandCompiler {
     videos.forEach(({ clip, input }, index) => {
       if (clip.metadata?.hasAudio !== true) return;
       const label = "vsrcaudio" + index;
-      const sourceStart = msToSec(clip.sourceStartTime);
+      const sourceStartMs = Math.max(0, Number(clip.sourceStartTime) || 0);
+      const sourceStart = msToSec(sourceStartMs);
       const speed = clamp(clip.speed ?? 1, 0.25, 4);
       const sourceDuration = Math.max(1, Number(clip.sourceDuration) || Number(clip.duration) * speed);
-      const clipDuration = msToSec(sourceDuration);
+      const hasSpeedCurve = Array.isArray(clip.speedCurve) && clip.speedCurve.length > 1;
       const delay = Math.max(0, Math.round(Number(clip.startTime) || 0));
       const fadeInSeconds = Math.min(msToSec(clip.fadeInMs || 0), msToSec(clip.duration));
       const fadeOutSeconds = Math.min(msToSec(clip.fadeOutMs || 0), msToSec(clip.duration));
       const audioFades = [];
       if (fadeInSeconds > 0) audioFades.push("afade=t=in:st=0:d=" + fadeInSeconds.toFixed(3));
       if (fadeOutSeconds > 0) audioFades.push("afade=t=out:st=" + Math.max(0, msToSec(clip.duration) - fadeOutSeconds).toFixed(3) + ":d=" + fadeOutSeconds.toFixed(3));
+      let processedAudio = label + "raw";
+      if (hasSpeedCurve) {
+        const points = clip.speedCurve;
+        const splitLabels = points.slice(1).map((_, segment) => "vca" + index + "s" + segment);
+        filters.push("[" + input.index + ":a:0]asplit=" + splitLabels.length +
+          splitLabels.map((name) => "[" + name + "]").join(""));
+        const chunks = [];
+        let sourceOffsetMs = 0;
+        for (let segment = 0; segment < points.length - 1; segment += 1) {
+          const left = points[segment];
+          const right = points[segment + 1];
+          const timelineSpanMs = Math.max(1, Number(right.timeMs) - Number(left.timeMs));
+          const segmentSpeed = clamp((Number(left.speed) + Number(right.speed)) / 2, 0.25, 4);
+          const sourceSpanMs = timelineSpanMs * segmentSpeed;
+          const chunk = "vcachunk" + index + "s" + segment;
+          filters.push("[" + splitLabels[segment] + "]atrim=start=" + msToSec(sourceStartMs + sourceOffsetMs).toFixed(6) +
+            ":duration=" + msToSec(sourceSpanMs).toFixed(6) + ",asetpts=PTS-STARTPTS," +
+            ffmpegAtempoChain(segmentSpeed) + "[" + chunk + "]");
+          chunks.push(chunk);
+          sourceOffsetMs += sourceSpanMs;
+        }
+        filters.push(chunks.map((name) => "[" + name + "]").join("") +
+          "concat=n=" + chunks.length + ":v=0:a=1[" + processedAudio + "]");
+      } else {
+        filters.push(
+          "[" + input.index + ":a:0]atrim=start=" + sourceStart.toFixed(3) +
+          ":duration=" + msToSec(sourceDuration).toFixed(3) +
+          ",asetpts=PTS-STARTPTS," + ffmpegAtempoChain(speed) + "[" + processedAudio + "]"
+        );
+      }
       filters.push(
-        "[" + input.index + ":a:0]atrim=start=" + sourceStart.toFixed(3) +
-        ":duration=" + clipDuration.toFixed(3) +
-        ",asetpts=PTS-STARTPTS," + ffmpegAtempoChain(speed) +
-        (audioFades.length ? "," + audioFades.join(",") : "") +
-        ",volume=" + clamp(clip.volume ?? 1, 0, 4).toFixed(3) +
+        "[" + processedAudio + "]" +
+        (audioFades.length ? audioFades.join(",") + "," : "") +
+        "volume=" + clamp(clip.volume ?? 1, 0, 4).toFixed(3) +
         ",adelay=" + delay + "|" + delay + "[" + label + "]"
       );
       audioLabels.push(label);
@@ -2434,9 +2676,8 @@ export class NovaCutEngine {
       });
       if (clockClip) {
         const media = this.preview.media.get(clockClip.id);
-        const clipSpeed = clamp(clockClip.speed ?? 1, 0.25, 4);
-        const mediaTimelineTime = clockClip.startTime +
-          (media.currentTime * 1000 - Math.max(0, Number(clockClip.sourceStartTime) || 0)) / clipSpeed;
+        const sourceOffset = media.currentTime * 1000 - Math.max(0, Number(clockClip.sourceStartTime) || 0);
+        const mediaTimelineTime = clockClip.startTime + novaCutTimelineOffsetForSource(clockClip, sourceOffset);
         // Use the actual decoder clock, not RAF wall time. The previous
         // implementation advanced playhead and aggressively re-seeked when a
         // MediaTek/WebView decoder lagged, which could keep the preview black.
@@ -2558,6 +2799,8 @@ export class NovaCutEngine {
     }[record.type] || "clip";
     const sourceStartTime = Math.max(0, Number(item.sourceStartTime) || 0);
     const clipSpeed = record.type === "videoTracks" ? clamp(item.speed ?? 1, 0.25, 4) : 1;
+    const hasSpeedCurve = record.type === "videoTracks" && Array.isArray(item.speedCurve) && item.speedCurve.length > 1;
+    const splitSourceOffset = hasSpeedCurve ? novaCutSourceOffsetForTimeline(item, left) : left * clipSpeed;
     const first = { ...cloneObject(item), duration: left };
     const second = {
       ...cloneObject(item),
@@ -2565,10 +2808,21 @@ export class NovaCutEngine {
       startTime: timestamp,
       duration: right
     };
-    if ("sourceStartTime" in item) second.sourceStartTime = sourceStartTime + left * clipSpeed;
+    if ("sourceStartTime" in item) second.sourceStartTime = sourceStartTime + splitSourceOffset;
     if (record.type === "videoTracks") {
-      first.sourceDuration = Math.max(1, left * clipSpeed);
-      second.sourceDuration = Math.max(1, right * clipSpeed);
+      first.sourceDuration = Math.max(1, splitSourceOffset);
+      second.sourceDuration = Math.max(1, Number(item.sourceDuration) - splitSourceOffset);
+      if (hasSpeedCurve) {
+        first.speedCurve = sliceNovaCutSpeedCurve(item, 0, left, first.sourceDuration);
+        second.speedCurve = sliceNovaCutSpeedCurve(item, left, item.duration, second.sourceDuration);
+        first.speed = clamp(first.sourceDuration / left, 0.25, 4);
+        second.speed = clamp(second.sourceDuration / right, 0.25, 4);
+        first.speedCurvePreset = first.speedCurve.length ? "custom" : "none";
+        second.speedCurvePreset = second.speedCurve.length ? "custom" : "none";
+      } else {
+        first.sourceDuration = Math.max(1, left * clipSpeed);
+        second.sourceDuration = Math.max(1, right * clipSpeed);
+      }
     }
     if (record.type === "videoTracks" && Array.isArray(item.keyframes) && item.keyframes.length) {
       const splitValues = sampleNovaCutVideoKeyframes(item, timestamp);
@@ -3010,7 +3264,16 @@ export class NovaCutEngine {
       const transform = item.transform || {};
       fields +=
         '<label>Frame mode<select data-clip-prop="fitMode"><option value="fit"' + (item.fitMode !== "fill" ? " selected" : "") + '>Fit</option><option value="fill"' + (item.fitMode === "fill" ? " selected" : "") + '>Fill canvas</option></select></label>' +
-        input("Speed (x)", "speed", finite(item.speed, 1), 'min="0.25" max="4" step="0.25"') +
+        input("Average speed (x)", "speed", finite(item.speed, 1), 'min="0.25" max="4" step="0.05"') +
+        '<label>Speed curve<select data-clip-prop="speedCurvePreset">' +
+          '<option value="none"' + ((!item.speedCurve?.length || item.speedCurvePreset === "none") ? " selected" : "") + '>Normal</option>' +
+          '<option value="montage"' + (item.speedCurvePreset === "montage" ? " selected" : "") + '>Montage</option>' +
+          '<option value="hero"' + (item.speedCurvePreset === "hero" ? " selected" : "") + '>Hero time</option>' +
+          '<option value="bullet"' + (item.speedCurvePreset === "bullet" ? " selected" : "") + '>Bullet</option>' +
+          '<option value="flash-in"' + (item.speedCurvePreset === "flash-in" ? " selected" : "") + '>Flash in</option>' +
+          '<option value="flash-out"' + (item.speedCurvePreset === "flash-out" ? " selected" : "") + '>Flash out</option>' +
+          '<option value="custom"' + (item.speedCurvePreset === "custom" ? " selected" : "") + '>Custom curve</option>' +
+        '</select></label>' +
         input("Scale (%)", "scale", Math.round(Math.max(0.05, finite(transform.scale ?? item.scale, 1)) * 100), 'min="25" max="400" step="5"') +
         input("Position X (preview px)", "x", finite(item.x_offset), 'min="-2000" max="2000" step="1"') +
         input("Position Y (preview px)", "y", finite(item.y_offset), 'min="-2000" max="2000" step="1"') +
@@ -3222,6 +3485,17 @@ export class NovaCutEngine {
         item.fadeOutMs = Math.min(item.duration, Math.round(clamp(value("fadeOut", finite(item.fadeOutMs) / 1000), 0, 60) * 1000));
         item.volume = clamp(value("volume", 100) / 100, 0, 4);
         item.fitMode = sheet.body.querySelector('[data-clip-prop="fitMode"]')?.value === "fill" ? "fill" : "fit";
+        const requestedSpeedCurve = sheet.body.querySelector('[data-clip-prop="speedCurvePreset"]')?.value || "none";
+        if (requestedSpeedCurve === "none") {
+          item.speedCurve = [];
+          item.speedCurvePreset = "none";
+        } else if (requestedSpeedCurve === "custom" && Array.isArray(item.speedCurve) && item.speedCurve.length > 1) {
+          item.speedCurve = normalizeNovaCutSpeedCurve(item.speedCurve, item.duration, item.sourceDuration);
+          item.speedCurvePreset = "custom";
+        } else if (["montage", "hero", "bullet", "flash-in", "flash-out"].includes(requestedSpeedCurve)) {
+          item.speedCurve = createNovaCutSpeedCurvePreset(requestedSpeedCurve, item.duration, item.sourceDuration);
+          item.speedCurvePreset = item.speedCurve.length ? requestedSpeedCurve : "none";
+        }
       } else if (type === "audioTracks") {
         item.duration = requestedDuration;
         item.volume = clamp(value("volume", 100) / 100, 0, 4);
