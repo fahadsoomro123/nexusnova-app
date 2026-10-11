@@ -214,7 +214,7 @@ try {
   });
   assert(mixedPlan.streams.some((stream) => stream.codec_type === "audio"), "Mixed export has no audio stream.");
   assert(mixedPlan.filters.includes("scale=44:80:force_original_aspect_ratio=decrease"), "Sticker was not resized before overlay composition.");
-  const stickerLayerGraph = mixedPlan.filters.match(/\\[3:v:0\\](.*?)\\[ssrc0\\]/)?.[1] || "";
+  const stickerLayerGraph = mixedPlan.filters.match(/\[3:v:0\](.*?)\[ssrc0\]/)?.[1] || "";
   assert(stickerLayerGraph.includes("eval=frame") && stickerLayerGraph.includes("rotate=angle='("),
     "Sticker scale/rotation keyframes were not compiled into the animated export layer.");
   assert(mixedPlan.filters.includes("overlay=x='clip(main_w*(") && mixedPlan.filters.includes("overlay_w/2,0,main_w-overlay_w)"),

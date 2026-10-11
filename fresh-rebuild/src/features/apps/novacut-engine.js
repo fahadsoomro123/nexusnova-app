@@ -286,7 +286,8 @@ function ffmpegNovaCutLayerKeyframeExpression(item, type, property, fallback, cl
       easing: frame.easing
     }))
   };
-  return ffmpegVideoKeyframeExpression(mappedClip, property, fallback,
+  const mappedProperty = property === "x" ? "x_offset" : property === "y" ? "y_offset" : property;
+  return ffmpegVideoKeyframeExpression(mappedClip, mappedProperty, fallback,
     msToSec(Number(item.startTime) || 0) + (Number(clipStartSeconds) || 0), timeVariable);
 }
 
