@@ -640,7 +640,9 @@ export class NovaCutTrackRegistry {
         bold: Boolean(style.bold),
         italic: Boolean(style.italic),
         align: ["left","center","right"].includes(style.align) ? style.align : "center",
-        rotation: Number(style.rotation) || 0
+        rotation: Number(style.rotation) || 0,
+        flipX: Boolean(style.flipX),
+        flipY: Boolean(style.flipY)
       }
     };
     this.textTracks.push(cue);
@@ -660,6 +662,8 @@ export class NovaCutTrackRegistry {
       height: clamp(input.height ?? 0.2, 0.03, 1),
       scale: Math.max(0.1, Number(input.scale) || 1),
       rotation: Number(input.rotation) || 0,
+      flipX: Boolean(input.flipX),
+      flipY: Boolean(input.flipY),
       startTime: Math.max(0, Number(input.startTime) || 0),
       duration: Math.max(250, Number(input.duration) || 3000),
       opacity: clamp(input.opacity ?? 1, 0, 1),
@@ -1607,6 +1611,7 @@ export class NovaCutCanvasPreview {
     ctx.globalAlpha = clipOpacityAt(overlay, this.engine.currentTimestamp);
     ctx.translate(x, y);
     ctx.rotate(animated.rotation * Math.PI / 180);
+    ctx.scale(overlay.flipX ? -1 : 1, overlay.flipY ? -1 : 1);
     ctx.drawImage(image, -w / 2, -h / 2, w, h);
     ctx.restore();
   }
@@ -1621,6 +1626,7 @@ export class NovaCutCanvasPreview {
     ctx.globalAlpha = clipOpacityAt(cue, this.engine.currentTimestamp);
     ctx.translate(x, y);
     ctx.rotate((Number(animated.rotation) || 0) * Math.PI / 180);
+    ctx.scale(style.flipX ? -1 : 1, style.flipY ? -1 : 1);
     ctx.font = (style.italic ? "italic " : "") + (style.bold ? "800 " : "600 ") + size + "px " + (style.fontFamily || "system-ui");
     ctx.textAlign = style.align || "center";
     ctx.textBaseline = "middle";
@@ -2351,12 +2357,22 @@ export class NovaCutEngine {
 
   flipSelected(axis = "x") {
     const selected = this.registry.getById(this.activeTrackId);
-    if (!selected || selected.type !== "videoTracks") return false;
+    if (!selected || !["videoTracks", "textTracks", "overlayTracks"].includes(selected.type)) {
+      this.setStatus("Select a video, text, or sticker clip to flip.");
+      return false;
+    }
     const before = this.history.capture();
     const key = axis === "y" ? "flipY" : "flipX";
-    selected.item.transform[key] = !selected.item.transform[key];
+    if (selected.type === "videoTracks") {
+      selected.item.transform = { ...(selected.item.transform || {}), [key]: !selected.item.transform?.[key] };
+    } else if (selected.type === "overlayTracks") {
+      selected.item[key] = !selected.item[key];
+    } else {
+      selected.item.style = { ...(selected.item.style || {}), [key]: !selected.item.style?.[key] };
+    }
     this.history.record(before, "Flip");
     this.refresh();
+    this.setStatus((axis === "y" ? "Vertical" : "Horizontal") + " flip applied");
     return true;
   }
 
@@ -3732,6 +3748,7 @@ export class NovaCutEngine {
     ctx.fillStyle = style.color || "#ffffff";
     ctx.save();
     ctx.translate(x, y);
+    ctx.scale(style.flipX ? -1 : 1, style.flipY ? -1 : 1);
     lines.forEach((line, lineIndex) => ctx.fillText(line, 0, -total / 2 + lineIndex * lh + lh / 2));
     ctx.restore();
     const blob = await new Promise((resolve, reject) => canvas.toBlob((value) => value ? resolve(value) : reject(new Error("NovaCut failed to encode text layer " + index + ".")), "image/png"));
@@ -3746,6 +3763,7 @@ export class NovaCutEngine {
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("NovaCut could not create sticker export canvas.");
     ctx.translate(256, 256);
+    ctx.scale(overlay.flipX ? -1 : 1, overlay.flipY ? -1 : 1);
     ctx.drawImage(image, -240, -240, 480, 480);
     const blob = await new Promise((resolve, reject) => canvas.toBlob((value) => value ? resolve(value) : reject(new Error("NovaCut failed to encode sticker layer " + index + ".")), "image/png"));
     await this.writeFile(ffmpeg, path, blob);
