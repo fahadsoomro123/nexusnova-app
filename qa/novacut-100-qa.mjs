@@ -98,7 +98,17 @@ check("text add API and transform animation", () => assert(
   has(engine, "overlay=x=\" + xPosition"),
   "text add API or text-layer transform keyframes are missing"
 ));
-check("sticker add API present", () => assert(has(engine, "addSticker(sticker"), "sticker API missing"));
+check("sticker add API and mirrored visual layers", () => assert(
+  has(engine, "addSticker(sticker") &&
+  has(engine, 'selected.item.transform = { ...(selected.item.transform || {}), [key]: !selected.item.transform?.[key] }') &&
+  has(engine, 'selected.item[key] = !selected.item[key]') &&
+  has(engine, 'selected.item.style = { ...(selected.item.style || {}), [key]: !selected.item.style?.[key] }') &&
+  has(engine, 'ctx.scale(overlay.flipX ? -1 : 1, overlay.flipY ? -1 : 1)') &&
+  has(engine, 'ctx.scale(style.flipX ? -1 : 1, style.flipY ? -1 : 1)') &&
+  has(engine, 'flipX: Boolean(input.flipX)') &&
+  has(engine, 'flipX: Boolean(style.flipX)'),
+  "selected visual layers do not preserve mirrored state through preview/export"
+));
 check("effect add API present", () => assert(has(engine, "addEffect(input"), "effect API missing"));
 check("delete API present", () => assert(has(engine, "removeSelected()"), "delete API missing"));
 check("Split works across all timeline track types", () => assert(
@@ -360,6 +370,23 @@ for (const item of [genericVideo, genericText, genericSticker]) {
   }
 }
 console.log("GENERIC KEYFRAME TOOL 3/3 PASS  video, text and sticker selection dispatch");
+const flipEngine = new NovaCutEngine();
+const flipVideo = flipEngine.registry.addVideoClip({ id: "qa-flip-video", startTime: 0, duration: 2000 });
+const flipText = flipEngine.registry.addTextCue({ id: "qa-flip-text", startTime: 0, duration: 2000, text: "Flip" });
+const flipSticker = flipEngine.registry.addOverlay({ id: "qa-flip-sticker", startTime: 0, duration: 2000, flipX: false, flipY: false });
+const flipCases = [
+  { item: flipVideo, read: key => flipVideo.transform[key] },
+  { item: flipText, read: key => flipText.style[key] },
+  { item: flipSticker, read: key => flipSticker[key] }
+];
+for (const test of flipCases) {
+  flipEngine.activeTrackId = test.item.id;
+  if (!flipEngine.flipSelected("x") || !flipEngine.flipSelected("y") ||
+      test.read("flipX") !== true || test.read("flipY") !== true) {
+    throw new Error("Flip X/Y did not update the selected visual layer " + test.item.id + ".");
+  }
+}
+console.log("FLIP TOOL BEHAVIOUR 3/3 PASS  video, text and sticker flip state");
 const centerPoint = novaCutCanvasPointFromClient(110, 70, { left: 10, top: 20, width: 200, height: 100 });
 if (centerPoint?.x !== 0.5 || centerPoint?.y !== 0.5 ||
     novaCutCanvasPointFromClient(10, 20, { left: 0, top: 0, width: 0, height: 100 }) !== null) {
