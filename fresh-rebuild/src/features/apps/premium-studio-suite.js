@@ -230,6 +230,29 @@ function renderTrackClip(clip, type) {
     markerLayer + '</button>';
 }
 
+function renderTransitionMarkers(videos, pixelsPerSecond) {
+  if (!Array.isArray(videos) || videos.length < 2) return "";
+  const scale = Math.max(1, Number(pixelsPerSecond) || NOVACUT_PIXELS_PER_SECOND);
+  return videos.slice(0, -1).map((left, index) => {
+    const right = videos[index + 1];
+    const cutTime = Math.max(0, Number(left.startTime) || 0) + Math.max(0, Number(left.duration) || 0);
+    const rightStart = Math.max(0, Number(right.startTime) || 0);
+    const transitionDuration = Math.max(0, Number(right.transitionIn?.durationMs) || 0);
+    const crossDissolveOverlap = right.transitionIn?.type === "cross-dissolve" &&
+      Math.abs(cutTime - (rightStart + transitionDuration)) <= 80;
+    const clipsMeetAtCut = Math.abs(cutTime - rightStart) <= 80;
+    if (!clipsMeetAtCut && !crossDissolveOverlap) return "";
+    const configured = Boolean(right.transitionIn || Number(left.fadeOutMs) > 0 || Number(right.fadeInMs) > 0);
+    const actionLabel = configured ? "Edit transition" : "Add transition";
+    return '<button type="button" class="nx-novacut__transition-marker' + (configured ? ' is-configured' : '') +
+      '" data-transition-marker="true" data-transition-left-id="' + escapeHtml(left.id) +
+      '" data-transition-right-id="' + escapeHtml(right.id) +
+      '" data-transition-cut-ms="' + cutTime.toFixed(0) +
+      '" style="left:' + Math.max(0, cutTime * scale).toFixed(2) + 'px" aria-label="' + actionLabel +
+      '" title="' + actionLabel + '"><span aria-hidden="true">⇄</span></button>';
+  }).join("");
+}
+
 function renderNovaCut() {
   ensureNovaCutStyles();
 
@@ -423,7 +446,7 @@ function renderNovaCut() {
     const effects = [...(state.effectTracks || [])].sort(byStartTime);
 
     videoLane.innerHTML = videos.length
-      ? videos.map((clip) => renderTrackClip(clip, 'video')).join('')
+      ? videos.map((clip) => renderTrackClip(clip, 'video')).join('') + renderTransitionMarkers(videos, timelinePixelsPerSecond)
       : '<button type="button" class="nx-novacut__lane-add" data-action="media">' + SVG.media + '<span>Add media</span></button>';
     videoLane.querySelectorAll('[data-video-thumb]').forEach((thumb) => {
       const clip = videos.find((item) => String(item.id) === thumb.dataset.videoThumb);
@@ -485,6 +508,18 @@ function renderNovaCut() {
   };
 
   root.addEventListener("click", (event) => {
+    const transitionMarker = event.target?.closest?.("[data-transition-marker]");
+    if (transitionMarker) {
+      event.preventDefault();
+      const leftId = String(transitionMarker.dataset.transitionLeftId || "");
+      const rightId = String(transitionMarker.dataset.transitionRightId || "");
+      const cutTime = Number(transitionMarker.dataset.transitionCutMs);
+      if (!engine.registry.getById(leftId) || !engine.registry.getById(rightId) || !Number.isFinite(cutTime)) return;
+      engine.selectClip(rightId);
+      engine.setPlayhead(cutTime);
+      engine.openTransitionEditor();
+      return;
+    }
     const control = event.target?.closest?.("[data-timeline-action]");
     if (!control) return;
     const action = control.dataset.timelineAction;
