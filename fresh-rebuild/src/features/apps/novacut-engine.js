@@ -2587,6 +2587,42 @@ export class NovaCutEngine {
     return true;
   }
 
+  setSelectedKeyframeAtPlayhead() {
+    const selected = this.registry.getById(this.activeTrackId);
+    if (!selected) {
+      this.setStatus("Select a video, text, or sticker clip first.");
+      return false;
+    }
+    if (selected.type === "videoTracks") return this.setVideoKeyframeAtPlayhead();
+    if (["textTracks", "overlayTracks"].includes(selected.type)) {
+      const item = selected.item;
+      const localTimeMs = this.currentTimestamp - Number(item.startTime || 0);
+      if (localTimeMs < 0 || localTimeMs >= Number(item.duration || 0)) {
+        this.setStatus("Move the playhead inside the selected text or sticker layer.");
+        return false;
+      }
+      const sampled = sampleNovaCutLayerKeyframes(item, this.currentTimestamp, selected.type);
+      const easing = (item.keyframes || [])
+        .filter((frame) => frame.opacity != null)
+        .sort((a, b) => Math.abs(Number(a.timeMs) - localTimeMs) - Math.abs(Number(b.timeMs) - localTimeMs))[0]?.easing || "linear";
+      return this.setLayerOpacityKeyframeAtPlayhead({ ...sampled, easing });
+    }
+    this.setStatus("Keyframes are available for video, text, and sticker clips.");
+    return false;
+  }
+
+  removeSelectedKeyframeAtPlayhead() {
+    const selected = this.registry.getById(this.activeTrackId);
+    if (!selected) {
+      this.setStatus("Select a video, text, or sticker clip first.");
+      return false;
+    }
+    if (selected.type === "videoTracks") return this.removeVideoKeyframeAtPlayhead();
+    if (["textTracks", "overlayTracks"].includes(selected.type)) return this.removeLayerOpacityKeyframeAtPlayhead();
+    this.setStatus("Keyframes are available for video, text, and sticker clips.");
+    return false;
+  }
+
   adjustSelectedVideoScale(multiplier) {
     const selected = this.registry.getById(this.activeTrackId);
     if (!selected || selected.type !== "videoTracks") {
@@ -3214,8 +3250,8 @@ export class NovaCutEngine {
         else if (action === "text") this.openTextEditor();
         else if (action === "effects") this.openEffectsEditor();
         else if (action === "transition") this.openTransitionEditor();
-        else if (action === "keyframe-add") this.setVideoKeyframeAtPlayhead();
-        else if (action === "keyframe-remove") this.removeVideoKeyframeAtPlayhead();
+        else if (action === "keyframe-add") this.setSelectedKeyframeAtPlayhead();
+        else if (action === "keyframe-remove") this.removeSelectedKeyframeAtPlayhead();
         else if (action === "clip-settings") this.openSelectedClipInspector();
         else if (action === "fit-video") this.setSelectedFitMode("fit");
         else if (action === "fill-canvas") this.setSelectedFitMode("fill");
