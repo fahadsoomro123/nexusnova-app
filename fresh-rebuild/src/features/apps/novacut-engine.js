@@ -548,7 +548,7 @@ function ffmpegNovaCutSpeedCurveExpression(clip) {
   return expression;
 }
 
-export class NovaCutTrackRegistry {export class NovaCutTrackRegistry {
+export class NovaCutTrackRegistry {
   constructor() {
     this.videoTracks = [];
     this.audioTracks = [];
