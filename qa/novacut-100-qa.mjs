@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
-import { sampleNovaCutVideoKeyframes, sampleNovaCutAudioGain, clipOpacityAt, sampleNovaCutLayerKeyframes, normalizeNovaCutSpeedCurve, createNovaCutSpeedCurvePreset, createNovaCutCustomSpeedCurve, sampleNovaCutSpeed, novaCutSourceOffsetForTimeline, novaCutTimelineOffsetForSource } from "../fresh-rebuild/src/features/apps/novacut-engine.js";
+import { NovaCutCanvasPreview, sampleNovaCutVideoKeyframes, sampleNovaCutAudioGain, clipOpacityAt, sampleNovaCutLayerKeyframes, normalizeNovaCutSpeedCurve, createNovaCutSpeedCurvePreset, createNovaCutCustomSpeedCurve, sampleNovaCutSpeed, novaCutSourceOffsetForTimeline, novaCutTimelineOffsetForSource } from "../fresh-rebuild/src/features/apps/novacut-engine.js";
 import { NovaCutStudioInteractions } from "../fresh-rebuild/src/features/apps/novacut-studio.js";
 
 const ROOT = process.cwd();
@@ -655,6 +655,54 @@ if (authoredCurve.length < 4 ||
   throw new Error("Custom speed curve authoring did not preserve endpoints, curve shape, and source duration.");
 }
 console.log("CUSTOM SPEED CURVE AUTHORING 1/1 PASS  editable points normalize to clip duration and preserve source span");
+
+const playbackPreview = Object.create(NovaCutCanvasPreview.prototype);
+const previewErrorEvents = [];
+playbackPreview.engine = {
+  isPlaying: true,
+  currentTimestamp: 1000,
+  reportError: (kind, error) => previewErrorEvents.push({ kind, message: String(error?.message || error) })
+};
+playbackPreview.videoPlayPending = new WeakSet();
+playbackPreview.audioPlayPending = new WeakSet();
+let resolveVideoPlay;
+let resolveAudioPlay;
+const pendingVideo = {
+  paused: true,
+  playCalls: 0,
+  pauseCalls: 0,
+  play() { this.playCalls += 1; return new Promise((resolve) => { resolveVideoPlay = () => { this.paused = false; resolve(); }; }); },
+  pause() { this.pauseCalls += 1; this.paused = true; }
+};
+const pendingAudio = {
+  paused: true,
+  playCalls: 0,
+  pauseCalls: 0,
+  play() { this.playCalls += 1; return new Promise((resolve) => { resolveAudioPlay = () => { this.paused = false; resolve(); }; }); },
+  pause() { this.pauseCalls += 1; this.paused = true; }
+};
+if (!playbackPreview.startMediaPlaybackOnce(pendingVideo, playbackPreview.videoPlayPending, "playback") ||
+    playbackPreview.startMediaPlaybackOnce(pendingVideo, playbackPreview.videoPlayPending, "playback") ||
+    pendingVideo.playCalls !== 1 || !playbackPreview.videoPlayPending.has(pendingVideo)) {
+  throw new Error("Repeated preview renders issued duplicate video.play() requests before the decoder settled.");
+}
+if (!playbackPreview.startMediaPlaybackOnce(pendingAudio, playbackPreview.audioPlayPending) ||
+    playbackPreview.startMediaPlaybackOnce(pendingAudio, playbackPreview.audioPlayPending) ||
+    pendingAudio.playCalls !== 1 || !playbackPreview.audioPlayPending.has(pendingAudio)) {
+  throw new Error("Repeated preview renders issued duplicate audio.play() requests before the audio decoder settled.");
+}
+playbackPreview.engine.isPlaying = false;
+resolveVideoPlay();
+resolveAudioPlay();
+await Promise.resolve();
+await Promise.resolve();
+await Promise.resolve();
+if (playbackPreview.videoPlayPending.has(pendingVideo) || playbackPreview.audioPlayPending.has(pendingAudio) ||
+    !pendingVideo.paused || !pendingAudio.paused || pendingVideo.pauseCalls !== 1 || pendingAudio.pauseCalls !== 1 ||
+    previewErrorEvents.length) {
+  throw new Error("A late play promise was not cleared/paused safely after Pause.");
+}
+console.log("MEDIA PLAY RETRY 1/1 PASS  duplicate video/audio play requests are guarded and late playback stops after Pause");
 console.log("SPEED CURVE MAPPING 1/1 PASS  smooth rate sampling, source integration/inversion, and duration preservation");
 const curveSplitEngine = new NovaCutEngine();
 curveSplitEngine.registry.addVideoClip({

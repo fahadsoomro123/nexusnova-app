@@ -758,6 +758,11 @@ export class NovaCutCanvasPreview {
     this.pending = new Map();
     this.audioMedia = new Map();
     this.audioPending = new Map();
+    // A paused clip can be observed over several preview frames while its
+    // play() promise is still settling. Keep one outstanding request per media
+    // element so a slow decoder does not receive duplicate play commands.
+    this.videoPlayPending = new WeakSet();
+    this.audioPlayPending = new WeakSet();
     this.urls = new Map();
     this.stickerMedia = new Map();
     this.stickerPending = new Map();
@@ -1146,9 +1151,36 @@ export class NovaCutCanvasPreview {
     }));
   }
 
+  startMediaPlaybackOnce(media, pendingSet, errorCode = null) {
+    if (!media || !pendingSet || pendingSet.has(media)) return false;
+    pendingSet.add(media);
+    let result;
+    try {
+      result = media.play();
+    } catch (error) {
+      pendingSet.delete(media);
+      if (errorCode) this.engine.reportError(errorCode, error);
+      return false;
+    }
+    Promise.resolve(result)
+      .catch((error) => {
+        if (errorCode) this.engine.reportError(errorCode, error);
+      })
+      .finally(() => {
+        pendingSet.delete(media);
+        // A play request can settle after the user has already pressed Pause.
+        // Do not allow that late promise to restart a stopped preview.
+        if (!this.engine.isPlaying) {
+          try { media.pause(); } catch (_) {}
+        }
+      });
+    return true;
+  }
+
   enableVideoAudio(media, clip) {
     if (!(media instanceof HTMLVideoElement)) return;
-    media.playbackRate = clamp(clip?.speed ?? 1, 0.25, 4);
+    const rate = sampleNovaCutSpeed(clip, this.engine.currentTimestamp);
+    if (Math.abs((Number(media.playbackRate) || 1) - rate) > 0.005) media.playbackRate = rate;
     // Videos stay muted while preloading; restore source audio for user-requested playback.
     media.defaultMuted = false;
     media.muted = false;
@@ -1422,7 +1454,8 @@ export class NovaCutCanvasPreview {
       }
       if (media instanceof HTMLVideoElement) {
         const local = Math.max(0, now - clip.startTime);
-        media.playbackRate = sampleNovaCutSpeed(clip, now);
+        const targetRate = sampleNovaCutSpeed(clip, now);
+        if (Math.abs((Number(media.playbackRate) || 1) - targetRate) > 0.005) media.playbackRate = targetRate;
         const target = msToSec(clip.sourceStartTime + novaCutSourceOffsetForTimeline(clip, local));
         // Seeking on every RAF while playing repeatedly flushes the decoder on
         // slower Android/WebView devices. Seek only while paused or when a new
@@ -1431,12 +1464,12 @@ export class NovaCutCanvasPreview {
           try { media.currentTime = target; } catch (_) {}
         }
         if (media.readyState < 2) continue;
-        if (this.engine.isPlaying && media.paused) {
+        if (this.engine.isPlaying && media.paused && !this.videoPlayPending.has(media)) {
           if (Math.abs(media.currentTime - target) > 0.12) {
             try { media.currentTime = target; } catch (_) {}
           }
           this.enableVideoAudio(media, clip);
-          media.play().catch((error) => this.engine.reportError("playback", error));
+          this.startMediaPlaybackOnce(media, this.videoPlayPending, "playback");
         }
       }
 
@@ -1517,7 +1550,7 @@ export class NovaCutCanvasPreview {
         const audio = this.audioMedia.get(segment.id);
         if (audio) {
           audio.volume = clamp(segment.volume ?? 1, 0, 1) * sampleNovaCutAudioGain(segment, now);
-          if (audio.paused) audio.play().catch(() => {});
+          if (audio.paused) this.startMediaPlaybackOnce(audio, this.audioPlayPending);
         }
       });
     }
