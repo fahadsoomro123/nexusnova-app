@@ -1605,6 +1605,12 @@ export class NovaCutCanvasPreview {
           "repeating-linear-gradient(90deg,rgba(0,0,0,.16) 0 2px,transparent 2px " + (stripe * 2) + "px)";
       } else if (effect.type === "censor") {
         element.style.backgroundColor = rgba(effect.color || "#000000", clamp(effect.opacity ?? 0.96, 0, 1));
+      } else if (effect.type === "vignette") {
+        const strength = clamp(intensity, 1, 64) / 64;
+        const alpha = clamp(effect.opacity ?? 0.96, 0, 1) * (0.14 + strength * 0.82);
+        element.style.backgroundImage =
+          "radial-gradient(ellipse at center,rgba(0,0,0,0) 24%,rgba(0,0,0,0) 42%,rgba(0,0,0," +
+          (alpha * 0.48).toFixed(3) + ") 72%,rgba(0,0,0," + alpha.toFixed(3) + ") 100%)";
       }
       element.dataset.novacutEffectSignature = signature;
     }
@@ -2016,6 +2022,9 @@ class NovaCutCommandCompiler {
         } else if (effect.type === "mosaic") {
           const block = Math.max(2, Math.floor(clamp(effect.intensity ?? 12, 2, 64)));
           regionFilter += ",scale=trunc(iw/" + block + "):trunc(ih/" + block + "):flags=area,scale=iw*" + block + ":ih*" + block + ":flags=neighbor";
+        } else if (effect.type === "vignette") {
+          const angle = (0.05 + clamp(effect.intensity ?? 32, 1, 64) / 64 * 1.45).toFixed(3);
+          regionFilter += ",vignette=angle=" + angle + ":eval=frame";
         } else {
           const block = Math.max(2, Math.floor(clamp(effect.intensity ?? 10, 2, 64)));
           const seed = Math.max(1, Math.floor(Number(effect.seed) || 1));
@@ -3392,7 +3401,7 @@ export class NovaCutEngine {
     const sheet = this.openSheet("Region effects");
     sheet.body.innerHTML =
       '<div class="nx-novacut__effect-pills">' +
-      ["blur","mosaic","scramble","censor"].map((type) =>
+      ["blur","mosaic","scramble","censor","vignette"].map((type) =>
         '<button type="button" class="nx-novacut__effect-pill" data-effect-type="' + type + '">' + type.toUpperCase() + '</button>'
       ).join("") +
       '</div>' +
@@ -3564,7 +3573,7 @@ export class NovaCutEngine {
     } else if (type === "effectTracks") {
       fields +=
         '<label>Effect<select data-clip-prop="effectType">' +
-        ["blur", "mosaic", "scramble", "censor"].map((name) => '<option value="' + name + '"' + (item.type === name ? " selected" : "") + '>' + name + '</option>').join("") +
+        ["blur", "mosaic", "scramble", "censor", "vignette"].map((name) => '<option value="' + name + '"' + (item.type === name ? " selected" : "") + '>' + name + '</option>').join("") +
         '</select></label>' +
         input("Position X (%)", "x", Math.round(finite(item.x, 0.25) * 100), 'min="0" max="94" step="1"') +
         input("Position Y (%)", "y", Math.round(finite(item.y, 0.25) * 100), 'min="0" max="94" step="1"') +
@@ -3883,7 +3892,7 @@ export class NovaCutEngine {
         item.y = clamp(value("y", 25) / 100, 0, Math.max(0, 1 - item.height));
         item.intensity = clamp(value("intensity", 12), 1, 64);
         const nextType = sheet.body.querySelector('[data-clip-prop="effectType"]')?.value;
-        if (["blur", "mosaic", "scramble", "censor"].includes(nextType)) item.type = nextType;
+        if (["blur", "mosaic", "scramble", "censor", "vignette"].includes(nextType)) item.type = nextType;
       }
       this.history.record(before, "Edit " + type.replace("Tracks", "").replace(/s$/, ""));
       this.closeSheet(sheet.root);

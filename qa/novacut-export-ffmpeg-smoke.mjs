@@ -57,7 +57,19 @@ function probeGrayLumaAt(file, timestamp) {
   return fs.readFileSync(frame)[0];
 }
 
-function makeEngine({ videoName, hasAudio, audios = [], stickers = [], clipOptions = {} }) {
+function probeGrayLumaPixel(file, timestamp, x, y) {
+  const frame = path.join(temp, "pixel-" + [timestamp, x, y].join("-").replace(/\W/g, "_") + ".gray");
+  run("ffmpeg", [
+    "-hide_banner", "-loglevel", "error", "-y",
+    "-i", file, "-ss", String(timestamp),
+    "-frames:v", "1", "-vf", "crop=2:2:" + Math.max(0, Math.floor(x)) + ":" + Math.max(0, Math.floor(y)) + ",scale=1:1,format=gray",
+    "-f", "rawvideo", frame
+  ]);
+  assert(fs.existsSync(frame) && fs.statSync(frame).size === 1, "Could not decode luma probe at " + x + "," + y + " and " + timestamp + "s.");
+  return fs.readFileSync(frame)[0];
+}
+
+function makeEngine({ videoName, hasAudio, audios = [], stickers = [], effects = [], clipOptions = {} }) {
   const video = {
     id: "source-video",
     file: { name: videoName, type: "video/mp4" },
@@ -77,7 +89,7 @@ function makeEngine({ videoName, hasAudio, audios = [], stickers = [], clipOptio
     metadata: { hasAudio, width: 90, height: 160 },
     ...clipOptions
   };
-  const tracks = [video, ...audios, ...stickers];
+  const tracks = [video, ...audios, ...stickers, ...effects];
   return {
     aspectRatio: "9:16",
     registry: {
@@ -85,7 +97,7 @@ function makeEngine({ videoName, hasAudio, audios = [], stickers = [], clipOptio
       audioTracks: audios,
       textTracks: [],
       overlayTracks: stickers,
-      effectTracks: [],
+      effectTracks: effects,
       durationMs: () => Math.max(1, ...tracks.map((item) =>
         Math.max(0, Number(item.startTime) || 0) + Math.max(0, Number(item.duration) || 0)
       ))
@@ -93,8 +105,8 @@ function makeEngine({ videoName, hasAudio, audios = [], stickers = [], clipOptio
   };
 }
 
-function planAndRun({ name, hasAudio, audios = [], stickers = [], clipOptions = {} }) {
-  const engine = makeEngine({ videoName: hasAudio ? "source-with-audio.mp4" : "source-silent.mp4", hasAudio, audios, stickers, clipOptions });
+function planAndRun({ name, hasAudio, audios = [], stickers = [], effects = [], clipOptions = {} }) {
+  const engine = makeEngine({ videoName: hasAudio ? "source-with-audio.mp4" : "source-silent.mp4", hasAudio, audios, stickers, effects, clipOptions });
   const output = path.join(temp, name);
   const compiled = new NovaCutCommandCompiler(engine).compile({
     ratio: "9:16",
@@ -183,6 +195,25 @@ try {
   assert(earlyOpacityLuma > 0 && lateOpacityLuma >= 0 && lateOpacityLuma < earlyOpacityLuma * 0.72,
     "Rendered video pixels did not become measurably more transparent over time: " + earlyOpacityLuma + " -> " + lateOpacityLuma);
   console.log("ANIMATED OPACITY RENDER 1/1 PASS  FFmpeg output pixels follow the opacity keyframe curve");
+
+  const vignettePlan = planAndRun({
+    name: "vignette-effect-export.mp4",
+    hasAudio: true,
+    effects: [{
+      id: "vignette-qa",
+      type: "vignette",
+      x: 0, y: 0, width: 1, height: 1,
+      startTime: 0, duration: 2000, intensity: 48, opacity: 0.96, seed: 7
+    }]
+  });
+  assert(vignettePlan.filters.includes("vignette=angle=") &&
+    vignettePlan.filters.includes("overlay=x=main_w*0.00000:y=main_h*0.00000"),
+    "Vignette region was not compiled into a timed FFmpeg effect layer.");
+  const vignetteCenter = probeGrayLumaPixel(vignettePlan.output, 0.5, 90, 160);
+  const vignetteCorner = probeGrayLumaPixel(vignettePlan.output, 0.5, 0, 0);
+  assert(vignetteCenter > 0 && vignetteCorner < vignetteCenter * 0.85,
+    "Rendered vignette did not darken the corners relative to the center: " + vignetteCorner + " vs " + vignetteCenter);
+  console.log("VIGNETTE EFFECT RENDER 1/1 PASS  exported pixels show darker corners than center");
 
   const mixedPlan = planAndRun({
     name: "mixed-audio-sticker-export.mp4",

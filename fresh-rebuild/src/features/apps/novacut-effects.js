@@ -1,15 +1,16 @@
-/* NovaCut preview-region effects: blur, mosaic, scramble and censor. */
+/* NovaCut preview-region effects: blur, mosaic, scramble, censor and vignette. */
 export const NOVACUT_EFFECT_TYPES = Object.freeze([
   { id: 'blur', label: 'Blur' },
   { id: 'mosaic', label: 'Mosaic' },
   { id: 'scramble', label: 'Scramble' },
-  { id: 'censor', label: 'Censor' }
+  { id: 'censor', label: 'Censor' },
+  { id: 'vignette', label: 'Vignette' }
 ]);
 const clamp = (value, min, max) => Math.min(Math.max(Number(value) || 0, min), max);
 export function normalizeNovaCutEffect(input = {}) {
   return {
     id: String(input.id || ('effect-' + Date.now() + '-' + Math.random().toString(36).slice(2))),
-    type: ['blur', 'mosaic', 'scramble', 'censor'].includes(input.type) ? input.type : 'blur',
+    type: ['blur', 'mosaic', 'scramble', 'censor', 'vignette'].includes(input.type) ? input.type : 'blur',
     x: clamp(input.x == null ? 0.25 : input.x, 0, 0.94),
     y: clamp(input.y == null ? 0.25 : input.y, 0, 0.94),
     width: clamp(input.width == null ? 0.5 : input.width, 0.06, 1),
@@ -79,6 +80,26 @@ export function drawNovaCutEffect(ctx, source, effect, width, height) {
   const r = rectOf(effect, width, height);
   if (effect.type === 'censor') {
     ctx.save(); ctx.globalAlpha = clamp(effect.opacity, 0, 1); ctx.fillStyle = effect.color || '#000000'; ctx.fillRect(r.x, r.y, r.width, r.height); ctx.restore(); return;
+  }
+  if (effect.type === 'vignette') {
+    const centerX = r.x + r.width / 2;
+    const centerY = r.y + r.height / 2;
+    const radius = Math.max(2, Math.sqrt(r.width * r.width + r.height * r.height) / 2);
+    const strength = clamp(effect.intensity, 1, 64) / 64;
+    const alpha = clamp(effect.opacity ?? 0.96, 0, 1) * (0.14 + strength * 0.82);
+    const gradient = ctx.createRadialGradient(centerX, centerY, radius * 0.12, centerX, centerY, radius);
+    gradient.addColorStop(0, 'rgba(0,0,0,0)');
+    gradient.addColorStop(0.42, 'rgba(0,0,0,0)');
+    gradient.addColorStop(0.72, 'rgba(0,0,0,' + (alpha * 0.48).toFixed(3) + ')');
+    gradient.addColorStop(1, 'rgba(0,0,0,' + alpha.toFixed(3) + ')');
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(r.x, r.y, r.width, r.height);
+    ctx.clip();
+    ctx.fillStyle = gradient;
+    ctx.fillRect(r.x, r.y, r.width, r.height);
+    ctx.restore();
+    return;
   }
   if (effect.type === 'blur') {
     ctx.save(); ctx.beginPath(); ctx.rect(r.x, r.y, r.width, r.height); ctx.clip(); ctx.filter = 'blur(' + clamp(effect.intensity, 1, 48) + 'px)'; ctx.drawImage(source, 0, 0); ctx.restore(); return;

@@ -310,6 +310,15 @@ check("blur effect supported", () => assert(/id:\s*'blur'/.test(effects), "blur 
 check("mosaic effect reuses its offscreen render surface", () => assert(/id:\s*'mosaic'/.test(effects) && has(effects, "const mosaicSurfaceCache = new WeakMap();") && has(effects, "getMosaicSurface(effect, r.width, r.height, block)") && has(effects, "if (surface.width !== smallWidth)"), "mosaic allocates/reset canvases on every preview frame"));
 check("scramble effect reuses its seeded tile permutation", () => assert(/id:\s*'scramble'/.test(effects) && has(effects, "const scramblePermutationCache = new WeakMap();") && has(effects, "getScramblePermutation(effect, tilesX, tilesY)") && has(effects, "scramblePermutationCache.set(effect, { key, cells })"), "scramble rebuilds tile permutations on every preview frame"));
 check("censor effect supported", () => assert(/id:\s*'censor'/.test(effects), "censor missing"));
+check("vignette effect renders in canvas, Android preview and FFmpeg export", () => assert(
+  /id:\s*'vignette'/.test(effects) &&
+  has(effects, "const gradient = ctx.createRadialGradient") &&
+  has(engine, 'effect.type === "vignette"') &&
+  has(engine, "radial-gradient(ellipse at center") &&
+  has(engine, "vignette=angle=") &&
+  has(engine, '["blur", "mosaic", "scramble", "censor", "vignette"]'),
+  "vignette preview, native compositor, editor control, or export renderer missing"
+));
 check("effect preview supports canvas and Android native compositor", () => assert(has(effects, "export function drawNovaCutEffect") && has(engine, "syncNativeEffectOverlays(effects)") && has(engine, "clearNativeEffectOverlays()"), "effects not rendered on canvas/native preview"));
 check("effect normalization present", () => assert(has(effects, "export function normalizeNovaCutEffect"), "effect normalize missing"));
 check("local sticker catalog present", () => assert(has(overlays, "export const NOVACUT_STICKERS"), "sticker catalog missing"));
