@@ -9,6 +9,8 @@ const sourceVideo = path.join(temp, "source-with-audio.mp4");
 const silentVideo = path.join(temp, "source-silent.mp4");
 const musicFile = path.join(temp, "music.mp3");
 const stickerFile = path.join(temp, "sticker.png");
+const transitionRedVideo = path.join(temp, "transition-left-red.mp4");
+const transitionBlueVideo = path.join(temp, "transition-right-blue.mp4");
 
 function run(binary, args) {
   try {
@@ -69,7 +71,20 @@ function probeGrayLumaPixel(file, timestamp, x, y) {
   return fs.readFileSync(frame)[0];
 }
 
-function makeEngine({ videoName, hasAudio, audios = [], stickers = [], effects = [], clipOptions = {} }) {
+function probeRgbPixel(file, timestamp, x, y) {
+  const frame = path.join(temp, "rgb-" + [timestamp, x, y].join("-").replace(/\W/g, "_") + ".rgb");
+  run("ffmpeg", [
+    "-hide_banner", "-loglevel", "error", "-y",
+    "-i", file, "-ss", String(timestamp),
+    "-frames:v", "1",
+    "-vf", "crop=2:2:" + Math.max(0, Math.floor(x)) + ":" + Math.max(0, Math.floor(y)) + ",scale=1:1,format=rgb24",
+    "-f", "rawvideo", frame
+  ]);
+  assert(fs.existsSync(frame) && fs.statSync(frame).size === 3, "Could not decode RGB probe at " + x + "," + y + " and " + timestamp + "s.");
+  return Array.from(fs.readFileSync(frame));
+}
+
+function makeEngine({ videoName, hasAudio, audios = [], stickers = [], effects = [], videoClips = null, clipOptions = {} }) {
   const video = {
     id: "source-video",
     file: { name: videoName, type: "video/mp4" },
@@ -89,11 +104,12 @@ function makeEngine({ videoName, hasAudio, audios = [], stickers = [], effects =
     metadata: { hasAudio, width: 90, height: 160 },
     ...clipOptions
   };
-  const tracks = [video, ...audios, ...stickers, ...effects];
+  const videos = Array.isArray(videoClips) && videoClips.length ? videoClips : [video];
+  const tracks = [...videos, ...audios, ...stickers, ...effects];
   return {
     aspectRatio: "9:16",
     registry: {
-      videoTracks: [video],
+      videoTracks: videos,
       audioTracks: audios,
       textTracks: [],
       overlayTracks: stickers,
@@ -105,8 +121,8 @@ function makeEngine({ videoName, hasAudio, audios = [], stickers = [], effects =
   };
 }
 
-function planAndRun({ name, hasAudio, audios = [], stickers = [], effects = [], clipOptions = {} }) {
-  const engine = makeEngine({ videoName: hasAudio ? "source-with-audio.mp4" : "source-silent.mp4", hasAudio, audios, stickers, effects, clipOptions });
+function planAndRun({ name, hasAudio, audios = [], stickers = [], effects = [], videoClips = null, clipOptions = {}, expectedDurationMs = 2000 }) {
+  const engine = makeEngine({ videoName: hasAudio ? "source-with-audio.mp4" : "source-silent.mp4", hasAudio, audios, stickers, effects, videoClips, clipOptions });
   const output = path.join(temp, name);
   const compiled = new NovaCutCommandCompiler(engine).compile({
     ratio: "9:16",
@@ -121,7 +137,11 @@ function planAndRun({ name, hasAudio, audios = [], stickers = [], effects = [], 
 
   assert(compiled.width === 180 && compiled.height === 320, "Compiler did not honor the portrait output size.");
   const inputFiles = compiled.inputs.map((input) => {
-    if (input.kind === "video") return hasAudio ? sourceVideo : silentVideo;
+    if (input.kind === "video") {
+      if (input.file?.name === "transition-left-red.mp4") return transitionRedVideo;
+      if (input.file?.name === "transition-right-blue.mp4") return transitionBlueVideo;
+      return hasAudio ? sourceVideo : silentVideo;
+    }
     if (input.kind === "audio") return musicFile;
     if (input.stickerAsset) return stickerFile;
     throw new Error("Unexpected smoke-test input kind: " + input.kind);
@@ -145,7 +165,9 @@ function planAndRun({ name, hasAudio, audios = [], stickers = [], effects = [], 
   const streams = probeStreams(output);
   assert(streams.some((stream) => stream.codec_type === "video" && stream.width === 180 && stream.height === 320), "Exported portrait MP4 has the wrong video dimensions.");
   const duration = probeDuration(output);
-  assert(duration >= 1.8 && duration <= 2.2, "Exported MP4 duration drifted from the two-second source: " + duration);
+  const expectedDuration = Math.max(0.001, Number(expectedDurationMs) / 1000);
+  assert(duration >= expectedDuration - 0.2 && duration <= expectedDuration + 0.2,
+    "Exported MP4 duration drifted from the expected " + expectedDuration + " second timeline: " + duration);
   return { output, streams, duration, filters: videoFilters };
 }
 
@@ -162,6 +184,16 @@ try {
     "-f", "lavfi", "-i", "color=c=green:s=90x160:r=15:d=2",
     "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
     "-an", silentVideo
+  ]);
+  run("ffmpeg", [
+    "-hide_banner", "-loglevel", "error", "-y",
+    "-f", "lavfi", "-i", "color=c=red:s=90x160:r=15:d=2",
+    "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-an", transitionRedVideo
+  ]);
+  run("ffmpeg", [
+    "-hide_banner", "-loglevel", "error", "-y",
+    "-f", "lavfi", "-i", "color=c=blue:s=90x160:r=15:d=2",
+    "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-an", transitionBlueVideo
   ]);
   run("ffmpeg", [
     "-hide_banner", "-loglevel", "error", "-y",
@@ -214,6 +246,48 @@ try {
   assert(vignetteCenter > 0 && vignetteCorner < vignetteCenter * 0.85,
     "Rendered vignette did not darken the corners relative to the center: " + vignetteCorner + " vs " + vignetteCenter);
   console.log("VIGNETTE EFFECT RENDER 1/1 PASS  exported pixels show darker corners than center");
+
+  const transitionPlan = planAndRun({
+    name: "cross-dissolve-export.mp4",
+    hasAudio: false,
+    expectedDurationMs: 3500,
+    videoClips: [
+      {
+        id: "transition-red",
+        file: { name: "transition-left-red.mp4", type: "video/mp4" },
+        startTime: 0, duration: 2000, sourceStartTime: 0, sourceDuration: 2000,
+        volume: 0, x_offset: 0, y_offset: 0, scale: 1,
+        transform: { scale: 1, rotation: 0, flipX: false, flipY: false },
+        brightness: 100, contrast: 100, saturation: 100,
+        fadeInMs: 0, fadeOutMs: 0, keyframes: [], metadata: { hasAudio: false, width: 90, height: 160 }
+      },
+      {
+        id: "transition-blue",
+        file: { name: "transition-right-blue.mp4", type: "video/mp4" },
+        startTime: 1500, duration: 2000, sourceStartTime: 0, sourceDuration: 2000,
+        volume: 0, x_offset: 0, y_offset: 0, scale: 1,
+        transform: { scale: 1, rotation: 0, flipX: false, flipY: false },
+        brightness: 100, contrast: 100, saturation: 100,
+        fadeInMs: 500, fadeOutMs: 0, keyframes: [], metadata: { hasAudio: false, width: 90, height: 160 },
+        transitionIn: { type: "cross-dissolve", durationMs: 500, originalStartTime: 2000, rippledItems: [] }
+      }
+    ]
+  });
+  assert(transitionPlan.filters.includes("fade=t=in:st=1.500:d=0.500:alpha=1") &&
+    transitionPlan.filters.includes("overlay=x=(W-w)/2+0:y=(H-h)/2"),
+    "Cross-dissolve did not compile the timed alpha layer at the incoming clip's overlap point.");
+  const beforeTransitionRgb = probeRgbPixel(transitionPlan.output, 1.0, 89, 159);
+  const midwayTransitionRgb = probeRgbPixel(transitionPlan.output, 1.75, 89, 159);
+  const afterTransitionRgb = probeRgbPixel(transitionPlan.output, 2.8, 89, 159);
+  assert(beforeTransitionRgb[0] > 150 && beforeTransitionRgb[2] < 70,
+    "Frame before the cut is not predominantly red: " + beforeTransitionRgb.join(","));
+  assert(midwayTransitionRgb[0] > 55 && midwayTransitionRgb[2] > 55 &&
+    Math.abs(midwayTransitionRgb[0] - midwayTransitionRgb[2]) < 90 &&
+    midwayTransitionRgb[1] < 70,
+    "Cross-dissolve midpoint did not contain a measurable red/blue pixel blend: " + midwayTransitionRgb.join(","));
+  assert(afterTransitionRgb[2] > 140 && afterTransitionRgb[0] < 90,
+    "Frame after the transition is not predominantly blue: " + afterTransitionRgb.join(","));
+  console.log("CROSS-DISSOLVE RENDER 1/1 PASS  real MP4 frames blend red to blue through the transition");
 
   const mixedPlan = planAndRun({
     name: "mixed-audio-sticker-export.mp4",
