@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
-import { sampleNovaCutVideoKeyframes, sampleNovaCutAudioGain, clipOpacityAt } from "../fresh-rebuild/src/features/apps/novacut-engine.js";
+import { sampleNovaCutVideoKeyframes, sampleNovaCutAudioGain, clipOpacityAt, sampleNovaCutLayerKeyframes } from "../fresh-rebuild/src/features/apps/novacut-engine.js";
 
 const ROOT = process.cwd();
 const read = (file) => fs.readFileSync(path.join(ROOT, file), "utf8");
@@ -56,6 +56,9 @@ check("video add API and visual controls are normalized", () => assert(
   has(engine, 'input("Opacity (%)", "opacity"') &&
   has(engine, "setLayerOpacityKeyframeAtPlayhead(values = null)") &&
   has(engine, "removeLayerOpacityKeyframeAtPlayhead()") &&
+  has(engine, "sampleNovaCutLayerKeyframes(overlay, this.engine.currentTimestamp, \"overlayTracks\")") &&
+  has(engine, "ffmpegNovaCutLayerKeyframeExpression(overlay, \"overlayTracks\", \"scale\"") &&
+  has(engine, "hasRotationKeyframes || Math.abs(Number(overlay.rotation) || 0) > 0.001") &&
   has(engine, "data-layer-opacity-keyframe-set") &&
   has(engine, "data-layer-opacity-keyframe-remove") &&
   has(engine, "ctx.globalAlpha = clipOpacityAt(overlay, this.engine.currentTimestamp)") &&
@@ -392,6 +395,27 @@ console.log("TIMELINE BEHAVIOUR 3/3 PASS  video, audio source offsets, and text 
     throw new Error("Text opacity keyframe could not be removed at the playhead.");
   }
 console.log("LAYER OPACITY KEYFRAME BEHAVIOUR 1/1 PASS  text layer keyframe add, interpolation, and remove");
+const animatedStickerEngine = new NovaCutEngine();
+const animatedSticker = animatedStickerEngine.registry.addOverlay({
+  id: "qa-animated-sticker", startTime: 1000, duration: 2000, x: 0.2, y: 0.3,
+  width: 0.2, height: 0.2, scale: 1, rotation: 0, opacity: 1
+});
+animatedStickerEngine.currentTimestamp = 1250;
+animatedStickerEngine.activeTrackId = animatedSticker.id;
+if (!animatedStickerEngine.setLayerOpacityKeyframeAtPlayhead({
+  x: 0.25, y: 0.35, scale: 1.2, rotation: 15, opacity: 0.9, easing: "linear"
+})) throw new Error("Sticker geometry keyframe could not be added at the playhead.");
+animatedStickerEngine.currentTimestamp = 2250;
+if (!animatedStickerEngine.setLayerOpacityKeyframeAtPlayhead({
+  x: 0.75, y: 0.85, scale: 2, rotation: 105, opacity: 0.3, easing: "linear"
+})) throw new Error("Second sticker geometry keyframe could not be added.");
+const sampledSticker = sampleNovaCutLayerKeyframes(animatedSticker, 1750, "overlayTracks");
+if (Math.abs(sampledSticker.x - 0.5) > 0.001 || Math.abs(sampledSticker.y - 0.6) > 0.001 ||
+    Math.abs(sampledSticker.scale - 1.6) > 0.001 || Math.abs(sampledSticker.rotation - 60) > 0.001 ||
+    Math.abs(sampledSticker.opacity - 0.6) > 0.001) {
+  throw new Error("Sticker position/scale/rotation/opacity keyframe interpolation failed.");
+}
+console.log("STICKER TRANSFORM KEYFRAME BEHAVIOUR 1/1 PASS  position, scale, rotation and opacity interpolate at playhead");
 const speedSplitEngine = new NovaCutEngine();
 speedSplitEngine.registry.addVideoClip({ id: "qa-speed-split", startTime: 0, duration: 4000, sourceStartTime: 500, speed: 2, sourceDuration: 8000 });
 const speedSplit = speedSplitEngine.executeSplitAction("qa-speed-split", 2000);

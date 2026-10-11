@@ -206,14 +206,19 @@ try {
       x: 0.5, y: 0.5, width: 0.25, height: 0.25, scale: 1,
       rotation: 0, startTime: 250, duration: 1000, opacity: 0.5, fadeInMs: 250, fadeOutMs: 250,
       keyframes: [
-        { timeMs: 0, opacity: 1, easing: "linear" },
-        { timeMs: 1000, opacity: 0.2, easing: "ease-in" }
+        { timeMs: 0, x: 0.35, y: 0.4, scale: 1, rotation: 0, opacity: 1, easing: "linear" },
+        { timeMs: 1000, x: 0.75, y: 0.7, scale: 2, rotation: 90, opacity: 0.2, easing: "ease-in" }
       ],
       zIndex: 20
     }]
   });
   assert(mixedPlan.streams.some((stream) => stream.codec_type === "audio"), "Mixed export has no audio stream.");
   assert(mixedPlan.filters.includes("scale=44:80:force_original_aspect_ratio=decrease"), "Sticker was not resized before overlay composition.");
+  const stickerLayerGraph = mixedPlan.filters.match(/\\[3:v:0\\](.*?)\\[ssrc0\\]/)?.[1] || "";
+  assert(stickerLayerGraph.includes("eval=frame") && stickerLayerGraph.includes("rotate=angle='("),
+    "Sticker scale/rotation keyframes were not compiled into the animated export layer.");
+  assert(mixedPlan.filters.includes("overlay=x='clip(main_w*(") && mixedPlan.filters.includes("overlay_w/2,0,main_w-overlay_w)"),
+    "Sticker position keyframes were not compiled into the overlay position expressions.");
   assert(mixedPlan.filters.includes("fade=t=in:st=0:d=0.250:alpha=1") &&
     mixedPlan.filters.includes("fade=t=out:st=0.750:d=0.250:alpha=1") &&
     mixedPlan.filters.includes("if(lt(T,1.0000") &&

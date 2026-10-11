@@ -195,6 +195,101 @@ export function sampleNovaCutVideoKeyframes(clip, timestamp) {
   };
 }
 
+function novaCutLayerBaseValues(item, type = "overlayTracks") {
+  if (type === "textTracks") {
+    return {
+      x: clamp(item?.style?.x ?? 0.5, 0, 1),
+      y: clamp(item?.style?.y ?? 0.82, 0, 1),
+      scale: 1,
+      rotation: Number(item?.style?.rotation) || 0,
+      opacity: clamp(item?.opacity ?? 1, 0, 1)
+    };
+  }
+  return {
+    x: clamp(item?.x ?? 0.5, 0, 1),
+    y: clamp(item?.y ?? 0.5, 0, 1),
+    scale: clamp(item?.scale ?? 1, 0.1, 4),
+    rotation: clamp(item?.rotation ?? 0, -360, 360),
+    opacity: clamp(item?.opacity ?? 1, 0, 1)
+  };
+}
+
+function normalizeNovaCutLayerKeyframes(item, type = "overlayTracks") {
+  const duration = Math.max(1, Number(item?.duration) || 1);
+  const base = novaCutLayerBaseValues(item, type);
+  const byTime = new Map();
+  (Array.isArray(item?.keyframes) ? item.keyframes : []).forEach((frame) => {
+    if (!frame || !Number.isFinite(Number(frame.timeMs))) return;
+    const timeMs = clamp(frame.timeMs, 0, duration);
+    byTime.set(timeMs, {
+      timeMs,
+      x: clamp(frame.x ?? base.x, 0, 1),
+      y: clamp(frame.y ?? base.y, 0, 1),
+      scale: clamp(frame.scale ?? base.scale, 0.1, 4),
+      rotation: clamp(frame.rotation ?? base.rotation, -360, 360),
+      opacity: clamp(frame.opacity ?? base.opacity, 0, 1),
+      easing: ["linear", "ease-in", "ease-out", "ease-in-out"].includes(frame.easing) ? frame.easing : "linear"
+    });
+  });
+  return [...byTime.values()].sort((a, b) => a.timeMs - b.timeMs);
+}
+
+export function sampleNovaCutLayerKeyframes(item, timestamp, type = "overlayTracks") {
+  const duration = Math.max(1, Number(item?.duration) || 1);
+  const startTime = Math.max(0, Number(item?.startTime) || 0);
+  const localTimeMs = clamp(Number(timestamp) - startTime, 0, duration);
+  const base = novaCutLayerBaseValues(item, type);
+  const frames = normalizeNovaCutLayerKeyframes(item, type);
+  if (!frames.length) return base;
+  const values = (frame) => ({
+    x: frame.x,
+    y: frame.y,
+    scale: frame.scale,
+    rotation: frame.rotation,
+    opacity: frame.opacity,
+    easing: frame.easing || "linear"
+  });
+  if (localTimeMs <= frames[0].timeMs) return values(frames[0]);
+  if (localTimeMs >= frames[frames.length - 1].timeMs) return values(frames[frames.length - 1]);
+  const rightIndex = frames.findIndex((frame) => frame.timeMs >= localTimeMs);
+  if (rightIndex <= 0) return values(frames[0]);
+  const left = frames[rightIndex - 1];
+  const right = frames[rightIndex];
+  const amount = keyframeEasingAmount(left.easing, clamp(
+    (localTimeMs - left.timeMs) / Math.max(1, right.timeMs - left.timeMs), 0, 1
+  ));
+  return {
+    x: left.x + (right.x - left.x) * amount,
+    y: left.y + (right.y - left.y) * amount,
+    scale: left.scale + (right.scale - left.scale) * amount,
+    rotation: left.rotation + (right.rotation - left.rotation) * amount,
+    opacity: left.opacity + (right.opacity - left.opacity) * amount,
+    easing: left.easing || "linear"
+  };
+}
+
+function ffmpegNovaCutLayerKeyframeExpression(item, type, property, fallback, clipStartSeconds, timeVariable = "t") {
+  const base = novaCutLayerBaseValues(item, type);
+  const mappedClip = {
+    duration: item.duration,
+    scale: base.scale,
+    transform: { scale: base.scale, rotation: base.rotation },
+    x_offset: base.x,
+    y_offset: base.y,
+    keyframes: normalizeNovaCutLayerKeyframes(item, type).map((frame) => ({
+      timeMs: frame.timeMs,
+      scale: frame.scale,
+      rotation: frame.rotation,
+      x_offset: frame.x,
+      y_offset: frame.y,
+      opacity: frame.opacity,
+      easing: frame.easing
+    }))
+  };
+  return ffmpegVideoKeyframeExpression(mappedClip, property, fallback,
+    msToSec(Number(item.startTime) || 0) + (Number(clipStartSeconds) || 0), timeVariable);
+}
+
 function ffmpegVideoKeyframeExpression(clip, property, fallback, clipStartSeconds, timeVariable = "t") {
   const frames = normalizeVideoKeyframes(clip?.keyframes, clip?.duration, clip || {});
   const fallbackValue = Number.isFinite(Number(fallback)) ? Number(fallback) : 0;
@@ -1293,14 +1388,15 @@ export class NovaCutCanvasPreview {
       }
       return;
     }
-    const w = Math.max(10, width * Number(overlay.width || 0.2) * Number(overlay.scale || 1));
-    const h = Math.max(10, height * Number(overlay.height || 0.2) * Number(overlay.scale || 1));
-    const x = clamp(overlay.x, 0, 1) * width;
-    const y = clamp(overlay.y, 0, 1) * height;
+    const animated = sampleNovaCutLayerKeyframes(overlay, this.engine.currentTimestamp, "overlayTracks");
+    const w = Math.max(10, width * Number(overlay.width || 0.2) * animated.scale);
+    const h = Math.max(10, height * Number(overlay.height || 0.2) * animated.scale);
+    const x = animated.x * width;
+    const y = animated.y * height;
     ctx.save();
     ctx.globalAlpha = clipOpacityAt(overlay, this.engine.currentTimestamp);
     ctx.translate(x, y);
-    ctx.rotate((Number(overlay.rotation) || 0) * Math.PI / 180);
+    ctx.rotate(animated.rotation * Math.PI / 180);
     ctx.drawImage(image, -w / 2, -h / 2, w, h);
     ctx.restore();
   }
@@ -1705,20 +1801,47 @@ class NovaCutCommandCompiler {
       const out = "sout" + index;
       const start = msToSec(overlay.startTime);
       const end = msToSec(overlay.startTime + overlay.duration);
-      const w = clamp(Number(overlay.width || 0.2) * Number(overlay.scale || 1), 0.02, 1);
-      const h = clamp(Number(overlay.height || 0.2) * Number(overlay.scale || 1), 0.02, 1);
+      const baseScale = clamp(Number(overlay.scale) || 1, 0.1, 4);
+      const w = clamp(Number(overlay.width || 0.2) * baseScale, 0.02, 1);
+      const h = clamp(Number(overlay.height || 0.2) * baseScale, 0.02, 1);
       const x = clamp(Number(overlay.x || 0.5) - w / 2, 0, Math.max(0, 1 - w));
       const y = clamp(Number(overlay.y || 0.5) - h / 2, 0, Math.max(0, 1 - h));
       const targetWidth = Math.max(2, Math.floor(width * w) & ~1);
       const targetHeight = Math.max(2, Math.floor(height * h) & ~1);
+      const keyframes = normalizeNovaCutLayerKeyframes(overlay, "overlayTracks");
+      const hasScaleKeyframes = keyframes.some((frame) => overlay.keyframes?.some((raw) => Number(raw.timeMs) === frame.timeMs && raw.scale != null));
+      const hasRotationKeyframes = keyframes.some((frame) => overlay.keyframes?.some((raw) => Number(raw.timeMs) === frame.timeMs && raw.rotation != null));
+      const hasXKeyframes = keyframes.some((frame) => overlay.keyframes?.some((raw) => Number(raw.timeMs) === frame.timeMs && raw.x != null));
+      const hasYKeyframes = keyframes.some((frame) => overlay.keyframes?.some((raw) => Number(raw.timeMs) === frame.timeMs && raw.y != null));
+      const scaleExpression = ffmpegNovaCutLayerKeyframeExpression(overlay, "overlayTracks", "scale", baseScale, 0, "t");
+      const rotationExpression = ffmpegNovaCutLayerKeyframeExpression(overlay, "overlayTracks", "rotation", Number(overlay.rotation) || 0, 0, "t");
+      const xExpression = ffmpegNovaCutLayerKeyframeExpression(overlay, "overlayTracks", "x", Number(overlay.x) || 0.5, 0, "t");
+      const yExpression = ffmpegNovaCutLayerKeyframeExpression(overlay, "overlayTracks", "y", Number(overlay.y) || 0.5, 0, "t");
+      const stickerFilters = [
+        "scale=" + targetWidth + ":" + targetHeight + ":force_original_aspect_ratio=decrease",
+        "pad=" + targetWidth + ":" + targetHeight + ":(ow-iw)/2:(oh-ih)/2:color=black@0"
+      ];
+      if (hasScaleKeyframes) {
+        stickerFilters.push("scale=w='trunc(iw*(" + scaleExpression + ")/" + baseScale.toFixed(4) + "/2)*2':h='trunc(ih*(" +
+          scaleExpression + ")/" + baseScale.toFixed(4) + "/2)*2':eval=frame");
+      }
+      if (hasRotationKeyframes || Math.abs(Number(overlay.rotation) || 0) > 0.001) {
+        const angle = hasRotationKeyframes ? "(" + rotationExpression + ")*PI/180" : ((Number(overlay.rotation) || 0) * Math.PI / 180).toFixed(6);
+        stickerFilters.push("rotate=angle='" + angle + "':c=black@0:ow=rotw(iw):oh=roth(ih)");
+      }
+      const hasPositionKeyframes = hasXKeyframes || hasYKeyframes;
+      const xPosition = hasXKeyframes
+        ? "'clip(main_w*(" + xExpression + ")-overlay_w/2,0,main_w-overlay_w)'"
+        : "main_w*" + x.toFixed(5);
+      const yPosition = hasYKeyframes
+        ? "'clip(main_h*(" + yExpression + ")-overlay_h/2,0,main_h-overlay_h)'"
+        : "main_h*" + y.toFixed(5);
       filters.push(
-        "[" + input.index + ":v:0]" + layerAlphaFilters(overlay) + ",scale=" + targetWidth + ":" + targetHeight +
-        ":force_original_aspect_ratio=decrease,pad=" + targetWidth + ":" + targetHeight +
-        ":(ow-iw)/2:(oh-ih)/2:color=black@0[" + src + "]"
+        "[" + input.index + ":v:0]" + layerAlphaFilters(overlay) + "," + stickerFilters.join(",") + "[" + src + "]"
       );
       filters.push(
-        "[" + currentVideo + "][" + src + "]overlay=x=main_w*" + x.toFixed(5) +
-        ":y=main_h*" + y.toFixed(5) +
+        "[" + currentVideo + "][" + src + "]overlay=x=" + xPosition +
+        ":y=" + yPosition +
         ":enable='between(t," + start.toFixed(3) + "," + end.toFixed(3) + ")':eof_action=pass:shortest=0:repeatlast=0[" + out + "]"
       );
       currentVideo = out;
@@ -2119,7 +2242,10 @@ export class NovaCutEngine {
       this.setStatus("Move the playhead inside the selected text or sticker layer.");
       return false;
     }
-    const sampled = sampleNovaCutVideoKeyframes(item, this.currentTimestamp);
+    const layerType = selected.type === "overlayTracks" ? "overlayTracks" : "textTracks";
+    const sampled = layerType === "overlayTracks"
+      ? sampleNovaCutLayerKeyframes(item, this.currentTimestamp, layerType)
+      : sampleNovaCutVideoKeyframes(item, this.currentTimestamp);
     const opacity = clamp(values?.opacity ?? sampled.opacity ?? item.opacity ?? 1, 0, 1);
     const easing = ["linear", "ease-in", "ease-out", "ease-in-out"].includes(values?.easing)
       ? values.easing
@@ -2131,6 +2257,12 @@ export class NovaCutEngine {
       frame.opacity != null && Math.abs(Number(frame.timeMs) - timeMs) <= 34
     );
     const keyframe = { timeMs, opacity, easing };
+    if (layerType === "overlayTracks") {
+      keyframe.x = clamp(values?.x ?? sampled.x, 0, 1);
+      keyframe.y = clamp(values?.y ?? sampled.y, 0, 1);
+      keyframe.scale = clamp(values?.scale ?? sampled.scale, 0.1, 4);
+      keyframe.rotation = clamp(values?.rotation ?? sampled.rotation, -360, 360);
+    }
     if (existingIndex >= 0) keyframes.splice(existingIndex, 1, keyframe);
     else keyframes.push(keyframe);
     item.keyframes = keyframes.sort((a, b) => Number(a.timeMs) - Number(b.timeMs));
@@ -2842,9 +2974,9 @@ export class NovaCutEngine {
     const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
     const seconds = (value) => (Math.max(0, finite(value)) / 1000).toFixed(2);
     const videoFrameValues = type === "videoTracks" ? sampleNovaCutVideoKeyframes(item, this.currentTimestamp) : null;
-    const layerFrameValues = ["textTracks", "overlayTracks"].includes(type)
-      ? sampleNovaCutVideoKeyframes(item, this.currentTimestamp)
-      : null;
+    const layerFrameValues = type === "overlayTracks"
+      ? sampleNovaCutLayerKeyframes(item, this.currentTimestamp, "overlayTracks")
+      : type === "textTracks" ? sampleNovaCutVideoKeyframes(item, this.currentTimestamp) : null;
     const input = (label, name, value, attrs = "") =>
       '<label>' + label + '<input data-clip-prop="' + name + '" type="number" value="' + value + '" ' + attrs + '></label>';
     let fields =
@@ -2885,15 +3017,15 @@ export class NovaCutEngine {
         input("Rotation (degrees)", "rotation", finite(style.rotation), 'min="-360" max="360" step="1"');
     } else if (type === "overlayTracks") {
       fields +=
-        input("Position X (%)", "x", Math.round(finite(item.x, 0.5) * 100), 'min="0" max="100" step="1"') +
-        input("Position Y (%)", "y", Math.round(finite(item.y, 0.5) * 100), 'min="0" max="100" step="1"') +
+        input("Position X (%)", "x", Math.round(clamp(layerFrameValues?.x ?? item.x ?? 0.5, 0, 1) * 100), 'min="0" max="100" step="1"') +
+        input("Position Y (%)", "y", Math.round(clamp(layerFrameValues?.y ?? item.y ?? 0.5, 0, 1) * 100), 'min="0" max="100" step="1"') +
         input("Opacity (%)", "opacity", Math.round(clamp(layerFrameValues?.opacity ?? item.opacity ?? 1, 0, 1) * 100), 'min="0" max="100" step="1"') +
         input("Fade in (seconds)", "fadeIn", seconds(item.fadeInMs), 'min="0" max="60" step="0.05"') +
         input("Fade out (seconds)", "fadeOut", seconds(item.fadeOutMs), 'min="0" max="60" step="0.05"') +
         input("Width (%)", "width", Math.round(finite(item.width, 0.2) * 100), 'min="3" max="100" step="1"') +
         input("Height (%)", "height", Math.round(finite(item.height, 0.2) * 100), 'min="3" max="100" step="1"') +
-        input("Scale (%)", "scale", Math.round(finite(item.scale, 1) * 100), 'min="10" max="500" step="5"') +
-        input("Rotation (degrees)", "rotation", finite(item.rotation), 'min="-360" max="360" step="1"');
+        input("Scale (%)", "scale", Math.round(finite(layerFrameValues?.scale ?? item.scale, 1) * 100), 'min="10" max="400" step="5"') +
+        input("Rotation (degrees)", "rotation", finite(layerFrameValues?.rotation ?? item.rotation), 'min="-360" max="360" step="1"');
     } else if (type === "effectTracks") {
       fields +=
         '<label>Effect<select data-clip-prop="effectType">' +
@@ -2993,10 +3125,16 @@ export class NovaCutEngine {
         return Number.isFinite(parsed) ? parsed : fallback;
       };
       const opacity = clamp(readLayerValue("opacity", clamp(layerFrameValues?.opacity ?? item.opacity ?? 1, 0, 1) * 100) / 100, 0, 1);
-      this.setLayerOpacityKeyframeAtPlayhead({
-        opacity,
+      const layerValues = { opacity,
         easing: sheet.body.querySelector('[data-clip-prop="keyframeEasing"]')?.value || "linear"
-      });
+      };
+      if (type === "overlayTracks") {
+        layerValues.x = clamp(readLayerValue("x", (layerFrameValues?.x ?? item.x ?? 0.5) * 100) / 100, 0, 1);
+        layerValues.y = clamp(readLayerValue("y", (layerFrameValues?.y ?? item.y ?? 0.5) * 100) / 100, 0, 1);
+        layerValues.scale = clamp(readLayerValue("scale", (layerFrameValues?.scale ?? item.scale ?? 1) * 100) / 100, 0.1, 4);
+        layerValues.rotation = clamp(readLayerValue("rotation", layerFrameValues?.rotation ?? item.rotation ?? 0), -360, 360);
+      }
+      this.setLayerOpacityKeyframeAtPlayhead(layerValues);
       const count = sheet.body.querySelector("[data-layer-opacity-keyframe-count]");
       if (count) count.textContent = "Opacity keyframes: " + (item.keyframes || []).filter((frame) => frame.opacity != null).length;
     });
@@ -3270,7 +3408,6 @@ export class NovaCutEngine {
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("NovaCut could not create sticker export canvas.");
     ctx.translate(256, 256);
-    ctx.rotate((Number(overlay.rotation) || 0) * Math.PI / 180);
     ctx.drawImage(image, -240, -240, 480, 480);
     const blob = await new Promise((resolve, reject) => canvas.toBlob((value) => value ? resolve(value) : reject(new Error("NovaCut failed to encode sticker layer " + index + ".")), "image/png"));
     await this.writeFile(ffmpeg, path, blob);
