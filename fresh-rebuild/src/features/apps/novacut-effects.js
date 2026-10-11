@@ -1,15 +1,16 @@
-/* NovaCut preview-region effects: blur, mosaic, scramble and censor. */
+/* NovaCut preview-region effects: blur, mosaic, scramble, censor and vignette. */
 export const NOVACUT_EFFECT_TYPES = Object.freeze([
   { id: 'blur', label: 'Blur' },
   { id: 'mosaic', label: 'Mosaic' },
   { id: 'scramble', label: 'Scramble' },
-  { id: 'censor', label: 'Censor' }
+  { id: 'censor', label: 'Censor' },
+  { id: 'vignette', label: 'Vignette' }
 ]);
 const clamp = (value, min, max) => Math.min(Math.max(Number(value) || 0, min), max);
 export function normalizeNovaCutEffect(input = {}) {
   return {
     id: String(input.id || ('effect-' + Date.now() + '-' + Math.random().toString(36).slice(2))),
-    type: ['blur', 'mosaic', 'scramble', 'censor'].includes(input.type) ? input.type : 'blur',
+    type: ['blur', 'mosaic', 'scramble', 'censor', 'vignette'].includes(input.type) ? input.type : 'blur',
     x: clamp(input.x == null ? 0.25 : input.x, 0, 0.94),
     y: clamp(input.y == null ? 0.25 : input.y, 0, 0.94),
     width: clamp(input.width == null ? 0.5 : input.width, 0.06, 1),
@@ -33,32 +34,91 @@ function seeded(seed) {
   let state = (Number(seed) >>> 0) || 1;
   return () => { state ^= state << 13; state ^= state >>> 17; state ^= state << 5; return ((state >>> 0) % 1000000) / 1000000; };
 }
+
+const mosaicSurfaceCache = new WeakMap();
+const scramblePermutationCache = new WeakMap();
+
+function getMosaicSurface(effect, width, height, block) {
+  let surface = mosaicSurfaceCache.get(effect);
+  if (!surface) {
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    surface = { canvas, ctx, width: 0, height: 0, block: 0 };
+    mosaicSurfaceCache.set(effect, surface);
+  }
+  const smallWidth = Math.max(1, Math.floor(width / block));
+  const smallHeight = Math.max(1, Math.floor(height / block));
+  if (surface.width !== smallWidth) {
+    surface.canvas.width = smallWidth;
+    surface.width = smallWidth;
+  }
+  if (surface.height !== smallHeight) {
+    surface.canvas.height = smallHeight;
+    surface.height = smallHeight;
+  }
+  surface.block = block;
+  return surface;
+}
+
+function getScramblePermutation(effect, tilesX, tilesY) {
+  const key = String(effect.seed) + ":" + tilesX + "x" + tilesY;
+  let cached = scramblePermutationCache.get(effect);
+  if (cached?.key === key) return cached.cells;
+  const cells = Array.from({ length: tilesX * tilesY }, (_, i) => i);
+  const random = seeded(effect.seed);
+  for (let i = cells.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(random() * (i + 1));
+    [cells[i], cells[j]] = [cells[j], cells[i]];
+  }
+  scramblePermutationCache.set(effect, { key, cells });
+  return cells;
+}
+
 export function drawNovaCutEffect(ctx, source, effect, width, height) {
   if (!ctx || !source || !effect) return;
   const r = rectOf(effect, width, height);
   if (effect.type === 'censor') {
     ctx.save(); ctx.globalAlpha = clamp(effect.opacity, 0, 1); ctx.fillStyle = effect.color || '#000000'; ctx.fillRect(r.x, r.y, r.width, r.height); ctx.restore(); return;
   }
+  if (effect.type === 'vignette') {
+    const centerX = r.x + r.width / 2;
+    const centerY = r.y + r.height / 2;
+    const radius = Math.max(2, Math.sqrt(r.width * r.width + r.height * r.height) / 2);
+    const strength = clamp(effect.intensity, 1, 64) / 64;
+    const alpha = clamp(effect.opacity ?? 0.96, 0, 1) * (0.14 + strength * 0.82);
+    const gradient = ctx.createRadialGradient(centerX, centerY, radius * 0.12, centerX, centerY, radius);
+    gradient.addColorStop(0, 'rgba(0,0,0,0)');
+    gradient.addColorStop(0.42, 'rgba(0,0,0,0)');
+    gradient.addColorStop(0.72, 'rgba(0,0,0,' + (alpha * 0.48).toFixed(3) + ')');
+    gradient.addColorStop(1, 'rgba(0,0,0,' + alpha.toFixed(3) + ')');
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(r.x, r.y, r.width, r.height);
+    ctx.clip();
+    ctx.fillStyle = gradient;
+    ctx.fillRect(r.x, r.y, r.width, r.height);
+    ctx.restore();
+    return;
+  }
   if (effect.type === 'blur') {
     ctx.save(); ctx.beginPath(); ctx.rect(r.x, r.y, r.width, r.height); ctx.clip(); ctx.filter = 'blur(' + clamp(effect.intensity, 1, 48) + 'px)'; ctx.drawImage(source, 0, 0); ctx.restore(); return;
   }
   if (effect.type === 'mosaic') {
     const block = Math.max(2, Math.floor(clamp(effect.intensity, 2, 64)));
-    const small = document.createElement('canvas');
-    small.width = Math.max(1, Math.floor(r.width / block));
-    small.height = Math.max(1, Math.floor(r.height / block));
-    const sctx = small.getContext('2d');
-    if (!sctx) return;
+    const surface = getMosaicSurface(effect, r.width, r.height, block);
+    if (!surface) return;
+    const { canvas: small, ctx: sctx } = surface;
     sctx.imageSmoothingEnabled = false;
-    sctx.drawImage(source, r.x, r.y, r.width, r.height, 0, 0, small.width, small.height);
-    ctx.save(); ctx.imageSmoothingEnabled = false; ctx.drawImage(small, 0, 0, small.width, small.height, r.x, r.y, r.width, r.height); ctx.restore(); return;
+    sctx.clearRect(0, 0, surface.width, surface.height);
+    sctx.drawImage(source, r.x, r.y, r.width, r.height, 0, 0, surface.width, surface.height);
+    ctx.save(); ctx.imageSmoothingEnabled = false; ctx.drawImage(small, 0, 0, surface.width, surface.height, r.x, r.y, r.width, r.height); ctx.restore(); return;
   }
   if (effect.type === 'scramble') {
     const tilesX = Math.max(2, Math.min(12, Math.floor(r.width / Math.max(8, effect.intensity))));
     const tilesY = Math.max(2, Math.min(12, Math.floor(r.height / Math.max(8, effect.intensity))));
     const tileW = r.width / tilesX; const tileH = r.height / tilesY;
-    const cells = Array.from({ length: tilesX * tilesY }, (_, i) => i); const random = seeded(effect.seed);
-    for (let i = cells.length - 1; i > 0; i -= 1) { const j = Math.floor(random() * (i + 1)); [cells[i], cells[j]] = [cells[j], cells[i]]; }
+    const cells = getScramblePermutation(effect, tilesX, tilesY);
     ctx.save(); ctx.beginPath(); ctx.rect(r.x, r.y, r.width, r.height); ctx.clip();
     for (let d = 0; d < cells.length; d += 1) {
       const s = cells[d];

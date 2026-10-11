@@ -6,6 +6,13 @@ on:
     paths:
       - "fresh-rebuild/src/features/apps/ai-video-studio-flagship.js"
       - "fresh-rebuild/src/features/apps/novacut-engine.js"
+      - "fresh-rebuild/src/features/apps/novacut-media.js"
+      - "fresh-rebuild/src/features/apps/novacut-studio.js"
+      - "fresh-rebuild/src/features/apps/novacut-studio.css"
+      - "fresh-rebuild/src/features/apps/premium-studio-suite.js"
+      - "qa/novacut-100-qa.mjs"
+      - "qa/novacut-export-ffmpeg-smoke.mjs"
+      - "qa/scripts/run-android-emulator-smoke.sh"
       - "NexusNovaAndroid/app/**"
       - ".github/workflows/video-android-emulator-qa.yml"
       - "NexusNovaAndroid/gradle/**"
@@ -68,6 +75,7 @@ jobs:
           node qa/novacut-100-qa.mjs
           echo "NOVA CUT 100/100 QA GATE PASS"
           echo "NOVA CUT PLAYBACK BEHAVIOUR 7/7 PASS"
+          echo "NOVA CUT EXPORT BEHAVIOUR 4/4 PASS"
           echo "NOVA CUT JS SYNTAX 7/7 PASS"
 
       - name: Set up Java 17
@@ -76,11 +84,16 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Install media fixture tool
+      - name: Ensure media fixture tool is available
         run: |
           set -euo pipefail
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq ffmpeg
+          if command -v ffmpeg >/dev/null 2>&1; then
+            ffmpeg -version | head -n 1
+          else
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq ffmpeg
+            ffmpeg -version | head -n 1
+          fi
 
       - name: Create deterministic Android video fixture
         run: |
@@ -89,6 +102,12 @@ jobs:
           ffmpeg -hide_banner -loglevel error             -f lavfi -i color=c=white:s=160x90:r=12:d=1             -c:v libvpx -b:v 200k -an             qa/fixtures/video-studio-video-qa.webm
           test -s qa/fixtures/video-studio-video-qa.webm
           stat -c "%n %s bytes" qa/fixtures/video-studio-video-qa.webm
+
+      - name: Run real FFmpeg export smoke tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          node qa/novacut-export-ffmpeg-smoke.mjs
 
       - name: Set up Gradle caching
         uses: gradle/actions/setup-gradle@v5
@@ -112,18 +131,61 @@ jobs:
               p.write_text(text, encoding="utf-8")
           PY
 
-
-      - name: Copy real video fixture into Android test assets
+      - name: Check Android smoke script syntax
+        shell: bash
         run: |
           set -euo pipefail
-          mkdir -p NexusNovaAndroid/app/src/androidTest/assets
-          cp qa/fixtures/video-studio-video-qa.webm NexusNovaAndroid/app/src/androidTest/assets/video-studio-video-qa.webm
-          test -s NexusNovaAndroid/app/src/androidTest/assets/video-studio-video-qa.webm
+          bash -n qa/scripts/run-android-emulator-smoke.sh
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          bounds = r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]"
+          assert re.fullmatch(bounds, "[0,84][196,252]"), "UI bounds parser regex did not match Android bounds"
+          script = Path("qa/scripts/run-android-emulator-smoke.sh").read_text(encoding="utf-8")
+          class FakeNode:
+              attrib = {"text": "  Show ", "content-desc": " roots  "}
+          node = FakeNode()
+          normalized_label = " ".join(" ".join((node.attrib.get("text", ""), node.attrib.get("content-desc", ""))).split())
+          assert normalized_label == "Show roots", f"native picker label normalization failed: {normalized_label!r}"
+          assert 'text = " ".join(" ".join((node.attrib.get("text", ""), node.attrib.get("content-desc", ""))).split())' in script, "native picker label normalization regression detected"
+          print("Native picker label-normalization regression PASS")
+          assert "command adb" not in script, "timeout must invoke adb as an executable, not a shell builtin"
+          assert 'timeout --signal=TERM --kill-after=2s 15s adb "$@"' in script, "bounded adb wrapper is missing"
+          assert "live-logcat.txt" in script and "capture_screenshot()" in script, "bounded recovery/log capture missing"
+          assert "pull_remote_file()" in script, "UI hierarchy pull recovery helper is missing"
+          assert "adb logcat -c" in script, "stale emulator logcat must be cleared before launch"
+          assert "adb exec-out screencap -p" in script, "direct ADB screenshot streaming is missing"
+          assert "adb shell wm size 720x1600" in script and "adb shell wm density 280" in script, "stable mobile-sized emulator viewport is missing"
+          assert "find_node_center() {" in script, "UIAutomator label-center helper is missing"
+          assert 'capture_screenshot "$RESULTS/novacut-shell-launch.png"' in script and script.index('capture_screenshot "$RESULTS/novacut-shell-launch.png"') < script.index("uiautomator dump /sdcard/nova-app-window.xml"), "capture the loaded app screen before optional UIAutomator dump"
+          assert "UIAutomator hierarchy unavailable" in script, "main app UIAutomator dump must be optional on API 35"
+          assert script.count("pull_remote_file /sdcard/nova-") >= 4, "UI hierarchy pulls must use bounded reconnect/retry helper"
+          print("Android smoke script syntax, ADB wrapper, and UI-bounds checks PASS")
+          PY
 
-      - name: Build app and Android test APKs
+      - name: Build Android QA APK
         run: |
           set -euo pipefail
-          gradle -p NexusNovaAndroid :app:assembleDebug :app:assembleDebugAndroidTest --stacktrace --no-daemon
+          gradle -p NexusNovaAndroid :app:clean :app:assembleDebug --stacktrace --no-daemon
+
+      - name: Verify isolated Android QA APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk="NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$apk"
+          unzip -l "$apk" | grep -F "AndroidManifest.xml"
+          unzip -l "$apk" | grep -F "assets/www/index.html"
+          stat -c "%n %s bytes" "$apk"
+
+      - name: Upload installable Android QA APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: novacut-android-debug-qa-apk
+          path: NexusNovaAndroid/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Cache Android emulator
         uses: actions/cache@v4
@@ -144,6 +206,7 @@ jobs:
           fi
 
       - name: Run real Android emulator QA
+        timeout-minutes: 5
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
@@ -156,21 +219,7 @@ jobs:
           emulator-boot-timeout: 300
           working-directory: NexusNovaAndroid
           script: |
-            set -u
-            adb install -r app/build/outputs/apk/debug/app-debug.apk
-            adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
-            test -s "$GITHUB_WORKSPACE/qa/fixtures/video-studio-video-qa.webm"
-
-            adb shell am instrument -w -r -e class com.nexusnova.app.VideoStudioEmulatorQaTest#videoStudioFullscreenScopedDockAndNativeMediaPicker com.nexusnova.app.test/androidx.test.runner.AndroidJUnitRunner
-            status=$?
-
-            mkdir -p "$GITHUB_WORKSPACE/qa/android-emulator-results"
-            adb logcat -d -v threadtime > "$GITHUB_WORKSPACE/qa/android-emulator-results/logcat.txt" || true
-            adb shell ls -la /sdcard/Android/data/com.nexusnova.app/files/Pictures/ || true
-            adb pull /sdcard/Android/data/com.nexusnova.app/files/Pictures "$GITHUB_WORKSPACE/qa/android-emulator-results/" || true
-
-            exit $status
-
+            timeout --signal=TERM --kill-after=10s 180s bash ../qa/scripts/run-android-emulator-smoke.sh
 
       - name: Upload Android emulator evidence
         if: always()

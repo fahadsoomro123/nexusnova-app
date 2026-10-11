@@ -1,6 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
+import { sampleNovaCutVideoKeyframes, sampleNovaCutAudioGain, clipOpacityAt, sampleNovaCutLayerKeyframes, normalizeNovaCutSpeedCurve, createNovaCutSpeedCurvePreset, createNovaCutCustomSpeedCurve, sampleNovaCutSpeed, novaCutSourceOffsetForTimeline, novaCutTimelineOffsetForSource } from "../fresh-rebuild/src/features/apps/novacut-engine.js";
+import { NovaCutStudioInteractions } from "../fresh-rebuild/src/features/apps/novacut-studio.js";
 
 const ROOT = process.cwd();
 const read = (file) => fs.readFileSync(path.join(ROOT, file), "utf8");
@@ -13,6 +15,7 @@ const engine = read("fresh-rebuild/src/features/apps/novacut-engine.js");
 const media = read("fresh-rebuild/src/features/apps/novacut-media.js");
 const suite = read("fresh-rebuild/src/features/apps/premium-studio-suite.js");
 const studio = read("fresh-rebuild/src/features/apps/novacut-studio.js");
+const studioCss = read("fresh-rebuild/src/features/apps/novacut-studio.css");
 const effects = read("fresh-rebuild/src/features/apps/novacut-effects.js");
 const overlays = read("fresh-rebuild/src/features/apps/novacut-overlays.js");
 const history = read("fresh-rebuild/src/features/apps/novacut-history.js");
@@ -33,26 +36,196 @@ check("suite renderer exists", () => assert(exists("fresh-rebuild/src/features/a
 check("effects module exists", () => assert(exists("fresh-rebuild/src/features/apps/novacut-effects.js"), "effects missing"));
 check("overlay module exists", () => assert(exists("fresh-rebuild/src/features/apps/novacut-overlays.js"), "overlays missing"));
 check("history module exists", () => assert(exists("fresh-rebuild/src/features/apps/novacut-history.js"), "history missing"));
-check("engine imports history", () => assert(has(engine, 'import { NovaCutHistory } from "./novacut-history.js";'), "history import missing"));
+check("engine imports history and local project persistence", () => assert(
+  has(engine, 'import { NovaCutHistory } from "./novacut-history.js";') &&
+  has(engine, 'indexedDB.open("novacut-project-drafts", 1)') &&
+  has(engine, "restoreProjectDraft()") &&
+  has(engine, "scheduleProjectDraftSave()") &&
+  has(engine, "saveProjectDraft()") &&
+  has(engine, 'this.events.on("selectionchange", () => this.scheduleProjectDraftSave())') &&
+  has(engine, '["click", "pointerdown", "drop", "paste"]'),
+  "history import or autosaved draft recovery is missing"
+));
 check("engine imports effects", () => assert(has(engine, 'import { drawNovaCutEffect, normalizeNovaCutEffect } from "./novacut-effects.js";'), "effects import missing"));
 check("engine exports ratio presets", () => assert(has(engine, "export const RATIO_PRESETS"), "ratio presets missing"));
 
 // 11-25: engine behavior
 check("Android WebView compositor detector exists", () => assert(has(engine, "export const isAndroidWebViewUserAgent") && has(engine, "this.forceNativeVideoLayer = isAndroidWebViewUserAgent(userAgent)"), "Android WebView detector missing"));
-check("native preview and source-audio playback wiring", () => assert(has(engine, "mountNativePreview(media, clip)") && has(engine, "nx-novacut__canvas--native-preview") && has(engine, "Playing · native video layer") && has(engine, "media.muted = false") && has(engine, "this.preview?.enableActiveVideoAudio()"), "native preview or source-audio wiring missing"));
-check("video add API present", () => assert(has(engine, "addVideoClip(input)"), "addVideoClip missing"));
-check("audio add API present", () => assert(has(engine, "addAudioSegment(input)"), "addAudioSegment missing"));
-check("text add API present", () => assert(has(engine, "addTextCue(input)"), "addTextCue missing"));
-check("sticker add API present", () => assert(has(engine, "addSticker(sticker"), "sticker API missing"));
+check("native preview and clean playback status", () => assert(has(engine, "mountNativePreview(media, clip)") && has(engine, "nx-novacut__canvas--native-preview") && has(engine, 'this.setStatus("Playing")') && has(engine, 'this.setStatus("Paused")') && !has(engine, "Playing · native video layer") && !has(engine, "Paused · native video layer") && has(engine, "media.muted = false") && has(engine, "this.preview?.enableActiveVideoAudio()"), "native preview, clean status or source-audio wiring missing"));
+check("video add API and visual controls are normalized", () => assert(
+  has(engine, "addVideoClip(input)") &&
+  has(engine, "const speed = clamp(input.speed ?? 1, 0.25, 4);") &&
+  has(engine, "const sourceDuration = Math.max(1, Number(input.sourceDuration) || duration * speed)") &&
+  has(engine, "brightness: clamp(input.brightness ?? 100, 0, 200)") &&
+  has(engine, "contrast: clamp(input.contrast ?? 100, 0, 200)") &&
+  has(engine, "saturation: clamp(input.saturation ?? 100, 0, 300)") &&
+  has(engine, "fadeInMs: clamp(input.fadeInMs ?? 0, 0, duration)") &&
+  has(engine, "fadeOutMs: clamp(input.fadeOutMs ?? 0, 0, duration)") &&
+  has(engine, "keyframes: []") &&
+  has(engine, "opacity: clamp(input.opacity ?? 1, 0, 1)") &&
+  has(engine, 'input("Opacity (%)", "opacity"') &&
+  has(engine, "setLayerOpacityKeyframeAtPlayhead(values = null)") &&
+  has(engine, "removeLayerOpacityKeyframeAtPlayhead()") &&
+  has(engine, "sampleNovaCutLayerKeyframes(overlay, this.engine.currentTimestamp, \"overlayTracks\")") &&
+  has(engine, "ffmpegNovaCutLayerKeyframeExpression(overlay, \"overlayTracks\", \"scale\"") &&
+  has(engine, "hasRotationKeyframes || Math.abs(Number(overlay.rotation) || 0) > 0.001") &&
+  has(engine, "data-layer-opacity-keyframe-set") &&
+  has(engine, "data-layer-opacity-keyframe-remove") &&
+  has(engine, "ctx.globalAlpha = clipOpacityAt(overlay, this.engine.currentTimestamp)") &&
+  has(engine, "ctx.globalAlpha = clipOpacityAt(cue, this.engine.currentTimestamp)") &&
+  has(engine, 'input("Fade in (seconds)", "fadeIn", seconds(item.fadeInMs)') &&
+  has(engine, 'input("Fade out (seconds)", "fadeOut", seconds(item.fadeOutMs)') &&
+  has(engine, "const layerAlphaFilters = (item) =>") &&
+  has(engine, "colorchannelmixer=aa=") &&
+  has(engine, "normalizeVideoKeyframes(input.keyframes, duration, clip)") &&
+  has(engine, "opacity: clamp(values.opacity ?? frameValues.opacity, 0, 1)") &&
+  has(engine, 'ffmpegVideoKeyframeExpression(clip, "opacity", baseOpacity, startAt, "T")') &&
+  has(engine, 'vf.push("geq=') &&
+  has(engine, 'easing: ["linear", "ease-in", "ease-out", "ease-in-out"].includes(frame.easing) ? frame.easing : "linear"') &&
+  has(engine, "ffmpegKeyframeEasingExpression(left.easing, amount)") &&
+  has(engine, 'data-clip-prop="keyframeEasing"') &&
+  has(engine, "ffmpegVideoKeyframeExpression(clip, \"scale\"") &&
+  has(engine, "eval=frame") &&
+  has(engine, "setVideoKeyframeAtPlayhead(values = null)") &&
+  has(engine, "removeVideoKeyframeAtPlayhead()") &&
+  has(engine, "setSelectedKeyframeAtPlayhead()") &&
+  has(engine, "removeSelectedKeyframeAtPlayhead()") &&
+  has(engine, 'else if (action === "keyframe-add") this.setSelectedKeyframeAtPlayhead();') &&
+  has(engine, 'else if (action === "keyframe-remove") this.removeSelectedKeyframeAtPlayhead();') &&
+  has(engine, "normalizeNovaCutSpeedCurve") &&
+  has(engine, "ffmpegNovaCutSpeedCurveExpression(clip)") &&
+  has(engine, 'data-clip-prop="speedCurvePreset"') &&
+  has(engine, "export function createNovaCutCustomSpeedCurve") &&
+  has(engine, "data-speed-curve-editor") &&
+  has(engine, "data-speed-curve-graph") &&
+  has(engine, "data-speed-curve-graph-host") &&
+  has(engine, "data-speed-curve-handle") &&
+  has(engine, "updateSpeedCurveFromPointer") &&
+  has(engine, "pointercancel', stopSpeedCurveDrag)") &&
+  has(engine, "data-speed-curve-add") &&
+  has(engine, "data-speed-curve-position") &&
+  has(engine, "data-speed-curve-speed") &&
+  has(engine, "createNovaCutCustomSpeedCurve(customSpeedCurveDraft, item.duration, item.sourceDuration)") &&
+  has(engine, "sampleNovaCutSpeed"),
+  "video clip visual properties, keyframe animation, or speed curve support are missing"
+));
+check("audio add API and source-audio export mapping", () => assert(has(engine, "addAudioSegment(input)") && has(engine, "fadeInMs: clamp(input.fadeInMs ?? 0, 0, Math.max(250, Number(input.duration) || 250))") && has(engine, "sampleNovaCutAudioGain(segment, timestamp)") && has(engine, "sampleNovaCutAudioGain(segment, now)") && has(engine, "sampleNovaCutAudioGain(clip, this.engine.currentTimestamp)") && has(engine, "sampleNovaCutAudioGain(clip, now)") && has(engine, 'afade=t=in:st=0:d=') && has(engine, "clip.metadata?.hasAudio !== true") && has(engine, "vsrcaudio") && has(engine, "audioLabels.map"), "source audio mapping or synchronized audio fade envelope missing"));
+check("text add API and transform animation", () => assert(
+  has(engine, "addTextCue(input)") &&
+  has(engine, 'sampleNovaCutLayerKeyframes(cue, this.engine.currentTimestamp, "textTracks")') &&
+  has(engine, 'ffmpegNovaCutLayerKeyframeExpression(cue, "textTracks", "x"') &&
+  has(engine, 'ffmpegNovaCutLayerKeyframeExpression(cue, "textTracks", "scale"') &&
+  has(engine, 'const x = width / 2;') &&
+  has(engine, "overlay=x=\" + xPosition"),
+  "text add API or text-layer transform keyframes are missing"
+));
+check("sticker add API and mirrored visual layers", () => assert(
+  has(engine, "addSticker(sticker") &&
+  has(engine, 'selected.item.transform = { ...(selected.item.transform || {}), [key]: !selected.item.transform?.[key] }') &&
+  has(engine, 'selected.item[key] = !selected.item[key]') &&
+  has(engine, 'selected.item.style = { ...(selected.item.style || {}), [key]: !selected.item.style?.[key] }') &&
+  has(engine, 'ctx.scale(overlay.flipX ? -1 : 1, overlay.flipY ? -1 : 1)') &&
+  has(engine, 'ctx.scale(style.flipX ? -1 : 1, style.flipY ? -1 : 1)') &&
+  has(engine, 'flipX: Boolean(input.flipX)') &&
+  has(engine, 'flipX: Boolean(style.flipX)'),
+  "selected visual layers do not preserve mirrored state through preview/export"
+));
 check("effect add API present", () => assert(has(engine, "addEffect(input"), "effect API missing"));
 check("delete API present", () => assert(has(engine, "removeSelected()"), "delete API missing"));
-check("duplicate API present", () => assert(has(engine, "duplicateSelected()"), "duplicate API missing"));
-check("playback follows decoded video clock", () => assert(has(engine, "mediaTimelineTime = clockClip.startTime") && has(engine, "media.currentTime * 1000"), "media clock sync missing"));
-check("render avoids per-frame decoder seeking", () => assert(has(engine, "media.currentTime = target") && !has(engine, "this.engine.isPlaying && Math.abs(media.currentTime - target) > 0.3"), "per-frame seek thrash still present"));
+check("Split works across all timeline track types", () => assert(
+  has(engine, "executeSplitAction(activeTrackId, currentTimestamp)") &&
+  has(engine, "const tracks = this.registry[record.type]") &&
+  has(engine, "splitSourceOffset = hasSpeedCurve ? novaCutSourceOffsetForTimeline(item, left) : left * clipSpeed") &&
+  has(engine, "second.sourceDuration = Math.max(1, Number(item.sourceDuration) - splitSourceOffset)") &&
+  has(studio, "actualDelta * sourceRate") &&
+  has(studio, "clip.sourceDuration = Math.max(1, clip.duration * sourceRate)") &&
+  has(engine, "duplicateSelected()") &&
+  has(engine, "findTransitionPairNearPlayhead()") &&
+  has(engine, "applyTransitionAtPlayhead(durationMs = 500, type = \"fade-through-black\")") &&
+  has(engine, "clearTransitionAtPlayhead()") &&
+  has(engine, "openTransitionEditor()") &&
+  has(engine, 'type === "cross-dissolve"') &&
+  has(engine, 'right.transitionIn = { type: "cross-dissolve"') &&
+  has(engine, "this.nativePreviewLayers = new Map()") &&
+  has(engine, 'data-transition-type') &&
+  has(engine, 'data-tool-action="transition"') &&
+  has(engine, 'data-transition-duration'),
+  "split must support selected video, audio, text, sticker, and effect clips without losing source offsets"
+));
+check("playback follows decoded video clock", () => {
+  assert(has(engine, "mediaTimelineTime = clockClip.startTime") && has(engine, "media.currentTime * 1000"), "media clock sync missing");
+  const sample = sampleNovaCutVideoKeyframes({
+    startTime: 1000,
+    duration: 2000,
+    scale: 1,
+    x_offset: 0,
+    y_offset: 0,
+    transform: { scale: 1, rotation: 0 },
+    keyframes: [
+      { timeMs: 0, scale: 1, rotation: 0, x_offset: 0, y_offset: 0 },
+      { timeMs: 2000, scale: 2, rotation: 90, x_offset: 120, y_offset: -60 }
+    ]
+  }, 2000);
+  assert(Math.abs(sample.scale - 1.5) < 0.001 && Math.abs(sample.rotation - 45) < 0.001 &&
+    Math.abs(sample.x_offset - 60) < 0.001 && Math.abs(sample.y_offset + 30) < 0.001,
+    "keyframes did not interpolate transform properties at the requested playhead");
+  const easedClip = { startTime: 0, duration: 1000, scale: 1, transform: { scale: 1, rotation: 0 }, keyframes: [
+    { timeMs: 0, scale: 1, rotation: 0, x_offset: 0, y_offset: 0, easing: "ease-in" },
+    { timeMs: 1000, scale: 2, rotation: 90, x_offset: 100, y_offset: 50 }
+  ] };
+  const easeInQuarter = sampleNovaCutVideoKeyframes(easedClip, 250);
+  const linearQuarter = sampleNovaCutVideoKeyframes({ ...easedClip, keyframes: easedClip.keyframes.map(frame => ({ ...frame, easing: "linear" })) }, 250);
+  const easeOutQuarter = sampleNovaCutVideoKeyframes({ ...easedClip, keyframes: easedClip.keyframes.map(frame => ({ ...frame, easing: "ease-out" })) }, 250);
+  const easeInOutQuarter = sampleNovaCutVideoKeyframes({ ...easedClip, keyframes: easedClip.keyframes.map(frame => ({ ...frame, easing: "ease-in-out" })) }, 250);
+  assert(Math.abs(easeInQuarter.scale - 1.0625) < 0.001 &&
+    Math.abs(linearQuarter.scale - 1.25) < 0.001 &&
+    Math.abs(easeOutQuarter.scale - 1.4375) < 0.001 &&
+    Math.abs(easeInOutQuarter.scale - 1.125) < 0.001,
+    "keyframe interpolation curves diverged from linear/ease-in/ease-out/ease-in-out expectations");
+  const opacityClip = {
+    startTime: 1000, duration: 1000, opacity: 1,
+    keyframes: [
+      { timeMs: 0, scale: 1, rotation: 0, x_offset: 0, y_offset: 0, opacity: 1 },
+      { timeMs: 1000, scale: 1, rotation: 0, x_offset: 0, y_offset: 0, opacity: 0.2 }
+    ]
+  };
+  const opacityMidpoint = sampleNovaCutVideoKeyframes(opacityClip, 1500).opacity;
+  assert(Math.abs(opacityMidpoint - 0.6) < 0.001 &&
+    Math.abs(clipOpacityAt(opacityClip, 1500) - 0.6) < 0.001 &&
+    Math.abs(clipOpacityAt({ ...opacityClip, fadeInMs: 1000 }, 1250) - 0.2) < 0.001,
+    "opacity keyframes did not interpolate in preview or combine with the fade envelope");
+  const layerFade = { startTime: 2000, duration: 2000, opacity: 0.5, fadeInMs: 1000, fadeOutMs: 500 };
+  assert(clipOpacityAt(layerFade, 2000) === 0 &&
+    Math.abs(clipOpacityAt(layerFade, 2500) - 0.25) < 0.001 &&
+    Math.abs(clipOpacityAt(layerFade, 3000) - 0.5) < 0.001 &&
+    Math.abs(clipOpacityAt(layerFade, 3750) - 0.25) < 0.001 &&
+    clipOpacityAt(layerFade, 4000) === 0,
+    "text/sticker opacity and fade envelopes do not compose over the full clip span");
+  const audioFade = { startTime: 1000, duration: 4000, fadeInMs: 1000, fadeOutMs: 1000 };
+  assert(sampleNovaCutAudioGain(audioFade, 1000) === 0 &&
+    Math.abs(sampleNovaCutAudioGain(audioFade, 1500) - 0.5) < 0.001 &&
+    sampleNovaCutAudioGain(audioFade, 2500) === 1 &&
+    Math.abs(sampleNovaCutAudioGain(audioFade, 4500) - 0.5) < 0.001 &&
+    sampleNovaCutAudioGain(audioFade, 5000) === 0 &&
+    sampleNovaCutAudioGain({ startTime: 0, duration: 1000 }, 500) === 1,
+    "audio clip gain did not follow fade-in/fade-out envelopes at the playhead");
+});
+check("preview uses decoded-frame cadence on Android and avoids per-frame decoder seeking", () => assert(
+  has(engine, "requestVideoFrameCallback") &&
+  has(engine, "cancelVideoFrameCallback") &&
+  has(engine, "getNativeFrameMedia()") &&
+  has(engine, "preloadUpcomingMedia(timestamp = this.currentTimestamp, preloadWindowMs = 1800)") &&
+  has(engine, "this.preloadUpcomingMedia(this.currentTimestamp, 1800)") &&
+  has(engine, "media.currentTime = target") &&
+  !has(engine, "this.engine.isPlaying && Math.abs(media.currentTime - target) > 0.3") &&
+  has(engine, "if (this.sourceCanvas.width !== width) this.sourceCanvas.width = width;") &&
+  has(engine, "if (this.sourceCanvas.height !== height) this.sourceCanvas.height = height;"),
+  "decoded-frame scheduling, decoder seek guard, or backing canvas reset regression"
+));
 check("undo API present", () => assert(has(engine, "undo()"), "undo API missing"));
 check("redo API present", () => assert(has(engine, "redo()"), "redo API missing"));
 check("cycleRatio restored", () => assert(/\n  cycleRatio\(\) \{/.test(engine), "cycleRatio missing"));
-check("ratio action calls cycleRatio", () => assert(has(engine, 'bind("ratio", () => this.cycleRatio());'), "ratio bind missing"));
+check("ratio, Fit/Fill, preview quality and selected-clip controls are wired", () => assert(has(engine, 'bind("ratio", () => this.openCanvasRatioPicker());') && has(engine, "openCanvasRatioPicker()") && has(engine, "setSelectedFitMode(mode)") && has(engine, "setPreviewQuality(mode)") && has(engine, "openSelectedClipInspector()") && has(engine, 'input("Average speed (x)", "speed"') && has(engine, "ffmpegAtempoChain(speed)") && has(engine, 'data-tool-action="clip-settings"') && has(engine, "const previewWidth = Math.max(1, Number(this.engine.preview?.canvas?.width) || width)") && has(engine, "const xOffset = (Number(clip.x_offset) || 0) * width / previewWidth") && has(engine, "const qualityScale = { draft: 0.7, balanced: 0.9, sharp: 1.25 }") && has(engine, "function clipCssFilter(clip)") && has(engine, "function clipOpacityAt(clip, timestamp)") && has(engine, "ctx.filter = clipCssFilter(renderClip)") && has(engine, "ctx.globalAlpha = clipOpacityAt(renderClip, now)") && has(engine, "novacutPreviewLayoutSignature") && has(engine, "novacutPreviewTransformSignature") && has(engine, "novacutPreviewFilterSignature") && has(engine, "novacutPreviewOpacitySignature") && has(engine, 'input("Brightness (%)", "brightness"') && has(engine, 'input("Fade in (seconds)", "fadeIn"') && has(engine, 'input("Fade out (seconds)", "fadeOut"') && has(engine, 'data-color-preset="original"') && has(engine, 'data-color-preset="vivid"') && has(engine, 'data-color-preset="muted"') && has(engine, 'data-color-preset="dramatic"') && has(engine, 'data-color-preset="mono"') && has(engine, "colorPresetValues") && has(engine, "const halfWidth = clamp(item.width * item.scale / 2, 0.02, 0.48)") && has(engine, "const halfHeight = clamp(item.height * item.scale / 2, 0.02, 0.48)") && has(engine, "item.x = clamp(value(\"x\", 50) / 100, halfWidth, 1 - halfWidth)") && has(engine, 'lutrgb=r=\'min(255,val*' ) && has(engine, 'fade=t=in:st=') && has(engine, 'fade=t=out:st=') && has(engine, 'const fitMode = clip?.fitMode === "fill" ? "cover" : "contain"') && has(engine, "objectFit: fitMode") && has(engine, "novacutPreviewLayoutSignature") && has(engine, 'clip.fitMode === "fill" ? "increase" : "decrease"') && has(suite, "syncPreviewFrame") && has(suite, "canvasShell.dataset.ratio") && has(suite, "renderTimelineRuler") && has(suite, "--nc-content-width") && has(studioCss, '[data-ratio="9:16"]') && has(engine, "applyInitialAspectRatio"), "ratio, framing, inspector, export offset or preview quality control missing"));
 
 // 26-40: media ingestion
 check("media parser class present", () => assert(has(media, "export class NovaCutMediaParser"), "parser class missing"));
@@ -65,7 +238,7 @@ check("picker trigger selector present", () => assert(has(media, "[data-novacut-
 check("file type detection present", () => assert(has(media, "function kindFromFile(file)"), "kind detection missing"));
 check("MP4 extension supported", () => assert(has(media, '"mp4"'), "mp4 support missing"));
 check("binary parser present", () => assert(has(media, "parseBinaryHeader"), "binary parser missing"));
-check("browser metadata probe present", () => assert(has(media, "probeMediaElementMetadata"), "media probe missing"));
+check("browser metadata probe preserves full video duration", () => assert(has(media, "probeMediaElementMetadata") && has(media, "Math.max(decodedDurationMs, binaryDurationMs)"), "video duration reconciliation missing"));
 check("media error event present", () => assert(has(media, '"file:error"'), "media error event missing"));
 check("media injected event present", () => assert(has(media, '"file:injected"'), "injected event missing"));
 check("video injection calls engine", () => assert(has(media, "engine.addVideoClip"), "video injection missing"));
@@ -74,23 +247,138 @@ check("audio injection calls engine", () => assert(has(media, "engine.addAudioSe
 // 41-55: suite/UI integration
 check("NovaCut renderer present", () => assert(has(suite, "function renderNovaCut()"), "renderer missing"));
 check("preview canvas present", () => assert(/data-role=['"]preview-canvas['"]/.test(suite), "preview canvas missing"));
-check("play button present", () => assert(has(suite, "data-action='play'"), "play button missing"));
-check("export button present", () => assert(/data-action=['"]export['"]/.test(suite), "export missing"));
-check("video lane present", () => assert(has(suite, "data-role='video-lane'"), "video lane missing"));
-check("audio lane present", () => assert(has(suite, "data-role='audio-lane'"), "audio lane missing"));
+check("play button and visible transport icon", () => assert(has(suite, "data-action='play'") && has(suite, "data-role='play-icon'") && has(suite, "M8 5.2v13.6L19 12 8 5.2Z") && has(studioCss, '.nx-novacut-host .nx-novacut__play svg path[fill="currentColor"]') && has(studioCss, '.nx-novacut-host .nx-novacut__play svg path:not([fill])'), "play/pause glyph or visible SVG styling missing"));
+check("mobile export action remains clearly labeled", () => assert(/data-action=['"]export['"]/.test(suite) && has(suite, "<span>Export</span>") && has(studioCss, ".nx-novacut__export-button span") && has(studioCss, "display: inline !important"), "mobile export label missing"));
+check("video lane uses cached thumbnails and visible animation keyframes", () => assert(has(suite, "data-role='video-lane'") && has(suite, "const VIDEO_THUMBNAIL_CACHE = new WeakMap();") && has(suite, "getVideoThumbnail(clip.file)") && has(suite, "data-video-thumb") && has(suite, "nx-novacut__keyframe-marker") && has(suite, "renderKeyframeMarkers(clip, duration, 'sticker keyframes')") && has(suite, "renderKeyframeMarkers(clip, duration, 'text keyframes')") && has(studioCss, ".nx-novacut__clip-thumb img") && has(studioCss, ".nx-novacut__keyframe-marker"), "timeline thumbnails or keyframe diamonds are missing"));
+check("audio lane present", () => assert(has(suite, "data-role='audio-lane'") && has(suite, "getAudioWaveform(segment.file)") && has(suite, "createNovaCutWaveformPeaks(channels, 72)") && has(suite, 'data-audio-waveform="'), "audio lane, decoded waveform extraction, or waveform rendering missing"));
 check("text lane present", () => assert(has(suite, "data-role='text-lane'"), "text lane missing"));
 check("overlay lane present", () => assert(has(suite, "data-role='overlay-lane'"), "overlay lane missing"));
 check("effects lane present", () => assert(has(suite, "data-role='effect-lane'"), "effects lane missing"));
 check("undo button present", () => assert(has(suite, "data-action='undo'"), "undo button missing"));
 check("redo button present", () => assert(has(suite, "data-action='redo'"), "redo button missing"));
 check("media parser wired", () => assert(has(suite, "createNovaCutMediaParser(root, engine"), "parser not wired"));
-check("interactions wired", () => assert(has(suite, "createNovaCutStudioInteractions(root, engine)"), "interactions not wired"));
+check("interactions wired", () => assert(has(suite, "createNovaCutStudioInteractions(root, engine, {") && has(suite, "getPixelsPerSecond: () => timelinePixelsPerSecond") && has(suite, "getSnapEnabled: () => timelineSnapEnabled") && has(suite, 'data-timeline-action="zoom-in"') && has(suite, "layoutTimelineClips") && has(studio, "beginCanvasOverlayDrag(event)") && has(studio, "flushCanvasOverlayPoint()") && has(studio, "moveNovaCutCanvasOverlay") && has(studio, "const bounds = canvas.getBoundingClientRect();") && has(studio, "const bounds = state.canvas.getBoundingClientRect();") && has(studio, "if (!insideCanvas) return false;") &&
+  has(suite, "function renderTransitionMarkers(videos, pixelsPerSecond)") &&
+  has(suite, "data-transition-marker") &&
+  has(suite, "renderTransitionMarkers(videos, timelinePixelsPerSecond)") &&
+  has(suite, "engine.selectClip(rightId)") &&
+  has(suite, "engine.setPlayhead(cutTime)") &&
+  has(suite, "engine.openTransitionEditor()") &&
+  has(studioCss, ".nx-novacut__transition-marker.is-configured") &&
+  has(engine, 'else if (action === "text") this.openTextEditor();'), "timeline zoom, track geometry, canvas drag geometry, or re-rendered text action not wired"));
 check("media injected status path", () => assert(has(suite, "Checking video decoder…"), "decode status missing"));
 check("decode error detail is visible", () => assert(has(suite, "Decode failed: ") && has(suite, "status.title = message"), "decode error details missing"));
 
 // 56-65: interaction/history correctness
-check("pointer interaction present", () => assert(has(engine, "pointerdown"), "pointerdown missing"));
-check("pointer move present", () => assert(has(engine, "pointermove"), "pointermove missing"));
+check("pointer interaction includes direct video framing without detaching timeline drag", () => {
+  const selectStart = engine.indexOf("  selectClip(id)");
+  const addStart = engine.indexOf("  addVideoClip(input)", selectStart);
+  assert(selectStart >= 0 && addStart > selectStart, "selectClip method is missing");
+  assert(!engine.slice(selectStart, addStart).includes("this.refresh()"), "selection refresh recreates timeline DOM during dragging");
+  assert(has(suite, "const updateTimelineSelection") && has(suite, "engine.on('selectionchange', updateTimelineSelection);"), "selection handler still fully rerenders timeline");
+  assert(has(engine, "pointerdown") && has(engine, 'return { type: "videoTracks", item: activeVideos[0] }') && has(engine, "record.item.y_offset =") && has(engine, "this.preview?.markDirty();"), "video preview drag framing or live canvas refresh missing");
+  assert(has(studio, "this.flushClipMutation();") && has(studio, "cancelAnimationFrame(this.pendingFrame)"), "pointerup does not synchronously flush the last queued clip mutation");
+
+  const originalCancelAnimationFrame = globalThis.cancelAnimationFrame;
+  let cancelledFrame = null;
+  globalThis.cancelAnimationFrame = (handle) => { cancelledFrame = handle; };
+  try {
+    const dragClip = { id: "qa-final-drag-delta", startTime: 1000, duration: 2000 };
+    let dragGeometryUpdated = false;
+    const dragInteraction = Object.create(NovaCutStudioInteractions.prototype);
+    Object.assign(dragInteraction, {
+      touchState: { mode: "drag", clip: dragClip, element: {}, clipId: dragClip.id, recordType: "videoTracks", originalStartTime: 1000, originalDuration: 2000 },
+      pendingFrame: 77,
+      pendingClipDx: 18,
+      engine: { activeTrackId: null, registry: { getById: () => ({ type: "videoTracks" }) } },
+      pixelsPerMs: () => 0.036,
+      clampedDragStart: (_clip, start) => Math.max(0, start),
+      snapToTimeline: (start) => start,
+      applyClipGeometry: () => { dragGeometryUpdated = true; }
+    });
+    const dragFlushed = dragInteraction.flushClipMutation();
+    assert(dragFlushed && cancelledFrame === 77 && dragInteraction.pendingFrame === 0 &&
+      dragClip.startTime === 1500 && dragGeometryUpdated && dragInteraction.engine.activeTrackId === dragClip.id,
+      "Synchronous drag flush dropped the last move or failed to cancel its queued frame.");
+
+    const trimClip = { id: "qa-final-trim-delta", startTime: 1000, duration: 3000, sourceStartTime: 200, sourceDuration: 6000, speed: 2, speedCurve: [], keyframes: [] };
+    const trimInteraction = Object.create(NovaCutStudioInteractions.prototype);
+    Object.assign(trimInteraction, {
+      touchState: {
+        mode: "trim-start", clip: trimClip, element: {}, clipId: trimClip.id, recordType: "videoTracks",
+        originalStartTime: 1000, originalDuration: 3000, originalSourceStartTime: 200,
+        originalSourceDuration: 6000, originalSpeed: 2, originalSpeedCurve: [], originalKeyframes: []
+      },
+      pendingFrame: 0,
+      pendingClipDx: 36,
+      options: { minFrameMs: 1000 / 30 },
+      engine: { activeTrackId: trimClip.id, registry: { getById: () => ({ type: "videoTracks" }) } },
+      pixelsPerMs: () => 0.036,
+      getPreviousVideoClip: () => null,
+      snapToTimeline: (start) => start,
+      applyClipGeometry: () => {}
+    });
+    const trimFlushed = trimInteraction.flushClipMutation("start");
+    assert(trimFlushed && trimClip.startTime === 2000 && trimClip.duration === 2000 &&
+      trimClip.sourceStartTime === 2200 && trimClip.sourceDuration === 4000,
+      "Synchronous start-trim flush lost source-time continuity or the final pointer delta.");
+
+    const scrolledClip = { id: "qa-edge-scroll-drag", startTime: 1000, duration: 2000 };
+    const scrolledInteraction = Object.create(NovaCutStudioInteractions.prototype);
+    Object.assign(scrolledInteraction, {
+      touchState: {
+        mode: "drag", clip: scrolledClip, element: {}, clipId: scrolledClip.id, recordType: "videoTracks",
+        originalStartTime: 1000, originalDuration: 2000, timelineScrollLeft: 100
+      },
+      timeline: { scrollLeft: 118 },
+      pendingFrame: 0,
+      pendingClipDx: 18,
+      engine: { activeTrackId: null, registry: { getById: () => ({ type: "videoTracks" }) } },
+      pixelsPerMs: () => 0.036,
+      clampedDragStart: (_clip, start) => Math.max(0, start),
+      snapToTimeline: (start) => start,
+      applyClipGeometry: () => {}
+    });
+    const scrolledFlushed = scrolledInteraction.flushClipMutation();
+    assert(scrolledFlushed && scrolledClip.startTime === 2000,
+      "Edge auto-scroll distance was not included in the effective timeline drag delta.");
+  } finally {
+    if (typeof originalCancelAnimationFrame === "function") globalThis.cancelAnimationFrame = originalCancelAnimationFrame;
+    else delete globalThis.cancelAnimationFrame;
+  }
+});
+check("playhead stays aligned and smooth without per-frame clip layout or observer churn", () => {
+  const syncStart = studio.indexOf("  syncTimeline()");
+  const syncEnd = studio.indexOf("  syncPlayhead()", syncStart);
+  const syncMethod = studio.slice(syncStart, syncEnd);
+  const installStart = studio.indexOf("  installPlayhead()");
+  const installEnd = studio.indexOf("  bind()", installStart);
+  const installMethod = studio.slice(installStart, installEnd);
+  const playheadStart = studioCss.indexOf(".nx-novacut__interaction-playhead {");
+  const playheadEnd = studioCss.indexOf("}", playheadStart);
+  const playheadRule = studioCss.slice(playheadStart, playheadEnd);
+  assert(
+    has(studio, "this.timeline.scrollLeft") &&
+    has(studio, "this.timeline.scrollWidth") &&
+    has(studio, "targetRect.left") &&
+    has(studio, "timeline-pan") &&
+    has(studio, "Math.abs(candidate - target)") &&
+    has(studio, 'element.style.left = start * scale + "px"') &&
+    has(studio, 'element.style.marginLeft = "0px"') &&
+    has(studio, 'element.style.setProperty("min-width", width + "px", "important")') &&
+    has(suite, "layoutTimelineClips") && has(studio, "beginCanvasOverlayDrag(event)") && has(studio, "flushCanvasOverlayPoint()") && has(studio, "moveNovaCutCanvasOverlay") &&
+    has(suite, "sort(byStartTime)") &&
+    syncStart >= 0 && syncEnd > syncStart &&
+    !syncMethod.includes("decorateVideoClips()") &&
+    installStart >= 0 && installEnd > installStart &&
+    !installMethod.includes("this.resizeObserver?.disconnect()") &&
+    installMethod.includes("!this.resizeObserver") &&
+    playheadStart >= 0 && has(playheadRule, "position: absolute !important") &&
+    has(studioCss, '.nx-novacut__interaction-playhead::before') &&
+    has(studioCss, 'content: "" !important'),
+    "timeline geometry, visible playhead positioning, or playback-hot-path regression"
+  );
+});
 check("pointer up present", () => assert(has(engine, "pointerup"), "pointerup missing"));
 check("pointer cancel present", () => assert(has(engine, "pointercancel"), "pointercancel missing"));
 check("history transaction begin present", () => assert(has(studio, "beginHistoryTransaction"), "history begin wiring missing"));
@@ -102,10 +390,21 @@ check("history redo present", () => assert(has(history, "redo()"), "history redo
 
 // 66-75: effects/overlays
 check("blur effect supported", () => assert(/id:\s*'blur'/.test(effects), "blur missing"));
-check("mosaic effect supported", () => assert(/id:\s*'mosaic'/.test(effects), "mosaic missing"));
-check("scramble effect supported", () => assert(/id:\s*'scramble'/.test(effects), "scramble missing"));
+check("mosaic effect reuses its offscreen render surface", () => assert(/id:\s*'mosaic'/.test(effects) && has(effects, "const mosaicSurfaceCache = new WeakMap();") && has(effects, "getMosaicSurface(effect, r.width, r.height, block)") && has(effects, "if (surface.width !== smallWidth)"), "mosaic allocates/reset canvases on every preview frame"));
+check("scramble effect reuses its seeded tile permutation", () => assert(/id:\s*'scramble'/.test(effects) && has(effects, "const scramblePermutationCache = new WeakMap();") && has(effects, "getScramblePermutation(effect, tilesX, tilesY)") && has(effects, "scramblePermutationCache.set(effect, { key, cells })"), "scramble rebuilds tile permutations on every preview frame"));
 check("censor effect supported", () => assert(/id:\s*'censor'/.test(effects), "censor missing"));
-check("effect draw API present", () => assert(has(effects, "export function drawNovaCutEffect"), "effect draw missing"));
+check("effects render in canvas and Android preview including vignette export", () => assert(
+  has(effects, "export function drawNovaCutEffect") &&
+  has(engine, "syncNativeEffectOverlays(effects)") &&
+  has(engine, "clearNativeEffectOverlays()") &&
+  /id:\s*'vignette'/.test(effects) &&
+  has(effects, "const gradient = ctx.createRadialGradient") &&
+  has(engine, 'effect.type === "vignette"') &&
+  has(engine, "radial-gradient(ellipse at center") &&
+  has(engine, "vignette=angle=") &&
+  has(engine, '["blur", "mosaic", "scramble", "censor", "vignette"]'),
+  "effects or vignette preview/export renderer missing"
+));
 check("effect normalization present", () => assert(has(effects, "export function normalizeNovaCutEffect"), "effect normalize missing"));
 check("local sticker catalog present", () => assert(has(overlays, "export const NOVACUT_STICKERS"), "sticker catalog missing"));
 check("local sticker asset resolver present", () => assert(has(overlays, "export function stickerAssetUrl"), "sticker resolver missing"));
@@ -132,15 +431,15 @@ check("picker callback receives selected URIs", () => assert(has(activity, "call
 // 91-96: Android package/release integrity
 check("production package ID correct", () => assert(has(gradle, 'applicationId = "com.nexusnova.app"'), "package ID changed"));
 check("production namespace correct", () => assert(has(gradle, 'namespace = "com.nexusnova.app"'), "namespace changed"));
-check("production version advanced", () => assert(has(gradle, "versionCode = 27010033"), "versionCode not advanced"));
-check("production version name advanced", () => assert(has(gradle, 'versionName = "1.0.46-ota-35"'), "versionName not advanced"));
+check("production version advanced", () => assert(has(gradle, "versionCode = 27010034"), "versionCode not advanced"));
+check("production version name advanced", () => assert(has(gradle, 'versionName = "1.0.47-ota-36"'), "versionName not advanced"));
 check("debug QA suffix preserved", () => assert(has(gradle, 'applicationIdSuffix = ".novacutqa"'), "QA suffix missing"));
 check("FileProvider remains present", () => assert(has(manifest, "androidx.core.content.FileProvider"), "FileProvider missing"));
 
-// 97-100: signed build gate + exact regression safety
-check("signed workflow pins current production version", () => assert(has(workflow, "versionCode = 27010033"), "signed workflow versionCode stale"));
-check("signed workflow pins current version name", () => assert(has(workflow, 'versionName = "1.0.46-ota-35"'), "signed workflow versionName stale"));
-check("signed workflow packages ota-35 artifact", () => assert(has(workflow, "NexusNova-v1.0.46-ota-35-SIGNED.apk"), "ota-35 artifact missing"));
+// 97-100: keep the protected production signing workflow frozen until an authorized release change.
+check("protected signing workflow remains on OTA-35 versionCode baseline", () => assert(has(workflow, "versionCode = 27010033") && has(workflow, "versionCode='27010033'"), "protected signing workflow baseline was unexpectedly changed"));
+check("protected signing workflow remains on OTA-35 versionName baseline", () => assert(has(workflow, 'versionName = "1.0.46-ota-35"') && has(workflow, "versionName='1.0.46-ota-35'") && has(workflow, "SIGNED OTA-35 APK VERIFIED"), "protected signing workflow version baseline was unexpectedly changed"));
+check("protected signing workflow keeps OTA-35 artifact naming", () => assert(has(workflow, "NexusNova-v1.0.46-ota-35-SIGNED.apk") && has(workflow, "NexusNova-v1.0.46-ota-35-SIGNED"), "protected signing artifact baseline was unexpectedly changed"));
 check("signed workflow validates signature before packaging", () => assert(/verify --verbose --print-certs/.test(workflow), "signature verification missing"));
 
 assert(tests.length === 100, "Expected exactly 100 QA checks, got " + tests.length);
@@ -163,12 +462,338 @@ if (passed !== 100) {
 
 // Behavioural unit tests for the exact blank-preview failure path.
 globalThis.window ??= globalThis;
-const { NovaCutCanvasPreview, isAndroidWebViewUserAgent } = await import("../fresh-rebuild/src/features/apps/novacut-engine.js");
+const { NovaCutEngine, NovaCutCanvasPreview, NovaCutCommandCompiler, isAndroidWebViewUserAgent } = await import("../fresh-rebuild/src/features/apps/novacut-engine.js");
+const { novaCutCanvasPointFromClient, moveNovaCutCanvasOverlay, createNovaCutWaveformPeaks } = await import("../fresh-rebuild/src/features/apps/novacut-studio.js");
+const genericKeyframeEngine = new NovaCutEngine();
+const genericVideo = genericKeyframeEngine.registry.addVideoClip({ id: "qa-generic-keyframe-video", startTime: 0, duration: 3000 });
+const genericText = genericKeyframeEngine.registry.addTextCue({ id: "qa-generic-keyframe-text", startTime: 0, duration: 3000, text: "Keyframe" });
+const genericSticker = genericKeyframeEngine.registry.addOverlay({ id: "qa-generic-keyframe-sticker", startTime: 0, duration: 3000, x: 0.5, y: 0.5 });
+for (const item of [genericVideo, genericText, genericSticker]) {
+  genericKeyframeEngine.currentTimestamp = 1000;
+  genericKeyframeEngine.activeTrackId = item.id;
+  if (!genericKeyframeEngine.setSelectedKeyframeAtPlayhead() || !item.keyframes?.length) {
+    throw new Error("The generic keyframe tool did not create a keyframe for " + item.id + ".");
+  }
+  if (!genericKeyframeEngine.removeSelectedKeyframeAtPlayhead() || item.keyframes.length !== 0) {
+    throw new Error("The generic keyframe remove tool did not remove a keyframe for " + item.id + ".");
+  }
+}
+console.log("GENERIC KEYFRAME TOOL 3/3 PASS  video, text and sticker selection dispatch");
+const flipEngine = new NovaCutEngine();
+const flipVideo = flipEngine.registry.addVideoClip({ id: "qa-flip-video", startTime: 0, duration: 2000 });
+const flipText = flipEngine.registry.addTextCue({ id: "qa-flip-text", startTime: 0, duration: 2000, text: "Flip" });
+const flipSticker = flipEngine.registry.addOverlay({ id: "qa-flip-sticker", startTime: 0, duration: 2000, flipX: false, flipY: false });
+const flipCases = [
+  { item: flipVideo, read: key => flipVideo.transform[key] },
+  { item: flipText, read: key => flipText.style[key] },
+  { item: flipSticker, read: key => flipSticker[key] }
+];
+for (const test of flipCases) {
+  flipEngine.activeTrackId = test.item.id;
+  if (!flipEngine.flipSelected("x") || !flipEngine.flipSelected("y") ||
+      test.read("flipX") !== true || test.read("flipY") !== true) {
+    throw new Error("Flip X/Y did not update the selected visual layer " + test.item.id + ".");
+  }
+}
+console.log("FLIP TOOL BEHAVIOUR 3/3 PASS  video, text and sticker flip state");
+const originalIndexedDB = globalThis.indexedDB;
+const fakeDraftRecords = new Map();
+const fakeDraftStores = new Set();
+const fakeDraftDB = {
+  objectStoreNames: { contains: name => fakeDraftStores.has(name) },
+  createObjectStore(name) { fakeDraftStores.add(name); return {}; },
+  transaction() {
+    const tx = { error: null, objectStore: () => ({
+      get(key) {
+        const request = {};
+        queueMicrotask(() => {
+          request.result = fakeDraftRecords.get(key) || null;
+          request.onsuccess?.();
+        });
+        return request;
+      },
+      put(value) {
+        fakeDraftRecords.set(value.id, value);
+        queueMicrotask(() => tx.oncomplete?.());
+        return {};
+      }
+    }) };
+    return tx;
+  }
+};
+globalThis.indexedDB = {
+  open() {
+    const request = { result: fakeDraftDB };
+    queueMicrotask(() => {
+      if (!fakeDraftStores.has("drafts")) request.onupgradeneeded?.();
+      request.onsuccess?.();
+    });
+    return request;
+  }
+};
+try {
+  const draftEngine = new NovaCutEngine();
+  draftEngine.projectReady = true;
+  draftEngine.aspectRatio = "9:16";
+  const persistedMedia = new Blob(["NovaCut draft fixture"], { type: "video/mp4" });
+  draftEngine.registry.addVideoClip({ id: "qa-persisted-video", file: persistedMedia, startTime: 0, duration: 1234 });
+  draftEngine.activeTrackId = "qa-persisted-video";
+  if (!await draftEngine.saveProjectDraft()) throw new Error("NovaCut draft did not save.");
+  const restoredEngine = new NovaCutEngine();
+  const restored = await restoredEngine.restoreProjectDraft();
+  const restoredClip = restoredEngine.registry.videoTracks[0];
+  if (!restored.restored || restoredEngine.aspectRatio !== "9:16" ||
+      restoredClip?.id !== "qa-persisted-video" || restoredClip.file !== persistedMedia ||
+      restoredEngine.activeTrackId !== "qa-persisted-video") {
+    throw new Error("NovaCut draft did not restore media, timeline model, aspect ratio, or selection.");
+  }
+  console.log("PROJECT DRAFT SAVE/RESTORE 1/1 PASS  media blob and editor state survive draft round-trip");
+} finally {
+  if (originalIndexedDB === undefined) delete globalThis.indexedDB;
+  else globalThis.indexedDB = originalIndexedDB;
+}
+const centerPoint = novaCutCanvasPointFromClient(110, 70, { left: 10, top: 20, width: 200, height: 100 });
+if (centerPoint?.x !== 0.5 || centerPoint?.y !== 0.5 ||
+    novaCutCanvasPointFromClient(10, 20, { left: 0, top: 0, width: 0, height: 100 }) !== null) {
+  throw new Error("Canvas overlay pointer mapping failed for centered or zero-sized preview bounds.");
+}
+const movableText = { style: { x: 0.5, y: 0.5 } };
+const movedText = moveNovaCutCanvasOverlay(movableText, "textTracks", -5, 4);
+const movableSticker = { x: 0.5, y: 0.5, width: 0.2, height: 0.3, scale: 1 };
+const movedSticker = moveNovaCutCanvasOverlay(movableSticker, "overlayTracks", 0, 1);
+if (movedText?.x !== 0.02 || movedText?.y !== 0.98 ||
+    Math.abs(movedSticker?.x - 0.1) > 1e-9 || Math.abs(movedSticker?.y - 0.85) > 1e-9) {
+  throw new Error("Canvas drag did not clamp text safely or keep the scaled sticker inside the frame.");
+}
+const waveformPeaks = createNovaCutWaveformPeaks([Float32Array.from([0, 0.1, -0.2, 0.3, -0.4, 0.5, -0.6, 0.7])], 8);
+if (waveformPeaks.length !== 8 || waveformPeaks[0] !== 4 || waveformPeaks[7] !== 70 ||
+    createNovaCutWaveformPeaks([], 72).length !== 0) {
+  throw new Error("Audio waveform peak sampler failed for silence, signal peaks, or empty input.");
+}
+console.log("AUDIO WAVEFORM BEHAVIOUR 1/1 PASS  bounded peak sampling and empty-input handling");
+console.log("CANVAS OVERLAY BEHAVIOUR 2/2 PASS  normalized drag mapping, bounds clamp, and scaled sticker frame");
 
 const androidWebViewUA = "Mozilla/5.0 (Linux; Android 13; Test Device; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/120.0.0.0 Mobile Safari/537.36";
 const androidChromeUA = "Mozilla/5.0 (Linux; Android 13; Test Device) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
 if (!isAndroidWebViewUserAgent(androidWebViewUA)) throw new Error("Android WebView user agent did not select the native compositor.");
 if (isAndroidWebViewUserAgent(androidChromeUA)) throw new Error("Regular Android Chrome was incorrectly forced into WebView native mode.");
+// Timeline split behavior is exercised through the real engine registry/history APIs.
+const splitEngine = new NovaCutEngine();
+splitEngine.registry.addVideoClip({ id: "qa-split-video", startTime: 1000, duration: 4000, sourceStartTime: 250 });
+const videoSplit = splitEngine.executeSplitAction("qa-split-video", 2500);
+if (!videoSplit.success || splitEngine.registry.videoTracks.length !== 2 ||
+    videoSplit.firstClip.id !== "qa-split-video" || videoSplit.firstClip.duration !== 1500 ||
+    videoSplit.secondClip.startTime !== 2500 || videoSplit.secondClip.duration !== 2500 ||
+    videoSplit.secondClip.sourceStartTime !== 1750) {
+  throw new Error("NovaCut video split did not preserve timeline duration/source offset.");
+}
+splitEngine.registry.addAudioSegment({ id: "qa-split-audio", startTime: 5000, duration: 3000, sourceStartTime: 750 });
+const audioSplit = splitEngine.executeSplitAction("qa-split-audio", 6500);
+if (!audioSplit.success || audioSplit.firstClip.duration !== 1500 ||
+    audioSplit.secondClip.startTime !== 6500 || audioSplit.secondClip.sourceStartTime !== 2250) {
+  throw new Error("NovaCut audio split did not preserve source offset.");
+}
+splitEngine.registry.addTextCue({ id: "qa-split-text", text: "QA", startTime: 9000, duration: 2000 });
+const textSplit = splitEngine.executeSplitAction("qa-split-text", 10000);
+if (!textSplit.success || textSplit.firstClip.duration !== 1000 || textSplit.secondClip.duration !== 1000) {
+  throw new Error("NovaCut text split failed.");
+}
+console.log("TIMELINE BEHAVIOUR 3/3 PASS  video, audio source offsets, and text split");
+  const opacityLayerEngine = new NovaCutEngine();
+  const opacityTextLayer = opacityLayerEngine.registry.addTextCue({ id: "qa-opacity-text", startTime: 1000, duration: 2000 });
+  opacityLayerEngine.currentTimestamp = 1500;
+  opacityLayerEngine.activeTrackId = opacityTextLayer.id;
+  if (!opacityLayerEngine.setLayerOpacityKeyframeAtPlayhead({ opacity: 0.35, easing: "ease-in" }) ||
+      opacityTextLayer.keyframes.length !== 1 ||
+      opacityTextLayer.keyframes[0].opacity !== 0.35 ||
+      opacityTextLayer.keyframes[0].easing !== "ease-in") {
+    throw new Error("Text opacity keyframe did not persist the selected playhead value and easing.");
+  }
+  opacityLayerEngine.currentTimestamp = 1950;
+  if (Math.abs(clipOpacityAt(opacityTextLayer, opacityLayerEngine.currentTimestamp) - 0.35) > 0.001) {
+    throw new Error("Text opacity keyframe did not feed the preview alpha envelope.");
+  }
+  opacityLayerEngine.currentTimestamp = 1500;
+  if (!opacityLayerEngine.removeLayerOpacityKeyframeAtPlayhead() || opacityTextLayer.keyframes.length !== 0) {
+    throw new Error("Text opacity keyframe could not be removed at the playhead.");
+  }
+console.log("LAYER OPACITY KEYFRAME BEHAVIOUR 1/1 PASS  text layer keyframe add, interpolation, and remove");
+const animatedStickerEngine = new NovaCutEngine();
+const animatedSticker = animatedStickerEngine.registry.addOverlay({
+  id: "qa-animated-sticker", startTime: 1000, duration: 2000, x: 0.2, y: 0.3,
+  width: 0.2, height: 0.2, scale: 1, rotation: 0, opacity: 1
+});
+animatedStickerEngine.currentTimestamp = 1250;
+animatedStickerEngine.activeTrackId = animatedSticker.id;
+if (!animatedStickerEngine.setLayerOpacityKeyframeAtPlayhead({
+  x: 0.25, y: 0.35, scale: 1.2, rotation: 15, opacity: 0.9, easing: "linear"
+})) throw new Error("Sticker geometry keyframe could not be added at the playhead.");
+animatedStickerEngine.currentTimestamp = 2250;
+if (!animatedStickerEngine.setLayerOpacityKeyframeAtPlayhead({
+  x: 0.75, y: 0.85, scale: 2, rotation: 105, opacity: 0.3, easing: "linear"
+})) throw new Error("Second sticker geometry keyframe could not be added.");
+const sampledSticker = sampleNovaCutLayerKeyframes(animatedSticker, 1750, "overlayTracks");
+if (Math.abs(sampledSticker.x - 0.5) > 0.001 || Math.abs(sampledSticker.y - 0.6) > 0.001 ||
+    Math.abs(sampledSticker.scale - 1.6) > 0.001 || Math.abs(sampledSticker.rotation - 60) > 0.001 ||
+    Math.abs(sampledSticker.opacity - 0.6) > 0.001) {
+  throw new Error("Sticker position/scale/rotation/opacity keyframe interpolation failed.");
+}
+console.log("STICKER TRANSFORM KEYFRAME BEHAVIOUR 1/1 PASS  position, scale, rotation and opacity interpolate at playhead");
+const animatedText = {
+  startTime: 1000, duration: 2000, opacity: 1,
+  style: { x: 0.2, y: 0.3, rotation: -10, fontSize: 48 },
+  keyframes: [
+    { timeMs: 0, x: 0.2, y: 0.3, scale: 1, rotation: -10, opacity: 1, easing: "linear" },
+    { timeMs: 2000, x: 0.8, y: 0.7, scale: 1.5, rotation: 30, opacity: 0.5, easing: "linear" }
+  ]
+};
+const sampledText = sampleNovaCutLayerKeyframes(animatedText, 2000, "textTracks");
+if (Math.abs(sampledText.x - 0.5) > 0.001 || Math.abs(sampledText.y - 0.5) > 0.001 ||
+    Math.abs(sampledText.scale - 1.25) > 0.001 || Math.abs(sampledText.rotation - 10) > 0.001 ||
+    Math.abs(sampledText.opacity - 0.75) > 0.001) {
+  throw new Error("Text position/scale/rotation/opacity did not interpolate at the playhead.");
+}
+console.log("TEXT TRANSFORM KEYFRAME BEHAVIOUR 1/1 PASS  position, scale, rotation and opacity interpolate at playhead");
+const speedCurvePoints = normalizeNovaCutSpeedCurve([
+  { timeMs: 0, speed: 1 }, { timeMs: 1000, speed: 2 },
+  { timeMs: 3000, speed: 0.5 }, { timeMs: 4000, speed: 1 }
+], 4000, 4000);
+const speedCurveClip = { id: "qa-speed-curve", startTime: 1000, duration: 4000, speed: 1, sourceDuration: 4000, speedCurve: speedCurvePoints };
+if (Math.abs(novaCutSourceOffsetForTimeline(speedCurveClip, 4000) - 4000) > 0.5 ||
+    Math.abs(sampleNovaCutSpeed(speedCurveClip, 2000) - speedCurvePoints[1].speed) > 0.001) {
+  throw new Error("Speed curve normalization or playhead speed sampling failed.");
+}
+for (const localTime of [0, 250, 1000, 1800, 2500, 3999, 4000]) {
+  const sourceOffset = novaCutSourceOffsetForTimeline(speedCurveClip, localTime);
+  const timelineOffset = novaCutTimelineOffsetForSource(speedCurveClip, sourceOffset);
+  if (Math.abs(timelineOffset - localTime) > 0.2) {
+    throw new Error("Speed curve source/timeline inverse drifted at " + localTime + "ms: " + timelineOffset);
+  }
+}
+const montageCurve = createNovaCutSpeedCurvePreset("montage", 4000, 4000);
+if (montageCurve.length < 4 || Math.abs(novaCutSourceOffsetForTimeline({ ...speedCurveClip, speedCurve: montageCurve }, 4000) - 4000) > 0.5) {
+  throw new Error("Montage speed curve preset does not preserve the clip's source span.");
+}
+const authoredCurve = createNovaCutCustomSpeedCurve([
+  { position: 0, speed: 1 },
+  { position: 20, speed: 2.5 },
+  { position: 70, speed: 0.5 },
+  { position: 100, speed: 1 }
+], 4000, 4000);
+if (authoredCurve.length < 4 ||
+    authoredCurve[0].timeMs !== 0 ||
+    authoredCurve[authoredCurve.length - 1].timeMs !== 4000 ||
+    Math.abs(novaCutSourceOffsetForTimeline({ ...speedCurveClip, speedCurve: authoredCurve }, 4000) - 4000) > 0.5 ||
+    new Set(authoredCurve.map((point) => Math.round(point.speed * 100))).size < 3) {
+  throw new Error("Custom speed curve authoring did not preserve endpoints, curve shape, and source duration.");
+}
+console.log("CUSTOM SPEED CURVE AUTHORING 1/1 PASS  editable points normalize to clip duration and preserve source span");
+
+const playbackPreview = Object.create(NovaCutCanvasPreview.prototype);
+const previewErrorEvents = [];
+playbackPreview.engine = {
+  isPlaying: true,
+  currentTimestamp: 1000,
+  reportError: (kind, error) => previewErrorEvents.push({ kind, message: String(error?.message || error) })
+};
+playbackPreview.videoPlayPending = new WeakSet();
+playbackPreview.audioPlayPending = new WeakSet();
+let resolveVideoPlay;
+let resolveAudioPlay;
+const pendingVideo = {
+  paused: true,
+  playCalls: 0,
+  pauseCalls: 0,
+  play() { this.playCalls += 1; return new Promise((resolve) => { resolveVideoPlay = () => { this.paused = false; resolve(); }; }); },
+  pause() { this.pauseCalls += 1; this.paused = true; }
+};
+const pendingAudio = {
+  paused: true,
+  playCalls: 0,
+  pauseCalls: 0,
+  play() { this.playCalls += 1; return new Promise((resolve) => { resolveAudioPlay = () => { this.paused = false; resolve(); }; }); },
+  pause() { this.pauseCalls += 1; this.paused = true; }
+};
+if (!playbackPreview.startMediaPlaybackOnce(pendingVideo, playbackPreview.videoPlayPending, "playback") ||
+    playbackPreview.startMediaPlaybackOnce(pendingVideo, playbackPreview.videoPlayPending, "playback") ||
+    pendingVideo.playCalls !== 1 || !playbackPreview.videoPlayPending.has(pendingVideo)) {
+  throw new Error("Repeated preview renders issued duplicate video.play() requests before the decoder settled.");
+}
+if (!playbackPreview.startMediaPlaybackOnce(pendingAudio, playbackPreview.audioPlayPending) ||
+    playbackPreview.startMediaPlaybackOnce(pendingAudio, playbackPreview.audioPlayPending) ||
+    pendingAudio.playCalls !== 1 || !playbackPreview.audioPlayPending.has(pendingAudio)) {
+  throw new Error("Repeated preview renders issued duplicate audio.play() requests before the audio decoder settled.");
+}
+playbackPreview.engine.isPlaying = false;
+resolveVideoPlay();
+resolveAudioPlay();
+await Promise.resolve();
+await Promise.resolve();
+await Promise.resolve();
+if (playbackPreview.videoPlayPending.has(pendingVideo) || playbackPreview.audioPlayPending.has(pendingAudio) ||
+    !pendingVideo.paused || !pendingAudio.paused || pendingVideo.pauseCalls !== 1 || pendingAudio.pauseCalls !== 1 ||
+    previewErrorEvents.length) {
+  throw new Error("A late play promise was not cleared/paused safely after Pause.");
+}
+console.log("MEDIA PLAY RETRY 1/1 PASS  duplicate video/audio play requests are guarded and late playback stops after Pause");
+console.log("SPEED CURVE MAPPING 1/1 PASS  smooth rate sampling, source integration/inversion, and duration preservation");
+const curveSplitEngine = new NovaCutEngine();
+curveSplitEngine.registry.addVideoClip({
+  id: "qa-speed-curve-split", startTime: 0, duration: 4000, sourceStartTime: 500,
+  speed: 1, sourceDuration: 4000, speedCurve: speedCurvePoints, speedCurvePreset: "custom"
+});
+curveSplitEngine.currentTimestamp = 2000;
+curveSplitEngine.activeTrackId = "qa-speed-curve-split";
+const expectedCurveSplitOffset = novaCutSourceOffsetForTimeline(curveSplitEngine.registry.videoTracks[0], 2000);
+const curveSplit = curveSplitEngine.executeSplitAction("qa-speed-curve-split", 2000);
+if (!curveSplit.success ||
+    Math.abs(curveSplit.firstClip.sourceDuration + curveSplit.secondClip.sourceDuration - 4000) > 0.5 ||
+    Math.abs(curveSplit.secondClip.sourceStartTime - (500 + expectedCurveSplitOffset)) > 0.5 ||
+    curveSplit.firstClip.speedCurve.length < 2 || curveSplit.secondClip.speedCurve.length < 2) {
+  throw new Error("Splitting a speed-curved clip lost source offsets or its curve segments.");
+}
+console.log("SPEED CURVE SPLIT 1/1 PASS  source continuity and both curve segments survive split");
+const speedSplitEngine = new NovaCutEngine();
+speedSplitEngine.registry.addVideoClip({ id: "qa-speed-split", startTime: 0, duration: 4000, sourceStartTime: 500, speed: 2, sourceDuration: 8000 });
+const speedSplit = speedSplitEngine.executeSplitAction("qa-speed-split", 2000);
+if (!speedSplit.success || speedSplit.firstClip.sourceDuration !== 4000 || speedSplit.secondClip.sourceDuration !== 4000 ||
+    speedSplit.secondClip.sourceStartTime !== 4500 || speedSplit.secondClip.speed !== 2) {
+  throw new Error("Speed-adjusted split lost source duration, source offset, or playback speed.");
+}
+console.log("SPEED BEHAVIOUR 1/2 PASS  split preserves source-time offsets at 2x speed");
+const transitionEngine = new NovaCutEngine();
+const transitionLeft = transitionEngine.registry.addVideoClip({ id: "qa-transition-left", startTime: 0, duration: 4000 });
+const transitionRight = transitionEngine.registry.addVideoClip({ id: "qa-transition-right", startTime: 4000, duration: 3000 });
+const transitionNext = transitionEngine.registry.addVideoClip({ id: "qa-transition-next", startTime: 7000, duration: 2500 });
+transitionEngine.registry.textTracks.push({ id: "qa-transition-caption", startTime: 4500, duration: 1200 });
+transitionEngine.registry.overlayTracks.push({ id: "qa-transition-sticker", startTime: 5000, duration: 1200 });
+transitionEngine.registry.effectTracks.push({ id: "qa-transition-effect", startTime: 5200, duration: 1200 });
+transitionEngine.registry.audioTracks.push({ id: "qa-transition-music", startTime: 4500, duration: 3000, volume: 0.5 });
+transitionEngine.currentTimestamp = 4000;
+transitionEngine.activeTrackId = transitionRight.id;
+const transitionApply = transitionEngine.applyTransitionAtPlayhead(500, "cross-dissolve");
+if (!transitionApply.success || transitionRight.startTime !== 3500 ||
+    transitionRight.transitionIn?.type !== "cross-dissolve" || transitionRight.fadeInMs !== 500 ||
+    transitionLeft.fadeOutMs !== 0 || transitionNext.startTime !== 6500 ||
+    transitionEngine.registry.textTracks[0].startTime !== 4000 ||
+    transitionEngine.registry.overlayTracks[0].startTime !== 4500 ||
+    transitionEngine.registry.effectTracks[0].startTime !== 4700 ||
+    transitionEngine.registry.audioTracks[0].startTime !== 4500) {
+  throw new Error("Cross dissolve must overlap the incoming clip, ripple later visual tracks, and leave independent music anchored.");
+}
+const transitionPair = transitionEngine.findTransitionPairNearPlayhead();
+if (transitionPair?.left.id !== transitionLeft.id || transitionPair?.right.id !== transitionRight.id) {
+  throw new Error("Cross-dissolve cut was not discoverable after its timeline overlap was applied.");
+}
+const transitionClear = transitionEngine.clearTransitionAtPlayhead();
+if (!transitionClear.success || transitionRight.startTime !== 4000 || transitionNext.startTime !== 7000 ||
+    transitionRight.transitionIn || transitionRight.fadeInMs !== 0 ||
+    transitionEngine.registry.textTracks[0].startTime !== 4500 ||
+    transitionEngine.registry.overlayTracks[0].startTime !== 5000 ||
+    transitionEngine.registry.effectTracks[0].startTime !== 5200) {
+  throw new Error("Removing cross dissolve did not restore original clip and visual overlay timing.");
+}
+console.log("TRANSITION BEHAVIOUR 2/2 PASS  cross dissolve preview model and reversible visual ripple");
 console.log("PLAYBACK BEHAVIOUR 1/7 PASS  Android WebView selects native compositor");
 
 class FakeVideoElement {
@@ -285,6 +910,159 @@ if (sourceAudioVideo.muted || sourceAudioVideo.defaultMuted || sourceAudioVideo.
 }
 console.log("PLAYBACK BEHAVIOUR 7/7 PASS  source video audio is restored during playback");
 
+// Command-plan regression tests. They exercise the export graph without
+// needing a phone or starting the WASM FFmpeg runtime.
+const makeCompilerEngine = ({ videos = [], audios = [], texts = [], stickers = [] } = {}) => ({
+  aspectRatio: "16:9",
+  registry: {
+    videoTracks: videos,
+    audioTracks: audios,
+    textTracks: texts,
+    overlayTracks: stickers,
+    effectTracks: [],
+    durationMs() {
+      return Math.max(1, ...[...videos, ...audios, ...texts, ...stickers].map(item =>
+        Math.max(0, Number(item.startTime) || 0) + Math.max(0, Number(item.duration) || 0)
+      ));
+    }
+  }
+});
+const compilerVideo = (overrides = {}) => ({
+  id: "video-source",
+  file: { name: "source.mp4", type: "video/mp4" },
+  startTime: 0,
+  duration: 5000,
+  sourceStartTime: 0,
+  volume: 0.7,
+  scale: 1,
+  x_offset: 0,
+  transform: { scale: 1, rotation: 0, flipX: false, flipY: false },
+  metadata: { hasAudio: true, width: 720, height: 1280 },
+  ...overrides
+});
+const videoAudioPlan = new NovaCutCommandCompiler(makeCompilerEngine({
+  videos: [compilerVideo({ fadeInMs: 1000, fadeOutMs: 500 })]
+})).compile();
+const videoAudioFilter = videoAudioPlan.args[videoAudioPlan.args.indexOf("-filter_complex") + 1];
+if (!videoAudioFilter.includes("[0:a:0]atrim=start=0.000:duration=5.000") ||
+    !videoAudioFilter.includes("afade=t=in:st=0:d=1.000") ||
+    !videoAudioFilter.includes("afade=t=out:st=4.500:d=0.500") ||
+    !videoAudioPlan.args.includes("[vsrcaudio0]") ||
+    !videoAudioFilter.includes("scale=1920:1080:force_original_aspect_ratio=decrease") ||
+    !videoAudioFilter.includes("overlay=x=(W-w)/2+0:y=(H-h)/2")) {
+  throw new Error("Export command omitted source audio, output-canvas fitting, or centered positioning.");
+}
+console.log("EXPORT BEHAVIOUR 1/4 PASS  source video audio maps to MP4 output");
+
+const mixedAudioPlan = new NovaCutCommandCompiler(makeCompilerEngine({
+  videos: [compilerVideo()],
+  audios: [{ id: "music-track", file: { name: "music.mp3", type: "audio/mpeg" }, startTime: 1000, duration: 3000, volume: 0.8, fadeInMs: 750, fadeOutMs: 500 }]
+})).compile();
+const mixedAudioFilter = mixedAudioPlan.args[mixedAudioPlan.args.indexOf("-filter_complex") + 1];
+if (!mixedAudioFilter.includes("[0:a:0]") || !mixedAudioFilter.includes("[1:a:0]") ||
+    !mixedAudioFilter.includes("afade=t=in:st=0:d=0.750") ||
+    !mixedAudioFilter.includes("afade=t=out:st=2.500:d=0.500") ||
+    !mixedAudioFilter.includes("amix=inputs=2") || !mixedAudioPlan.args.includes("[aout]")) {
+  throw new Error("Export command failed to mix source audio with imported music.");
+}
+console.log("EXPORT BEHAVIOUR 2/4 PASS  video and imported audio are mixed");
+
+const silentVideoPlan = new NovaCutCommandCompiler(makeCompilerEngine({
+  videos: [compilerVideo({ metadata: { hasAudio: false, width: 720, height: 1280 } })]
+})).compile();
+const silentVideoFilter = silentVideoPlan.args[silentVideoPlan.args.indexOf("-filter_complex") + 1];
+if (silentVideoFilter.includes("[0:a:0]")) throw new Error("Silent video incorrectly generated an audio-stream reference.");
+console.log("EXPORT BEHAVIOUR 3/4 PASS  silent video avoids missing audio stream");
+
+const stickerPlan = new NovaCutCommandCompiler(makeCompilerEngine({
+  videos: [compilerVideo({ metadata: { hasAudio: false, width: 720, height: 1280 } })],
+  stickers: [{
+    id: "sticker-1", asset: "local:star", label: "Star", glyph: "★",
+    x: 0.5, y: 0.5, width: 0.2, height: 0.25, scale: 1,
+    rotation: 0, startTime: 0, duration: 3000, zIndex: 20
+  }]
+})).compile();
+const stickerFilter = stickerPlan.args[stickerPlan.args.indexOf("-filter_complex") + 1];
+if (!stickerFilter.includes("scale=384:270:force_original_aspect_ratio=decrease") ||
+    !stickerFilter.includes("pad=384:270:(ow-iw)/2:(oh-ih)/2:color=black@0") ||
+    /overlay=x=main_w[^;]*:w=main_w/.test(stickerFilter)) {
+  throw new Error("Sticker export does not scale the sticker before overlay composition.");
+}
+console.log("EXPORT BEHAVIOUR 4/4 PASS  sticker assets scale before overlay");
+const animatedTextPlan = new NovaCutCommandCompiler(makeCompilerEngine({
+  videos: [compilerVideo({ metadata: { hasAudio: false, width: 720, height: 1280 } })],
+  texts: [{
+    id: "animated-caption", text: "Move with the beat", startTime: 1000, duration: 2000, opacity: 1,
+    style: { x: 0.2, y: 0.3, rotation: -10, fontSize: 48, color: "#ffffff" },
+    keyframes: [
+      { timeMs: 0, x: 0.2, y: 0.3, scale: 1, rotation: -10, opacity: 1, easing: "linear" },
+      { timeMs: 2000, x: 0.8, y: 0.7, scale: 1.5, rotation: 30, opacity: 0.5, easing: "linear" }
+    ]
+  }]
+})).compile();
+const animatedTextFilter = animatedTextPlan.args[animatedTextPlan.args.indexOf("-filter_complex") + 1];
+if (!animatedTextFilter.includes("scale=w='trunc(iw*(") ||
+    !animatedTextFilter.includes("rotate=angle='(") ||
+    !animatedTextFilter.includes("overlay=x='(main_w-overlay_w)/2+((") ||
+    !animatedTextFilter.includes("clip((t-1.0000)/2.0000,0,1)") ||
+    !animatedTextFilter.includes("alpha(X,Y)*(")) {
+  throw new Error("Animated text geometry/opacity was not compiled into the FFmpeg filter graph.");
+}
+console.log("TEXT KEYFRAME EXPORT 1/1 PASS  animated geometry and opacity map into FFmpeg output");
+const speedCurveExport = new NovaCutCommandCompiler(makeCompilerEngine({
+  videos: [compilerVideo({
+    duration: 5000, sourceDuration: 5000, speed: 1,
+    speedCurve: normalizeNovaCutSpeedCurve([
+      { timeMs: 0, speed: 0.25 },
+      { timeMs: 2500, speed: 1.75 },
+      { timeMs: 5000, speed: 0.25 }
+    ], 5000, 5000)
+  })]
+})).compile();
+const speedCurveGraph = speedCurveExport.args[speedCurveExport.args.indexOf("-filter_complex") + 1];
+if (!speedCurveGraph.includes("setpts='(if(") ||
+    !speedCurveGraph.includes("sqrt(max(0") ||
+    !speedCurveGraph.includes("asplit=2") ||
+    !speedCurveGraph.includes("concat=n=2:v=0:a=1")) {
+  throw new Error("Speed curve export omitted variable video timing or source-audio synchronization.");
+}
+console.log("SPEED CURVE EXPORT 1/1 PASS  variable-rate video PTS and aligned source-audio segments compile");
+const speedPlan = new NovaCutCommandCompiler(makeCompilerEngine({
+  videos: [compilerVideo({ duration: 2500, speed: 2, sourceDuration: 5000 })]
+})).compile();
+const speedFilter = speedPlan.args[speedPlan.args.indexOf("-filter_complex") + 1];
+if (!speedFilter.includes("trim=start=0.000:end=5.000") ||
+    !speedFilter.includes("setpts=(PTS-STARTPTS)/2.000+0.000/TB") ||
+    !speedFilter.includes("atrim=start=0.000:duration=5.000") || !speedFilter.includes("atempo=2.000")) {
+  throw new Error("2x speed export did not preserve the source span and synchronize video/audio duration.");
+}
+console.log("SPEED BEHAVIOUR 2/2 PASS  FFmpeg video and source audio remain synchronized at 2x");
+const easedExport = new NovaCutCommandCompiler(makeCompilerEngine({
+  videos: [compilerVideo({ keyframes: [
+    { timeMs: 0, scale: 1, easing: "ease-in-out" },
+    { timeMs: 1000, scale: 2 }
+  ] })]
+})).compile();
+const easedExportFilter = easedExport.args[easedExport.args.indexOf("-filter_complex") + 1];
+if (!easedExportFilter.includes("pow(") || !easedExportFilter.includes("lt(clip((t-0.0000)/1.0000,0,1),0.5)")) {
+  throw new Error("Export transform expressions omitted the selected keyframe easing curve.");
+}
+console.log("KEYFRAME EXPORT BEHAVIOUR 1/1 PASS  easing curve appears in FFmpeg expression");
+
+const opacityExport = new NovaCutCommandCompiler(makeCompilerEngine({
+  videos: [compilerVideo({ opacity: 1, keyframes: [
+    { timeMs: 0, scale: 1, opacity: 1, easing: "linear" },
+    { timeMs: 1000, scale: 1, opacity: 0.25 }
+  ] })]
+})).compile();
+const opacityExportFilter = opacityExport.args[opacityExport.args.indexOf("-filter_complex") + 1];
+if (!opacityExportFilter.includes("geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='alpha(X,Y)*(") ||
+    !opacityExportFilter.includes("if(lt(T,1.0000") ||
+    !opacityExportFilter.includes("0.2500")) {
+  throw new Error("Opacity keyframes were not mapped to a time-varying FFmpeg alpha expression.");
+}
+console.log("OPACITY KEYFRAME EXPORT 1/1 PASS  animated alpha curve is included in FFmpeg output");
+
 
 const syntaxFiles = [
   "fresh-rebuild/src/features/apps/novacut-engine.js",
@@ -301,4 +1079,5 @@ for (const file of syntaxFiles) {
 }
 
 console.log("NOVACUT 100/100 QA PASS");
+console.log("NOVACUT EXPORT BEHAVIOUR 4/4 PASS");
 console.log("NOVACUT JS SYNTAX 7/7 PASS");
