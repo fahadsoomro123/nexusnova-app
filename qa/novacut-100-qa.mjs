@@ -81,15 +81,15 @@ check("video add API and visual controls are normalized", () => assert(
   "video clip visual properties or keyframe animation are missing"
 ));
 check("audio add API and source-audio export mapping", () => assert(has(engine, "addAudioSegment(input)") && has(engine, "fadeInMs: clamp(input.fadeInMs ?? 0, 0, Math.max(250, Number(input.duration) || 250))") && has(engine, "sampleNovaCutAudioGain(segment, timestamp)") && has(engine, "sampleNovaCutAudioGain(segment, now)") && has(engine, "sampleNovaCutAudioGain(clip, this.engine.currentTimestamp)") && has(engine, "sampleNovaCutAudioGain(clip, now)") && has(engine, 'afade=t=in:st=0:d=') && has(engine, "clip.metadata?.hasAudio !== true") && has(engine, "vsrcaudio") && has(engine, "audioLabels.map"), "source audio mapping or synchronized audio fade envelope missing"));
-check("text position, scale and rotation keyframes drive preview and export", () => assert(
+check("text add API and transform animation", () => assert(
+  has(engine, "addTextCue(input)") &&
   has(engine, 'sampleNovaCutLayerKeyframes(cue, this.engine.currentTimestamp, "textTracks")') &&
   has(engine, 'ffmpegNovaCutLayerKeyframeExpression(cue, "textTracks", "x"') &&
   has(engine, 'ffmpegNovaCutLayerKeyframeExpression(cue, "textTracks", "scale"') &&
   has(engine, 'const x = width / 2;') &&
   has(engine, "overlay=x=\" + xPosition"),
-  "text-layer transform keyframes are missing from preview or export"
+  "text add API or text-layer transform keyframes are missing"
 ));
-check("text add API present", () => assert(has(engine, "addTextCue(input)"), "addTextCue missing"));
 check("sticker add API present", () => assert(has(engine, "addSticker(sticker"), "sticker API missing"));
 check("effect add API present", () => assert(has(engine, "addEffect(input"), "effect API missing"));
 check("delete API present", () => assert(has(engine, "removeSelected()"), "delete API missing"));
