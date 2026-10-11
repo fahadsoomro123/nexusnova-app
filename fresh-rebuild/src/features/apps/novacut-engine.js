@@ -2173,6 +2173,7 @@ export class NovaCutEngine {
     this.projectSaveQueue = Promise.resolve();
     this.lastProjectSaveError = "";
     this.events.on("statechange", () => this.scheduleProjectDraftSave());
+    this.events.on("selectionchange", () => this.scheduleProjectDraftSave());
     this.events.on("ratio", () => this.scheduleProjectDraftSave());
     if (this.root) this.mount(this.root);
   }
