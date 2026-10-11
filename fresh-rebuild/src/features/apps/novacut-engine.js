@@ -3672,13 +3672,19 @@ export class NovaCutEngine {
           '<text class="nx-novacut__speed-curve-label" x="4" y="' + (Number(y) + 3.5).toFixed(2) + '">' + speed + '×</text>';
       }).join('');
       const line = points.map((point) => xAt(point.position).toFixed(2) + ',' + yAt(point.speed).toFixed(2)).join(' ');
-      const handles = points.map((point, index) =>
-        '<circle class="nx-novacut__speed-curve-handle" data-speed-curve-handle="' + index +
-        '" cx="' + xAt(point.position).toFixed(2) + '" cy="' + yAt(point.speed).toFixed(2) +
-        '" r="' + ((index === 0 || index === points.length - 1) ? '5.5' : '5') +
-        '" aria-label="Point ' + (index + 1) + ', ' + Number(point.position).toFixed(1) + ' percent, ' +
-        clamp(point.speed, 0.25, 4).toFixed(2) + ' times speed"/>'
-      ).join('');
+      const handles = points.map((point, index) => {
+        const cx = xAt(point.position).toFixed(2);
+        const cy = yAt(point.speed).toFixed(2);
+        const radius = (index === 0 || index === points.length - 1) ? '5.5' : '5';
+        const label = 'Point ' + (index + 1) + ', ' + Number(point.position).toFixed(1) + ' percent, ' +
+          clamp(point.speed, 0.25, 4).toFixed(2) + ' times speed';
+        // Transparent hit target gives fingers a practical touch area without
+        // making the visible graph handles oversized.
+        return '<circle class="nx-novacut__speed-curve-hit-area" data-speed-curve-handle="' + index +
+          '" cx="' + cx + '" cy="' + cy + '" r="12" fill="transparent" stroke="transparent" stroke-width="12" pointer-events="all" aria-label="' + label + '"/>' +
+          '<circle class="nx-novacut__speed-curve-handle" cx="' + cx + '" cy="' + cy +
+          '" r="' + radius + '" pointer-events="none"/>';
+      }).join('');
       return '<svg class="nx-novacut__speed-curve-graph" data-speed-curve-graph viewBox="0 0 320 120" role="img" aria-label="Custom playback speed curve. Drag points vertically to change speed and horizontally to change timing.">' +
         '<rect class="nx-novacut__speed-curve-plot" x="31" y="7" width="280" height="94" rx="8"/>' +
         grid +
@@ -3779,7 +3785,6 @@ export class NovaCutEngine {
       event.preventDefault();
       draggedSpeedCurvePoint = Number(handle.dataset.speedCurveHandle);
       try { speedCurveGraphHost.setPointerCapture(event.pointerId); } catch (_) {}
-      updateSpeedCurveFromPointer(event);
     });
     speedCurveGraphHost?.addEventListener('pointermove', (event) => {
       if (draggedSpeedCurvePoint == null) return;
