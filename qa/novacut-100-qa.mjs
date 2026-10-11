@@ -35,7 +35,15 @@ check("suite renderer exists", () => assert(exists("fresh-rebuild/src/features/a
 check("effects module exists", () => assert(exists("fresh-rebuild/src/features/apps/novacut-effects.js"), "effects missing"));
 check("overlay module exists", () => assert(exists("fresh-rebuild/src/features/apps/novacut-overlays.js"), "overlays missing"));
 check("history module exists", () => assert(exists("fresh-rebuild/src/features/apps/novacut-history.js"), "history missing"));
-check("engine imports history", () => assert(has(engine, 'import { NovaCutHistory } from "./novacut-history.js";'), "history import missing"));
+check("engine imports history and local project persistence", () => assert(
+  has(engine, 'import { NovaCutHistory } from "./novacut-history.js";') &&
+  has(engine, 'indexedDB.open("novacut-project-drafts", 1)') &&
+  has(engine, "restoreProjectDraft()") &&
+  has(engine, "scheduleProjectDraftSave()") &&
+  has(engine, "saveProjectDraft()") &&
+  has(engine, '["click", "pointerdown", "drop", "paste"]'),
+  "history import or autosaved draft recovery is missing"
+));
 check("engine imports effects", () => assert(has(engine, 'import { drawNovaCutEffect, normalizeNovaCutEffect } from "./novacut-effects.js";'), "effects import missing"));
 check("engine exports ratio presets", () => assert(has(engine, "export const RATIO_PRESETS"), "ratio presets missing"));
 
@@ -387,6 +395,62 @@ for (const test of flipCases) {
   }
 }
 console.log("FLIP TOOL BEHAVIOUR 3/3 PASS  video, text and sticker flip state");
+const originalIndexedDB = globalThis.indexedDB;
+const fakeDraftRecords = new Map();
+const fakeDraftStores = new Set();
+const fakeDraftDB = {
+  objectStoreNames: { contains: name => fakeDraftStores.has(name) },
+  createObjectStore(name) { fakeDraftStores.add(name); return {}; },
+  transaction() {
+    const tx = { error: null, objectStore: () => ({
+      get(key) {
+        const request = {};
+        queueMicrotask(() => {
+          request.result = fakeDraftRecords.get(key) || null;
+          request.onsuccess?.();
+        });
+        return request;
+      },
+      put(value) {
+        fakeDraftRecords.set(value.id, value);
+        queueMicrotask(() => tx.oncomplete?.());
+        return {};
+      }
+    }) };
+    return tx;
+  }
+};
+globalThis.indexedDB = {
+  open() {
+    const request = { result: fakeDraftDB };
+    queueMicrotask(() => {
+      if (!fakeDraftStores.has("drafts")) request.onupgradeneeded?.();
+      request.onsuccess?.();
+    });
+    return request;
+  }
+};
+try {
+  const draftEngine = new NovaCutEngine();
+  draftEngine.projectReady = true;
+  draftEngine.aspectRatio = "9:16";
+  const persistedMedia = new Blob(["NovaCut draft fixture"], { type: "video/mp4" });
+  draftEngine.registry.addVideoClip({ id: "qa-persisted-video", file: persistedMedia, startTime: 0, duration: 1234 });
+  draftEngine.activeTrackId = "qa-persisted-video";
+  if (!await draftEngine.saveProjectDraft()) throw new Error("NovaCut draft did not save.");
+  const restoredEngine = new NovaCutEngine();
+  const restored = await restoredEngine.restoreProjectDraft();
+  const restoredClip = restoredEngine.registry.videoTracks[0];
+  if (!restored.restored || restoredEngine.aspectRatio !== "9:16" ||
+      restoredClip?.id !== "qa-persisted-video" || restoredClip.file !== persistedMedia ||
+      restoredEngine.activeTrackId !== "qa-persisted-video") {
+    throw new Error("NovaCut draft did not restore media, timeline model, aspect ratio, or selection.");
+  }
+  console.log("PROJECT DRAFT SAVE/RESTORE 1/1 PASS  media blob and editor state survive draft round-trip");
+} finally {
+  if (originalIndexedDB === undefined) delete globalThis.indexedDB;
+  else globalThis.indexedDB = originalIndexedDB;
+}
 const centerPoint = novaCutCanvasPointFromClient(110, 70, { left: 10, top: 20, width: 200, height: 100 });
 if (centerPoint?.x !== 0.5 || centerPoint?.y !== 0.5 ||
     novaCutCanvasPointFromClient(10, 20, { left: 0, top: 0, width: 0, height: 100 }) !== null) {
