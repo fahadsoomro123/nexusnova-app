@@ -1096,7 +1096,13 @@ export class NovaCutStudioInteractions {
       this.pendingFrame = 0;
     }
 
-    const deltaMs = finite(this.pendingClipDx) / this.pixelsPerMs();
+    // Edge auto-scroll moves the timeline beneath a stationary finger. Count
+    // that content movement too, or clips stop moving when the pointer reaches
+    // the viewport edge on long projects.
+    const scrollDeltaPx = this.timeline && Number.isFinite(Number(state.timelineScrollLeft))
+      ? finite(this.timeline.scrollLeft) - finite(state.timelineScrollLeft)
+      : 0;
+    const deltaMs = (finite(this.pendingClipDx) + scrollDeltaPx) / this.pixelsPerMs();
     if (state.mode === "drag") {
       const desiredStart = state.originalStartTime + deltaMs;
       const boundedStart = state.recordType === "videoTracks"

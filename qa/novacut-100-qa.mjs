@@ -309,6 +309,26 @@ check("pointer interaction includes direct video framing without detaching timel
     assert(trimFlushed && trimClip.startTime === 2000 && trimClip.duration === 2000 &&
       trimClip.sourceStartTime === 2200 && trimClip.sourceDuration === 4000,
       "Synchronous start-trim flush lost source-time continuity or the final pointer delta.");
+
+    const scrolledClip = { id: "qa-edge-scroll-drag", startTime: 1000, duration: 2000 };
+    const scrolledInteraction = Object.create(NovaCutStudioInteractions.prototype);
+    Object.assign(scrolledInteraction, {
+      touchState: {
+        mode: "drag", clip: scrolledClip, element: {}, clipId: scrolledClip.id, recordType: "videoTracks",
+        originalStartTime: 1000, originalDuration: 2000, timelineScrollLeft: 100
+      },
+      timeline: { scrollLeft: 118 },
+      pendingFrame: 0,
+      pendingClipDx: 18,
+      engine: { activeTrackId: null, registry: { getById: () => ({ type: "videoTracks" }) } },
+      pixelsPerMs: () => 0.036,
+      clampedDragStart: (_clip, start) => Math.max(0, start),
+      snapToTimeline: (start) => start,
+      applyClipGeometry: () => {}
+    });
+    const scrolledFlushed = scrolledInteraction.flushClipMutation();
+    assert(scrolledFlushed && scrolledClip.startTime === 2000,
+      "Edge auto-scroll distance was not included in the effective timeline drag delta.");
   } finally {
     if (typeof originalCancelAnimationFrame === "function") globalThis.cancelAnimationFrame = originalCancelAnimationFrame;
     else delete globalThis.cancelAnimationFrame;
