@@ -45,6 +45,18 @@ function probeDuration(file) {
   return Number(output.trim());
 }
 
+function probeGrayLumaAt(file, timestamp) {
+  const frame = path.join(temp, "luma-" + String(timestamp).replace(/\W/g, "_") + ".gray");
+  run("ffmpeg", [
+    "-hide_banner", "-loglevel", "error", "-y",
+    "-i", file, "-ss", String(timestamp),
+    "-frames:v", "1", "-vf", "scale=1:1,format=gray",
+    "-f", "rawvideo", frame
+  ]);
+  assert(fs.existsSync(frame) && fs.statSync(frame).size === 1, "Could not decode a single-pixel luma probe at " + timestamp + "s.");
+  return fs.readFileSync(frame)[0];
+}
+
 function makeEngine({ videoName, hasAudio, audios = [], stickers = [], clipOptions = {} }) {
   const video = {
     id: "source-video",
@@ -153,6 +165,25 @@ try {
   const sourcePlan = planAndRun({ name: "source-audio-export.mp4", hasAudio: true });
   assert(sourcePlan.streams.some((stream) => stream.codec_type === "audio"), "Source-video export lost its original audio stream.");
   console.log("FFMPEG EXPORT 1/3 PASS  source audio is present and duration is preserved");
+
+  const animatedOpacityPlan = planAndRun({
+    name: "animated-opacity-export.mp4",
+    hasAudio: true,
+    clipOptions: {
+      keyframes: [
+        { timeMs: 0, scale: 1, rotation: 0, x_offset: 0, y_offset: 0, opacity: 1 },
+        { timeMs: 2000, scale: 1, rotation: 0, x_offset: 0, y_offset: 0, opacity: 0.2 }
+      ]
+    }
+  });
+  assert(animatedOpacityPlan.filters.includes("vf.push(") === false, "Unreachable guard");
+  assert(animatedOpacityPlan.filters.includes("geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='alpha(X,Y)*("),
+    "Animated opacity was not compiled to a per-frame alpha filter.");
+  const earlyOpacityLuma = probeGrayLumaAt(animatedOpacityPlan.output, 0.2);
+  const lateOpacityLuma = probeGrayLumaAt(animatedOpacityPlan.output, 1.5);
+  assert(earlyOpacityLuma > 0 && lateOpacityLuma >= 0 && lateOpacityLuma < earlyOpacityLuma * 0.72,
+    "Rendered video pixels did not become measurably more transparent over time: " + earlyOpacityLuma + " -> " + lateOpacityLuma);
+  console.log("ANIMATED OPACITY RENDER 1/1 PASS  FFmpeg output pixels follow the opacity keyframe curve");
 
   const mixedPlan = planAndRun({
     name: "mixed-audio-sticker-export.mp4",
