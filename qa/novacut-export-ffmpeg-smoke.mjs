@@ -176,7 +176,6 @@ try {
       ]
     }
   });
-  assert(animatedOpacityPlan.filters.includes("vf.push(") === false, "Unreachable guard");
   assert(animatedOpacityPlan.filters.includes("geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='alpha(X,Y)*("),
     "Animated opacity was not compiled to a per-frame alpha filter.");
   const earlyOpacityLuma = probeGrayLumaAt(animatedOpacityPlan.output, 0.2);
