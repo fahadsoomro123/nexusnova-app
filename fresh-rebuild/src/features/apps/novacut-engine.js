@@ -3663,6 +3663,29 @@ export class NovaCutEngine {
         (endpoint ? '' : '<button type="button" class="nx-novacut__secondary" data-speed-curve-remove="' + index + '" aria-label="Remove curve point ' + (index + 1) + '">Remove</button>') +
         '</div>';
     }).join('');
+    const renderSpeedCurveGraph = (points) => {
+      const xAt = (position) => 36 + clamp(position, 0, 100) * 2.7;
+      const yAt = (speed) => 96 - ((clamp(speed, 0.25, 4) - 0.25) / 3.75) * 84;
+      const grid = [0.25, 1, 2, 3, 4].map((speed) => {
+        const y = yAt(speed).toFixed(2);
+        return '<line class="nx-novacut__speed-curve-grid" x1="36" y1="' + y + '" x2="306" y2="' + y + '"/>' +
+          '<text class="nx-novacut__speed-curve-label" x="4" y="' + (Number(y) + 3.5).toFixed(2) + '">' + speed + '×</text>';
+      }).join('');
+      const line = points.map((point) => xAt(point.position).toFixed(2) + ',' + yAt(point.speed).toFixed(2)).join(' ');
+      const handles = points.map((point, index) =>
+        '<circle class="nx-novacut__speed-curve-handle" data-speed-curve-handle="' + index +
+        '" cx="' + xAt(point.position).toFixed(2) + '" cy="' + yAt(point.speed).toFixed(2) +
+        '" r="' + ((index === 0 || index === points.length - 1) ? '5.5' : '5') +
+        '" aria-label="Point ' + (index + 1) + ', ' + Number(point.position).toFixed(1) + ' percent, ' +
+        clamp(point.speed, 0.25, 4).toFixed(2) + ' times speed"/>'
+      ).join('');
+      return '<svg class="nx-novacut__speed-curve-graph" data-speed-curve-graph viewBox="0 0 320 120" role="img" aria-label="Custom playback speed curve. Drag points vertically to change speed and horizontally to change timing.">' +
+        '<rect class="nx-novacut__speed-curve-plot" x="31" y="7" width="280" height="94" rx="8"/>' +
+        grid +
+        '<polyline class="nx-novacut__speed-curve-line" points="' + line + '"/>' +
+        handles +
+        '</svg>';
+    };
     const initialSpeedCurve = Array.isArray(item.speedCurve) && item.speedCurve.length > 1
       ? item.speedCurve
       : [{ timeMs: 0, speed: finite(item.speed, 1) }, { timeMs: item.duration, speed: finite(item.speed, 1) }];
@@ -3677,6 +3700,7 @@ export class NovaCutEngine {
     const speedCurveEditor = type === "videoTracks"
       ? '<section class="nx-novacut__speed-curve-editor" data-speed-curve-editor' + (item.speedCurvePreset === "custom" ? '' : ' hidden') + '>' +
         '<div class="nx-novacut__speed-curve-heading"><strong>Custom speed curve</strong><span>0.25×–4×</span></div>' +
+        '<div class="nx-novacut__speed-curve-graph-host" data-speed-curve-graph-host>' + renderSpeedCurveGraph(speedCurveInitialPoints) + '</div>' +
         '<div class="nx-novacut__speed-curve-points" data-speed-curve-points>' + renderSpeedCurveRows(speedCurveInitialPoints) + '</div>' +
         '<button type="button" class="nx-novacut__secondary" data-speed-curve-add>Add curve point</button>' +
         '<p class="nx-novacut__sheet-copy">Set the speed at each point. Endpoints stay fixed; up to 10 points are supported.</p>' +
@@ -3701,14 +3725,19 @@ export class NovaCutEngine {
     const speedCurveSelect = sheet.body.querySelector('[data-clip-prop="speedCurvePreset"]');
     const speedCurveEditorRoot = sheet.body.querySelector('[data-speed-curve-editor]');
     const speedCurvePointsHost = sheet.body.querySelector('[data-speed-curve-points]');
+    const speedCurveGraphHost = sheet.body.querySelector('[data-speed-curve-graph-host]');
     const readCustomSpeedCurveDraft = () => Array.from(speedCurvePointsHost?.querySelectorAll('[data-speed-curve-row]') || [])
       .map((row) => ({
         position: Number(row.querySelector('[data-speed-curve-position]')?.value),
         speed: Number(row.querySelector('[data-speed-curve-speed]')?.value)
       }));
+    const renderCustomSpeedCurveGraph = (points = readCustomSpeedCurveDraft()) => {
+      if (speedCurveGraphHost) speedCurveGraphHost.innerHTML = renderSpeedCurveGraph(points);
+    };
     const renderCustomSpeedCurvePoints = (points) => {
       if (!speedCurvePointsHost) return;
       speedCurvePointsHost.innerHTML = renderSpeedCurveRows(points);
+      renderCustomSpeedCurveGraph(points);
       speedCurvePointsHost.querySelectorAll('[data-speed-curve-remove]').forEach((button) => {
         button.addEventListener('click', () => {
           const draft = readCustomSpeedCurveDraft();
@@ -3719,6 +3748,53 @@ export class NovaCutEngine {
         });
       });
     };
+    let draggedSpeedCurvePoint = null;
+    const updateSpeedCurveFromPointer = (event) => {
+      if (draggedSpeedCurvePoint == null || !speedCurveGraphHost) return;
+      const graph = speedCurveGraphHost.querySelector('[data-speed-curve-graph]');
+      const rect = graph?.getBoundingClientRect();
+      if (!rect || rect.width < 1 || rect.height < 1) return;
+      const draft = readCustomSpeedCurveDraft();
+      const index = draggedSpeedCurvePoint;
+      if (index < 0 || index >= draft.length) return;
+      const chartX = ((event.clientX - rect.left) / rect.width) * 320;
+      const chartY = ((event.clientY - rect.top) / rect.height) * 120;
+      const endpoint = index === 0 || index === draft.length - 1;
+      const minimumPosition = index === 0 ? 0 : draft[index - 1].position + 0.1;
+      const maximumPosition = index === draft.length - 1 ? 100 : draft[index + 1].position - 0.1;
+      draft[index] = {
+        position: endpoint ? (index === 0 ? 0 : 100) : clamp((chartX - 36) / 2.7, minimumPosition, maximumPosition),
+        speed: clamp(0.25 + ((96 - chartY) / 84) * 3.75, 0.25, 4)
+      };
+      renderCustomSpeedCurvePoints(draft);
+    };
+    speedCurvePointsHost?.addEventListener('input', (event) => {
+      if (event.target?.matches?.('[data-speed-curve-position], [data-speed-curve-speed]')) {
+        renderCustomSpeedCurveGraph();
+      }
+    });
+    speedCurveGraphHost?.addEventListener('pointerdown', (event) => {
+      const handle = event.target?.closest?.('[data-speed-curve-handle]');
+      if (!handle) return;
+      event.preventDefault();
+      draggedSpeedCurvePoint = Number(handle.dataset.speedCurveHandle);
+      try { speedCurveGraphHost.setPointerCapture(event.pointerId); } catch (_) {}
+      updateSpeedCurveFromPointer(event);
+    });
+    speedCurveGraphHost?.addEventListener('pointermove', (event) => {
+      if (draggedSpeedCurvePoint == null) return;
+      event.preventDefault();
+      updateSpeedCurveFromPointer(event);
+    });
+    const stopSpeedCurveDrag = (event) => {
+      if (draggedSpeedCurvePoint == null) return;
+      draggedSpeedCurvePoint = null;
+      try {
+        if (speedCurveGraphHost.hasPointerCapture(event.pointerId)) speedCurveGraphHost.releasePointerCapture(event.pointerId);
+      } catch (_) {}
+    };
+    speedCurveGraphHost?.addEventListener('pointerup', stopSpeedCurveDrag);
+    speedCurveGraphHost?.addEventListener('pointercancel', stopSpeedCurveDrag);
     if (speedCurveSelect && speedCurveEditorRoot) {
       speedCurveSelect.addEventListener('change', () => {
         speedCurveEditorRoot.hidden = speedCurveSelect.value !== 'custom';

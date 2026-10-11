@@ -97,6 +97,11 @@ check("video add API and visual controls are normalized", () => assert(
   has(engine, 'data-clip-prop="speedCurvePreset"') &&
   has(engine, "export function createNovaCutCustomSpeedCurve") &&
   has(engine, "data-speed-curve-editor") &&
+  has(engine, "data-speed-curve-graph") &&
+  has(engine, "data-speed-curve-graph-host") &&
+  has(engine, "data-speed-curve-handle") &&
+  has(engine, "updateSpeedCurveFromPointer") &&
+  has(engine, "pointercancel', stopSpeedCurveDrag)") &&
   has(engine, "data-speed-curve-add") &&
   has(engine, "data-speed-curve-position") &&
   has(engine, "data-speed-curve-speed") &&
