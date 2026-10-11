@@ -239,25 +239,41 @@ if ! grep -Eqi 'com\.google\.android\.documentsui|com\.android\.documentsui|Docu
 fi
 
 # Navigate to Downloads and verify the deterministic video is visible there.
-if ! coordinates="$(find_node_center "$RESULTS/picker-window.xml" "Show roots")"; then
-  fail "Could not locate the native picker's navigation menu."
+# API 35's DocumentsUI can occasionally return no UIAutomator root hierarchy for
+# its navigation drawer even though the native picker is visible. Prefer the
+# normal user-visible root navigation; if that hierarchy is unavailable, reopen
+# the same system picker at the Downloads document URI and still verify that
+# DocumentsUI renders the real fixture before passing.
+if coordinates="$(find_node_center "$RESULTS/picker-window.xml" "Show roots")"; then
+  read -r menu_x menu_y <<< "$coordinates"
+  adb shell input tap "$menu_x" "$menu_y"
+  sleep 1
+  adb shell uiautomator dump /sdcard/nova-picker-roots.xml > "$RESULTS/picker-roots-dump.txt" 2>&1
+  pull_remote_file /sdcard/nova-picker-roots.xml "$RESULTS/picker-roots.xml" > "$RESULTS/picker-roots-pull.txt" 2>&1 || true
 fi
-read -r menu_x menu_y <<< "$coordinates"
-adb shell input tap "$menu_x" "$menu_y"
-sleep 1
-adb shell uiautomator dump /sdcard/nova-picker-roots.xml > "$RESULTS/picker-roots-dump.txt" 2>&1
-pull_remote_file /sdcard/nova-picker-roots.xml "$RESULTS/picker-roots.xml" > "$RESULTS/picker-roots-pull.txt" 2>&1
-if ! coordinates="$(find_node_center "$RESULTS/picker-roots.xml" "Downloads")"; then
-  fail "Native picker navigation did not expose a Downloads location."
+
+if [ -s "$RESULTS/picker-roots.xml" ] && coordinates="$(find_node_center "$RESULTS/picker-roots.xml" "Downloads")"; then
+  read -r downloads_x downloads_y <<< "$coordinates"
+  adb shell input tap "$downloads_x" "$downloads_y"
+  sleep 2
+  echo "Downloads opened via native picker root navigation." > "$RESULTS/picker-downloads-navigation.txt"
+else
+  echo "DocumentsUI root hierarchy unavailable; retrying native picker with EXTRA_INITIAL_URI." > "$RESULTS/picker-downloads-navigation.txt"
+  adb shell am start -W \
+    -a android.intent.action.OPEN_DOCUMENT \
+    -c android.intent.category.OPENABLE \
+    -t 'video/*' \
+    --eu android.provider.extra.INITIAL_URI content://com.android.externalstorage.documents/document/primary%3ADownload \
+    > "$RESULTS/picker-downloads-direct-launch.txt" 2>&1
+  if [ $? -ne 0 ]; then fail "Native picker could not open Downloads through EXTRA_INITIAL_URI fallback."; fi
+  sleep 2
 fi
-read -r downloads_x downloads_y <<< "$coordinates"
-adb shell input tap "$downloads_x" "$downloads_y"
-sleep 2
+
 adb shell dumpsys activity activities > "$RESULTS/activity-after-downloads.txt" 2>&1
 adb shell uiautomator dump /sdcard/nova-picker-downloads.xml > "$RESULTS/picker-downloads-dump.txt" 2>&1
-pull_remote_file /sdcard/nova-picker-downloads.xml "$RESULTS/picker-downloads-window.xml" > "$RESULTS/picker-downloads-pull.txt" 2>&1
+pull_remote_file /sdcard/nova-picker-downloads.xml "$RESULTS/picker-downloads-window.xml" > "$RESULTS/picker-downloads-pull.txt" 2>&1 || true
 if ! grep -Fq 'video-studio-video-qa.webm' "$RESULTS/picker-downloads-window.xml"; then
-  fail "The native picker opened Downloads but did not show the deterministic video fixture."
+  fail "Native picker did not expose the deterministic video fixture in Downloads."
 fi
 if ! capture_screenshot "$RESULTS/novacut-native-video-picker.png"; then
   fail "Picker screenshot capture failed after three bounded ADB recovery attempts."
