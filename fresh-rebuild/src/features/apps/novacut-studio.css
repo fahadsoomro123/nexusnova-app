@@ -511,6 +511,38 @@
   box-shadow: inset 0 1px 0 rgba(255,255,255,.022) !important;
 }
 
+.nx-novacut__transition-marker {
+  position: absolute !important;
+  top: 50% !important;
+  z-index: 24 !important;
+  width: 25px !important;
+  height: 25px !important;
+  display: grid !important;
+  place-items: center !important;
+  padding: 0 !important;
+  transform: translate(-50%, -50%) !important;
+  border: 1px solid rgba(126, 198, 255, .8) !important;
+  border-radius: 8px !important;
+  background: #172636 !important;
+  color: #bce4ff !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,.48), 0 0 0 2px rgba(6,10,15,.65) !important;
+  cursor: pointer !important;
+  pointer-events: auto !important;
+  touch-action: manipulation !important;
+  font-size: 16px !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+}
+.nx-novacut__transition-marker.is-configured {
+  color: #d3ffec !important;
+  border-color: rgba(104, 228, 184, .9) !important;
+  background: #15372e !important;
+}
+.nx-novacut__transition-marker:focus-visible {
+  outline: 2px solid #f0f8ff !important;
+  outline-offset: 2px !important;
+}
+
 .nx-novacut__lane::before {
   content: "" !important;
   position: absolute !important;
