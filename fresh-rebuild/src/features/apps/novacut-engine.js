@@ -204,7 +204,7 @@ export function sliceNovaCutSpeedCurve(clip, startLocalMs, endLocalMs, sourceDur
   points.push({ timeMs: duration, speed: speedCurveAtLocalTime(original, end) });
   return normalizeNovaCutSpeedCurve(points, duration, sourceDurationMs);
 }
-const msToSec = (value) => Math.max(0, Number(value) || 0) / 1000;
+
 function ffmpegAtempoChain(value) {
   let speed = clamp(value, 0.25, 4);
   const filters = [];
