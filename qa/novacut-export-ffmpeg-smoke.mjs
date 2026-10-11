@@ -336,11 +336,12 @@ try {
     "Sticker scale/rotation keyframes were not compiled into the animated export layer.");
   assert(mixedPlan.filters.includes("overlay=x='clip(main_w*(") && mixedPlan.filters.includes("overlay_w/2,0,main_w-overlay_w)"),
     "Sticker position keyframes were not compiled into the overlay position expressions.");
-  assert(mixedPlan.filters.includes("fade=t=in:st=0:d=0.250:alpha=1") &&
-    mixedPlan.filters.includes("fade=t=out:st=0.750:d=0.250:alpha=1") &&
-    mixedPlan.filters.includes("if(lt(T,1.0000") &&
+  assert(mixedPlan.filters.includes("fade=t=in:st=0.250:d=0.250:alpha=1") &&
+    mixedPlan.filters.includes("fade=t=out:st=1.000:d=0.250:alpha=1") &&
+    mixedPlan.filters.includes("if(lt(T,0.2500") &&
+    mixedPlan.filters.includes("if(lt(T,1.2500") &&
     mixedPlan.filters.includes("0.2000"),
-    "Sticker opacity keyframes and timed fade filters were not included in the real export graph.");
+    "Sticker opacity keyframes and timed fade filters were not aligned to the layer's timeline start.");
   assert(mixedPlan.filters.includes("lutrgb=r='min(255,val*1.150)':g='min(255,val*1.150)':b='min(255,val*1.150)'"), "Brightness adjustment filter is missing from export.");
   assert(mixedPlan.filters.includes("eq=contrast=1.250:saturation=1.350"), "Contrast/saturation filters are missing from export.");
   assert(mixedPlan.filters.includes("fade=t=in:st=0.000:d=0.250:alpha=1"), "Fade-in alpha transition is missing from export.");
@@ -349,6 +350,35 @@ try {
     mixedPlan.filters.includes("overlay=x='(W-w)/2+("),
     "Animated scale, rotation, or position expressions are missing from FFmpeg export.");
   console.log("FFMPEG EXPORT 2/3 PASS  original audio, music and sticker filters render");
+
+  const timedStickerPlan = planAndRun({
+    name: "sticker-layer-timing-export.mp4",
+    hasAudio: true,
+    stickers: [{
+      id: "timed-sticker", asset: "smoke-test", label: "Timed smoke sticker", glyph: "★",
+      x: 0.5, y: 0.5, width: 0.25, height: 0.25, scale: 1, rotation: 0,
+      startTime: 400, duration: 1000, opacity: 1, fadeInMs: 400, fadeOutMs: 400,
+      keyframes: [], zIndex: 20
+    }]
+  });
+  assert(timedStickerPlan.filters.includes("fade=t=in:st=0.400:d=0.400:alpha=1") &&
+    timedStickerPlan.filters.includes("fade=t=out:st=1.000:d=0.400:alpha=1"),
+    "Delayed sticker fade filters were not placed on the global timeline.");
+  const halfwayInPixel = probeRgbPixel(timedStickerPlan.output, 0.6, 90, 160);
+  const fullyVisiblePixel = probeRgbPixel(timedStickerPlan.output, 0.8, 90, 160);
+  const halfwayOutPixel = probeRgbPixel(timedStickerPlan.output, 1.2, 90, 160);
+  const afterStickerPixel = probeRgbPixel(timedStickerPlan.output, 1.6, 90, 160);
+  assert(halfwayInPixel[0] > 35 && halfwayInPixel[2] > 35 &&
+    Math.abs(halfwayInPixel[0] - halfwayInPixel[2]) < 100,
+    "Sticker was not partially transparent halfway through its delayed fade-in: " + halfwayInPixel.join(","));
+  assert(fullyVisiblePixel[0] > 200 && fullyVisiblePixel[2] < 50,
+    "Sticker was not fully visible after its delayed fade-in: " + fullyVisiblePixel.join(","));
+  assert(halfwayOutPixel[0] > 35 && halfwayOutPixel[2] > 35 &&
+    Math.abs(halfwayOutPixel[0] - halfwayOutPixel[2]) < 100,
+    "Sticker was not partially transparent halfway through its delayed fade-out: " + halfwayOutPixel.join(","));
+  assert(afterStickerPixel[0] < 40 && afterStickerPixel[2] > 200,
+    "Sticker remained visible after its timeline interval ended: " + afterStickerPixel.join(","));
+  console.log("STICKER TIMING RENDER 1/1 PASS  delayed sticker fade-in/fade-out follow real output pixels");
 
   const silentPlan = planAndRun({ name: "silent-video-export.mp4", hasAudio: false });
   assert(!silentPlan.streams.some((stream) => stream.codec_type === "audio"), "Silent video generated an invalid audio stream.");

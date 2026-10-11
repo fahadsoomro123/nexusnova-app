@@ -2075,14 +2075,15 @@ class NovaCutCommandCompiler {
 
     const layerAlphaFilters = (item) => {
       const durationMs = Math.max(1, Number(item.duration) || 1);
+      const startAt = msToSec(item.startTime);
       const fadeInMs = clamp(item.fadeInMs ?? 0, 0, durationMs);
       const fadeOutMs = clamp(item.fadeOutMs ?? 0, 0, durationMs);
       const opacityFilters = [];
       if (fadeInMs > 0) {
-        opacityFilters.push("fade=t=in:st=0:d=" + msToSec(fadeInMs).toFixed(3) + ":alpha=1");
+        opacityFilters.push("fade=t=in:st=" + startAt.toFixed(3) + ":d=" + msToSec(fadeInMs).toFixed(3) + ":alpha=1");
       }
       if (fadeOutMs > 0) {
-        opacityFilters.push("fade=t=out:st=" + msToSec(Math.max(0, durationMs - fadeOutMs)).toFixed(3) +
+        opacityFilters.push("fade=t=out:st=" + (startAt + msToSec(Math.max(0, durationMs - fadeOutMs))).toFixed(3) +
           ":d=" + msToSec(fadeOutMs).toFixed(3) + ":alpha=1");
       }
       const opacity = clamp(item.opacity ?? 1, 0, 1);
@@ -2096,7 +2097,7 @@ class NovaCutCommandCompiler {
           x_offset: 0,
           y_offset: 0,
           keyframes: item.keyframes
-        }, "opacity", opacity, 0, "T");
+        }, "opacity", opacity, startAt, "T");
         opacityFilters.push("geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='alpha(X,Y)*(" + opacityExpression + ")'");
       } else if (opacity < 0.9999) {
         opacityFilters.push("colorchannelmixer=aa=" + opacity.toFixed(3));
